@@ -6,7 +6,7 @@ use super::storage::{ConstructorStorage, ConstructorValue};
 use super::*;
 use terminal_psi::OperationKind;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_establish_structural_array(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -17,7 +17,7 @@ impl TerminalExecution {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let Some(StructuralTypeShape::FixedArray { element, length }) = self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .map(|row| &row.shape)
         else {

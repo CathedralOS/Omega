@@ -49,7 +49,7 @@ fn retire_transferred_call_sources(
     Ok(())
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Rebind whole existing byte arguments, without converting inline storage.
     pub(crate) fn bind_byte_sequence_arguments(
         &self,
@@ -66,7 +66,7 @@ impl TerminalExecution {
         {
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&parameter.structural_type)
                 .ok_or(malformed())?;
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
@@ -165,7 +165,7 @@ impl TerminalExecution {
         {
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&parameter.structural_type)
                 .ok_or(malformed())?;
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
@@ -209,7 +209,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program
-            .machines
+            .machines()
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if callee.result != TerminalMachineResult::Unit {
@@ -312,7 +312,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program
-            .machines
+            .machines()
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type) {
@@ -410,7 +410,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let program = std::sync::Arc::clone(&self.program);
         let callee = program
-            .machines
+            .machines()
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         let Some(callee_result) = callee.result.structural() else {
@@ -432,7 +432,7 @@ impl TerminalExecution {
                 // so the descriptor needs no owned storage of its own.
                 || self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&result.structural_type)
                     .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view()));
         if structural_arguments
@@ -459,7 +459,7 @@ impl TerminalExecution {
                             .is_some_and(|value| {
                                 value.structural_type == parameter.structural_type
                                     && self.program
-                                        .structural_types
+                                        .structural_types()
                                         .get(&value.structural_type)
                                         .is_some_and(|declaration| {
                                             matches!(

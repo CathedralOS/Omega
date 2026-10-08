@@ -14,12 +14,12 @@ use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeDeclarati
 use crate::custody::direct_scalar_field_type;
 use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::ExecutableMachine;
 use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::{
     TerminalScalarValue, TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
+use terminal_psi::TerminalMachine;
 
 mod entry;
 
@@ -46,8 +46,8 @@ impl From<&TerminalStructuralBooleanFieldValue> for TerminalStructuralScalarFiel
 }
 
 pub(crate) fn bind(
-    machine: &ExecutableMachine,
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    machine: &TerminalMachine,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralScalarFieldValue],
     mut values: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
@@ -94,7 +94,7 @@ pub(crate) fn bind(
         &values,
         zero_initialized_arguments,
     )?;
-    for operation in machine.blocks.values().flat_map(|block| &block.operations) {
+    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
         // Preserve the Boolean entry contract. Integer fields can be initialized
         // by earlier stores; their existing runtime read checks missing contents.
         let (source, path, field) = match operation.kind {

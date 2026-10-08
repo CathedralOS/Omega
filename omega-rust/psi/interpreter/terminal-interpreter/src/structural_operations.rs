@@ -20,7 +20,7 @@ use terminal_psi::{
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_establish_scalar_case(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -57,7 +57,7 @@ impl TerminalExecution {
         };
         value.validate_against(
             self.program
-                .structural_types
+                .structural_types()
                 .get(&result.structural_type)
                 .ok_or_else(malformed)?,
         )?;
@@ -117,7 +117,7 @@ impl TerminalExecution {
         }
         let (common, cases) = match self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .map(|declaration| &declaration.shape)
         {
@@ -273,7 +273,7 @@ impl TerminalExecution {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let Some(terminal_psi::StructuralPlaceDeclaration {
@@ -391,7 +391,7 @@ impl TerminalExecution {
         established_fields: &[terminal_semantics::EstablishedErasedStructuralField],
     ) -> Result<(), TerminalInterpretError> {
         let leaves = terminal_semantics::zeroed_structural_leaves_with_established_erased_fields(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             value.structural_type,
             established_fields,
         )
@@ -481,13 +481,13 @@ impl TerminalExecution {
                     if let Some((StructuralPathSegment::FixedIndex(_), parent)) = path.split_last()
                         && let Some(array_type) =
                             crate::structural_inputs::byte_arrays::array_path_type(
-                                &self.program.structural_types,
+                                &self.program.structural_types(),
                                 value.structural_type,
                                 parent,
                             )
                         && let Some(length) =
                             crate::structural_inputs::byte_arrays::byte_array_length(
-                                &self.program.structural_types,
+                                &self.program.structural_types(),
                                 array_type,
                             )
                     {
@@ -556,7 +556,7 @@ impl TerminalExecution {
         let result = operation.result.structural().ok_or_else(malformed)?;
         // A descriptor home may declare byte qualifications its stores prove.
         let descriptor_home = matches!(
-            self.program.structural_types.get(&result.structural_type),
+            self.program.structural_types().get(&result.structural_type),
             Some(declaration) if declaration.shape.is_borrowed_byte_view()
         );
         if !matches!(
@@ -607,7 +607,7 @@ impl TerminalExecution {
         {
             return Err(malformed());
         }
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let Some(terminal_psi::StructuralPlaceDeclaration {
@@ -669,7 +669,7 @@ impl TerminalExecution {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
             return Err(malformed());
         }
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let access = machine
@@ -678,7 +678,7 @@ impl TerminalExecution {
             .chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
             .find(|parameter| parameter.place == destination)
@@ -709,7 +709,7 @@ impl TerminalExecution {
                 };
                 let result = machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.operations)
                     .find(|operation| operation.id == producer)?
                     .result
@@ -746,7 +746,7 @@ impl TerminalExecution {
         let parent = self.resolve_live_projection(destination, path, projection_access)?;
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
         let (StructuralTypeShape::Record { fields, .. }
@@ -933,14 +933,14 @@ impl TerminalExecution {
             .ok_or_else(malformed)?
         };
         let projection = terminal_semantics::structural_window_projection(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             base.structural_type,
             &path[prefix_length..],
             field,
         )
         .ok_or_else(malformed)?;
         let hole = crate::custody::project_structural_value(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             &base,
             &projection.path,
         )?;
@@ -1139,7 +1139,7 @@ impl TerminalExecution {
                         capacity,
                     }),
                 ..
-            }) = self.program.structural_types.get(&result.structural_type)
+            }) = self.program.structural_types().get(&result.structural_type)
         {
             let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
             let bytes = self
@@ -1213,12 +1213,12 @@ impl TerminalExecution {
             OperationKind::StructuralLeafCopy { source, path } => {
                 let root = self.structural_values.get(source).ok_or_else(malformed)?;
                 let leaf = crate::custody::project_structural_leaf_copy(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     root,
                     path,
                 )?;
                 let field = crate::custody::inline_structural_field(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     root.structural_type,
                     path,
                 )
@@ -1256,7 +1256,7 @@ impl TerminalExecution {
         };
         if self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
@@ -1305,7 +1305,7 @@ impl TerminalExecution {
         }
         if self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .is_some_and(|declaration| {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
@@ -1405,7 +1405,7 @@ impl TerminalExecution {
             .get(&array)
             .ok_or_else(malformed)?;
         let layout = terminal_semantics::byte_carrier_scalar_layout(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             result.structural_type,
         )
         .ok_or_else(malformed)?;
@@ -1508,7 +1508,7 @@ impl TerminalExecution {
         let structural_value = self.observation_root(source)?;
         let mut parent = StructuralRuntimePlace::from(&structural_value);
         if let Some(carrier) = terminal_semantics::case_payload_carrier(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             structural_value.structural_type,
             path,
         ) {
@@ -1520,7 +1520,7 @@ impl TerminalExecution {
             return Ok(StructuralScalarRuntimeField::case_payload(parent, field));
         }
         let carrier = terminal_semantics::record_field_carrier(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             structural_value.structural_type,
             path,
         )
@@ -1578,7 +1578,7 @@ impl TerminalExecution {
         }
         let structural_value = self.observation_root(source)?;
         if terminal_semantics::observed_field_declaration(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             structural_value.structural_type,
             path,
             field,

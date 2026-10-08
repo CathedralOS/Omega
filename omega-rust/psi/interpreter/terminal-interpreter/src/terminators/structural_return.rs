@@ -5,7 +5,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::errors::malformed;
 use crate::scalar_array::TerminalScalarArrayResult;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn settle_return_structural(
         &mut self,
         terminator: &Terminator,
@@ -22,7 +22,7 @@ impl TerminalExecution {
         };
         let signature = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .and_then(|machine| machine.result.structural())
             .cloned()
@@ -61,7 +61,7 @@ impl TerminalExecution {
             None => None,
         };
         let mut completed = if terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             signature.structural_type,
         )
         .is_some()

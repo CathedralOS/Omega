@@ -6,7 +6,6 @@ use crate::execution::TerminalExecution;
 use crate::results::{TerminalCrash, TerminalCrashSite};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use terminal_psi::BoundaryMachineDeclaration;
 use terminal_psi::BoundaryMachineResult;
@@ -31,7 +30,7 @@ pub enum TerminalEffectResult {
     Structural(TerminalStructuralValue),
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn admit_boundary_crash(
         &self,
         declaration: &BoundaryMachineDeclaration,
@@ -91,7 +90,7 @@ impl TerminalExecution {
         result: &OperationResult,
     ) -> Result<(), TerminalInterpretError> {
         if let OperationResult::Structural(result) = result
-            && ((requires_materialized_host_custody(&self.program.structural_types, result.structural_type)
+            && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
                 && !self.supports_scalar_case_result(result))
                 || self.structural_values.contains_key(&result.place)
                 || self.scalar_case_values.contains_key(&result.place)
@@ -123,7 +122,7 @@ impl TerminalExecution {
             )
             && self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&result.structural_type)
                 .is_some_and(|declaration| {
                     matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
@@ -136,7 +135,7 @@ impl TerminalExecution {
 /// Opaque host identities establish neither bounded contents nor a reference's
 /// captured loan and original backing, nor a fused binding's service authority.
 pub(crate) fn requires_materialized_host_custody(
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
     let mut pending = vec![root];
@@ -193,7 +192,7 @@ pub(crate) fn requires_materialized_host_custody(
     false
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn commit_boundary_result(
         &mut self,
         result: &OperationResult,
@@ -220,7 +219,7 @@ impl TerminalExecution {
             {
                 value.validate_against(
                     self.program
-                        .structural_types
+                        .structural_types()
                         .get(&declaration.structural_type)
                         .ok_or_else(malformed)?,
                 )?;
@@ -244,7 +243,7 @@ impl TerminalExecution {
                 && value.qualifications == expected.qualifications
                 && value.path.is_empty()
                 && !requires_materialized_host_custody(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     declaration.structural_type,
                 ) =>
             {

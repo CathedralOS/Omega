@@ -15,7 +15,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// The operation with each runtime-selected element replaced by the fixed
     /// index its selector's current value names.
     pub(crate) fn select_runtime_elements(
@@ -55,7 +55,7 @@ impl TerminalExecution {
                 ) {
                     match self
                         .program
-                        .structural_types
+                        .structural_types()
                         .get(&root_type)
                         .ok_or_else(malformed)?
                         .shape
@@ -67,13 +67,13 @@ impl TerminalExecution {
                     root_type
                 };
                 let array = resolve_structural_path_type(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     root_type,
                     &path[..position],
                 )?;
                 let length = match self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&array)
                     .ok_or_else(malformed)?
                     .shape

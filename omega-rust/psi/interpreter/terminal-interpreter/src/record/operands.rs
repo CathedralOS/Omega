@@ -11,7 +11,7 @@ use terminal_psi::{
     StructuralPathSegment,
 };
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn stage_constructor_operand(
         &self,
         argument: &StructuralArgument,
@@ -34,7 +34,7 @@ impl TerminalExecution {
                 }
             } else {
                 consume_affine_projection(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     &self.structural_values,
                     &self.structural_cases,
                     frontier,
@@ -141,7 +141,7 @@ impl TerminalExecution {
                     .ok_or_else(invalid)?;
                 frontier.remove(&containing);
                 crate::custody::split_affine_frontier_at_projection(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     frontier,
                     containing,
                     &claim.path,
@@ -171,7 +171,7 @@ impl TerminalExecution {
                     return Ok(None);
                 }
                 let child = resolve_structural_arguments(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     &self.structural_values,
                     std::slice::from_ref(argument),
                 )?

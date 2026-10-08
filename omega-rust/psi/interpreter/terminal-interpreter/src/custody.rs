@@ -11,7 +11,6 @@
 mod field_stores;
 
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::ExecutableMachine;
 use crate::execution::LiveClaim;
 use crate::reference;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
@@ -21,9 +20,10 @@ use crate::values::{
     TerminalStructuralValue,
 };
 use semantic_vocabulary::{
-    ClaimId, MachineId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
+    ClaimId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::TerminalMachine;
 use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
@@ -46,12 +46,12 @@ pub(crate) fn cleanup_retains_descendants(
 }
 
 pub(crate) fn commit_cleanup_action(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
-    machines: &BTreeMap<MachineId, ExecutableMachine>,
+    machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
     structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
@@ -181,12 +181,12 @@ pub(crate) fn commit_cleanup_action(
 /// Validate the complete cleanup transaction before the value is lent. The
 /// hook designation is declaration metadata, never inferred from its use here.
 pub(crate) fn validate_nominal_cleanup_action(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
-    machines: &BTreeMap<MachineId, ExecutableMachine>,
+    machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     frontier: &BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
@@ -460,8 +460,8 @@ pub(crate) fn bind_structural_arguments(
 }
 
 pub(crate) fn bind_structural_primitive_values(
-    machine: &ExecutableMachine,
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    machine: &TerminalMachine,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralPrimitiveValue],
     mut storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
@@ -603,7 +603,7 @@ pub(crate) fn remove_affine_root(
 }
 
 pub(crate) fn consume_affine_projection(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
@@ -650,7 +650,7 @@ pub(crate) fn consume_affine_projection(
 }
 
 pub(crate) fn split_affine_frontier_at_projection(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     current: StructuralAffineDiscard,
     projected_path: &[StructuralPathSegment],
@@ -761,7 +761,7 @@ pub(crate) fn split_affine_frontier_at_projection(
 }
 
 pub(crate) fn resolve_structural_path_type(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
@@ -774,7 +774,7 @@ pub(crate) fn resolve_structural_path_type(
 }
 
 fn resolve_structural_path_type_with_leaf(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
@@ -802,7 +802,7 @@ fn resolve_structural_path_type_with_leaf(
 /// Both storage presentation and explicit leaf-copy presentation use this
 /// exact field/case geometry; only their endpoint carrier differs.
 pub(crate) fn inline_structural_field<'a>(
-    structural_types: &'a BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'a, StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<&'a terminal_psi::StructuralFieldDeclaration> {
@@ -877,7 +877,7 @@ pub(crate) fn bind_entry_claims(
 }
 
 pub(crate) fn resolve_structural_arguments(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     arguments: &[StructuralArgument],
 ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
@@ -897,7 +897,7 @@ pub(crate) fn resolve_structural_arguments(
 /// The execution loop validates every selected discriminator before dispatch;
 /// this geometry helper itself grants no access or membership authority.
 pub(crate) fn project_structural_value(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
@@ -912,7 +912,7 @@ pub(crate) fn project_structural_value(
 /// A copy materializes an inline leaf's value carrier, while ordinary
 /// projections keep the storage presentation and its authority unchanged.
 pub(crate) fn project_structural_leaf_copy(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
@@ -925,7 +925,7 @@ pub(crate) fn project_structural_leaf_copy(
 }
 
 fn project_structural_value_with_leaf(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
     leaf_shape: fn(&terminal_psi::StructuralFieldType) -> Option<StructuralTypeShape>,
@@ -955,7 +955,7 @@ fn project_structural_value_with_leaf(
 /// A mixed shape's current case does not change its common-field declaration;
 /// payload fields remain selected separately through discriminator evidence.
 pub(crate) fn direct_scalar_field_type(
-    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
 ) -> Option<ScalarType> {

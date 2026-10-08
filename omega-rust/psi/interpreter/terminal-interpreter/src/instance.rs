@@ -55,7 +55,7 @@ impl TerminalProcessExitAdmission {
     /// Placed-view host loans have no domain-death admission carrier yet and
     /// are conservatively refused here. Ordinary in-domain loans are not.
     pub fn admit_isolated_simulated_domain(
-        instance: &TerminalInstance<'_>,
+        instance: &TerminalInstance<'_, '_>,
         boundary: BoundaryMachineId,
     ) -> Result<Self, TerminalBindingRejection> {
         if instance.closed {
@@ -181,12 +181,14 @@ pub enum TerminalInstanceCloseError {
 /// Construction is `TerminalProgram::instantiate`. The `'host` lifetime ties
 /// the borrowed host objects behind the bound adapters to this roster —
 /// adapters cannot outlive the instance that bound them.
-pub struct TerminalInstance<'host> {
-    program: TerminalProgram,
+/// The independent `'artifact` lifetime retains compiler-owned code across
+/// pauses. Programs loaded from external bytes own their code instead.
+pub struct TerminalInstance<'host, 'artifact> {
+    program: TerminalProgram<'artifact>,
     process_domain: std::sync::Arc<SimulatedProcessDomain>,
     /// The interpreter state while this instance owns it. `close` releases it
     /// early; `None` after close.
-    execution: Option<TerminalExecution>,
+    execution: Option<TerminalExecution<'artifact>>,
     /// Exact reachable host slots under this instance's provider installation.
     /// Retained unused declarations impose no binding requirement.
     required_imports: Vec<BoundaryMachineId>,
@@ -199,10 +201,10 @@ pub struct TerminalInstance<'host> {
     closed: bool,
 }
 
-impl<'host> TerminalInstance<'host> {
+impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     pub(crate) fn new(
-        program: TerminalProgram,
-        mut execution: TerminalExecution,
+        program: TerminalProgram<'artifact>,
+        mut execution: TerminalExecution<'artifact>,
         required_imports: Vec<BoundaryMachineId>,
     ) -> Self {
         let process_domain = std::sync::Arc::new(SimulatedProcessDomain);
@@ -220,7 +222,7 @@ impl<'host> TerminalInstance<'host> {
 
     /// The admitted program this instance runs — the program handle is
     /// retained by the instance for its whole life.
-    pub fn program(&self) -> &TerminalProgram {
+    pub fn program(&self) -> &TerminalProgram<'artifact> {
         &self.program
     }
 
@@ -234,7 +236,7 @@ impl<'host> TerminalInstance<'host> {
         if self.closed || !self.required_imports.contains(&slot) {
             return None;
         }
-        self.program.program.boundary_machines.get(&slot)
+        self.program.program.boundary_machines().get(&slot)
     }
 
     /// Establish one demanded import slot's checked host adapter.
@@ -254,7 +256,7 @@ impl<'host> TerminalInstance<'host> {
         if self
             .program
             .program
-            .boundary_machines
+            .boundary_machines()
             .get(&slot)
             .is_some_and(|declaration| {
                 matches!(
@@ -277,7 +279,7 @@ impl<'host> TerminalInstance<'host> {
                 )
             }) {
                 Err(TerminalBindingRejection::ProviderRealized { boundary: slot })
-            } else if self.program.program.boundary_machines.contains_key(&slot) {
+            } else if self.program.program.boundary_machines().contains_key(&slot) {
                 Err(TerminalBindingRejection::NotRequiredImport { boundary: slot })
             } else {
                 Err(TerminalBindingRejection::UnknownImport { boundary: slot })

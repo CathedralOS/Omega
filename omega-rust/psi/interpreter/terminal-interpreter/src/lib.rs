@@ -1,19 +1,19 @@
 //! Fuel-bounded reference execution of admitted Terminal Psi artifacts.
 //!
 //! Start at `terminal_interpreter.rs`: it owns the entries and the sequence
-//! every one of them runs — decode the canonical semantic and proof bytes,
-//! verify them under the admission profile, construct the execution, run it.
+//! every one of them runs — obtain canonical program storage, construct the
+//! execution, run it. External bytes decode once; retained artifacts are borrowed.
 //! `execution.rs` is the engine those entries drive: the live state and the
 //! interpreter loop. Execution retains immutable code and resumable live
 //! custody; fuel exhaustion is not a semantic program outcome.
 //!
-//! The embedding surface sits beside it, by lifecycle: `program` (one decoded,
-//! verified, immutable artifact — `TerminalProgram` — reusable across
+//! The embedding surface sits beside it, by lifecycle: `program` (one owned or
+//! borrowed immutable artifact — `TerminalProgram` — reusable across
 //! independent instances), `instance` (`TerminalInstance`: one guest
 //! activation whose demanded import slots bind checked host adapters before
 //! `invoke` and release on `close`), and `adapters` (the typed contract a
 //! host implementation declares so a slot can be checked before any effect
-//! runs). Embedding a program goes through `TerminalProgram::load`,
+//! runs). Embedding a program goes through `TerminalProgram::load` or `borrow`,
 //! `instantiate`, `bind_import`, `invoke`, `close`; the raw
 //! `TerminalExecution`/`TerminalEffectHandler` surface remains the low-level
 //! control the embedding layer is built over, not a binding API.

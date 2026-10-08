@@ -7,7 +7,7 @@ use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{ByteSequenceCarrier, Operation, OperationKind, StructuralTypeShape};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_byte_sequence_concatenation(
         &mut self,
         operation: &Operation,
@@ -19,7 +19,7 @@ impl TerminalExecution {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
             self.program
-                .structural_types
+                .structural_types()
                 .get(&result.structural_type)
                 .ok_or_else(malformed)?
                 .shape

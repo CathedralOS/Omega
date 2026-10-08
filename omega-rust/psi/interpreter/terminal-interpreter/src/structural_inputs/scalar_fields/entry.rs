@@ -2,8 +2,8 @@
 
 use crate::errors::malformed;
 use crate::structural_inputs::scalar_fields::{
-    ExecutableMachine, PlaceId, StructuralScalarRuntimeField, StructuralTypeDeclaration,
-    StructuralTypeId, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
+    PlaceId, StructuralScalarRuntimeField, StructuralTypeDeclaration, StructuralTypeId,
+    TerminalInterpretError, TerminalMachine, TerminalScalarValue, TerminalStructuralValue,
 };
 use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeMap;
@@ -12,8 +12,8 @@ use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape};
 
 pub(crate) fn validate(
-    machine: &ExecutableMachine,
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    machine: &TerminalMachine,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     roots: &BTreeMap<PlaceId, TerminalStructuralValue>,
     values: &BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],
@@ -41,7 +41,7 @@ pub(crate) fn validate(
 }
 
 fn validate_type(
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     current: StructuralTypeId,
     parent: &mut StructuralRuntimePlace,
     values: &BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
@@ -120,7 +120,7 @@ fn validate_type(
 }
 
 fn requires_contents(
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
 ) -> bool {
     let mut pending = vec![root];

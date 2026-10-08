@@ -30,7 +30,7 @@ pub(crate) struct StructuralCaseContents {
     pub(crate) case: StructuralCaseId,
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Check every selected overlay against its current stored discriminator.
     /// Verification already proved the source permission and membership; this
     /// joins the admitted operation to the interpreter's actual backing before
@@ -41,7 +41,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         for projection in operation.kind.structural_projections() {
             validate_case_projection(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_values,
                 &self.structural_cases,
                 projection.root,
@@ -68,7 +68,7 @@ impl TerminalExecution {
         for segment in path {
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&leaf.structural_type)
                 .ok_or_else(malformed)?;
             match segment {
@@ -145,7 +145,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or(malformed())?;
         for contents in cases {
@@ -157,13 +157,13 @@ impl TerminalExecution {
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
             )?;
             let selected_type = resolve_structural_path_type(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 root.structural_type,
                 &contents.path,
             )?;
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&selected_type)
                 .ok_or(malformed())?;
             // This input form establishes a complete empty-payload case. It
@@ -211,7 +211,7 @@ impl TerminalExecution {
         let root = self.structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
-        let selected = project_structural_value(&self.program.structural_types, root, path)?;
+        let selected = project_structural_value(&self.program.structural_types(), root, path)?;
         let contents = self
             .structural_cases
             .get(&StructuralRuntimePlace::from(&selected))
@@ -228,7 +228,7 @@ impl TerminalExecution {
 /// Runtime payload fields overlay their sum's backing. Check each Case before
 /// omitting it from the physical path; two cases may use the same field names.
 pub(crate) fn validate_case_projection(
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     values: &BTreeMap<PlaceId, TerminalStructuralValue>,
     cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
     source: PlaceId,

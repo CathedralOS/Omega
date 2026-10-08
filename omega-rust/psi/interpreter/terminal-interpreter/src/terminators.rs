@@ -18,6 +18,7 @@ use crate::execution::{
     CleanupContinuation, CompletedReturn, LiveClaim, SuspendedCall, SuspendedCallResult,
     TerminalExecution, TerminatorFlow,
 };
+use crate::program::MachineBlocks;
 use crate::results::meter_status;
 use crate::results::{
     TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,
@@ -42,7 +43,7 @@ struct SelectedSuccessor<'edge> {
     cleanup_actions: &'edge [terminal_psi::TerminalAffineCleanupAction],
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn settle_jump(
         &mut self,
         terminator: &Terminator,
@@ -86,7 +87,7 @@ impl TerminalExecution {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
             consume_affine_projection(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_values,
                 &self.structural_cases,
                 projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
@@ -127,7 +128,7 @@ impl TerminalExecution {
             )?;
             if path.is_empty()
                 || resolve_structural_path_type(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     root.structural_type,
                     path,
                 )? != structural_type
@@ -135,7 +136,7 @@ impl TerminalExecution {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
             consume_affine_projection(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_values,
                 &self.structural_cases,
                 projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
@@ -175,7 +176,7 @@ impl TerminalExecution {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
             consume_affine_projection(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_values,
                 &self.structural_cases,
                 &mut self.live_affine_frontier,
@@ -253,13 +254,12 @@ impl TerminalExecution {
             .ok_or(malformed())?;
         let target = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                 self.current_machine,
             ))?
-            .blocks
-            .get(&successor.target)
+            .block(&successor.target)
             .ok_or(malformed())?;
         if target.parameters.len() != successor.payload_fields.len() {
             return Err(malformed());
@@ -315,7 +315,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_return")
         };
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
@@ -347,7 +347,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_return_unit")
         };
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if machine.result != TerminalMachineResult::Unit {
@@ -418,7 +418,7 @@ impl TerminalExecution {
         for segment in path {
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&structural_type)
                 .ok_or(malformed())?;
             if let (StructuralPathSegment::Field(identity), StructuralTypeShape::Sum { cases }) =
@@ -440,7 +440,7 @@ impl TerminalExecution {
                 structural_type = next;
             } else {
                 structural_type = resolve_structural_path_type(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     structural_type,
                     std::slice::from_ref(segment),
                 )?;
@@ -517,7 +517,7 @@ impl TerminalExecution {
                 missing: vec![demand],
             });
         }
-        let declaration = self.program.boundary_machines.get(boundary).ok_or(
+        let declaration = self.program.boundary_machines().get(boundary).ok_or(
             TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
         )?;
         if declaration.completion != terminal_psi::BoundaryCompletion::External(*kind)

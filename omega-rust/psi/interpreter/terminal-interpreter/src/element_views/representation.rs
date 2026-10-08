@@ -70,7 +70,7 @@ impl RepresentationView {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(super) fn representation_view(
         &mut self,
         source: &StructuralArgument,
@@ -80,13 +80,13 @@ impl TerminalExecution {
         end: usize,
     ) -> Result<RepresentationView, TerminalInterpretError> {
         let extent = terminal_semantics::representation_byte_extent(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             collection,
         )
         .and_then(|extent| usize::try_from(extent).ok())
         .ok_or_else(malformed)?;
         let layout = terminal_semantics::representation_element_layout(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             element,
         )
         .ok_or_else(malformed)?;
@@ -96,7 +96,7 @@ impl TerminalExecution {
         }
         let storage = if matches!(
             self.program
-                .structural_types
+                .structural_types()
                 .get(&collection)
                 .map(|row| &row.shape),
             Some(StructuralTypeShape::ByteSequence(_))
@@ -119,7 +119,7 @@ impl TerminalExecution {
                 .ok_or_else(malformed)?
             {
                 binding @ ByteSequenceBinding::MutableArray { array, offset, .. } => {
-                    binding.validate_mutable_referent(&self.program.structural_types, value)?;
+                    binding.validate_mutable_referent(&self.program.structural_types(), value)?;
                     ByteStorage::Array {
                         storage: array.clone(),
                         offset: usize::try_from(*offset).map_err(|_| malformed())?,
@@ -138,7 +138,7 @@ impl TerminalExecution {
                 self.array_storage_root_staged(source.place, &mut cursor, &mut BTreeMap::new())?;
             let values = BTreeMap::from([(source.place, root)]);
             let referent = crate::custody::resolve_structural_arguments(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &values,
                 std::slice::from_ref(source),
             )?

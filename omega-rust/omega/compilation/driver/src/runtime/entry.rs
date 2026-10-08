@@ -35,7 +35,9 @@ pub(super) fn establish(
     program: &TerminalProgram,
     provisions: Option<&TerminalRuntimeProvisions>,
 ) -> Result<EstablishedEntry, TerminalRuntimeError> {
-    let entry = program.entry();
+    let entry = program
+        .entry()
+        .map_err(TerminalRuntimeError::Requirements)?;
     if !entry.scalar_parameters.is_empty() || !entry.placed_view_inputs.is_empty() {
         return Err(TerminalRuntimeError::missing(
             "program-entry-arrival-values",

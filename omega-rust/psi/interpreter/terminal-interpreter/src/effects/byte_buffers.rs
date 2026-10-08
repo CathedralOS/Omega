@@ -154,7 +154,7 @@ impl BoundaryArguments {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn resolve_boundary_arguments(
         &self,
         parameters: &[StructuralParameterDeclaration],
@@ -174,7 +174,7 @@ impl TerminalExecution {
         {
             let scalar_loan = matches!(
                 self.program
-                    .structural_types
+                    .structural_types()
                     .get(&parameter.structural_type)
                     .ok_or_else(malformed)?
                     .shape,
@@ -215,7 +215,7 @@ impl TerminalExecution {
                     let parameter = &parameters[argument_index];
                     let declaration = self
                         .program
-                        .structural_types
+                        .structural_types()
                         .get(&parameter.structural_type)
                         .ok_or_else(malformed)?;
                     let scope = match declaration.shape {
@@ -261,7 +261,7 @@ impl TerminalExecution {
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if matches!(
                 self.program
-                    .structural_types
+                    .structural_types()
                     .get(&parameter.structural_type)
                     .ok_or_else(malformed)?
                     .shape,
@@ -304,7 +304,7 @@ impl TerminalExecution {
             }
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&parameter.structural_type)
                 .ok_or_else(malformed)?;
             if matches!(
@@ -392,7 +392,7 @@ impl TerminalExecution {
                 resolved.element_views.push(None);
             } else {
                 let values = resolve_structural_arguments(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     &self.structural_values,
                     std::slice::from_ref(argument),
                 )?;
@@ -433,7 +433,7 @@ impl TerminalExecution {
                 .byte_sequence_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            binding.validate_mutable_referent(&self.program.structural_types, value)?;
+            binding.validate_mutable_referent(&self.program.structural_types(), value)?;
             return Ok(binding.clone());
         }
         let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
@@ -441,7 +441,7 @@ impl TerminalExecution {
             return Err(malformed());
         };
         let mut parent = resolve_structural_arguments(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             &self.structural_values,
             &[StructuralArgument {
                 place: argument.place,
@@ -453,7 +453,7 @@ impl TerminalExecution {
         .ok_or_else(malformed)?;
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
         let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
@@ -489,7 +489,7 @@ impl TerminalExecution {
             referent: parent,
         };
         binding.validate_mutable_referent(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             match &binding {
                 ByteSequenceBinding::MutableField { referent, .. } => referent,
                 ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
@@ -529,7 +529,7 @@ impl TerminalExecution {
         let bytes = match binding {
             ByteSequenceBinding::Immutable(bytes) => bytes.clone(),
             ByteSequenceBinding::MutableField { field, .. } => {
-                binding.validate_mutable_referent(&self.program.structural_types, value)?;
+                binding.validate_mutable_referent(&self.program.structural_types(), value)?;
                 self.structural_byte_sequence_fields
                     .get(field)
                     .ok_or_else(malformed)?
@@ -558,7 +558,7 @@ impl TerminalExecution {
             return Err(malformed());
         };
         let mut parent = resolve_structural_arguments(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             &self.structural_values,
             &[StructuralArgument {
                 place: argument.place,
@@ -570,7 +570,7 @@ impl TerminalExecution {
         .ok_or_else(malformed)?;
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
         let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {

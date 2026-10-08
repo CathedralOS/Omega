@@ -5,7 +5,7 @@ use crate::errors::malformed;
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(super) fn continue_cleanup_actions(
         &mut self,
         mut remaining: std::vec::IntoIter<TerminalAffineCleanupAction>,
@@ -13,9 +13,9 @@ impl TerminalExecution {
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         while let Some(action) = remaining.next() {
             let nominal = commit_cleanup_action(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_cases,
-                &self.program.machines,
+                &self.program.machines(),
                 &mut self.structural_values,
                 &mut self.reference_referents,
                 &mut self.structural_element_view_fields,
@@ -59,7 +59,7 @@ impl TerminalExecution {
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let callee = self
             .program
-            .machines
+            .machines()
             .get(&completed.0.cleanup_machine)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                 completed.0.cleanup_machine,
@@ -221,11 +221,11 @@ impl TerminalExecution {
     /// Borrowed and unrestricted inputs are frame bindings, not owed owned roots.
     /// The completed result has already been removed before this retirement.
     pub(super) fn retire_return_inputs(&mut self) {
-        if let Some(machine) = self.program.machines.get(&self.current_machine) {
+        if let Some(machine) = self.program.machines().get(&self.current_machine) {
             for parameter in machine.structural_parameters.iter().chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             ) {
                 if parameter.multiplicity == StructuralMultiplicity::Unrestricted

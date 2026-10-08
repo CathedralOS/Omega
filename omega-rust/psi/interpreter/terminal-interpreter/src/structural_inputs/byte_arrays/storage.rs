@@ -35,7 +35,7 @@ impl From<StructuralRuntimePlace> for ArrayStorage {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     fn frame_array(&self, depth: usize, place: PlaceId) -> Option<&TerminalScalarArrayValue> {
         if depth == self.call_stack.len() {
             self.scalar_array_values.get(&place)
@@ -59,14 +59,14 @@ impl TerminalExecution {
             return Err(malformed());
         };
         let array = self.frame_array(depth, place).ok_or_else(malformed)?;
-        let count = super::byte_array_length(&self.program.structural_types, structural_type)
+        let count = super::byte_array_length(&self.program.structural_types(), structural_type)
             .ok_or_else(malformed)?;
         if array.structural_type != structural_type
             || u64::try_from(array.elements.len()).ok() != Some(count)
             || !storage.referent.path.is_empty()
             || !matches!(
                 self.program
-                    .structural_types
+                    .structural_types()
                     .get(&structural_type)
                     .map(|declaration| &declaration.shape),
                 Some(terminal_psi::StructuralTypeShape::FixedArray { .. })

@@ -31,7 +31,7 @@ pub(crate) mod storage;
 mod structural_array;
 use storage::{ConstructorStorage, ConstructorValue};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn establish_record(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
@@ -42,7 +42,7 @@ impl TerminalExecution {
         }
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .ok_or_else(malformed)?;
         let StructuralTypeShape::Record {
@@ -125,7 +125,7 @@ impl TerminalExecution {
                             || !argument.path.is_empty()
                             || !self
                                 .program
-                                .structural_types
+                                .structural_types()
                                 .get(&child.structural_type)
                                 .is_some_and(|row| {
                                     matches!(
@@ -189,7 +189,7 @@ impl TerminalExecution {
                             || !child.path.is_empty()
                             || !self
                                 .program
-                                .structural_types
+                                .structural_types()
                                 .get(&child.structural_type)
                                 .is_some_and(|declaration| {
                                     declaration.shape == StructuralTypeShape::ByteSequence(carrier)
@@ -298,17 +298,21 @@ impl TerminalExecution {
     /// primitive, scalar-array and descriptor roots keep their own codecs;
     /// records, arrays of records and cases all copy the same subtree cells.
     pub(crate) fn plain_aggregate_type(&self, root: StructuralTypeId) -> bool {
-        self.program.structural_types.get(&root).is_some_and(|row| {
-            matches!(
-                row.shape,
-                StructuralTypeShape::Record { .. }
-                    | StructuralTypeShape::FixedArray { .. }
-                    | StructuralTypeShape::Sum { .. }
-                    | StructuralTypeShape::Mixed { .. }
+        self.program
+            .structural_types()
+            .get(&root)
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::FixedArray { .. }
+                        | StructuralTypeShape::Sum { .. }
+                        | StructuralTypeShape::Mixed { .. }
+                )
+            })
+            && terminal_semantics::descriptor_results::plain_owned_shape(
+                self.program.structural_types().values(),
+                root,
             )
-        }) && terminal_semantics::descriptor_results::plain_owned_shape(
-            self.program.structural_types.values(),
-            root,
-        )
     }
 }

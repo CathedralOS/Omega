@@ -8,7 +8,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Called only after the dispatch loop has charged this execution. Prepare
     /// the complete view before replacement, including when source and result
     /// storage alias. No failing validation may discard a previous descriptor.
@@ -62,7 +62,7 @@ impl TerminalExecution {
                 | crate::byte_sequences::binding::ByteSequenceBinding::MutableField { .. }
         );
         let source_length = self.byte_sequence_length(*source)?;
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         // Canonical verification owns unique producer/result IDs. Retain the
@@ -76,7 +76,7 @@ impl TerminalExecution {
                         structural_type: result.structural_type,
                     }
         }) || !matches!(
-            self.program.structural_types.get(&result.structural_type),
+            self.program.structural_types().get(&result.structural_type),
             Some(declaration)
                 if declaration.shape.is_borrowed_byte_view()
         ) || u64::try_from(length).ok() != Some(source_length)
@@ -172,7 +172,7 @@ impl TerminalExecution {
             || !destination.qualifications.is_empty()
             || !self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&destination.structural_type)
                 .is_some_and(|row| row.shape.is_borrowed_byte_view())
         {
@@ -196,7 +196,7 @@ impl TerminalExecution {
                 length,
                 ..
             } => {
-                binding.validate_mutable_referent(&self.program.structural_types, source)?;
+                binding.validate_mutable_referent(&self.program.structural_types(), source)?;
                 let start = u64::try_from(window.start).map_err(|_| malformed())?;
                 let end = u64::try_from(window.end).map_err(|_| malformed())?;
                 if end > *length {
@@ -222,8 +222,10 @@ impl TerminalExecution {
                         length: end - start,
                         referent: destination.clone(),
                     };
-                    narrowed
-                        .validate_mutable_referent(&self.program.structural_types, &destination)?;
+                    narrowed.validate_mutable_referent(
+                        &self.program.structural_types(),
+                        &destination,
+                    )?;
                     narrowed
                 } else {
                     ByteSequenceBinding::Immutable(self.stored_byte_array_snapshot(

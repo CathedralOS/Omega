@@ -1,5 +1,4 @@
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::ExecutableMachine;
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::StructuralTypeId;
@@ -8,6 +7,7 @@ use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::TerminalMachine;
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {
@@ -21,12 +21,12 @@ pub struct TerminalScalarArrayResult {
     pub value: TerminalScalarArrayValue,
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Copy a complete unrestricted actual into its exact callee parameter.
     /// Opaque host roots and projected/borrowed storage carry no array payload.
     pub(crate) fn prepare_scalar_array_argument(
         &self,
-        machine: &ExecutableMachine,
+        machine: &TerminalMachine,
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
@@ -35,7 +35,7 @@ impl TerminalExecution {
             .get(&argument.place)
             .ok_or_else(malformed)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             parameter.structural_type,
         )
         .ok_or_else(malformed)?;
@@ -85,7 +85,7 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             result.structural_type,
         )
         .ok_or_else(malformed)?;

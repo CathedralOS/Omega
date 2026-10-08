@@ -6,8 +6,8 @@
 //! and the native artifact each need the same module, and each used to decode
 //! the same bytes again to get it.
 //!
-//! This witness pins zero decodes during retained native realization,
-//! including provider installation. The artifact retains its immutable module
+//! This witness pins zero decodes during retained native realization and runtime
+//! execution, including provider installation. The artifact retains its immutable module
 //! and lends a sealed view with the corresponding identity. External ingress
 //! still decodes; crossing between consumers inside one compile does not.
 //!
@@ -34,7 +34,7 @@ const FIXTURE: &str =
     "tests/omega/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
 
 #[test]
-fn native_realization_borrows_the_retained_terminal_module() {
+fn realization_and_execution_borrow_the_retained_terminal_module() {
     let target_name = "linux_x86_64";
     let main = repo_root().join(FIXTURE);
     let prepared = reviewed_repository_fixture_package_inputs(&main, Some(target_name))
@@ -147,4 +147,121 @@ fn native_realization_borrows_the_retained_terminal_module() {
         "native realization, including provider installation, must borrow the retained artifact \
          rather than decode its semantic bytes again"
     );
+
+    let before_execution = terminal_codec::module_decode_count();
+    let observation = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+        artifact: artifact.psi_artifact(),
+        provisions: product.runtime_provisions.as_ref(),
+        fuel_allowance: 100_000,
+        standard_input: None,
+        clock: None,
+    })
+    .expect("retained provider program executes through the product runtime");
+    assert!(
+        matches!(observation.status,
+            terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(ref completion)
+            if completion.return_code == 70
+        ),
+        "unexpected outcome: {:?}",
+        observation.status
+    );
+    assert_eq!(
+        terminal_codec::module_decode_count() - before_execution,
+        0,
+        "retained runtime execution must not reload Terminal bytes"
+    );
+
+    exercise_owned_and_borrowed_instances();
+}
+
+fn exercise_owned_and_borrowed_instances() {
+    use terminal_fuel::TerminalFuelMeter;
+    use terminal_interpreter::{
+        TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalStructuralInputs,
+    };
+
+    let root = repo_root()
+        .join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg");
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root,
+            build_dir: Some(
+                std::env::temp_dir().join(format!("omega-terminal-storage-{}", std::process::id())),
+            ),
+            target_name: Some("linux_x86_64".to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("ordinary empty entry produces Terminal");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal");
+    let before = terminal_codec::module_decode_count();
+    let borrowed = TerminalProgram::borrow(retained.artifact().view().expect("retained view"));
+    let module = retained
+        .artifact()
+        .semantic_module()
+        .expect("retained module");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    assert!(
+        std::ptr::eq(borrowed.entry().unwrap().result, &entry.result),
+        "execution descriptions must borrow the original declarations"
+    );
+    let mut first = borrowed
+        .instantiate(&[], TerminalStructuralInputs::default())
+        .unwrap();
+    let mut second = borrowed
+        .instantiate(&[], TerminalStructuralInputs::default())
+        .unwrap();
+    drop(borrowed);
+    assert!(matches!(
+        first
+            .invoke(&mut TerminalFuelMeter::with_allowance(0))
+            .unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(_)
+    ));
+    assert!(!second.is_finished());
+    assert_eq!(
+        second.invoke(&mut TerminalFuelMeter::unbounded()).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(
+        first.invoke(&mut TerminalFuelMeter::unbounded()).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert_eq!(terminal_codec::module_decode_count() - before, 0);
+    drop(first);
+    drop(second);
+
+    let envelope = retained.artifact().to_bytes();
+    let before_load = terminal_codec::module_decode_count();
+    let owned = TerminalProgram::load_envelope(&envelope).expect("owned external load");
+    assert_eq!(terminal_codec::module_decode_count() - before_load, 1);
+    drop(envelope);
+    drop(retained);
+    assert!(
+        owned
+            .instantiate(
+                &[terminal_interpreter::TerminalScalarValue::Boolean(true)],
+                TerminalStructuralInputs::default()
+            )
+            .is_err(),
+        "wrong entry arguments must reject"
+    );
+    let mut instance = owned
+        .instantiate(&[], TerminalStructuralInputs::default())
+        .unwrap();
+    drop(owned);
+    assert_eq!(
+        instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(TerminalProgram::load_envelope(b"not a Terminal artifact").is_err());
 }

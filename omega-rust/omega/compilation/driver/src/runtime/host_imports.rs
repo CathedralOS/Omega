@@ -26,7 +26,7 @@ enum OutputKind {
 
 pub(super) fn bind<'host>(
     program: &TerminalProgram,
-    instance: &mut TerminalInstance<'host>,
+    instance: &mut TerminalInstance<'host, '_>,
     provisions: Option<&TerminalRuntimeProvisions>,
     imports: &[BoundaryMachineId],
     input: Option<Box<dyn std::io::Read + Send + 'host>>,

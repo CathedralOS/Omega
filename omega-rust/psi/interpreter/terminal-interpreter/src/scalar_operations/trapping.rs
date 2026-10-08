@@ -17,7 +17,7 @@ use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 use terminal_psi::{CrashCause, OperationKind, TrappingIntegerOperation};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     fn trapping_integer_operand(
         &self,
         value: ValueId,

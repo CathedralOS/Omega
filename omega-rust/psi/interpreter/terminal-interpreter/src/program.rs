@@ -1,124 +1,62 @@
 //! Admitted programs: the immutable half of interpretation, shared verbatim
 //! across instances.
 //!
-//! `AdmittedTerminalProgram` is what `TerminalExecution::start_artifact` used
-//! to build privately per execution: the verified module's executable tables
-//! plus the catalog authority instance startup still consults. `TerminalProgram`
-//! is the public handle: decode, verify and admit once, then instantiate any
-//! number of independent executions without re-reading bytes or rechecking
-//! proof. Admission, not construction, is the trust boundary — the struct's
-//! fields are crate-private so a caller cannot mint program content that did
-//! not pass verification.
+//! `TerminalProgram` retains one canonical module, either owned after external
+//! decoding or borrowed from compiler output. Instances share it and search its
+//! already-sorted declarations directly; no executable-machine projection or
+//! copied lookup tables intervene. Borrowed programs cannot outlive the artifact.
+//! External loads retain the whole decoded module, including non-executable
+//! catalogs, rather than copying a second runtime representation.
 //!
 //! Per the embedding contract (wiki/spec/build/embedding.md), a Program is
 //! immutable admitted Psi plus descriptions and execution metadata; instances
 //! and their bindings live in `instance.rs`. Loading accepts canonical
-//! semantic/proof bytes only: it runs no source compiler, touches no
+//! bytes or a sealed artifact view: it runs no source compiler, touches no
 //! filesystem, and creates no global runtime or thread — compilation remains
 //! the separate upstream authority that produced the bytes.
 
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError, malformed};
-use crate::execution::ExecutableMachine;
+mod declarations;
+pub(crate) use declarations::{MachineBlocks, ProgramDeclarations};
+
 use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use semantic_vocabulary::{BoundaryMachineId, StructuralTypeId};
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralTypeDeclaration, TerminalModule, TerminalPsiIdentity,
 };
 
-/// The immutable content of one verified Terminal-Psi module, shared verbatim
-/// by every instance of the same admitted program.
-///
-/// Admission splits the module into the execution-ready projections the
-/// interpreter loop reads — `machines` and the indexed declaration maps —
-/// plus `catalogs`, the subset of roster rows a
-/// fresh instance still consults: the entry selector, the direct-entry
-/// placed-view input rows, and the structural type and domain rosters that
-/// placed-view referent validation runs against. Verification-only payloads
-/// (proof vocabularies, conformance applications) are dropped at admission rather than retained per program.
-#[derive(Clone)]
-pub(crate) struct AdmittedTerminalProgram {
-    /// Canonical Terminal-Psi identity of the verified module, computed once
+/// Immutable program storage shared by all instances. External ingress owns
+/// its decoded module; in-process execution borrows the compiler's retained
+/// module. Neither route reconstructs executable machines or declaration maps.
+pub(crate) struct AdmittedTerminalProgram<'artifact> {
+    /// Canonical Terminal-Psi identity of the module, computed once
     /// at admission; provider installations bind to this exact identity.
     pub(crate) identity: TerminalPsiIdentity,
-    /// Slim catalog: entry, placed-view inputs and structural types/domains.
-    /// These descriptions grant no host
-    /// provisions; drivers name required ingress without rebuilding source.
-    /// Other rosters are empty after admission consumes their authority.
-    pub(crate) catalogs: TerminalModule,
-    pub(crate) machines: BTreeMap<MachineId, ExecutableMachine>,
-    pub(crate) structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
-    pub(crate) boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
-    /// Availability, not deployment choice. Without explicit receiving-host
-    /// selection, a demanded candidate-bearing slot requires installation.
-    /// Selecting a host import does not remove its retained checked alternatives.
-    pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
+    pub(crate) catalogs: Cow<'artifact, TerminalModule>,
 }
 
-impl AdmittedTerminalProgram {
-    /// Move one verified module into shared immutable form. The module arrives
-    /// already verified by the caller — admission converts representation,
-    /// never re-checks semantics.
-    pub(crate) fn admit(mut module: TerminalModule) -> Result<Self, TerminalInterpretError> {
-        let terminal_psi =
-            terminal_codec::terminal_psi_identity(&module).map_err(|_| malformed())?;
-        let machines = std::mem::take(&mut module.machines)
-            .into_iter()
-            .map(|machine| {
-                (
-                    machine.id,
-                    ExecutableMachine {
-                        attachment: machine.attachment,
-                        nominal_cleanup_subject: machine.nominal_cleanup_subject,
-                        parameters: machine.parameters,
-                        structural_parameters: machine.structural_parameters,
-                        structural_places: machine.structural_places,
-                        entry_claims: machine.entry_claims,
-                        content_entry_claims: machine.content_entry_claims,
-                        result: machine.result,
-                        entry: machine.entry,
-                        blocks: machine
-                            .blocks
-                            .into_iter()
-                            .map(|block| (block.id, block))
-                            .collect(),
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let boundary_machines = module
-            .boundary_machines
-            .iter()
-            .cloned()
-            .map(|boundary| (boundary.id, boundary))
-            .collect::<BTreeMap<_, _>>();
-        let structural_types = module
-            .structural_types
-            .iter()
-            .cloned()
-            .map(|declaration| (declaration.id, declaration))
-            .collect();
-        let provider_candidates = module
+impl AdmittedTerminalProgram<'_> {
+    pub(crate) fn machines(&self) -> ProgramDeclarations<'_, terminal_psi::TerminalMachine> {
+        ProgramDeclarations::new(&self.catalogs.machines)
+    }
+
+    pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
+        ProgramDeclarations::new(&self.catalogs.structural_types)
+    }
+
+    pub(crate) fn boundary_machines(&self) -> ProgramDeclarations<'_, BoundaryMachineDeclaration> {
+        ProgramDeclarations::new(&self.catalogs.boundary_machines)
+    }
+
+    pub(crate) fn has_provider(&self, boundary: &BoundaryMachineId) -> bool {
+        self.catalogs
             .provider_candidates
-            .iter()
-            .map(|candidate| candidate.boundary)
-            .collect();
-        let mut catalogs = TerminalModule::for_entry(module.entry);
-        catalogs.placed_view_inputs = std::mem::take(&mut module.placed_view_inputs);
-        catalogs.structural_types = std::mem::take(&mut module.structural_types);
-        catalogs.structural_domains = std::mem::take(&mut module.structural_domains);
-        // Selectors name tables of this catalog; dynamic calls read it.
-        catalogs.dynamic_dispatch = std::mem::take(&mut module.dynamic_dispatch);
-        Ok(Self {
-            identity: terminal_psi,
-            catalogs,
-            machines,
-            structural_types,
-            boundary_machines,
-            provider_candidates,
-        })
+            .binary_search_by_key(boundary, |candidate| candidate.boundary)
+            .is_ok()
     }
 
     /// The declared boundary a demanded import slot names, when `slot` is a
@@ -127,28 +65,28 @@ impl AdmittedTerminalProgram {
         &self,
         slot: BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
-        if self.provider_candidates.contains(&slot) {
+        if self.has_provider(&slot) {
             return None;
         }
-        self.boundary_machines.get(&slot)
+        self.boundary_machines().get(&slot)
     }
 }
 
-/// One admitted Terminal-Psi program: decoded, verified, immutable and
+/// One canonical Terminal-Psi program: immutable and
 /// shareable across every independent instance it instantiates.
 ///
-/// `load` is the whole authority here — admission replays the canonical
-/// decode and the interpreter's verification once, then keeps the result.
-/// Cloning shares the same admitted program; it does not re-verify.
+/// `load` decodes external canonical bytes; `borrow` uses retained compiler
+/// output without decoding. Neither performs proof verification or grants host
+/// authority. Cloning shares storage; instances keep their mutable state separate.
 /// `imports` describes the default catalog; `execution_requirements` selects
 /// demanded slots for each admitted supply selection. Each instance describes
 /// its selected imports and establishes adapters through `TerminalInstance::bind_import`.
 #[derive(Clone)]
-pub struct TerminalProgram {
-    pub(crate) program: std::sync::Arc<AdmittedTerminalProgram>,
+pub struct TerminalProgram<'artifact> {
+    pub(crate) program: std::sync::Arc<AdmittedTerminalProgram<'artifact>>,
 }
 
-impl std::fmt::Debug for TerminalProgram {
+impl std::fmt::Debug for TerminalProgram<'_> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
             .debug_struct("TerminalProgram")
@@ -166,17 +104,21 @@ pub struct TerminalProgramEntry<'program> {
     pub result: &'program terminal_psi::TerminalMachineResult,
 }
 
-impl TerminalProgram {
+impl<'artifact> TerminalProgram<'artifact> {
     /// Describe the exact admitted entry instead of reconstructing it from
     /// source or provisioning values by a source-name convention.
-    pub fn entry(&self) -> TerminalProgramEntry<'_> {
-        let machine = &self.program.machines[&self.program.catalogs.entry];
-        TerminalProgramEntry {
+    pub fn entry(&self) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
+        let machine = self
+            .program
+            .machines()
+            .get(&self.program.catalogs.entry)
+            .ok_or_else(malformed)?;
+        Ok(TerminalProgramEntry {
             scalar_parameters: &machine.parameters,
             structural_parameters: &machine.structural_parameters,
             placed_view_inputs: &self.program.catalogs.placed_view_inputs,
             result: &machine.result,
-        }
+        })
     }
 
     /// Exact admitted payload description for typed host adapters. Describing
@@ -185,7 +127,7 @@ impl TerminalProgram {
         &self,
         identity: StructuralTypeId,
     ) -> Option<&StructuralTypeDeclaration> {
-        self.program.structural_types.get(&identity)
+        self.program.structural_types().get(&identity)
     }
 
     /// The precise import/provider roster of this entry's possible execution,
@@ -198,8 +140,7 @@ impl TerminalProgram {
     ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
         crate::capabilities::check(&self.program, installation)
     }
-    /// Decode canonical semantic and proof sections, verify them under the
-    /// interpreter's admission profile, and retain the admitted program.
+    /// Decode canonical semantic bytes and retain their module and identity.
     ///
     /// Loading consumes bytes only — no source compiler, filesystem, package
     /// authority, global runtime or thread. Producing those bytes from source
@@ -207,11 +148,21 @@ impl TerminalProgram {
     pub fn load(semantic_bytes: &[u8]) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        Ok(Self {
-            program: std::sync::Arc::new(
-                AdmittedTerminalProgram::admit(module)
-                    .map_err(TerminalArtifactInterpretError::Execution)?,
-            ),
+        let identity = terminal_codec::terminal_psi_identity(&module)
+            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+        Ok(Self::from_admitted(AdmittedTerminalProgram {
+            identity,
+            catalogs: Cow::Owned(module),
+        }))
+    }
+
+    /// Execute retained compiler output without serialization, decoding or
+    /// copying its immutable tables. The artifact must outlive every program
+    /// handle, instance and suspended execution derived from this borrow.
+    pub fn borrow(artifact: terminal_codec::TerminalArtifactView<'artifact>) -> Self {
+        Self::from_admitted(AdmittedTerminalProgram {
+            identity: artifact.identity(),
+            catalogs: Cow::Borrowed(artifact.module()),
         })
     }
 
@@ -220,7 +171,13 @@ impl TerminalProgram {
     pub fn load_envelope(artifact_bytes: &[u8]) -> Result<Self, TerminalArtifactInterpretError> {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
             .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-        Self::load(artifact.semantic_bytes())
+        let (module, identity) = artifact
+            .into_semantics()
+            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+        Ok(Self::from_admitted(AdmittedTerminalProgram {
+            identity,
+            catalogs: Cow::Owned(module),
+        }))
     }
 
     /// The exact Terminal-Psi identity this program was admitted under.
@@ -262,7 +219,7 @@ impl TerminalProgram {
             };
             let declaration = self
                 .program
-                .boundary_machines
+                .boundary_machines()
                 .get(&boundary)
                 .ok_or_else(|| rejected("host import names no declared boundary"))?;
             if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
@@ -294,11 +251,10 @@ impl TerminalProgram {
     /// the exact contract — signature,
     /// requirements, crash routes and guarantees — not a display summary.
     pub fn imports(&self) -> impl Iterator<Item = &BoundaryMachineDeclaration> {
-        let candidates = &self.program.provider_candidates;
         self.program
-            .boundary_machines
+            .boundary_machines()
             .values()
-            .filter(move |declaration| !candidates.contains(&declaration.id))
+            .filter(move |declaration| !self.program.has_provider(&declaration.id))
     }
 
     /// The exact import description for one demanded slot, absent when `slot`
@@ -315,7 +271,7 @@ impl TerminalProgram {
         slot: BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
         self.program
-            .boundary_machines
+            .boundary_machines()
             .get(&slot)
             .filter(|declaration| {
                 matches!(
@@ -340,12 +296,12 @@ impl TerminalProgram {
     /// [`TerminalInstance::bind_import`] first.
     ///
     /// The instance shares this program's admitted content verbatim — the
-    /// second and later instances of one program decode and verify nothing.
+    /// second and later instances of one program decode nothing.
     pub fn instantiate<'host>(
         &self,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
-    ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
+    ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
         self.instantiate_with(scalar_arguments, structural_inputs, None)
     }
 
@@ -356,13 +312,12 @@ impl TerminalProgram {
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: &crate::effects::AdmittedProviderInstallation,
-    ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
+    ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
         self.instantiate_with(scalar_arguments, structural_inputs, Some(installation))
     }
 
-    /// Wrap an already-admitted program as the public handle — the route the
-    /// bare-artifact start entries take after their own decode and verify.
-    pub(crate) fn from_admitted(program: AdmittedTerminalProgram) -> Self {
+    /// Share immutable storage between program handles and their instances.
+    pub(crate) fn from_admitted(program: AdmittedTerminalProgram<'artifact>) -> Self {
         Self {
             program: std::sync::Arc::new(program),
         }
@@ -382,7 +337,8 @@ impl TerminalProgram {
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: Option<&crate::effects::AdmittedProviderInstallation>,
-    ) -> Result<crate::execution::TerminalExecution, TerminalArtifactInterpretError> {
+    ) -> Result<crate::execution::TerminalExecution<'artifact>, TerminalArtifactInterpretError>
+    {
         self.prepare_execution(scalar_arguments, structural_inputs, installation)
             .map(|(execution, _)| execution)
     }
@@ -394,7 +350,7 @@ impl TerminalProgram {
         installation: Option<&crate::effects::AdmittedProviderInstallation>,
     ) -> Result<
         (
-            crate::execution::TerminalExecution,
+            crate::execution::TerminalExecution<'artifact>,
             crate::capabilities::TerminalExecutionRequirements,
         ),
         TerminalArtifactInterpretError,
@@ -465,7 +421,7 @@ impl TerminalProgram {
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: Option<&crate::effects::AdmittedProviderInstallation>,
-    ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
+    ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
         let (execution, requirements) =
             self.prepare_execution(scalar_arguments, structural_inputs, installation)?;
         Ok(TerminalInstance::new(

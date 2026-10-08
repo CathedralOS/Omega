@@ -46,7 +46,7 @@ impl<'execution> ConstructorValue<'execution> {
             return Ok(Self::ScalarCase(case));
         }
         resolve_structural_arguments(
-            &execution.program.structural_types,
+            &execution.program.structural_types(),
             &execution.structural_values,
             std::slice::from_ref(argument),
         )?
@@ -157,7 +157,7 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         let declaration = execution
             .program
-            .structural_types
+            .structural_types()
             .get(&structural_type)
             .ok_or_else(malformed)?;
         match declaration.shape {
@@ -172,7 +172,7 @@ impl ConstructorStorage {
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let (scalar_type, leaf_count) = terminal_semantics::scalar_array_leaf_shape(
-                    execution.program.structural_types.values(),
+                    execution.program.structural_types().values(),
                     structural_type,
                 )
                 .ok_or_else(malformed)?;
@@ -182,7 +182,7 @@ impl ConstructorStorage {
                 if matches!(
                     execution
                         .program
-                        .structural_types
+                        .structural_types()
                         .get(&element)
                         .map(|row| &row.shape),
                     Some(StructuralTypeShape::PrimitiveScalar(_))
@@ -211,14 +211,14 @@ impl ConstructorStorage {
                 } else {
                     let element_count = match execution
                         .program
-                        .structural_types
+                        .structural_types()
                         .get(&element)
                         .map(|row| &row.shape)
                     {
                         Some(StructuralTypeShape::PrimitiveScalar(_)) => 1,
                         _ => {
                             terminal_semantics::scalar_array_leaf_shape(
-                                execution.program.structural_types.values(),
+                                execution.program.structural_types().values(),
                                 element,
                             )
                             .ok_or_else(malformed)?
@@ -262,7 +262,7 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         if execution
             .program
-            .structural_types
+            .structural_types()
             .get(&child.structural_type)
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
         {
@@ -273,7 +273,7 @@ impl ConstructorStorage {
         }
         if execution
             .program
-            .structural_types
+            .structural_types()
             .get(&child.structural_type)
             .is_some_and(|row| {
                 matches!(

@@ -272,6 +272,19 @@ impl CanonicalTerminalArtifact {
         })
     }
 
+    /// Transfer admitted semantic storage to an execution owner without a
+    /// second byte load. All constructors retain this module before returning.
+    pub fn into_semantics(
+        self,
+    ) -> Result<(TerminalModule, terminal_psi::TerminalPsiIdentity), CodecError> {
+        let module = self.semantic_module.0.into_inner().ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "canonical artifact lost its retained module",
+            ),
+        )?;
+        Ok((module, self.manifest.semantic()))
+    }
+
     /// The canonical semantic module these bytes decode to.
     ///
     /// Producer construction retains the module checked by `encode_module`;

@@ -62,7 +62,7 @@ impl StructuralCallArguments {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn prepare_structural_call_arguments(
         &self,
         callee: MachineId,
@@ -70,7 +70,7 @@ impl TerminalExecution {
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&callee)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
         if machine.structural_parameters.len() != arguments.len() {
@@ -109,7 +109,7 @@ impl TerminalExecution {
                     return Err(malformed());
                 }
             } else if terminal_semantics::scalar_array_leaf_shape(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 parameter.structural_type,
             )
             .is_some()
@@ -136,7 +136,7 @@ impl TerminalExecution {
                         | StructuralAccess::WriteOnlyBorrow
                 ) && self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
                         matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))

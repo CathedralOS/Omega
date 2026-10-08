@@ -18,7 +18,7 @@ fn meaning(value: IeeeFloatValue) -> FloatMeaning {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     fn float_policy_operand(
         &self,
         value: ValueId,

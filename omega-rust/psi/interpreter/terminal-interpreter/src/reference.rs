@@ -63,7 +63,7 @@ pub(crate) fn discard_structural_value(
     Some(value)
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Borrowed ingress retains the caller's descriptor storage without an
     /// affine owner entry in this frame. Its declared authority bounds every
     /// reference crossing; owned carriers still require live affine custody.
@@ -75,7 +75,7 @@ impl TerminalExecution {
     ) -> Result<StructuralAccess, TerminalInterpretError> {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
@@ -116,7 +116,7 @@ impl TerminalExecution {
     ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
         let Some(StructuralTypeShape::Reference { referent, access }) = self
             .program
-            .structural_types
+            .structural_types()
             .get(&reference_type)
             .map(|declaration| &declaration.shape)
         else {
@@ -124,7 +124,7 @@ impl TerminalExecution {
             // not a valid operation awaiting an interpreter implementation.
             return Err(malformed());
         };
-        if !self.program.structural_types.contains_key(referent)
+        if !self.program.structural_types().contains_key(referent)
             || !matches!(
                 access,
                 StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
@@ -149,7 +149,7 @@ impl TerminalExecution {
         let mut normalized_source = source.clone();
         if let Some((StructuralPathSegment::Referent, prefix)) = source.path.split_last()
             && terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 self.live_structural_type(source.place)?,
                 prefix,
             )
@@ -166,7 +166,7 @@ impl TerminalExecution {
         let mut region_referent = None;
         let primitive_loan = if matches!(
             self.program
-                .structural_types
+                .structural_types()
                 .get(&referent_type)
                 .ok_or_else(malformed)?
                 .shape,
@@ -177,7 +177,7 @@ impl TerminalExecution {
             // below independently decides whether its declared view is valid.
             let root_type = self.live_structural_type(source.place)?;
             let original_type = if let Some(tip) = terminal_semantics::runtime_structural_path_tip(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 root_type,
                 &source.path,
             ) {
@@ -207,7 +207,7 @@ impl TerminalExecution {
                 };
                 let StructuralTypeShape::PrimitiveScalar(logical_scalar) = self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&referent_type)
                     .ok_or_else(malformed)?
                     .shape
@@ -217,7 +217,7 @@ impl TerminalExecution {
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !terminal_semantics::reference_storage_source_compatible(
-                        self.program.structural_types.values(),
+                        self.program.structural_types().values(),
                         original_type,
                         result.structural_type,
                         Some(stored_scalar),
@@ -248,7 +248,7 @@ impl TerminalExecution {
                     return Err(malformed());
                 };
                 let original_type = terminal_semantics::runtime_structural_path_tip(
-                    self.program.structural_types.values(),
+                    self.program.structural_types().values(),
                     self.live_structural_type(source.place)?,
                     &source.path,
                 )
@@ -257,7 +257,7 @@ impl TerminalExecution {
                 if offset_type.is_address()
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !terminal_semantics::reference_storage_source_compatible(
-                        self.program.structural_types.values(),
+                        self.program.structural_types().values(),
                         original_type,
                         result.structural_type,
                         None,
@@ -267,7 +267,7 @@ impl TerminalExecution {
                 }
                 let byte_length = usize::try_from(
                     terminal_semantics::reference_storage_size(
-                        self.program.structural_types.values(),
+                        self.program.structural_types().values(),
                         referent_type,
                     )
                     .ok_or(
@@ -333,7 +333,7 @@ impl TerminalExecution {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
             || !terminal_semantics::reference_source_compatible(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 referent.structural_type,
                 result.structural_type,
             )
@@ -379,7 +379,7 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         let owner = self.structural_values.get(&source).ok_or_else(malformed)?;
-        let carrier = project_structural_value(&self.program.structural_types, owner, path)?;
+        let carrier = project_structural_value(&self.program.structural_types(), owner, path)?;
         self.reference_contract(carrier.structural_type)?;
         let key = StructuralRuntimePlace::from(&carrier);
         if operation.result != OperationResult::Unit || !self.reference_referents.contains_key(&key)
@@ -391,7 +391,7 @@ impl TerminalExecution {
         // referent or the scalar storage of surviving siblings.
         let mut frontier = self.live_affine_frontier.clone();
         crate::custody::consume_affine_projection(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             &self.structural_values,
             &self.structural_cases,
             &mut frontier,
@@ -454,7 +454,7 @@ impl TerminalExecution {
             let prefix = &remaining[..boundary.unwrap_or(remaining.len())];
             // Keep case selection and its payload field together. The ordinary
             // projection owner strips declaration-only case steps from storage.
-            value = project_structural_value(&self.program.structural_types, &value, prefix)?;
+            value = project_structural_value(&self.program.structural_types(), &value, prefix)?;
             if let Some(boundary) = boundary {
                 let (referent_type, authority) = self.reference_contract(value.structural_type)?;
                 if !access_covers(authority, access) {
@@ -467,7 +467,7 @@ impl TerminalExecution {
                     .map(|referent| referent.view.clone())
                     .ok_or_else(malformed)?;
                 if !terminal_semantics::reference_source_compatible(
-                    self.program.structural_types.values(),
+                    self.program.structural_types().values(),
                     value.structural_type,
                     reference_type,
                 ) {
@@ -495,7 +495,7 @@ impl TerminalExecution {
         )?;
         if !matches!(
             self.program
-                .structural_types
+                .structural_types()
                 .get(&value.structural_type)
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::Reference { .. })
@@ -523,7 +523,7 @@ impl TerminalExecution {
                     return Err(malformed());
                 }
                 let leaf_type = resolve_structural_path_type(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     signature.structural_type,
                     &origin.path,
                 )?;
@@ -569,7 +569,7 @@ impl TerminalExecution {
         if signature.reference_sources.is_empty() {
             return if matches!(
                 self.program
-                    .structural_types
+                    .structural_types()
                     .get(&signature.structural_type)
                     .map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Reference { .. })
@@ -627,7 +627,7 @@ impl TerminalExecution {
                 return Err(malformed());
             }
             let leaf_type = resolve_structural_path_type(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 signature.structural_type,
                 &origin.path,
             )?;

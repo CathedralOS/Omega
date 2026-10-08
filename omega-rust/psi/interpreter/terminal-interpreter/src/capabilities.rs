@@ -18,6 +18,7 @@
 use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
 use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
+use crate::program::MachineBlocks;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
 use std::collections::BTreeSet;
 use terminal_psi::{OperationKind, TerminalAffineCleanupAction, Terminator};
@@ -66,7 +67,7 @@ pub(crate) fn check(
         if !visited.insert(machine_id) {
             continue;
         }
-        let machine = program.machines.get(&machine_id).ok_or(
+        let machine = program.machines().get(&machine_id).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(machine_id),
         )?;
         let mut blocks = vec![machine.entry];
@@ -76,8 +77,7 @@ pub(crate) fn check(
                 continue;
             }
             let block = machine
-                .blocks
-                .get(&block_id)
+                .block(&block_id)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             for operation in &block.operations {
                 let callee = match &operation.kind {
@@ -113,7 +113,7 @@ pub(crate) fn check(
                         None
                     }
                     OperationKind::BoundaryCall { boundary, .. } => {
-                        let declaration = program.boundary_machines.get(boundary).ok_or(
+                        let declaration = program.boundary_machines().get(boundary).ok_or(
                             TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
                         )?;
                         if let terminal_psi::BoundaryCompletion::External(kind) =
@@ -137,7 +137,7 @@ pub(crate) fn check(
                                 imports.insert(*boundary);
                                 None
                             }
-                            None if program.provider_candidates.contains(boundary) => {
+                            None if program.has_provider(boundary) => {
                                 missing_providers.insert(*boundary);
                                 None
                             }
@@ -207,16 +207,16 @@ mod tests {
     // These tests exercise the projection graph algorithm, not program admission.
     // End-to-end acceptance uses genuinely produced artifacts in the corpus.
     use super::*;
-    use crate::execution::ExecutableMachine;
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
     use std::collections::BTreeMap;
+    use terminal_psi::TerminalMachine;
     use terminal_psi::{
         Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
         TerminalMachineResult, TerminalModule,
     };
 
-    fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> ExecutableMachine {
+    fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
         let result = if selected_origins == 0 {
             TerminalMachineResult::Unit
         } else {
@@ -270,7 +270,8 @@ mod tests {
                 }
             },
         };
-        ExecutableMachine {
+        TerminalMachine {
+            id: MachineId::new(1).unwrap(),
             attachment: None,
             nominal_cleanup_subject: None,
             parameters: Vec::new(),
@@ -280,19 +281,76 @@ mod tests {
             content_entry_claims: Vec::new(),
             result,
             entry: block_id,
-            blocks: BTreeMap::from([(block_id, block)]),
+            blocks: vec![block],
+            ranked_scc: None,
+            declared_service_reach: Vec::new(),
+            closed_reach_application: None,
+            published_service_ceiling: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            contract: terminal_psi::MachineContract {
+                id: semantic_vocabulary::ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
         }
     }
 
-    fn program() -> AdmittedTerminalProgram {
+    fn program() -> AdmittedTerminalProgram<'static> {
         let entry = MachineId::new(1).unwrap();
-        let mut program = AdmittedTerminalProgram::admit(TerminalModule::for_entry(entry)).unwrap();
-        program.machines.insert(entry, machine(1, Vec::new()));
+        let module = TerminalModule::for_entry(entry);
+        let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
+        let mut program = AdmittedTerminalProgram {
+            identity,
+            catalogs: std::borrow::Cow::Owned(module),
+        };
+        set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .insert(boundary, boundary_declaration(boundary));
+            .push(boundary_declaration(boundary));
         program
+    }
+
+    // Graph fixtures deliberately omit unrelated typing evidence. Keep their
+    // mutation in test setup; production programs expose no mutable declarations.
+    fn set_machine(
+        program: &mut AdmittedTerminalProgram<'_>,
+        identity: MachineId,
+        mut machine: TerminalMachine,
+    ) {
+        machine.id = identity;
+        let machines = &mut program.catalogs.to_mut().machines;
+        match machines.binary_search_by_key(&identity, |machine| machine.id) {
+            Ok(position) => machines[position] = machine,
+            Err(position) => machines.insert(position, machine),
+        }
+    }
+
+    fn add_provider(program: &mut AdmittedTerminalProgram<'_>, boundary: BoundaryMachineId) {
+        program.catalogs.to_mut().provider_candidates.push(
+            terminal_psi::ProviderCandidateConformance {
+                boundary,
+                requirement_identity: "graph boundary".into(),
+                provider_identity: "graph provider".into(),
+                candidate_identity: "graph candidate".into(),
+                candidate: MachineId::new(2).unwrap(),
+                signature: terminal_psi::ProviderSignature {
+                    parameters: Vec::new(),
+                },
+                refinement: terminal_psi::ProviderRefinement {
+                    positional_parameters: Vec::new(),
+                    required_domains: Vec::new(),
+                    realized_service_ceiling: Vec::new(),
+                },
+            },
+        );
     }
 
     fn boundary_declaration(
@@ -335,16 +393,20 @@ mod tests {
         let mut program = program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .get_mut(&boundary)
+            .iter_mut()
+            .find(|declaration| declaration.id == boundary)
             .unwrap()
             .completion =
             terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
-        program.machines.insert(
-            program.catalogs.entry,
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
             machine(0, vec![boundary_call(boundary)]),
         );
-        program.provider_candidates.insert(boundary);
+        add_provider(&mut program, boundary);
         assert_eq!(
             check(&program, None),
             Err(TerminalInterpretError::UnsupportedCapability(
@@ -361,12 +423,16 @@ mod tests {
         let mut program = program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .get_mut(&boundary)
+            .iter_mut()
+            .find(|declaration| declaration.id == boundary)
             .unwrap()
             .completion =
             terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
-        program.machines.insert(
+        set_machine(
+            &mut program,
             MachineId::new(2).unwrap(),
             machine(0, vec![boundary_call(boundary)]),
         );
@@ -377,8 +443,9 @@ mod tests {
     fn capability_graph_missing_declaration_remains_malformed() {
         let mut program = program();
         let boundary = BoundaryMachineId::new(2).unwrap();
-        program.machines.insert(
-            program.catalogs.entry,
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
             machine(0, vec![boundary_call(boundary)]),
         );
         assert_eq!(
@@ -395,16 +462,20 @@ mod tests {
         let boundary = BoundaryMachineId::new(1).unwrap();
         let selected = MachineId::new(2).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .get_mut(&boundary)
+            .iter_mut()
+            .find(|declaration| declaration.id == boundary)
             .unwrap()
             .completion =
             terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
-        program.machines.insert(
-            program.catalogs.entry,
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
             machine(0, vec![boundary_call(boundary), unit_call(selected)]),
         );
-        program.machines.insert(selected, machine(2, Vec::new()));
+        set_machine(&mut program, selected, machine(2, Vec::new()));
         assert!(
             matches!(check(&program, None), Err(TerminalInterpretError::UnsupportedCapability(
             TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary: demanded, .. }
@@ -418,13 +489,17 @@ mod tests {
         let external = BoundaryMachineId::new(1).unwrap();
         let missing = BoundaryMachineId::new(2).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .get_mut(&external)
+            .iter_mut()
+            .find(|declaration| declaration.id == external)
             .unwrap()
             .completion =
             terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
-        program.machines.insert(
-            program.catalogs.entry,
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
             machine(0, vec![boundary_call(external), boundary_call(missing)]),
         );
         assert_eq!(
@@ -463,7 +538,7 @@ mod tests {
         }
     }
 
-    fn dynamic_program() -> AdmittedTerminalProgram {
+    fn dynamic_program() -> AdmittedTerminalProgram<'static> {
         let mut program = program();
         let slot = |slot| terminal_psi::TerminalDynamicSlot {
             slot,
@@ -474,14 +549,14 @@ mod tests {
             structural_parameters: Vec::new(),
             result: None,
         };
-        program.catalogs.dynamic_dispatch.interfaces = (0..2)
+        program.catalogs.to_mut().dynamic_dispatch.interfaces = (0..2)
             .map(|id| terminal_psi::TerminalDynamicInterface {
                 id,
                 identity: format!("interface {id}"),
                 slots: vec![slot(0), slot(1)],
             })
             .collect();
-        program.catalogs.dynamic_dispatch.tables = vec![
+        program.catalogs.to_mut().dynamic_dispatch.tables = vec![
             terminal_psi::TerminalDynamicTable {
                 id: 0,
                 interface: 0,
@@ -501,16 +576,20 @@ mod tests {
                 rows: vec![Some(MachineId::new(3).unwrap()), None],
             },
         ];
-        program
-            .machines
-            .insert(program.catalogs.entry, machine(0, vec![dynamic_call(0, 0)]));
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
+            machine(0, vec![dynamic_call(0, 0)]),
+        );
         // A recursive row must terminate the closure walk. Missing declarations
         // in an unused slot or another interface must not become demands.
-        program.machines.insert(
+        set_machine(
+            &mut program,
             MachineId::new(2).unwrap(),
             machine(0, vec![dynamic_call(0, 0)]),
         );
-        program.machines.insert(
+        set_machine(
+            &mut program,
             MachineId::new(3).unwrap(),
             machine(0, vec![boundary_call(BoundaryMachineId::new(2).unwrap())]),
         );
@@ -521,12 +600,13 @@ mod tests {
     fn capability_graph_dynamic_call_demands_exact_slot_imports_and_providers() {
         let mut program = dynamic_program();
         let boundary = BoundaryMachineId::new(1).unwrap();
-        program.machines.insert(
+        set_machine(
+            &mut program,
             MachineId::new(2).unwrap(),
             machine(0, vec![dynamic_call(0, 0), boundary_call(boundary)]),
         );
         assert_eq!(check(&program, None).unwrap().imports, vec![boundary]);
-        program.provider_candidates.insert(boundary);
+        add_provider(&mut program, boundary);
         assert_eq!(
             check(&program, None).unwrap().missing_providers,
             vec![boundary]
@@ -534,11 +614,15 @@ mod tests {
         let provider = MachineId::new(4).unwrap();
         let provider_import = BoundaryMachineId::new(2).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .insert(provider_import, boundary_declaration(provider_import));
-        program
-            .machines
-            .insert(provider, machine(0, vec![boundary_call(provider_import)]));
+            .push(boundary_declaration(provider_import));
+        set_machine(
+            &mut program,
+            provider,
+            machine(0, vec![boundary_call(provider_import)]),
+        );
         let installation = AdmittedProviderInstallation {
             terminal_psi: program.identity,
             supplies: BTreeMap::from([(
@@ -560,15 +644,19 @@ mod tests {
     #[test]
     fn capability_graph_dynamic_call_refuses_external_completion_in_later_table() {
         let mut program = dynamic_program();
-        program.catalogs.dynamic_dispatch.tables[0].rows[0] = Some(program.catalogs.entry);
+        program.catalogs.to_mut().dynamic_dispatch.tables[0].rows[0] = Some(program.catalogs.entry);
         let boundary = BoundaryMachineId::new(1).unwrap();
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .get_mut(&boundary)
+            .iter_mut()
+            .find(|declaration| declaration.id == boundary)
             .unwrap()
             .completion =
             terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
-        program.machines.insert(
+        set_machine(
+            &mut program,
             MachineId::new(2).unwrap(),
             machine(0, vec![boundary_call(boundary)]),
         );
@@ -589,24 +677,24 @@ mod tests {
         let boundary = BoundaryMachineId::new(1).unwrap();
         let kind = ExternalCompletionKind::ProcessExit;
         program
+            .catalogs
+            .to_mut()
             .boundary_machines
-            .get_mut(&boundary)
+            .iter_mut()
+            .find(|declaration| declaration.id == boundary)
             .unwrap()
             .completion = terminal_psi::BoundaryCompletion::External(kind);
         let mut external = machine(0, Vec::new());
-        external.blocks.get_mut(&external.entry).unwrap().terminator =
-            Terminator::ExternalCompletion {
-                edge: EdgeId::new(2).unwrap(),
-                boundary,
-                kind,
-                arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                requirement_obligations: Vec::new(),
-                frontier_lower_bound: Vec::new(),
-            };
-        program
-            .machines
-            .insert(MachineId::new(2).unwrap(), external);
+        external.blocks.first_mut().unwrap().terminator = Terminator::ExternalCompletion {
+            edge: EdgeId::new(2).unwrap(),
+            boundary,
+            kind,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            frontier_lower_bound: Vec::new(),
+        };
+        set_machine(&mut program, MachineId::new(2).unwrap(), external);
         assert_eq!(
             check(&program, None),
             Ok(TerminalExecutionRequirements {
@@ -630,10 +718,14 @@ mod tests {
         );
     }
 
-    fn import_cleanup_program() -> (AdmittedTerminalProgram, TerminalAffineCleanupAction) {
+    fn import_cleanup_program() -> (
+        AdmittedTerminalProgram<'static>,
+        TerminalAffineCleanupAction,
+    ) {
         let mut program = program();
         let cleanup_machine = MachineId::new(2).unwrap();
-        program.machines.insert(
+        set_machine(
+            &mut program,
             cleanup_machine,
             machine(
                 0,
@@ -662,12 +754,12 @@ mod tests {
     #[test]
     fn capability_graph_demands_successor_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = program.machines.get_mut(&program.catalogs.entry).unwrap();
+        let entry = program.catalogs.to_mut().machines.first_mut().unwrap();
         let successor = BlockId::new(2).unwrap();
-        let mut destination = entry.blocks[&entry.entry].clone();
+        let mut destination = entry.blocks[0].clone();
         destination.id = successor;
-        entry.blocks.insert(successor, destination);
-        entry.blocks.get_mut(&entry.entry).unwrap().terminator = Terminator::Jump {
+        entry.blocks.push(destination);
+        entry.blocks.first_mut().unwrap().terminator = Terminator::Jump {
             edge: EdgeId::new(1).unwrap(),
             target: successor,
             arguments: Vec::new(),
@@ -685,23 +777,25 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unreachable_cleanup_import() {
         let (mut program, action) = import_cleanup_program();
-        let entry = program.machines.get_mut(&program.catalogs.entry).unwrap();
-        let mut unreachable = entry.blocks[&entry.entry].clone();
+        let entry = program.catalogs.to_mut().machines.first_mut().unwrap();
+        let mut unreachable = entry.blocks[0].clone();
         unreachable.id = BlockId::new(2).unwrap();
         unreachable.terminator = Terminator::ReturnUnit {
             edge: EdgeId::new(2).unwrap(),
             cleanup_actions: vec![action],
         };
-        entry.blocks.insert(unreachable.id, unreachable);
+        entry.blocks.push(unreachable);
         assert!(check(&program, None).unwrap().imports.is_empty());
     }
 
     #[test]
     fn capability_graph_ignores_unused_selected_result() {
         let mut program = program();
-        program
-            .machines
-            .insert(MachineId::new(2).unwrap(), machine(2, Vec::new()));
+        set_machine(
+            &mut program,
+            MachineId::new(2).unwrap(),
+            machine(2, Vec::new()),
+        );
         assert_eq!(check(&program, None).unwrap().imports, Vec::new());
     }
 
@@ -709,11 +803,12 @@ mod tests {
     fn capability_graph_reaches_called_selected_result() {
         let mut program = program();
         let selected = MachineId::new(2).unwrap();
-        program.machines.insert(
-            program.catalogs.entry,
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
             machine(0, vec![unit_call(selected)]),
         );
-        program.machines.insert(selected, machine(2, Vec::new()));
+        set_machine(&mut program, selected, machine(2, Vec::new()));
         assert_eq!(check(&program, None).unwrap().imports, Vec::new());
     }
 
@@ -721,22 +816,19 @@ mod tests {
     fn capability_graph_does_not_demand_a_crashed_result() {
         let mut program = program();
         let selected = MachineId::new(2).unwrap();
-        program.machines.insert(
-            program.catalogs.entry,
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
             machine(0, vec![unit_call(selected)]),
         );
         let mut never_returns = machine(2, Vec::new());
-        never_returns
-            .blocks
-            .get_mut(&never_returns.entry)
-            .unwrap()
-            .terminator = Terminator::Crash {
+        never_returns.blocks.first_mut().unwrap().terminator = Terminator::Crash {
             edge: EdgeId::new(1).unwrap(),
             cause: terminal_psi::CrashCause::Trap,
             site_guard: Vec::new(),
             frontier_lower_bound: Vec::new(),
         };
-        program.machines.insert(selected, never_returns);
+        set_machine(&mut program, selected, never_returns);
         assert!(check(&program, None).is_ok());
     }
 
@@ -753,15 +845,17 @@ mod tests {
             completion_receipts: Vec::new(),
             requirement_obligations: Vec::new(),
         };
-        program
-            .machines
-            .insert(program.catalogs.entry, machine(0, vec![kind]));
+        set_machine(
+            &mut program,
+            MachineId::new(1).unwrap(),
+            machine(0, vec![kind]),
+        );
         assert_eq!(check(&program, None).unwrap().imports, vec![boundary]);
-        program.provider_candidates.insert(boundary);
+        add_provider(&mut program, boundary);
         let requirements = check(&program, None).unwrap();
         assert!(requirements.imports.is_empty());
         assert_eq!(requirements.missing_providers, vec![boundary]);
-        program.machines.insert(target, machine(2, Vec::new()));
+        set_machine(&mut program, target, machine(2, Vec::new()));
         let mut installation = AdmittedProviderInstallation {
             terminal_psi: program.identity,
             supplies: BTreeMap::from([(boundary, AdmittedBoundarySupply::CheckedProvider(target))]),

@@ -1961,11 +1961,11 @@ crash and native exit behavior.
     reconstruction, source-shape recognizer, fallback route or revalidation of
     the producer's invariant is a failed architecture check, not a temporary
     feature repair.
-  - Finish borrowed Terminal custody beyond provider installation: runtime
-    execution still calls `TerminalProgram::load(artifact.semantic_bytes())`,
-    and publication clones the module into `CanonicalTerminalArtifact` while
-    retaining the lowering for source joins. Transfer producer storage and use
-    the common lifetime-bound artifact view for in-process consumers. External
+  - Finish producer storage transfer: publication clones the module into
+    `CanonicalTerminalArtifact` while retaining the lowering for source joins.
+    Provider installation and runtime execution now borrow the canonical module;
+    the interpreter reads its sorted tables without copied execution catalogs.
+    Transfer producer storage and remove the remaining source joins. External
     package/artifact ingress decodes once; it is not an internal handoff API.
   - Carry representation classes instead of recognizing source spellings.
     Psi assigns the builtin text/string identity and descriptor class; Terminal

@@ -27,7 +27,7 @@ use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
 };
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_call_unit(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -276,7 +276,7 @@ impl TerminalExecution {
         // Keep the admitted declaration owner independent of mutable result
         // storage; no declaration or program contents are copied for a call.
         let program = std::sync::Arc::clone(&self.program);
-        let boundary_declaration = program.boundary_machines.get(&boundary).ok_or(
+        let boundary_declaration = program.boundary_machines().get(&boundary).ok_or(
             TerminalInterpretError::VerifiedBoundaryMachineMissing(boundary),
         )?;
         let scalar_arguments = scalar_argument_ids
@@ -293,7 +293,7 @@ impl TerminalExecution {
         if matches!(
             supply,
             Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(_))
-        ) || (supply.is_none() && self.program.provider_candidates.contains(&boundary))
+        ) || (supply.is_none() && self.program.has_provider(&boundary))
         {
             let boundary_arguments = self.prepare_boundary_arguments(
                 &boundary_declaration.structural_parameters,
@@ -343,7 +343,7 @@ impl TerminalExecution {
             };
             let callee = self
                 .program
-                .machines
+                .machines()
                 .get(&callee_id)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
             let prepared_arguments =
@@ -546,7 +546,7 @@ impl TerminalExecution {
             .collect::<Result<Vec<_>, _>>()?;
         let callee_id = callee;
         let callee = program
-            .machines
+            .machines()
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if !callee.structural_parameters.is_empty()

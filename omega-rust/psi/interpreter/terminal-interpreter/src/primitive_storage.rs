@@ -20,11 +20,11 @@ use terminal_psi::{
 
 use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::ExecutableMachine;
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
+use terminal_psi::TerminalMachine;
 
 mod encoding;
 
@@ -86,7 +86,7 @@ pub(crate) struct PrimitiveLoan {
     pub(crate) referent: TerminalStructuralValue,
 }
 
-fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralTypeId> {
+fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
     let declaration = machine
         .structural_places
         .iter()
@@ -100,7 +100,7 @@ fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralT
     };
     let operation = machine
         .blocks
-        .values()
+        .iter()
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == producer)?;
     let result = operation.result.structural()?;
@@ -116,7 +116,7 @@ fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralT
     .then_some(structural_type)
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Prepare the same original endpoint for ordinary calls and host staging.
     /// In particular, a local array's scalar payload stays in its owner's
     /// activation; its observation descriptor never creates another scalar row.
@@ -128,7 +128,7 @@ impl TerminalExecution {
     ) -> Result<PrimitiveLoan, TerminalInterpretError> {
         let terminal_psi::StructuralTypeShape::PrimitiveScalar(expected) = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parameter.structural_type)
             .ok_or_else(malformed)?
             .shape
@@ -316,7 +316,7 @@ impl TerminalExecution {
                 return Ok((storage, scalar_type, !writing));
             }
             let scalar_type = terminal_semantics::primitive_projection_type(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 referent.structural_type,
                 suffix,
             )
@@ -337,7 +337,7 @@ impl TerminalExecution {
                 }
             }
             let canonical = terminal_semantics::canonical_primitive_path(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 referent.structural_type,
                 suffix,
             )
@@ -395,7 +395,7 @@ impl TerminalExecution {
         }
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&machine_id)
             .ok_or_else(malformed)?;
         if let Some(loan) = primitive_loan_values.get(&place) {
@@ -405,7 +405,7 @@ impl TerminalExecution {
                 .chain(
                     machine
                         .blocks
-                        .values()
+                        .iter()
                         .flat_map(|block| &block.structural_parameters),
                 )
                 .find(|parameter| parameter.place == place)
@@ -444,7 +444,7 @@ impl TerminalExecution {
                     .chain(
                         machine
                             .blocks
-                            .values()
+                            .iter()
                             .flat_map(|block| &block.structural_parameters),
                     )
                     .find(|parameter| parameter.place == place)
@@ -482,7 +482,7 @@ impl TerminalExecution {
                 }
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.operations)
                     .filter_map(|operation| operation.result.structural())
                     .find(|result| {
@@ -510,19 +510,19 @@ impl TerminalExecution {
         ) = byte_sequence_values.get(&place)
         {
             let value = structural_values.get(&place).ok_or_else(malformed)?;
-            binding.validate_mutable_referent(&self.program.structural_types, value)?;
+            binding.validate_mutable_referent(&self.program.structural_types(), value)?;
             let [StructuralPathSegment::FixedIndex(index)] = path else {
                 return Err(malformed());
             };
             let scalar_type = terminal_semantics::primitive_projection_type(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 structural_type,
                 path,
             )
             .ok_or_else(malformed)?;
             let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
             let extent = crate::structural_inputs::byte_arrays::byte_array_length(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 *array_type,
             )
             .ok_or_else(malformed)?;
@@ -545,14 +545,14 @@ impl TerminalExecution {
             ));
         }
         let path = terminal_semantics::canonical_primitive_path(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             structural_type,
             path,
         )
         .ok_or_else(malformed)?;
         let path = path.as_slice();
         let scalar_type = terminal_semantics::primitive_place_type(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             structural_type,
             path,
         )
@@ -571,7 +571,7 @@ impl TerminalExecution {
                 };
                 let terminal_psi::StructuralTypeShape::FixedArray { element, length } = self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&carrier)
                     .ok_or_else(malformed)?
                     .shape
@@ -583,7 +583,7 @@ impl TerminalExecution {
                 }
                 let leaf_count = match self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&element)
                     .ok_or_else(malformed)?
                     .shape
@@ -591,7 +591,7 @@ impl TerminalExecution {
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                     _ => {
                         terminal_semantics::scalar_array_leaf_shape(
-                            self.program.structural_types.values(),
+                            self.program.structural_types().values(),
                             element,
                         )
                         .ok_or_else(malformed)?
@@ -645,7 +645,7 @@ impl TerminalExecution {
         for (position, segment) in path.iter().enumerate() {
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&carrier)
                 .ok_or_else(malformed)?;
             match (segment, &declaration.shape) {
@@ -807,10 +807,10 @@ impl TerminalExecution {
             })
             .ok_or_else(malformed)?;
         let parent =
-            resolve_structural_path_type(&self.program.structural_types, root, parent_path)?;
+            resolve_structural_path_type(&self.program.structural_types(), root, parent_path)?;
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent)
             .ok_or_else(malformed)?;
         let fields = match &declaration.shape {
@@ -850,7 +850,7 @@ impl TerminalExecution {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         if local_type(machine, result.place) != Some(result.structural_type)
@@ -863,7 +863,7 @@ impl TerminalExecution {
         }
         let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(expected)) = self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .map(|entry| &entry.shape)
         else {
@@ -912,7 +912,7 @@ impl TerminalExecution {
             self.resolve_live_projection(source, carrier, StructuralAccess::SharedBorrow)?;
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&record.structural_type)
             .ok_or_else(malformed)?;
         let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
@@ -1210,7 +1210,7 @@ impl TerminalExecution {
 
     pub(crate) fn retire_plain_locals(&mut self) {
         self.retire_unrestricted_views();
-        let Some(machine) = self.program.machines.get(&self.current_machine) else {
+        let Some(machine) = self.program.machines().get(&self.current_machine) else {
             return;
         };
         for place in &machine.structural_places {

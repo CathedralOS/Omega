@@ -11,7 +11,6 @@
 use crate::custody::bind_affine_frontier_types;
 use crate::custody::consume_affine_projection;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::ExecutableMachine;
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarCaseValue, TerminalStructuralValue};
 use semantic_vocabulary::PlaceId;
@@ -24,11 +23,12 @@ use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralTypeShape;
+use terminal_psi::TerminalMachine;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn prepare_scalar_case_argument(
         &self,
-        callee: &ExecutableMachine,
+        callee: &TerminalMachine,
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<TerminalScalarCaseValue, TerminalInterpretError> {
@@ -122,7 +122,7 @@ impl TerminalExecution {
         // carrier partition retains the actual scalar payload through the call.
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&value.structural_type)
             .ok_or_else(malformed)?;
         value.validate_against(declaration)?;
@@ -163,7 +163,7 @@ impl TerminalExecution {
             Ok(())
         } else {
             consume_affine_projection(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_values,
                 &self.structural_cases,
                 frontier,

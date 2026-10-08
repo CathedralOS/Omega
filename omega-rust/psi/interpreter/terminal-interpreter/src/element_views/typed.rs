@@ -93,7 +93,7 @@ fn reinterpret(
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(super) fn typed_element_view(
         &self,
         source: &StructuralArgument,
@@ -101,7 +101,7 @@ impl TerminalExecution {
         target_element: StructuralTypeId,
     ) -> Result<TypedElementView, TerminalInterpretError> {
         let relation = terminal_semantics::element_representation_relation(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             source_element,
             target_element,
             source.access,
@@ -114,7 +114,7 @@ impl TerminalExecution {
         } else {
             Some(
                 resolve_structural_arguments(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     &self.structural_values,
                     std::slice::from_ref(source),
                 )?

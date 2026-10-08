@@ -21,7 +21,7 @@ use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::TerminalScalarValue;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_atomic_access(
         &mut self,
         operation: &Operation,
@@ -30,7 +30,7 @@ impl TerminalExecution {
         field: StructuralFieldId,
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         machine
@@ -39,7 +39,7 @@ impl TerminalExecution {
             .chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
             .find(|parameter| parameter.place == place)
@@ -69,7 +69,7 @@ impl TerminalExecution {
             .ok_or_else(malformed)?;
         let root = self.structural_values.get(&place).ok_or_else(malformed)?;
         let (canonical, declaration) = terminal_semantics::static_field_projection(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             root.structural_type,
             path,
             field,
@@ -82,7 +82,7 @@ impl TerminalExecution {
         // Preserve the original overlay cell, checking each live discriminator
         // before erasing Case from runtime storage geometry.
         super::structural_inputs::case_membership::validate_case_projection(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             &self.structural_values,
             &self.structural_cases,
             place,

@@ -108,7 +108,7 @@ impl BoundaryScalarLoans {
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let StructuralTypeShape::PrimitiveScalar(expected) = execution
             .program
-            .structural_types
+            .structural_types()
             .get(&parameter.structural_type)
             .ok_or_else(malformed)?
             .shape
@@ -237,7 +237,7 @@ impl BoundaryScalarLoans {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// A plain formal cannot erase a stronger qualification on its caller's
     /// backing. This transport has no qualified replacement protocol, so it
     /// conservatively refuses qualified roots and projected owner constraints.
@@ -265,7 +265,7 @@ impl TerminalExecution {
         {
             let machine = self
                 .program
-                .machines
+                .machines()
                 .get(&machine_id)
                 .ok_or_else(malformed)?;
             for (place, value) in values.iter().filter(|(_, value)| owns_target(value)) {
@@ -276,7 +276,7 @@ impl TerminalExecution {
                         .chain(
                             machine
                                 .blocks
-                                .values()
+                                .iter()
                                 .flat_map(|block| &block.structural_parameters),
                         )
                         .any(|parameter| {
@@ -286,7 +286,7 @@ impl TerminalExecution {
                         })
                     || machine
                         .blocks
-                        .values()
+                        .iter()
                         .flat_map(|block| &block.operations)
                         .filter_map(|operation| operation.result.structural())
                         .any(|result| {
@@ -332,7 +332,7 @@ impl TerminalExecution {
                 continue;
             }
             let candidate = resolve_structural_path_type(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 root.structural_type,
                 &cell.parent.path,
             )?;
@@ -343,7 +343,7 @@ impl TerminalExecution {
         }
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent_type.ok_or_else(malformed)?)
             .ok_or_else(malformed)?;
         let fields = match &declaration.shape {

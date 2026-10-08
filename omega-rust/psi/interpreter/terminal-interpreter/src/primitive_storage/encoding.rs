@@ -25,7 +25,7 @@ pub(crate) fn scalar_fits_storage(stored: ScalarType, scalar: TerminalScalarValu
         && encode(stored, scalar).is_ok()
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Resolve scalar descendants of a retained aggregate region. Borrowed
     /// formals retain the same opaque view, so this works after forwarding as
     /// well as through the original reference carrier.
@@ -89,7 +89,7 @@ impl TerminalExecution {
                 continue;
             };
             if crate::custody::resolve_structural_path_type(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 captured.view.structural_type,
                 path,
             )
@@ -102,7 +102,7 @@ impl TerminalExecution {
                 .strip_prefix(captured.view.path.as_slice())
                 .ok_or_else(malformed)?;
             let geometry = terminal_semantics::reference_storage_region(
-                self.program.structural_types.values(),
+                self.program.structural_types().values(),
                 captured.view.structural_type,
                 path,
             )

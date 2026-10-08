@@ -9,7 +9,7 @@ use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_byte_sequence_equal(
         &mut self,
         operation: &Operation,

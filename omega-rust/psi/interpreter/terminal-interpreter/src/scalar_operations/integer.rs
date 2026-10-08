@@ -19,7 +19,7 @@ pub(crate) fn integer_scalar_type(
     Ok(scalar_type)
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_integer_constant(
         &mut self,
         operation: &terminal_psi::Operation,

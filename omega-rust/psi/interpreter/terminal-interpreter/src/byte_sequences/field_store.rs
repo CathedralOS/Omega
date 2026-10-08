@@ -14,7 +14,7 @@ use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalScalarValue;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Observe the current live bytes at an original structural referent and
     /// carrier path. Unused capacity is not part of the returned sequence.
     pub fn structural_byte_sequence_field(
@@ -78,7 +78,7 @@ impl TerminalExecution {
         let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
         if !source_value.path.is_empty()
             || !source_value.qualifications.is_empty()
-            || !matches!(self.program.structural_types.get(&source_value.structural_type), Some(declaration)
+            || !matches!(self.program.structural_types().get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
                                 || matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })))
         {
@@ -155,7 +155,7 @@ impl TerminalExecution {
                     .ok_or_else(malformed)?;
                 if !path.is_empty()
                     || !home.path.is_empty()
-                    || !matches!(self.program.structural_types.get(&home.structural_type),
+                    || !matches!(self.program.structural_types().get(&home.structural_type),
                     Some(declaration) if matches!(declaration.shape,
                         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                             access: None | Some(StructuralAccess::SharedBorrow),
@@ -168,7 +168,7 @@ impl TerminalExecution {
         };
         let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
         if !source_value.path.is_empty()
-            || !matches!(self.program.structural_types.get(&source_value.structural_type),
+            || !matches!(self.program.structural_types().get(&source_value.structural_type),
                 Some(declaration) if declaration.shape.is_borrowed_byte_view())
         {
             return Err(malformed());
@@ -204,7 +204,7 @@ impl TerminalExecution {
     {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         if self
@@ -220,7 +220,7 @@ impl TerminalExecution {
             .chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
             .find(|parameter| parameter.place == root)
@@ -260,7 +260,7 @@ impl TerminalExecution {
             let descriptor_type = self.live_structural_type(root)?;
             let StructuralTypeShape::ElementView { element } = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&descriptor_type)
                 .ok_or_else(malformed)?
                 .shape
@@ -274,7 +274,7 @@ impl TerminalExecution {
                 ..
             } = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&collection.structural_type)
                 .ok_or_else(malformed)?
                 .shape
@@ -284,7 +284,11 @@ impl TerminalExecution {
             if element != backing_element {
                 return Err(malformed());
             }
-            project_structural_value(&self.program.structural_types, &collection, &selected_path)?
+            project_structural_value(
+                &self.program.structural_types(),
+                &collection,
+                &selected_path,
+            )?
         } else {
             // Authority belongs to the current binding, including an arrival
             // parameter. The static projection resolver checks every selected hop;
@@ -300,7 +304,7 @@ impl TerminalExecution {
                 return Err(malformed());
             }
             resolve_structural_arguments(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 &self.structural_values,
                 &[StructuralArgument {
                     place: root,
@@ -313,7 +317,7 @@ impl TerminalExecution {
         };
         let declaration = self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?;
         let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {

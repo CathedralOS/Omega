@@ -4,8 +4,10 @@ Start at [terminal_interpreter.rs](src/terminal_interpreter.rs). Execution follo
 [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md)
 and [structural ownership](../../../../wiki/spec/terminal-psi/ownership.md).
 
-The domain entrance owns artifact admission and startup: every entry decodes,
-verifies, constructs and runs. [execution.rs](src/execution.rs) is the engine —
+The domain entrance owns artifact loading and startup: external bytes decode
+once, while in-process callers borrow a sealed Terminal artifact view. Both
+construct instances of the same execution engine. Loading does not perform
+proof verification. [execution.rs](src/execution.rs) is the engine —
 the live state and the resumable dispatch loop. [Call frames](src/calls/frames.rs)
 bind invocations and save live caller state; [custody](src/custody.rs) checks and
 transfers structural ownership and claims.
@@ -15,7 +17,11 @@ stage its allocation cursor until their payloads commit. Storage-specific
 operations remain under their named reference, record, array, primitive, and byte-storage owners
 ([byte_sequences.rs](src/byte_sequences.rs) and its subordinates).
 
-Admission moves decoded, verified machine code into one immutable program owner.
+The program retains one immutable canonical module, owned or borrowed.
+Machine, block and declaration lookups use its already-sorted tables without
+rebuilding trees or copying an executable projection. Borrowed storage must
+outlive every program handle and paused instance. External loading retains the
+whole decoded module, including its non-executable catalogs.
 Frames retain machine/block identities, not cloned block graphs. A resume borrows
 operations and terminators from that owner while mutating live execution state.
 One shared owner preserves the existing owned execution API without introducing
@@ -28,9 +34,9 @@ allocation, and does not establish a measured speedup.
 
 The accepted [embedding contract](../../../../wiki/spec/build/embedding.md)
 now has its public surface here rather than only the raw hook. `TerminalProgram::load`
-decodes canonical semantic/proof bytes, verifies them under the admission profile,
-and retains the result as immutable shared code; `instantiate` starts an
-independent instance without re-reading or re-checking bytes.
+decodes canonical semantic bytes; `load_envelope` consumes the portable envelope;
+`borrow` uses an existing canonical artifact view. All retain immutable shared
+code; `instantiate` starts an independent instance without re-reading bytes.
 `TerminalInstance::bind_import` establishes each demanded import slot against a
 checked adapter before `invoke` runs any guest operation — a missing, unknown,
 provider-realized, duplicate, or signature-mismatched supply rejects without

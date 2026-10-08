@@ -22,14 +22,14 @@ pub(crate) enum MutableByteSequenceStorage {
     },
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn mutable_byte_sequence_storage(
         &self,
         place: PlaceId,
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         let result = machine.structural_places.iter().find_map(|declaration| {
@@ -46,7 +46,7 @@ impl TerminalExecution {
             if let Some((producer, structural_type)) = result {
                 if self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&structural_type)
                     .is_some_and(|declaration| {
                         matches!(
@@ -61,7 +61,7 @@ impl TerminalExecution {
                 }
                 let operation = machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.operations)
                     .find(|operation| operation.id == producer)
                     .ok_or_else(malformed)?;
@@ -97,7 +97,7 @@ impl TerminalExecution {
                     .chain(
                         machine
                             .blocks
-                            .values()
+                            .iter()
                             .flat_map(|block| &block.structural_parameters),
                     )
                     .find(|parameter| parameter.place == place)
@@ -115,7 +115,7 @@ impl TerminalExecution {
             };
         let bounded_owner = self
             .program
-            .structural_types
+            .structural_types()
             .get(&structural_type)
             .is_some_and(|declaration| {
                 matches!(
@@ -136,7 +136,7 @@ impl TerminalExecution {
         }
         let value = self.structural_values.get(&place).ok_or_else(malformed)?;
         if value.structural_type != structural_type
-            || !matches!(self.program.structural_types.get(&structural_type), Some(declaration)
+            || !matches!(self.program.structural_types().get(&structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
             return Err(malformed());
@@ -145,7 +145,7 @@ impl TerminalExecution {
             .byte_sequence_values
             .get(&place)
             .ok_or_else(malformed)?;
-        binding.validate_mutable_referent(&self.program.structural_types, value)?;
+        binding.validate_mutable_referent(&self.program.structural_types(), value)?;
         if let ByteSequenceBinding::MutableArray {
             array,
             array_type,
@@ -155,7 +155,7 @@ impl TerminalExecution {
         } = binding
         {
             let length = crate::structural_inputs::byte_arrays::byte_array_length(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 *array_type,
             )
             .ok_or_else(malformed)?;
@@ -193,7 +193,7 @@ impl TerminalExecution {
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         let declaration = machine
@@ -210,7 +210,7 @@ impl TerminalExecution {
         };
         let operation = machine
             .blocks
-            .values()
+            .iter()
             .flat_map(|block| &block.operations)
             .find(|operation| operation.id == producer)
             .ok_or_else(malformed)?;
@@ -249,7 +249,7 @@ impl TerminalExecution {
             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
         ) = self
             .program
-            .structural_types
+            .structural_types()
             .get(&structural_type)
             .ok_or_else(malformed)?
             .shape

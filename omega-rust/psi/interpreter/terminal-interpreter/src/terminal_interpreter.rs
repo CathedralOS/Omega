@@ -47,8 +47,8 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::{FuelMeterError, TerminalFuelMeter};
 
-/// Decode one complete portable Terminal-Psi envelope, independently verify
-/// its semantic and proof sections, and execute it with a fresh effect-policy
+/// Decode one complete portable Terminal-Psi envelope and execute its module
+/// with a fresh effect-policy
 /// input supplied by the receiver. The envelope contains no checked-tree or
 /// build-process object.
 pub fn interpret_serialized_terminal_artifact_measured(
@@ -57,17 +57,12 @@ pub fn interpret_serialized_terminal_artifact_measured(
     structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
-        .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-    interpret_terminal_artifact_measured(
-        artifact.semantic_bytes(),
-        scalar_arguments,
-        structural_inputs,
-        handler,
-    )
+    let program = crate::program::TerminalProgram::load_envelope(artifact_bytes)?;
+    let execution = program.start_execution(scalar_arguments, structural_inputs, None)?;
+    execute_measured(execution, handler)
 }
 
-/// Decode, verify and run one artifact to completion under `handler`,
+/// Decode and run one artifact to completion under `handler`,
 /// measuring its fuel; every structural input arrives in one record.
 pub fn interpret_terminal_artifact_measured(
     semantic_bytes: &[u8],
@@ -75,8 +70,15 @@ pub fn interpret_terminal_artifact_measured(
     structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut execution =
+    let execution =
         TerminalExecution::start_artifact(semantic_bytes, scalar_arguments, structural_inputs)?;
+    execute_measured(execution, handler)
+}
+
+fn execute_measured(
+    mut execution: TerminalExecution<'_>,
+    handler: &mut impl TerminalEffectHandler,
+) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
     let mut meter = TerminalFuelMeter::unbounded();
     let value = match execution
         .resume(&mut meter, handler)
@@ -108,8 +110,8 @@ pub fn interpret_terminal_artifact_measured(
     })
 }
 
-/// Decode, verify, and execute canonical terminal-Psi semantic/proof artifact
-/// sections, returning only their semantic result.
+/// Decode and execute canonical Terminal-Psi semantic bytes, returning only
+/// their semantic result.
 pub fn interpret_terminal_artifact(
     semantic_bytes: &[u8],
     arguments: &[TerminalScalarValue],
@@ -294,19 +296,15 @@ fn admit_assumed_bindings(
     Ok(admitted)
 }
 
-impl TerminalExecution {
-    /// Decode, verify and start one artifact with its scalar arguments and
-    /// every structural input in one record. This is the only start entry.
-    /// Decode and independently verify an artifact, then bind its initialized
-    /// entry contents before committing any operation or custody transfer.
+impl TerminalExecution<'_> {
+    /// Decode one artifact, then bind its scalar arguments and structural
+    /// inputs before committing any operation or custody transfer.
     pub fn start_artifact(
         semantic_bytes: &[u8],
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
     ) -> Result<Self, TerminalArtifactInterpretError> {
-        // One admission path serves both public surfaces: `load` decodes the
-        // subject-sealed sections and verifies under the interpretation
-        // profile; `start_execution` binds this record's inputs.
+        // Both public surfaces use the same immutable program and input binding.
         crate::program::TerminalProgram::load(semantic_bytes)?.start_execution(
             scalar_arguments,
             structural_inputs,
@@ -323,12 +321,7 @@ impl TerminalExecution {
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: &AdmittedProviderInstallation,
     ) -> Result<Self, TerminalArtifactInterpretError> {
-        let module = terminal_codec::decode_module(semantic_bytes)
-            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        let program = crate::program::TerminalProgram::from_admitted(
-            crate::program::AdmittedTerminalProgram::admit(module)
-                .map_err(TerminalArtifactInterpretError::Execution)?,
-        );
+        let program = crate::program::TerminalProgram::load(semantic_bytes)?;
         program.start_execution(scalar_arguments, structural_inputs, Some(installation))
     }
 }

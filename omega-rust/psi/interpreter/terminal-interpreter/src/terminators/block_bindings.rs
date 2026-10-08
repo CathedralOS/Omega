@@ -1,5 +1,6 @@
 //! Snapshot selected successor operands before cleanup or parameter replacement.
 
+use crate::program::MachineBlocks;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
@@ -160,9 +161,9 @@ impl BlockBindings {
                 }
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                     crate::custody::validate_nominal_cleanup_action(
-                        &execution.program.structural_types,
+                        &execution.program.structural_types(),
                         &execution.structural_cases,
-                        &execution.program.machines,
+                        &execution.program.machines(),
                         &execution.structural_values,
                         &execution.live_affine_frontier,
                         &execution.live_claims,
@@ -197,7 +198,7 @@ impl BlockBindings {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Snapshot a selected edge's operands, including projected affine children.
     /// The caller commits each exact transfer and any residual cleanup before
     /// installing these bindings at the destination.
@@ -207,12 +208,11 @@ impl TerminalExecution {
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
     ) -> Result<BlockBindings, TerminalInterpretError> {
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let block = machine
-            .blocks
-            .get(&target)
+            .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
         let scalar_arguments = arguments
             .iter()
@@ -271,7 +271,7 @@ impl TerminalExecution {
             if parameter.access != StructuralAccess::Owned
                 && matches!(
                     self.program
-                        .structural_types
+                        .structural_types()
                         .get(&parameter.structural_type)
                         .ok_or_else(malformed)?
                         .shape,
@@ -400,7 +400,7 @@ impl TerminalExecution {
                         }
                         let root = value.expect("one structural carrier was validated");
                         let view = resolve_structural_arguments(
-                            &self.program.structural_types,
+                            &self.program.structural_types(),
                             &self.structural_values,
                             std::slice::from_ref(argument),
                         )?
@@ -450,7 +450,7 @@ impl TerminalExecution {
                     }
                 }
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    if matches!(self.program.structural_types.get(&parameter.structural_type),
+                    if matches!(self.program.structural_types().get(&parameter.structural_type),
                         Some(declaration) if matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
                             || declaration.shape.is_borrowed_byte_view()) =>
                 {
@@ -478,7 +478,7 @@ impl TerminalExecution {
                     if self.plain_aggregate_type(parameter.structural_type)
                         || matches!(
                             self.program
-                                .structural_types
+                                .structural_types()
                                 .get(&parameter.structural_type)
                                 .map(|declaration| &declaration.shape),
                             Some(StructuralTypeShape::PrimitiveScalar(_))
@@ -486,7 +486,7 @@ impl TerminalExecution {
                         || (parameter.access == StructuralAccess::SharedBorrow
                             && matches!(
                                 self.program
-                                    .structural_types
+                                    .structural_types()
                                     .get(&parameter.structural_type)
                                     .map(|declaration| &declaration.shape),
                                 Some(
@@ -517,7 +517,7 @@ impl TerminalExecution {
                     // the root either stays untracked or is still held as
                     // one whole frontier entry.
                     let view = resolve_structural_arguments(
-                        &self.program.structural_types,
+                        &self.program.structural_types(),
                         &self.structural_values,
                         std::slice::from_ref(argument),
                     )?
@@ -548,7 +548,7 @@ impl TerminalExecution {
                     {
                         return Err(malformed());
                     }
-                    if matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
+                    if matches!(self.program.structural_types().get(&parameter.structural_type), Some(declaration)
                                             if declaration.shape.is_borrowed_byte_carrier())
                     {
                         // Borrowed byte views join whole: the argument names
@@ -567,7 +567,7 @@ impl TerminalExecution {
                 }
                 StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        || !matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
+                        || !matches!(self.program.structural_types().get(&parameter.structural_type), Some(declaration)
                                                     if declaration.shape.is_borrowed_byte_carrier())
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == argument.place || entry.place == parameter.place
@@ -723,7 +723,7 @@ impl TerminalExecution {
         self.owned_block_source(parameter.place) == Some(parameter)
             && self
                 .program
-                .machines
+                .machines()
                 .get(&self.current_machine)
                 .is_some_and(|machine| {
                     machine.structural_places.iter().any(|declaration| {
@@ -760,7 +760,7 @@ impl TerminalExecution {
         multiplicity: StructuralMultiplicity,
         scalar_case: bool,
     ) -> bool {
-        let Some(machine) = self.program.machines.get(&self.current_machine) else {
+        let Some(machine) = self.program.machines().get(&self.current_machine) else {
             return false;
         };
         let Some(declaration) = machine
@@ -795,7 +795,7 @@ impl TerminalExecution {
             && (scalar_case || self.plain_aggregate_type(structural_type))
             && machine
                 .blocks
-                .values()
+                .iter()
                 .flat_map(|block| &block.operations)
                 .any(|operation| {
                     operation.id == producer
@@ -839,7 +839,7 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
     ) -> Option<&StructuralParameterDeclaration> {
-        let machine = self.program.machines.get(&self.current_machine)?;
+        let machine = self.program.machines().get(&self.current_machine)?;
         let declaration = machine
             .structural_places
             .iter()
@@ -849,10 +849,8 @@ impl TerminalExecution {
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == place && parameter.position == position),
-            StructuralPlaceKind::BlockParameter { block, position } => self.program.machines
-                [&self.current_machine]
-                .blocks
-                .get(&block)?
+            StructuralPlaceKind::BlockParameter { block, position } => machine
+                .block(&block)?
                 .structural_parameters
                 .get(position as usize)
                 .filter(|parameter| parameter.place == place && parameter.position == position),

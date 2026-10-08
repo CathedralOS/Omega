@@ -8,7 +8,6 @@ use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralMultiplicity;
@@ -43,7 +42,7 @@ impl ByteSequenceBinding {
 
     pub(crate) fn validate_mutable_referent(
         &self,
-        structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+        structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
         value: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
         if let Self::MutableArray {
@@ -131,7 +130,7 @@ impl ByteSequenceBinding {
     }
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Observe a shared descriptor at its exact current home, whether frame-local
     /// or relocated into an aggregate. The map supplies contents only; exact
     /// carrier type, immutable access and home correspondence remain mandatory.
@@ -145,7 +144,7 @@ impl TerminalExecution {
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
         ) || !self
             .program
-            .structural_types
+            .structural_types()
             .get(&value.structural_type)
             .is_some_and(|row| {
                 matches!(
@@ -165,7 +164,7 @@ impl TerminalExecution {
             .get(&argument.place)
             .ok_or_else(malformed)?;
         let selected = crate::custody::project_structural_value(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             root,
             &argument.path,
         )?;
@@ -206,7 +205,7 @@ impl TerminalExecution {
             return Ok(None);
         };
         let Ok(value) = crate::custody::project_structural_value(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             root,
             &argument.path,
         ) else {
@@ -214,7 +213,7 @@ impl TerminalExecution {
         };
         if !self
             .program
-            .structural_types
+            .structural_types()
             .get(&value.structural_type)
             .is_some_and(|row| {
                 matches!(
@@ -289,7 +288,7 @@ impl TerminalExecution {
                 Err(malformed())
             };
         }
-        binding.validate_mutable_referent(&self.program.structural_types, value)?;
+        binding.validate_mutable_referent(&self.program.structural_types(), value)?;
         if access == StructuralAccess::MutableBorrow {
             return Ok(binding.clone());
         }

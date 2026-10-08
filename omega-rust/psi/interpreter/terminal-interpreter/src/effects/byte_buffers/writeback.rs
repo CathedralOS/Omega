@@ -92,7 +92,8 @@ impl BoundaryByteBufferBinding {
                 if scope != BoundaryByteWriteScope::View {
                     return Err(malformed());
                 }
-                source.validate_mutable_referent(&execution.program.structural_types, referent)?;
+                source
+                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
@@ -105,7 +106,8 @@ impl BoundaryByteBufferBinding {
                 referent,
                 ..
             } => {
-                source.validate_mutable_referent(&execution.program.structural_types, referent)?;
+                source
+                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
                 let bytes = execution
                     .structural_byte_sequence_fields
                     .get(field)
@@ -170,7 +172,7 @@ impl BoundaryByteBufferBinding {
                     return Err(malformed());
                 }
                 self.source
-                    .validate_mutable_referent(&execution.program.structural_types, referent)?;
+                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
@@ -191,7 +193,7 @@ impl BoundaryByteBufferBinding {
                 ..
             } => {
                 self.source
-                    .validate_mutable_referent(&execution.program.structural_types, referent)?;
+                    .validate_mutable_referent(&execution.program.structural_types(), referent)?;
                 let length = u64::try_from(
                     execution
                         .structural_byte_sequence_fields

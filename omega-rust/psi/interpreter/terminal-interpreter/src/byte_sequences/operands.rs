@@ -9,7 +9,7 @@ use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn byte_sequence_operand_view(
         &self,
         operand: &ByteSequenceOperand,

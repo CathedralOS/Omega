@@ -12,7 +12,7 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeShape,
 };
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Restore the exact stored region in an owned home's reserved geometry.
     /// A store through a loan changes the caller's backing, never the callee's
     /// owned frontier. The typed root declaration supplies that distinction;
@@ -30,7 +30,7 @@ impl TerminalExecution {
         }
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         let parameter = machine
@@ -39,7 +39,7 @@ impl TerminalExecution {
             .chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
             .find(|parameter| parameter.place == destination);
@@ -61,7 +61,7 @@ impl TerminalExecution {
             };
             let result = machine
                 .blocks
-                .values()
+                .iter()
                 .flat_map(|block| &block.operations)
                 .find(|operation| operation.id == producer)
                 .and_then(|operation| operation.result.structural())
@@ -111,13 +111,13 @@ impl TerminalExecution {
         for depth in (0..selected_path.len()).rev() {
             let parent_path = &selected_path[..depth];
             let parent_type = crate::custody::resolve_structural_path_type(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 root.structural_type,
                 parent_path,
             )?;
             let declaration = self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&parent_type)
                 .ok_or_else(malformed)?;
             let children = match &declaration.shape {

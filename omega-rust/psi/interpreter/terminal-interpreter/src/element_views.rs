@@ -229,7 +229,7 @@ fn count(
     usize::try_from(value).map_err(|_| malformed())
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     /// Resolve the descriptor itself at its current structural home. Projecting
     /// a stored view never reconstructs its window from the owner's backing.
     pub(crate) fn element_view_argument(
@@ -328,7 +328,7 @@ impl TerminalExecution {
         {
             return Err(malformed());
         }
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if !machine.structural_places.iter().any(|place| {
@@ -343,7 +343,7 @@ impl TerminalExecution {
         }
         let element_scalar = match &self
             .program
-            .structural_types
+            .structural_types()
             .get(&element)
             .ok_or_else(malformed)?
             .shape
@@ -353,7 +353,7 @@ impl TerminalExecution {
         };
         let descriptor = &self
             .program
-            .structural_types
+            .structural_types()
             .get(&result.structural_type)
             .ok_or_else(malformed)?
             .shape;
@@ -417,7 +417,7 @@ impl TerminalExecution {
         let source = &backing_source;
         let root_type = self.live_structural_type(source.place)?;
         let collection_type = crate::custody::resolve_structural_path_type(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             root_type,
             &source.path,
         )?;
@@ -425,7 +425,12 @@ impl TerminalExecution {
             let StructuralTypeShape::FixedArray {
                 element: source_element,
                 length,
-            } = self.program.structural_types[&collection_type].shape
+            } = self
+                .program
+                .structural_types()
+                .get(&collection_type)
+                .ok_or_else(malformed)?
+                .shape
             else {
                 return Err(malformed());
             };
@@ -454,7 +459,7 @@ impl TerminalExecution {
                 // record whose layout happens to occupy the same byte count.
                 // The result-family check above independently requires u8.
                 let collection = terminal_semantics::collection_backing(
-                    self.program.structural_types.values(),
+                    self.program.structural_types().values(),
                     collection_type,
                     element,
                 )
@@ -519,7 +524,12 @@ impl TerminalExecution {
         if let StructuralTypeShape::FixedArray {
             element: source_element,
             length,
-        } = self.program.structural_types[&collection_type].shape
+        } = self
+            .program
+            .structural_types()
+            .get(&collection_type)
+            .ok_or_else(malformed)?
+            .shape
             && source_element != element
         {
             if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
@@ -558,7 +568,7 @@ impl TerminalExecution {
             return Ok(OperationFlow::Advance);
         }
         let collection = terminal_semantics::collection_backing(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             collection_type,
             element,
         )
@@ -639,7 +649,7 @@ impl TerminalExecution {
             _ => {
                 let view = if element_scalar.is_none() {
                     let collection = crate::custody::resolve_structural_arguments(
-                        &self.program.structural_types,
+                        &self.program.structural_types(),
                         &self.structural_values,
                         std::slice::from_ref(source),
                     )?
@@ -706,13 +716,13 @@ impl TerminalExecution {
         ));
         selected_path.extend_from_slice(prefix);
         let parent = project_structural_value(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             collection.ok_or_else(malformed)?,
             &selected_path,
         )?;
         let StructuralTypeShape::Record { fields, .. } = &self
             .program
-            .structural_types
+            .structural_types()
             .get(&parent.structural_type)
             .ok_or_else(malformed)?
             .shape
@@ -997,7 +1007,7 @@ impl TerminalExecution {
         let view = self.element_view_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines().get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let access = match result.multiplicity {
@@ -1013,7 +1023,7 @@ impl TerminalExecution {
             .chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
             .filter(|parameter| parameter.place == *source);
@@ -1057,7 +1067,7 @@ impl TerminalExecution {
             || !result.qualification_establishments.is_empty()
             || !self
                 .program
-                .structural_types
+                .structural_types()
                 .get(&result.structural_type)
                 .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))
             || !result.claims.is_empty()

@@ -33,7 +33,7 @@ pub struct TerminalStructuralByteArrayValue {
 }
 
 pub(crate) fn byte_array_length(
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     array: StructuralTypeId,
 ) -> Option<u64> {
     // A bounded view's capacity is the fixed byte extent; its element is the
@@ -61,7 +61,7 @@ pub(crate) fn byte_array_length(
 }
 
 pub(crate) fn array_path_type(
-    types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -89,14 +89,14 @@ pub(crate) fn array_path_type(
     Some(structural_type)
 }
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn bind_byte_arrays(
         &mut self,
         arguments: &[TerminalStructuralByteArrayValue],
     ) -> Result<(), TerminalInterpretError> {
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         let mut storage = BTreeMap::new();
@@ -132,12 +132,12 @@ impl TerminalExecution {
                 return Err(malformed());
             }
             let array_type = array_path_type(
-                &self.program.structural_types,
+                &self.program.structural_types(),
                 root.structural_type,
                 &argument.path,
             )
             .ok_or_else(malformed)?;
-            let length = byte_array_length(&self.program.structural_types, array_type)
+            let length = byte_array_length(&self.program.structural_types(), array_type)
                 .ok_or_else(malformed)?;
             if argument.bytes.len() as u128 != u128::from(length) {
                 return Err(malformed());
@@ -151,7 +151,7 @@ impl TerminalExecution {
             if argument.path.is_empty()
                 && matches!(
                     self.program
-                        .structural_types
+                        .structural_types()
                         .get(&array_type)
                         .map(|row| &row.shape),
                     Some(StructuralTypeShape::ByteSequence(
@@ -301,7 +301,7 @@ impl TerminalExecution {
             match &mut binding {
                 ByteSequenceBinding::MutableArray { referent, .. } => {
                     *referent = value.clone();
-                    binding.validate_mutable_referent(&self.program.structural_types, &value)?;
+                    binding.validate_mutable_referent(&self.program.structural_types(), &value)?;
                 }
                 ByteSequenceBinding::Immutable(bytes) => {
                     *bytes = bytes.clone().with_descriptor_home(value.clone());
@@ -326,7 +326,7 @@ impl TerminalExecution {
                     return Err(malformed());
                 };
                 let parent = resolve_structural_arguments(
-                    &self.program.structural_types,
+                    &self.program.structural_types(),
                     &self.structural_values,
                     &[StructuralArgument {
                         place: source.place,
@@ -338,7 +338,7 @@ impl TerminalExecution {
                 .ok_or_else(malformed)?;
                 let declaration = self
                     .program
-                    .structural_types
+                    .structural_types()
                     .get(&parent.structural_type)
                     .ok_or_else(malformed)?;
                 let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
@@ -415,16 +415,16 @@ impl TerminalExecution {
         let (root, home) =
             self.array_storage_root_staged(source.place, identity_cursor, &mut BTreeMap::new())?;
         let array_type = array_path_type(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             root.structural_type,
             &source.path,
         )
         .ok_or_else(malformed)?;
-        let length =
-            byte_array_length(&self.program.structural_types, array_type).ok_or_else(malformed)?;
+        let length = byte_array_length(&self.program.structural_types(), array_type)
+            .ok_or_else(malformed)?;
         let values = BTreeMap::from([(source.place, root)]);
         let mut referent = resolve_structural_arguments(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             &values,
             std::slice::from_ref(source),
         )?
@@ -448,7 +448,7 @@ impl TerminalExecution {
             length,
             referent: referent.clone(),
         };
-        binding.validate_mutable_referent(&self.program.structural_types, &referent)?;
+        binding.validate_mutable_referent(&self.program.structural_types(), &referent)?;
         Ok((referent, binding))
     }
 
@@ -465,7 +465,7 @@ impl TerminalExecution {
             StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
         ) || !self
             .program
-            .structural_types
+            .structural_types()
             .get(&parameter.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
         {
@@ -527,18 +527,18 @@ impl TerminalExecution {
             _ => &argument.path,
         };
         let Some(array_type) = array_path_type(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             root.structural_type,
             backing_path,
         ) else {
             return Ok(None);
         };
-        let Some(length) = byte_array_length(&self.program.structural_types, array_type) else {
+        let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
             return Ok(None);
         };
         let machine = self
             .program
-            .machines
+            .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         let source = machine
@@ -547,7 +547,7 @@ impl TerminalExecution {
             .chain(
                 machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
             .find(|source| source.place == argument.place)
@@ -568,7 +568,7 @@ impl TerminalExecution {
                 };
                 let result = machine
                     .blocks
-                    .values()
+                    .iter()
                     .flat_map(|block| &block.operations)
                     .find(|operation| operation.id == producer)?
                     .result
@@ -603,7 +603,7 @@ impl TerminalExecution {
             return Err(malformed());
         }
         let window = terminal_semantics::fixed_byte_array_window(
-            self.program.structural_types.values(),
+            self.program.structural_types().values(),
             &source,
             argument,
             parameter,
@@ -622,7 +622,7 @@ impl TerminalExecution {
             &self.structural_values
         };
         let mut referent = resolve_structural_arguments(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             values,
             std::slice::from_ref(&backing_argument),
         )?

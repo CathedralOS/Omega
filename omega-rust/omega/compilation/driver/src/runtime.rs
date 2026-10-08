@@ -102,18 +102,13 @@ impl std::error::Error for TerminalRuntimeError {}
 pub fn execute(
     request: TerminalRuntimeRequest<'_>,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let program = TerminalProgram::load(request.artifact.semantic_bytes())
-        .map_err(TerminalRuntimeError::Artifact)?;
+    let artifact = request.artifact.view().map_err(|error| {
+        TerminalRuntimeError::Artifact(TerminalArtifactInterpretError::SemanticDecode(error))
+    })?;
+    let program = TerminalProgram::borrow(artifact);
     if let Some(provisions) = request.provisions
         && (provisions.identity() != program.terminal_psi()
-            || provisions.entry()
-                != request
-                    .artifact
-                    .semantic_module()
-                    .map_err(|_| {
-                        TerminalRuntimeError::InvalidProvision("Terminal module unavailable")
-                    })?
-                    .entry)
+            || provisions.entry() != artifact.module().entry)
     {
         return Err(TerminalRuntimeError::InvalidProvision(
             "runtime provisions name another Terminal program or entry",

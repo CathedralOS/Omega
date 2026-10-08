@@ -1,4 +1,4 @@
-//! The execution engine: the live execution state, executable machines,
+//! The execution engine: the live execution state, borrowed Terminal machines,
 //! suspended calls, runtime descriptors and claims, and the interpreter loop.
 //! `resume_with_effect_handler` charges and dispatches each operation to its
 //! `execute_*` method (`integer_operations`, `boolean_float_operations`,
@@ -15,6 +15,7 @@ use crate::effects::{
     AdmittedAssumedBinding, AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler,
 };
 use crate::errors::TerminalInterpretError;
+use crate::program::MachineBlocks;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::scalar_array::TerminalScalarArrayValue;
@@ -36,9 +37,8 @@ use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, PlaceI
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
-    Block, EntryClaim, NominalAffineCleanup, OperationKind, StructuralAffineDiscard,
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, TerminalMachineResult, TerminalPlacedViewInput, Terminator,
+    NominalAffineCleanup, OperationKind, StructuralAffineDiscard, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPathSegment, TerminalPlacedViewInput, Terminator,
 };
 
 /// What one settled terminator tells the interpreter loop to do next.
@@ -65,13 +65,13 @@ pub(crate) enum OperationFlow {
 /// Fuel exhaustion never advances `next_operation` or the current terminator,
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
-pub struct TerminalExecution {
+pub struct TerminalExecution<'artifact> {
     // One immutable program owner survives suspension and is shared verbatim
     // across every independent instance admitted from the same module. A
     // resume or call borrows this owner independently of mutable runtime
     // storage; frames retain only machine identity. There is no per-machine
     // or per-operation Arc allocation.
-    pub(crate) program: std::sync::Arc<crate::program::AdmittedTerminalProgram>,
+    pub(crate) program: std::sync::Arc<crate::program::AdmittedTerminalProgram<'artifact>>,
     /// One immutable selected route per boundary. Catalog alternatives are
     /// never a substitute for a checked installation or explicit host choice.
     pub(crate) boundary_supplies:
@@ -148,20 +148,6 @@ pub struct TerminalExecution {
     pub(crate) established_erased_fields:
         Vec<crate::structural_inputs::TerminalEstablishedErasedField>,
     pub(crate) effects: Vec<TerminalEffect>,
-}
-
-#[derive(Clone)]
-pub(crate) struct ExecutableMachine {
-    pub(crate) attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    pub(crate) nominal_cleanup_subject: Option<semantic_vocabulary::StructuralTypeId>,
-    pub(crate) parameters: Vec<terminal_psi::ValueDeclaration>,
-    pub(crate) structural_parameters: Vec<StructuralParameterDeclaration>,
-    pub(crate) structural_places: Vec<terminal_psi::StructuralPlaceDeclaration>,
-    pub(crate) entry_claims: Vec<EntryClaim>,
-    pub(crate) content_entry_claims: Vec<terminal_psi::ContentEntryClaim>,
-    pub(crate) result: TerminalMachineResult,
-    pub(crate) entry: BlockId,
-    pub(crate) blocks: BTreeMap<BlockId, Block>,
 }
 
 pub(crate) struct SuspendedCall {
@@ -242,12 +228,12 @@ impl CompletedReturn {
     }
 }
 
-impl TerminalExecution {
+impl<'artifact> TerminalExecution<'artifact> {
     /// Start one instance on an already-admitted program: bind this
     /// invocation's inputs and custody, commit no operation. The program is
     /// data — no decode or verification repeats here.
     pub(crate) fn start_with_program(
-        program: std::sync::Arc<crate::program::AdmittedTerminalProgram>,
+        program: std::sync::Arc<crate::program::AdmittedTerminalProgram<'artifact>>,
         scalar_arguments: &[TerminalScalarValue],
         structural_arguments: &[TerminalStructuralValue],
         structural_scalar_field_arguments: &[TerminalStructuralScalarFieldValue],
@@ -274,13 +260,13 @@ impl TerminalExecution {
         }
         let local_structural_identities = LocalStructuralIdentities::new(
             program
-                .machines
+                .machines()
                 .values()
                 .flat_map(|machine| machine.structural_places.iter()),
             structural_arguments,
         );
         let machine = program
-            .machines
+            .machines()
             .get(&program.catalogs.entry)
             .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
         let current = machine.entry;
@@ -375,7 +361,7 @@ impl TerminalExecution {
         let primitive_storage = std::mem::take(&mut execution.structural_primitive_storage);
         let (storage, entry_places) = bind_structural_primitive_values(
             machine,
-            &program.structural_types,
+            &program.structural_types(),
             &execution.structural_values,
             structural_primitive_value_arguments,
             primitive_storage,
@@ -386,7 +372,7 @@ impl TerminalExecution {
         let scalar_fields = std::mem::take(&mut execution.structural_scalar_fields);
         execution.structural_scalar_fields = scalar_fields::bind(
             machine,
-            &program.structural_types,
+            &program.structural_types(),
             &execution.structural_values,
             structural_scalar_field_arguments,
             scalar_fields,
@@ -509,13 +495,12 @@ impl TerminalExecution {
         let program = std::sync::Arc::clone(&self.program);
         loop {
             while let Some(operation) = program
-                .machines
+                .machines()
                 .get(&self.current_machine)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                     self.current_machine,
                 ))?
-                .blocks
-                .get(&self.current)
+                .block(&self.current)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .operations
                 .get(self.next_operation)
@@ -796,13 +781,12 @@ impl TerminalExecution {
                 self.next_operation += 1;
             }
             let terminator = &program
-                .machines
+                .machines()
                 .get(&self.current_machine)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
                     self.current_machine,
                 ))?
-                .blocks
-                .get(&self.current)
+                .block(&self.current)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .terminator;
             let flow = match &terminator {

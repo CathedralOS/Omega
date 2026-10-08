@@ -30,3 +30,11 @@ fn package_operations_do_not_assemble_compiler_products() {
         }
     }
 }
+
+#[test]
+fn retained_runtime_borrows_terminal_storage() {
+    let source = include_str!("runtime.rs");
+    assert!(source.contains("TerminalProgram::borrow(artifact)"));
+    assert!(!source.contains("TerminalProgram::load("));
+    assert!(!source.contains("semantic_bytes()"));
+}

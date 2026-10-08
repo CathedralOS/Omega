@@ -9,7 +9,7 @@ use semantic_vocabulary::ScalarType;
 use terminal_psi::OperationKind;
 use terminal_semantics::{ScalarRepresentationViewPair, ScalarViewValue};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_ieee_float_constant(
         &mut self,
         operation: &terminal_psi::Operation,

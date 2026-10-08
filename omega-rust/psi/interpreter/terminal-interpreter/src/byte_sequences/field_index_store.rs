@@ -7,7 +7,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_structural_byte_sequence_field_length(
         &mut self,
         operation: &Operation,

@@ -6,7 +6,7 @@ use crate::values::TerminalScalarValue;
 use semantic_vocabulary::IntegerValue;
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
-impl TerminalExecution {
+impl TerminalExecution<'_> {
     pub(crate) fn execute_byte_sequence_store(
         &mut self,
         operation: &Operation,
@@ -39,7 +39,7 @@ impl TerminalExecution {
             .get(destination)
             .ok_or_else(malformed)?;
         binding.validate_mutable_referent(
-            &self.program.structural_types,
+            &self.program.structural_types(),
             self.structural_values
                 .get(destination)
                 .ok_or_else(malformed)?,
