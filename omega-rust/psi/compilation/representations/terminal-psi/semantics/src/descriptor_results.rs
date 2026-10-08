@@ -250,6 +250,14 @@ pub struct DescriptorMachine {
     pub normal_exits: Vec<DescriptorPosition>,
 }
 
+/// The graph row for `id`, when the catalog covers that machine.
+pub fn descriptor_machine<'graph>(
+    graph: &'graph [DescriptorMachine],
+    id: MachineId,
+) -> Option<&'graph DescriptorMachine> {
+    graph.iter().find(|current| current.id == id)
+}
+
 pub struct DescriptorInvocation {
     pub callee: MachineId,
     /// Every formal position is retained. None means its actual storage

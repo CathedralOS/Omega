@@ -2008,7 +2008,9 @@ fn borrowed_sources(
         &unit.boundary_machines,
         types,
     ) {
-        if let Some(current) = graph.iter().find(|current| current.id == function.machine) {
+        if let Some(current) =
+            terminal_semantics::descriptor_results::descriptor_machine(&graph, function.machine)
+        {
             let mut analysis = DescriptorAnalysis::new(types, &graph);
             for block in &function.blocks {
                 for parameter in &block.structural_parameters {

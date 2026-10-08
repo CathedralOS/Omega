@@ -63,7 +63,10 @@ pub(in crate::lowering) fn borrowed_source_catalog(
             let Some(sources) = rosters.get_mut(&function.machine) else {
                 continue;
             };
-            let Some(current) = graph.iter().find(|current| current.id == function.machine) else {
+            let Some(current) = terminal_semantics::descriptor_results::descriptor_machine(
+                &graph,
+                function.machine,
+            ) else {
                 continue;
             };
             for entry in &function.block_entries {

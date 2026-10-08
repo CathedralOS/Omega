@@ -155,7 +155,9 @@ fn borrowed_sources(
     ) else {
         return sources;
     };
-    let Some(current) = graph.iter().find(|current| current.id == function.machine) else {
+    let Some(current) =
+        terminal_semantics::descriptor_results::descriptor_machine(&graph, function.machine)
+    else {
         return sources;
     };
     let mut analysis = DescriptorAnalysis::new(declarations, &graph);
@@ -535,8 +537,7 @@ fn source_contract(
     custody: &Custody,
     place: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralMultiplicity)> {
-    if let Some(parameter) = function.structural_parameter(place)
-    {
+    if let Some(parameter) = function.structural_parameter(place) {
         return Some((parameter.structural_type, parameter.multiplicity));
     }
     if let Some(parameter) = function.block_structural_parameter(place) {
@@ -1676,8 +1677,7 @@ fn apply_terminator(
         if let Some(target) = target {
             let mut exit = custody.clone();
             if let Some((target, bindings)) = owned_transfer {
-                let destination = function
-                    .block_entry(target)?;
+                let destination = function.block_entry(target)?;
                 let mut moved = Vec::new();
                 for (binding, parameter) in bindings.iter().zip(&destination.structural_parameters)
                 {
