@@ -229,11 +229,7 @@ fn relation_call_matches_quotient(
         return true;
     }
     program.machines().iter().any(|machine| {
-        (machine.symbol == relation_symbol
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == relation_symbol))
+        program.machine_or_state_symbol(machine, relation_symbol)
             && program
                 .machine_states(machine)
                 .iter()

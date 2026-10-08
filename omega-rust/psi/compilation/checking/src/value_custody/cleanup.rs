@@ -356,11 +356,7 @@ fn reserved_cleanup_selected_by<'program>(
         if let Some(machine_symbol) = machine_symbol {
             machine.symbol == machine_symbol
         } else {
-            machine.symbol == selected_symbol
-                || program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == selected_symbol)
+            program.machine_or_state_symbol(machine, selected_symbol)
         }
     })
 }
