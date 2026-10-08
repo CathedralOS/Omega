@@ -672,7 +672,9 @@ crashes Trap
         }
     }
 
-    // A target is a successor call `name(arguments)`, or `{}` to end here.
+    // A target is `{}`, the explicit Unit completion, or an expression: a
+    // call naming a declaration or any terminal value. A value may be a
+    // construction, since no arm begins with `{`.
     state arm_target(
         parser: &mut Parser,
         input: &TokenStream,
@@ -712,8 +714,8 @@ crashes Trap
                 pattern: pattern,
                 first_field: first_field,
                 field_count: field_count,
+                target_kind: ArmTargetKind::Unit,
                 target: 0,
-                terminal: true,
                 source_span: Parser::source_span(parser, parser.arm_start, parser.token_end)
             })
             _ -> done()
@@ -731,7 +733,7 @@ crashes Trap
         first_field: u64 in Trapping,
         field_count: u64 in Trapping
     ) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionTarget, false);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionTarget, true);
         transition parser.output.accepted {
             true -> call_target_shape(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
                 field_count, parser.expression_result)
@@ -739,8 +741,9 @@ crashes Trap
         }
     }
 
-    // A target calls a named state or machine: a bare name (a state first)
-    // or an owned machine path such as `Owner::step`.
+    // A call target names a state or machine: a bare name (a state first)
+    // or an owned machine path such as `Owner::step`. Every other expression
+    // but an acknowledgement is a terminal value.
     state call_target_shape(
         parser: &mut Parser,
         input: &TokenStream,
@@ -754,17 +757,68 @@ crashes Trap
         target: u64 in Trapping
     ) {
         let call: Expression = SyntaxTrees::expression(&parser.output, target);
+        let acknowledged: bool = Parser::acknowledges(call.operator);
         transition call.kind {
             ExpressionKind::Call -> call_target_callee(parser, input, unsupported, has_subject, subject, kind, pattern,
                 first_field, field_count, target, call)
-            ExpressionKind::Unary -> acknowledged_target(parser, input, unsupported, has_subject, subject, kind,
-                pattern, first_field, field_count, target, call)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionTargetOpen)
+            ExpressionKind::Unary -> unary_target(parser, input, unsupported, has_subject, subject, kind,
+                pattern, first_field, field_count, target, call, acknowledged)
+            _ -> value_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
+                field_count, target, call)
+        }
+    }
+
+    state unary_target(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping,
+        target: u64 in Trapping,
+        unary: Expression,
+        acknowledged: bool
+    ) {
+        transition acknowledged {
+            true -> acknowledged_target(parser, input, unsupported, has_subject, subject, kind, pattern,
+                first_field, field_count, target, unary)
+            _ -> value_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
+                field_count, target, unary)
+        }
+    }
+
+    state value_target(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        has_subject: bool,
+        subject: u64 in Trapping,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping,
+        first_field: u64 in Trapping,
+        field_count: u64 in Trapping,
+        target: u64 in Trapping,
+        value: Expression
+    ) {
+        transition {
+            _ -> store_arm(parser, input, unsupported, has_subject, subject, TransitionArm {
+                kind: kind,
+                pattern: pattern,
+                first_field: first_field,
+                field_count: field_count,
+                target_kind: ArmTargetKind::Value,
+                target: target,
+                source_span: Parser::source_span(parser, parser.arm_start, value.source_span.span.end)
+            })
         }
     }
 
     // A target may acknowledge its call's operational effects
-    // (`-> suspend block read(source)`); the arm keeps the acknowledged node.
+    // (`-> suspend block read(source)`); the arm keeps the acknowledged node,
+    // whose operand must be a call.
     state acknowledged_target(
         parser: &mut Parser,
         input: &TokenStream,
@@ -806,8 +860,8 @@ crashes Trap
             pattern: pattern,
             first_field: first_field,
             field_count: field_count,
+            target_kind: ArmTargetKind::Call,
             target: target,
-            terminal: false,
             source_span: Parser::source_span(parser, parser.arm_start, call.source_span.span.end)
         };
         let named: bool = Parser::names_declaration(callee.kind);

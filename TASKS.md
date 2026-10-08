@@ -5815,28 +5815,39 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64,
   `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
-  `tests/psi/parser/test-parser.sh` passes all 237 parser cases, and
-  `tests/psi/resolver/test-resolver.sh` passes all 93 resolver cases; each
+  `tests/psi/parser/test-parser.sh` passes all 266 parser cases, and
+  `tests/psi/resolver/test-resolver.sh` passes all 116 resolver cases; each
   gate builds its harness natively in several minutes.
   `tests/product/request/test-request.sh` builds the product entry and passes
   all 36 OCREQ cases, D's request vectors among them; a well-formed request
   stops at `coverage_request_semantics` until phase 3, which waits on the
   owner decision `ocreq-package-key-identity-derivation`. The lexer keeps only
-  semantic tokens. Machines parse with signatures, clauses shared with states,
-  data and cases, entry and state statements, transition arms, and expressions
-  including call acknowledgements and static applications; every type position
-  shares one nested grammar of references, arrays, slices and applied names or
-  paths with `in` domains. Resolution runs over a source set: each unit
-  belongs to the module its path names, a `use` must name a supplied module,
-  and a reference sees its own module and the modules its unit imports, not
-  transitively, with two visible declarations of one spelling ambiguous. It
-  binds data, signature and body types and `in` domains, rejects duplicate
-  generic parameters, parameters, states, and data and overloads within a
-  module, and binds every expression name by the language's resolution order
-  (locals, arm binders, the body's own parameters, then states, machines, data
-  and cases by position). The parser harness reads all 19 product sources
-  whole. The resolver gate resolves the whole psi package, its 17 units, as
-  one source set; the shared syntax tables hold 1,024 roots, 16,384 path
+  semantic tokens. Machines parse with generic parameters shared with data,
+  signatures, clauses shared with states, data and cases (`requires`/`ensures`
+  facts separated by `,` or `;`), bodyless `;` declarations, entry and state
+  statements, transition arms whose targets are calls, terminal values or
+  `{}`, and expressions including float literals, call acknowledgements and
+  static applications; fields, cases and payload fields take stable `#N`
+  identities; every type position shares one nested grammar of references,
+  arrays, slices and applied names or paths with `in` domains. Resolution
+  runs over a source set: each unit belongs to the module its path names, a
+  `use` must name a supplied module, and a reference sees its own module and
+  the modules its unit imports, not transitively, with two visible
+  declarations of one spelling ambiguous. It
+  binds data, signature and body types and `in` domains, each in its
+  declaration's generic scope, checks all-or-nothing, distinct stable
+  identities, rejects duplicate generic parameters, parameters, states, and
+  data and overloads within a module, and binds every expression name by the
+  language's resolution order (locals, arm binders, the body's own
+  parameters, value and machine binders, then states, machines, data and
+  cases by position). The parser harness reads all 23 product source files
+  whole and 12 of the 100 `source/library/std` and `core` files; 76 others
+  stop first at root kinds the parser lacks, 6 at retired range suffixes
+  awaiting **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, 2 at
+  `where machine` contracts, and one each at an operator-token machine head,
+  `terminates by`, an `in` membership fact and an `as` pattern rename. The
+  resolver gate resolves the whole psi package, its 18 units, as one source
+  set; the shared syntax tables hold 1,024 roots, 16,384 path
   members and type references, 8,192 parameters and statements, 4,096 states
   and 32,768 expressions, over a 65,536-token unit. Next: package aliases,
   with `pub` narrowing imports across packages, so the product entry and its

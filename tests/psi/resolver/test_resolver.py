@@ -24,6 +24,9 @@ DUPLICATE_MACHINE = 11
 DUPLICATE_GENERIC_PARAMETER = 12
 UNKNOWN_NAME = 13
 AMBIGUOUS_NAME = 14
+PARTIAL_STABLE_IDENTITIES = 15
+DUPLICATE_STABLE_IDENTITY = 16
+INVALID_STABLE_IDENTITY = 17
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -51,6 +54,16 @@ def machine(handle: int) -> tuple[int, int, int]:
 
 def data_case(item: int, handle: int) -> tuple[int, int, int]:
     return (8, item, handle)
+
+
+def data_value(item: int) -> tuple[int, int, int]:
+    """A construction's data declaration."""
+    return (7, item, 0)
+
+
+def binder_name(handle: int) -> tuple[int, int, int]:
+    """A value or machine generic parameter of the enclosing machine."""
+    return (10, handle, 0)
 
 BUILTIN = 1
 DATA = 2
@@ -706,6 +719,125 @@ def main() -> None:
     rejected(program, "unknown-case", b"data T { case A; }\nmachine f() { let x: T = T::C; }", UNKNOWN_NAME, b"T::C")
     rejected(program, "unknown-target", b"machine f() { transition { _ -> nowhere() } }", UNKNOWN_NAME, b"nowhere")
     rejected(program, "unknown-callee", b"machine f() { nowhere(1); }", UNKNOWN_NAME, b"nowhere")
+
+    # Stable schema identities: numbering is all-or-nothing within the
+    # direct fields, the cases, and each case's payload fields, and a
+    # numbered scope's values are distinct `u64`s, compared by value.
+    accepted(
+        program,
+        "case-identities",
+        b"data Optional<T> { case #0 None; case #1 Some(value: T); }",
+        (generic(0),),
+    )
+    accepted(
+        program,
+        "identity-scopes-are-separate",
+        b"data Disk { #1 counter: i32; case Done(#0 code: u8, #1 more: u8); case Empty; }",
+        (builtin("i32"), builtin("u8"), builtin("u8")),
+    )
+    accepted(
+        program,
+        "identity-bases-and-separators",
+        b"data H { #0x10 a: u8; #1_7 b: u8; #0b11 c: u8; #0o4 d: u8; #18446744073709551615 e: u8; }",
+        (builtin("u8"),) * 5,
+    )
+    rejected(program, "partial-field-identities", b"data P { #1 a: u8; b: u8; }", PARTIAL_STABLE_IDENTITIES, b"b")
+    rejected(
+        program,
+        "partial-identities-first-member",
+        b"data P { a: u8; #1 b: u8; }",
+        PARTIAL_STABLE_IDENTITIES,
+        b"a:",
+        length=1,
+    )
+    rejected(program, "partial-case-identities", b"data P { case #0 A; case B; }", PARTIAL_STABLE_IDENTITIES, b"B")
+    rejected(
+        program,
+        "partial-payload-identities",
+        b"data P { case A(#0 x: u8, y: u8); }",
+        PARTIAL_STABLE_IDENTITIES,
+        b"y",
+    )
+    rejected(
+        program,
+        "duplicate-identity-by-value",
+        b"data P { #1 a: u8; #0x1 b: u8; }",
+        DUPLICATE_STABLE_IDENTITY,
+        b"0x1",
+    )
+    rejected(program, "duplicate-case-identity", b"data P { case #2 A; case #2 B; }", DUPLICATE_STABLE_IDENTITY, b"2", occurrence=2)
+    rejected(program, "suffixed-identity", b"data P { #1u8 a: u8; }", INVALID_STABLE_IDENTITY, b"1u8")
+    rejected(
+        program,
+        "identity-past-u64",
+        b"data P { #18446744073709551616 a: u8; }",
+        INVALID_STABLE_IDENTITY,
+        b"18446744073709551616",
+    )
+
+    # Machine generic parameters bind in the machine's own scope: its
+    # signature, its states' signatures, `let` types, cast targets and static
+    # arguments. Value and machine binders also bind as names.
+    accepted(
+        program,
+        "generic-machine-signature",
+        b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { state s(x: T) {} }\ndata Vec<T> { v: T; }",
+        (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(1)),
+    )
+    accepted(
+        program,
+        "generic-machine-body-types",
+        b"machine f<T>(x: T) { let y: T = x; g<T>(y as T); }\nmachine g<U>(u: U) {}",
+        (generic(0), generic(0), generic(0), generic(0), generic(1)),
+    )
+    accepted(
+        program,
+        "generic-value-and-machine-binders",
+        b"machine apply<machine F, const N: u64>(x: u64) -> u64 { transition { _ -> F(x, N) } }\n"
+        b"machine call<machine G>(x: u64) { G(x); }",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (binder_name(0), parameter(0), binder_name(1), NOT_A_NAME, binder_name(2), parameter(1), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "generic-overloads",
+        b"machine f<T>(a: T) {} machine f(a: u8) {} machine g<T>(a: u8) {} machine g<const N: u64>(a: u8) {}",
+        (generic(0), builtin("u8"), builtin("u8"), builtin("u64"), builtin("u8")),
+    )
+    rejected(
+        program,
+        "duplicate-generic-machine",
+        b"machine f<T>(a: T) {} machine f<U>(b: U) {}",
+        DUPLICATE_MACHINE,
+        b"f",
+        occurrence=2,
+    )
+    rejected(program, "duplicate-machine-generic-name", b"machine f<T, T>() {}", DUPLICATE_GENERIC_PARAMETER, b"T", occurrence=2)
+    rejected(program, "type-binder-is-not-a-value", b"machine f<T>() { T; }", UNKNOWN_NAME, b"T", occurrence=2)
+    rejected(program, "generic-scope-per-machine", b"machine f<T>() {} machine g(x: T) {}", UNKNOWN_DATA_TYPE, b"T", occurrence=2)
+    rejected(program, "unknown-generic-annotation", b"machine f<const N: Q>() {}", UNKNOWN_DATA_TYPE, b"Q")
+
+    # A bodyless declaration binds its signature; a terminal value target
+    # binds as any value.
+    accepted(
+        program,
+        "bodyless-machine-and-float-argument",
+        b"machine Float::meaning(value: f64) -> u8;\nmachine g() { Float::meaning(1.0); }",
+        (builtin("f64"), builtin("u8")),
+        (machine(0), NOT_A_NAME, NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "value-targets",
+        b"data V { x: u8; }\nmachine f(a: u8) -> V { transition { a == 0 -> V { x: a } _ -> (g(a)) } }\n"
+        b"machine g(b: u8) -> V { transition { _ -> V { x: b } } }",
+        (builtin("u8"), builtin("u8"), data(0), builtin("u8"), data(0)),
+        (
+            parameter(0), NOT_A_NAME, NOT_A_NAME, data_value(0), parameter(0), NOT_A_NAME,
+            machine(1), parameter(0), NOT_A_NAME, data_value(0), parameter(1), NOT_A_NAME,
+        ),
+    )
+    rejected(program, "unknown-value-target", b"machine f() -> u8 { transition { _ -> nowhere } }", UNKNOWN_NAME, b"nowhere")
 
     # Source sets: a unit sees its own module, a sibling unit of the same
     # module, and each module it imports; imports are not transitive, and two

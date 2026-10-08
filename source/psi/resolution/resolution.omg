@@ -54,7 +54,9 @@ pub data TypeBinding [copy] {
 // `SyntaxTrees::expressions`. Expressions that are not names stay
 // `NotAName`; an accepted resolution leaves no `Unresolved` name. A machine
 // binding names the first declaration of its overload family; typing selects
-// among the family.
+// among the family. A generic parameter binding names a value or machine
+// binder of the enclosing machine by its `SyntaxTrees::generic_parameters`
+// handle.
 pub data ValueBinding [copy] {
     case NotAName;
     case Unresolved;
@@ -67,6 +69,7 @@ pub data ValueBinding [copy] {
     case Machine(handle: u64 in Trapping);
     case Data(item: u64 in Trapping);
     case DataCase(item: u64 in Trapping, data_case: u64 in Trapping);
+    case GenericParameter(parameter: u64 in Trapping);
 }
 
 // The generic parameters a type name may bind: the enclosing declaration's
@@ -104,6 +107,9 @@ pub data ResolveDiagnosticCode [copy] {
     case DuplicateGenericParameter;
     case UnknownName;
     case AmbiguousName;
+    case PartialStableIdentities;
+    case DuplicateStableIdentity;
+    case InvalidStableIdentity;
 }
 
 pub data ResolveDiagnostic [copy] {

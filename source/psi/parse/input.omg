@@ -329,3 +329,50 @@ crashes Trap
         result
     }
 }
+
+// Whether the current token begins a declaration rather than an expression:
+// a declaration keyword (`use`, `data`, `machine`, `pub`), or two adjacent
+// names (`boundary trait`, `linux_arm64 machine`, `const N`). No expression
+// begins with two names except a cast `x as T`, a membership `x in D` and an
+// acknowledged call `suspend f()`, `block f()`.
+machine Parser::at_declaration_head(parser: &mut Parser, input: &TokenStream) -> bool
+crashes Trap
+{
+    let uses: bool = Parser::at_keyword(parser, input, KeywordKind::Use);
+    let declares_data: bool = Parser::at_keyword(parser, input, KeywordKind::Data);
+    let declares_machine: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+    let public: bool = Parser::at_keyword(parser, input, KeywordKind::Pub);
+    transition uses || declares_data || declares_machine || public {
+        true -> head()
+        _ -> first_name(parser, input)
+    }
+
+    state first_name(parser: &mut Parser, input: &TokenStream) {
+        let named: bool = Parser::at_name(parser, input);
+        let suspends: bool = Parser::at_word(parser, input, "suspend");
+        let blocks: bool = Parser::at_word(parser, input, "block");
+        transition named && !suspends && !blocks {
+            true -> second_name(parser, input)
+            _ -> expression()
+        }
+    }
+
+    state second_name(parser: &mut Parser, input: &TokenStream) {
+        let cursor: u64 in Trapping = parser.cursor;
+        parser.cursor = parser.cursor + 1;
+        let named: bool = Parser::at_name(parser, input);
+        let cast: bool = Parser::at_keyword(parser, input, KeywordKind::As);
+        let membership: bool = Parser::at_word(parser, input, "in");
+        parser.cursor = cursor;
+        Parser::load_current(parser, input);
+        named && !cast && !membership
+    }
+
+    state head() {
+        true
+    }
+
+    state expression() {
+        false
+    }
+}

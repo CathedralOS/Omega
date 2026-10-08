@@ -26,7 +26,7 @@ crashes Trap
     state parameter(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.generic_parameter_count < 256 {
             true -> opener(parser, input)
-            _ -> reject(parser, input, ParseDiagnosticCode::DataGenericParameterCapacityExceeded)
+            _ -> reject(parser, input, ParseDiagnosticCode::GenericParameterCapacityExceeded)
         }
     }
 
@@ -40,7 +40,7 @@ crashes Trap
 
     state lifetime(parser: &mut Parser, input: &TokenStream) {
         transition parser.generic_saw_runtime {
-            true -> reject(parser, input, ParseDiagnosticCode::DataGenericLifetimeOrdering)
+            true -> reject(parser, input, ParseDiagnosticCode::GenericLifetimeOrdering)
             _ -> lifetime_name(parser, input)
         }
     }
@@ -48,7 +48,7 @@ crashes Trap
     state lifetime_name(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataGenericParameterName);
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
         transition parser.output.accepted {
             true -> retain(parser, input, Parser::generic_parameter(parser, GenericParameterKind::Lifetime, start))
             _ -> done()
@@ -75,7 +75,7 @@ crashes Trap
     state binder(parser: &mut Parser, input: &TokenStream, kind: GenericParameterKind) {
         Parser::take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataGenericParameterName);
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedGenericParameterName);
         transition parser.output.accepted {
             true -> binder_named(parser, input, Parser::generic_parameter(parser, kind, start))
             _ -> done()
@@ -91,7 +91,7 @@ crashes Trap
 
     state const_colon(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Colon,
-            ParseDiagnosticCode::ExpectedDataGenericParameterColon
+            ParseDiagnosticCode::ExpectedGenericParameterColon
         );
         transition parser.output.accepted {
             true -> typed(parser, input, parameter)
@@ -103,7 +103,7 @@ crashes Trap
         let name: bool = Parser::at_name(parser, input);
         transition name {
             true -> type_parameter(parser, input)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDataGenericParameter)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedGenericParameter)
         }
     }
 
@@ -126,7 +126,7 @@ crashes Trap
 
     state type_tail(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter, tick: bool) {
         transition tick {
-            true -> reject(parser, input, ParseDiagnosticCode::DataGenericLifetimeOrdering)
+            true -> reject(parser, input, ParseDiagnosticCode::GenericLifetimeOrdering)
             _ -> bounds(parser, input, parameter)
         }
     }
@@ -137,7 +137,7 @@ crashes Trap
     }
 
     state typed(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
-        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDataGenericParameterType);
+        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedGenericParameterType);
         transition parser.output.accepted {
             true -> bounds(parser, input, Parser::with_generic_type(parser, parameter, parser.type_result))
             _ -> done()
@@ -176,7 +176,7 @@ crashes Trap
     state store(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
         transition parser.output.generic_parameter_count < 256 {
             true -> stored(parser, input, parameter)
-            _ -> reject(parser, input, ParseDiagnosticCode::DataGenericParameterCapacityExceeded)
+            _ -> reject(parser, input, ParseDiagnosticCode::GenericParameterCapacityExceeded)
         }
     }
 
@@ -197,7 +197,7 @@ crashes Trap
 
     state close(parser: &mut Parser, input: &TokenStream) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Greater,
-            ParseDiagnosticCode::ExpectedDataGenericParameterEnd
+            ParseDiagnosticCode::ExpectedGenericParameterEnd
         );
     }
 

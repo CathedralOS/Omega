@@ -7,12 +7,15 @@ use psi::syntax::syntax;
 // Expression names. Every name and path in a machine body binds in the
 // order of wiki/spec/language/modules.md#resolution: a local binding, then
 // the body's parameters (a state sees only its own, never the entry's), then
-// the unit's declarations. Where the name stands decides which declarations
-// it may name: a call's callee names a machine, a transition target a state
-// of its machine before a machine, a construction's path a data declaration
+// the machine's generic parameters, then the unit's declarations. Where the
+// name stands decides which declarations it may name: a value names a value
+// binder (`Count: u32`, `const N: u64`), a call's callee a machine binder or
+// a machine, a call-shaped transition target a state of its machine, then a
+// machine binder, then a machine, a construction's path a data declaration
 // or `Type::Case`, a case pattern's path a case, and a path in value position
-// a case or an owned machine. Field selection (`value.field`) needs the
-// value's type and is typing's question, not resolution's.
+// a case or an owned machine. A value target binds as any value. Field
+// selection (`value.field`) needs the value's type and is typing's
+// question, not resolution's.
 
 // What a name's position lets it name. Children precede their parent in the
 // expression table, so one pass over the table gives each child its role
@@ -357,10 +360,22 @@ crashes Trap
     }
 
     state target(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
-        transition arm.terminal || !resolver.output.accepted {
-            true -> done()
-            _ -> target_callee(resolver, sources, syntax, scope, arm)
+        transition resolver.output.accepted {
+            true -> target_kind(resolver, sources, syntax, scope, arm)
+            _ -> done()
         }
+    }
+
+    state target_kind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+        transition arm.target_kind {
+            ArmTargetKind::Call -> target_callee(resolver, sources, syntax, scope, arm)
+            ArmTargetKind::Value -> value_target(resolver, sources, syntax, scope, arm)
+            ArmTargetKind::Unit -> done()
+        }
+    }
+
+    state value_target(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, arm: TransitionArm) {
+        Resolver::bind_tree(resolver, sources, syntax, scope, arm.target);
     }
 
     // The target is a call, or an acknowledged call (`suspend block f()`).
@@ -487,7 +502,7 @@ crashes Trap
         let name: SourceSpan = expression.name.source_span;
         transition role {
             NameRole::Value -> Resolver::local_name(sources, syntax, scope, name)
-            NameRole::Callee -> Resolver::machine_name(sources, syntax, false, name, name)
+            NameRole::Callee -> Resolver::callee_name(sources, syntax, scope, name)
             NameRole::Target -> Resolver::target_name(sources, syntax, scope, name)
             NameRole::Construction -> Resolver::data_name(sources, syntax, name)
             NameRole::CasePattern -> unresolved()
@@ -564,8 +579,12 @@ crashes Trap
     state parameter(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < scope.parameter_count {
             true -> parameter_named(sources, syntax, scope, name, offset)
-            _ -> found(ValueBinding::Unresolved)
+            _ -> generic(sources, syntax, scope, name)
         }
+    }
+
+    state generic(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        Resolver::generic_name(sources, syntax, scope, name, false)
     }
 
     state parameter_named(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
@@ -599,27 +618,47 @@ crashes Trap
     }
 }
 
-// A transition target: a state of the machine, else a free machine.
+// A transition target: a state of the machine, else a callee.
 machine Resolver::target_name(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
     let item: MachineItem = SyntaxTrees::machine_item(syntax, scope.machine);
-    transition { _ -> next(sources, syntax, item, name, 0) }
+    transition { _ -> next(sources, syntax, scope, item, name, 0) }
 
-    state next(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    state next(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < item.state_count {
-            true -> candidate(sources, syntax, item, name, offset)
-            _ -> free_machine(sources, syntax, name)
+            true -> candidate(sources, syntax, scope, item, name, offset)
+            _ -> callee(sources, syntax, scope, name)
         }
     }
 
-    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
         let named: bool = SourceSet::spans_equal(sources, state_item.name.source_span, name);
         transition named {
             true -> found(ValueBinding::State { handle: item.first_state + offset })
-            _ -> next(sources, syntax, item, name, offset + 1)
+            _ -> next(sources, syntax, scope, item, name, offset + 1)
         }
+    }
+
+    state callee(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        Resolver::callee_name(sources, syntax, scope, name)
+    }
+
+    state found(binding: ValueBinding) -> ValueBinding {
+        binding
+    }
+}
+
+// A single-name callee: a machine binder of the enclosing machine, else a
+// free machine.
+machine Resolver::callee_name(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    let binder: ValueBinding = Resolver::generic_name(sources, syntax, scope, name, true);
+    transition binder {
+        ValueBinding::GenericParameter { parameter } -> found(binder)
+        _ -> free_machine(sources, syntax, name)
     }
 
     state free_machine(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> ValueBinding {
@@ -628,6 +667,60 @@ crashes Trap
 
     state found(binding: ValueBinding) -> ValueBinding {
         binding
+    }
+}
+
+// A generic parameter of the enclosing machine named `name`: a machine
+// binder when `machine_binder` holds, else a value binder (`Count: u32`,
+// `const N: u64`). Type and lifetime binders name no value.
+machine Resolver::generic_name(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, machine_binder: bool) -> ValueBinding
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, scope.machine);
+    transition { _ -> next(sources, syntax, item, name, machine_binder, 0) }
+
+    state next(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> ValueBinding {
+        transition offset < item.generic_parameter_count {
+            true -> candidate(sources, syntax, item, name, machine_binder, offset)
+            _ -> found(ValueBinding::Unresolved)
+        }
+    }
+
+    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: MachineItem, name: SourceSpan, machine_binder: bool, offset: u64 in Trapping) -> ValueBinding {
+        let handle: u64 in Trapping = item.first_generic_parameter + offset;
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        let named: bool = SourceSet::spans_equal(sources, parameter.name.source_span, name);
+        let admitted: bool = Resolver::binder_names(parameter.kind, machine_binder);
+        transition named && admitted {
+            true -> found(ValueBinding::GenericParameter { parameter: handle })
+            _ -> next(sources, syntax, item, name, machine_binder, offset + 1)
+        }
+    }
+
+    state found(binding: ValueBinding) -> ValueBinding {
+        binding
+    }
+}
+
+// Whether a binder of `kind` names a machine (`machine_binder`) or a value.
+machine Resolver::binder_names(kind: GenericParameterKind, machine_binder: bool) -> bool {
+    transition kind {
+        GenericParameterKind::Machine -> machine_kind(machine_binder)
+        GenericParameterKind::Value -> value_kind(machine_binder)
+        GenericParameterKind::Const -> value_kind(machine_binder)
+        _ -> other()
+    }
+
+    state machine_kind(machine_binder: bool) {
+        machine_binder
+    }
+
+    state value_kind(machine_binder: bool) {
+        !machine_binder
+    }
+
+    state other() {
+        false
     }
 }
 

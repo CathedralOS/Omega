@@ -9,10 +9,11 @@ use psi::tokens::tokens;
 
 // `[pub] data Name [<generic parameters>] [properties] [where facts]
 // { members }`, entered at the `data` keyword. Members are fields
-// `name: Type;` and cases `case Name [(payload fields)] [where facts];`, in
-// any order; `case: Type;` is a field named `case`. Every completed member is
-// retained at once, so a rejection keeps each member before it; the item and
-// its root are retained at the closing `}`.
+// `[#N] name: Type;` and cases `case [#N] Name [(payload fields)] [where
+// facts];`, in any order; `case: Type;` is a field named `case`. Payload
+// fields are `[#N] name: Type`. `#N` is a stable schema identity. Every
+// completed member is retained at once, so a rejection keeps each member
+// before it; the item and its root are retained at the closing `}`.
 pub machine Parser::parse_data(
     parser: &mut Parser,
     input: &TokenStream,
@@ -132,6 +133,9 @@ crashes Trap
     }
 
     state case_field_capacity(parser: &mut Parser, input: &TokenStream) {
+        parser.member_has_identity = false;
+        parser.member_identity_start = 0;
+        parser.member_identity_end = 0;
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 1024 {
             true -> field_colon(parser, input)
             _ -> field_full(parser, input)
@@ -140,8 +144,19 @@ crashes Trap
 
     state field_capacity(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 1024 {
-            true -> field_name(parser, input)
+            true -> field_identity(parser, input)
             _ -> field_full(parser, input)
+        }
+    }
+
+    // A field begins at its identity, when it has one, or at its name.
+    state field_identity(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        parser.member_start = token.start;
+        Parser::parse_stable_identity(parser, input);
+        transition parser.output.accepted {
+            true -> field_name(parser, input)
+            _ -> done()
         }
     }
 
@@ -153,8 +168,8 @@ crashes Trap
     }
 
     state field_name(parser: &mut Parser, input: &TokenStream) {
+        Parser::retain_member_identity(parser);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataFieldColon);
-        parser.member_start = parser.name_start;
         parser.member_name_start = parser.name_start;
         parser.member_name_end = parser.name_end;
         transition parser.output.accepted {
@@ -199,6 +214,8 @@ crashes Trap
         let span: SourceSpan = Parser::source_span(parser, parser.member_start, parser.token_end);
         parser.output.fields[parser.output.field_count] = DataField {
             name: Parser::identifier_span(parser, parser.member_name_start, parser.member_name_end),
+            has_identity: parser.member_has_identity,
+            identity: Parser::source_span(parser, parser.member_identity_start, parser.member_identity_end),
             type_reference: type_reference,
             source_span: span
         };
@@ -227,6 +244,15 @@ crashes Trap
     }
 
     state case_name(parser: &mut Parser, input: &TokenStream) {
+        Parser::parse_stable_identity(parser, input);
+        transition parser.output.accepted {
+            true -> case_named(parser, input)
+            _ -> done()
+        }
+    }
+
+    state case_named(parser: &mut Parser, input: &TokenStream) {
+        Parser::retain_member_identity(parser);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCaseName);
         parser.member_name_start = parser.name_start;
         parser.member_name_end = parser.name_end;
@@ -260,31 +286,55 @@ crashes Trap
 
     state payload_capacity(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.payload_field_count < 1024 {
-            true -> payload_name(parser, input)
+            true -> payload_identity(parser, input)
             _ -> reject(parser, input, ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded)
         }
     }
 
-    state payload_name(parser: &mut Parser, input: &TokenStream) {
-        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadField);
+    // A payload field's identity stays in the grammar-step result until the
+    // field is retained: its type grammar takes no identity.
+    state payload_identity(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        Parser::parse_stable_identity(parser, input);
         transition parser.output.accepted {
-            true -> payload_colon(parser, input, parser.name_start, parser.name_end)
+            true -> payload_name(parser, input, token.start)
             _ -> done()
         }
     }
 
-    state payload_colon(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+    state payload_name(parser: &mut Parser, input: &TokenStream, field_start: u64 in Trapping) {
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadField);
+        transition parser.output.accepted {
+            true -> payload_colon(parser, input, field_start, parser.name_start, parser.name_end)
+            _ -> done()
+        }
+    }
+
+    state payload_colon(
+        parser: &mut Parser,
+        input: &TokenStream,
+        field_start: u64 in Trapping,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
         Parser::expect_punctuation(parser, input, PunctuationKind::Colon,
             ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon
         );
         transition parser.output.accepted {
-            true -> payload_type(parser, input, start, end)
+            true -> payload_type(parser, input, field_start, start, end)
             _ -> done()
         }
     }
 
-    state payload_type(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping, end: u64 in Trapping) {
+    state payload_type(
+        parser: &mut Parser,
+        input: &TokenStream,
+        field_start: u64 in Trapping,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
         Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadFieldType);
+        parser.payload_field_start = field_start;
         transition parser.output.accepted {
             true -> payload_separator(parser, input, start, end, parser.type_result)
             _ -> done()
@@ -358,8 +408,10 @@ crashes Trap
     ) {
         parser.output.payload_fields[parser.output.payload_field_count] = DataField {
             name: Parser::identifier_span(parser, start, end),
+            has_identity: parser.identity_present,
+            identity: Parser::source_span(parser, parser.identity_start, parser.identity_end),
             type_reference: type_reference,
-            source_span: Parser::source_span(parser, start, field_end)
+            source_span: Parser::source_span(parser, parser.payload_field_start, field_end)
         };
         parser.output.payload_field_count = parser.output.payload_field_count + 1;
         transition more {
@@ -413,6 +465,8 @@ crashes Trap
         let span: SourceSpan = Parser::source_span(parser, parser.member_start, parser.token_end);
         parser.output.cases[parser.output.case_count] = DataCase {
             name: Parser::identifier_span(parser, parser.member_name_start, parser.member_name_end),
+            has_identity: parser.member_has_identity,
+            identity: Parser::source_span(parser, parser.member_identity_start, parser.member_identity_end),
             first_payload_field: parser.case_first_payload_field,
             payload_field_count: (parser.output.payload_field_count as u64 in Trapping) - parser.case_first_payload_field,
             first_clause: first_clause,
@@ -551,4 +605,50 @@ crashes Trap
     state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         Parser::reject_current(parser, input, code);
     }
+}
+
+// `[#N]`: an optional stable schema identity before a member's name, entered
+// at the member's first token. `#` must be followed by an integer literal;
+// its span lands in `identity_start`/`identity_end` and `identity_present`.
+machine Parser::parse_stable_identity(parser: &mut Parser, input: &TokenStream)
+crashes Trap
+{
+    parser.identity_present = false;
+    parser.identity_start = 0;
+    parser.identity_end = 0;
+    let numbered: bool = Parser::at_punctuation(parser, input, PunctuationKind::Hash);
+    transition numbered {
+        true -> hash(parser, input)
+        _ -> done()
+    }
+
+    state hash(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        let integer: bool = Parser::at_integer(parser, input);
+        transition integer {
+            true -> identity(parser, input)
+            _ -> missing(parser, input)
+        }
+    }
+
+    state identity(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        parser.identity_present = true;
+        parser.identity_start = parser.token_start;
+        parser.identity_end = parser.token_end;
+    }
+
+    state missing(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::ExpectedStableIdentity);
+    }
+
+    state done() {}
+}
+
+// The member under way keeps the identity just parsed: its payload fields
+// parse their own.
+machine Parser::retain_member_identity(parser: &mut Parser) {
+    parser.member_has_identity = parser.identity_present;
+    parser.member_identity_start = parser.identity_start;
+    parser.member_identity_end = parser.identity_end;
 }

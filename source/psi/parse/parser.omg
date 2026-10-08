@@ -44,19 +44,28 @@ where
     data_first_generic: u64 in Trapping;
     data_first_clause: u64 in Trapping;
     data_clause_count: u64 in Trapping;
-    // Data member scratch: the member under way and its name.
+    // Data member scratch: the member under way, its name and its stable
+    // identity, and where the payload field under way begins.
     member_start: u64 in Trapping;
     member_name_start: u64 in Trapping;
     member_name_end: u64 in Trapping;
+    member_has_identity: bool;
+    member_identity_start: u64 in Trapping;
+    member_identity_end: u64 in Trapping;
+    payload_field_start: u64 in Trapping;
     case_first_payload_field: u64 in Trapping;
     property_multiplicity: DataMultiplicity;
     generic_saw_runtime: bool;
     // Grammar-step results: the last taken token, the last expected name,
-    // and the last completed type reference's handle, start and end.
+    // the last optional stable identity, and the last completed type
+    // reference's handle, start and end.
     token_start: u64 in Trapping;
     token_end: u64 in Trapping;
     name_start: u64 in Trapping;
     name_end: u64 in Trapping;
+    identity_present: bool;
+    identity_start: u64 in Trapping;
+    identity_end: u64 in Trapping;
     type_result: u64 in Trapping;
     type_end: u64 in Trapping;
     // Type stacks: open type constructors and the static arguments staged
@@ -75,6 +84,8 @@ where
     machine_owner_end: u64 in Trapping;
     machine_name_start: u64 in Trapping;
     machine_name_end: u64 in Trapping;
+    machine_first_generic: u64 in Trapping;
+    machine_first_expression: u64 in Trapping;
     machine_first_parameter: u64 in Trapping;
     machine_parameter_count: u64 in Trapping;
     machine_has_return_type: bool;

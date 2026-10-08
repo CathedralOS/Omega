@@ -91,10 +91,11 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR9\0`, version
-// 9, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR10`, version
+// 10, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
-// field, data-case, type-reference, and generic-parameter tables.
+// field, data-case, type-reference, and generic-parameter tables. Field and
+// case rows carry their stable-identity flag and literal span.
 // Type-reference rows append a qualified flag and the domain coordinates
 // (zeros for bare named types), then the reference access tag (0 none,
 // 1 shared, 2 mutable) and the referee handle (zero unless a reference). Data-item rows end with the item's
@@ -111,9 +112,9 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 80);
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
-    ParserHarness::write_byte(parser_harness, 57);
-    ParserHarness::write_byte(parser_harness, 0);
-    ParserHarness::write_u64(parser_harness, 9);
+    ParserHarness::write_byte(parser_harness, 49);
+    ParserHarness::write_byte(parser_harness, 48);
+    ParserHarness::write_u64(parser_harness, 10);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -159,13 +160,13 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::DuplicateDataMultiplicity -> parse_diagnostic(parser_harness, output, 29)
             ParseDiagnosticCode::ConflictingDataMultiplicity -> parse_diagnostic(parser_harness, output, 30)
             ParseDiagnosticCode::ExpectedTypeQualifierDomain -> parse_diagnostic(parser_harness, output, 31)
-            ParseDiagnosticCode::ExpectedDataGenericParameter -> parse_diagnostic(parser_harness, output, 32)
-            ParseDiagnosticCode::ExpectedDataGenericParameterName -> parse_diagnostic(parser_harness, output, 33)
-            ParseDiagnosticCode::ExpectedDataGenericParameterColon -> parse_diagnostic(parser_harness, output, 34)
-            ParseDiagnosticCode::ExpectedDataGenericParameterType -> parse_diagnostic(parser_harness, output, 35)
-            ParseDiagnosticCode::ExpectedDataGenericParameterEnd -> parse_diagnostic(parser_harness, output, 36)
-            ParseDiagnosticCode::DataGenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37)
-            ParseDiagnosticCode::DataGenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38)
+            ParseDiagnosticCode::ExpectedGenericParameter -> parse_diagnostic(parser_harness, output, 32)
+            ParseDiagnosticCode::ExpectedGenericParameterName -> parse_diagnostic(parser_harness, output, 33)
+            ParseDiagnosticCode::ExpectedGenericParameterColon -> parse_diagnostic(parser_harness, output, 34)
+            ParseDiagnosticCode::ExpectedGenericParameterType -> parse_diagnostic(parser_harness, output, 35)
+            ParseDiagnosticCode::ExpectedGenericParameterEnd -> parse_diagnostic(parser_harness, output, 36)
+            ParseDiagnosticCode::GenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37)
+            ParseDiagnosticCode::GenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38)
             ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
             ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
             ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
@@ -234,6 +235,7 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::ClauseNotAdmitted -> parse_diagnostic(parser_harness, output, 105)
             ParseDiagnosticCode::DuplicateCallAcknowledgement -> parse_diagnostic(parser_harness, output, 106)
             ParseDiagnosticCode::CallAcknowledgementOrder -> parse_diagnostic(parser_harness, output, 107)
+            ParseDiagnosticCode::ExpectedStableIdentity -> parse_diagnostic(parser_harness, output, 108)
         }
     }
 
@@ -493,6 +495,8 @@ machine ParserHarness::write_parse_observation(
     {
         let field: DataField = output.fields[index];
         ParserHarness::write_source_span(parser_harness, field.name.source_span);
+        ParserHarness::write_flag(parser_harness, field.has_identity);
+        ParserHarness::write_source_span(parser_harness, field.identity);
         ParserHarness::write_u64(parser_harness, field.type_reference);
         ParserHarness::write_source_span(parser_harness, field.source_span);
         let next: u64 = index + 1;
@@ -522,6 +526,8 @@ machine ParserHarness::write_parse_observation(
     {
         let field: DataField = output.payload_fields[index];
         ParserHarness::write_source_span(parser_harness, field.name.source_span);
+        ParserHarness::write_flag(parser_harness, field.has_identity);
+        ParserHarness::write_source_span(parser_harness, field.identity);
         ParserHarness::write_u64(parser_harness, field.type_reference);
         ParserHarness::write_source_span(parser_harness, field.source_span);
         let next: u64 = index + 1;
@@ -551,6 +557,8 @@ machine ParserHarness::write_parse_observation(
     {
         let data_case: DataCase = output.cases[index];
         ParserHarness::write_source_span(parser_harness, data_case.name.source_span);
+        ParserHarness::write_flag(parser_harness, data_case.has_identity);
+        ParserHarness::write_source_span(parser_harness, data_case.identity);
         ParserHarness::write_source_span(parser_harness, data_case.source_span);
         ParserHarness::write_u64(parser_harness, data_case.first_payload_field);
         ParserHarness::write_u64(parser_harness, data_case.payload_field_count as u64 in Trapping);
@@ -820,9 +828,10 @@ machine ParserHarness::write_parse_observation(
 }
 
 // The machine, parameter and state tables follow the generic parameters.
-// Machine rows carry the owner flag and span, the name, the parameter range,
-// the return-type flag and handle, the clause range, the entry statement
-// range, the state range, the visibility flag and the span. Parameter rows carry the name,
+// Machine rows carry the owner flag and span, the name, the generic-parameter
+// range, the parameter range, the return-type flag and handle, the clause
+// range, the entry statement range, the state range, the body flag, the
+// expression range, the visibility flag and the span. Parameter rows carry the name,
 // type-reference handle and span. State rows carry the name, parameter range,
 // return-type flag and handle, statement range and span.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
@@ -844,6 +853,8 @@ crashes Trap
         ParserHarness::write_flag(parser_harness, item.has_owner);
         ParserHarness::write_source_span(parser_harness, item.owner.source_span);
         ParserHarness::write_source_span(parser_harness, item.name.source_span);
+        ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
+        ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
         ParserHarness::write_u64(parser_harness, item.first_parameter);
         ParserHarness::write_u64(parser_harness, item.parameter_count);
         ParserHarness::write_flag(parser_harness, item.has_return_type);
@@ -854,6 +865,9 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.statement_count);
         ParserHarness::write_u64(parser_harness, item.first_state);
         ParserHarness::write_u64(parser_harness, item.state_count);
+        ParserHarness::write_flag(parser_harness, item.has_body);
+        ParserHarness::write_u64(parser_harness, item.first_expression);
+        ParserHarness::write_u64(parser_harness, item.expression_count);
         ParserHarness::write_flag(parser_harness, item.is_public);
         ParserHarness::write_source_span(parser_harness, item.source_span);
         transition { _ -> machine_row(parser_harness, output, index + 1) }
@@ -920,7 +934,7 @@ crashes Trap
 // value handle, span), statements (kind tag, name, mutability, type handle,
 // value flag and handle, assignment target, crash cause tag, arm range,
 // span), transition arms (pattern kind tag, pattern handle, field range,
-// target handle, terminal flag, span), pattern fields (name, value flag and
+// target kind tag (1 call, 2 value, 3 unit), target handle, span), pattern fields (name, value flag and
 // handle, span) and machine clauses (kind tag, member range, crash cause tag,
 // fact handle, span).
 machine ParserHarness::write_body_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
@@ -953,6 +967,7 @@ crashes Trap
             ExpressionKind::Call -> expression_kind(parser_harness, output, index, expression, 11)
             ExpressionKind::Construct -> expression_kind(parser_harness, output, index, expression, 12)
             ExpressionKind::Apply -> expression_kind(parser_harness, output, index, expression, 13)
+            ExpressionKind::Float -> expression_kind(parser_harness, output, index, expression, 14)
         }
     }
 
@@ -1143,8 +1158,22 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, arm.pattern);
         ParserHarness::write_u64(parser_harness, arm.first_field);
         ParserHarness::write_u64(parser_harness, arm.field_count);
+        transition arm.target_kind {
+            ArmTargetKind::Call -> arm_target(parser_harness, output, index, arm, 1)
+            ArmTargetKind::Value -> arm_target(parser_harness, output, index, arm, 2)
+            ArmTargetKind::Unit -> arm_target(parser_harness, output, index, arm, 3)
+        }
+    }
+
+    state arm_target(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        arm: TransitionArm,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, arm.target);
-        ParserHarness::write_flag(parser_harness, arm.terminal);
         ParserHarness::write_source_span(parser_harness, arm.source_span);
         transition { _ -> arm_row(parser_harness, output, index + 1) }
     }

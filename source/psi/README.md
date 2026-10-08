@@ -9,20 +9,28 @@ semantic tokens, and a fail-closed whole-file parser for ordinary
 `[pub] data Name [<generic parameters>] [properties] [where facts] { ... }`
 declarations whose generic parameters, `[copy]`/`[linear]` property lists and
 members share their grammars with the other declarations, with fields
-`name: Type;` and payload-free `case Name;` or structured
-`case Name(field: Type, ...);` members that may carry their own `where` facts,
-and `[pub] machine [Owner::]name [(parameters)] [-> Type] clauses { ... }`
-declarations, whose clauses are `reaches`, `invokes`, `suspends;`, `blocks;`,
-`crashes` and `requires`/`ensures` facts, and whose bodies hold entry
-statements and then
-`state name [(parameters)] [-> Type] [requires fact]* { ... }` members.
+`[#N] name: Type;` and payload-free `case [#N] Name;` or structured
+`case [#N] Name([#N] field: Type, ...);` members that may carry their own
+`where` facts (`#N` is a stable schema identity), and
+`[pub] machine [Owner::]name [<generic parameters>] [(parameters)] [-> Type]
+clauses ({ ... } | ;)` declarations, whose clauses are `reaches`, `invokes`,
+`suspends;`, `blocks;`, `crashes` and `requires`/`ensures` facts separated by
+`,` or `;`, and whose bodies hold entry statements and then
+`state name [(parameters)] [-> Type] [requires fact]* { ... }` members. A
+bodyless machine ends at `;`; a `;` that ends a contract fact or an
+operational clause belongs to the clause only while the declaration continues
+after it with `{`, another clause or another fact, and otherwise ends the
+declaration ([`parse/clause.omg`](parse/clause.omg)).
 Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, `value;`,
 `transition [subject] { arms }` and a final unterminated result expression.
 Arms are guards in a subjectless block and `_`, literal or case patterns
-(`Path { binder, field: value }`) over a subject, each `-> target(arguments)`,
-possibly acknowledged (`-> suspend block f(x)`), or `-> {}`. Expressions
-([`parse/expression.omg`](parse/expression.omg)) cover literals, names and
+(`Path { binder, field: value }`) over a subject, each with a call target
+`-> target(arguments)`, possibly acknowledged (`-> suspend block f(x)`), any
+other expression as a terminal value (`-> (gap)`, `-> View { items: items }`),
+or the Unit completion `-> {}`. Expressions
+([`parse/expression.omg`](parse/expression.omg)) cover integer, float, string
+and Boolean literals, names and
 `::` paths (every keyword but `self` is a name), `.field`, `[index]`, calls,
 static applications `path<arguments>(...)`, `as Type` casts,
 `Path { field: value }` constructions (always inside brackets, never before an
@@ -39,10 +47,11 @@ type fills one contiguous run of the table ending at its root. Direct fields
 and case-payload fields retain separate bounded custody while mixed
 declarations preserve exact authored field/case order and shared named
 type-reference identity. Empty payload lists and trailing payload commas are
-accepted. Unsupported roots, retired inline discriminants, multi-domain
-unions, the retired ranged suffix, machine generics and bodyless declarations,
-and the `if`, `loop`, `while`, `match` and `return` statements reject instead
-of becoming a private bridge tree.
+accepted. Unsupported roots, retired inline discriminants (`case A = 1`),
+`retired #N;` members, multi-domain unions, the retired bracketed scalar range
+suffix (`u32 [0..=9]`; ranges are `where`/`requires`/`ensures` propositions,
+`scalar-range-contract-spelling`), and the `if`, `loop`, `while`, `match` and
+`return` statements reject instead of becoming a private bridge tree.
 
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): each unit belongs to the module
@@ -55,25 +64,34 @@ spelling reject as ambiguous. Every unit belongs to one package here, so `pub`
 does not yet narrow an import. It then rejects builtin-shadowing names and
 duplicate data names within a module, duplicate generic parameter names of any
 kind within a declaration, and duplicate members: fields and cases share one
-namespace; each case's payload fields share another with the common fields. It
+namespace; each case's payload fields share another with the common fields.
+Stable identities ([`resolve/identities.omg`](resolve/identities.omg)) number
+all or none of a declaration's direct fields, of its cases, and of each case's
+payload fields, with distinct `u64` values compared by value. It
 binds every type reference, data declarations' first, machine signatures'
-second and body types (`let` types and cast targets) third: an enclosing
-generic parameter by spelling (never a lifetime), then a builtin type, then a
-visible data declaration. It also binds every `in` qualifier to a
+second and body types (`let` types, cast targets and static arguments) third,
+each in its declaration's scope (a machine's generic parameters cover its
+states and bodies): an enclosing generic parameter by spelling (never a
+lifetime), then a builtin type, then a visible data declaration. It also
+binds every `in` qualifier to a
 compiler-known domain (`Wrapping`, `Saturating`, `Trapping`, `Finite`). A type
 binds row by row over its run: reference, array, slice and integer rows bind
 by form, and named rows carry the names. Last, it rejects duplicate parameter
 names within a signature, duplicate state names within a machine, and a
-machine that repeats an earlier one of its module's owner, name and parameter
-types, compared run by run (machines may otherwise overload). The binding
-tables are indexed by the syntax table's type-reference handles. Then every
-name and path in a machine body binds
+machine that repeats an earlier one of its module's owner, name, generic
+parameter kinds and parameter types, compared run by run with generic
+parameters by position (machines may otherwise overload). A bodyless machine
+binds only its signature; whether it has a supply is checking's question.
+The binding tables are indexed by the syntax table's type-reference handles.
+Then every name and path in a machine body binds
 ([`resolve/names.omg`](resolve/names.omg)) in the language's resolution order:
 an earlier `let` of the same body, the enclosing arm's pattern binders, the
-body's own parameters (a state never sees the entry's). A callee names a
-machine, a transition target a state of its machine before a machine, a
-construction or case pattern a data declaration or `Type::Case`, and a value
-path a case or an owned machine; an unknown name rejects. These value bindings
+body's own parameters (a state never sees the entry's), then the machine's
+value binders (`Count: u32`, `const N: u64`). A callee names a machine binder
+(`machine F`) or a machine, a call-shaped transition target a state of its
+machine before either, a construction or case pattern a data declaration or
+`Type::Case`, and a value path a case or an owned machine; a terminal value
+target binds as any value, and an unknown name rejects. These value bindings
 are indexed by expression handle. Carrier compatibility (`Finite` on floats
 only, unbounded `UInt`/`Int` storage) belongs to typing, which does not exist
 yet.
@@ -119,7 +137,7 @@ resolves the set, and observes the diagnostic and every type, domain and value
 binding. Lexical or parse rejection exits without an observation.
 
 On macOS ARM64 both gates build their harnesses natively from a fresh CLI: all
-237 parser cases and all 93 resolver cases pass. Each gate counts each
+266 parser cases and all 116 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 

@@ -64,8 +64,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR9\0"
-    assert reader.u64() == 9
+    assert reader.bytes(8) == b"OMGPAR10"
+    assert reader.u64() == 10
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -108,8 +108,15 @@ def decode(payload: bytes) -> Observation:
         (reader.byte(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
+    # Field rows: name span, stable-identity flag and literal span, type
+    # handle, span. Case rows: name span, identity flag and span, span,
+    # payload-field range, clause range.
     fields = tuple(
         (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte() == 1,
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -125,6 +132,10 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte() == 1,
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -134,6 +145,10 @@ def decode(payload: bytes) -> Observation:
     )
     cases = tuple(
         (
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte() == 1,
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -187,6 +202,10 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # Machine rows: owner flag and span, name span, generic-parameter range,
+    # parameter range, return-type flag and handle, clause range, entry
+    # statement range, state range, body flag, expression range, visibility
+    # flag, span.
     machines = tuple(
         (
             reader.byte(),
@@ -198,12 +217,17 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
             reader.byte(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
             reader.u64(),
             reader.u64(),
             reader.byte(),
@@ -296,14 +320,16 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # Arm rows: pattern kind, pattern handle, pattern-field range, target
+    # kind (1 call, 2 value, 3 unit), target handle, span.
     arms = tuple(
         (
             reader.byte(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
-            reader.u64(),
             reader.byte(),
+            reader.u64(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -383,6 +409,17 @@ def with_clause_range(rows: tuple[tuple, ...], width: int) -> tuple[tuple, ...]:
     return tuple(row if len(row) == width else row + (0, 0) for row in rows)
 
 
+# The identity a field or case without `#N` reports: no flag and an empty
+# span of the source.
+NO_IDENTITY = (False, 1, 0, 0)
+
+
+def with_identity(rows: tuple[tuple, ...], width: int) -> tuple[tuple, ...]:
+    """Field and case rows spelled before stable identities carry none: the
+    absent identity follows the name span."""
+    return tuple(row if len(row) == width else row[:3] + NO_IDENTITY + row[3:] for row in rows)
+
+
 def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
     """Complete rows spelled in the single-level shorthand: kind 1 named,
     2 qualified or 3 reference, the name, source and domain spans, then an
@@ -451,9 +488,9 @@ def accepted(
         members,
         with_clause_range(data_items, 18),
         data_members,
-        fields,
-        payload_fields,
-        with_clause_range(cases, 10),
+        with_identity(fields, 11),
+        with_identity(payload_fields, 11),
+        with_identity(tuple(row + (0, 0) if len(row) == 8 else row for row in cases), 14),
         type_rows(type_references),
         generic_parameters,
         machines,
@@ -1223,22 +1260,28 @@ def main() -> None:
         public: bool = False,
         first_statement: int = 0,
         statement_count: int = 0,
+        generic_range: tuple[int, int] = (0, 0),
+        clause_range: tuple[int, int] = (0, 0),
+        has_body: bool = True,
+        expression_range: tuple[int, int] = (0, 0),
     ) -> tuple[int, ...]:
         owner_span = at(source, owner) if owner else (1, 0, 0)
         return (
             1 if owner else 0,
             *owner_span,
             *at(source, name),
+            *generic_range,
             first_parameter,
             parameter_count,
             0 if return_type < 0 else 1,
             max(return_type, 0),
-            0,
-            0,
+            *clause_range,
             first_statement,
             statement_count,
             first_state,
             state_count,
+            1 if has_body else 0,
+            *expression_range,
             1 if public else 0,
             1,
             *span,
@@ -1316,7 +1359,7 @@ def main() -> None:
         program, "machine-states", source,
         ((3, 0, 1, 0, 64),), (), (),
         type_references=(named(source, b"u64"), named(source, b"u8", 1), named(source, b"u8", 2)),
-        machines=((0, 1, 0, 0, 1, 8, 11, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 64),),
+        machines=((0, 1, 0, 0, 1, 8, 11, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 1, 0, 64),),
         parameters=((1, 12, 13, 0, 1, 12, 18), (1, 33, 34, 1, 1, 33, 38)),
         states=(
             (1, 28, 32, 1, 1, 1, 2, 0, 0, 0, 0, 1, 22, 48),
@@ -1341,7 +1384,7 @@ def main() -> None:
         ((1, 0, 1, 16, 22),),
         ((1, 16, 17, 0, 1, 16, 22),),
         type_references=(named(source, b"u8"),),
-        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 25, 39),),
+        machines=((0, 1, 0, 0, 1, 33, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 25, 39),),
     )
     source = b"data View { target: &Record; }"
     accepted(
@@ -1356,7 +1399,6 @@ def main() -> None:
     rejected(program, "machine-name-at-end", b"machine", 40, (7, 7))
     rejected(program, "machine-name", b"machine () {}", 40, (8, 9))
     rejected(program, "machine-owned-name", b"machine A::() {}", 40, (11, 12))
-    rejected(program, "machine-generics", b"machine f<T>() {}", 47, (9, 10))
     rejected(program, "machine-parameter-or-end-at-end", b"machine f(", 41, (10, 10))
     rejected(program, "machine-parameter-or-end", b"machine f(1) {}", 41, (10, 11))
     rejected(program, "machine-parameter-colon", b"machine f(a) {}", 43, (11, 12))
@@ -1368,7 +1410,6 @@ def main() -> None:
         parameter_count=1, type_reference_count=1)
     rejected(program, "machine-parameter-domain", b"machine f(a: u8 in) {}", 31, (18, 19))
     rejected(program, "machine-return-type", b"machine f() -> {}", 46, (15, 16))
-    rejected(program, "machine-bodyless", b"machine f();", 47, (11, 12))
     rejected(program, "machine-unknown-clause", b"machine f() decreases n {}", 47, (12, 21))
     rejected(program, "machine-unsupported-statement", b"machine f() { if x {} }", 48, (14, 16))
     rejected(program, "machine-body-end-at-end", b"machine f() {", 48, (13, 13))
@@ -1590,8 +1631,9 @@ def main() -> None:
     body("crash-abort", b"machine f() { crash Abort; }", (), ((5, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 14, 26),))
 
     # Transitions: arm rows carry the pattern kind (guard 1, wildcard 2,
-    # literal 3, case 4), pattern handle, field range, target call handle,
-    # terminal flag and span; pattern fields carry a binder or a value.
+    # literal 3, case 4), pattern handle, field range, target kind (call 1,
+    # value 2, unit 3), target handle and span; pattern fields carry a binder
+    # or a value.
     body(
         "wildcard-transition",
         b"machine f() { transition { _ -> g() } state g() {} }",
@@ -1600,7 +1642,7 @@ def main() -> None:
             (11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 32, 35),
         ),
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 14, 37),),
-        arms=((2, 0, 0, 0, 1, 0, 1, 27, 35),),
+        arms=((2, 0, 0, 0, 1, 1, 1, 27, 35),),
     )
     body(
         "subject-literal-and-terminal-arms",
@@ -1616,7 +1658,7 @@ def main() -> None:
         ),
         ((6, 1, 0, 0, 0, 0, 1, 2, 0, 1, 0, 2, 1, 19, 60),),
         arguments=(5,),
-        arms=((3, 3, 0, 0, 6, 0, 1, 38, 50), (2, 0, 0, 0, 0, 1, 1, 51, 58)),
+        arms=((3, 3, 0, 0, 1, 6, 1, 38, 50), (2, 0, 0, 0, 3, 0, 1, 51, 58)),
     )
     body(
         "case-pattern-binders-and-values",
@@ -1640,10 +1682,10 @@ def main() -> None:
         ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 1, 22, 178),),
         arguments=(6,),
         arms=(
-            (4, 1, 0, 0, 3, 0, 1, 37, 61),
-            (4, 4, 0, 1, 7, 0, 1, 62, 102),
-            (4, 8, 1, 1, 11, 0, 1, 103, 168),
-            (2, 0, 0, 0, 0, 1, 1, 169, 176),
+            (4, 1, 0, 0, 1, 3, 1, 37, 61),
+            (4, 4, 0, 1, 1, 7, 1, 62, 102),
+            (4, 8, 1, 1, 1, 11, 1, 103, 168),
+            (2, 0, 0, 0, 3, 0, 1, 169, 176),
         ),
         pattern_fields=((1, 79, 86, 0, 0, 1, 79, 86), (1, 124, 135, 1, 9, 1, 124, 159)),
     )
@@ -1668,9 +1710,9 @@ def main() -> None:
         ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 1, 20, 74),),
         arguments=(11,),
         arms=(
-            (1, 2, 0, 0, 4, 0, 1, 33, 46),
-            (1, 7, 0, 0, 12, 0, 1, 47, 64),
-            (2, 0, 0, 0, 0, 1, 1, 65, 72),
+            (1, 2, 0, 0, 1, 4, 1, 33, 46),
+            (1, 7, 0, 0, 1, 12, 1, 47, 64),
+            (2, 0, 0, 0, 3, 0, 1, 65, 72),
         ),
     )
     transition_rejections = (
@@ -1679,7 +1721,8 @@ def main() -> None:
         ("transition-arm", b"machine f() { transition { -> a() } }", 83, (27, 29), {}),
         ("transition-arrow", b"machine f() { transition { _ a() } }", 84, (29, 30), {}),
         ("transition-target", b"machine f() { transition { _ -> } }", 85, (32, 33), {}),
-        ("transition-target-open", b"machine f() { transition { _ -> a } }", 86, (34, 35), {"member_count": 1, "expression_count": 1}),
+        ("transition-target-open", b"machine f() { transition { _ -> suspend a } }", 86, (42, 43),
+         {"member_count": 1, "expression_count": 2}),
         ("transition-terminal-close", b"machine f() { transition { _ -> { x } } }", 87, (34, 35), {}),
         ("transition-target-callee", b"machine f() { transition { _ -> a.b() } }", 85, (32, 35), {"member_count": 1, "expression_count": 3}),
         (
@@ -1717,7 +1760,7 @@ def main() -> None:
         assert actual.clauses == expected, f"{name}:\n{actual.clauses}"
         assert actual.members == members, f"{name}:\n{actual.members}"
         assert len(actual.expressions) == expression_count, f"{name}:\n{actual.expressions}"
-        assert actual.machines[0][11:13] == clause_range, f"{name}:\n{actual.machines}"
+        assert actual.machines[0][13:15] == clause_range, f"{name}:\n{actual.machines}"
 
     clauses(
         "operational-clauses",
@@ -1769,7 +1812,7 @@ def main() -> None:
         (6, 0, 0, 1, 5, 1, second_requires, source.index(b"0 {") + 1),
     ), f"state-requires:\n{actual.clauses}"
     assert actual.states[0][7:9] == (0, 2), f"state-requires:\n{actual.states}"
-    assert actual.machines[0][11:13] == (0, 0), f"state-requires:\n{actual.machines}"
+    assert actual.machines[0][13:15] == (0, 0), f"state-requires:\n{actual.machines}"
 
     # `requires` and `ensures` facts continue after `,` like `where` facts:
     # each fact is its own clause row, spanning from its first token.
@@ -1787,7 +1830,7 @@ def main() -> None:
         (6, 0, 0, 1, 8, 1, requires, requires + len(b"requires n < 9")),
         (6, 0, 0, 1, 11, 1, second_requires, second_requires + len(b"n > 0")),
     ), f"fact-lists:\n{actual.clauses}"
-    assert actual.machines[0][11:13] == (0, 2), f"fact-lists:\n{actual.machines}"
+    assert actual.machines[0][13:15] == (0, 2), f"fact-lists:\n{actual.machines}"
     assert actual.states[0][7:9] == (2, 2), f"fact-lists:\n{actual.states}"
     admission_rejections = (
         ("state-ensures", b"machine f() { state s ensures 1 {} }", 105, (22, 29), {}),
@@ -1804,7 +1847,7 @@ def main() -> None:
     actual = decode(payload)
     assert [row[0] for row in actual.clauses] == [8, 8, 8], f"data-where:\n{actual.clauses}"
     assert actual.data_items[0][16:18] == (0, 2), f"data-where:\n{actual.data_items}"
-    assert actual.cases[0][8:10] == (2, 1), f"data-where:\n{actual.cases}"
+    assert actual.cases[0][12:14] == (2, 1), f"data-where:\n{actual.cases}"
     where_rejections = (
         ("where-fact", b"data D where {}", 95, (13, 14), {}),
         ("where-separator", b"data D where a b {}", 11, (15, 16), {"member_count": 1, "expression_count": 1}),
@@ -2057,6 +2100,214 @@ def main() -> None:
     )
     for name, source, diagnostic, span, counts in type_rejections:
         rejected(program, name, source, diagnostic, span, **counts)
+
+    # Stable schema identities: `#N` before a field's or payload field's
+    # name and after `case`. Rows carry the flag and the literal's span; the
+    # member's span starts at its identity.
+    def identity(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, int, int]:
+        """The literal of the `occurrence`-th `#N` spelled `fragment`."""
+        span = at(source, fragment, occurrence)
+        return (1, span[1] + 1, span[2])
+
+    def through(source: bytes, start: bytes, end: bytes, start_occurrence: int = 1,
+                end_occurrence: int = 1) -> tuple[int, int, int]:
+        return (1, at(source, start, start_occurrence)[1], at(source, end, end_occurrence)[2])
+
+    source = b"data Optional<T> { case #0 None; case #1 Some(value: T); }"
+    accepted(
+        program, "case-identities", source,
+        ((2, 0, 1, 0, len(source)),), (), (),
+        ((1, 5, 13, 0, 2, 0, 0, 0, 2, 0, False, 1, 0, len(source), 0, 1),),
+        (
+            (2, 0, *through(source, b"case", b";")),
+            (2, 1, *through(source, b"case", b";", 2, 2)),
+        ),
+        (),
+        (
+            (*at(source, b"None"), True, *identity(source, b"#0"), *through(source, b"case", b";"), 0, 0, 0, 0),
+            (*at(source, b"Some"), True, *identity(source, b"#1"), *through(source, b"case", b";", 2, 2),
+             0, 1, 0, 0),
+        ),
+        (named(source, b"T", 2),),
+        ((*at(source, b"value"), 0, *through(source, b"value", b"T", 1, 2)),),
+        ((2, *at(source, b"T"), 0, 0, 0, *at(source, b"T")),),
+    )
+    source = b"data Disk { #1 counter: i32; case #2 Done(#0 code: u8, #1 more: u8); }"
+    accepted(
+        program, "field-and-payload-identities", source,
+        ((2, 0, 1, 0, len(source)),), (), (),
+        ((1, 5, 9, 0, 2, 0, 1, 0, 1, 0, False, 1, 0, len(source), 0, 0),),
+        (
+            (1, 0, *through(source, b"#1", b"i32;")),
+            (2, 0, *through(source, b"case", b");")),
+        ),
+        ((*at(source, b"counter"), True, *identity(source, b"#1"), 0, *through(source, b"#1", b"i32;")),),
+        ((*at(source, b"Done"), True, *identity(source, b"#2"), *through(source, b"case", b");"), 0, 2, 0, 0),),
+        (named(source, b"i32"), named(source, b"u8"), named(source, b"u8", 2)),
+        (
+            (*at(source, b"code"), True, *identity(source, b"#0"), 1, *through(source, b"#0", b"u8,")),
+            (*at(source, b"more"), True, *identity(source, b"#1", 2), 2, *through(source, b"#1", b"u8", 2, 2)),
+        ),
+    )
+    source = b"data Keyed { #3 case: u8; }"
+    status, payload = run(program, source)
+    assert status == 0, f"identified-field-named-case: status {status}"
+    assert decode(payload).fields == (
+        (*at(source, b"case"), True, *identity(source, b"#3"), 0, *through(source, b"#3", b";")),
+    ), f"identified-field-named-case:\n{decode(payload).fields}"
+    identity_rejections = (
+        ("case-identity-literal", b"data X { case # A; }", 108, (16, 17), {}),
+        ("field-identity-literal", b"data X { #x: u8; }", 108, (10, 11), {}),
+        ("payload-identity-literal", b"data X { case A(# y: u8); }", 108, (18, 19), {}),
+        ("identity-after-field-name", b"data X { a #1: u8; }", 12, (11, 12), {}),
+    )
+    for name, source, diagnostic, span, counts in identity_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # The bracketed scalar range suffix is retired
+    # (wiki/spec/language/domains.md, `scalar-range-contract-spelling`): a
+    # type ends before `[`, where its position expects its terminator.
+    range_rejections = (
+        ("range-suffix-field", b"data T { s: u32 [0..=9]; }", 14, (16, 17), {"type_reference_count": 1}),
+        ("range-suffix-payload", b"data B { case Byte(value: i32 [0..=255]); }", 27, (30, 31),
+         {"type_reference_count": 1}),
+        ("range-suffix-parameter", b"machine f(a: u64 [0..=254]) {}", 45, (17, 18),
+         {"parameter_count": 1, "type_reference_count": 1}),
+        ("range-suffix-result", b"machine f() -> u8 [0..=9] {}", 47, (18, 19), {"type_reference_count": 1}),
+    )
+    for name, source, diagnostic, span, counts in range_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # Machine generic parameters share the data declarations' grammar and
+    # table; each machine row keeps its range.
+    source = b"machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] {}"
+    accepted(
+        program, "owned-generic-machine", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
+        type_references=(
+            leaf(NAMED, source, b"T", 0, occurrence=2),
+            type_row(NAMED, span_of(source, b"Vec<T>"), 0, name=span_of(source, b"Vec", 2),
+                     first_argument=0, argument_count=1),
+            type_row(REFERENCE, span_of(source, b"&Vec<T>"), 0, access=1, inner=1),
+            leaf(NAMED, source, b"T", 3, occurrence=3),
+            type_row(SLICE, span_of(source, b"[T]"), 3, inner=3),
+            type_row(REFERENCE, span_of(source, b"&[T]"), 3, access=1, inner=4),
+        ),
+        type_arguments=(0,),
+        generic_parameters=((2, *at(source, b"T"), 0, 0, 0, *at(source, b"T")),),
+        machines=(machine_row(source, b"as_slice", 0, 1, 0, 0, (0, len(source)), owner=b"Vec",
+                              return_type=5, generic_range=(0, 1)),),
+        parameters=(parameter_row(source, b"items", 2, b"&Vec<T>"),),
+    )
+    source = b"pub machine drop<T>(value: T) {} machine pair<'a, machine Step, const N: u64>(x: u8) {}"
+    status, payload = run(program, source)
+    assert status == 0, f"generic-machines: status {status}"
+    actual = decode(payload)
+    assert actual.generic_parameters == (
+        (2, *at(source, b"T"), 0, 0, 0, *at(source, b"T")),
+        (1, 1, source.index(b"'a") + 1, source.index(b"'a") + 2, 0, 0, 0, *through(source, b"'a", b"'a")),
+        (5, *at(source, b"Step"), 0, 0, 0, *through(source, b"machine Step", b"machine Step")),
+        (3, *at(source, b"N"), 1, 1, 0, *through(source, b"const N", b"u64")),
+    ), f"generic-machines:\n{actual.generic_parameters}"
+    assert [row[7:9] for row in actual.machines] == [(0, 1), (1, 3)], f"generic-machines:\n{actual.machines}"
+    machine_generic_rejections = (
+        ("machine-generic-empty", b"machine f<>() {}", 32, (10, 11), {}),
+        ("machine-generic-end", b"machine f<T() {}", 36, (11, 12), {"generic_parameter_count": 1}),
+        ("machine-generics-after-parameters", b"machine f()<T> {}", 47, (11, 12), {}),
+    )
+    for name, source, diagnostic, span, counts in machine_generic_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # A bodyless declaration ends at `;`. A `;` ending a contract fact or an
+    # operational clause stays the clause's while the declaration continues:
+    # with `{`, another clause or, after a fact, another fact. Before a
+    # following declaration or the end of input it ends the declaration.
+    source = b"machine Float::meaning64(value: f64) -> FloatMeaning;"
+    accepted(
+        program, "bodyless-machine", source,
+        ((3, 0, 1, 0, len(source)),), (), (),
+        type_references=(named(source, b"f64"), named(source, b"FloatMeaning")),
+        machines=(machine_row(source, b"meaning64", 0, 1, 0, 0, (0, len(source)), owner=b"Float",
+                              return_type=1, has_body=False),),
+        parameters=(parameter_row(source, b"value", 0, b"f64"),),
+    )
+
+    def contract(name: str, source: bytes, kinds: list[int], bodies: list[bool]) -> Observation:
+        status, payload = run(program, source)
+        assert status == 0, f"{name}: status {status}"
+        actual = decode(payload)
+        assert [row[0] for row in actual.clauses] == kinds, f"{name}:\n{actual.clauses}"
+        assert [row[19] == 1 for row in actual.machines] == bodies, f"{name}:\n{actual.machines}"
+        return actual
+
+    actual = contract("bodyless-operational-clause", b"machine f() blocks;", [4], [False])
+    assert actual.clauses[0][5:] == (1, 12, 19), f"bodyless-operational-clause:\n{actual.clauses}"
+    assert actual.machines[0][23:] == (1, 0, 19), f"bodyless-operational-clause:\n{actual.machines}"
+    contract("operational-clause-before-body", b"machine f() blocks; suspends; {}", [4, 3], [True])
+    source = b"machine f(value: u64) -> u8\nrequires\n    value <= 255;\n{\n    value as u8\n}"
+    actual = contract("requires-semicolon-before-body", source, [6], [True])
+    assert actual.clauses[0][5:] == (1, source.index(b"requires"), source.index(b"255") + 3), (
+        f"requires-semicolon-before-body:\n{actual.clauses}"
+    )
+    contract("semicolon-separated-facts", b"machine f() requires a; (b) == c; ensures d; {}", [6, 6, 7], [True])
+    contract("bodyless-fact-lists", b"machine f() requires a; b; machine g() requires c;", [6, 6, 6], [False, False])
+    actual = contract("fact-before-declaration", b"machine f() requires a; pub data D {}", [6], [False])
+    assert len(actual.data_items) == 1, f"fact-before-declaration:\n{actual.data_items}"
+    contract("cast-fact-after-semicolon", b"machine f() requires a; b as u8 == 4; {}", [6, 6], [True])
+    bodyless_rejections = (
+        ("machine-body-or-end", b"machine f() -> u8 x", 47, (18, 19), {"type_reference_count": 1}),
+        ("bodyless-state", b"machine f() { state s(); }", 50, (23, 24), {}),
+        ("fact-semicolon-then-close", b"machine f() requires a; }", 2, (24, 25),
+         {"root_count": 1, "member_count": 1, "machine_count": 1, "expression_count": 1}),
+    )
+    for name, source, diagnostic, span, counts in bodyless_rejections:
+        rejected(program, name, source, diagnostic, span, **counts)
+
+    # A transition arm's target may be any value, which completes the
+    # machine; a construction is a value there. Call-shaped targets keep
+    # their kind for resolution.
+    body(
+        "parenthesized-value-target",
+        b"machine f(gap: u64) -> u64 { transition { _ -> (gap) } }",
+        ((1, 0, 0, 0, 0, 1, 0, 1, 48, 51, 0, 1, 48, 51),),
+        ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 29, 54),),
+        arms=((2, 0, 0, 0, 2, 0, 1, 42, 51),),
+    )
+    body(
+        "construction-value-target",
+        b"machine f(items: u8) -> V { transition { _ -> V { items: items } } }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 46, 47, 0, 1, 46, 47),
+            (1, 0, 0, 0, 1, 1, 0, 1, 57, 62, 0, 1, 57, 62),
+            (12, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 46, 64),
+        ),
+        ((6, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 28, 66),),
+        construct_fields=((1, 50, 55, 1, 1, 50, 62),),
+        arms=((2, 0, 0, 0, 2, 2, 1, 41, 64),),
+    )
+    body(
+        "path-value-target",
+        b"machine f(e: E) -> E { transition e { E::A -> E::B _ -> {} } }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 34, 35, 0, 1, 34, 35),
+            (2, 0, 0, 0, 1, 2, 0, 1, 41, 42, 0, 1, 38, 42),
+            (2, 0, 0, 0, 3, 2, 0, 1, 49, 50, 0, 1, 46, 50),
+        ),
+        ((6, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 1, 23, 60),),
+        arms=((4, 1, 0, 0, 2, 2, 1, 38, 50), (2, 0, 0, 0, 3, 0, 1, 51, 58)),
+    )
+    body(
+        "float-literal-argument",
+        b"machine f(x: f64) { g(x, 16777216.0); }",
+        (
+            (1, 0, 0, 0, 0, 1, 0, 1, 20, 21, 0, 1, 20, 21),
+            (1, 0, 0, 0, 1, 1, 0, 1, 22, 23, 0, 1, 22, 23),
+            (14, 0, 0, 0, 0, 0, 0, 1, 25, 35, 0, 1, 25, 35),
+            (11, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 20, 36),
+        ),
+        ((3, 1, 0, 0, 0, 0, 1, 3, 0, 1, 0, 0, 1, 20, 37),),
+        arguments=(1, 2),
+    )
 
     nested = b"machine f() { " + b"(" * 32 + b"1" + b")" * 32 + b"; }"
     nested_status, _ = run(program, nested)

@@ -345,6 +345,9 @@ crashes Trap
             ResolveDiagnosticCode::DuplicateGenericParameter -> diagnostic_tag(resolver_harness, output, 12)
             ResolveDiagnosticCode::UnknownName -> diagnostic_tag(resolver_harness, output, 13)
             ResolveDiagnosticCode::AmbiguousName -> diagnostic_tag(resolver_harness, output, 14)
+            ResolveDiagnosticCode::PartialStableIdentities -> diagnostic_tag(resolver_harness, output, 15)
+            ResolveDiagnosticCode::DuplicateStableIdentity -> diagnostic_tag(resolver_harness, output, 16)
+            ResolveDiagnosticCode::InvalidStableIdentity -> diagnostic_tag(resolver_harness, output, 17)
         }
     }
 
@@ -389,6 +392,7 @@ crashes Trap
             ValueBinding::Machine { handle } -> value_tag(resolver_harness, output, index, 6, handle, 0)
             ValueBinding::Data { item } -> value_tag(resolver_harness, output, index, 7, item, 0)
             ValueBinding::DataCase { item, data_case } -> value_tag(resolver_harness, output, index, 8, item, data_case)
+            ValueBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 10, parameter, 0)
         }
     }
 

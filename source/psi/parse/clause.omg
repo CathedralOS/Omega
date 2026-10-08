@@ -6,13 +6,17 @@ use psi::tokens::tokens;
 
 // The clauses between a declaration's head and its body, in any order:
 // `reaches Service [, Service | + Service]*`, `invokes Binding;`,
-// `suspends;`, `blocks;`, `crashes Trap` or `crashes Abort`, `requires fact`,
-// `ensures fact`, and `where fact [, fact]* [,]`. Every clause word is
-// contextual, and the clauses end at the first token that opens none, which
-// the owner's grammar then reads. One grammar serves every owner; which
-// clauses an owner admits is `Parser::clause_admitted`, and an inadmissible
-// clause rejects at its word. The range lands in `clause_first` and the table
-// count.
+// `suspends;`, `blocks;`, `crashes Trap` or `crashes Abort`,
+// `requires fact [(, | ;) fact]*`, `ensures fact [(, | ;) fact]*`, and
+// `where fact [, fact]* [,]`. Every clause word is contextual, and the
+// clauses end at the first token that opens none, which the owner's grammar
+// then reads. A `;` that ends an operational clause or a contract fact is the
+// clause's only while the declaration continues after it: with its body `{`,
+// another clause, or, after a fact, another fact. Otherwise it ends the
+// declaration itself, a bodyless one, and stays for the owner. One grammar
+// serves every owner; which clauses an owner admits is
+// `Parser::clause_admitted`, and an inadmissible clause rejects at its word.
+// The range lands in `clause_first` and the table count.
 pub machine Parser::parse_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
 crashes Trap
 {
@@ -130,7 +134,7 @@ crashes Trap
         let plus: bool = Parser::at_punctuation(parser, input, PunctuationKind::Plus);
         transition comma || plus {
             true -> service_separator_taken(parser, input, owner)
-            _ -> member_clause(parser, input, owner, ClauseKind::Reaches)
+            _ -> member_clause(parser, input, owner, ClauseKind::Reaches, parser.token_end)
         }
     }
 
@@ -157,23 +161,39 @@ crashes Trap
         }
     }
 
+    // The clause spans through its `;` whether or not the declaration's end
+    // shares it.
     state operational_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedClauseEnd);
-        transition parser.output.accepted {
-            true -> member_clause(parser, input, owner, kind)
-            _ -> done()
+        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        transition semicolon {
+            true -> operational_semicolon(parser, input, owner, kind)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedClauseEnd)
         }
     }
 
+    state operational_semicolon(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        let token: Token = input.tokens[parser.current_index];
+        let continuation: ClauseContinuation = Parser::after_clause_semicolon(parser, input);
+        transition continuation {
+            ClauseContinuation::Clause -> operational_taken(parser, input, owner, kind)
+            _ -> member_clause(parser, input, owner, kind, token.end)
+        }
+    }
+
+    state operational_taken(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        Parser::take_current(parser, input);
+        transition { _ -> member_clause(parser, input, owner, kind, parser.token_end) }
+    }
+
     // Reaches, invokes and the operational clauses keep their members range.
-    state member_clause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+    state member_clause(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, end: u64 in Trapping) {
         let clause: Clause = Clause {
             kind: kind,
             first_member: parser.clause_first_member,
             member_count: (parser.output.member_count as u64 in Trapping) - parser.clause_first_member,
             cause: CrashCause::Trap,
             expression: 0,
-            source_span: Parser::source_span(parser, parser.clause_start, parser.token_end)
+            source_span: Parser::source_span(parser, parser.clause_start, end)
         };
         transition { _ -> store(parser, input, owner, clause) }
     }
@@ -255,13 +275,41 @@ crashes Trap
     }
 
     // `requires`, `ensures` and `where` facts continue after `,`, each its
-    // own clause row of the same kind; a trailing comma ends them.
+    // own clause row of the same kind; a trailing comma ends them. Contract
+    // facts also continue after `;`.
     state fact_separator(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition comma {
             true -> fact_continues(parser, input, owner, kind)
+            _ -> contract_semicolon(parser, input, owner, kind, semicolon && kind != ClauseKind::Where)
+        }
+    }
+
+    state contract_semicolon(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, separated: bool) {
+        transition separated {
+            true -> semicolon_continuation(parser, input, owner, kind)
             _ -> next(parser, input, owner)
         }
+    }
+
+    state semicolon_continuation(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        let continuation: ClauseContinuation = Parser::after_clause_semicolon(parser, input);
+        transition continuation {
+            ClauseContinuation::Clause -> semicolon_taken(parser, input, owner)
+            ClauseContinuation::Fact -> semicolon_fact(parser, input, owner, kind)
+            ClauseContinuation::End -> next(parser, input, owner)
+        }
+    }
+
+    state semicolon_taken(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+        Parser::take_current(parser, input);
+        transition { _ -> next(parser, input, owner) }
+    }
+
+    state semicolon_fact(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
+        Parser::take_current(parser, input);
+        transition { _ -> next_fact(parser, input, owner, kind) }
     }
 
     state fact_continues(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
@@ -285,6 +333,71 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// What follows a `;` that ends a clause, read without moving the cursor,
+// which stays at the `;`.
+pub data ClauseContinuation [copy] {
+    // The declaration's body `{` or another clause word.
+    case Clause;
+    // Any other start of an expression: the next fact of a contract list.
+    case Fact;
+    // The end of the input, a closing `}`, another `;`, or the head of a
+    // following declaration (`Parser::at_declaration_head`): the `;` ends
+    // the declaration.
+    case End;
+}
+
+machine Parser::after_clause_semicolon(parser: &mut Parser, input: &TokenStream) -> ClauseContinuation
+crashes Trap
+{
+    let cursor: u64 in Trapping = parser.cursor;
+    parser.cursor = parser.cursor + 1;
+    Parser::load_current(parser, input);
+    transition parser.current_present {
+        true -> body(parser, input, cursor)
+        _ -> restore(parser, input, cursor, ClauseContinuation::End)
+    }
+
+    state body(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
+        let open: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        let clause: bool = Parser::at_clause_word(parser, input);
+        transition open || clause {
+            true -> restore(parser, input, cursor, ClauseContinuation::Clause)
+            _ -> closing(parser, input, cursor)
+        }
+    }
+
+    state closing(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
+        let close: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        let head: bool = Parser::at_declaration_head(parser, input);
+        transition close || semicolon || head {
+            true -> restore(parser, input, cursor, ClauseContinuation::End)
+            _ -> restore(parser, input, cursor, ClauseContinuation::Fact)
+        }
+    }
+
+    state restore(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping, continuation: ClauseContinuation) {
+        parser.cursor = cursor;
+        Parser::load_current(parser, input);
+        continuation
+    }
+}
+
+// Whether the current token is a clause word.
+machine Parser::at_clause_word(parser: &mut Parser, input: &TokenStream) -> bool
+crashes Trap
+{
+    let reaches: bool = Parser::at_word(parser, input, "reaches");
+    let invokes: bool = Parser::at_word(parser, input, "invokes");
+    let suspends: bool = Parser::at_word(parser, input, "suspends");
+    let blocks: bool = Parser::at_word(parser, input, "blocks");
+    let crashes: bool = Parser::at_word(parser, input, "crashes");
+    let requires: bool = Parser::at_word(parser, input, "requires");
+    let ensures: bool = Parser::at_word(parser, input, "ensures");
+    let facts: bool = Parser::at_word(parser, input, "where");
+    reaches || invokes || suspends || blocks || crashes || requires || ensures || facts
 }
 
 // Which clauses each owner admits: a machine every clause but `where`, a

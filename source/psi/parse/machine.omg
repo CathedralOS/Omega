@@ -1,4 +1,5 @@
 use psi::parse::clause;
+use psi::parse::generics;
 use psi::parse::input;
 use psi::parse::parser;
 use psi::parse::statement;
@@ -7,11 +8,13 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // Machine-declaration grammar attached to the parser owner:
-// `[pub] machine [Owner::]name [(parameters)] [-> Type] clauses { statements
-// state* }`. clause.omg owns the clauses and statement.omg the statements;
-// the entry's statements precede the `state` members. Machine generics and
-// bodyless declarations reject at their first token, with the diagnostic of
-// the element expected there.
+// `[pub] machine [Owner::]name [<generic parameters>] [(parameters)]
+// [-> Type] clauses ({ statements state* } | ;)`. generics.omg owns the
+// generic parameters, shared with data declarations; clause.omg owns the
+// clauses and statement.omg the statements; the entry's statements precede
+// the `state` members. A bodyless declaration ends at `;`: whether its
+// signature has a supply (a compiler primitive, a requirement, a boundary
+// provider) is checking's question, not the grammar's.
 pub machine Parser::parse_machine(
     parser: &mut Parser,
     input: &TokenStream,
@@ -33,6 +36,8 @@ crashes Trap
 
     state keyword(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
+        parser.machine_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        parser.machine_first_expression = parser.output.expression_count as u64 in Trapping;
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedMachineName);
         transition parser.output.accepted {
             true -> first_name(parser, input)
@@ -49,7 +54,7 @@ crashes Trap
         let owned: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition owned {
             true -> owned_name(parser, input)
-            _ -> signature(parser, input)
+            _ -> generic_list(parser, input)
         }
     }
 
@@ -68,7 +73,23 @@ crashes Trap
     state owned_named(parser: &mut Parser, input: &TokenStream) {
         parser.machine_name_start = parser.name_start;
         parser.machine_name_end = parser.name_end;
-        transition { _ -> signature(parser, input) }
+        transition { _ -> generic_list(parser, input) }
+    }
+
+    state generic_list(parser: &mut Parser, input: &TokenStream) {
+        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        transition generic {
+            true -> generics(parser, input)
+            _ -> signature(parser, input)
+        }
+    }
+
+    state generics(parser: &mut Parser, input: &TokenStream) {
+        Parser::parse_generic_parameters(parser, input);
+        transition parser.output.accepted {
+            true -> signature(parser, input)
+            _ -> done()
+        }
     }
 
     state signature(parser: &mut Parser, input: &TokenStream) {
@@ -94,12 +115,33 @@ crashes Trap
     state body(parser: &mut Parser, input: &TokenStream) {
         parser.machine_first_clause = parser.clause_first;
         parser.machine_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
+        let bodyless: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        transition bodyless {
+            true -> signature_end(parser, input)
+            _ -> body_open(parser, input)
+        }
+    }
+
+    state body_open(parser: &mut Parser, input: &TokenStream) {
         Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace,
             ParseDiagnosticCode::ExpectedMachineBody
         );
         transition parser.output.accepted {
             true -> entry_statements(parser, input)
             _ -> done()
+        }
+    }
+
+    // A bodyless declaration owns empty statement and state ranges at the
+    // tables' ends.
+    state signature_end(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
+        parser.machine_statement_count = 0;
+        parser.machine_first_state = parser.output.state_count as u64 in Trapping;
+        transition parser.output.machine_count < 512 {
+            true -> retain(parser, input, false)
+            _ -> machine_full(parser, input)
         }
     }
 
@@ -150,17 +192,19 @@ crashes Trap
     state close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         transition parser.output.machine_count < 512 {
-            true -> retain(parser, input)
+            true -> retain(parser, input, true)
             _ -> machine_full(parser, input)
         }
     }
 
-    state retain(parser: &mut Parser, input: &TokenStream) {
+    state retain(parser: &mut Parser, input: &TokenStream, has_body: bool) {
         let machine_index: u64 in Trapping = parser.output.machine_count as u64 in Trapping;
         parser.output.machines[parser.output.machine_count] = MachineItem {
             has_owner: parser.machine_has_owner,
             owner: Parser::identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
             name: Parser::identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
+            first_generic_parameter: parser.machine_first_generic,
+            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.machine_first_generic,
             first_parameter: parser.machine_first_parameter,
             parameter_count: parser.machine_parameter_count,
             has_return_type: parser.machine_has_return_type,
@@ -171,6 +215,9 @@ crashes Trap
             statement_count: parser.machine_statement_count,
             first_state: parser.machine_first_state,
             state_count: (parser.output.state_count as u64 in Trapping) - parser.machine_first_state,
+            has_body: has_body,
+            first_expression: parser.machine_first_expression,
+            expression_count: (parser.output.expression_count as u64 in Trapping) - parser.machine_first_expression,
             is_public: parser.machine_is_public,
             source_span: Parser::source_span(parser, parser.machine_start, parser.token_end)
         };
