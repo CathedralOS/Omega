@@ -184,17 +184,6 @@ pub(crate) fn build_checked_machine_residual_parts(
         None => (Vec::new(), 0),
     };
     trace.phase("statement sequence");
-    if let Some(index) = statement_sequence::first_unsupported_statement(
-        program,
-        facts,
-        machine,
-        state,
-        prefix_statement_count,
-    ) {
-        trace.phase("statement sequence: unsupported statement kind");
-        trace.statement(u32::try_from(index).ok());
-        return None;
-    }
     let sequence = statement_sequence::build(
         program,
         facts,

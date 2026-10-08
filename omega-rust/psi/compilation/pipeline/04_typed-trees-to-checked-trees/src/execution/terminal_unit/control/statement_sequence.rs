@@ -152,63 +152,6 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
     }
 }
 
-/// The first statement after the prefix whose kind the sequence cannot plan
-/// at all: a transition mid-body, an expression that neither calls nor
-/// completes, or a statement with no sequencing route. Statements the
-/// sequence admits by kind can still decline while planning; this names
-/// only the kind refusal, with its index for the construction trace.
-pub(super) fn first_unsupported_statement(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    construction_statement_count: usize,
-) -> Option<usize> {
-    let completion = scalar_control(program, facts, machine, state);
-    let prefix_count = completion
-        .as_ref()
-        .map(|(_, count)| *count)
-        .unwrap_or(usize::MAX);
-    program
-        .statement_table.indexed_statements(state.statement_nodes)
-        .take(prefix_count)
-        .skip(construction_statement_count)
-        .find(|(index, statement)| !match statement {
-            StatementNode::Call(_) | StatementNode::Assignment(_) => true,
-            // A mid-body expression is a statement call. The final one is the
-            // body's completion, which `build` and its completion producers
-            // own: an expression none of them lowers leaves the body without
-            // a result (or reaches `build`'s unsupported-statement arm), so
-            // repeating their shapes here would only be a second vocabulary
-            // that can refuse a supported completion first.
-            StatementNode::Expression(_) => {
-                call_occurrences::ordered_statement_call(program, machine, state, *index).is_some()
-                    || *index + 1
-                        == program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .len()
-            }
-            // The local planner owns initializer/type admission. Repeating its
-            // producers here creates a second vocabulary that can reject a
-            // supported declaration before its own planner sees it.
-            StatementNode::LocalData(_) => true,
-            // Each transition arm lowers to its own statement, so a dispatch
-            // is a trailing RUN of transitions ending the state body. The
-            // sequence plans the statements before it and the terminator
-            // machinery owns the run; a transition anywhere else would mean
-            // authored statements the take_while below silently skips.
-            StatementNode::Transition(_) => program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .skip(*index)
-                .all(|rest| matches!(rest, StatementNode::Transition(_))),
-            _ => false,
-        })
-        .map(|(index, _)| index)
-}
-
 /// Alias bindings whose referents are represented directly by their uses.
 /// A supported capture instead establishes an ordinary reference value: later
 /// transfers need its descriptor identity, even if the borrow also admits an
@@ -248,6 +191,13 @@ fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> b
     local.name.as_str().starts_with("__destructure#")
 }
 
+/// A case arm's payload marker (`let __arm_destructure#V=..`) precedes that
+/// arm's transition; the arm, not the sequence, binds its fields.
+fn is_arm_destructure_marker(statement: &StatementNode) -> bool {
+    matches!(statement, StatementNode::LocalData(local)
+        if local.name.as_str().starts_with("__arm_destructure#V="))
+}
+
 /// The machine an assignment's right-hand side calls, when it is a direct call.
 fn statement_call_target(
     program: &dyn ::validation::CheckingInput,
@@ -279,7 +229,50 @@ pub(in crate::execution::terminal_unit) fn build(
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
-    let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
+    let (scalar_control, terminator_start) = match scalar_control(program, facts, machine, state) {
+        Some((control, prefix_count)) => (Some(control), prefix_count),
+        None => (None, usize::MAX),
+    };
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let statement_end = statement_end.min(statements.len());
+    // The walk plans each statement up to the body's completion: a trailing
+    // transition run (each arm's destructure marker before it), the final
+    // expression of a value body, or the scalar-control terminator's own
+    // statements. Those belong to the terminator and `completion`. A walk
+    // that stops anywhere else would leave the authored statements after
+    // it unplanned, so the body has no route.
+    let sequenced = |index: usize, statement: &StatementNode| {
+        (!matches!(statement, StatementNode::Transition(_))
+            || call_occurrences::terminal_named_call(program, machine, state, index).is_some())
+            && !is_arm_destructure_marker(statement)
+            && !matches!(statement, StatementNode::Expression(expression)
+                if !is_unit(program, state.return_type)
+                    && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
+                        || u32::try_from(index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
+                            state.symbol, ordinal, CheckedScalarExpressionRole::Return,
+                        ).is_some() || facts.values.structural_values.root_for_expression(
+                            state.symbol, ordinal, *expression,
+                        ).is_some())))
+    };
+    let walk_end = statements
+        .iter()
+        .enumerate()
+        .take(statement_end)
+        .skip(construction_statement_count)
+        .find(|(index, statement)| !sequenced(*index, statement))
+        .map_or(statement_end, |(index, _)| index);
+    let rest = &statements[walk_end.min(statement_end)..statement_end];
+    let completion_owns_rest = walk_end >= terminator_start
+        || (walk_end + 1 == statements.len() && matches!(rest, [StatementNode::Expression(_)]))
+        || rest
+            .iter()
+            .skip_while(|statement| is_arm_destructure_marker(statement))
+            .all(|statement| matches!(statement, StatementNode::Transition(_)));
+    if !completion_owns_rest {
+        trace.phase("statement sequence: unsupported statement kind");
+        trace.statement(u32::try_from(walk_end).ok());
+        return None;
+    }
     // A bounded byte owner's primitive predicates survive both a shared loan
     // and a mutable loan whose stores preserve those predicates. Scalar
     // completion changes neither that obligation nor the backing's identity.
@@ -351,7 +344,6 @@ pub(in crate::execution::terminal_unit) fn build(
         .count();
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
-    let statements = program.statement_table.statements(state.statement_nodes);
     let mut windows = super::super::borrowed_windows::OpenWindows::default();
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     let mut returned_call = None;
@@ -384,26 +376,21 @@ pub(in crate::execution::terminal_unit) fn build(
     for (index, statement) in statements
         .iter()
         .enumerate()
-        .take(statement_end)
+        .take(walk_end)
         .skip(construction_statement_count)
-        .take_while(|(index, statement)| {
-            (!matches!(statement, StatementNode::Transition(_))
-                || call_occurrences::terminal_named_call(program, machine, state, *index).is_some())
-                && !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))
-                && !matches!(statement, StatementNode::Expression(expression)
-                    if !is_unit(program, state.return_type)
-                        && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
-                            || u32::try_from(*index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
-                                state.symbol, ordinal, CheckedScalarExpressionRole::Return,
-                            ).is_some() || facts.values.structural_values.root_for_expression(
-                                state.symbol, ordinal, *expression,
-                            ).is_some())))
-        })
     {
         let statement_index = u32::try_from(index).ok()?;
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));
-        append_reference_releases(program, facts, machine.symbol, state.symbol, statement_index, &structural_results, &mut operations)?;
+        append_reference_releases(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            &structural_results,
+            &mut operations,
+        )?;
         // A fact-only citation emits no runtime call or work; its flow row
         // is retired (`execution::citation_erasure`), so it plans nothing.
         if validation::is_fact_only_citation(program, statement) {
@@ -546,8 +533,7 @@ pub(in crate::execution::terminal_unit) fn build(
             StatementNode::Call(call) if call.discards_result => {
                 trace.phase("statement sequence: call: discarded result type");
                 trace.statement(Some(statement_index));
-                let result_type =
-                    validation::call_target_return_type(program, call.target_symbol)?;
+                let result_type = validation::call_target_return_type(program, call.target_symbol)?;
                 if let Some(primitive_type) = program.primitive_type_reference(result_type) {
                     // Discarding the value does not discard the invocation or
                     // change its result signature. Keep the ordinary SSA result
@@ -571,8 +557,11 @@ pub(in crate::execution::terminal_unit) fn build(
                 }
             }
             StatementNode::Call(_) => None,
-            StatementNode::Expression(_) if completes_machine
-                && program.primitive_type_reference(state.return_type).is_some() =>
+            StatementNode::Expression(_)
+                if completes_machine
+                    && program
+                        .primitive_type_reference(state.return_type)
+                        .is_some() =>
             {
                 let result = CheckedUnitScalarResultBindingPlan {
                     statement_index,
@@ -584,7 +573,8 @@ pub(in crate::execution::terminal_unit) fn build(
                 Some(result)
             }
             StatementNode::Expression(_) if completes_machine => {
-                let mut result = checked_structural_result_type(program, shapes, state.return_type, &binders)?;
+                let mut result =
+                    checked_structural_result_type(program, shapes, state.return_type, &binders)?;
                 result.statement_index = statement_index;
                 structural_result = Some(result);
                 None
@@ -604,11 +594,10 @@ pub(in crate::execution::terminal_unit) fn build(
                 None
             }
             StatementNode::Transition(_)
-                if call_occurrences::terminal_named_call(program, machine, state, index).is_some() =>
+                if call_occurrences::terminal_named_call(program, machine, state, index)
+                    .is_some() =>
             {
-                if let Some(primitive_type) =
-                    program.primitive_type_reference(state.return_type)
-                {
+                if let Some(primitive_type) = program.primitive_type_reference(state.return_type) {
                     let result = CheckedUnitScalarResultBindingPlan {
                         statement_index,
                         binding_ordinal: u32::try_from(scalar_count).ok()?,

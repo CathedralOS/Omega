@@ -2728,16 +2728,6 @@ code and preserve check/native behavior for the named customer slices.
   variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
   is unchanged.
 
-- **SHAPE-RUNGS-GENERALIZED.** (new-scope) `first_unsupported_statement`
-  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/statement_sequence.rs`)
-  still pre-screens the ordinary route's statement kinds before `build`.
-  `build`'s statement walk stops at the first transition and at a value
-  body's first non-call expression, so without the pre-screen a mid-body
-  transition or expression would silently drop the statements after it.
-  Acceptance: `build` itself refuses a body whose walk stops before its
-  trailing completion (final expression or trailing transition run), the
-  pre-screen is gone, and the checked corpus is unchanged.
-
 ## Checker simplification
 
 Owner ruling 2026-10-04: remove the checker's re-checking, duplicate analyses,
