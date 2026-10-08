@@ -392,77 +392,18 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     scalar_type,
                     location,
                 } => {
-                    let abi = function.parameter_abi.as_ref().ok_or_else(invalid)?;
-                    let scalar_parameter_index =
-                        usize::try_from(parameter_index).map_err(|_| invalid())?;
-                    let scalar_parameter = abi
-                        .parameters
-                        .get(scalar_parameter_index)
-                        .ok_or_else(invalid)?;
-                    let (scalar_shape, width) =
-                        installed_native_scalar_shape(scalar_type).ok_or_else(invalid)?;
-                    let (expected_location, placed_byte_size) =
-                        match scalar_parameter.placement.locations.as_slice() {
-                            [
-                                ValueLocation::Register {
-                                    register,
-                                    value_byte_offset: 0,
-                                    byte_size,
-                                },
-                            ] => (
-                                machine_code::UnitScalarParameterLocationRecord::Register(
-                                    *register,
-                                ),
-                                *byte_size,
-                            ),
-                            [
-                                ValueLocation::Stack {
-                                    stack_byte_offset,
-                                    value_byte_offset: 0,
-                                    byte_size,
-                                    ..
-                                },
-                            ] => (
-                                machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                                    byte_offset: *stack_byte_offset,
-                                },
-                                *byte_size,
-                            ),
-                            _ => return Err(invalid()),
-                        };
-                    let mut parameter_shapes = abi
-                        .parameters
-                        .iter()
-                        .map(|parameter| {
-                            let (shape, _) = installed_native_scalar_shape(parameter.scalar_type)?;
-                            (parameter.placement.shape == shape).then_some(shape)
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .ok_or_else(invalid)?;
-                    parameter_shapes.push(parameter.shape);
-                    let expected_plan = evaluate_call_plan(
-                        CallingPolicy::native_for_target(record.target),
-                        &CallSignature {
-                            parameters: parameter_shapes,
-                            result: None,
-                        },
-                    )
-                    .map_err(|_| invalid())?;
-                    (
-                        function.unit_parameters.len() == 1
-                            && scalar_parameter.value == source_value
-                            && scalar_parameter.scalar_type == scalar_type
-                            && scalar_parameter.placement.shape == scalar_shape
-                            && placed_byte_size == u32::from(width)
-                            && location == expected_location
-                            && abi.call_plan == expected_plan
-                            && abi.call_plan.parameters.get(scalar_parameter_index)
-                                == Some(&scalar_parameter.placement)
-                            && abi.call_plan.parameters.get(abi.parameters.len())
-                                == Some(&home.source),
-                        width,
-                        None,
-                    )
+                    let (is_exact, width) = parameter_source_home(
+                        function,
+                        record,
+                        home,
+                        parameter.shape,
+                        parameter_index,
+                        source_value,
+                        scalar_type,
+                        location,
+                        invalid,
+                    )?;
+                    (is_exact, width, None)
                 }
                 machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     defining_operation,
@@ -557,53 +498,25 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     )
                 }
             };
-            let expected_bytes = match store.source {
-                machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
-                    location:
-                        machine_code::UnitScalarParameterLocationRecord::Register(register),
-                    ..
-                } => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_parameter_store_bytes(
-                    record.target,
-                    home,
-                    store.field_byte_offset,
-                    width,
-                    register,
-                )
-                .ok_or_else(invalid)?,
-                machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
-                    location:
-                        machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                            byte_offset,
-                        },
-                    ..
-                } => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_incoming_parameter_store_bytes(
-                    record.target,
-                    home,
-                    store.field_byte_offset,
-                    width,
-                    byte_offset,
-                    function.unit_stack.as_ref().ok_or_else(invalid)?.frame_bytes,
-                )
-                .ok_or_else(invalid)?,
-                machine_code::InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
-                    crate::object_artifact::replay::unit::structural_scalar_field_store::expected_home_store_bytes(
-                        record.target,
-                        home,
-                        store.field_byte_offset,
-                        width,
-                        source_home,
-                    )
-                    .ok_or_else(invalid)?
-                }
-                _ => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_store_bytes(
-                    record.target,
-                    home,
-                    store.field_byte_offset,
-                    width,
-                    bits.ok_or_else(invalid)?,
-                )
-                .ok_or_else(invalid)?,
-            };
+            let expected_bytes = expected_scalar_store_bytes(
+                record,
+                function,
+                home,
+                store.field_byte_offset,
+                width,
+                bits,
+                match store.source {
+                    machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                        location,
+                        ..
+                    } => ScalarStoreSource::ParameterLocation(location),
+                    machine_code::InternalUnitScalarArgumentSourceRecord::Home(source_home) => {
+                        ScalarStoreSource::Home(source_home)
+                    }
+                    _ => ScalarStoreSource::Immediate,
+                },
+                invalid,
+            )?;
             let end = store
                 .code_offset
                 .checked_add(store.byte_count)
@@ -683,78 +596,18 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     scalar_type,
                     location,
                 } => {
-                    let abi = function.parameter_abi.as_ref().ok_or_else(invalid)?;
-                    let scalar_parameter_index =
-                        usize::try_from(parameter_index).map_err(|_| invalid())?;
-                    let scalar_parameter = abi
-                        .parameters
-                        .get(scalar_parameter_index)
-                        .ok_or_else(invalid)?;
-                    let (scalar_shape, width) =
-                        installed_native_scalar_shape(scalar_type).ok_or_else(invalid)?;
-                    let (expected_location, placed_byte_size) =
-                        match scalar_parameter.placement.locations.as_slice() {
-                            [
-                                ValueLocation::Register {
-                                    register,
-                                    value_byte_offset: 0,
-                                    byte_size,
-                                },
-                            ] => (
-                                machine_code::UnitScalarParameterLocationRecord::Register(
-                                    *register,
-                                ),
-                                *byte_size,
-                            ),
-                            [
-                                ValueLocation::Stack {
-                                    stack_byte_offset,
-                                    value_byte_offset: 0,
-                                    byte_size,
-                                    ..
-                                },
-                            ] => (
-                                machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                                    byte_offset: *stack_byte_offset,
-                                },
-                                *byte_size,
-                            ),
-                            _ => return Err(invalid()),
-                        };
-                    let mut parameter_shapes = abi
-                        .parameters
-                        .iter()
-                        .map(|parameter| {
-                            let (shape, _) = installed_native_scalar_shape(parameter.scalar_type)?;
-                            (parameter.placement.shape == shape).then_some(shape)
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .ok_or_else(invalid)?;
-                    parameter_shapes.push(parameter.shape);
-                    let expected_plan = evaluate_call_plan(
-                        CallingPolicy::native_for_target(record.target),
-                        &CallSignature {
-                            parameters: parameter_shapes,
-                            result: None,
-                        },
-                    )
-                    .map_err(|_| invalid())?;
-                    (
-                        function.unit_parameters.len() == 1
-                            && scalar_parameter.value == source_value
-                            && scalar_parameter.scalar_type == scalar_type
-                            && scalar_parameter.placement.shape == scalar_shape
-                            && placed_byte_size == u32::from(width)
-                            && location == expected_location
-                            && abi.call_plan == expected_plan
-                            && abi.call_plan.parameters.get(scalar_parameter_index)
-                                == Some(&scalar_parameter.placement)
-                            && abi.call_plan.parameters.get(abi.parameters.len())
-                                == Some(&home.source),
+                    let (is_exact, width) = parameter_source_home(
+                        function,
+                        record,
+                        home,
+                        parameter.shape,
+                        parameter_index,
+                        source_value,
                         scalar_type,
-                        width,
-                        None,
-                    )
+                        location,
+                        invalid,
+                    )?;
+                    (is_exact, scalar_type, width, None)
                 }
                 machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
                     defining_operation,
@@ -910,53 +763,25 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .iter()
                 .filter(|candidate| *candidate == &store.destination_type)
                 .count();
-            let expected_bytes = match store.source {
-                machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
-                    location:
-                        machine_code::UnitScalarParameterLocationRecord::Register(register),
-                    ..
-                } => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_parameter_store_bytes(
-                    record.target,
-                    home,
-                    0,
-                    width,
-                    register,
-                )
-                .ok_or_else(invalid)?,
-                machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
-                    location:
-                        machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                            byte_offset,
-                        },
-                    ..
-                } => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_incoming_parameter_store_bytes(
-                    record.target,
-                    home,
-                    0,
-                    width,
-                    byte_offset,
-                    function.unit_stack.as_ref().ok_or_else(invalid)?.frame_bytes,
-                )
-                .ok_or_else(invalid)?,
-                machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
-                    crate::object_artifact::replay::unit::structural_scalar_field_store::expected_home_store_bytes(
-                        record.target,
-                        home,
-                        0,
-                        width,
-                        source_home,
-                    )
-                    .ok_or_else(invalid)?
-                }
-                _ => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_store_bytes(
-                    record.target,
-                    home,
-                    0,
-                    width,
-                    bits.ok_or_else(invalid)?,
-                )
-                .ok_or_else(invalid)?,
-            };
+            let expected_bytes = expected_scalar_store_bytes(
+                record,
+                function,
+                home,
+                0,
+                width,
+                bits,
+                match store.source {
+                    machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Parameter {
+                        location,
+                        ..
+                    } => ScalarStoreSource::ParameterLocation(location),
+                    machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
+                        ScalarStoreSource::Home(source_home)
+                    }
+                    _ => ScalarStoreSource::Immediate,
+                },
+                invalid,
+            )?;
             let end = store
                 .code_offset
                 .checked_add(store.byte_count)
@@ -1016,6 +841,158 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
         }
     }
     Ok(())
+}
+
+
+/// The `Parameter` source arm's shared audit: the record names an exact ABI
+/// parameter home when the recorded scalar type's declared shape, the
+/// parameter's placement, value and the enclosing call plan all match — the
+/// body's `width` comes back for the caller's own record shape.
+
+/// The two store-source enums both narrow to the same three evidence cases:
+/// a parameter ABI home's recorded location, an explicit scalar home record,
+/// or an immediate carried by its `bits` count — this shared match produces
+/// the expected transport byte shape for either enum's projection.
+enum ScalarStoreSource {
+    ParameterLocation(machine_code::UnitScalarParameterLocationRecord),
+    Home(machine_code::UnitScalarHomeRecord),
+    Immediate,
+}
+
+fn expected_scalar_store_bytes(
+    record: &InstallationRecord,
+    function: &InstalledFunction,
+    home: &machine_code::UnitParameterHomeRecord,
+    field_byte_offset: u32,
+    width: u16,
+    bits: Option<u64>,
+    source: ScalarStoreSource,
+    invalid: impl Fn() -> InstallationError,
+) -> Result<Vec<u8>, InstallationError> {
+    match source {
+        ScalarStoreSource::ParameterLocation(
+            machine_code::UnitScalarParameterLocationRecord::Register(register),
+        ) => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_parameter_store_bytes(
+            record.target,
+            home,
+            field_byte_offset,
+            width,
+            register,
+        )
+        .ok_or_else(invalid),
+        ScalarStoreSource::ParameterLocation(
+            machine_code::UnitScalarParameterLocationRecord::IncomingStack { byte_offset },
+        ) => crate::object_artifact::replay::unit::structural_scalar_field_store::expected_incoming_parameter_store_bytes(
+            record.target,
+            home,
+            field_byte_offset,
+            width,
+            byte_offset,
+            function.unit_stack.as_ref().ok_or_else(&invalid)?.frame_bytes,
+        )
+        .ok_or_else(invalid),
+        ScalarStoreSource::Home(source_home) => {
+            crate::object_artifact::replay::unit::structural_scalar_field_store::expected_home_store_bytes(
+                record.target,
+                home,
+                field_byte_offset,
+                width,
+                source_home,
+            )
+            .ok_or_else(invalid)
+        }
+        ScalarStoreSource::Immediate | ScalarStoreSource::ParameterLocation(_) => {
+            crate::object_artifact::replay::unit::structural_scalar_field_store::expected_store_bytes(
+                record.target,
+                home,
+                field_byte_offset,
+                width,
+                bits.ok_or_else(&invalid)?,
+            )
+            .ok_or_else(invalid)
+        }
+    }
+}
+
+fn parameter_source_home(
+    function: &InstalledFunction,
+    record: &InstallationRecord,
+    home: &machine_code::UnitParameterHomeRecord,
+    parameter_shape: ValueShape,
+    parameter_index: u32,
+    source_value: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::ScalarType,
+    location: machine_code::UnitScalarParameterLocationRecord,
+    invalid: impl Fn() -> InstallationError,
+) -> Result<(bool, u16), InstallationError> {
+    let abi = function.parameter_abi.as_ref().ok_or_else(&invalid)?;
+    let scalar_parameter_index = usize::try_from(parameter_index).map_err(|_| invalid())?;
+    let scalar_parameter = abi
+        .parameters
+        .get(scalar_parameter_index)
+        .ok_or_else(&invalid)?;
+    let (scalar_shape, width) = installed_native_scalar_shape(scalar_type).ok_or_else(&invalid)?;
+    let (expected_location, placed_byte_size) = match scalar_parameter
+        .placement
+        .locations
+        .as_slice()
+    {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] => (
+            machine_code::UnitScalarParameterLocationRecord::Register(*register),
+            *byte_size,
+        ),
+        [
+            ValueLocation::Stack {
+                stack_byte_offset,
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] => (
+            machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                byte_offset: *stack_byte_offset,
+            },
+            *byte_size,
+        ),
+        _ => return Err(invalid()),
+    };
+    let mut parameter_shapes = abi
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let (shape, _) = installed_native_scalar_shape(parameter.scalar_type)?;
+            (parameter.placement.shape == shape).then_some(shape)
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(&invalid)?;
+    parameter_shapes.push(parameter_shape);
+    let expected_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(record.target),
+        &CallSignature {
+            parameters: parameter_shapes,
+            result: None,
+        },
+    )
+    .map_err(|_| invalid())?;
+    Ok((
+        function.unit_parameters.len() == 1
+            && scalar_parameter.value == source_value
+            && scalar_parameter.scalar_type == scalar_type
+            && scalar_parameter.placement.shape == scalar_shape
+            && placed_byte_size == u32::from(width)
+            && location == expected_location
+            && abi.call_plan == expected_plan
+            && abi.call_plan.parameters.get(scalar_parameter_index)
+                == Some(&scalar_parameter.placement)
+            && abi.call_plan.parameters.get(abi.parameters.len()) == Some(&home.source),
+        width,
+    ))
 }
 
 fn installed_native_scalar_shape(
