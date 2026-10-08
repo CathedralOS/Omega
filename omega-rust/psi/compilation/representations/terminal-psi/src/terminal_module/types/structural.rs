@@ -461,3 +461,13 @@ pub fn find_structural_case<'cases>(
 ) -> Option<&'cases StructuralCaseDeclaration> {
     cases.iter().find(|case| case.id == id)
 }
+
+/// The position of the case keyed `id` in `cases`, when declared. Position
+/// encodes the wire ordinal, so selection and aggregate lowering index it
+/// directly rather than re-deriving it from the declaration.
+pub fn structural_case_position(
+    cases: &[StructuralCaseDeclaration],
+    id: StructuralCaseId,
+) -> Option<usize> {
+    cases.iter().position(|case| case.id == id)
+}
