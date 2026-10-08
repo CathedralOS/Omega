@@ -629,6 +629,21 @@ impl ExpressionTable {
     }
 
     #[inline]
+    /// A name expression consisting of a single member, as `(path, member)` —
+    /// the only shape that can denote one unqualified identifier.
+    pub fn single_name_member(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(&TableNamePath, &Identifier)> {
+        let ExpressionNode::Name(path) = self.expression(expression) else {
+            return None;
+        };
+        let [name] = self.name_path_members(path.members) else {
+            return None;
+        };
+        Some((path, name))
+    }
+
     pub fn name_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
         self.name_path_members.span_or_empty(span)
     }
@@ -1578,4 +1593,20 @@ macro_rules! literal_expression_pattern {
 pub enum OwnedMatchPattern {
     Value(Expression),
     Wildcard,
+}
+
+/// The runtime IEEE interchange value of a float literal landed at `format`:
+/// its bit payload read through that format's encoding, never re-decoded.
+pub fn ieee_float_value(
+    literal: &numerics::literals::FloatLiteral,
+    format: numerics::literals::FloatFormat,
+) -> semantic_vocabulary::IeeeFloatValue {
+    match format {
+        numerics::literals::FloatFormat::F32 => {
+            semantic_vocabulary::IeeeFloatValue::Binary32(literal.f32_bits())
+        }
+        numerics::literals::FloatFormat::F64 => {
+            semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
+        }
+    }
 }

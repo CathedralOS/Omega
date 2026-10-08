@@ -664,7 +664,7 @@ impl FactSpelling<'_> {
                     return None;
                 }
                 Some(CheckedScalarExpression::IeeeFloatLiteral {
-                    value: ieee_literal_bits(literal, format),
+                    value: typed_trees::expression::ieee_float_value(literal, format),
                 })
             }
             (CheckedScalarExpression::StructuralParameterField { primitive_type, .. }, _) => {
@@ -725,7 +725,7 @@ impl FactSpelling<'_> {
                 });
                 Some((
                     CheckedScalarExpression::IeeeFloatLiteral {
-                        value: ieee_literal_bits(literal, format),
+                        value: typed_trees::expression::ieee_float_value(literal, format),
                     },
                     primitive,
                 ))
@@ -839,21 +839,5 @@ fn land_integer_operand(
         }
         CheckedScalarExpression::IeeeFloatLiteral { .. } => None,
         other => Some(other),
-    }
-}
-
-/// The exact interchange bits of a literal's spelling, rounded directly to
-/// `format` (never through the other format).
-fn ieee_literal_bits(
-    literal: &numerics::literals::FloatLiteral,
-    format: numerics::literals::FloatFormat,
-) -> semantic_vocabulary::IeeeFloatValue {
-    match format {
-        numerics::literals::FloatFormat::F32 => {
-            semantic_vocabulary::IeeeFloatValue::Binary32(literal.f32_bits())
-        }
-        numerics::literals::FloatFormat::F64 => {
-            semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
-        }
     }
 }

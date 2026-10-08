@@ -67,10 +67,7 @@ pub(super) fn bare_field<'program, 'roots>(
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
 ) -> Option<(&'roots WriteOnlyRoot, &'program DataField)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    let Some((path, name)) = program.expression_table.single_name_member(expression) else {
         return None;
     };
     roots.iter().find_map(|root| {

@@ -187,10 +187,7 @@ pub fn initializer_source(
     ) {
         return borrowed_initializer_source(program, state, expression, reference);
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    let Some((path, name)) = program.expression_table.single_name_member(expression) else {
         return None;
     };
     if !path.symbol.is_valid()

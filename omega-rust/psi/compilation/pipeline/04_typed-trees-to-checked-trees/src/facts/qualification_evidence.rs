@@ -6,7 +6,6 @@ use language_semantics::{
 };
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateSignature};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -306,10 +305,7 @@ fn ensured_subject_carrier(
     if program.expression_table.names_reserved_result(expression) {
         return Some(signature.return_type);
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    let Some((path, name)) = program.expression_table.single_name_member(expression) else {
         return None;
     };
     program

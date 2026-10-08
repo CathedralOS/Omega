@@ -508,14 +508,7 @@ impl<'program> Reader<'program> {
             if let ExpressionNode::Float(literal) =
                 self.program.expression_table.expression(operand)
             {
-                let value = match literal.landing()? {
-                    numerics::literals::FloatFormat::F32 => {
-                        semantic_vocabulary::IeeeFloatValue::Binary32(literal.f32_bits())
-                    }
-                    numerics::literals::FloatFormat::F64 => {
-                        semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
-                    }
-                };
+                let value = typed_trees::expression::ieee_float_value(literal, literal.landing()?);
                 let type_reference = validation::parameter_expression_result_type_reference(
                     self.program,
                     self.owner,
