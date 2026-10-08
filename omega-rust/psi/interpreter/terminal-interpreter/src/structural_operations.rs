@@ -372,6 +372,17 @@ impl TerminalExecution<'_> {
 
     /// Materialize a zeroed establishment: scalar leaves receive zero and
     /// bounded byte fields receive empty live backing under the fresh identity.
+    /// Whether the result `place` already carries a materialized value or a
+    /// live claim (the shared tail of every fresh-place admissibility guard).
+    fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
+        self.structural_values.contains_key(&place)
+            || self.scalar_array_values.contains_key(&place)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(place))
+    }
+
     pub(crate) fn execute_establish_zeroed_structural(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -386,12 +397,7 @@ impl TerminalExecution<'_> {
         ) || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
-            || self.structural_values.contains_key(&result.place)
-            || self.scalar_array_values.contains_key(&result.place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
+            || self.result_place_in_use(result.place)
         {
             return Err(malformed());
         }
@@ -600,12 +606,7 @@ impl TerminalExecution<'_> {
         ) || (!result.qualifications.is_empty() && !descriptor_home)
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
-            || self.structural_values.contains_key(&result.place)
-            || self.scalar_array_values.contains_key(&result.place)
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(result.place))
+            || self.result_place_in_use(result.place)
         {
             return Err(malformed());
         }

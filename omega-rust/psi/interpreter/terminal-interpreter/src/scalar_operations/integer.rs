@@ -162,13 +162,16 @@ impl TerminalExecution<'_> {
         )
     }
 
-    pub(crate) fn execute_integer_widen(
+    fn execute_integer_unary_cast(
         &mut self,
         operation: &terminal_psi::Operation,
+        operand: semantic_vocabulary::ValueId,
+        cast: fn(
+            semantic_vocabulary::IntegerType,
+            semantic_vocabulary::IntegerType,
+            semantic_vocabulary::IntegerValue,
+        ) -> Option<semantic_vocabulary::IntegerValue>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerWiden { operand } = operation.kind else {
-            unreachable!("dispatched execute_integer_widen")
-        };
         let target_type = integer_scalar_type(operation)?;
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
@@ -177,15 +180,27 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let value = source_type
-            .widen_value_to(target_type, value)
-            .ok_or(malformed())?;
+        let value = cast(source_type, target_type, value).ok_or(malformed())?;
         self.store_scalar(
             operation,
             TerminalScalarValue::Integer {
                 scalar_type: target_type,
                 value,
             },
+        )
+    }
+
+    pub(crate) fn execute_integer_widen(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::IntegerWiden { operand } = operation.kind else {
+            unreachable!("dispatched execute_integer_widen")
+        };
+        self.execute_integer_unary_cast(
+            operation,
+            operand,
+            semantic_vocabulary::IntegerType::widen_value_to,
         )
     }
 
@@ -196,23 +211,10 @@ impl TerminalExecution<'_> {
         let OperationKind::IntegerExactCast { operand, .. } = operation.kind else {
             unreachable!("dispatched execute_integer_exact_cast")
         };
-        let target_type = integer_scalar_type(operation)?;
-        let TerminalScalarValue::Integer {
-            scalar_type: source_type,
-            value,
-        } = self.scalar_value(operand)?
-        else {
-            return Err(malformed());
-        };
-        let value = source_type
-            .exact_cast_value_to(target_type, value)
-            .ok_or(malformed())?;
-        self.store_scalar(
+        self.execute_integer_unary_cast(
             operation,
-            TerminalScalarValue::Integer {
-                scalar_type: target_type,
-                value,
-            },
+            operand,
+            semantic_vocabulary::IntegerType::exact_cast_value_to,
         )
     }
 
