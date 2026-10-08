@@ -5,7 +5,6 @@ use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, NamePath};
 use checked_trees::name::Identifier;
 use checked_trees::statement::TableCall;
-use diagnostics::Diagnostic;
 
 pub fn statement_call_can_dispatch_to_machine(
     program: &dyn crate::CheckingInput,
@@ -454,87 +453,4 @@ fn resolve_state_symbol_in_machine(
         .state_in_machine(machine, state_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
-}
-
-/// Resolve the callable declared on this exact projected receiver type.
-/// Conflicting retained receiver/requirement targets are diagnostics; an
-/// unselected or ambiguous declaration remains a zero target.
-pub fn declared_receiver_target(
-    program: &dyn crate::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    target: SymbolHandle,
-    name: &typed_trees::name::Identifier,
-    span: source::SourceSpan,
-) -> Result<SymbolHandle, Vec<Diagnostic>> {
-    // A Binding<R> carries R's requirement identity, not methods on the
-    // Binding record itself. Resolve statement and expression calls through
-    // that exact identity before considering ordinary data declarations.
-    if let Some(requirement) =
-        typed_trees::service::exact_bound_service_requirement(program, type_reference)
-    {
-        let Some(definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.is_boundary && definition.symbol == requirement)
-        else {
-            return Ok(SymbolHandle::invalid());
-        };
-        let mut candidates = program
-            .trait_machine_signatures(definition)
-            .iter()
-            .filter(|signature| signature.name == *name);
-        let selected = candidates
-            .next()
-            .map(|signature| signature.symbol)
-            .unwrap_or_else(SymbolHandle::invalid);
-        if candidates.next().is_some() {
-            return Ok(SymbolHandle::invalid());
-        }
-        if target.is_valid() && target != selected {
-            return Err(vec![
-                Diagnostic::error(
-                    "projected binding call target belongs to a different requirement",
-                )
-                .with_source_span(span),
-            ]);
-        }
-        return Ok(selected);
-    }
-    let nominal = crate::machine_symbol_from_type_reference_handle(program, type_reference);
-    if !nominal.is_valid() || !program.data_definition_by_symbol(nominal).is_some() {
-        return Ok(target);
-    }
-    let mut candidates = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.attached_data_symbol == nominal && nominal.is_valid())
-        // Unresolved calls name the family's selected declaration, not the
-        // sibling bodies retained for checking. Preserve an exact target
-        // already supplied by resolution rather than selecting it again.
-        .filter(|machine| target.is_valid() || machine.target.is_none())
-        .flat_map(|machine| program.machine_states(machine))
-        .filter(|state| state.name == *name)
-        .map(|state| state.symbol);
-    if target.is_valid() {
-        if candidates.any(|candidate| candidate == target) {
-            return Ok(target);
-        }
-        if program.machines().iter().any(|machine| {
-            typed_trees::state::state_by_symbol(program.machine_states(machine), target).is_some()
-        }) {
-            return Err(vec![
-                Diagnostic::error(
-                    "projected call target belongs to a different receiver declaration",
-                )
-                .with_source_span(span),
-            ]);
-        }
-        return Ok(target);
-    }
-    let selected = candidates.next().unwrap_or_else(SymbolHandle::invalid);
-    Ok(if candidates.next().is_none() {
-        selected
-    } else {
-        SymbolHandle::invalid()
-    })
 }

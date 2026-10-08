@@ -871,4 +871,3 @@ pub use occurrences::{
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,
     transition_call_target,
 };
-pub use receiver_topology::declared_receiver_target;

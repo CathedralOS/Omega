@@ -29,6 +29,15 @@ fn checking_does_not_reopen_typed_preparation() {
     assert!(source.contains("program: typed_trees::FrozenTypedTrees"));
     let specialization =
         include_str!("../../03b_typed-trees-to-typed-trees/src/monomorphization/mod.rs");
+    let preparation = include_str!("../../03b_typed-trees-to-typed-trees/src/preparation.rs");
+    for source in [specialization, preparation] {
+        for removed in [
+            "resolve_projected_receiver_calls(",
+            "resolve_specialized_receiver_calls(",
+        ] {
+            assert!(!source.contains(removed), "preparation restored {removed}");
+        }
+    }
     assert!(
         !specialization.contains("validate_static_machine_selections_with_facts("),
         "specialization restored whole-roster admission inside its fixed point"

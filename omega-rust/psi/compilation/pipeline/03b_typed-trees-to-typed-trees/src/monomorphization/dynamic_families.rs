@@ -302,8 +302,7 @@ fn generate_tuple_specialization(
         ordinal,
         normalized_template_identity,
         accepted_template_commitment,
-    )
-    .map_err(|error| vec![error])?;
+    )?;
     Ok(())
 }
 

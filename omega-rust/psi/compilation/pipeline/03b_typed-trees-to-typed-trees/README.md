@@ -1,10 +1,11 @@
 # Typed trees to typed trees
 
 Start at [preparation.rs](src/preparation.rs). This stage owns typed-program
-mutation: specialization, conformance elaboration, selected token calls and
-receiver/result rebinding. It returns the ordinary typed representation sealed
-as `FrozenTypedTrees`, plus retained source judgments for checking. There is no
-additional program IR and no dependency on the following checking transform.
+mutation: specialization, conformance elaboration, selected token calls,
+service-call binding and result rebinding. It returns the ordinary typed
+representation sealed as `FrozenTypedTrees`, plus retained source judgments for
+checking. There is no additional program IR and no dependency on the following
+checking transform.
 
 `PreparationRequest` carries this invocation's pending-input checkpoint,
 privileged-instruction authority, representation receipts and authored wire
@@ -53,6 +54,13 @@ Cloned runtime calls resolve subjects in a state-owned traversal rather than
 rediscovering their enclosing statement trees for each call. The collected
 subjects preserve the first lexical owner and exact generational handles.
 Separate saved operator-provider templates retain their distinct-source path.
+
+Service calls through `Binding<R>` bind to R's exact requirement before
+specialization. A newly substituted instance binds only its own service calls
+at publication. Static call targets are copied and remapped with the body;
+there is no projected data-method search, clone-time receiver rescan, or final
+whole-program receiver repair. Requirement selection preserves the exact
+lexical root and field path without inserting a data argument.
 
 Operator-candidate elaboration prepares its immutable authored snapshot once
 per invocation, only when generic checked candidates exist. Build

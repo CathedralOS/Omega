@@ -10,7 +10,6 @@ mod conformance;
 mod monomorphization;
 mod operators;
 mod preparation;
-mod receivers;
 
 pub use preparation::{
     PreparationRequest, TypedPreparation, prepare_constant_execution, prepare_typed_trees,

@@ -137,10 +137,11 @@ pub fn prepare_typed_trees(
     // concrete machine here. Validation permits unused template bodies but the
     // generic-value-call fence still rejects any emitted concrete caller whose
     // callee remains generic (an incomplete specialization).
-    // Projected statement receivers retain their lexical root before their
-    // field endpoint is known. Resolve both call forms before specialization
-    // and effect inference, not only when finalizing authored selections.
-    crate::receivers::resolve_projected_receiver_calls(&mut program)?;
+    // A Binding<R> selects R's callable, not a method on its data carrier.
+    // Settle authored service calls before specialization reads their targets.
+    // Cloning binds only its newly produced instance after substitution; no
+    // final whole-program receiver repair or data-method search is needed.
+    validation::resolve_dynamic_call_targets(&mut program)?;
     selections::retain_static_argument_contexts(&mut program);
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
@@ -228,14 +229,6 @@ pub fn prepare_typed_trees(
 /// preparation and private constant execution share this ordering; coordinators
 /// must not stamp the canonical program to compensate for an unprepared clone.
 fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    // Calls through a `Binding<R>` service receiver cannot be resolved during
-    // the earlier symbol pass because local declared types are not available
-    // there. Bind their declaring-trait requirement now so the ordinary
-    // result-overload pass below starts in the correct trait family rather
-    // than from an ambient same-named machine.
-    validation::resolve_dynamic_call_targets(program)?;
-    // Concrete substitutions may make previously open field types selectable.
-    crate::receivers::resolve_projected_receiver_calls(program)?;
     // Named-machine result overloads are provisionally bound to the first
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts
@@ -308,6 +301,7 @@ pub fn specialize_static_machine_calls(
 pub fn prepare_constant_execution(
     mut program: TypedTrees,
 ) -> Result<TypedTrees, Vec<diagnostics::Diagnostic>> {
+    validation::resolve_dynamic_call_targets(&mut program)?;
     specialize_static_machine_calls(&mut program)?;
     settle_value_destinations(&mut program)?;
     Ok(program)

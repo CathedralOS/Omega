@@ -394,7 +394,6 @@ pub use expression_traversal::{
     collect_statement_expression_trees, collect_transition_target_expression_trees,
     is_single_segment_name_path, single_segment_name_symbol,
 };
-pub use machine_calls::calls::declared_receiver_target;
 pub use machine_calls::calls::{
     CallSite, call_is_unconditional, call_receiver_parts, call_site_argument_expressions,
     call_site_evidence_arguments, call_target_parameters, call_target_return_type,

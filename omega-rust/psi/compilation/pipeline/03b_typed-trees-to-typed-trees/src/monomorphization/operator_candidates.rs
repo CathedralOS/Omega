@@ -248,7 +248,7 @@ pub(crate) fn specialize_operator_candidates(
                         machine.is_public = false;
                     }
                 }
-                Err(error) => diagnostics.push(error),
+                Err(errors) => diagnostics.extend(errors),
             }
         }
     }

@@ -19,6 +19,10 @@
 //!
 //! The receiver-call binding below is older and separate: a call through a
 //! `Binding<R>` service value binds its exact requirement target here.
+//! Its value path retains the lexical root and every declared field. This is
+//! one service-selection operation, not data-method lookup: qualification never
+//! searches an attached machine or supplies an implicit argument. Preparation
+//! binds authored calls once; a specialized producer binds only its new body.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -466,39 +470,27 @@ pub fn resolve_selected_dynamic_call_targets(
             {
                 if let Some(call) = statement.as_call() {
                     let members = program.statement_table.name_path_members(call.receiver);
-                    // A projected receiver belongs to its entire place, not
-                    // the final field spelling in the caller's attachment.
-                    // This pass also binds Binding<R> calls: selecting another
-                    // same-named record here would overwrite the exact target
-                    // already established by projected-call resolution.
-                    let receiver_type = match members {
-                        [receiver] => {
-                            crate::machine_calls::calls::declared_receiver_type_reference(
-                                program,
-                                machine,
-                                state,
-                                receiver.as_str(),
-                            )
-                        }
-                        [] => None,
-                        _ => {
-                            let path = members
-                                .iter()
-                                .map(|member| member.as_str().to_owned())
-                                .collect::<Vec<_>>();
-                            crate::value_custody::places::declared_member_path_type(
-                                program,
-                                machine,
-                                Some(state),
-                                &path,
-                            )
-                        }
-                    };
-                    let dynamic_target = receiver_type.and_then(|receiver_type| {
+                    // The lexical declaration, not a repeated leaf spelling,
+                    // owns the path. Namespace qualification has no value root.
+                    let receiver = members.split_first().and_then(|(first, members)| {
+                        let root = crate::receiver_projections::root(
+                            program,
+                            state,
+                            statement_index,
+                            call.receiver_root_symbol,
+                            first,
+                        )?;
+                        members.iter().try_fold(root, |receiver, member| {
+                            crate::receiver_projections::field(program, receiver, member)
+                        })
+                    });
+                    let dynamic_target = receiver.as_ref().and_then(|receiver| {
                         resolved_dynamic_requirement_symbol(
                             program,
-                            receiver_type,
+                            receiver.type_reference,
                             call.target.as_str(),
+                            call.target_symbol,
+                            call.source_span,
                             &mut diagnostics,
                         )
                     });
@@ -508,7 +500,29 @@ pub fn resolve_selected_dynamic_call_targets(
                         )
                     });
                     if let Some(target) = target {
-                        statement_updates.push((state.statement_nodes, statement_index, target));
+                        let endpoint = receiver
+                            .as_ref()
+                            .filter(|_| dynamic_target.is_some())
+                            .map_or_else(symbols::SymbolHandle::invalid, |receiver| {
+                                receiver.symbol
+                            });
+                        if endpoint.is_valid()
+                            && call.receiver_symbol.is_valid()
+                            && call.receiver_symbol != endpoint
+                        {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    "projected call receiver disagrees with its exact declared field",
+                                )
+                                .with_source_span(call.source_span),
+                            );
+                        }
+                        statement_updates.push((
+                            state.statement_nodes,
+                            statement_index,
+                            endpoint,
+                            target,
+                        ));
                     }
                 }
 
@@ -519,6 +533,7 @@ pub fn resolve_selected_dynamic_call_targets(
                         program,
                         machine,
                         state,
+                        statement_index,
                         root,
                         &mut expression_updates,
                         &mut diagnostics,
@@ -538,12 +553,15 @@ pub fn resolve_selected_dynamic_call_targets(
         };
         call.target_symbol = requirement;
     }
-    for (statements, statement_index, requirement) in statement_updates {
+    for (statements, statement_index, endpoint, requirement) in statement_updates {
         let StatementNode::Call(call) =
             &mut program.statement_table.statements_mut(statements)[statement_index]
         else {
             unreachable!("collected dynamic statement call changed shape")
         };
+        if endpoint.is_valid() {
+            call.receiver_symbol = endpoint;
+        }
         call.target_symbol = requirement;
     }
 
@@ -554,6 +572,7 @@ fn collect_dynamic_expression_call_updates(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    before: usize,
     expression: ExpressionHandle,
     updates: &mut Vec<(ExpressionHandle, symbols::SymbolHandle)>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -568,6 +587,7 @@ fn collect_dynamic_expression_call_updates(
                 program,
                 machine,
                 state,
+                before,
                 $child,
                 updates,
                 diagnostics,
@@ -599,19 +619,39 @@ fn collect_dynamic_expression_call_updates(
         }
         ExpressionNode::Cast(cast) => visit!(cast.value),
         ExpressionNode::Call(call) => {
-            if let Some(receiver_type) = crate::value_custody::places::declared_place_type_raw(
+            let receiver_type = match crate::receiver_projections::expression(
                 program,
-                machine,
-                Some(state),
+                state,
+                before,
                 call.receiver,
-            ) && let Some(requirement) = resolved_dynamic_requirement_symbol(
-                program,
-                receiver_type,
-                call.target.as_str(),
-                diagnostics,
-            ) && !updates
-                .iter()
-                .any(|(candidate, _)| *candidate == expression)
+                &mut Vec::new(),
+            ) {
+                Ok(Some(receiver)) => Some(receiver.type_reference),
+                // A call result can select a service without being a place.
+                // The ordinary type query owns those non-place expressions.
+                Ok(None) => crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    call.receiver,
+                ),
+                Err(errors) => {
+                    diagnostics.extend(errors);
+                    None
+                }
+            };
+            if let Some(receiver_type) = receiver_type
+                && let Some(requirement) = resolved_dynamic_requirement_symbol(
+                    program,
+                    receiver_type,
+                    call.target.as_str(),
+                    call.target_symbol,
+                    program.expression_table.source_span(expression),
+                    diagnostics,
+                )
+                && !updates
+                    .iter()
+                    .any(|(candidate, _)| *candidate == expression)
             {
                 updates.push((expression, requirement));
             }
@@ -644,6 +684,8 @@ fn resolved_dynamic_requirement_symbol(
     program: &dyn crate::CheckingInput,
     receiver_type: TypeReferenceHandle,
     target: &str,
+    retained_target: symbols::SymbolHandle,
+    span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<symbols::SymbolHandle> {
     let trait_symbol = receiver_trait_symbol(program, receiver_type)?;
@@ -656,6 +698,19 @@ fn resolved_dynamic_requirement_symbol(
         &mut Vec::new(),
         &mut matches,
     );
+    // A retained requirement may select an overload in this exact family,
+    // but cannot be silently overwritten by an unrelated Binding's member.
+    if retained_target.is_valid()
+        && !matches
+            .iter()
+            .any(|(_, requirement)| requirement.symbol == retained_target)
+    {
+        diagnostics.push(
+            Diagnostic::error("projected binding call target belongs to a different requirement")
+                .with_source_span(span),
+        );
+        return None;
+    }
     match matches.as_slice() {
         [(_, requirement)] => Some(requirement.symbol),
         [] => None,

@@ -18,9 +18,9 @@
 //! Other readers. Call validation in `machine_calls::calls` uses the generic
 //! bound queries from `conformance`, `arguments_for_declaring_trait` (also
 //! read by `proof_contracts::quotients`), `dynamic_selector_application` and
-//! `dynamic_requirement_ineligibility`. The typed-to-checked stage and the
-//! checked compilation build continuation call `resolve_dynamic_call_targets`;
-//! the typed-to-checked stage also reads the dynamic implementation
+//! `dynamic_requirement_ineligibility`. Typed preparation binds service calls;
+//! specialized producers and build evaluation bind only their selected roots.
+//! The immutable checking stage reads the dynamic implementation
 //! selections, `compose_forwarded_trait_arguments` and
 //! `generic_bound_operator_requirement`. Package review calls
 //! `revalidate_top_level_requirement_realization`.

@@ -13,7 +13,6 @@ pub struct Projection {
     pub root_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
     pub type_reference: TypeReferenceHandle,
-    pub depth: usize,
 }
 
 pub fn root(
@@ -41,7 +40,6 @@ pub fn root(
         root_symbol: symbol,
         symbol,
         type_reference,
-        depth: 0,
     })
 }
 
@@ -50,19 +48,8 @@ pub fn field(
     receiver: Projection,
     name: &Identifier,
 ) -> Option<Projection> {
-    let mut nominal =
+    let nominal =
         crate::machine_symbol_from_type_reference_handle(program, receiver.type_reference);
-    // A self reference names its attached machine, not the data declaration.
-    // Rejoin only that machine's actual self root before walking record fields;
-    // ordinary values cannot borrow a same-spelled machine's attachment.
-    if receiver.depth == 0
-        && let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == nominal && receiver.symbol == machine.symbol)
-    {
-        nominal = machine.attached_data_symbol;
-    }
     let definition = program
         .data_definitions()
         .iter()
@@ -78,7 +65,6 @@ pub fn field(
         root_symbol: receiver.root_symbol,
         symbol: selected.symbol,
         type_reference: selected.type_reference,
-        depth: receiver.depth + 1,
     })
 }
 
@@ -175,7 +161,6 @@ pub fn expression(
                 // type selects the method; place and access checks retain the index.
                 symbol: SymbolHandle::invalid(),
                 type_reference: *element_type,
-                depth: receiver.depth + 1,
             })
         }
         _ => None,

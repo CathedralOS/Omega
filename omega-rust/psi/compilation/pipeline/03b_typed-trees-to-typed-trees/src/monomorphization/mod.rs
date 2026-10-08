@@ -21,8 +21,6 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
-use validation::collect_statement_expression_trees;
-
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
 use arena::{Handle, HandleSpan};
@@ -530,8 +528,7 @@ fn apply_call_specializations(
                 ordinal,
                 normalized_template_identity.clone(),
                 accepted_template_commitment.clone(),
-            )
-            .map_err(|error| vec![error])?
+            )?
         };
         for selection_index in members {
             let selection = &selections[*selection_index];
@@ -811,73 +808,5 @@ fn specialized_attached_data(
         TypeReferenceNode::Named { name, .. } => Some((name.clone(), symbol)),
         TypeReferenceNode::Generic { base_name, .. } => Some((base_name.clone(), symbol)),
         _ => Some((attached.clone(), machine.attached_data_symbol)),
-    }
-}
-
-fn resolve_specialized_receiver_calls(
-    program: &mut TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) {
-    let states = program.machine_states(machine).to_vec();
-    let mut statement_updates = Vec::new();
-    let mut expression_updates = Vec::new();
-    for state in &states {
-        let mut expression_handles = Vec::new();
-        for (index, statement) in program
-            .statement_table
-            .indexed_statements(state.statement_nodes)
-        {
-            collect_statement_expression_trees(program, statement, &mut expression_handles);
-            let Some(call) = statement.as_call() else {
-                continue;
-            };
-            let target = validation::resolve_state_call_target(
-                program,
-                machine,
-                state,
-                call.receiver_symbol,
-                call.target_symbol,
-                validation::statement_call_receiver_members(program, call),
-                &call.target,
-            );
-            if target.is_valid() {
-                statement_updates.push((state.statement_nodes, index, target));
-            }
-        }
-        for handle in expression_handles {
-            let Some(call) = program.expression_table.call_node(handle) else {
-                continue;
-            };
-            let (receiver_symbol, receiver_path) =
-                validation::call_receiver_parts(program, call.receiver);
-            let target = validation::resolve_state_call_target(
-                program,
-                machine,
-                state,
-                receiver_symbol,
-                call.target_symbol,
-                receiver_path.as_deref(),
-                &call.target,
-            );
-            if target.is_valid() {
-                expression_updates.push((handle, target));
-            }
-        }
-    }
-    for (span, index, target) in statement_updates {
-        let StatementNode::Call(call) = &mut program.statement_table.statements_mut(span)[index]
-        else {
-            continue;
-        };
-        call.target_symbol = target;
-    }
-
-    expression_updates.sort_unstable_by_key(|(handle, _)| handle.arena_index());
-    expression_updates.dedup_by_key(|(handle, _)| handle.arena_index());
-    for (handle, target) in expression_updates {
-        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
-            continue;
-        };
-        call.target_symbol = target;
     }
 }

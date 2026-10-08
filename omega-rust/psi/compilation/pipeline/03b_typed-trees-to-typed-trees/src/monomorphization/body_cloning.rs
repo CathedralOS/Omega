@@ -14,7 +14,7 @@ use crate::monomorphization::body_rewriting::{
 use crate::monomorphization::{
     Candidate, candidate_conformance_fingerprint_arguments,
     closed_operator_realizations_for_machine, const_values, remapped_symbol,
-    resolve_specialized_receiver_calls, specialized_attached_data,
+    specialized_attached_data,
 };
 use validation::contract_identities::specialization_selection_report_fingerprint;
 
@@ -56,7 +56,7 @@ pub(super) fn clone_specialized_machine(
     ordinal: usize,
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
-) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Diagnostic> {
+) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
     // Closure derives the record needed by executable substitution. Fitting
     // that record to the original binder is immutable checking's judgment.
     // Fail before allocating a clone, not through a prior-validator assumption.
@@ -69,7 +69,8 @@ pub(super) fn clone_specialized_machine(
                 binding.as_ref().expect("complete specialization"),
             )
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
     let source_states = source
@@ -514,13 +515,16 @@ pub(super) fn clone_specialized_machine(
         candidate,
         Some(expression_start),
         &cloned_expression_roots,
-    )?;
-    substitute_cloned_type_parameters(source, program, candidate, type_start)?;
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    substitute_cloned_type_parameters(source, program, candidate, type_start)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // Range endpoints are value positions, not static positions: a binder
     // surviving in one names the realized trailing parameter so the clone's
     // declared `-> u64[0..=Bound]` keeps qualifying the captured subject.
     rebind_state_scoped_range_endpoints(program, &cloned, &state_realized_parameters);
-    reject_runtime_bound_static_occurrences(program, candidate, &cloned)?;
+    reject_runtime_bound_static_occurrences(program, candidate, &cloned)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // A transition between cloned states forwards the containing state's
     // realized `Value` subjects, in telescope order, as trailing ordinary
     // arguments — the same subjects a rewritten call site appends.
@@ -544,7 +548,6 @@ pub(super) fn clone_specialized_machine(
         expression_start,
         cloned.states,
     );
-    resolve_specialized_receiver_calls(program, &cloned);
     let instance_symbol = cloned.symbol;
     let authored_service_reach_rows = source
         .unwrap_or(program)
@@ -588,7 +591,14 @@ pub(super) fn clone_specialized_machine(
         .collect::<Vec<_>>();
     program.evidence_forwardings.extend(evidence_forwardings);
     program.push_machine(cloned);
-    let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)?;
+    // Static targets were remapped with the body. Only service calls whose
+    // types have just closed need binding, within this producer's new instance.
+    // Preserve every diagnostic rather than flattening a failed binding into a
+    // provisional target for a later whole-roster repair.
+    let instance = typed_trees::references::DeclarationSelection::from_symbols([instance_symbol]);
+    validation::resolve_selected_dynamic_call_targets(program, &instance)?;
+    let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let binding_application =
         super::applications::retain_instance(source, program, candidate, instance_symbol);
     program
@@ -621,10 +631,8 @@ pub(super) fn clone_specialized_machine(
     // Exact type/const/evidence substitution and retained tuple copying are
     // complete. Publish canonical domain identities with the whole instance,
     // including its metadata, not at a later whole-roster sweep.
-    super::finalize_domain_instance_identities(
-        program,
-        &typed_trees::references::DeclarationSelection::from_symbols([instance_symbol]),
-    )?;
+    super::finalize_domain_instance_identities(program, &instance)
+        .map_err(|diagnostic| vec![diagnostic])?;
     Ok(state_symbols)
 }
 
