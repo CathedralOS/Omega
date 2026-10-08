@@ -32,6 +32,16 @@ impl TypedTrees {
             .span_or_empty(self.roots.const_declarations)
     }
 
+    /// The const declaration `symbol` declares, if any.
+    pub fn const_declaration_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        self.const_declarations()
+            .iter()
+            .find(|declaration| declaration.symbol == symbol)
+    }
+
     pub fn record_resolved_authored_declaration_selection_once(
         &mut self,
         source_span: source::SourceSpan,
@@ -452,6 +462,16 @@ impl TypedTrees {
         self.tables
             .operators
             .span_or_empty(self.roots.machine_token_bindings)
+    }
+
+    /// The token-bearing machine binding `symbol` declares, if any.
+    pub fn machine_token_binding_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::operator::OperatorDefinition> {
+        self.machine_token_bindings()
+            .iter()
+            .find(|binding| binding.symbol == symbol)
     }
 
     /// Every authored operator: free operators plus each domain definition's

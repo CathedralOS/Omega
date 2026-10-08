@@ -404,9 +404,7 @@ pub fn declared_constant_array_type(
             continue;
         };
         let Some(declaration) = program
-            .const_declarations()
-            .iter()
-            .find(|declaration| declaration.symbol == selected.selected_symbol())
+            .const_declaration_by_symbol(selected.selected_symbol())
         else {
             continue;
         };
@@ -510,9 +508,7 @@ pub(super) fn validate_declared_array_destination(
             continue;
         };
         let Some(declaration) = program
-            .const_declarations()
-            .iter()
-            .find(|declaration| declaration.symbol == selected.selected_symbol())
+            .const_declaration_by_symbol(selected.selected_symbol())
         else {
             continue;
         };

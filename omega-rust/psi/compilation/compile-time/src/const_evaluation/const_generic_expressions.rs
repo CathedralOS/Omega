@@ -525,9 +525,7 @@ pub(super) fn expression_custody(
                 );
             };
             let declaration = program
-                .const_declarations()
-                .iter()
-                .find(|declaration| declaration.symbol == selected.selected_symbol())
+                .const_declaration_by_symbol(selected.selected_symbol())
                 .ok_or("evaluated reference did not select a constant declaration")?;
             let declaration_source = program
                 .symbols

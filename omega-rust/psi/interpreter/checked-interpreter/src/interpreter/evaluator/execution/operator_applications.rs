@@ -268,9 +268,7 @@ impl<'program> Evaluator<'program> {
                 }
                 let signature = self
                     .program
-                    .machine_token_bindings()
-                    .iter()
-                    .find(|binding| binding.symbol == machine.symbol)?;
+                    .machine_token_binding_by_symbol(machine.symbol)?;
                 RequirementApplication {
                     symbol: machine.symbol,
                     signature,

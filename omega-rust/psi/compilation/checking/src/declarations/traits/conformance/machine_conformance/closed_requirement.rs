@@ -41,9 +41,7 @@ pub fn resolve<'program>(
         return Err(failure());
     }
     let operator = program
-        .machine_token_bindings()
-        .iter()
-        .find(|operator| operator.symbol == requirement.symbol)
+        .machine_token_binding_by_symbol(requirement.symbol)
         .ok_or_else(failure)?;
     let mut receipts = program
         .machine_specializations

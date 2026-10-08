@@ -539,9 +539,7 @@ pub fn static_const_argument_spelling(
     }
     if argument.symbol.is_valid() {
         let declaration = program
-            .const_declarations()
-            .iter()
-            .find(|declaration| declaration.symbol == argument.symbol)?;
+            .const_declaration_by_symbol(argument.symbol)?;
         let value = CanonicalConstValue::new(
             program.display_type_reference(declaration.declared_type),
             declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),

@@ -155,9 +155,7 @@ pub(crate) fn bind_selected_operator_calls(
         )
     {
         let Some(binding) = program
-            .machine_token_bindings()
-            .iter()
-            .find(|binding| binding.symbol == requirement)
+            .machine_token_binding_by_symbol(requirement)
         else {
             continue;
         };
