@@ -15,6 +15,45 @@ use symbols::SymbolHandle;
 /// Project the trait, operator and top-level requirement realizations of one
 /// non-external callable. External callables are projected by
 /// `project_checked_external_supply_policy`.
+
+pub(super) fn callable_conformance(
+    compilation: &PackageReviewInput<'_>,
+    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    requirement: &typed_trees::signature::StateSignature,
+    conformance: &typed_trees::machine::TraitConformance,
+    binders: &[(SymbolHandle, String)],
+    machine: &typed_trees::machine::Machine,
+    alias: Option<String>,
+) -> Result<PackagePolicyCallableConformance, Vec<Diagnostic>> {
+    Ok(PackagePolicyCallableConformance {
+        trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
+        requirement_identity: trait_requirement_identity(
+            compilation,
+            trait_definition,
+            requirement,
+        )?,
+        requirement_lifetime_partition:
+            typed_trees::machine::normalize_requirement_lifetime_partition(
+                &conformance.trait_lifetime_arguments,
+            ),
+        trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
+        arguments: compilation
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .iter()
+            .map(|argument| {
+                review_signature_type_identity_with_binders(
+                    compilation,
+                    *argument,
+                    binders,
+                    &machine.lifetime_parameters,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        alias,
+    })
+}
+
 pub(super) fn project_callable_conformances(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -227,36 +266,18 @@ pub(super) fn project_callable_conformances(
                 machine.name, trait_definition.name, requirement_name
             ))]);
         }
-        policy.push(PackagePolicyCallableConformance {
-            trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
-            requirement_identity: trait_requirement_identity(
-                compilation,
-                trait_definition,
-                requirement,
-            )?,
-            requirement_lifetime_partition:
-                typed_trees::machine::normalize_requirement_lifetime_partition(
-                    &conformance.trait_lifetime_arguments,
-                ),
-            trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
-            arguments: compilation
-                .type_reference_table
-                .type_reference_handles(conformance.arguments)
-                .iter()
-                .map(|argument| {
-                    review_signature_type_identity_with_binders(
-                        compilation,
-                        *argument,
-                        binders,
-                        &machine.lifetime_parameters,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            alias: conformance
+        policy.push(callable_conformance(
+            compilation,
+            trait_definition,
+            requirement,
+            conformance,
+            binders,
+            machine,
+            conformance
                 .alias
                 .as_ref()
                 .map(|alias| alias.as_str().to_owned()),
-        });
+        )?);
     }
     super::conformance_order::finish(
         machine.name.as_str(),

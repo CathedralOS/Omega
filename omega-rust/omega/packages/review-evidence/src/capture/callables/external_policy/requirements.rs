@@ -2,15 +2,10 @@ use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::{
     api::operators::project_operator_coordinate,
-    semantics::{
-        declarations::{
-            nominal_identity, top_level_requirement_identity, trait_requirement_identity,
-        },
-        types::review_signature_type_identity_with_binders,
-    },
+    semantics::declarations::top_level_requirement_identity,
 };
 use crate::record::{
-    PackagePolicyCallableConformance, PackagePolicyExternalRequirement,
+    PackagePolicyExternalRequirement,
     PackageReviewExternalBinding,
 };
 use diagnostics::Diagnostic;
@@ -56,33 +51,17 @@ pub(super) fn project(
                     "external trait application has incomplete lifetime or declaring owner coordinates",
                 ));
             }
-            PackagePolicyExternalRequirement::Trait(PackagePolicyCallableConformance {
-                trait_identity: nominal_identity(compilation, definition.symbol)?,
-                requirement_identity: trait_requirement_identity(
+            PackagePolicyExternalRequirement::Trait(
+                crate::capture::callables::conformances::callable_conformance(
                     compilation,
                     definition,
                     requirement,
+                    conformance,
+                    binders,
+                    machine,
+                    alias,
                 )?,
-                requirement_lifetime_partition:
-                    typed_trees::machine::normalize_requirement_lifetime_partition(
-                        &conformance.trait_lifetime_arguments,
-                    ),
-                trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
-                arguments: compilation
-                    .type_reference_table
-                    .type_reference_handles(conformance.arguments)
-                    .iter()
-                    .map(|argument| {
-                        review_signature_type_identity_with_binders(
-                            compilation,
-                            *argument,
-                            binders,
-                            &machine.lifetime_parameters,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                alias,
-            })
+            )
         }
         SatisfiedDeclaration::TopLevelRequirement(requirement) => {
             if conformance.symbol != requirement.symbol {
