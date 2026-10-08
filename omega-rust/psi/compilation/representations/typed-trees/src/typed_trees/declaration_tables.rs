@@ -137,7 +137,60 @@ impl TypedTrees {
         })
     }
 
-    pub fn push_data_payload_field(
+    /// The `Field` member `definition` declares as `symbol`, if any.
+    pub fn data_field(
+        &self,
+        definition: &data::DataDefinition,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&data::DataField> {
+        self.data_members(definition).iter().find_map(|member| {
+            let data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.symbol == symbol).then_some(field)
+        })
+    }
+
+    /// The field declared as `symbol` by any data definition — a member
+    /// field or a variant payload field — with its owning definition.
+    pub fn any_field_owner(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(&data::DataDefinition, &data::DataField)> {
+        self.data_definitions().iter().find_map(|definition| {
+            self.data_member_fields(self.data_members(definition))
+                .find(|field| field.symbol == symbol)
+                .map(|field| (definition, field))
+        })
+    }
+
+        /// The `Field` member `definition` declares under `name`, if any.
+    pub fn data_field_named(
+        &self,
+        definition: &data::DataDefinition,
+        name: &str,
+    ) -> Option<&data::DataField> {
+        self.data_members(definition).iter().find_map(|member| {
+            let data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.name.as_str() == name).then_some(field)
+        })
+    }
+
+    /// The field declared as `symbol` by any of the program's data
+    /// definitions, with its owning definition.
+    pub fn field_owner(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(&data::DataDefinition, &data::DataField)> {
+        self.data_definitions().iter().find_map(|definition| {
+            self.data_field(definition, symbol)
+                .map(|field| (definition, field))
+        })
+    }
+
+        pub fn push_data_payload_field(
         &mut self,
         variant: &mut data::DataVariant,
         field: data::DataField,

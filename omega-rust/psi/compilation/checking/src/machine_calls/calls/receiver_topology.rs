@@ -455,12 +455,9 @@ fn attached_data_field_type_reference(
     // module holds different field symbols, so `receiver_symbol` would miss.
     let data = program.attached_data_definition(machine)?;
 
-    program.data_members(data).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
-        (field.symbol == receiver_symbol).then_some(field.type_reference)
-    })
+    program
+        .data_field(data, receiver_symbol)
+        .map(|field| field.type_reference)
 }
 
 fn resolve_state_symbol_in_machine(

@@ -1298,14 +1298,9 @@ fn case_payload_transfer(
             let facts::PlaceSegment::Field { symbol } = segment else {
                 return None;
             };
-            subject_type = program.data_definitions().iter().find_map(|data| {
-                program.data_members(data).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    (field.symbol == *symbol).then_some(field.type_reference)
-                })
-            })?;
+            subject_type = program
+                .field_owner(*symbol)
+                .map(|(_, field)| field.type_reference)?;
             super::super::types::terminal_field_identity(program, *symbol)
                 .map(CheckedUnitStructuralPathSegment::Field)
         })

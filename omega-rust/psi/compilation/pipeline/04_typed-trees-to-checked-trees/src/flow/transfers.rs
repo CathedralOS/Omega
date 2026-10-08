@@ -696,12 +696,7 @@ fn exact_structural_symbol_place(
                         })?
                     })
                 } else {
-                    program.data_members(data).iter().find_map(|member| {
-                        let typed_trees::data::DataMember::Field(field) = member else {
-                            return None;
-                        };
-                        (field.symbol == *symbol).then_some(field)
-                    })
+                    program.data_field(data, *symbol)
                 };
                 let Some(field) = field else {
                     return false;

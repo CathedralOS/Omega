@@ -662,17 +662,9 @@ fn proof_argument_declared_type(
         .find(|parameter| parameter.symbol == symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
-            program.data_definitions().iter().find_map(|definition| {
-                program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                            Some(field.type_reference)
-                        }
-                        _ => None,
-                    })
-            })
+            program
+                .field_owner(symbol)
+                .map(|(_, field)| field.type_reference)
         })
 }
 

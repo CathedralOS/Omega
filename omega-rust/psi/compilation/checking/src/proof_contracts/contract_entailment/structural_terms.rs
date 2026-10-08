@@ -420,12 +420,9 @@ fn call_projection_field_symbol(
     field_name: &str,
 ) -> Option<symbols::SymbolHandle> {
     let data = crate::value_custody::places::data_definition_for_type(program, result_type)?;
-    program.data_members(data).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
-        (field.name.as_str() == field_name).then_some(field.symbol)
-    })
+    program
+        .data_field_named(data, field_name)
+        .map(|field| field.symbol)
 }
 
 /// Rejoin the exact selected entry. Names never recover an absent selection.

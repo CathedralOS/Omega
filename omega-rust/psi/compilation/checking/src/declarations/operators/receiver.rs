@@ -450,16 +450,12 @@ fn data_field_type_reference(
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
-    program.data_members(data).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
-        if field_symbol.is_valid() {
-            (field.symbol == field_symbol).then_some(field.type_reference)
-        } else {
-            (field.name == *field_name).then_some(field.type_reference)
-        }
-    })
+    let field = if field_symbol.is_valid() {
+        program.data_field(data, field_symbol)
+    } else {
+        program.data_field_named(data, field_name.as_str())
+    };
+    field.map(|field| field.type_reference)
 }
 
 fn indexed_element_type_reference(

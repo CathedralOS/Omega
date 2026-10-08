@@ -409,12 +409,9 @@ pub(super) fn abstract_specification_place_type(
         data: &typed_trees::data::DataDefinition,
         name: &str,
     ) -> Option<TypeReferenceHandle> {
-        program.data_members(data).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
-            (field.name.as_str() == name).then_some(field.type_reference)
-        })
+        program
+            .data_field_named(data, name)
+            .map(|field| field.type_reference)
     }
 
     fn named_data(

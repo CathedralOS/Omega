@@ -159,20 +159,7 @@ pub(crate) fn data_field_name(
     program: &dyn ::validation::CheckingInput,
     field_symbol: SymbolHandle,
 ) -> Option<&str> {
-    program.data_definitions().iter().find_map(|definition| {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => {
-                    (field.symbol == field_symbol).then_some(field.name.as_str())
-                }
-                typed_trees::data::DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find_map(|field| {
-                        (field.symbol == field_symbol).then_some(field.name.as_str())
-                    }),
-            })
-    })
+    program
+        .any_field_owner(field_symbol)
+        .map(|(_, field)| field.name.as_str())
 }

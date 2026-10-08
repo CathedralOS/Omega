@@ -523,17 +523,5 @@ fn field_by_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> 
             })
             .field(program, symbol);
     }
-    program.data_definitions().iter().find_map(|definition| {
-        program
-            .data_members(definition)
-            .iter()
-            .find_map(|member| match member {
-                DataMember::Field(field) if field.symbol == symbol => Some(field),
-                DataMember::Variant(variant) => program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| field.symbol == symbol),
-                _ => None,
-            })
-    })
+    program.any_field_owner(symbol).map(|(_, field)| field)
 }
