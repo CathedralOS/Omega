@@ -87,12 +87,10 @@ impl ProhibitedSite {
                 operation,
                 boundary,
             } => {
-                let identity = module
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == *boundary)
-                    .map(|declaration| declaration.identity.as_str())
-                    .unwrap_or("<undeclared boundary>");
+                let identity =
+                    terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+                        .map(|declaration| declaration.identity.as_str())
+                        .unwrap_or("<undeclared boundary>");
                 format!("call to boundary `{identity}` (block {block}, operation {operation})")
             }
             ProhibitedSite::PortWrite { block, operation } => {

@@ -26,8 +26,8 @@ use crate::physical::normalized_foreign_call_relocation;
 use crate::physical::normalized_foreign_callback_relocation;
 use installation_evidence::ProviderExecutionEvidence;
 use object_file::RelocationKind;
-use object_file::boundary_relocation_origin;
 use object_file::SectionKind;
+use object_file::boundary_relocation_origin;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::ScalarType;
 use target::Architecture;
@@ -132,10 +132,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 )
             }
         };
-    let declaration = module
-        .boundary_machines
-        .iter()
-        .find(|declaration| declaration.id == *boundary)
+    let declaration = terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
         .ok_or("normalized foreign D41 occurrence names an absent boundary")?;
     if declaration.completion != completion {
         return Err("normalized foreign invocation changed its completion contract");
@@ -607,7 +604,8 @@ pub(crate) fn derive_normalized_foreign_child(
         return Err("normalized foreign D41 call custody changed before final-image emission");
     }
 
-    let function = object.function_on_machine(occurrence.machine())
+    let function = object
+        .function_on_machine(occurrence.machine())
         .ok_or("normalized foreign D41 child names an absent object function")?;
     let matching_attributions = object
         .semantic_code_attribution()
@@ -1245,5 +1243,3 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     }
     Ok(Some(shapes))
 }
-
-

@@ -57,9 +57,7 @@ pub(super) fn settlement(
             .ok_or(Error::Mismatch("selected byte output encoding"))?;
     let frame = source::frame(container, machine)?.ok_or(Error::Mismatch("byte output frame"))?;
     let scratch = frame
-        .local_storage_slots
-        .iter()
-        .find(|candidate| candidate.id == slot)
+        .local_storage_slot(slot)
         .ok_or(Error::Mismatch("byte output scratch slot"))?;
     // The decoded displacement is an RSP-relative byte offset; it equals the
     // frame-space offset only for a committed frame. A red-zone-resident frame
@@ -169,11 +167,7 @@ pub(super) fn validate(
         .find(|span| span.instruction == row.id)
         .ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
-    let scratch = frame
-        .local_storage_slots
-        .iter()
-        .find(|candidate| candidate.id == slot)
-        .ok_or_else(invalid)?;
+    let scratch = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     let placed = container
         .source()
         .text_section()

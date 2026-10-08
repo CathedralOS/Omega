@@ -56,16 +56,15 @@ pub(super) fn settle_compiler_builtins<'request>(
     let mut mechanisms = Vec::with_capacity(request.compiler_builtins.len());
     for proposal in request.compiler_builtins {
         let requirement = proposal.requirement_identity;
-        let boundary = input
-            .plan()
-            .boundary_machines
-            .iter()
-            .find(|boundary| boundary.id == proposal.boundary)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
-                ))]
-            })?;
+        let boundary = terminal_psi::find_boundary_machine(
+            &input.plan().boundary_machines,
+            proposal.boundary,
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
+            ))]
+        })?;
         if !boundary_contract_matches_selected_schema(boundary, proposal.provider_plan, requirement)
             || boundary.completion != compiler_builtin_completion(proposal.execution)
         {

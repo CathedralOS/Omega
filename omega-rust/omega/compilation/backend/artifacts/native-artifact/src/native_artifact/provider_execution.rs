@@ -22,11 +22,11 @@ pub(super) fn replay_provider_executions(
 ) -> Result<(), ProviderExecutionReplayError> {
     let mut required_executions = BTreeSet::new();
     for installed in boundary_settlements {
-        let boundary = module
-            .boundary_machines
-            .iter()
-            .find(|boundary| boundary.id == installed.settlement.boundary)
-            .ok_or(ProviderExecutionReplayError::AbsentSettlementBoundary)?;
+        let boundary = terminal_psi::find_boundary_machine(
+            &module.boundary_machines,
+            installed.settlement.boundary,
+        )
+        .ok_or(ProviderExecutionReplayError::AbsentSettlementBoundary)?;
         let image_emission::BoundaryExecutionRecord::AdmittedProvider(execution) =
             installed.settlement.execution
         else {
@@ -101,10 +101,7 @@ pub(super) fn replay_provider_executions(
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };
-        let boundary = module
-            .boundary_machines
-            .iter()
-            .find(|candidate| candidate.id == boundary_id)
+        let boundary = terminal_psi::find_boundary_machine(&module.boundary_machines, boundary_id)
             .ok_or(ProviderExecutionReplayError::AbsentForeignBoundary)?;
         if boundary.completion != completion {
             return Err(ProviderExecutionReplayError::Shared(

@@ -88,10 +88,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     else {
         return Err("installed D41 settlement owner is not a Terminal boundary call");
     };
-    let declaration = module
-        .boundary_machines
-        .iter()
-        .find(|declaration| declaration.id == *boundary)
+    let declaration = terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
         .ok_or("installed D41 settlement names an absent boundary")?;
     if *boundary != occurrence.boundary()
         || settlement.invocation_site != occurrence.invocation_site()
@@ -106,7 +103,8 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     if !settlement_completion_custody_is_exact(settlement) {
         return Err("installed D41 settlement changed its completion custody");
     }
-    let function = object.function_on_machine(occurrence.machine())
+    let function = object
+        .function_on_machine(occurrence.machine())
         .ok_or("installed D41 settlement names an absent object function")?;
     if !function.provenance.operations.contains(&operation.id) {
         return Err("installed D41 settlement operation left its function provenance");

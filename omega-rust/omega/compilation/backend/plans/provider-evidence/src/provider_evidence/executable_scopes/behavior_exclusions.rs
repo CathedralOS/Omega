@@ -561,10 +561,8 @@ fn inspect_machine<'module>(
             }
             match &operation.kind {
                 OperationKind::BoundaryCall { boundary, .. } => {
-                    let Some(declaration) = module
-                        .boundary_machines
-                        .iter()
-                        .find(|declaration| declaration.id == *boundary)
+                    let Some(declaration) =
+                        terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
                     else {
                         report.gaps.push(EvidenceGap {
                             entry,

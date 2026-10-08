@@ -689,6 +689,3 @@ fn fragment_scalar_result_normalization_kind(
         },
     }
 }
-
-
-

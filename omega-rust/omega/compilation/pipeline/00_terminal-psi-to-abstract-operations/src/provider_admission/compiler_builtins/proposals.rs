@@ -240,10 +240,7 @@ fn nearest_arithmetic(
     operation: target_operations::IeeeFloatArithmeticOperation,
     format: semantic_vocabulary::IeeeFloatFormat,
 ) -> target_operations::CompilerBuiltinExecution {
-    target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-        operation,
-        format,
-    }
+    target_operations::CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format }
 }
 
 /// The native realization of one selected intrinsic identity, if the local

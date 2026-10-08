@@ -160,6 +160,16 @@ pub struct FunctionTargetFrameLayout {
     pub unwind: FrameUnwindPlan,
 }
 
+impl FunctionTargetFrameLayout {
+    /// The local-storage slot keyed `id`, when this frame lays one out.
+    pub fn local_storage_slot(
+        &self,
+        id: selected_instructions::LocalStorageSlotId,
+    ) -> Option<&LocalStorageFrameSlot> {
+        self.local_storage_slots.iter().find(|slot| slot.id == id)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFrameLayoutPlan {
     pub post_allocation_machine: PostAllocationMachineIdentity,

@@ -40,11 +40,9 @@ pub(super) fn replay_installed_provider_calls(
                 operation: *psi_operation,
                 boundary: *boundary,
             };
-            let boundary_declaration = plan
-                .boundary_machines
-                .iter()
-                .find(|row| row.id == *boundary)
-                .ok_or_else(malformed)?;
+            let boundary_declaration =
+                terminal_psi::find_boundary_machine(&plan.boundary_machines, *boundary)
+                    .ok_or_else(malformed)?;
             let candidate = plan
                 .functions
                 .iter()

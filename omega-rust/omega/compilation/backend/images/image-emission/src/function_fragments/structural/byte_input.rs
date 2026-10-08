@@ -131,11 +131,7 @@ pub(super) fn settlement(
     let offset =
         decoded_home(container.source().text_section().target, &span.bytes).ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
-    let home = frame
-        .local_storage_slots
-        .iter()
-        .find(|candidate| candidate.id == slot)
-        .ok_or_else(invalid)?;
+    let home = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     // The decoded displacement is an RSP-relative byte offset; it equals the
     // frame-space offset only for a committed frame. A red-zone-resident frame
     // cannot carry hosted storage at all.
@@ -238,11 +234,7 @@ pub(super) fn validate(
         .find(|span| span.instruction == row.id)
         .ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;
-    let home = frame
-        .local_storage_slots
-        .iter()
-        .find(|candidate| candidate.id == slot)
-        .ok_or_else(invalid)?;
+    let home = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     let placed = container
         .source()
         .text_section()
