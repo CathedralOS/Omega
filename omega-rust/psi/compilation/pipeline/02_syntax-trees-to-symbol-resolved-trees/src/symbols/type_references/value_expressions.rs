@@ -76,18 +76,12 @@ pub(in crate::symbols) fn assign_data_type_value_expression_symbols(
                 );
                 if let Some(payload) = payload {
                     payload_updates.push((
-                        Handle::from_parts(
-                            payload.start().arena_index() + field_offset as u32,
-                            payload.start().generation(),
-                        ),
+                        payload.handle_at(field_offset as u32),
                         reference,
                     ));
                 } else {
                     field_updates.push((
-                        Handle::from_parts(
-                            definition.members.start().arena_index() + member_offset as u32,
-                            definition.members.start().generation(),
-                        ),
+                        definition.members.handle_at(member_offset as u32),
                         reference,
                     ));
                 }
@@ -208,12 +202,8 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
         }
         TypeReference::Slice(slice) => child(slice.element_type),
         TypeReference::Generic(generic) => {
-            for offset in 0..generic.arguments.count() {
-                let start = generic.arguments.start();
-                child(Handle::from_parts(
-                    start.arena_index() + offset,
-                    start.generation(),
-                ));
+            for argument in generic.arguments.handles() {
+                child(argument);
             }
         }
         TypeReference::Constrained(constrained) => {
@@ -239,12 +229,7 @@ pub(in crate::symbols) fn assign_type_value_expression_symbols(
                         }
                     }
                     TypeConstraint::Domain(domain) => {
-                        for offset in 0..domain.arguments.count() {
-                            let start = domain.arguments.start();
-                            let handle = Handle::from_parts(
-                                start.arena_index() + offset,
-                                start.generation(),
-                            );
+                        for handle in domain.arguments.handles() {
                             let mut reference = child_types.get(handle).clone();
                             assign_type_value_expression_symbols(
                                 symbols,

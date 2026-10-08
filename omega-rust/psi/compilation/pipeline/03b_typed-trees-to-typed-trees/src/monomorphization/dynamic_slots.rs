@@ -160,10 +160,7 @@ fn instantiate_slot(
             .map(|(origin, name)| (*origin, symbols::SymbolKind::Parameter, name.as_str())),
     );
     for (offset, parameter) in (0u32..).zip(parameters.iter_mut()) {
-        parameter.symbol = arena::Handle::from_parts(
-            children.start().arena_index() + offset,
-            children.start().generation(),
-        );
+        parameter.symbol = children.handle_at(offset);
     }
     Ok(DynamicSlotSignature {
         symbol,
@@ -205,10 +202,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                     )
                 {
                     statement_targets.push((
-                        arena::Handle::from_parts(
-                            statements.start().arena_index() + offset as u32,
-                            statements.start().generation(),
-                        ),
+                        statements.handle_at(offset as u32),
                         slot,
                     ));
                 }

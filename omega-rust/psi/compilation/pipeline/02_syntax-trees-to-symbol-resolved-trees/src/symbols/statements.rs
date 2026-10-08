@@ -152,11 +152,7 @@ fn assign_machine_references(
                     child_type_references,
                     &mut type_reference,
                 );
-                let start = state.parameters.start();
-                let handle = arena::Handle::from_parts(
-                    start.arena_index() + offset as u32,
-                    start.generation(),
-                );
+                let handle = state.parameters.handle_at(offset as u32);
                 state_parameters.get_mut(handle).type_reference = type_reference;
             }
             if let Some(type_reference) = &mut state.return_type {

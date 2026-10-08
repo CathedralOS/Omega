@@ -173,12 +173,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                     if let Some(type_parameters) = type_parameters {
                         let local_type_parameters =
                             data_type_parameters.span_or_empty(type_parameters);
-                        for offset in 0..membership.domain_arguments.count() {
-                            let start = membership.domain_arguments.start();
-                            let handle = arena::Handle::from_parts(
-                                start.arena_index() + offset,
-                                start.generation(),
-                            );
+                        for handle in membership.domain_arguments.handles() {
                             let mut argument = child_type_references.get(handle).clone();
                             super::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                                 symbols,

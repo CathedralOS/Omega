@@ -248,11 +248,7 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
     let mut calls = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for offset in 0..state.statement_nodes.count() {
-                let handle = arena::Handle::from_parts(
-                    state.statement_nodes.start().arena_index() + offset,
-                    state.statement_nodes.start().generation(),
-                );
+            for handle in state.statement_nodes.handles() {
                 match program.statement_table.statement(handle) {
                     StatementNode::Call(call) => {
                         calls.push(ElisionCall {
