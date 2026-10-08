@@ -22,7 +22,8 @@ pub(in crate::legalization) fn expected(
             let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
                 continue;
             };
-            let callee = unit.function(cleanup.cleanup_machine)
+            let callee = unit
+                .function(cleanup.cleanup_machine)
                 .ok_or(LegalizationError::custody())?;
             if callee.machine == caller.machine
                 || callee.attachment != Some(cleanup.structural_type)

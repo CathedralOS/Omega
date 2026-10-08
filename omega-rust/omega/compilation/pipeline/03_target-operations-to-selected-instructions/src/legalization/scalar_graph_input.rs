@@ -316,14 +316,13 @@ pub(super) fn match_input(
         }
         if let AbstractOperation::EstablishZeroedStructural { result, .. }
         | AbstractOperation::EstablishStructuralLocal { result, .. } = &node.operation
-            && (!plan
-                .structural_types
-                .iter()
-                .any(|declaration| declaration.id == result.structural_type)
-                || !unit
-                    .structural_types
-                    .iter()
-                    .any(|declaration| declaration.id == result.structural_type))
+            && (!terminal_psi::find_structural_type(&plan.structural_types, result.structural_type)
+                .is_some()
+                || !terminal_psi::find_structural_type(
+                    &unit.structural_types,
+                    result.structural_type,
+                )
+                .is_some())
         {
             return Err(LegalizationError::custody());
         }
@@ -356,27 +355,24 @@ pub(super) fn match_input(
                         }
                         _ => false,
                     }
-            }) || !plan
-                .structural_types
-                .iter()
-                .any(|declaration| declaration.id == result.structural_type)
-                || !unit
-                    .structural_types
-                    .iter()
-                    .any(|declaration| declaration.id == *element))
+            }) || !terminal_psi::find_structural_type(
+                &plan.structural_types,
+                result.structural_type,
+            )
+            .is_some()
+                || !terminal_psi::find_structural_type(&unit.structural_types, *element).is_some())
         {
             return Err(LegalizationError::custody());
         }
         if let AbstractOperation::StructuralLeafCopy { result, .. }
         | AbstractOperation::MoveStructuralField { result, .. } = &node.operation
-            && (!plan
-                .structural_types
-                .iter()
-                .any(|declaration| declaration.id == result.structural_type)
-                || !unit
-                    .structural_types
-                    .iter()
-                    .any(|declaration| declaration.id == result.structural_type))
+            && (!terminal_psi::find_structural_type(&plan.structural_types, result.structural_type)
+                .is_some()
+                || !terminal_psi::find_structural_type(
+                    &unit.structural_types,
+                    result.structural_type,
+                )
+                .is_some())
         {
             return Err(LegalizationError::custody());
         }

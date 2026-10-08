@@ -77,9 +77,7 @@ pub(super) fn validate(
         };
     let expected = callee_plan(called, native, plan, unit)?;
     let signature = super::super::super::call_signature::signature(called, plan)?;
-    let callee_function = called.machine().and_then(|machine| {
-        unit.function(machine)
-    });
+    let callee_function = called.machine().and_then(|machine| unit.function(machine));
     if psi_operation != &actual
         || *callee != super::super::super::call_signature::native_target(called)
         || call_plan != &expected

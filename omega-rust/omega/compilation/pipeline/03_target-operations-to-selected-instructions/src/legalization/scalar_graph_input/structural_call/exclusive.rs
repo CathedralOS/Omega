@@ -181,7 +181,8 @@ fn arrival_source(
             })
         }
         StructuralPlaceKind::Parameter { .. } => {
-            let parameter = native.function(caller.machine)
+            let parameter = native
+                .function(caller.machine)
                 .and_then(super::super::structural_parameters)
                 .and_then(|parameters| parameters.iter().find(|row| row.place == source.place))
                 .ok_or(LegalizationError::custody())?;

@@ -75,7 +75,7 @@ pub(super) fn validate(
         &unit.structural_types,
         expected_destination.structural_type(),
     )
-        .ok_or(LegalizationError::custody())?;
+    .ok_or(LegalizationError::custody())?;
     let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
         expected_destination,
         expected_path,

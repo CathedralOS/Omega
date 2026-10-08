@@ -30,7 +30,8 @@ pub(in crate::legalization) fn installed_operation(
     else {
         return Ok(None);
     };
-    let function = native.function(caller.machine)
+    let function = native
+        .function(caller.machine)
         .ok_or_else(|| LegalizationError::custody())?;
     let mut calls = function
         .graph
@@ -74,7 +75,8 @@ pub(in crate::legalization) fn installed_operation(
     let declaration = plan
         .boundary_machine(*boundary)
         .ok_or_else(|| LegalizationError::custody())?;
-    let candidate = plan.function(callee)
+    let candidate = plan
+        .function(callee)
         .ok_or_else(|| LegalizationError::custody())?;
     if declaration.identity != provider.requirement_identity
         || declaration.scalar_parameters.len() != arguments.len()
@@ -132,8 +134,11 @@ pub(in crate::legalization) fn installed_operation(
         return Err(LegalizationError::custody());
     }
     for entry in &candidate.entry_claims {
-        let position = terminal_psi::structural_parameter_position(&candidate.structural_parameters, entry.input)
-            .ok_or_else(|| LegalizationError::custody())?;
+        let position = terminal_psi::structural_parameter_position(
+            &candidate.structural_parameters,
+            entry.input,
+        )
+        .ok_or_else(|| LegalizationError::custody())?;
         let argument = structural_arguments
             .get(position)
             .ok_or_else(|| LegalizationError::custody())?;

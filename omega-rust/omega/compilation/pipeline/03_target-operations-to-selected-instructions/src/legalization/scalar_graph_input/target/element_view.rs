@@ -297,10 +297,9 @@ impl Checker<'_> {
         requested: terminal_psi::StructuralAccess,
     ) -> bool {
         let Some(parameter) = self
-            .optimized.block(block)
-            .and_then(|entry| {
-                entry.structural_parameter(place)
-            })
+            .optimized
+            .block(block)
+            .and_then(|entry| entry.structural_parameter(place))
         else {
             return false;
         };

@@ -298,8 +298,7 @@ fn bounded_owner_source(
             && source.qualifications == declaration.qualifications
             && source.projected_qualifications.is_empty()
     };
-    if let Some(source) = function.structural_parameter(place)
-    {
+    if let Some(source) = function.structural_parameter(place) {
         return identical(source);
     }
     parameter(function, place, plan)
@@ -333,8 +332,7 @@ fn root_type(
             && qualifications.is_empty()
             && projected.is_empty()
     };
-    if let Some(source) = function.structural_parameter(place)
-    {
+    if let Some(source) = function.structural_parameter(place) {
         // Explicit parameters lend their declared referents. Namespace
         // attachment neither supplies a root nor changes its authority.
         return (loan_access_permitted(source.access, access)

@@ -60,7 +60,8 @@ pub(super) fn argument(
             .ok_or(LegalizationError::custody())?;
         let source = match place.kind {
             StructuralPlaceKind::Parameter { .. } => {
-                let parameter = native.function(caller.machine)
+                let parameter = native
+                    .function(caller.machine)
                     .and_then(super::super::structural_parameters)
                     .and_then(|parameters| {
                         parameters

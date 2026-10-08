@@ -100,8 +100,7 @@ pub(super) fn validate(
             // The source's semantic place selects its real storage origin.
             // Incoming owned parameters need no invented producer/home; the
             // function-signature rejoin separately checks their ABI placement.
-            if let Some(parameter) = optimized.structural_parameter(value.place)
-            {
+            if let Some(parameter) = optimized.structural_parameter(value.place) {
                 if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != extent.field_type
                     || !parameter.qualifications.is_empty()

@@ -361,10 +361,8 @@ pub(crate) fn exact_projected_callee(
                     .any(|source| source.id == declaration.id)
             })
             .all(|declaration| caller_cleanup.structural_types.contains(declaration))
-        && cleanup
-            .structural_types
-            .iter()
-            .any(|declaration| declaration.id == argument.structural_type)
+        && terminal_psi::find_structural_type(&cleanup.structural_types, argument.structural_type)
+            .is_some()
 }
 
 pub(crate) fn validate_function(

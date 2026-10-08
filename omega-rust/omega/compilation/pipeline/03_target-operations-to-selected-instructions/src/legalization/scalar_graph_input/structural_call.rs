@@ -50,7 +50,8 @@ pub(in crate::legalization) fn argument_at(
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
     {
-        let target_caller = native.function(caller.machine)
+        let target_caller = native
+            .function(caller.machine)
             .ok_or(LegalizationError::custody())?;
         return super::reference_custody::referent_argument(
             semantic,
@@ -332,7 +333,8 @@ fn view_argument(
         };
         (structural_type, source)
     } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
-        block.structural_parameter(semantic.place)
+        block
+            .structural_parameter(semantic.place)
             .map(|parameter| (block, parameter))
     }) {
         if block.id == caller.entry
@@ -350,9 +352,11 @@ fn view_argument(
             },
         )
     } else {
-        let source = caller.structural_parameter(semantic.place)
+        let source = caller
+            .structural_parameter(semantic.place)
             .ok_or(LegalizationError::custody())?;
-        let target_caller = native.function(caller.machine)
+        let target_caller = native
+            .function(caller.machine)
             .ok_or(LegalizationError::custody())?;
         let parameters =
             super::structural_parameters(target_caller).ok_or(LegalizationError::custody())?;

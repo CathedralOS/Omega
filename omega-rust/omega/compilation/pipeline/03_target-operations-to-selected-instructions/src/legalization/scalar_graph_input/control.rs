@@ -47,14 +47,14 @@ pub(super) fn validate(
             // Result membership was established by Psi at this edge. Native
             // custody resolves the exact source carrier, not an equality
             // between its stored labels and the declared postcondition.
-            let (structural_type, multiplicity) = if let Some(parameter) = function.structural_parameter(*source)
-            {
-                if parameter.access != terminal_psi::StructuralAccess::Owned {
-                    return Err(LegalizationError::custody());
-                }
-                (parameter.structural_type, parameter.multiplicity)
-            } else {
-                match super::structural_case::source_owner(function, *source)? {
+            let (structural_type, multiplicity) =
+                if let Some(parameter) = function.structural_parameter(*source) {
+                    if parameter.access != terminal_psi::StructuralAccess::Owned {
+                        return Err(LegalizationError::custody());
+                    }
+                    (parameter.structural_type, parameter.multiplicity)
+                } else {
+                    match super::structural_case::source_owner(function, *source)? {
                     // The returned claims leave with the value; ownership
                     // replay already matched them to the source's claims.
                     legalized_operations::LegalizedStructuralCaseSource::OperationResult {
@@ -73,7 +73,7 @@ pub(super) fn validate(
                         return Err(LegalizationError::custody());
                     }
                 }
-            };
+                };
             if structural_type != declared.structural_type
                 || multiplicity != declared.multiplicity
                 || (!declared.qualifications.is_empty()

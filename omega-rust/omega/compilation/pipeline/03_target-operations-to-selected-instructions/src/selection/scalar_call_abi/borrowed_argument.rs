@@ -402,10 +402,7 @@ pub(super) fn validate_borrowed_argument(
         && established_view_loan.is_none()
         && projected_loan.is_none();
     if source.attachment.is_some_and(|attachment| {
-        !signature
-            .structural_types
-            .iter()
-            .any(|declaration| declaration.id == attachment)
+        !terminal_psi::find_structural_type(&signature.structural_types, attachment).is_some()
     }) || (!parameters.is_empty()
         && !crate::structural_inputs::structural_unit_input::accepts_graph(
             &source.call_plan,
