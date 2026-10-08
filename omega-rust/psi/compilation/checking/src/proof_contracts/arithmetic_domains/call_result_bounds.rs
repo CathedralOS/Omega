@@ -7,7 +7,6 @@ use crate::machine_calls::calls::CalleeContract;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
 };
-use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
 
 pub(super) fn normal_return_interval(
@@ -192,14 +191,8 @@ fn builtin(
     operator: BinaryOperator,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    let spelling = match operator {
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return false,
+    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(operator) else {
+        return false;
     };
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,

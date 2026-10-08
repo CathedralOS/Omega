@@ -101,6 +101,20 @@ pub fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpel
     })
 }
 
+/// The authored [`OperatorSpelling`] of a comparison operator — the equality
+/// and ordering tests. Every other operator maps to `None`.
+pub fn comparison_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+    Some(match operator {
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        _ => return None,
+    })
+}
+
 /// What one operand's type is known to be at a use site.
 ///
 /// A retained type reference answers completely. A value whose carrier the

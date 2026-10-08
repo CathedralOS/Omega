@@ -167,15 +167,12 @@ fn zero_storage_binary_is_builtin(
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
     use language_core::OperatorSpelling;
-    let spelling = match binary.operator {
-        BinaryOperator::And | BinaryOperator::Or => return true,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return false,
+    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+        return true;
+    }
+    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(binary.operator)
+    else {
+        return false;
     };
     let operands = [binary.left, binary.right];
     // Two anonymous literals have no operator home. A named/landed operand

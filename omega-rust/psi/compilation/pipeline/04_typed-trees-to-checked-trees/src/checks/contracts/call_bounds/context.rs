@@ -478,14 +478,9 @@ fn comparison_is_supported(
             && comparison_is_supported(program, facts, owner, parameters, binary.left)
             && comparison_is_supported(program, facts, owner, parameters, binary.right);
     }
-    let spelling = match binary.operator {
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return false,
+    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(binary.operator)
+    else {
+        return false;
     };
     let operand = |expression| -> Option<(Option<PrimitiveType>, Option<TypeReferenceHandle>)> {
         if arguments::is_unlanded_integer(program, expression) {

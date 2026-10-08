@@ -305,7 +305,7 @@ pub fn has_builtin_or_sealed_float_comparison_meaning(
     if operand_types.len() != 2 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
-    let Some(spelling) = float_comparison_spelling(comparison) else {
+    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(comparison) else {
         return false;
     };
     let builtin = match program.expression_table.expression(expression) {
@@ -331,18 +331,6 @@ pub fn has_builtin_or_sealed_float_comparison_meaning(
         )
 }
 
-fn float_comparison_spelling(comparison: BinaryOperator) -> Option<OperatorSpelling> {
-    Some(match comparison {
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return None,
-    })
-}
-
 fn sealed_float_comparison_for_operands(
     program: &dyn crate::CheckingInput,
     owner: symbols::SymbolHandle,
@@ -350,7 +338,7 @@ fn sealed_float_comparison_for_operands(
     comparison: BinaryOperator,
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
-    let Some(spelling) = float_comparison_spelling(comparison) else {
+    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(comparison) else {
         return false;
     };
     if !typed_trees::operator::selected_trait_operator_meanings(
@@ -780,17 +768,21 @@ fn operand_type_at_depth(
             else {
                 return None;
             };
-            if !program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer()) || !operands
-                .into_iter()
-                .zip(types)
-                .all(|(operand, reference)| match reference {
-                    Some(reference) => {
-                        program.normalized_type_identity(reference)
-                            == program.normalized_type_identity(carrier)
-                    }
-                    None => matches!(program.expression_table.expression(operand),
+            if !program
+                .symbols
+                .builtin_type_atom(*symbol)
+                .is_some_and(|atom| atom.is_fixed_integer())
+                || !operands
+                    .into_iter()
+                    .zip(types)
+                    .all(|(operand, reference)| match reference {
+                        Some(reference) => {
+                            program.normalized_type_identity(reference)
+                                == program.normalized_type_identity(carrier)
+                        }
+                        None => matches!(program.expression_table.expression(operand),
                             ExpressionNode::Integer(literal) if literal.landing().is_none()),
-                })
+                    })
                 || !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
                     machine.symbol,
