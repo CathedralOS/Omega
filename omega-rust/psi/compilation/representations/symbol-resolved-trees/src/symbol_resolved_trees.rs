@@ -197,6 +197,26 @@ pub struct SymbolResolvedBodyStorage {
 }
 
 impl SymbolResolvedTrees {
+    /// The domain definition keyed `symbol`, when the trees declare it.
+    pub fn domain_definition_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::domain::DomainDefinition> {
+        self.domain_definitions
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+    }
+
+    /// The data definition keyed `symbol`, when the trees declare it.
+    pub fn data_definition_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        self.data_definitions
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+    }
+
     pub fn authored_selection_extension_frontier(&self) -> AuthoredSelectionExtensionFrontier {
         AuthoredSelectionExtensionFrontier {
             selections: self.tables.authored_declaration_selections.len(),
