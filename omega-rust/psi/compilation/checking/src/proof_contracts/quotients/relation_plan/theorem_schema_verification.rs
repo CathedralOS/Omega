@@ -49,13 +49,15 @@ pub(super) fn verify_selected_theorem_schema(
     theorem: &SelectedTheoremTelescope,
     expected: &ExpectedTheoremSchema,
 ) -> Result<VerifiedTheoremSchema, RelationPlanError> {
-    let theorem_state = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == theorem.machine_symbol)
-        .flat_map(|machine| program.machine_states(machine))
-        .find(|state| state.symbol == theorem.state_symbol)
-        .ok_or(RelationPlanError::TheoremEntryDoesNotResolveExactly)?;
+    let theorem_state =
+        typed_trees::machine::machine_by_symbol(program.machines(), theorem.machine_symbol)
+            .and_then(|machine| {
+                typed_trees::state::state_by_symbol(
+                    program.machine_states(machine),
+                    theorem.state_symbol,
+                )
+            })
+            .ok_or(RelationPlanError::TheoremEntryDoesNotResolveExactly)?;
     let theorem_parameters = program.state_parameters(theorem_state);
     let verified_parameters = verify_parameters(
         program,

@@ -523,8 +523,12 @@ fn lower_proof_output_runtime_call(
         .typed
         .machines()
         .iter()
-        .flat_map(|machine| checked.typed.machine_states(machine))
-        .find(|state| state.symbol == invocation.target_state_symbol)
+        .find_map(|machine| {
+            typed_trees::state::state_by_symbol(
+                checked.typed.machine_states(machine),
+                invocation.target_state_symbol,
+            )
+        })
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output target state is absent",
         ))?;
