@@ -56,26 +56,53 @@ pub(in crate::encoding::recovery) fn policy(
     })
 }
 
-pub(in crate::encoding::recovery) fn selection(
+pub(in crate::encoding::recovery) fn opaque_representation_fields(
     reader: &mut Reader<'_>,
-) -> Result<PackagePolicyRepresentationSelection, Error> {
-    Ok(PackagePolicyRepresentationSelection {
-        opaque: nominal(reader)?,
-        carrier: nominal(reader)?,
-        selection_owner: owner(reader)?,
-        application: conformance::application(reader)?,
-        origin: match reader.byte()? {
+) -> Result<
+    (
+        crate::record::PackageReviewNominalIdentity,
+        crate::record::PackageReviewNominalIdentity,
+        crate::record::PackageReviewNominalOwner,
+        crate::record::PackagePolicyClosedConformanceApplication,
+        PackageReviewOpaqueRepresentationApplicationOrigin,
+        PackageReviewOpaqueRepresentationLifecycleDisposition,
+        PackageReviewOpaqueRepresentationCopyDisposition,
+    ),
+    Error,
+> {
+    Ok((
+        nominal(reader)?,
+        nominal(reader)?,
+        owner(reader)?,
+        conformance::application(reader)?,
+        match reader.byte()? {
             0 => PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance,
             _ => return Err(Error::InvalidTag),
         },
-        lifecycle: match reader.byte()? {
+        match reader.byte()? {
             0 => PackageReviewOpaqueRepresentationLifecycleDisposition::Inert,
             _ => return Err(Error::InvalidTag),
         },
-        copy_disposition: match reader.byte()? {
+        match reader.byte()? {
             0 => PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly,
             1 => PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
             _ => return Err(Error::InvalidTag),
         },
+    ))
+}
+
+pub(in crate::encoding::recovery) fn selection(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyRepresentationSelection, Error> {
+    let (opaque, carrier, selection_owner, application, origin, lifecycle, copy_disposition) =
+        opaque_representation_fields(reader)?;
+    Ok(PackagePolicyRepresentationSelection {
+        opaque,
+        carrier,
+        selection_owner,
+        application,
+        origin,
+        lifecycle,
+        copy_disposition,
     })
 }

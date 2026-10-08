@@ -1,36 +1,23 @@
-use super::{Error, Reader, nominal};
-use crate::encoding::recovery::policy::{
-    conformance, identity::owner, physical_calling_policy::placement::value_placement,
-};
+use super::{Error, Reader};
+use crate::encoding::recovery::policy::physical_calling_policy::placement::value_placement;
 use crate::record::{
-    PackagePolicyCallingOpaqueUse, PackageReviewOpaqueRepresentationApplicationOrigin,
-    PackageReviewOpaqueRepresentationCopyDisposition,
-    PackageReviewOpaqueRepresentationLifecycleDisposition,
-    PackageReviewOpaqueRepresentationMovementRole, PackageReviewOpaqueRepresentationOccurrence,
-    PackageReviewOpaqueRepresentationPathElement,
+    PackagePolicyCallingOpaqueUse, PackageReviewOpaqueRepresentationMovementRole,
+    PackageReviewOpaqueRepresentationOccurrence, PackageReviewOpaqueRepresentationPathElement,
 };
 
 pub(in crate::encoding::recovery) fn decode(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallingOpaqueUse, Error> {
+    let (opaque, carrier, selection_owner, application, origin, lifecycle, copy_disposition) =
+        super::super::representation::opaque_representation_fields(reader)?;
     Ok(PackagePolicyCallingOpaqueUse {
-        opaque: nominal(reader)?,
-        carrier: nominal(reader)?,
-        selection_owner: owner(reader)?,
-        application: conformance::application(reader)?,
-        origin: match reader.byte()? {
-            0 => PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance,
-            _ => return Err(Error::InvalidTag),
-        },
-        lifecycle: match reader.byte()? {
-            0 => PackageReviewOpaqueRepresentationLifecycleDisposition::Inert,
-            _ => return Err(Error::InvalidTag),
-        },
-        copy_disposition: match reader.byte()? {
-            0 => PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly,
-            1 => PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
-            _ => return Err(Error::InvalidTag),
-        },
+        opaque,
+        carrier,
+        selection_owner,
+        application,
+        origin,
+        lifecycle,
+        copy_disposition,
         occurrences: reader.sequence(24, |reader| {
             Ok(PackageReviewOpaqueRepresentationOccurrence {
                 carrier_shape_root: reader.u16()?,
