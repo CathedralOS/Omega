@@ -14,7 +14,7 @@ use crate::{
     PlacedFieldProjection, PlacedView, PlacementAdmission, PlacementAdmissionId, PlacementPlanId,
     ResourceProfileReceiptId, ValidatedPlacementPlan, place,
 };
-use extents::{ExtentLoan, LoanPolarity};
+use extents::ExtentLoan;
 
 use crate::normalized_identity;
 
@@ -525,10 +525,7 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
     ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-        let source_loan = match self.view.loan.polarity() {
-            LoanPolarity::Shared => BorrowPolarity::Shared,
-            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
-        };
+        let source_loan = BorrowPolarity::from(self.view.loan.polarity());
         project_placed_field(
             &self.view.plan,
             self.view.profile_receipt,

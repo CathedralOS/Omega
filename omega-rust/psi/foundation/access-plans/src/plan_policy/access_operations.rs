@@ -9,6 +9,15 @@ pub enum BorrowPolarity {
     Exclusive,
 }
 
+impl From<extents::LoanPolarity> for BorrowPolarity {
+    fn from(polarity: extents::LoanPolarity) -> Self {
+        match polarity {
+            extents::LoanPolarity::Shared => BorrowPolarity::Shared,
+            extents::LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccessOperation {
     Read,

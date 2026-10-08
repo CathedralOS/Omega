@@ -1,4 +1,4 @@
-use extents::{ExtentLoan, LoanPolarity};
+use extents::ExtentLoan;
 
 use crate::AdmittedResourceProfile;
 use crate::ResourceProfileReceiptId;
@@ -64,10 +64,7 @@ impl<'extent> PlacedView<'extent> {
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
     ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-        let source_loan = match self.loan.polarity() {
-            LoanPolarity::Shared => BorrowPolarity::Shared,
-            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
-        };
+        let source_loan = BorrowPolarity::from(self.loan.polarity());
         project_placed_field(
             &self.plan,
             self.profile_receipt,

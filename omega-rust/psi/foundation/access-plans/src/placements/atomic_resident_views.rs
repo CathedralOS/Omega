@@ -164,10 +164,7 @@ impl<'resident> EstablishedBorrowedAtomicResidentPlacement<'resident> {
         current_borrow: BorrowPolarity,
     ) -> Result<PlacedFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
         self.validate_lender_binding("borrowed Atomic resident projection")?;
-        let source_loan = match self.loan.polarity() {
-            LoanPolarity::Shared => BorrowPolarity::Shared,
-            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
-        };
+        let source_loan = BorrowPolarity::from(self.loan.polarity());
         project_placed_field(
             &self.plan,
             self.profile_receipt,

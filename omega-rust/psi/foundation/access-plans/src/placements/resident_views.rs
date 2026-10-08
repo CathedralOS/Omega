@@ -156,10 +156,7 @@ impl<'resident> EstablishedBorrowedResidentPlacement<'resident> {
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
     ) -> Result<PlacedFieldProjection<'view, 'resident>, AccessPlanDiagnostic> {
-        let source_loan = match self.loan.polarity() {
-            LoanPolarity::Shared => BorrowPolarity::Shared,
-            LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
-        };
+        let source_loan = BorrowPolarity::from(self.loan.polarity());
         project_placed_field(
             &self.plan,
             self.profile_receipt,
