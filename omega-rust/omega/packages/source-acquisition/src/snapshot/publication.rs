@@ -18,7 +18,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
-use super::permissions::{make_open_snapshot_root_publishable, make_open_tree_owner_writable};
+use super::permissions::{make_open_snapshot_root_publishable, remove_unpublished};
 #[cfg(not(windows))]
 use super::permissions::{make_open_snapshot_root_read_only, verify_open_snapshot_tree_modes};
 
@@ -167,12 +167,7 @@ impl PendingMaterializedSnapshot {
 impl Drop for PendingMaterializedSnapshot {
     fn drop(&mut self) {
         if !self.published {
-            if let Some(directory) = self.directory.take() {
-                make_open_tree_owner_writable(&directory);
-                let _ = directory.remove_open_dir_all();
-            } else {
-                let _ = self.parent.remove_dir_all(&self.stage_name);
-            }
+            remove_unpublished(self.directory.take(), &self.parent, &self.stage_name);
         }
     }
 }

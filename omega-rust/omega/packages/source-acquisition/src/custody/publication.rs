@@ -11,7 +11,7 @@ use super::tree::{CacheCustodyKind, cache_custody_invalid};
 use crate::SourceResolveError;
 use crate::error::cache_invalid;
 use crate::limits::STAGING_SEQUENCE;
-use crate::snapshot::permissions::make_open_tree_owner_writable;
+use crate::snapshot::permissions::remove_unpublished;
 use crate::tree::filesystem::io_error;
 #[cfg(test)]
 use crate::tree::filesystem::open_absolute_directory_nofollow;
@@ -352,12 +352,7 @@ impl Drop for ProvisionalCacheDirectory<'_> {
 impl Drop for PendingCacheEntry {
     fn drop(&mut self) {
         if !self.published {
-            if let Some(directory) = self.directory.take() {
-                make_open_tree_owner_writable(&directory);
-                let _ = directory.remove_open_dir_all();
-            } else {
-                let _ = self.parent.remove_dir_all(&self.stage_name);
-            }
+            remove_unpublished(self.directory.take(), &self.parent, &self.stage_name);
         }
     }
 }

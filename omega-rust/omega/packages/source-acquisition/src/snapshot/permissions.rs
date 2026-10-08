@@ -441,3 +441,19 @@ pub(crate) fn make_tree_owner_writable(_root: &Path) {
         }
     }
 }
+
+/// Drop-side cleanup shared by the pending publication guards: an owned
+/// directory is made writable and removed outright, while a staged entry
+/// still inside the parent is removed by name.
+pub(crate) fn remove_unpublished(
+    directory: Option<CapabilityDirectory>,
+    parent: &CapabilityDirectory,
+    stage_name: &std::ffi::OsStr,
+) {
+    if let Some(directory) = directory {
+        make_open_tree_owner_writable(&directory);
+        let _ = directory.remove_open_dir_all();
+    } else {
+        let _ = parent.remove_dir_all(stage_name);
+    }
+}
