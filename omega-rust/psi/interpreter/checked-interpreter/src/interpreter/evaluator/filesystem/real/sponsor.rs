@@ -49,6 +49,21 @@ pub(super) fn read_only_open_bypasses_sponsor(
 }
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+    /// The mounted sponsor and `fd`'s sponsor descriptor, when both exist;
+    /// `None` is the unsponsored path every preparation shares.
+    fn sponsor_context(
+        &mut self,
+        fd: i32,
+    ) -> Option<(crate::FilesystemSponsor, crate::FilesystemOpenDescriptor)> {
+        let real = self.real_fs_mut();
+        real.sponsor.clone().and_then(|sponsor| {
+            real.files
+                .get(&fd)
+                .and_then(|entry| entry.sponsor_descriptor)
+                .map(|descriptor| (sponsor, descriptor))
+        })
+    }
+
     /// Enforce the compiler grant retained by an opened descriptor before a
     /// descriptor-based mutation reaches sponsor accounting or the host.
     /// Missing descriptors preserve each ABI family's native error shape.
@@ -155,15 +170,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         fd: i32,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemOpen>> {
-        let real = self.real_fs_mut();
-        let Some(sponsor) = real.sponsor.clone() else {
-            return Ok(SponsorPreparation::Unsponsored);
-        };
-        let Some(descriptor) = real
-            .files
-            .get(&fd)
-            .and_then(|entry| entry.sponsor_descriptor)
-        else {
+        let Some((sponsor, descriptor)) = self.sponsor_context(fd) else {
             return Ok(SponsorPreparation::Unsponsored);
         };
         let _ = (sponsor, descriptor);
@@ -176,15 +183,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         &mut self,
         fd: i32,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let real = self.real_fs_mut();
-        let Some(sponsor) = real.sponsor.clone() else {
-            return Ok(SponsorPreparation::Unsponsored);
-        };
-        let Some(descriptor) = real
-            .files
-            .get(&fd)
-            .and_then(|entry| entry.sponsor_descriptor)
-        else {
+        let Some((sponsor, descriptor)) = self.sponsor_context(fd) else {
             return Ok(SponsorPreparation::Unsponsored);
         };
         sponsor_preparation(sponsor.prepare_close(&descriptor))
@@ -195,14 +194,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         fd: i32,
         extent: u64,
     ) -> EvalResult<SponsorPreparation<crate::PreparedFilesystemMutation>> {
-        let real = self.real_fs_mut();
-        let Some(sponsor) = real.sponsor.clone() else {
-            return Ok(SponsorPreparation::Unsponsored);
-        };
-        let Some(entry) = real.files.get(&fd) else {
-            return Ok(SponsorPreparation::Unsponsored);
-        };
-        let Some(descriptor) = entry.sponsor_descriptor else {
+        let Some((sponsor, descriptor)) = self.sponsor_context(fd) else {
             return Ok(SponsorPreparation::Unsponsored);
         };
         let _ = (sponsor, descriptor, extent);
