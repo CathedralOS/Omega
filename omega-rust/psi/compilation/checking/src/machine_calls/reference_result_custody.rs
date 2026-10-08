@@ -126,15 +126,9 @@ pub fn is_reference_record(
         {
             return visit(program, *element_type, seen);
         }
-        let symbol = match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, .. } => symbol,
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.count() == 0 => base_symbol,
-            _ => return None,
-        };
+        let symbol = program
+            .type_reference_table
+            .unparameterized_type_symbol(reference)?;
         if seen.contains(symbol) {
             return None;
         }
@@ -1308,15 +1302,9 @@ fn record_carrier_sources(
             }
             return Some(());
         }
-        let symbol = match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, .. } => symbol,
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.count() == 0 => base_symbol,
-            _ => return None,
-        };
+        let symbol = program
+            .type_reference_table
+            .unparameterized_type_symbol(reference)?;
         let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         for member in program.data_members(data) {
             let typed_trees::data::DataMember::Field(field) = member else {
@@ -1372,15 +1360,9 @@ fn aggregate_construction_sources(
             ));
         }
     } else {
-        let symbol = match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, .. } => symbol,
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } if arguments.count() == 0 => base_symbol,
-            _ => return None,
-        };
+        let symbol = program
+            .type_reference_table
+            .unparameterized_type_symbol(reference)?;
         let ExpressionNode::StructLiteral(literal) =
             program.expression_table.expression(expression)
         else {
