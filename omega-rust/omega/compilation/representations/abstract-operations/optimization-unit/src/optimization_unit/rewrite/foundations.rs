@@ -79,3 +79,10 @@ pub struct ProvenanceRewrite {
     pub sources: Vec<PsiProvenance>,
     pub fuel: Vec<FuelSettlement>,
 }
+
+/// Canonical byte framing for one rewrite location inside a candidate identity.
+pub(crate) fn encode_location(canonical: &mut Vec<u8>, location: NodeLocation) {
+    canonical.extend_from_slice(&location.machine.get().to_le_bytes());
+    canonical.extend_from_slice(&location.block.get().to_le_bytes());
+    canonical.extend_from_slice(&location.node.to_le_bytes());
+}

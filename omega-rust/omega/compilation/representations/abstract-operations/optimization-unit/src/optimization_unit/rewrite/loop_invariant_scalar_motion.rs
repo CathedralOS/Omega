@@ -15,7 +15,7 @@
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType, ValueId};
 
 use super::super::cycles::CycleComponentId;
-use super::foundations::NodeLocation;
+use super::foundations::{NodeLocation, encode_location};
 use crate::{FuelSettlement, PsiProvenance};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisSet, OptimizationCandidateIdentity, OptimizationFactReference,
@@ -502,8 +502,3 @@ fn candidate_identity(
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
 }
 
-fn encode_location(canonical: &mut Vec<u8>, location: NodeLocation) {
-    canonical.extend_from_slice(&location.machine.get().to_le_bytes());
-    canonical.extend_from_slice(&location.block.get().to_le_bytes());
-    canonical.extend_from_slice(&location.node.to_le_bytes());
-}

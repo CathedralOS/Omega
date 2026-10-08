@@ -12,6 +12,7 @@ use optimization_unit::{
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
+use optimization_unit::rewrite::foundations::encode_location;
 
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
@@ -221,8 +222,3 @@ fn candidate_identity(
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)
 }
 
-fn encode_location(canonical: &mut Vec<u8>, location: NodeLocation) {
-    canonical.extend_from_slice(&location.machine.get().to_le_bytes());
-    canonical.extend_from_slice(&location.block.get().to_le_bytes());
-    canonical.extend_from_slice(&location.node.to_le_bytes());
-}
