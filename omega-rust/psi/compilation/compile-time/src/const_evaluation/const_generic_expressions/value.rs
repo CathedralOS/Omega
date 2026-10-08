@@ -657,15 +657,7 @@ fn evaluate_expression(
                 let left = values.pop().ok_or("missing left constant operand")?;
                 let value = match (left, right) {
                     (Value::Anonymous(_), Value::Anonymous(_))
-                        if matches!(
-                            operator,
-                            BinaryOperator::Equal
-                                | BinaryOperator::NotEqual
-                                | BinaryOperator::Less
-                                | BinaryOperator::LessOrEqual
-                                | BinaryOperator::Greater
-                                | BinaryOperator::GreaterOrEqual
-                        ) =>
+                        if comparison_operator(operator) =>
                     {
                         Value::Boolean(compare_anonymous(
                             program,
@@ -963,15 +955,7 @@ fn validate_shapes(
         );
         let (left, right) = match (left, right) {
             (Shape::Anonymous(_), Shape::Anonymous(_))
-                if matches!(
-                    operator,
-                    BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                        | BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                ) =>
+                if comparison_operator(operator) =>
             {
                 match_dispatch::validate_anonymous_comparison(program, context, expression)?;
                 shapes.push(Shape::Boolean);
@@ -1071,22 +1055,14 @@ fn validate_shapes(
                     return Err("Boolean logic requires Boolean operands".into());
                 }
                 if !shift
-                    && !integer_comparison(operator)
+                    && !comparison_operator(operator)
                     && (left != right || left_policy != right_policy)
                 {
                     return Err(
                         "constant operands have incompatible landed integer carriers".into(),
                     );
                 }
-                if matches!(
-                    operator,
-                    BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                        | BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                ) {
+                if comparison_operator(operator) {
                     Shape::Boolean
                 } else {
                     context.arithmetic_result(
@@ -1103,15 +1079,7 @@ fn validate_shapes(
                 if left != right {
                     return Err("constant float operands have incompatible landed formats".into());
                 }
-                if matches!(
-                    operator,
-                    BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                        | BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                ) {
+                if comparison_operator(operator) {
                     Shape::Boolean
                 } else if matches!(
                     operator,
@@ -1413,7 +1381,7 @@ fn float_bits(format: FloatFormat, meaning: &FloatMeaning) -> u64 {
     }
 }
 
-fn integer_comparison(operator: BinaryOperator) -> bool {
+fn comparison_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
         BinaryOperator::Equal
@@ -1451,7 +1419,7 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
     );
     if !shifts
-        && !integer_comparison(operator)
+        && !comparison_operator(operator)
         && (left_carrier != right_carrier || policy != right_policy)
     {
         return Err("constant operands have incompatible landed integer carriers".into());
