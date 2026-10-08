@@ -747,6 +747,13 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    /// The machine declaration keyed `symbol`.
+    pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&crate::machine::Machine> {
+        self.machines
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+    }
+
     pub fn machine_invokes(
         &self,
         machine: &crate::machine::Machine,

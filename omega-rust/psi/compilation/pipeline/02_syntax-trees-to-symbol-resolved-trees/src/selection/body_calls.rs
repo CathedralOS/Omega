@@ -31,9 +31,7 @@ pub(crate) fn retarget_machine_calls(
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
     let Some((state_spans, declaration_expressions)) = program
-        .machines
-        .iter()
-        .find(|candidate| candidate.symbol == machine)
+        .machine(machine)
         .map(|machine| {
             let state_spans = program
                 .machine_state_handles(machine.states)

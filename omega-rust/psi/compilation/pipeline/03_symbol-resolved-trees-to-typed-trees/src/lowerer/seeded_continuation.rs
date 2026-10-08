@@ -476,9 +476,7 @@ fn lower_body_completion(
             .ok_or_else(violation)?;
         let mut declaration = lowerer.typed_trees.machines()[ordinal].clone();
         let implementation = source
-            .machines
-            .iter()
-            .find(|machine| machine.symbol == symbol)
+            .machine(symbol)
             .ok_or_else(violation)?;
         crate::declarations::machine::complete_machine_body(
             &mut lowerer,

@@ -259,9 +259,7 @@ pub(crate) fn route_conformance_requirement_calls(
     let trait_catalog = build_trait_catalog(program);
     let default_body_trait = |machine: SymbolHandle| {
         program
-            .machines
-            .iter()
-            .find(|candidate| candidate.symbol == machine)
+            .machine(machine)
             .map_or_else(SymbolHandle::invalid, |candidate| {
                 candidate.trait_default_origin.declaring_trait
             })

@@ -15,9 +15,7 @@ pub(super) fn is_derived(
         return Ok(false);
     }
     let template = program
-        .machines
-        .iter()
-        .find(|candidate| candidate.symbol == origin.template);
+        .machine(origin.template);
     let owner = program.data_definition_by_symbol(origin.closed_owner);
     let valid = origin.template_source.is_source_backed()
         && origin.template.is_valid()
