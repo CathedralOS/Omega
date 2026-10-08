@@ -1768,6 +1768,17 @@ pub(in crate::legalization) fn apply(
             let moved = call_arguments(function, types, custody, structural_arguments)?;
             commit_argument_moves(custody, &moved);
         }
+        AbstractOperation::BoundaryCall {
+            structural_arguments,
+            ..
+        } => {
+            // A non-retaining foreign borrow has ordinary live-loan custody.
+            // The opaque counterparty cannot receive Omega reference carriers
+            // by ownership; its separately evaluated ABI owns pointer geometry.
+            if !call_arguments(function, types, custody, structural_arguments)?.is_empty() {
+                return Err(invalid());
+            }
+        }
         _ => {}
     }
     Ok(())

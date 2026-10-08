@@ -206,6 +206,49 @@ pub(super) fn mutable_scalar_representation_facts(
     }
 }
 
+/// The physical representations of an IntegerAt leaf are the logical values
+/// that its selected encoding can store, mapped to that encoding's bit width.
+/// Comparing the unencoded carrier would confuse an i64 stored in one signed
+/// byte with an eight-byte referent. Declaration facts still restrict the set;
+/// concrete semantic writes keep their separate fitting obligation.
+pub(super) fn encode_stored_integer_facts(
+    facts: &mut MutableScalarRepresentationFacts,
+    primitive: PrimitiveType,
+    width: u16,
+    interpretation: layout_plans::IntegerInterpretation,
+) -> Option<()> {
+    let carrier_width = u16::try_from(primitive.scalar_byte_size()?.checked_mul(8)?).ok()?;
+    if !primitive.accepts_integer_literal() || width == 0 || width > carrier_width {
+        return None;
+    }
+    let ScalarRepresentationSet::ExactBitPatterns(values) = &mut facts.values else {
+        return None;
+    };
+    if width == 64 {
+        // Layout admission already requires total decoding into the logical
+        // carrier. At full width its bit coordinates are unchanged; a signed
+        // carrier with an unsigned 64-bit encoding was rejected at admission.
+        return Some(());
+    }
+    let mask = (1u64 << width) - 1;
+    let (minimum, maximum) = match interpretation {
+        layout_plans::IntegerInterpretation::Signed => {
+            let half = 1i64 << (width - 1);
+            (-half, half - 1)
+        }
+        layout_plans::IntegerInterpretation::Unsigned => (0, i64::try_from(mask).ok()?),
+    };
+    let admitted = integer_range_bit_patterns(primitive, (minimum, maximum))?;
+    let fitting = intersect_bit_pattern_intervals(std::mem::take(values), &admitted);
+    *values = normalize_bit_pattern_intervals(
+        fitting
+            .into_iter()
+            .map(|(lower, upper)| (lower & mask, upper & mask))
+            .collect(),
+    );
+    Some(())
+}
+
 pub(super) fn full_scalar_bit_patterns(primitive: PrimitiveType) -> Vec<(u64, u64)> {
     let bit_count = primitive
         .scalar_byte_size()

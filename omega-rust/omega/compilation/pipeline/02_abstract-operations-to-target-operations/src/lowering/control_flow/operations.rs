@@ -136,18 +136,18 @@ pub(super) fn lower_operation(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    // Call paths that do not lower reference-aware arguments reject any
-    // structural argument that touches live custody outright.
-    let blind_arguments: &[terminal_psi::StructuralArgument] = match operation {
+    // A foreign borrowed argument has the same live-loan contract as an
+    // ordinary call. Its evaluated ABI owns pointer compatibility; permission
+    // carriers themselves cannot be moved into an opaque foreign counterparty.
+    let boundary_arguments: &[terminal_psi::StructuralArgument] = match operation {
         AbstractOperation::BoundaryCall {
             structural_arguments,
             ..
         } => structural_arguments.as_slice(),
         _ => &[],
     };
-    if blind_arguments
-        .iter()
-        .any(|argument| super::references::touches(function, structural_types, live, argument))
+    if !super::references::call_arguments(function, structural_types, live, boundary_arguments)?
+        .is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

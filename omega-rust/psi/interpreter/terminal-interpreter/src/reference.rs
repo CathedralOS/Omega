@@ -37,7 +37,7 @@ pub(crate) struct ReferenceReferent {
 
 /// An aggregate view retains its captured byte endpoint and complete extent.
 /// Projecting a child applies catalog geometry, never the formation expression.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ReferenceByteRegion {
     pub(crate) endpoint: crate::primitive_storage::PrimitiveStorageEndpoint,
     pub(crate) byte_length: usize,
@@ -265,17 +265,6 @@ impl TerminalExecution {
                 {
                     return Err(malformed());
                 }
-                let parameter = StructuralParameterDeclaration {
-                    place: source.place,
-                    position: 0,
-                    structural_type: original_type,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access: source.access,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                };
-                let mut loan =
-                    self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
                 let byte_length = usize::try_from(
                     terminal_semantics::reference_storage_size(
                         self.program.structural_types.values(),
@@ -288,17 +277,45 @@ impl TerminalExecution {
                     )?,
                 )
                 .map_err(|_| malformed())?;
-                self.position_reference_storage(
-                    &mut loan,
-                    usize::try_from(byte_offset).map_err(|_| malformed())?,
-                    byte_length,
-                )?;
-                byte_region = Some(ReferenceByteRegion {
-                    endpoint: loan.storage.endpoint,
-                    byte_length,
-                });
-                loan.referent.structural_type = referent_type;
-                region_referent = Some(loan.referent);
+                let mut view =
+                    self.resolve_live_projection(source.place, &source.path, source.access)?;
+                let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
+                let region = if let Some(region) = self.reference_byte_region(&view)? {
+                    if byte_offset
+                        .checked_add(byte_length)
+                        .is_none_or(|end| end > region.byte_length)
+                    {
+                        return Err(malformed());
+                    }
+                    ReferenceByteRegion {
+                        endpoint: crate::primitive_storage::shifted_byte_endpoint(
+                            &region.endpoint,
+                            byte_offset,
+                        )?,
+                        byte_length,
+                    }
+                } else {
+                    let parameter = StructuralParameterDeclaration {
+                        place: source.place,
+                        position: 0,
+                        structural_type: original_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        access: source.access,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    };
+                    let mut loan =
+                        self.capture_primitive_loan(&parameter, source, &mut identity_cursor)?;
+                    self.position_reference_storage(&mut loan, byte_offset, byte_length)?;
+                    view = loan.referent;
+                    ReferenceByteRegion {
+                        endpoint: loan.storage.endpoint,
+                        byte_length,
+                    }
+                };
+                view.structural_type = referent_type;
+                byte_region = Some(region);
+                region_referent = Some(view);
             }
             None
         };

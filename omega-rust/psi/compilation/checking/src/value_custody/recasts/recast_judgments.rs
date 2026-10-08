@@ -6,9 +6,8 @@ use crate::value_custody::recasts::raw_byte_region::{
 };
 use crate::value_custody::recasts::record_eligibility::direct_record_view_type_is_fact_free;
 use crate::value_custody::recasts::record_representation::{
-    mutable_record_representations_equivalent, mutable_type_representation,
-    record_representation_implies, repeat_representation, representation_is_exactly_tiled,
-    shared_projection_type_representation,
+    mutable_record_representations_equivalent, record_representation_implies,
+    repeat_representation, representation_is_exactly_tiled, type_representation,
 };
 use crate::value_custody::recasts::representation_types::exact_scalar_representation_type;
 use crate::value_custody::recasts::scalar_representation::{
@@ -132,13 +131,10 @@ pub(crate) fn judge_scalar_recast(
         // target. The same normalized representation supplies size/alignment
         // and scalar-leaf facts; this is the top-level-array continuation of
         // the array fields records already admit.
-        // Stored-width integer leaves are admissible in a mutable BYTE-REGION
-        // view because every concrete assignment remains a proved-fit lowering
-        // obligation. Typed aggregate aliases still reject them below: those
-        // require one representation valid for arbitrary writes in both
-        // directions, not per-write encoding evidence.
-        let target_representation =
-            shared_projection_type_representation(program, cast.target_type);
+        // Compare encoded physical bit sets, not the wider logical carriers.
+        // Writes through a stored-width view still prove fit; a compatible
+        // canonical view writes those same bytes without a new encoding.
+        let target_representation = type_representation(program, cast.target_type);
         if let Some(target_representation) = target_representation {
             if program.normalized_type_identity(let_referee)
                 != program.normalized_type_identity(cast.target_type)
@@ -203,22 +199,8 @@ pub(crate) fn judge_scalar_recast(
                 source,
             );
             if let Some(source_type) = source_type
-                && let Some(source_representation) =
-                    mutable_type_representation(program, source_type)
+                && let Some(source_representation) = type_representation(program, source_type)
             {
-                if target_representation.has_stored_integer_projection
-                    || source_representation.has_stored_integer_projection
-                {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "{context}: stored-width integer decoding is admitted only for a shared \
-                             view over a proven byte region; typed aggregate aliases require identical \
-                             storage representations"
-                        ))
-                        .with_source_span(source_span),
-                    );
-                    return;
-                }
                 let compatible = if mutable_recast {
                     mutable_record_representations_equivalent(
                         program,
@@ -524,7 +506,7 @@ fn judge_slice_recast(
     }
 
     let source = strip_mutable(program, cast.value);
-    let Some(element_representation) = mutable_type_representation(program, element_type) else {
+    let Some(element_representation) = type_representation(program, element_type) else {
         diagnostics.push(
             Diagnostic::error(format!(
                 "{context}: slice target `{target_label}` needs a fixed-layout element type"
@@ -637,7 +619,7 @@ fn judge_slice_recast(
         );
         return;
     };
-    let Some(source_representation) = mutable_type_representation(program, source_type) else {
+    let Some(source_representation) = type_representation(program, source_type) else {
         diagnostics.push(
             Diagnostic::error(format!(
                 "{context}: slice recast source `{}` has no fixed representation",

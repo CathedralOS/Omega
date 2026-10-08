@@ -900,27 +900,11 @@ fn exclusive_place_loan_referent(
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<()> {
-    let (target, recast) = match program.expression_table.expression(local.initial_value) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Mutable =>
-        {
-            match program.expression_table.expression(borrow.target) {
-                // A §5b recast sits inside its borrow: `&mut p as &mut T`
-                // lowers to a mutable borrow of the cast that re-views p's
-                // bytes as T. The recast judgment already proved fact
-                // implication both ways, so the arm admits the operand
-                // place without demanding its element type equal the
-                // declared referent.
-                ExpressionNode::Cast(cast)
-                    if cast.form == language_core::cast_form::CastForm::RecastMutable =>
-                {
-                    (cast.value, true)
-                }
-                _ => (borrow.target, false),
-            }
-        }
-        _ => return None,
-    };
+    let formation = validation::reference_formation_source(program, local.initial_value)?;
+    if formation.access != language_core::ReferenceAccess::Mutable {
+        return None;
+    }
+    let (target, recast) = (formation.source, formation.view_type.is_valid());
     let referee = immutable_local_borrowed_referee(
         program,
         local,
@@ -985,24 +969,11 @@ fn shared_place_loan_referent(
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<()> {
-    let (target, recast) = match program.expression_table.expression(local.initial_value) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
-        {
-            match program.expression_table.expression(borrow.target) {
-                // The shared recast is the same nested shape as the
-                // exclusive one: `&p as &T` loans p's storage spelled as
-                // T under read-only custody.
-                ExpressionNode::Cast(cast)
-                    if cast.form == language_core::cast_form::CastForm::RecastShared =>
-                {
-                    (cast.value, true)
-                }
-                _ => (borrow.target, false),
-            }
-        }
-        _ => return None,
-    };
+    let formation = validation::reference_formation_source(program, local.initial_value)?;
+    if formation.access != language_core::ReferenceAccess::Shared {
+        return None;
+    }
+    let (target, recast) = (formation.source, formation.view_type.is_valid());
     let referee = immutable_local_borrowed_referee(
         program,
         local,

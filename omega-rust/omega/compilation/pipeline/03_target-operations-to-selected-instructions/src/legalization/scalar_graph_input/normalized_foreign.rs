@@ -413,6 +413,21 @@ pub(in crate::legalization) fn structural_argument_at(
             return Err(LegalizationError::custody());
         }
         (declaration_parameter.structural_type, offset, Vec::new())
+    } else if semantic.path.contains(&StructuralPathSegment::Referent) {
+        let projection =
+            crate::structural_inputs::structural_reference_input::reference_projection(
+                root_type,
+                &semantic.path,
+                semantic.access,
+                declarations,
+            )
+            .ok_or(LegalizationError::custody())?;
+        // A foreign pointer can expose checked canonical aggregate backing,
+        // not an internal scalar pointer-and-codec descriptor.
+        if projection.scalar_descriptor {
+            return Err(LegalizationError::custody());
+        }
+        (projection.selected, projection.referent_offset, Vec::new())
     } else {
         crate::structural_inputs::structural_reference_input::runtime_projection(
             root_type,
@@ -526,6 +541,7 @@ pub(in crate::legalization) fn structural_argument_at(
             StructuralPathSegment::RuntimeIndex { .. } => {
                 semantic.access == StructuralAccess::Owned
             }
+            StructuralPathSegment::Referent => semantic.access == StructuralAccess::Owned,
             _ => true,
         }))
         || usize::try_from(declaration_parameter.position).ok() != Some(position)
@@ -536,6 +552,7 @@ pub(in crate::legalization) fn structural_argument_at(
         || !declaration_parameter.projected_qualifications.is_empty()
         || (presentation.is_none()
             && !projects_view_backing
+            && !semantic.path.contains(&StructuralPathSegment::Referent)
             && projected_shape
                 .byte_size
                 .checked_add(source_byte_offset)

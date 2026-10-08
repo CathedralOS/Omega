@@ -38,7 +38,6 @@ pub(super) struct MutableRecordRepresentation {
     pub(super) size: usize,
     align: usize,
     leaves: Vec<MutableRecordLeaf>,
-    pub(super) has_stored_integer_projection: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -216,7 +215,7 @@ pub fn recast_scalar_layout(
     program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
 ) -> Option<RecastScalarLayout> {
-    let representation = shared_projection_type_representation(program, root)?;
+    let representation = type_representation(program, root)?;
     let mut leaves = Vec::new();
     leaves.try_reserve_exact(representation.leaves.len()).ok()?;
     for leaf in &representation.leaves {
@@ -391,7 +390,7 @@ fn normalized_scalar_projection(
     root: TypeReferenceHandle,
     path: &[RepresentationSegment],
 ) -> Option<RecastScalarProjection> {
-    let representation = shared_projection_type_representation(program, root)?;
+    let representation = type_representation(program, root)?;
     let leaf = representation
         .leaves
         .iter()
@@ -457,8 +456,8 @@ pub fn recast_record_source_leaf(
     target: TypeReferenceHandle,
     target_field: symbols::SymbolHandle,
 ) -> Option<RecastRecordSourceLeaf> {
-    let source_representation = shared_projection_type_representation(program, source)?;
-    let target_representation = shared_projection_type_representation(program, target)?;
+    let source_representation = type_representation(program, source)?;
+    let target_representation = type_representation(program, target)?;
     if source_representation.size != target_representation.size
         || source_representation.leaves.len() != target_representation.leaves.len()
     {
@@ -490,25 +489,15 @@ pub fn recast_record_source_leaf(
     })
 }
 
-pub(super) fn mutable_type_representation(
+/// Normalize physical representation sets, independent of logical carrier width.
+pub(super) fn type_representation(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<MutableRecordRepresentation> {
-    type_representation(program, type_reference, false)
-}
-
-pub(super) fn shared_projection_type_representation(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<MutableRecordRepresentation> {
-    type_representation(program, type_reference, true)
-}
-
-fn type_representation(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    allow_stored_integer_projection: bool,
-) -> Option<MutableRecordRepresentation> {
+    // A re-view of an incoming reference describes its referent. This root
+    // dereference does not expose permission carriers nested in record fields.
+    let type_reference =
+        crate::value_custody::places::assignment_value_type(program, type_reference);
     let mut visiting = HashSet::new();
     visiting.try_reserve(256).ok()?;
     let mut budget = RepresentationBudget {
@@ -523,21 +512,13 @@ fn type_representation(
         );
     let mut representation = if let Some(symbol) = phantom_lifetime_shell {
         budget.lifetime_shell_depth = 1;
-        mutable_record_representation_inner(
-            program,
-            symbol,
-            &mut visiting,
-            &mut budget,
-            allow_stored_integer_projection,
-            true,
-        )?
+        mutable_record_representation_inner(program, symbol, &mut visiting, &mut budget, true)?
     } else {
         mutable_record_type_representation(
             program,
             type_reference,
             &mut visiting,
             &mut budget,
-            allow_stored_integer_projection,
             false,
         )?
     };
@@ -547,6 +528,18 @@ fn type_representation(
     representation
         .leaves
         .sort_by_key(|leaf| (leaf.offset, leaf.size));
+    // Apply the final selected encoding after structural descent. An outer
+    // layout can replace an inner placement without changing its logical facts.
+    for leaf in &mut representation.leaves {
+        if let Some((width, interpretation)) = leaf.stored_integer {
+            super::scalar_representation::encode_stored_integer_facts(
+                &mut leaf.facts,
+                leaf.primitive,
+                width,
+                interpretation,
+            )?;
+        }
+    }
     Some(representation)
 }
 
@@ -568,7 +561,6 @@ fn mutable_record_representation_inner(
     symbol: symbols::SymbolHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
-    allow_stored_integer_projection: bool,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
@@ -577,7 +569,6 @@ fn mutable_record_representation_inner(
         symbol,
         visiting,
         budget,
-        allow_stored_integer_projection,
         allow_lifetime_shell,
     );
     budget.leave();
@@ -589,7 +580,6 @@ fn mutable_record_representation_inner_body(
     symbol: symbols::SymbolHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
-    allow_stored_integer_projection: bool,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     if !symbol.is_valid() {
@@ -600,8 +590,25 @@ fn mutable_record_representation_inner_body(
         return None;
     }
     let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    let layout = program
+        .plan_laid_layouts
+        .iter()
+        .find(|plan| plan.data_symbol == data.symbol);
+    // The synthesized layout owns geometry, while its retained schema owns
+    // authored validity. Copying fields into a physical declaration must not
+    // erase the schema's where facts at an alias or foreign-write boundary.
+    let semantic_data = match layout {
+        Some(plan) => crate::declarations::data_queries::data_definition_by_symbol(
+            program,
+            plan.schema_symbol,
+        )?,
+        None => data,
+    };
     let Some(where_bounds) =
-        crate::proof_contracts::default_domains::data_where_field_literal_bounds(program, data)
+        crate::proof_contracts::default_domains::data_where_field_literal_bounds(
+            program,
+            semantic_data,
+        )
     else {
         visiting.remove(&symbol_identity);
         return None;
@@ -610,7 +617,7 @@ fn mutable_record_representation_inner_body(
     // view of already established storage needs once interval-only bounds
     // narrow every leaf they mention. Without such bounds the gate's source is
     // not represented here, so it stays fenced.
-    if data.zero_gated && where_bounds.is_empty() {
+    if semantic_data.zero_gated && where_bounds.is_empty() {
         visiting.remove(&symbol_identity);
         return None;
     }
@@ -635,22 +642,31 @@ fn mutable_record_representation_inner_body(
             field.type_reference,
             visiting,
             budget,
-            allow_stored_integer_projection,
             allow_lifetime_shell,
         ) else {
             visiting.remove(&symbol_identity);
             return None;
         };
+        let semantic_field = match layout {
+            Some(plan) => {
+                let position = plan
+                    .field_symbols
+                    .iter()
+                    .position(|symbol| *symbol == field.symbol)?;
+                *plan.schema_field_symbols.get(position)?
+            }
+            None => field.symbol,
+        };
         let field_bounds = where_bounds
             .iter()
-            .filter(|bound| bound.field == field.symbol)
+            .filter(|bound| bound.field == semantic_field)
             .copied()
             .collect::<Vec<_>>();
         if !field_bounds.is_empty() {
             let narrowed = match representation.leaves.as_mut_slice() {
                 [leaf] if leaf.path.is_empty() => narrow_by_field_literal_bounds(
                     program,
-                    data,
+                    semantic_data,
                     &mut leaf.facts,
                     leaf.primitive,
                     &field_bounds,
@@ -667,18 +683,12 @@ fn mutable_record_representation_inner_body(
         field_symbols.push(field.symbol);
     }
 
-    let mut has_stored_integer_projection = fields
-        .iter()
-        .any(|field| field.has_stored_integer_projection);
     let (size, align, offsets) = if let Some(plan) = program
         .plan_laid_layouts
         .iter()
         .find(|plan| plan.data_symbol == data.symbol)
     {
-        if plan.field_symbols != field_symbols
-            || (!allow_stored_integer_projection && !plan.integer_fields.is_empty())
-            || plan.offsets.len() != fields.len()
-        {
+        if plan.field_symbols != field_symbols || plan.offsets.len() != fields.len() {
             visiting.remove(&symbol_identity);
             return None;
         }
@@ -699,7 +709,6 @@ fn mutable_record_representation_inner_body(
                 integer_field.stored_width_bits,
                 integer_field.interpretation,
             ));
-            has_stored_integer_projection = true;
         }
         // An offset and width cannot replace a fragmented bit recipe.
         for bit_field in &plan.bit_fields {
@@ -722,7 +731,6 @@ fn mutable_record_representation_inner_body(
                 *element_type,
                 visiting,
                 budget,
-                allow_stored_integer_projection,
                 false,
             )?;
             let repeated = repeat_representation_with_stride(
@@ -776,7 +784,6 @@ fn mutable_record_representation_inner_body(
         size,
         align,
         leaves,
-        has_stored_integer_projection,
     })
 }
 
@@ -785,7 +792,6 @@ fn mutable_record_type_representation(
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
-    allow_stored_integer_projection: bool,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     budget.enter()?;
@@ -794,7 +800,6 @@ fn mutable_record_type_representation(
         type_reference,
         visiting,
         budget,
-        allow_stored_integer_projection,
         allow_lifetime_shell,
     );
     budget.leave();
@@ -806,7 +811,6 @@ fn mutable_record_type_representation_body(
     type_reference: TypeReferenceHandle,
     visiting: &mut HashSet<SymbolIdentity>,
     budget: &mut RepresentationBudget,
-    allow_stored_integer_projection: bool,
     allow_lifetime_shell: bool,
 ) -> Option<MutableRecordRepresentation> {
     if let Some(primitive) = super::exact_scalar_representation_type(program, type_reference) {
@@ -828,7 +832,6 @@ fn mutable_record_type_representation_body(
             size,
             align: size,
             leaves,
-            has_stored_integer_projection: false,
         });
     }
     match program.type_reference_table.type_reference(type_reference) {
@@ -841,7 +844,6 @@ fn mutable_record_type_representation_body(
                 *element_type,
                 visiting,
                 budget,
-                allow_stored_integer_projection,
                 false,
             )?;
             let size = element.size.checked_mul(*length)?;
@@ -852,7 +854,6 @@ fn mutable_record_type_representation_body(
                 size,
                 align: element.align,
                 leaves,
-                has_stored_integer_projection: element.has_stored_integer_projection,
             })
         }
         TypeReferenceNode::Named { symbol, .. } => mutable_record_representation_inner(
@@ -860,7 +861,6 @@ fn mutable_record_type_representation_body(
             *symbol,
             visiting,
             budget,
-            allow_stored_integer_projection,
             allow_lifetime_shell,
         ),
         TypeReferenceNode::Generic { .. }
@@ -875,7 +875,6 @@ fn mutable_record_type_representation_body(
                 symbol,
                 visiting,
                 budget,
-                allow_stored_integer_projection,
                 allow_lifetime_shell,
             );
             budget.lifetime_shell_depth -= 1;
@@ -940,6 +939,53 @@ pub(super) fn mutable_record_representations_equivalent(
     )
 }
 
+/// Whether an admitted re-view writes exactly the source's valid encoded bytes.
+/// This establishes representation compatibility, never access permission. A
+/// scalar field's selected storage overrides its logical carrier geometry;
+/// record encodings already belong to their normalized declaration.
+pub(crate) fn recast_representations_equivalent(
+    program: &dyn crate::CheckingInput,
+    source: TypeReferenceHandle,
+    target: TypeReferenceHandle,
+    stored_scalar: Option<semantic_vocabulary::IntegerType>,
+) -> bool {
+    let Some(mut source) = type_representation(program, source) else {
+        return false;
+    };
+    let Some(target) = type_representation(program, target) else {
+        return false;
+    };
+    if let Some(stored) = stored_scalar {
+        let [leaf] = source.leaves.as_mut_slice() else {
+            return false;
+        };
+        if !leaf.path.is_empty() || stored.bits() == 0 || stored.bits() % 8 != 0 {
+            return false;
+        }
+        let interpretation = match stored.sign() {
+            semantic_vocabulary::IntegerSign::Signed => layout_plans::IntegerInterpretation::Signed,
+            semantic_vocabulary::IntegerSign::Unsigned => {
+                layout_plans::IntegerInterpretation::Unsigned
+            }
+        };
+        if super::scalar_representation::encode_stored_integer_facts(
+            &mut leaf.facts,
+            leaf.primitive,
+            stored.bits(),
+            interpretation,
+        )
+        .is_none()
+        {
+            return false;
+        }
+        let size = usize::from(stored.bits() / 8);
+        source.size = size;
+        source.align = source.align.min(size);
+        leaf.size = size;
+    }
+    mutable_record_representations_equivalent(program, &source, &target)
+}
+
 pub(super) fn repeat_representation(
     element: &MutableRecordRepresentation,
     count: usize,
@@ -967,7 +1013,6 @@ fn repeat_representation_with_stride(
         size,
         align: element.align,
         leaves,
-        has_stored_integer_projection: element.has_stored_integer_projection,
     })
 }
 

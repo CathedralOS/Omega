@@ -8,7 +8,7 @@ use crate::value_custody::recasts::record_eligibility::{
     closed_fact_free_record_symbol_is_eligible, direct_phantom_lifetime_record_symbol,
 };
 use crate::value_custody::recasts::record_representation::{
-    representation_is_exactly_tiled, shared_projection_type_representation,
+    representation_is_exactly_tiled, type_representation,
 };
 use crate::value_custody::recasts::representation_types::exact_primitive_type;
 use typed_trees::expression::{
@@ -274,22 +274,20 @@ pub(crate) fn literal_indexed_recast_target_size(
     }
 
     if let Some(terminal) = literal_fixed_array_target_terminal(program, target_type) {
-        return shared_projection_type_representation(program, target_type).and_then(
-            |representation| {
-                let eligible = representation.size > 0
-                    && match terminal {
-                        LiteralFixedArrayTerminal::ExactPrimitive => {
-                            representation_is_exactly_tiled(&representation)
-                        }
-                        LiteralFixedArrayTerminal::ClosedRecord => true,
-                    };
-                eligible.then_some(representation.size)
-            },
-        );
+        return type_representation(program, target_type).and_then(|representation| {
+            let eligible = representation.size > 0
+                && match terminal {
+                    LiteralFixedArrayTerminal::ExactPrimitive => {
+                        representation_is_exactly_tiled(&representation)
+                    }
+                    LiteralFixedArrayTerminal::ClosedRecord => true,
+                };
+            eligible.then_some(representation.size)
+        });
     }
 
     if direct_phantom_lifetime_record_symbol(program, target_type).is_some() {
-        return shared_projection_type_representation(program, target_type)
+        return type_representation(program, target_type)
             .map(|representation| representation.size)
             .filter(|size| *size > 0);
     }
@@ -303,7 +301,7 @@ pub(crate) fn literal_indexed_recast_target_size(
         return None;
     }
 
-    shared_projection_type_representation(program, target_type)
+    type_representation(program, target_type)
         .map(|representation| representation.size)
         .filter(|size| *size > 0)
 }

@@ -5,8 +5,9 @@ use super::super::super::control_flow::scalar_sources::{
 };
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
-    borrowed_view_field_offset, byte_sequence_shape, resolve_structural_projection_path,
-    runtime_projection, structural_parameter_shape, structural_shape,
+    borrowed_view_field_offset, byte_sequence_shape, reference_referent_projection,
+    resolve_structural_projection_path, runtime_projection, structural_parameter_shape,
+    structural_shape,
 };
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
@@ -338,7 +339,15 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         ))
                     )
                 };
-                if argument.path.is_empty() {
+                if argument.path.contains(&StructuralPathSegment::Referent) {
+                    reference_referent_projection(
+                        source_structural_type,
+                        &argument.path,
+                        argument.access,
+                        structural_types,
+                    )
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                } else if argument.path.is_empty() {
                     if descriptor_root(source_structural_type) {
                         (
                             source_structural_type,
@@ -459,6 +468,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || (!projects_view_backing
+                    && !argument.path.contains(&StructuralPathSegment::Referent)
                     && projected_shape
                         .byte_size
                         .checked_add(source_byte_offset)

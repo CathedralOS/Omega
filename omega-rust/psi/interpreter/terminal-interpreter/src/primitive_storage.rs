@@ -28,7 +28,7 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
 mod encoding;
 
-pub(crate) use encoding::scalar_fits_storage;
+pub(crate) use encoding::{scalar_fits_storage, shifted_byte_endpoint};
 
 /// A loan pins its owner's exact activation until it returns. Stack depth is
 /// stable across nested calls; the machine and type prevent namespace rebinding.

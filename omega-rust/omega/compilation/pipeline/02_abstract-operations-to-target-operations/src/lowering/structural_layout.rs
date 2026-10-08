@@ -30,6 +30,55 @@ pub(super) struct PrimitiveProjection {
     pub(super) leaf: StorageProjection,
 }
 
+/// Select borrowed backing after each stored reference crossing. Offsets are
+/// relative to the last referent, never to a descriptor containing its pointer.
+/// Ordinary and foreign calls use the same geometry; call custody establishes
+/// liveness independently and the selected ABI determines pointer transport.
+pub(super) fn reference_referent_projection(
+    mut root: StructuralTypeId,
+    mut path: &[StructuralPathSegment],
+    requested: StructuralAccess,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
+    let mut shapes = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    while let Some(crossing) = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)
+    {
+        let (carrier, _, _) = resolve_structural_projection_path(
+            root,
+            &path[..crossing],
+            declarations,
+            &mut shapes,
+            &mut active,
+        )?;
+        let Some(StructuralTypeShape::Reference { referent, access }) = declarations
+            .get(&carrier)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(LoweringError::UnsupportedStructuralReference(root));
+        };
+        if !(*access == requested
+            || *access == StructuralAccess::MutableBorrow
+                && matches!(
+                    requested,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                ))
+        {
+            return Err(LoweringError::UnsupportedStructuralReference(root));
+        }
+        root = *referent;
+        path = &path[crossing + 1..];
+        if *access == StructuralAccess::WriteOnlyBorrow
+            && path.contains(&StructuralPathSegment::Referent)
+        {
+            return Err(LoweringError::UnsupportedStructuralReference(root));
+        }
+    }
+    resolve_structural_projection_path(root, path, declarations, &mut shapes, &mut active)
+}
+
 /// Resolve a primitive address in path order. A reference declaration supplies
 /// pointer geometry, not permission: the admitted operation must independently
 /// establish live authority for every crossing. Origins never choose an address.

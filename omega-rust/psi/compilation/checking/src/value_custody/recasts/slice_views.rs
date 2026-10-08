@@ -4,7 +4,7 @@
 //! confer no layout, validity or loan authority. The recast judgment owns
 //! source admission, and Terminal reconstructs the representation relation.
 use typed_trees::{
-    expression::{ExpressionHandle, ExpressionNode},
+    expression::ExpressionHandle,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
@@ -19,32 +19,19 @@ pub fn slice_recast_source(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SliceRecastSource> {
-    let initializer = super::strip_mutable(program, expression);
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
-        return None;
-    };
-    if !cast.form.is_recast() {
+    let formation = super::reference_formation_source(program, expression)?;
+    if !formation.view_type.is_valid() {
         return None;
     }
     let TypeReferenceNode::Slice { element_type } = program
         .type_reference_table
-        .type_reference(cast.target_type)
+        .type_reference(formation.view_type)
     else {
         return None;
     };
-    let access = if cast.form == language_core::cast_form::CastForm::RecastMutable {
-        language_core::ReferenceAccess::Mutable
-    } else {
-        language_core::ReferenceAccess::Shared
-    };
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
-        && borrow.access != access
-    {
-        return None;
-    }
     Some(SliceRecastSource {
-        source: super::strip_mutable(program, cast.value),
+        source: formation.source,
         element: *element_type,
-        access,
+        access: formation.access,
     })
 }

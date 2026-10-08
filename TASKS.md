@@ -3239,36 +3239,42 @@ deletions, which the commit lists.
   rejected for a missing source decision reject from `omega --check` with
   checking diagnostics instead, without weakening other check outcomes.
 
-- **ENCODED-STORAGE-REFERENCE-TRANSPORT.**
-  (new-scope) Preserve the actual backing
-  and canonical encoding of references to values whose selected storage is
-  narrower than their semantic carrier. This is an independent representation
-  and ABI outcome, not a prerequisite for deleting PCC certificates.
+- **ENCODED-STORAGE-REFERENCE-TRANSPORT.** (new-scope) Restore exact source-fit
+  geometry and Terminal scalar endpoint execution for encoded references.
+  This is representation and ABI work, independent of PCC retirement.
 
-  Carry backing and encoding through joins, returns, recursion and stored
-  references in native and both interpreters without losing the original
-  endpoint or authored storage codec. Runtime encoding choices cannot be solved by
-  specialization; raw carrier-width pointers and delayed copy-out are not
-  substitutes. Foreign pointer boundaries still need compatible checked adapters.
+  On macOS AArch64 at `0919e048c9f`,
+  `layouts/runtime_multi_origin_encoded_reference_exit` rejects in
+  `write_selected`: "IntegerAt store ... has no exact stored field geometry or
+  reference origin". The overflow control
+  `layouts/callee_integer_at_multi_origin_reference_requires_fit` rejects for
+  that same missing geometry instead of its authored fit obligation. Repair
+  the retained origin/substitution query in
+  `checking/.../stored_integer_writes.rs`; do not pick one possible backing
+  or infer an encoding from the formal's logical carrier.
 
-  Acceptance: `python tools/corpus_gate.py --both --filter
-  layouts/runtime_callee_integer_at_fitting_write_exit` runs with exit 0 and
-  preserves neighboring byte 85. Preserve the returned/reborrowed endpoint in
-  `layouts/runtime_returned_encoded_reference_exit` and
-  `layouts/runtime_stored_returned_encoded_reference_exit` with the checked-tree
-  oracle selected by `--checked-interpreter` as well as Native and Terminal.
-  `layouts/runtime_multi_origin_encoded_reference_exit` constrains selection
-  across encoded-byte and ordinary-integer backing. Its overflow control
-  `layouts/callee_integer_at_multi_origin_reference_requires_fit` and
-  `borrows/multi_origin_returned_reference_live_source_write` must reject.
-  Preserve every immediate parent through selection and nested reborrow in
-  `layouts/runtime_selected_reference_parent_restoration_exit` and
-  `borrows/runtime_selected_reference_nested_restoration_exit`; both live-parent
-  write controls under `borrows/selected_reference_live_*_parent_write` reject.
-  `layouts/runtime_recursive_encoded_reference_exit` retains selected backing
-  and codecs through ranked recursion. Its
-  `layouts/recursive_integer_at_requires_all_arrivals_fit` control rejects a later
-  non-fitting arrival despite a fitting first caller value.
+  The Native leg runs the callee, returned, stored-returned, parent-restoration
+  and recursive encoded-reference fixtures below, but Terminal declines them
+  with `VerifiedOperationMalformed` on the same base. Trace captured scalar
+  endpoints through `terminal-interpreter/src/{reference,primitive_storage}.rs`.
+  Native execution or the checked-tree oracle cannot stand in for Terminal.
+
+  Reproduce the source frontier with `python tools/corpus_gate.py --filter
+  layouts/runtime_multi_origin_encoded_reference_exit,layouts/callee_integer_at_multi_origin_reference_requires_fit`.
+  Acceptance: these two fixtures reach their authored success/fit rejection.
+  Run `--both` and `--both --checked-interpreter` for
+  `layouts/runtime_callee_integer_at_fitting_write_exit`,
+  `layouts/runtime_returned_encoded_reference_exit`,
+  `layouts/runtime_stored_returned_encoded_reference_exit`,
+  `layouts/runtime_multi_origin_encoded_reference_exit`,
+  `layouts/runtime_selected_reference_parent_restoration_exit`,
+  `borrows/runtime_selected_reference_nested_restoration_exit` and
+  `layouts/runtime_recursive_encoded_reference_exit`; every execution exits 0
+  and preserves the authored original backing and neighboring byte 85.
+  Live-parent writes under `borrows/selected_reference_live_*_parent_write`,
+  `borrows/multi_origin_returned_reference_live_source_write` and the later
+  non-fitting recursive arrival under
+  `layouts/recursive_integer_at_requires_all_arrivals_fit` still reject.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:

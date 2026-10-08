@@ -109,8 +109,8 @@ pub struct CallWriteOrigins {
     pub arguments: Vec<Option<Vec<LocalWriteSource>>>,
 }
 
-/// Proven referent of a local reference leaf. Coarse storage paths cannot
-/// acquire a field or index suffix when a consumer transports a write.
+/// Proven referent of a local reference leaf. Coarse observer paths stay
+/// coarse; exact structured coordinates are composed and checked independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
     pub recasts: Vec<RecastSource>,
@@ -130,10 +130,7 @@ impl LocalWriteSource {
     /// Substitute relative storage using the frame owner's coordinate algebra.
     /// Text paths are only display/footprint payload; they never select fields.
     pub fn substitute_storage(&self, relative: &Self) -> Option<Self> {
-        if !self.root.is_valid()
-            || !relative.root.is_valid()
-            || (self.collection_coarse && !relative.segments.is_empty())
-        {
+        if !self.root.is_valid() || !relative.root.is_valid() {
             return None;
         }
         let coordinate = |source: &Self| super::place_paths::FrameSourcePlace {

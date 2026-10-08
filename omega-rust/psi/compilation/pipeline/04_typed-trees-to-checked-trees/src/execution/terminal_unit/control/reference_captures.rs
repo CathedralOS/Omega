@@ -11,7 +11,6 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
-use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 use crate::execution::terminal_unit::calls;
@@ -35,34 +34,18 @@ pub(in crate::execution::terminal_unit) fn plan(
     }
     let (referent, access) =
         validation::reference_result_custody::stored_loan_parts(program, local.type_reference)?;
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
-    else {
-        return None;
-    };
-    if CheckedStructuralAccess::from(borrow.access) != access {
+    let formation = validation::reference_formation_source(program, local.initial_value)?;
+    if CheckedStructuralAccess::from(formation.access) != access {
         return None;
     }
-    let (target, is_view) = match program.expression_table.expression(borrow.target) {
-        ExpressionNode::Cast(cast) => {
-            let recast = match borrow.access {
-                language_core::ReferenceAccess::Shared => {
-                    language_core::cast_form::CastForm::RecastShared
-                }
-                language_core::ReferenceAccess::Mutable => {
-                    language_core::cast_form::CastForm::RecastMutable
-                }
-                language_core::ReferenceAccess::WriteOnly => return None,
-            };
-            if cast.form != recast
-                || program.normalized_type_identity(cast.target_type)
-                    != program.normalized_type_identity(referent)
-            {
-                return None;
-            }
-            (cast.value, true)
-        }
-        _ => (borrow.target, false),
-    };
+    let is_view = formation.view_type.is_valid();
+    if is_view
+        && program.normalized_type_identity(formation.view_type)
+            != program.normalized_type_identity(referent)
+    {
+        return None;
+    }
+    let target = formation.source;
     let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,

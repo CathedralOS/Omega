@@ -148,29 +148,7 @@ impl<'program> Evaluator<'program> {
             return Ok(None);
         };
         if let Some(projection) = self.project_record_reference(&recast, &path, frame)? {
-            let source = match &mut recast {
-                ReferenceStorage::AggregateByteRegion {
-                    cells,
-                    projection: retained,
-                } => {
-                    *retained = projection;
-                    cells.get(projection.offset).cloned().ok_or_else(|| {
-                        Halt::Trap(
-                            "reference projection starts outside its original byte region"
-                                .to_owned(),
-                        )
-                    })?
-                }
-                ReferenceStorage::AggregateTyped {
-                    source,
-                    projection: retained,
-                    ..
-                } => {
-                    *retained = projection;
-                    source.clone()
-                }
-                _ => return trap("record projection lost its original backing"),
-            };
+            let source = Self::retain_record_reference_projection(&mut recast, projection)?;
             return Ok(Some((source, recast)));
         }
         if !path.is_empty() {
@@ -255,6 +233,18 @@ impl<'program> Evaluator<'program> {
             }
         }
         if target.is_none() {
+            if let Some((mut storage, path)) = self.reference_storage_path(source_handle, frame)?
+                && let Some(mut projection) =
+                    self.project_record_reference(&storage, &path, frame)?
+            {
+                // A re-view changes observation geometry, not backing kind.
+                // Keep the captured cells or typed owner rather than treating
+                // the byte cell of an existing view as a new record value.
+                projection.type_reference = cast.target_type;
+                projection.stored_integer = None;
+                let source = Self::retain_record_reference_projection(&mut storage, projection)?;
+                return Ok(Some((source, storage)));
+            }
             let source = self.resolve_place(source_handle, frame)?;
             let source = self.deref_cell(source);
             let source_type = self.expression_type_reference(source_handle, frame);
@@ -454,6 +444,34 @@ impl<'program> Evaluator<'program> {
             return trap("reference projection exceeds its original backing region");
         }
         Ok(Some(projection))
+    }
+
+    fn retain_record_reference_projection(
+        storage: &mut ReferenceStorage,
+        projection: ReferenceProjection,
+    ) -> EvalResult<Cell> {
+        match storage {
+            ReferenceStorage::AggregateByteRegion {
+                cells,
+                projection: retained,
+            } => {
+                *retained = projection;
+                cells.get(projection.offset).cloned().ok_or_else(|| {
+                    Halt::Trap(
+                        "reference projection starts outside its original byte region".to_owned(),
+                    )
+                })
+            }
+            ReferenceStorage::AggregateTyped {
+                source,
+                projection: retained,
+                ..
+            } => {
+                *retained = projection;
+                Ok(source.clone())
+            }
+            _ => trap("record projection lost its original backing"),
+        }
     }
 
     fn record_reference_geometry(

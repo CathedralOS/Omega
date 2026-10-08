@@ -10,12 +10,28 @@ pub fn stored_integer_source_may_require_fit(
     source: &crate::LocalWriteSource,
 ) -> Result<bool, ()> {
     let (carrier, path) = source_coordinates(program, state, source)?;
-    let mut needs_fit = coordinate_requires_fit(program, carrier, &path)?;
+    if coordinate_requires_fit(program, carrier, &path)? {
+        return Ok(true);
+    }
     for recast in &source.recasts {
         let (carrier, path) = recast_history::predecessor_coordinates(program, state, recast)?;
-        needs_fit |= coordinate_requires_fit(program, carrier, &path)?;
+        if coordinate_requires_fit(program, carrier, &path)? {
+            let previous = typed_storage_projection(program, carrier, &path)?;
+            // A canonical physical view writes the same valid bytes, not a
+            // value in its predecessor's wider logical carrier. Keep historical
+            // fitting requirements unless the exact representation relation
+            // establishes that distinction; merely having a recast is not proof.
+            if !crate::value_custody::recasts::recast_representations_equivalent(
+                program,
+                previous.reference,
+                recast.target_type,
+                previous.stored.map(|(_, storage)| storage),
+            ) {
+                return Ok(true);
+            }
+        }
     }
-    Ok(needs_fit)
+    Ok(false)
 }
 
 pub(super) fn coordinate_requires_fit(

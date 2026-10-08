@@ -12,6 +12,11 @@ pub(super) fn projection(
     let (mut carrier, mut path) = source_coordinates(program, state, source)?;
     path.extend_from_slice(suffix);
     let current = typed_storage_projection(program, carrier, &path)?;
+    if !source_geometry::stored_integer_source_may_require_fit(program, state, source)? {
+        // A canonical physical alias preserves the encoded predecessor's valid
+        // bytes directly. Its store is not a value in that wider logical carrier.
+        return Ok(current.stored);
+    }
     let logical_primitive = program.primitive_type_reference(
         places::unwrapped_type_reference(program, current.reference).ok_or(())?,
     );

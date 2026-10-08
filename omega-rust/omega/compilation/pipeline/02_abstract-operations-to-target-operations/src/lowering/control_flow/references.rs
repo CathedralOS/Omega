@@ -340,73 +340,22 @@ pub(super) fn reference_call_argument(
     };
     let reference_type = leaf_type(types, root_type, prefix)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let StructuralTypeShape::Reference { referent, access } = types
+    let StructuralTypeShape::Reference { referent, .. } = types
         .get(&reference_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    if referent != leaf.referent
-        || !(access == argument.access
-            || access == StructuralAccess::MutableBorrow
-                && matches!(
-                    argument.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                ))
-    {
+    if referent != leaf.referent {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let mut shapes = BTreeMap::new();
-    let mut active = BTreeSet::new();
-    let mut referent = referent;
-    let mut granted_access = access;
-    let mut suffix = suffix;
-    while let Some(crossing) = suffix
-        .iter()
-        .position(|segment| *segment == StructuralPathSegment::Referent)
-    {
-        if granted_access == StructuralAccess::WriteOnlyBorrow {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        let (carrier, _, _) =
-            crate::lowering::structural_layout::resolve_structural_projection_path(
-                referent,
-                &suffix[..crossing],
-                types,
-                &mut shapes,
-                &mut active,
-            )?;
-        let StructuralTypeShape::Reference {
-            referent: next,
-            access,
-        } = types
-            .get(&carrier)
-            .ok_or(LoweringError::unsupported_control_flow(function.machine))?
-            .shape
-        else {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        };
-        if !(access == argument.access
-            || access == StructuralAccess::MutableBorrow
-                && matches!(
-                    argument.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                ))
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        referent = next;
-        granted_access = access;
-        suffix = &suffix[crossing + 1..];
-    }
     let (selected, shape, offset) =
-        crate::lowering::structural_layout::resolve_structural_projection_path(
-            referent,
-            suffix,
+        crate::lowering::structural_layout::reference_referent_projection(
+            root_type,
+            &argument.path,
+            argument.access,
             types,
-            &mut shapes,
-            &mut active,
         )?;
     if selected != declaration.structural_type
         || crate::lowering::structural_layout::internal_parameter_shape(
@@ -1098,19 +1047,6 @@ fn formal_origin(
     }
 }
 
-/// An owned argument that carries at least one reference leaf moves the loans
-/// with it; the callee's ingress replay tracks each leaf exactly.
-fn argument_owns_references(
-    function: &AbstractFunction,
-    live: &LiveDefinitions,
-    types: &StructuralTypeLookup<'_>,
-    argument: &StructuralArgument,
-) -> bool {
-    argument.access == StructuralAccess::Owned
-        && source_contract(function, live, argument.place)
-            .is_some_and(|(contract, _)| contains_reference(types, contract))
-}
-
 fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
     authority == requested
         || authority == StructuralAccess::Owned
@@ -1513,30 +1449,6 @@ pub(super) fn commit_argument_moves(
     for key in moved.keys() {
         live.references.remove(key);
     }
-}
-
-/// Whether this argument's place touches reference custody: an owned carrier,
-/// a `.., Referent` projection, or a suspended primitive root. Call lowering
-/// must route such rows through the custody-aware argument path.
-pub(super) fn touches(
-    function: &AbstractFunction,
-    types: &StructuralTypeLookup<'_>,
-    live: &LiveDefinitions,
-    argument: &StructuralArgument,
-) -> bool {
-    argument_owns_references(function, live, types, argument)
-        || matches!(
-            argument.path.split_last(),
-            Some((StructuralPathSegment::Referent, _))
-        )
-        || live
-            .references
-            .values()
-            .any(|reference| reference.root.contains_place(argument.place))
-        || live
-            .references
-            .keys()
-            .any(|(carrier, _)| *carrier == argument.place)
 }
 
 /// Establish one verified reference carrier: the result place receives the

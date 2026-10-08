@@ -273,6 +273,9 @@ pub(super) fn store_destination<'path>(
 
 /// An outgoing borrow transports the pointer word, not the carrier home's
 /// address. Exact target metadata must retain the authored carrier and path.
+/// Reconstruct the address independently of the destination ABI. Internal
+/// calls validate their descriptor placement; normalized foreign calls validate
+/// their evaluated pointer placement and reject scalar codec descriptors.
 pub(super) fn borrowed_argument(
     function: &LegalizedScalarFunction,
     argument: &terminal_psi::StructuralArgument,
@@ -336,7 +339,6 @@ pub(super) fn borrowed_argument(
             } else {
                 ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
             }
-        && target.destination.shape == target.shape
         && target.indices.is_empty()
         && target.fixed_array_length.is_none()
         && target.element_stride.is_none())

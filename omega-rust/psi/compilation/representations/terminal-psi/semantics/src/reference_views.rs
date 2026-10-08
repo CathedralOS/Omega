@@ -1,9 +1,9 @@
 //! Reference formation keeps its original storage and states its observation type.
 //!
-//! Exact referent identity remains the aggregate contract. A shared primitive
-//! reference may instead expose a total representation view: every source bit
-//! pattern must be valid at the target. This is not source authority, lifetime,
-//! qualification evidence or permission to write through the viewed carrier.
+//! Psi establishes representation validity and access before publication. Fixed
+//! aggregate storage views retain their byte region across subsequent views;
+//! primitive views additionally require a total storage interpretation here.
+//! Geometry is not source authority, lifetime or qualification evidence.
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
@@ -54,7 +54,7 @@ pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarT
 /// encoded scalar keeps its original cell. The operation's checked geometry,
 /// source access, bounds and loan lineage remain separate obligations.
 pub fn reference_storage_source_compatible<'types>(
-    mut types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     source: StructuralTypeId,
     reference: StructuralTypeId,
     stored: Option<ScalarType>,
@@ -66,17 +66,18 @@ pub fn reference_storage_source_compatible<'types>(
     else {
         return false;
     };
-    let Some(StructuralTypeShape::PrimitiveScalar(source)) = types
+    let Some(source_shape) = types
         .clone()
         .find(|declaration| declaration.id == source)
         .map(|declaration| &declaration.shape)
     else {
         return false;
     };
-    let byte_endpoint = matches!(source, ScalarType::Integer(integer)
+    let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
         if !integer.is_address() && integer.bits() == 8
             && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
     let Some(target) = types
+        .clone()
         .find(|declaration| declaration.id == *referent)
         .map(|declaration| &declaration.shape)
     else {
@@ -84,6 +85,9 @@ pub fn reference_storage_source_compatible<'types>(
     };
     match (stored, target) {
         (Some(stored), StructuralTypeShape::PrimitiveScalar(logical)) => {
+            let StructuralTypeShape::PrimitiveScalar(source) = source_shape else {
+                return false;
+            };
             (byte_endpoint
                 || source == logical
                 || scalar_reference_view_is_total(*source, *logical))
@@ -91,9 +95,62 @@ pub fn reference_storage_source_compatible<'types>(
         }
         (None, StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
             byte_endpoint
+                || plain_storage(types.clone(), source, &mut Vec::new())
+                    && plain_storage(types.clone(), *referent, &mut Vec::new())
+                    && crate::reference_storage_layout(types.clone(), source).is_some_and(
+                        |layout| {
+                            Some(layout)
+                                == crate::reference_storage_layout(types.clone(), *referent)
+                        },
+                    )
         }
         _ => false,
     }
+}
+
+/// A checked aggregate re-view retains geometry, not another permission
+/// representation. Psi owns its validity-set judgment; Terminal keeps nested
+/// references, atomics and dynamic descriptors out of the plain byte route.
+fn plain_storage<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    active: &mut Vec<StructuralTypeId>,
+) -> bool {
+    if active.len() >= 128 || active.contains(&root) {
+        return false;
+    }
+    let Some(shape) = types
+        .clone()
+        .find(|row| row.id == root)
+        .map(|row| &row.shape)
+    else {
+        return false;
+    };
+    active.push(root);
+    let valid = match shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => {
+            reference_storage_byte_width(*scalar).is_some()
+        }
+        StructuralTypeShape::FixedArray { element, .. } => {
+            plain_storage(types.clone(), *element, active)
+        }
+        StructuralTypeShape::Record { fields, .. } => fields
+            .iter()
+            .filter(|field| !field.relevance.is_erased())
+            .all(|field| match field.field_type {
+                terminal_psi::StructuralFieldType::Structural(child) => {
+                    plain_storage(types.clone(), child, active)
+                }
+                terminal_psi::StructuralFieldType::Atomic(_) => false,
+                _ => field
+                    .field_type
+                    .scalar_type()
+                    .is_some_and(|scalar| reference_storage_byte_width(scalar).is_some()),
+            }),
+        _ => false,
+    };
+    active.pop();
+    valid
 }
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, StructuralTypeShape};
 

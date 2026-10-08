@@ -12,6 +12,14 @@ for shared views and equality for mutable views. Float interval endpoints are
 exact IEEE values at the leaf's carrier, never a rounded integer. Equal-looking
 cross-carrier predicates do not establish equivalence.
 
+An `IntegerAt` leaf compares its valid encoded bit patterns, not the width of
+its semantic integer. Geometry comes from the selected layout; authored field
+facts come from the retained schema even when that layout synthesized a new
+record. A mutable canonical physical view must preserve the source's validity
+in both directions. Semantic writes through the wider encoded view still prove
+fit. Foreign thin pointers may carry this explicitly checked physical aggregate
+backing, never an internal scalar pointer-and-codec descriptor.
+
 A record's data `where` facts take part when every conjunct bounds one of its
 direct scalar fields by a literal (`value >= 0.0 && value <= 1.0`). Such a
 conjunction constrains each field independently, so it narrows that field's

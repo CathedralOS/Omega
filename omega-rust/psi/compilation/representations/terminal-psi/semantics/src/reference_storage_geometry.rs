@@ -109,6 +109,41 @@ pub fn reference_storage_projection<'types>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ReferenceStorageProjection> {
+    let projection = storage_path(types, root, path)?;
+    let (logical_scalar, stored_scalar) = projection.scalar?;
+    Some(ReferenceStorageProjection {
+        byte_offset: projection.byte_offset,
+        logical_scalar,
+        stored_scalar,
+    })
+}
+
+/// A selected scalar or aggregate's complete contiguous byte region. This is
+/// the same path geometry scalar accesses consume, never another path walker.
+pub fn reference_storage_region<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<(u64, u64)> {
+    let projection = storage_path(types.clone(), root, path)?;
+    let size = match projection.scalar {
+        Some((_, stored)) => scalar_geometry(stored)?.0,
+        None => reference_storage_size(types, projection.carrier)?,
+    };
+    Some((projection.byte_offset, size))
+}
+
+struct StoragePathProjection {
+    byte_offset: u64,
+    carrier: StructuralTypeId,
+    scalar: Option<(ScalarType, ScalarType)>,
+}
+
+fn storage_path<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StoragePathProjection> {
     let mut carrier = root;
     let mut byte_offset = 0_u64;
     let mut repeated_stride = None;
@@ -151,10 +186,10 @@ pub fn reference_storage_projection<'types>(
                     if position + 1 != path.len() {
                         return None;
                     }
-                    return Some(ReferenceStorageProjection {
+                    return Some(StoragePathProjection {
                         byte_offset,
-                        logical_scalar,
-                        stored_scalar: selected_storage.unwrap_or(logical_scalar),
+                        carrier,
+                        scalar: Some((logical_scalar, selected_storage.unwrap_or(logical_scalar))),
                     });
                 }
                 let StructuralFieldType::Structural(child) = field.field_type else {
@@ -175,15 +210,16 @@ pub fn reference_storage_projection<'types>(
             _ => return None,
         }
     }
-    let StructuralTypeShape::PrimitiveScalar(logical_scalar) =
-        types.clone().find(|row| row.id == carrier)?.shape
-    else {
-        return None;
+    let scalar = match types.clone().find(|row| row.id == carrier)?.shape {
+        StructuralTypeShape::PrimitiveScalar(logical) => {
+            Some((logical, selected_storage.unwrap_or(logical)))
+        }
+        _ => None,
     };
-    Some(ReferenceStorageProjection {
+    Some(StoragePathProjection {
         byte_offset,
-        logical_scalar,
-        stored_scalar: selected_storage.unwrap_or(logical_scalar),
+        carrier,
+        scalar,
     })
 }
 

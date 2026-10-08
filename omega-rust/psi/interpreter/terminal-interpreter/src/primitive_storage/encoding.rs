@@ -26,6 +26,51 @@ impl TerminalExecution {
         backing_view: &crate::values::TerminalStructuralValue,
         view: &crate::values::TerminalStructuralValue,
     ) -> Result<Option<(PrimitiveStorage, ScalarType)>, TerminalInterpretError> {
+        let Some(region) = self.reference_byte_region(backing_view)? else {
+            return Ok(None);
+        };
+        if view.opaque_identity != backing_view.opaque_identity {
+            return Err(malformed());
+        }
+        let path = view
+            .path
+            .strip_prefix(backing_view.path.as_slice())
+            .ok_or_else(malformed)?;
+        let projection = terminal_semantics::reference_storage_projection(
+            self.program.structural_types.values(),
+            backing_view.structural_type,
+            path,
+        )
+        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+            "captured byte-region projection has no contiguous scalar geometry",
+        ))?;
+        let width = usize::from(
+            terminal_semantics::reference_storage_byte_width(projection.stored_scalar)
+                .ok_or_else(malformed)?,
+        );
+        let offset = usize::try_from(projection.byte_offset).map_err(|_| malformed())?;
+        if offset
+            .checked_add(width)
+            .is_none_or(|end| end > region.byte_length)
+        {
+            return Err(malformed());
+        }
+        Ok(Some((
+            PrimitiveStorage {
+                endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
+                stored_scalar: Some(projection.stored_scalar),
+            },
+            projection.logical_scalar,
+        )))
+    }
+
+    /// Project a captured region under its declared type and retain its endpoint.
+    /// Formation and scalar accesses share this lookup; forwarding never
+    /// reconstructs bytes from the original formation expression.
+    pub(crate) fn reference_byte_region(
+        &self,
+        view: &crate::values::TerminalStructuralValue,
+    ) -> Result<Option<crate::reference::ReferenceByteRegion>, TerminalInterpretError> {
         let mut selected = None;
         for captured in self.reference_referents.values() {
             let Some(region) = &captured.byte_region else {
@@ -34,58 +79,46 @@ impl TerminalExecution {
             if view.opaque_identity != captured.view.opaque_identity {
                 continue;
             }
-            let Some(backing_path) = backing_view
-                .path
-                .strip_prefix(captured.view.path.as_slice())
-            else {
+            let Some(path) = view.path.strip_prefix(captured.view.path.as_slice()) else {
                 continue;
             };
             if crate::custody::resolve_structural_path_type(
                 &self.program.structural_types,
                 captured.view.structural_type,
-                backing_path,
+                path,
             )
             .ok()
-                != Some(backing_view.structural_type)
+                != Some(view.structural_type)
             {
                 continue;
             }
-            let Some(path) = view.path.strip_prefix(captured.view.path.as_slice()) else {
-                continue;
-            };
-            let projection = terminal_semantics::reference_storage_projection(
+            let (offset, length) = terminal_semantics::reference_storage_region(
                 self.program.structural_types.values(),
                 captured.view.structural_type,
                 path,
             )
             .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                "captured byte-region projection has no contiguous scalar geometry",
+                "captured byte region has no contiguous geometry",
             ))?;
-            let width = usize::from(
-                terminal_semantics::reference_storage_byte_width(projection.stored_scalar)
-                    .ok_or_else(malformed)?,
-            );
-            let offset = usize::try_from(projection.byte_offset).map_err(|_| malformed())?;
+            let offset = usize::try_from(offset).map_err(|_| malformed())?;
+            let length = usize::try_from(length).map_err(|_| malformed())?;
             if offset
-                .checked_add(width)
+                .checked_add(length)
                 .is_none_or(|end| end > region.byte_length)
             {
                 return Err(malformed());
             }
-            let storage = (
-                PrimitiveStorage {
-                    endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
-                    stored_scalar: Some(projection.stored_scalar),
-                },
-                projection.logical_scalar,
-            );
+            let projected = crate::reference::ReferenceByteRegion {
+                endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
+                byte_length: length,
+            };
             if selected
                 .as_ref()
-                .is_some_and(|previous| previous != &storage)
+                .is_some_and(|previous| previous != &projected)
             {
                 return Err(malformed());
             }
-            selected = Some(storage);
+            selected = Some(projected);
         }
         Ok(selected)
     }
@@ -309,7 +342,7 @@ impl TerminalExecution {
     }
 }
 
-fn shifted_byte_endpoint(
+pub(crate) fn shifted_byte_endpoint(
     endpoint: &PrimitiveStorageEndpoint,
     byte_offset: usize,
 ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {

@@ -19,8 +19,12 @@
 //!   fact-free target shapes, including top-level and nested literal-length
 //!   fixed arrays. Mutable typed aggregate aliases may retain facts when source
 //!   and target have identical geometry and representation-equivalent leaves;
-//!   shared aliases may weaken facts. The same repeated-leaf judgment serves
-//!   unsized slices of aggregate elements over a complete typed fixed array;
+//!   shared aliases may weaken facts. It also serves
+//!   stored-width integers by comparing their encoded bit sets. A compatible
+//!   canonical record exposes the original foreign bytes, not a copy of the
+//!   wider semantic value. Semantic stores through encoded views still prove fit.
+//!   The same repeated-leaf judgment serves unsized slices of aggregate
+//!   elements over a complete typed fixed array;
 //!   element stride includes layout padding rather than repacking the leaves.
 //!   Lowering is address identity:
 //!   native reads/writes the place through the stated type; the interpreter
@@ -60,6 +64,7 @@ mod recast_judgments;
 mod record_eligibility;
 mod record_representation;
 mod slice_views;
+pub(crate) use record_representation::recast_representations_equivalent;
 pub use record_representation::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, recast_record_source_leaf, recast_scalar_layout,
@@ -78,7 +83,50 @@ pub(crate) use representation_types::{exact_primitive_type, exact_scalar_represe
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Authored formation coordinates; zero view_type means an ordinary borrow.
+/// The same reference recast may have an explicit outer borrow or borrow an
+/// already-reference-typed source. These forms do not grant different custody.
+pub struct ReferenceFormationSource {
+    pub source: ExpressionHandle,
+    pub access: language_core::ReferenceAccess,
+    pub view_type: TypeReferenceHandle,
+}
+
+pub fn reference_formation_source(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ReferenceFormationSource> {
+    let (operand, borrowed_access) = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => (borrow.target, Some(borrow.access)),
+        _ => (expression, None),
+    };
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(operand) {
+        let access = match cast.form {
+            language_core::cast_form::CastForm::RecastShared => {
+                language_core::ReferenceAccess::Shared
+            }
+            language_core::cast_form::CastForm::RecastMutable => {
+                language_core::ReferenceAccess::Mutable
+            }
+            language_core::cast_form::CastForm::Value => return None,
+        };
+        if borrowed_access.is_some_and(|borrowed| borrowed != access) {
+            return None;
+        }
+        return Some(ReferenceFormationSource {
+            source: strip_mutable(program, cast.value),
+            access,
+            view_type: cast.target_type,
+        });
+    }
+    Some(ReferenceFormationSource {
+        source: operand,
+        access: borrowed_access?,
+        view_type: TypeReferenceHandle::default(),
+    })
+}
 
 use crate::value_custody::recasts::recast_judgments::{
     judge_scalar_recast, report_unspelled_reference_pun, strip_mutable,

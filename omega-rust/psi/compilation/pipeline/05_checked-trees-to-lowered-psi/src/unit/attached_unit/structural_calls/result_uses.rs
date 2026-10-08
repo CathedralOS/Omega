@@ -846,10 +846,12 @@ pub(crate) fn validate_consumer(
                 checked, caller, coordinate, argument, parameter, expression,
             )?
         {
-            if authored.boundary
-                || target_entry_claims
-                    .iter()
-                    .any(|claim| claim.parameter_index as usize == parameter_index)
+            // A non-retaining boundary borrow consumes the same live loan as
+            // an ordinary call. Its concrete pointee ABI is checked during
+            // realization; this consumer still cannot donate claim custody.
+            if target_entry_claims
+                .iter()
+                .any(|claim| claim.parameter_index as usize == parameter_index)
                 || claim_transfers
                     .iter()
                     .any(|transfer| transfer.argument_index as usize == index)
