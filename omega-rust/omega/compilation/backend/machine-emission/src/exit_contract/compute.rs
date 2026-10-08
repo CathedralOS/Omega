@@ -274,22 +274,10 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 let (instruction, return_edge) = if index < block.instructions.len() {
                     (&block.instructions[index], None)
                 } else {
-                    match &block.terminator {
-                        SelectedTerminator::ConditionalBranch { instruction, .. }
-                        | SelectedTerminator::ConditionalBranchU64LessThan {
-                            instruction, ..
-                        }
-                        | SelectedTerminator::ConditionalBranchI64LessThan {
-                            instruction, ..
-                        }
-                        | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
-                        SelectedTerminator::HostedExitProcess { instruction, .. }
-                        | SelectedTerminator::Crash { instruction, .. } => (instruction, None),
-                        SelectedTerminator::Return {
-                            instruction,
-                            psi_return_edge,
-                        } => (instruction, Some(*psi_return_edge)),
-                    }
+                    (
+                        selected_instructions::terminator_instruction(&block.terminator),
+                        selected_instructions::terminator_return_edge(&block.terminator),
+                    )
                 };
                 if machine_instruction.instruction != instruction.id {
                     return Err(WholeFunctionExitContractError::InstructionRosterMismatch(

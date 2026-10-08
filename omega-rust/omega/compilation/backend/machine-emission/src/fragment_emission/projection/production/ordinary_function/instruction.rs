@@ -6,7 +6,7 @@ use machine_code::{
     FunctionFragmentNormalizedForeignCallFixupState,
 };
 use selected_instructions::{
-    SelectedBlock, SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
+    SelectedBlock, SelectedInstruction, SelectedInstructionKind, terminator_instruction,
 };
 
 use machine_code::{
@@ -292,17 +292,9 @@ fn selected<'a>(
     block
         .instructions
         .iter()
-        .chain(std::iter::once(match &block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-            | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. }
-            | SelectedTerminator::Crash { instruction, .. }
-            | selected_instructions::SelectedTerminator::HostedExitProcess {
-                instruction, ..
-            } => instruction,
-        }))
+        .chain(std::iter::once(terminator_instruction(
+            &block.terminator,
+        )))
         .find(|instruction| instruction.id == row.instruction)
         .ok_or(ResolvedFragmentEmissionError::MissingInstruction(
             row.instruction,

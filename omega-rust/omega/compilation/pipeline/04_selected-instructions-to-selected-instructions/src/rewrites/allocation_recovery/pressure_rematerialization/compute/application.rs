@@ -1,7 +1,7 @@
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
 use crate::{
@@ -94,15 +94,7 @@ pub(super) fn apply(
         }
         block.instructions.insert(index, new_instruction);
     } else {
-        let terminator_id = match &block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-            | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. }
-            | SelectedTerminator::Crash { instruction, .. }
-            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
-        };
+        let terminator_id = selected_instructions::terminator_instruction(&block.terminator).id;
         if terminator_id != first.instruction {
             return Err(PressureRematerializationError::DecisionMismatch {
                 function: function_index,

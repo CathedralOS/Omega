@@ -113,18 +113,10 @@ pub(super) fn check(
                     block.id,
                 ));
             }
-            let (terminal, edge) = match &block.terminator {
-                SelectedTerminator::Return {
-                    instruction,
-                    psi_return_edge,
-                } => (instruction, Some(*psi_return_edge)),
-                SelectedTerminator::ConditionalBranch { instruction, .. }
-                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
-                SelectedTerminator::HostedExitProcess { instruction, .. }
-                | SelectedTerminator::Crash { instruction, .. } => (instruction, None),
-            };
+            let (terminal, edge) = (
+                selected_instructions::terminator_instruction(&block.terminator),
+                selected_instructions::terminator_return_edge(&block.terminator),
+            );
             for (index, (instruction, actual)) in block
                 .instructions
                 .iter()
