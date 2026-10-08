@@ -414,6 +414,17 @@ pub enum ByteSequenceCarrier {
     },
 }
 
+/// The structural children a field roster names: each `Structural` field's
+/// declared type in roster order — the edges a type-graph walk follows.
+pub fn structural_children(
+    fields: &[StructuralFieldDeclaration],
+) -> impl Iterator<Item = StructuralTypeId> + '_ {
+    fields.iter().filter_map(|field| match field.field_type {
+        StructuralFieldType::Structural(child) => Some(child),
+        _ => None,
+    })
+}
+
 /// The unique live field `identity` names on a field roster — absent when
 /// the name is missing, erased, or ambiguous.
 pub fn live_field<'a>(

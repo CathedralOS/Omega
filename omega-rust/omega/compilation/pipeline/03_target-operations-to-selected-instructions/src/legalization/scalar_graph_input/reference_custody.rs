@@ -22,8 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
-};
+    StructuralTypeShape, structural_children};
 
 /// One outstanding loan: the referent roots and immediate parent leaves it
 /// suspends, the producing operation, and the result row that formed the
@@ -248,10 +247,7 @@ pub(in crate::legalization) fn contains_reference(
             continue;
         };
         let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(fields.iter().filter_map(|field| match field.field_type {
-                StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            }));
+            pending.extend(structural_children(fields));
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,

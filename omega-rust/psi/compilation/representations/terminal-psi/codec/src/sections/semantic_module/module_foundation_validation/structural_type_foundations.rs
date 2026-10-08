@@ -6,7 +6,7 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralTypeDeclaration;
-use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
+use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children};
 
 /// One structural type declaration's shape is well founded: its referent,
 /// fields, element, cases and mixed payloads name known types with the
@@ -519,7 +519,7 @@ pub(super) fn attachment_storage_types(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     attachments: impl Iterator<Item = StructuralTypeId>,
 ) -> BTreeSet<StructuralTypeId> {
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    use terminal_psi::StructuralTypeShape;
     let mut pending: Vec<_> = attachments.collect();
     let mut storage = BTreeSet::new();
     while let Some(identity) = pending.pop() {
@@ -531,10 +531,7 @@ pub(super) fn attachment_storage_types(
             continue;
         };
         let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(fields.iter().filter_map(|field| match field.field_type {
-                StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            }));
+            pending.extend(structural_children(fields));
         };
         match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => retain_fields(fields),

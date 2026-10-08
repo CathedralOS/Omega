@@ -17,8 +17,7 @@ use target_operations::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape,
-};
+    StructuralTypeShape, structural_children};
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
 /// Exact incoming addresses for borrowed state parameters. The module query
@@ -382,10 +381,7 @@ pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: Structu
             continue;
         };
         let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(fields.iter().filter_map(|field| match field.field_type {
-                StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            }));
+            pending.extend(structural_children(fields));
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,

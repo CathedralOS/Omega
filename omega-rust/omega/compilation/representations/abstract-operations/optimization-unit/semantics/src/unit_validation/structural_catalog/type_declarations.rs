@@ -206,7 +206,7 @@ pub(super) fn attachment_storage_types(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     attachments: impl Iterator<Item = StructuralTypeId>,
 ) -> BTreeSet<StructuralTypeId> {
-    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+    use terminal_psi::{StructuralTypeShape, structural_children};
     let mut pending: Vec<_> = attachments.collect();
     let mut storage = BTreeSet::new();
     while let Some(identity) = pending.pop() {
@@ -218,10 +218,7 @@ pub(super) fn attachment_storage_types(
             continue;
         };
         let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(fields.iter().filter_map(|field| match field.field_type {
-                StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            }));
+            pending.extend(structural_children(fields));
         };
         match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => retain_fields(fields),

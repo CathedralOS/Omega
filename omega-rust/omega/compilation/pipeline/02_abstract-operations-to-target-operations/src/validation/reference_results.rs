@@ -26,8 +26,7 @@ use target_operations::TargetReferenceResult;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-};
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, structural_children};
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the
 /// installed-provider lane replays the call's custody effects; a settlement
@@ -238,10 +237,7 @@ fn contains_reference(declarations: &[StructuralTypeDeclaration], root: Structur
             continue;
         };
         let mut push_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-            pending.extend(fields.iter().filter_map(|field| match field.field_type {
-                StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            }));
+            pending.extend(structural_children(fields));
         };
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
