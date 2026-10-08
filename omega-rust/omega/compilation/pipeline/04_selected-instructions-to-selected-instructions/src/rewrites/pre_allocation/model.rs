@@ -185,6 +185,32 @@ impl PreAllocationPolicy {
 /// next family, and a copied-call-operand reroute keeps both the copy
 /// and the call published — a later copy removal may still own the
 /// producer once no contract reads its destination.
+// Every accessor that forwards the same method chain onto each family's
+// payload — or through it to the sealed validation receipt — across all
+// ten variants: generated once so a new family only names its variant.
+macro_rules! transformation_accessors {
+    ($( $name:ident : $( $call:ident ).+ -> $ret:ty ; )+) => {
+        $(
+            /// Facts forwarded through each variant to the same accessor on
+            /// the payload or its sealed validation receipt.
+            pub fn $name(&self) -> $ret {
+                match self {
+                    Self::CopyRemoval(payload) => payload.$($call()).+,
+                    Self::RedundantExtension(payload) => payload.$($call()).+,
+                    Self::AddressFold(payload) => payload.$($call()).+,
+                    Self::ConstantBoolean(payload) => payload.$($call()).+,
+                    Self::ConstantBranch(payload) => payload.$($call()).+,
+                    Self::DeadCompare(payload) => payload.$($call()).+,
+                    Self::RedundantCompare(payload) => payload.$($call()).+,
+                    Self::EquivalentCompare(payload) => payload.$($call()).+,
+                    Self::CopiedCallOperand(payload) => payload.$($call()).+,
+                    Self::StoredLoadForwarding(payload) => payload.$($call()).+,
+                }
+            }
+        )+
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedPreAllocationTransformation {
     CopyRemoval(ValidatedCopyRemoval),
@@ -200,110 +226,21 @@ pub enum ValidatedPreAllocationTransformation {
 }
 
 impl ValidatedPreAllocationTransformation {
-    pub fn transformed(&self) -> &SelectedInstructionPlan {
-        match self {
-            Self::CopyRemoval(removal) => removal.transformed(),
-            Self::RedundantExtension(removal) => removal.transformed(),
-            Self::AddressFold(fold) => fold.transformed(),
-            Self::ConstantBoolean(fold) => fold.transformed(),
-            Self::ConstantBranch(fold) => fold.transformed(),
-            Self::DeadCompare(removal) => removal.transformed(),
-            Self::RedundantCompare(removal) => removal.transformed(),
-            Self::EquivalentCompare(removal) => removal.transformed(),
-            Self::CopiedCallOperand(reroute) => reroute.transformed(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.transformed(),
-        }
-    }
 
-    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
-        match self {
-            Self::CopyRemoval(removal) => removal.shared_transformed(),
-            Self::RedundantExtension(removal) => removal.shared_transformed(),
-            Self::AddressFold(fold) => fold.shared_transformed(),
-            Self::ConstantBoolean(fold) => fold.shared_transformed(),
-            Self::ConstantBranch(fold) => fold.shared_transformed(),
-            Self::DeadCompare(removal) => removal.shared_transformed(),
-            Self::RedundantCompare(removal) => removal.shared_transformed(),
-            Self::EquivalentCompare(removal) => removal.shared_transformed(),
-            Self::CopiedCallOperand(reroute) => reroute.shared_transformed(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.shared_transformed(),
-        }
-    }
 
-    pub fn source_selected(&self) -> SelectedInstructionPlanIdentity {
-        match self {
-            Self::CopyRemoval(removal) => removal.receipt().source_selected(),
-            Self::RedundantExtension(removal) => removal.receipt().source_selected(),
-            Self::AddressFold(fold) => fold.receipt().source_selected(),
-            Self::ConstantBoolean(fold) => fold.receipt().source_selected(),
-            Self::ConstantBranch(fold) => fold.receipt().source_selected(),
-            Self::DeadCompare(removal) => removal.receipt().source_selected(),
-            Self::RedundantCompare(removal) => removal.receipt().source_selected(),
-            Self::EquivalentCompare(removal) => removal.receipt().source_selected(),
-            Self::CopiedCallOperand(reroute) => reroute.receipt().source_selected(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().source_selected(),
-        }
-    }
 
-    pub fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
-        match self {
-            Self::CopyRemoval(removal) => removal.receipt().transformed_selected(),
-            Self::RedundantExtension(removal) => removal.receipt().transformed_selected(),
-            Self::AddressFold(fold) => fold.receipt().transformed_selected(),
-            Self::ConstantBoolean(fold) => fold.receipt().transformed_selected(),
-            Self::ConstantBranch(fold) => fold.receipt().transformed_selected(),
-            Self::DeadCompare(removal) => removal.receipt().transformed_selected(),
-            Self::RedundantCompare(removal) => removal.receipt().transformed_selected(),
-            Self::EquivalentCompare(removal) => removal.receipt().transformed_selected(),
-            Self::CopiedCallOperand(reroute) => reroute.receipt().transformed_selected(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().transformed_selected(),
-        }
-    }
 
-    pub fn optimization_unit(&self) -> optimization_core::OptimizationUnitIdentity {
-        match self {
-            Self::CopyRemoval(removal) => removal.receipt().optimization_unit(),
-            Self::RedundantExtension(removal) => removal.receipt().optimization_unit(),
-            Self::AddressFold(fold) => fold.receipt().optimization_unit(),
-            Self::ConstantBoolean(fold) => fold.receipt().optimization_unit(),
-            Self::ConstantBranch(fold) => fold.receipt().optimization_unit(),
-            Self::DeadCompare(removal) => removal.receipt().optimization_unit(),
-            Self::RedundantCompare(removal) => removal.receipt().optimization_unit(),
-            Self::EquivalentCompare(removal) => removal.receipt().optimization_unit(),
-            Self::CopiedCallOperand(reroute) => reroute.receipt().optimization_unit(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().optimization_unit(),
-        }
-    }
 
-    pub fn fuel_schedule(&self) -> semantic_vocabulary::FuelScheduleIdentity {
-        match self {
-            Self::CopyRemoval(removal) => removal.receipt().fuel_schedule(),
-            Self::RedundantExtension(removal) => removal.receipt().fuel_schedule(),
-            Self::AddressFold(fold) => fold.receipt().fuel_schedule(),
-            Self::ConstantBoolean(fold) => fold.receipt().fuel_schedule(),
-            Self::ConstantBranch(fold) => fold.receipt().fuel_schedule(),
-            Self::DeadCompare(removal) => removal.receipt().fuel_schedule(),
-            Self::RedundantCompare(removal) => removal.receipt().fuel_schedule(),
-            Self::EquivalentCompare(removal) => removal.receipt().fuel_schedule(),
-            Self::CopiedCallOperand(reroute) => reroute.receipt().fuel_schedule(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().fuel_schedule(),
-        }
-    }
 
-    /// The function the committed transformation rewrote.
-    pub fn function_index(&self) -> usize {
-        match self {
-            Self::CopyRemoval(removal) => removal.receipt().function_index(),
-            Self::RedundantExtension(removal) => removal.receipt().function_index(),
-            Self::AddressFold(fold) => fold.receipt().function_index(),
-            Self::ConstantBoolean(fold) => fold.receipt().function_index(),
-            Self::ConstantBranch(fold) => fold.receipt().function_index(),
-            Self::DeadCompare(removal) => removal.receipt().function_index(),
-            Self::RedundantCompare(removal) => removal.receipt().function_index(),
-            Self::EquivalentCompare(removal) => removal.receipt().function_index(),
-            Self::CopiedCallOperand(reroute) => reroute.receipt().function_index(),
-            Self::StoredLoadForwarding(forwarding) => forwarding.receipt().function_index(),
-        }
+
+    transformation_accessors! {
+        transformed : transformed -> &SelectedInstructionPlan;
+        shared_transformed : shared_transformed -> Arc<SelectedInstructionPlan>;
+        source_selected : receipt . source_selected -> SelectedInstructionPlanIdentity;
+        transformed_selected : receipt . transformed_selected -> SelectedInstructionPlanIdentity;
+        optimization_unit : receipt . optimization_unit -> optimization_core::OptimizationUnitIdentity;
+        fuel_schedule : receipt . fuel_schedule -> semantic_vocabulary::FuelScheduleIdentity;
+        function_index : receipt . function_index -> usize;
     }
 
     /// The source-side identity of the instruction the transformation
