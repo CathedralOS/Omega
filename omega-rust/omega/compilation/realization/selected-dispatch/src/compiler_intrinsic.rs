@@ -355,60 +355,45 @@ fn selected_hosted_bundle(selected_target: Option<&str>) -> Option<(&str, Hosted
     Some((selected_target, bundle))
 }
 
+macro_rules! bundled_intrinsic_source {
+    ($name:ident, $($variant:ident => $file:literal),+ $(,)?) => {
+        fn $name(bundle: HostedIntrinsicBundle) -> &'static [u8] {
+            match bundle {
+                $(
+                    HostedIntrinsicBundle::$variant => {
+                        const BYTES: &[u8] = include_bytes!(concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/../../../../../source/library/std/targets/",
+                            $file
+                        ));
+                        BYTES
+                    }
+                )+
+            }
+        }
+    };
+}
+
 /// Compile-time copy of one admitted bundle's console provider closure. The
 /// path each constant reads is the bundle's `console_source()`; the test
 /// module holds the two in agreement with the checked-in file.
-fn bundled_console_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
-    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/linux_arm64/console_impl.omg"
-    ));
-    const LINUX_X64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/linux_x86_64/console_impl.omg"
-    ));
-    const MACOS_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/macos_arm64/console_impl.omg"
-    ));
-    const MACOS_X64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/macos_x86_64/console_impl.omg"
-    ));
-    match bundle {
-        HostedIntrinsicBundle::LinuxArm64 => LINUX_ARM64,
-        HostedIntrinsicBundle::LinuxX64 => LINUX_X64,
-        HostedIntrinsicBundle::MacosArm64 => MACOS_ARM64,
-        HostedIntrinsicBundle::MacosX64 => MACOS_X64,
-    }
-}
+bundled_intrinsic_source!(
+    bundled_console_source,
+    LinuxArm64 => "linux_arm64/console_impl.omg",
+    LinuxX64 => "linux_x86_64/console_impl.omg",
+    MacosArm64 => "macos_arm64/console_impl.omg",
+    MacosX64 => "macos_x86_64/console_impl.omg",
+);
 
 /// Compile-time copy of one admitted bundle's process-exit provider closure,
 /// paired with `process_exit_source()` the same way as the console copy.
-fn bundled_process_exit_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
-    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/linux_arm64/process_exit_impl.omg"
-    ));
-    const LINUX_X64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/linux_x86_64/process_exit_impl.omg"
-    ));
-    const MACOS_ARM64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/macos_arm64/process_exit_impl.omg"
-    ));
-    const MACOS_X64: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/targets/macos_x86_64/process_exit_impl.omg"
-    ));
-    match bundle {
-        HostedIntrinsicBundle::LinuxArm64 => LINUX_ARM64,
-        HostedIntrinsicBundle::LinuxX64 => LINUX_X64,
-        HostedIntrinsicBundle::MacosArm64 => MACOS_ARM64,
-        HostedIntrinsicBundle::MacosX64 => MACOS_X64,
-    }
-}
+bundled_intrinsic_source!(
+    bundled_process_exit_source,
+    LinuxArm64 => "linux_arm64/process_exit_impl.omg",
+    LinuxX64 => "linux_x86_64/process_exit_impl.omg",
+    MacosArm64 => "macos_arm64/process_exit_impl.omg",
+    MacosX64 => "macos_x86_64/process_exit_impl.omg",
+);
 
 fn exact_bundled_standalone_source(
     typed: &typed_trees::TypedTrees,
