@@ -30,7 +30,7 @@ use selected_instructions::{
 
 use super::{ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The flag-universe and materialize-surface sizes the measured-step
 /// contract charges — the union of the target's three compare rows'
@@ -174,8 +174,7 @@ pub(crate) fn seal_constant_boolean_fold(
     materialization: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
-    Ok(ValidatedConstantBoolean {
-        receipt: receipt!(ConstantBooleanReceipt, source, proposed, function_index: function_index, materialization: materialization),
-        transformed: Arc::new(proposed),
-    })
+    Ok(
+        sealed!(ValidatedConstantBoolean, ConstantBooleanReceipt, source, proposed, function_index: function_index, materialization: materialization),
+    )
 }

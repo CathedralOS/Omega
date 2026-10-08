@@ -29,7 +29,7 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedIns
 
 use super::{ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The flag-universe and jump-surface sizes the measured-step contract
 /// charges — the union of the target's three compare rows' implicit
@@ -172,8 +172,7 @@ pub(crate) fn seal_constant_branch_fold(
     branch: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
-    Ok(ValidatedConstantBranch {
-        receipt: receipt!(ConstantBranchReceipt, source, proposed, function_index: function_index, branch: branch),
-        transformed: Arc::new(proposed),
-    })
+    Ok(
+        sealed!(ValidatedConstantBranch, ConstantBranchReceipt, source, proposed, function_index: function_index, branch: branch),
+    )
 }

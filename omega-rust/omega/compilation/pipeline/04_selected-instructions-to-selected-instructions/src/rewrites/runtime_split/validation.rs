@@ -26,9 +26,11 @@ pub(crate) fn seal_runtime_split(
     source: &impl ValidatedSelectedAnalysis,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRuntimeSplit, RuntimeSplitError> {
-    Ok(ValidatedRuntimeSplit {
-        receipt: receipt!(RuntimeSplitReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedRuntimeSplit,
+        RuntimeSplitReceipt,
+        source,
+        proposed
+    ))
 }
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;

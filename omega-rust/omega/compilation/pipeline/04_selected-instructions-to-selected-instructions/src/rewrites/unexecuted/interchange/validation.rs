@@ -14,7 +14,7 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedIns
 
 use super::{InterchangeError, InterchangeReceipt, ValidatedInterchange};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 
 /// The validator's own reconstruction of the interchange the contract
@@ -184,8 +184,10 @@ pub fn validate_selected_interchange(
     if restored != *source.selected_plan() {
         return Err(InterchangeError::ReplayMismatch);
     }
-    Ok(ValidatedInterchange {
-        receipt: receipt!(InterchangeReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedInterchange,
+        InterchangeReceipt,
+        source,
+        proposed
+    ))
 }

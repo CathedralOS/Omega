@@ -21,7 +21,7 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 
 use super::{MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// Independently consume the proposed program: the validator re-derives
 /// the admitted run, window and landing index from the source without
@@ -84,8 +84,10 @@ pub fn validate_member_run_relocation(
     if restored != *source.selected_plan() {
         return Err(MemberRunRelocationError::ReplayMismatch);
     }
-    Ok(ValidatedMemberRunRelocation {
-        receipt: receipt!(MemberRunRelocationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedMemberRunRelocation,
+        MemberRunRelocationReceipt,
+        source,
+        proposed
+    ))
 }

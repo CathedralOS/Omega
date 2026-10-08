@@ -33,7 +33,7 @@ use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
 };
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// What the pole operand forces on the reader's predicate over
 /// `left - right`, in the validator's own record: the same two outcomes
@@ -436,8 +436,10 @@ pub fn validate_boundary_boolean_fold(
     if restore(&reconstructed, &proposed, function_index)? != *source.selected_plan() {
         return Err(BoundaryBooleanError::ReplayMismatch);
     }
-    Ok(ValidatedBoundaryBoolean {
-        receipt: receipt!(BoundaryBooleanReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedBoundaryBoolean,
+        BoundaryBooleanReceipt,
+        source,
+        proposed
+    ))
 }

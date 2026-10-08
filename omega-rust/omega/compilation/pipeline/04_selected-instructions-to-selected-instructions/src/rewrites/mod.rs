@@ -296,6 +296,19 @@ macro_rules! receipt {
 }
 pub(crate) use receipt;
 
+/// The whole seal body every family ends with: a receipt of the four shared
+/// identities plus the family's recorded fields, beside the proposed plan in
+/// its arc.
+macro_rules! sealed {
+    ($validated:ident, $receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
+        $validated {
+            receipt: crate::rewrites::receipt!($receipt, $source, $proposed $(, $field : $value)*),
+            transformed: std::sync::Arc::new($proposed),
+        }
+    };
+}
+pub(crate) use sealed;
+
 pub(crate) fn instruction(
     id: SelectedInstructionId,
     kind: SelectedInstructionKind,

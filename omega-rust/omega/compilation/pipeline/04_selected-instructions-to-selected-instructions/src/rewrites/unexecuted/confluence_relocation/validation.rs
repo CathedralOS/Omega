@@ -19,7 +19,7 @@ use super::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::transport_conflict;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use crate::rewrites::window_hazards::{coupled, has_call_contract, schedulable, surface};
 
 /// The validator's own reconstruction of the relocation the contract
@@ -235,8 +235,10 @@ pub fn validate_confluence_relocation(
     if restored != *source.selected_plan() {
         return Err(ConfluenceRelocationError::ReplayMismatch);
     }
-    Ok(ValidatedConfluenceRelocation {
-        receipt: receipt!(ConfluenceRelocationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedConfluenceRelocation,
+        ConfluenceRelocationReceipt,
+        source,
+        proposed
+    ))
 }

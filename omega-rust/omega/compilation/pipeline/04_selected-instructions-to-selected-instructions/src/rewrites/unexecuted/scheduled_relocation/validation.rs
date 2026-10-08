@@ -1,4 +1,4 @@
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
@@ -78,8 +78,10 @@ pub fn validate_scheduled_relocation(
     if restored != *source.selected_plan() {
         return Err(ScheduledRelocationError::ReplayMismatch);
     }
-    Ok(ValidatedScheduledRelocation {
-        receipt: receipt!(ScheduledRelocationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedScheduledRelocation,
+        ScheduledRelocationReceipt,
+        source,
+        proposed
+    ))
 }

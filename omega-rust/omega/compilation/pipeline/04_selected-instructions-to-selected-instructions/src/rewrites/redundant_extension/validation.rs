@@ -17,7 +17,7 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedIns
 
 use super::{RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract the
 /// family publishes: one step per block plus one per instruction across the
@@ -45,8 +45,7 @@ pub(crate) fn seal_redundant_extension_removal(
     extension: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRedundantExtension, RedundantExtensionError> {
-    Ok(ValidatedRedundantExtension {
-        receipt: receipt!(RedundantExtensionReceipt, source, proposed, function_index: function_index, extension: extension),
-        transformed: Arc::new(proposed),
-    })
+    Ok(
+        sealed!(ValidatedRedundantExtension, RedundantExtensionReceipt, source, proposed, function_index: function_index, extension: extension),
+    )
 }

@@ -22,7 +22,7 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedIns
 
 use super::{StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// Build the function the contract demands from the validator's own
 /// record: the named store moved from its source position to the proven
@@ -117,8 +117,10 @@ pub fn validate_store_mutation_motion(
     if restore(&reconstructed, &proposed)? != *source.selected_plan() {
         return Err(StoreMutationMotionError::ReplayMismatch);
     }
-    Ok(ValidatedStoreMutationMotion {
-        receipt: receipt!(StoreMutationMotionReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedStoreMutationMotion,
+        StoreMutationMotionReceipt,
+        source,
+        proposed
+    ))
 }

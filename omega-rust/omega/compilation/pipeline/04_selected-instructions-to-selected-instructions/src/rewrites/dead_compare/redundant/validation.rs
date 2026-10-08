@@ -19,7 +19,7 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedIns
 use super::{RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{edge_surface, terminator_successors};
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract
 /// the family publishes: one step per block plus one per instruction
@@ -122,8 +122,7 @@ pub(crate) fn seal_redundant_compare(
     compare: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRedundantCompare, RedundantCompareError> {
-    Ok(ValidatedRedundantCompare {
-        receipt: receipt!(RedundantCompareReceipt, source, proposed, function_index: function_index, compare: compare),
-        transformed: Arc::new(proposed),
-    })
+    Ok(
+        sealed!(ValidatedRedundantCompare, RedundantCompareReceipt, source, proposed, function_index: function_index, compare: compare),
+    )
 }

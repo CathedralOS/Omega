@@ -39,7 +39,7 @@ use super::{
     VictimLineage, control_mut, control_successors_mut, slot, stored_transport_size,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The validator's own reconstruction of the spill the contract permits: the
 /// admitted victim, its proven definitions, the use blocks the spill serves,
@@ -918,8 +918,10 @@ pub(crate) fn seal_runtime_spill_with_span_policy(
     source: &impl ValidatedSelectedAnalysis,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-    Ok(ValidatedRuntimeSpill {
-        receipt: receipt!(RuntimeSpillReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedRuntimeSpill,
+        RuntimeSpillReceipt,
+        source,
+        proposed
+    ))
 }

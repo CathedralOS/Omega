@@ -36,7 +36,7 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, boundary_operands, entry_index, instruction_at, reaching_event,
 };
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The validator's own reconstruction of the fold the contract permits:
 /// the admitted branch's block, identity, and emitted provenance, the
@@ -472,8 +472,10 @@ pub fn validate_boundary_branch_fold(
     if restore(&reconstructed, &proposed, function_index)? != *source.selected_plan() {
         return Err(BoundaryBranchError::ReplayMismatch);
     }
-    Ok(ValidatedBoundaryBranch {
-        receipt: receipt!(BoundaryBranchReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedBoundaryBranch,
+        BoundaryBranchReceipt,
+        source,
+        proposed
+    ))
 }

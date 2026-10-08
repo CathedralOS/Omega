@@ -1,4 +1,4 @@
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use std::sync::Arc;
 
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
@@ -37,8 +37,7 @@ pub(crate) fn seal_address_fold(
     access: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedAddressFold, AddressFoldError> {
-    Ok(ValidatedAddressFold {
-        receipt: receipt!(AddressFoldReceipt, source, proposed, function_index: function_index, access: access),
-        transformed: Arc::new(proposed),
-    })
+    Ok(
+        sealed!(ValidatedAddressFold, AddressFoldReceipt, source, proposed, function_index: function_index, access: access),
+    )
 }

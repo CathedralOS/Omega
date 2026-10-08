@@ -32,7 +32,7 @@ use super::{
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::condition_state::materialized_bits;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
     local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
@@ -1402,8 +1402,10 @@ pub fn validate_dead_store_elimination(
     if restore(&reconstructed, &proposed)? != *source.selected_plan() {
         return Err(DeadStoreEliminationError::ReplayMismatch);
     }
-    Ok(ValidatedDeadStoreElimination {
-        receipt: receipt!(DeadStoreEliminationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedDeadStoreElimination,
+        DeadStoreEliminationReceipt,
+        source,
+        proposed
+    ))
 }

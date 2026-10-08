@@ -13,7 +13,7 @@
 
 use super::retained_access;
 use crate::rewrites::operand_probes::{effect_declaration, last_definition_before};
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
@@ -307,10 +307,12 @@ pub fn validate_projected_access_fold(
         || ProjectedAccessError::IdentityOverflow,
         || ProjectedAccessError::WorkBudgetExceeded,
     )?;
-    Ok(ValidatedProjectedAccess {
-        receipt: receipt!(ProjectedAccessReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedProjectedAccess,
+        ProjectedAccessReceipt,
+        source,
+        proposed
+    ))
 }
 
 /// The instruction defining `register` at `position`: the last instruction

@@ -30,9 +30,11 @@ pub(crate) fn seal_runtime_rematerialization(
     source: &impl ValidatedSelectedAnalysis,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRuntimeRematerialization, RuntimeRematerializationError> {
-    Ok(ValidatedRuntimeRematerialization {
-        receipt: receipt!(RuntimeRematerializationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedRuntimeRematerialization,
+        RuntimeRematerializationReceipt,
+        source,
+        proposed
+    ))
 }
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;

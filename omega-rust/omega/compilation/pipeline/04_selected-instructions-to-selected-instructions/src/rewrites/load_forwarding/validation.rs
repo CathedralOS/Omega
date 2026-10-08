@@ -37,19 +37,16 @@ pub(crate) fn seal_stored_load_forwarding(
     canonical.extend_from_slice(&source.fuel_schedule_identity().marker().to_le_bytes());
     canonical.extend_from_slice(&(function_index as u64).to_le_bytes());
     canonical.extend_from_slice(&load.0.to_le_bytes());
-    Ok(ValidatedStoredLoadForwarding {
-        receipt: receipt!(
-            StoredLoadForwardingReceipt,
-            source,
-            proposed,
-            identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
-                &canonical
-            ),
-            function_index: function_index,
-            load: load
+    Ok(sealed!(ValidatedStoredLoadForwarding,
+        StoredLoadForwardingReceipt,
+        source,
+        proposed,
+        identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
+            &canonical
         ),
-        transformed: Arc::new(proposed),
-    })
+        function_index: function_index,
+        load: load
+    ))
 }
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;

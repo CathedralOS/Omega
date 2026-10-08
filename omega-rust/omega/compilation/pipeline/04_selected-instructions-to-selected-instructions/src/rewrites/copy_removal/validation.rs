@@ -18,7 +18,7 @@ use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedIns
 use super::{CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::terminator_successors;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract the
 /// family publishes: one step per block plus one per instruction across the
@@ -69,8 +69,7 @@ pub(crate) fn seal_copy_removal(
     copy: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedCopyRemoval, CopyRemovalError> {
-    Ok(ValidatedCopyRemoval {
-        receipt: receipt!(CopyRemovalReceipt, source, proposed, function_index: function_index, copy: copy),
-        transformed: Arc::new(proposed),
-    })
+    Ok(
+        sealed!(ValidatedCopyRemoval, CopyRemovalReceipt, source, proposed, function_index: function_index, copy: copy),
+    )
 }

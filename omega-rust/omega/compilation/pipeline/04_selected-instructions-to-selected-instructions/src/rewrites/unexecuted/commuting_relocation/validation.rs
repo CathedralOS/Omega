@@ -25,7 +25,7 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 
 use super::{CommutingRelocationError, CommutingRelocationReceipt, ValidatedCommutingRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 
 /// Independently consume the proposed program: the validator's own
@@ -137,8 +137,10 @@ pub fn validate_commuting_relocation(
     if restored != *source.selected_plan() {
         return Err(CommutingRelocationError::ReplayMismatch);
     }
-    Ok(ValidatedCommutingRelocation {
-        receipt: receipt!(CommutingRelocationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedCommutingRelocation,
+        CommutingRelocationReceipt,
+        source,
+        proposed
+    ))
 }

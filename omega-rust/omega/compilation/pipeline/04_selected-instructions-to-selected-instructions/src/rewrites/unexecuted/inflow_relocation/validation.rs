@@ -18,7 +18,7 @@ use selected_instructions::{
 use super::{InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_successors, transport_conflict};
-use crate::rewrites::receipt;
+use crate::rewrites::sealed;
 use crate::rewrites::window_hazards::{
     block_scan_surface, coupled, has_call_contract, register_writes, schedulable, surface,
 };
@@ -226,8 +226,10 @@ pub fn validate_inflow_relocation(
     if restored != *source.selected_plan() {
         return Err(InflowRelocationError::ReplayMismatch);
     }
-    Ok(ValidatedInflowRelocation {
-        receipt: receipt!(InflowRelocationReceipt, source, proposed),
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedInflowRelocation,
+        InflowRelocationReceipt,
+        source,
+        proposed
+    ))
 }
