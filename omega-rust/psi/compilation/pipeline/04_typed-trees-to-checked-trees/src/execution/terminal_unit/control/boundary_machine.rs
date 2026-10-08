@@ -5,10 +5,9 @@ use crate::execution::terminal_unit::calls::{
     free_structural_scalar_signature,
 };
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
-    machine_binders, mutable_plain_nonlinear_referent, parameter_qualifications,
-    projected_parameter_qualifications, shared_plain_affine_referent,
-    shared_plain_unrestricted_referent, signature_contracts_are_exact_parameter_qualifications,
+    ShapeCollector, boundary_borrowed_referent, boundary_domain_requirements,
+    fold_authorized_result_domains, is_unit, machine_binders, parameter_qualifications,
+    projected_parameter_qualifications, signature_contracts_are_exact_parameter_qualifications,
     state_flow, structural_access_for_type_reference, type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, substituted_formal_type};
@@ -465,17 +464,15 @@ fn boundary_parameters<'program>(
         }
         let type_identity = shapes.add_type(parameter_type, &[], substitutions)?;
         let qualifications = parameter_qualifications(program, shapes, parameter_type, &[])?;
-        // A borrowed plain referent stays the caller's: shared loans of
-        // affine or unrestricted carriers (a `&u8` foreign `const char*`
-        // included) and exclusive out-parameters all cross as the referent's
-        // address, and the boundary neither owns nor qualifies it.
+        // This is a loan of established storage, not an owned ABI copy.
+        // Stored shared descriptors keep their original custody; borrowing
+        // the containing record neither dereferences nor copies them. Exact
+        // access, qualifications and native marshaling remain separate checks.
         if is_reference(program, parameter_type)
             && !byte_sequence_carrier(program, parameter_type, &[])
                 .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
             && !(qualifications.is_empty()
-                && (shared_plain_affine_referent(program, parameter_type).is_some()
-                    || shared_plain_unrestricted_referent(program, parameter_type).is_some()
-                    || mutable_plain_nonlinear_referent(program, parameter_type).is_some()))
+                && boundary_borrowed_referent(program, parameter_type).is_some())
         {
             return None;
         }

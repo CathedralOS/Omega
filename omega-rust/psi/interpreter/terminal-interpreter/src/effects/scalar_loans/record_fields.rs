@@ -1,6 +1,9 @@
 //! Enumerate semantic scalar leaves, without native offsets or byte geometry.
 //! These paths pin original backing through the ordinary primitive accessor;
 //! the host receives closed field identities, never source spellings or keys.
+//! Non-scalar members remain original opaque storage: traversal stops at a
+//! descriptor rather than following its referent. A native byte adapter must
+//! independently cover its accessed interval without pointer or padding bytes.
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::AdmittedTerminalProgram;
@@ -31,22 +34,25 @@ fn collect(
         .shape
     {
         StructuralTypeShape::PrimitiveScalar(scalar) => leaves.push((closed.clone(), *scalar)),
-        StructuralTypeShape::FusedServiceBinding => {}
+        StructuralTypeShape::FusedServiceBinding
+        | StructuralTypeShape::Reference { .. }
+        | StructuralTypeShape::ByteSequence(_)
+        | StructuralTypeShape::ElementView { .. }
+        | StructuralTypeShape::Sum { .. }
+        | StructuralTypeShape::Mixed { .. } => {}
         StructuralTypeShape::Record { fields, .. } => {
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
                 if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
                     continue;
                 }
                 if matches!(field.field_type, StructuralFieldType::Atomic(_)) {
-                    return Err(malformed());
+                    continue;
                 }
                 closed.push(CanonicalStructuralPathSegment::Field(field.id));
                 if let Some(scalar) = field.field_type.scalar_type() {
                     leaves.push((closed.clone(), scalar));
                 } else if let StructuralFieldType::Structural(child) = field.field_type {
                     collect(program, child, closed, leaves)?;
-                } else {
-                    return Err(malformed());
                 }
                 closed.pop();
             }
@@ -58,7 +64,6 @@ fn collect(
                 closed.pop();
             }
         }
-        _ => return Err(malformed()),
     }
     Ok(())
 }

@@ -420,7 +420,6 @@ pub(in crate::execution::terminal_unit) fn build(
             scalar_parameters,
             parameter_storage,
             construction_statement_count,
-            call_frames,
             trace,
         )?
         .into_iter()

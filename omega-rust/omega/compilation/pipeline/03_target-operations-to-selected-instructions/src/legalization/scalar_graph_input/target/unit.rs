@@ -170,8 +170,12 @@ pub(super) fn validate_operation(
             let expected =
                 super::super::atomic_access::access(source, optimized, &unit.structural_types)
                     .ok_or(LegalizationError::custody())?;
-            if super::super::reference_custody::is_suspended_root(custody, location.place)
-                || psi_operation != expected_operation
+            // Source-unit custody owns legal access to the original atomic
+            // cell. A stored descriptor's external pointee does not suspend
+            // the entire enclosing record: that whole-root rule belongs to
+            // cleanup, not this event. Rejoin the exact cell, aligned address,
+            // ordering, operands and observed result independently below.
+            if psi_operation != expected_operation
                 || location != &expected.location
                 || *field != expected.field
                 || *scalar_type != expected.scalar_type

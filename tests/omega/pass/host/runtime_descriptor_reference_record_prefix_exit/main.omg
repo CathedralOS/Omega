@@ -1,0 +1,78 @@
+// The import accesses only header bytes. Stored reference custody and the
+// scalar after that pointer-sized hole remain with the original record.
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+pub data Cell { value: u64; counter: AtomicU64; }
+pub data Packet { header: u64; reference: &Cell; counter: AtomicU64; tail: u64; }
+pub boundary trait DescriptorIo {
+    machine read(descriptor: i32, packet: &mut Packet, count: u64) -> i64 blocks;
+    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64;
+}
+pub data DescriptorImports {}
+data Main { io: Binding<DescriptorIo>; cell: Cell; }
+
+pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } }
+}
+pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } }
+}
+macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
+    satisfies DescriptorIo::read via read_binding();
+macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
+    satisfies DescriptorIo::write via write_binding();
+
+machine receive(io: &Binding<DescriptorIo>, packet: &mut Packet, count: u64) -> i64
+    reaches DescriptorIo blocks; {
+    block io.read(0, packet, count)
+}
+
+machine publish(cell: &Cell) {
+    cell.counter.store(23, NoOrdering);
+}
+
+machine observe(cell: &Cell) -> u64 in Wrapping {
+    let resident: u64 in Wrapping = cell.counter.load(NoOrdering);
+    transition { _ -> (resident) }
+}
+
+machine publish_packet(packet: &Packet) {
+    packet.counter.store(11, NoOrdering);
+}
+
+machine observe_packet(packet: &Packet) -> u64 in Wrapping {
+    let resident: u64 in Wrapping = packet.counter.load(NoOrdering);
+    transition { _ -> (resident) }
+}
+
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+    main.cell.value = 31;
+    let packet: Packet = Packet { header: 16706, reference: &main.cell, counter: 7, tail: 29 };
+    let before: i64 = main.io.write(1, &packet, 1);
+    let zero: i64 = block receive(&main.io, &mut packet, 0);
+    let moved: i64 = block receive(&main.io, &mut packet, 1);
+    let saved: u64 = packet.header;
+    let after: i64 = main.io.write(1, &packet, 1);
+    let line: i64 = block receive(&main.io, &mut packet, 1);
+    let end: i64 = block receive(&main.io, &mut packet, 1);
+    let newline: i64 = main.io.write(1, &packet, 1);
+    publish(packet.reference);
+    let resident: u64 in Wrapping = observe(&main.cell);
+    let untouched: u64 in Wrapping = observe_packet(&packet);
+    publish_packet(&packet);
+    let published: u64 in Wrapping = observe_packet(&packet);
+    transition before == 1 && zero == 0 && moved == 1 && after == 1
+        && line == 1 && end == 0 && newline == 1 && saved == 16707
+        && packet.header == 16650 && packet.reference.value == 31 && packet.tail == 29
+        && resident == 23 && untouched == 7 && published == 11 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

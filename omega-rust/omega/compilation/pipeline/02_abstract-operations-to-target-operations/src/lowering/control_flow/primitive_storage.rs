@@ -71,7 +71,14 @@ pub(super) fn readable_byte_field(
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     // Permission belongs to the exact observation. Geometry then follows every
     // pointer crossing; a store-only path grammar cannot describe this read.
-    if super::references::check_projected_read(function, live, types, source, path, Some(field)) {
+    if super::references::check_projected_shared_access(
+        function,
+        live,
+        types,
+        source,
+        path,
+        Some(field),
+    ) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;

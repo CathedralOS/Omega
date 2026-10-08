@@ -48,79 +48,30 @@ pub(in crate::execution::terminal_unit) fn structural_access_for_type_reference(
     (!is_reference(program, shell.referee)).then(|| shell.access.into())
 }
 
-/// Shared references to this existing whole affine carrier do not own or
-/// qualify the referent. Nested references and constrained carriers stay out.
-pub(in crate::execution::terminal_unit) fn shared_plain_affine_referent(
+/// A boundary lends established non-linear storage rather than transferring
+/// plain owned contents. Shared descriptor members stay with that storage's
+/// owner, as they do for ordinary borrowed calls. The classifier establishes
+/// no reference lifetime, qualification or native pointer value. Nested root
+/// references and write-only authority still need their own transport protocol.
+pub(in crate::execution::terminal_unit) fn boundary_borrowed_referent(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
     let TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
+        access:
+            language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable,
         referee,
         ..
     } = program.type_reference_table.type_reference(reference)
     else {
         return None;
     };
-    (program.type_multiplicity(*referee) == Multiplicity::Affine
+    (!is_reference(program, *referee)
+        && program.type_multiplicity(*referee) != Multiplicity::Linear
         && has_contents(
             program,
             *referee,
-            validation::ContentsRequirement::PlainOwned,
-        ))
-    .then_some(*referee)
-}
-
-/// Shared references to an existing whole unrestricted carrier, such as the
-/// `&u8` a foreign `const char*` parameter lowers to, lend the caller's
-/// referent for the call's duration exactly as the affine form above does:
-/// the callee reads through the loan, and the caller keeps custody of the
-/// referent. An unrestricted referent adds no ownership question the affine
-/// one lacks; it is kept separate only because ordinary call admission
-/// consumes the affine form with its own closed-referent companion.
-/// Nested references and constrained carriers stay out.
-pub(in crate::execution::terminal_unit) fn shared_plain_unrestricted_referent(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
-        && has_contents(
-            program,
-            *referee,
-            validation::ContentsRequirement::PlainOwned,
-        ))
-    .then_some(*referee)
-}
-
-/// Exclusive references to this existing whole non-linear carrier do not own
-/// or qualify the referent either: the boundary writes back through them as an
-/// out-parameter, and custody of the referent stays with the caller. Linear
-/// referents, nested references, and constrained carriers stay out.
-pub(in crate::execution::terminal_unit) fn mutable_plain_nonlinear_referent(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    let TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Mutable,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    (program.type_multiplicity(*referee) != Multiplicity::Linear
-        && has_contents(
-            program,
-            *referee,
-            validation::ContentsRequirement::PlainOwned,
+            validation::ContentsRequirement::BorrowedStorage,
         ))
     .then_some(*referee)
 }

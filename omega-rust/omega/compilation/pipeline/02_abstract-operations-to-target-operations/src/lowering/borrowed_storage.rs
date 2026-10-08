@@ -1,7 +1,9 @@
 //! Capture native scalar-leaf geometry beside target lowering, before its
 //! inputs are consumed. This is the same shape/address owner as native calls
 //! and field accesses, not a second layout implementation in a runtime adapter.
-//! A record with non-scalar storage has no complete scalar snapshot recipe.
+//! Non-scalar storage stays a hole in this scalar recipe, not a fabricated
+//! pointer/tag/descriptor snapshot. An adapter must prove its entire accessed
+//! interval is covered by captured scalar leaves, independently of these gaps.
 
 use super::structural_layout;
 use abstract_operations::AbstractOperationPlan;
@@ -76,7 +78,12 @@ fn collect(
         StructuralTypeShape::PrimitiveScalar(scalar) => {
             fields.push((path.clone(), repetitions.clone(), offset, *scalar))
         }
-        StructuralTypeShape::FusedServiceBinding => {}
+        StructuralTypeShape::FusedServiceBinding
+        | StructuralTypeShape::Reference { .. }
+        | StructuralTypeShape::ByteSequence(_)
+        | StructuralTypeShape::ElementView { .. }
+        | StructuralTypeShape::Sum { .. }
+        | StructuralTypeShape::Mixed { .. } => {}
         StructuralTypeShape::Record {
             fields: members, ..
         } => {
@@ -84,10 +91,10 @@ fn collect(
                 if matches!(member.field_type, StructuralFieldType::Erased { .. }) {
                     continue;
                 }
-                path.push(Path::Field(member.id));
                 if matches!(member.field_type, StructuralFieldType::Atomic(_)) {
-                    return None;
+                    continue;
                 }
+                path.push(Path::Field(member.id));
                 if let Some(scalar) = member.field_type.scalar_type() {
                     let (displacement, _) = structural_layout::direct_scalar_field_geometry(
                         root,
@@ -139,8 +146,6 @@ fn collect(
                         declarations,
                         fields,
                     )?;
-                } else {
-                    return None;
                 }
                 path.pop();
             }
@@ -172,7 +177,6 @@ fn collect(
             path.pop();
             repetitions.pop();
         }
-        _ => return None,
     }
     Some(())
 }

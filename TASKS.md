@@ -765,6 +765,12 @@ defines the complete product bar.
     single-attempt exchange: abstract fence/single-attempt carriers exist but
     have no Terminal producers. A fence stays an event even when realization
     emits no instruction.
+    Generalize atomic location roots beyond state parameters: replacing the
+    `publish(packet.reference)` helper call in
+    `host/runtime_descriptor_reference_record_prefix_exit` with the direct
+    `packet.reference.counter.store(23, NoOrdering)` event refuses at
+    `atomic access: place: parameter authority`; its stored reference supplies
+    the same original cell, not different atomic authority.
   - Checked `sequenced_before`, `reads_from`, `modification_order`,
     `synchronizes_with`, `happens_before` and `global_sequential_order`,
     fence synchronization and outcome-sensitive RMW obligations, keeping
@@ -1769,7 +1775,7 @@ then independent claimed restoration slices -> final closure.
   demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, accesses into actual padding, reference-bearing or atomic host buffers,
+  loans, accesses into actual padding or reference bytes, atomic host buffers,
   non-hosted roots and required
   receiver qualifications. Preserve
   `host/runtime_descriptor_binding_{state_forwarding_input,record_result}_exit`
@@ -1844,6 +1850,11 @@ then independent claimed restoration slices -> final closure.
   covers only the accessed byte prefix, retains unread bytes inside a touched
   scalar and leaves neighboring fields unchanged. Padding outside that interval
   supplies no bytes and cannot invalidate an otherwise backed prefix.
+  Preserve `host/runtime_descriptor_reference_record_prefix_exit`: borrowing a
+  record is not an owned copy; untouched descriptors retain their original
+  referents while the demanded scalar prefix receives writeback. Non-scalar
+  members and atomic cells remain uncovered byte intervals, never interpreter
+  pointer values or ordinary scalar snapshots of atomic residents.
   Preserve `host/runtime_descriptor_local_array_loan_input_exit`: shared and mutable
   whole-array loans keep their owner's activation across calls and state edges;
   only owned occurrences copy payload, and short reads retain unread elements.

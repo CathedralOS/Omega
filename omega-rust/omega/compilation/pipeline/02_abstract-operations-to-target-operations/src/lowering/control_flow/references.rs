@@ -1164,10 +1164,12 @@ pub(super) fn check_projected_access(
     check_region_access(live, place, region.direct_path())
 }
 
-/// A nonescaping read can share an owner's storage with shared loans. Exclusive
-/// loans still suspend overlapping owner reads, and an explicit reference
-/// crossing must use the live carrier's permission rather than the owner's.
-pub(super) fn check_projected_read(
+/// Nonescaping reads and sanctioned atomic events need shared access to their
+/// exact field, not ordinary write access to the whole owner. Exclusive loans
+/// still suspend overlapping owner access, and explicit reference crossings
+/// must use the live carrier's permission rather than the owner's. The atomic
+/// operation separately owns its cell type, ordering and mutation authority.
+pub(super) fn check_projected_shared_access(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
@@ -1233,6 +1235,18 @@ pub(super) fn check_operation_access(
     place: PlaceId,
 ) -> bool {
     match operation {
+        // Atomic mutation is sanctioned shared access to the original cell,
+        // not replacement of its enclosing record or stored descriptors.
+        AbstractOperation::AtomicEvent { event, .. } => event.location().is_some_and(|location| {
+            check_projected_shared_access(
+                function,
+                live,
+                types,
+                location.root,
+                &location.path,
+                Some(location.field),
+            )
+        }),
         AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
             if path.contains(&StructuralPathSegment::Referent) =>
         {

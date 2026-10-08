@@ -26,8 +26,12 @@
 //! destination mutation, regardless of whether the destination is a root,
 //! field, or indexed element. This planner does not decompose constructors.
 //!
+//! Mutation analysis owns write-frame completeness and fact invalidation.
+//! An opaque call summary is not an empty frame, but neither prevents emitting
+//! independently checked assignments. Replaying the enclosing state's frame
+//! here rejected a valid store merely because a later foreign call was opaque.
 //! What remains refused is a custody or proof condition, not an arrangement:
-//! write frames, linear or qualified roots, unsupported permission crossings, and fields
+//! linear or qualified roots, unsupported permission crossings, and fields
 //! whose declared domain the stored value carries no evidence for.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -51,7 +55,6 @@ pub(in crate::execution::terminal_unit) use byte_stores::byte_value_plan;
 mod descriptor_store;
 mod destination;
 mod element_stores;
-mod frame;
 mod primitive;
 mod selectors;
 mod value;
@@ -59,8 +62,7 @@ pub(in crate::execution::terminal_unit) use descriptor_store::{DescriptorSlot, d
 mod view_stores;
 
 /// The ordered stores of one attached Unit body, from `statement_start` on.
-/// The state's complete write frame is replayed once here; each assignment
-/// then composes its destination and value.
+/// Each assignment composes its independently checked destination and value.
 pub(super) fn build_structural_scalar_field_store_sequence_traced(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -70,7 +72,6 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     parameter_storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     statement_start: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
     let statements = program.statement_table.statements(state.statement_nodes);
@@ -80,18 +81,6 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         .any(|statement| matches!(statement, StatementNode::Assignment(_)))
     {
         return Some(Vec::new());
-    }
-    trace.phase("scalar field store sequence: state write frame");
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame;
-    trace.phase("scalar field store sequence: write frame agreement");
-    if !frame::matches(program, machine, state, frame, call_frames) {
-        return None;
     }
     let roots = StoreRoots {
         structural: structural_parameters,

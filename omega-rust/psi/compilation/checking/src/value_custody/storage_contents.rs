@@ -113,8 +113,10 @@ pub enum ContentsRequirement {
     OwnedOrSharedView,
     /// Established storage lent in place, with shared descriptors and provider
     /// handles classified per member. This is neither a copy nor a stable
-    /// observation judgment. Exact access, lifetime, qualifications and provider
-    /// custody remain with the borrowing operation. Authored reference access
+    /// observation judgment. Atomic members retain their original cells, not
+    /// scalar snapshots or ordinary byte-access authority. Exact access,
+    /// lifetime, qualifications and provider custody remain with the borrowing
+    /// operation. Authored reference access
     /// is inspected before lowering erases it from slice shapes.
     BorrowedStorage,
     /// Value contents that an immutable binding can retain as an entry
@@ -636,12 +638,11 @@ fn check_contents(
         return match resolved {
             ContentType::Scalar(_) => true,
             // Shared atomic access may change the resident without invalidating
-            // the loan. Owned storage classification is not observation authority.
+            // the loan. Owning or lending the original cell grants neither
+            // stable observation nor ordinary scalar/byte access to its resident.
             ContentType::Atomic(_) => !matches!(
                 requirement,
-                ContentsRequirement::StableObservation
-                    | ContentsRequirement::SeamMarshal
-                    | ContentsRequirement::BorrowedStorage
+                ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
             ),
             ContentType::Array(element, _)
             | ContentType::Slice(element)
