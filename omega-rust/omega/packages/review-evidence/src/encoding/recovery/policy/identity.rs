@@ -54,7 +54,7 @@ pub(in crate::encoding::recovery) fn operator_coordinate(
 pub(in crate::encoding::recovery) fn target_context(
     reader: &mut Reader<'_>,
 ) -> Result<crate::record::PackagePolicyTargetContext, Error> {
-    match reader.byte()? {
+    super::tag!(reader => {
         0 => Ok(crate::record::PackagePolicyTargetContext::TargetIndependent),
         1 => {
             let target = reader.string()?;
@@ -63,6 +63,5 @@ pub(in crate::encoding::recovery) fn target_context(
             }
             Ok(crate::record::PackagePolicyTargetContext::TargetMember { target })
         }
-        _ => Err(Error::InvalidTag),
-    }
+    })
 }

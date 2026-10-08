@@ -17,7 +17,7 @@ pub(in crate::encoding::recovery) fn scalar_expression(
 ) -> Result<PackageReviewScalarExpression, Error> {
     reader.nested(|reader| {
         use PackageReviewScalarExpression as Expression;
-        Ok(match reader.byte()? {
+        Ok(crate::encoding::recovery::policy::tag!(reader => {
             0 => Expression::Parameter {
                 position: reader.usize()?,
                 primitive_type: primitive_type(reader)?,
@@ -99,7 +99,6 @@ pub(in crate::encoding::recovery) fn scalar_expression(
                 element_path: structural_path(reader)?,
                 primitive_type: primitive_type(reader)?,
             },
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })
 }
