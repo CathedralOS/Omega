@@ -146,15 +146,7 @@ pub(crate) fn build_crash_contract_capsules(
     // machine signature views are deliberately absent: those keep the ordinary
     // machine contract and its authored operational interfaces.
     capsules.extend(
-        program
-            .operators()
-            .iter()
-            .chain(
-                program
-                    .domain_definitions()
-                    .iter()
-                    .flat_map(|domain| program.domain_operators(domain)),
-            )
+        program.all_operators()
             .filter(|operator| operator.is_boundary)
             .map(|operator| {
                 build_operator_crash_contract_capsule(

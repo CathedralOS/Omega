@@ -920,12 +920,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         );
     }
 
-    for operator in program.operators().iter().chain(
-        program
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| program.domain_operators(domain)),
-    ) {
+    for operator in program.all_operators() {
         let name = program
             .operator_path_members(operator.name)
             .iter()

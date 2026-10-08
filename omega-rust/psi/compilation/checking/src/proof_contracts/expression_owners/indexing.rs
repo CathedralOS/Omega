@@ -250,12 +250,7 @@ pub(super) fn index_parameter_constraint_environments(
             );
         }
     }
-    for operator in program.operators().iter().chain(
-        program
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| program.domain_operators(domain)),
-    ) {
+    for operator in program.all_operators() {
         index_telescope_parameters(program, program.operator_parameters(operator), index);
     }
     for proposition in program.propositions() {

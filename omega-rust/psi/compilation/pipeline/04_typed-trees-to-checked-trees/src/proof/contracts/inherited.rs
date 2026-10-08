@@ -40,15 +40,7 @@ pub(crate) fn estimated_contract_fact_capacity(program: &dyn ::validation::Check
                 .sum::<usize>()
         }))
         .chain(
-            program
-                .operators()
-                .iter()
-                .chain(
-                    program
-                        .domain_definitions()
-                        .iter()
-                        .flat_map(|domain| program.domain_operators(domain)),
-                )
+            program.all_operators()
                 .map(|operator| {
                     program
                         .operator_contracts(operator)

@@ -186,15 +186,7 @@ pub fn resolve_product_operand(
                     .map(|machine| (machine.symbol, machine.is_public)),
             )
             .chain(
-                program
-                    .operators()
-                    .iter()
-                    .chain(
-                        program
-                            .domain_definitions()
-                            .iter()
-                            .flat_map(|domain| program.domain_operators(domain)),
-                    )
+                program.all_operators()
                     .filter(|operator| operator.is_boundary)
                     .map(|operator| (operator.symbol, operator.is_public)),
             )

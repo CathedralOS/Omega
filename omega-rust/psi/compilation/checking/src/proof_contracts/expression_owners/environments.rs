@@ -327,12 +327,7 @@ pub(super) fn collect_parameter_constraint_environments(
             )?;
         }
     }
-    for operator in program.operators().iter().chain(
-        program
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| program.domain_operators(domain)),
-    ) {
+    for operator in program.all_operators() {
         collect_telescope_constraint_environments(
             program,
             program.operator_parameters(operator),

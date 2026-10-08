@@ -592,15 +592,7 @@ fn operator_contract_value_type(
         .name_path_members(path.members)
         .last()?
         .as_str();
-    let mut types = program
-        .operators()
-        .iter()
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .flat_map(|domain| program.domain_operators(domain)),
-        )
+    let mut types = program.all_operators()
         .filter_map(|operator| {
             // The name match is a field comparison; the containment walk
             // visits every contract expression, so it runs only for an

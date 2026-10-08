@@ -216,12 +216,7 @@ pub(crate) fn build_proof_facts_with_operators(
             &mut evidence_terms,
         );
     }
-    for operator in program.operators().iter().chain(
-        program
-            .domain_definitions()
-            .iter()
-            .flat_map(|domain| program.domain_operators(domain)),
-    ) {
+    for operator in program.all_operators() {
         append_operator_declaration_contract_facts(program, operator, &mut contract_facts);
     }
     let (mut contract_fact_refs, contract_calls) =

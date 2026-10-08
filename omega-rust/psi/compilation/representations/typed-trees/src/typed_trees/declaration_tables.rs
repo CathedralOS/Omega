@@ -366,6 +366,17 @@ impl TypedTrees {
             .span_or_empty(self.roots.machine_token_bindings)
     }
 
+    /// Every authored operator: free operators plus each domain definition's
+    /// members, in declaration order. Token-bearing machine signature views
+    /// are not declarations; reach them through [`Self::machine_token_bindings`].
+    pub fn all_operators(&self) -> impl Iterator<Item = &crate::operator::OperatorDefinition> + '_ {
+        self.operators().iter().chain(
+            self.domain_definitions()
+                .iter()
+                .flat_map(|domain| self.domain_operators(domain)),
+        )
+    }
+
     pub fn push_operator_path_member(
         &mut self,
         operator: &mut crate::operator::OperatorDefinition,

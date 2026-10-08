@@ -496,17 +496,7 @@ fn operator_declaration(
     arena::HandleSpan<SignatureContract>,
 )> {
     let program = &checked.typed;
-    program
-        .operators()
-        .iter()
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .flat_map(|domain| program.domain_operators(domain)),
-        )
-        .chain(program.machine_token_bindings())
-        .find(|operator| operator.symbol == symbol)
+    typed_trees::operator::declaration_by_symbol(program, symbol)
         .map(|operator| (program.operator_parameters(operator), operator.contracts))
 }
 

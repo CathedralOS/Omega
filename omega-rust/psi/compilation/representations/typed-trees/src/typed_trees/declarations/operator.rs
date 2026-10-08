@@ -101,14 +101,7 @@ pub fn declaration_by_symbol(
     symbol: SymbolHandle,
 ) -> Option<&OperatorDefinition> {
     program
-        .operators()
-        .iter()
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .flat_map(|domain| program.domain_operators(domain)),
-        )
+        .all_operators()
         .chain(program.machine_token_bindings())
         .find(|operator| operator.symbol == symbol)
 }
