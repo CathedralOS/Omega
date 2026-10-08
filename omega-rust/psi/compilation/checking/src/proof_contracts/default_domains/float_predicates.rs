@@ -6,7 +6,6 @@
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::data::{DataDefinition, DataField, DataMember};
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
@@ -50,7 +49,7 @@ pub fn data_predicates_admit_zero(
         .span_or_empty(definition.where_facts)
         .iter()
         .all(|fact| {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 return false;
             };
             predicate(

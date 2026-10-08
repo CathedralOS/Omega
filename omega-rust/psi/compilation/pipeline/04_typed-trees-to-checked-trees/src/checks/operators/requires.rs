@@ -518,7 +518,7 @@ fn requires_fact_proven(
     operand_labels: &[String],
     fact: &ProofFact,
 ) -> bool {
-    if let ProofFact::Expression(expression) = fact
+    if let Some(expression) = fact.as_expression()
         && reflexive_comparison_holds(program, parameters, type_parameters, *expression)
         && closed_operators_are_builtin(program, operators, *expression)
     {

@@ -232,7 +232,7 @@ fn parameter_premise_atoms(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 continue;
             };
             if !program
@@ -299,7 +299,7 @@ fn append_call_ensured_domain_atoms(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 continue;
             };
             // Only the whole reserved `result` names the call's result; a
@@ -351,8 +351,7 @@ fn callable_signature_contracts<'program>(
     }
     let parent = program.symbols.get(target).parent;
     let definition = program.trait_definition_by_symbol(parent)?;
-    let signature = program
-        .trait_machine_signature_by_symbol(definition, target)?;
+    let signature = program.trait_machine_signature_by_symbol(definition, target)?;
     Some(
         program
             .state_signature_contracts(signature)

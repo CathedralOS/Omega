@@ -48,7 +48,7 @@ pub(crate) fn collect_checked_proof_membership_selections(
     resolutions: &mut Vec<AuthoredSelectionResolution>,
 ) -> Result<(), Diagnostic> {
     for (fact_handle, fact) in typed_trees::references::program_proof_facts(program) {
-        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+        let Some(membership) = fact.as_membership() else {
             continue;
         };
         let Some(occurrence) = membership.authored_domain_selection else {

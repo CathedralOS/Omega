@@ -20,7 +20,6 @@ use language_semantics::content::{
 };
 use language_semantics::{Multiplicity, ReferenceAccess, SemanticDomainId};
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::name::Identifier;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -45,7 +44,7 @@ pub(crate) fn check_callable(
         .filter(|contract| contract.kind == SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 continue;
             };
             if program
@@ -88,7 +87,7 @@ pub(crate) fn check_callable(
                 .filter(|contract| contract.kind == SignatureContractKind::Requires)
             {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let ProofFact::Membership(membership) = fact else {
+                    let Some(membership) = fact.as_membership() else {
                         continue;
                     };
                     if program

@@ -866,9 +866,7 @@ pub(crate) fn ensures_expression_facts<'a>(
     contracts: &'a [typed_trees::signature::SignatureContract],
 ) -> impl Iterator<Item = ExpressionHandle> + 'a {
     ensures_facts(program, contracts).filter_map(|fact| {
-        let ProofFact::Expression(expression) = fact else {
-            return None;
-        };
+        let expression = fact.as_expression()?;
         Some(*expression)
     })
 }
@@ -895,9 +893,7 @@ pub(crate) fn contract_expression_facts<'a>(
         .filter(move |contract| contract.kind == kind)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .filter_map(|fact| {
-            let ProofFact::Expression(expression) = fact else {
-                return None;
-            };
+            let expression = fact.as_expression()?;
             Some(*expression)
         })
 }

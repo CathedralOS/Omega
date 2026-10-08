@@ -457,9 +457,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
                 // reading, and a clause is all-or-nothing: the whole clause
                 // stays unlowered rather than shrinking to the facts that do
                 // read, which would drop an authored requirement silently.
-                let ProofFact::Expression(expression) = fact else {
-                    return None;
-                };
+                let expression = fact.as_expression()?;
                 let predicate = crate::values::lower_scalar_contract_predicate(
                     program,
                     operators,

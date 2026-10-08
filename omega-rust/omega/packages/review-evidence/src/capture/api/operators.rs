@@ -170,8 +170,6 @@ pub(crate) fn project_operator_crash_routes(
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewCrashRoute>, Vec<Diagnostic>> {
-    use typed_trees::domain::ProofFact;
-
     checked
         .buckets()
         .iter()
@@ -189,8 +187,7 @@ pub(crate) fn project_operator_crash_routes(
                     .facts()
                     .iter()
                     .map(|fact| {
-                        let ProofFact::Expression(expression) = compilation.proof_facts.get(*fact)
-                        else {
+                        let Some(expression) = compilation.proof_facts.get(*fact).as_expression() else {
                             return Err(vec![Diagnostic::error(format!(
                                 "public operator `{}` has a non-expression checked crash route",
                                 context.subject_name

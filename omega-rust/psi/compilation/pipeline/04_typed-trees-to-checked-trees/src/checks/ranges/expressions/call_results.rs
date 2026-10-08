@@ -56,7 +56,7 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let typed_trees::domain::ProofFact::Expression(conjunct) = fact {
+            if let Some(conjunct) = fact.as_expression() {
                 bounds.fold_conjunct(program, *conjunct);
             }
         }

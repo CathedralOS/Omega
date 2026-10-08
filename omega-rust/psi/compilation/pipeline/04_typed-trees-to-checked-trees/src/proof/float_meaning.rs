@@ -839,8 +839,7 @@ fn instantiate_transported_ensures(
                 if contract_fact.kind != ContractProofFactKind::Ensures {
                     continue;
                 }
-                let typed_trees::domain::ProofFact::Expression(expression) =
-                    program.proof_facts.get(contract_fact.fact)
+                let Some(expression) = program.proof_facts.get(contract_fact.fact).as_expression()
                 else {
                     continue;
                 };

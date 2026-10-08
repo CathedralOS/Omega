@@ -127,7 +127,7 @@ impl<'program> CurrentScalarValues<'program> {
                 continue;
             }
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+                if let Some(expression) = fact.as_expression() {
                     values.assume(program, machine, state, *expression, true);
                 }
             }

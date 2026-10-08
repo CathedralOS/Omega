@@ -297,9 +297,7 @@ pub(super) fn append_call_result_ensured_instances(
         if contract.kind != ContractProofFactKind::Ensures {
             continue;
         }
-        let typed_trees::domain::ProofFact::Membership(membership) =
-            program.proof_facts.get(contract.fact)
-        else {
+        let Some(membership) = program.proof_facts.get(contract.fact).as_membership() else {
             continue;
         };
         // The subject must be the whole reserved result: a projection such

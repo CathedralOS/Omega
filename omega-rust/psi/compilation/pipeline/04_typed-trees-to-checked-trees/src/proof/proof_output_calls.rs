@@ -874,11 +874,7 @@ fn instantiate_proof_output_proposition(
         .iter()
         .map(|(_, contract)| contract)
         .find(|contract| contract.evidence_term == Some(term))?;
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
-    else {
-        return None;
-    };
+    let application = program.proof_facts.get(contract.fact).as_proposition()?;
     let call_site = validation::CallSite::Expression {
         expression: package.call,
         call,

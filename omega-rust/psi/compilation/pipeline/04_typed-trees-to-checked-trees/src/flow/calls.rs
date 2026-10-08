@@ -746,7 +746,7 @@ fn append_ensures_result_rows(
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 continue;
             };
             // This occurrence is already selected from this exact callable's
@@ -835,7 +835,7 @@ fn parameter_identity_rows(
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 continue;
             };
             let Some(position) = ensured_parameter_position(program, parameters, membership.value)

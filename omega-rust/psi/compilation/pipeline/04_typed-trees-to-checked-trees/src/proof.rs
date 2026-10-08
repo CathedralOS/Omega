@@ -75,9 +75,7 @@ pub(crate) fn build_proof_facts_with_operators(
             };
             for fact in fact_handles(contract.facts) {
                 let evidence_term = contract.binding.as_ref().map(|binding| {
-                    let typed_trees::domain::ProofFact::Proposition(application) =
-                        program.proof_facts.get(fact)
-                    else {
+                    let Some(application) = program.proof_facts.get(fact).as_proposition() else {
                         unreachable!("validated named guarded guarantee must bind a proposition")
                     };
                     let normalized = program

@@ -49,7 +49,6 @@ use language_core::ReferenceAccess;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -187,7 +186,7 @@ pub fn declaration_facts_carried(
         .span_or_empty(definition.where_facts)
         .iter()
         .all(|fact| {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 return false;
             };
             let spelled = FactSpelling {
@@ -304,7 +303,7 @@ impl RowEmitter<'_, '_> {
             .proof_facts
             .span_or_empty(definition.where_facts)
         {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if let Some(predicate) = spelling.boolean(*expression) {

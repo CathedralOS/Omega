@@ -358,9 +358,7 @@ fn build_structural_runtime_guarantees(
         })
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .map(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-                return None;
-            };
+            let expression = fact.as_expression()?;
             crate::values::lower_machine_entry_boolean_expression(
                 program,
                 operators,

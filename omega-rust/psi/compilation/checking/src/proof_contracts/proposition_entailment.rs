@@ -176,9 +176,7 @@ fn produced_evidence_labels(
             .span_or_empty(contract.facts)
             .iter()
             .find_map(|fact| {
-                let ProofFact::Proposition(application) = fact else {
-                    return None;
-                };
+                let application = fact.as_proposition()?;
                 let normalized =
                     program.normalize_nominal_proposition_application(application, None)?;
                 match normalized.classification {
@@ -340,7 +338,7 @@ fn proposition_labels(
         .filter(|contract| contract.kind == kind)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .filter_map(|fact| {
-            let ProofFact::Proposition(application) = fact else {
+            let Some(application) = fact.as_proposition() else {
                 return match fact {
                     ProofFact::Expression(expression) if include_boolean_expressions => {
                         Some(format!(

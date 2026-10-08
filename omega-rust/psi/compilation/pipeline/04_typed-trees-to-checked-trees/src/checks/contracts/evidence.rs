@@ -312,11 +312,7 @@ fn instantiate_proof_expression_parameter(
         .iter()
         .map(|(_, contract)| contract)
         .find(|contract| contract.evidence_term == Some(parameter))?;
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
-    else {
-        return None;
-    };
+    let application = program.proof_facts.get(contract.fact).as_proposition()?;
     let binder_labels = application
         .binder_arguments
         .iter()
@@ -503,17 +499,12 @@ fn instantiated_parameter_proposition(
         .iter()
         .map(|fact_ref| facts.proof.contract_facts.get(fact_ref.fact))
         .find(|contract| contract.evidence_term == Some(parameter))?;
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
-    else {
-        return None;
-    };
+    let application = program.proof_facts.get(contract.fact).as_proposition()?;
     let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
         program
             .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
-                program
-                    .trait_machine_signature_by_symbol(definition, dispatch.requirement)
+                program.trait_machine_signature_by_symbol(definition, dispatch.requirement)
             })
             .map(|requirement| program.state_signature_parameters(requirement))?
     } else {

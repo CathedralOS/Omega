@@ -53,7 +53,7 @@ fn pending_memberships(typed: &TypedTrees, domain: &EvaluationDomain) -> Vec<Pen
             continue;
         }
         for fact in data.where_facts.handles() {
-            let ProofFact::Membership(membership) = typed.proof_facts.get(fact) else {
+            let Some(membership) = typed.proof_facts.get(fact).as_membership() else {
                 continue;
             };
             if matches!(
@@ -195,18 +195,18 @@ pub(crate) fn evaluate_selected_domain_facts(
                 .collect::<Vec<_>>();
             let mut residual = Vec::new();
             while let Some(fact) = pending.pop() {
-                if let ProofFact::Expression(expression) = fact {
+                if let Some(expression) = fact.as_expression() {
                     // Conjunction is the same obligation whether authored in
                     // one clause or several. Preserve order and source handles
                     // while removing only independently proved static leaves.
-                    if let Some(binary) = typed.expression_table.binary_node(expression)
+                    if let Some(binary) = typed.expression_table.binary_node(*expression)
                         && binary.operator == typed_trees::expression::BinaryOperator::And
                     {
                         pending.push(ProofFact::Expression(binary.right));
                         pending.push(ProofFact::Expression(binary.left));
                         continue;
                     }
-                    if fact_expression::data_fact_is_static_true(typed, data, expression) {
+                    if fact_expression::data_fact_is_static_true(typed, data, *expression) {
                         continue;
                     }
                 }

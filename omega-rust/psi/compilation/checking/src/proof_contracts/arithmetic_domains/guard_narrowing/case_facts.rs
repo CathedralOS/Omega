@@ -18,8 +18,8 @@ use super::projected_facts::{
     ProjectedOperand, contribute_projected_comparison, has_fixed_integer_meaning,
 };
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, State, ValueEnvironment,
-    meaning, ordered_values,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, ValueEnvironment, meaning,
+    ordered_values,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
@@ -58,7 +58,7 @@ pub(super) fn contribute_case_where_facts(
         return;
     };
     for fact in program.proof_facts.span_or_empty(variant.where_facts) {
-        let ProofFact::Expression(expression) = fact else {
+        let Some(expression) = fact.as_expression() else {
             continue;
         };
         contribute_fact_expression(

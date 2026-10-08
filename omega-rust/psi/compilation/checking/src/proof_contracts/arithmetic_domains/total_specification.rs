@@ -287,7 +287,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 &machine_prior_facts,
                 diagnostics,
             );
-            if let ProofFact::Expression(expression) = fact {
+            if let Some(expression) = fact.as_expression() {
                 validate_total_specification_arithmetic(
                     program,
                     machine,
@@ -336,7 +336,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                     &state_prior_facts,
                     diagnostics,
                 );
-                if let ProofFact::Expression(expression) = fact {
+                if let Some(expression) = fact.as_expression() {
                     validate_total_specification_arithmetic(
                         program,
                         machine,
@@ -703,7 +703,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
                 prior_facts,
                 diagnostics,
             );
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if seen.contains(expression) {

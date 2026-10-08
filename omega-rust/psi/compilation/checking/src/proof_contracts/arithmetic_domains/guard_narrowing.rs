@@ -6,7 +6,7 @@
 
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, ProofFact, SignatureContractKind, State, ValueEnvironment,
+    PrimitiveType, SignatureContractKind, State, ValueEnvironment,
     declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
 };
 use std::collections::BTreeMap;
@@ -1199,7 +1199,6 @@ pub(crate) fn seed_out_param_ensures(
     signature: &typed_trees::signature::StateSignature,
     environment: &mut ValueEnvironment,
 ) {
-    use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
     let arguments = program.statement_table.expression_handles(call.arguments);
     let parameters: Vec<&typed_trees::signature::StateParameter> = program
@@ -1221,7 +1220,7 @@ pub(crate) fn seed_out_param_ensures(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             projection.seed_conjunct(*expression, environment);

@@ -10,8 +10,8 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, Multiplicity, ProofFact, SignatureContractKind,
-    StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
+    CheckedUnitStructuralPathSegment, Multiplicity, SignatureContractKind, StateParameter,
+    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -976,7 +976,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
                 })
         })
         .any(|(requires, fact)| {
-            let ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 return false;
             };
             validation::canonical_place_from_expression_in_state(

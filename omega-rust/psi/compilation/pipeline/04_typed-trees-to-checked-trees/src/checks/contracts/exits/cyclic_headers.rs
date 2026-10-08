@@ -302,7 +302,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 if contract.kind != ContractProofFactKind::Ensures {
                     continue;
                 }
-                let ProofFact::Expression(guarantee) = self.program.proof_facts.get(contract.fact)
+                let Some(guarantee) = self.program.proof_facts.get(contract.fact).as_expression()
                 else {
                     continue;
                 };
@@ -444,8 +444,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         expression: ExpressionHandle,
         holds: bool,
     ) -> (ExpressionHandle, bool) {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return (expression, holds);
         };
         if binary.operator != BinaryOperator::Equal
@@ -735,7 +734,11 @@ impl<'program, 'facts> Header<'program, 'facts> {
                         domain,
                     });
                 }
-                if !self.program.expression_table.name_path_is_single_member(path) {
+                if !self
+                    .program
+                    .expression_table
+                    .name_path_is_single_member(path)
+                {
                     return None;
                 }
                 self.terms

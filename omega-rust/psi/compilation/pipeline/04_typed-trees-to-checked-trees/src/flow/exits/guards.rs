@@ -410,9 +410,7 @@ fn append_case_constraint_context(
                     .saturating_add(offset),
                 variant.where_facts.start().generation(),
             );
-            let typed_trees::domain::ProofFact::Expression(fact_expression) =
-                program.proof_facts.get(fact_handle)
-            else {
+            let Some(fact_expression) = program.proof_facts.get(fact_handle).as_expression() else {
                 continue;
             };
             let instantiated =

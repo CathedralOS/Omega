@@ -197,7 +197,7 @@ fn authored_premises(
         .filter(|contract| contract.kind == typed::signature::SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed::domain::ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 continue;
             };
             let Some(domain) = program.domain_definition(membership.domain_symbol) else {

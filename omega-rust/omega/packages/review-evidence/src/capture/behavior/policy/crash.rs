@@ -12,7 +12,6 @@ use checked_trees::RealizedMachineContractEnvelope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    domain::ProofFact,
     expression::ExpressionNode,
     machine::Machine,
     signature::{CrashCause, SignatureContractKind},
@@ -152,8 +151,7 @@ pub(crate) fn crash_routes(
                 .filter(|contract| contract.kind == SignatureContractKind::Crashes { cause })
             {
                 for fact_handle in contract.facts.handles() {
-                    let ProofFact::Expression(expression) =
-                        compilation.proof_facts.get(fact_handle)
+                    let Some(expression) = compilation.proof_facts.get(fact_handle).as_expression()
                     else {
                         return Err(rejected(
                             "authored crash guard is not a checked expression fact",

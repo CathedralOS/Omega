@@ -154,7 +154,7 @@ pub(crate) fn candidate_const_index_expressions(
     ) {
         for contract in program.signature_contracts.span_or_empty(contracts) {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let typed_trees::domain::ProofFact::Membership(membership) = fact {
+                if let Some(membership) = fact.as_membership() {
                     roots.extend(
                         program
                             .type_reference_table

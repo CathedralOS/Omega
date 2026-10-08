@@ -19,7 +19,6 @@ use language_semantics::content::{
 };
 use std::collections::{HashMap, HashSet};
 use symbols::{BuiltinFunction, SymbolHandle};
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::TypeReferenceHandle;
@@ -152,9 +151,9 @@ fn collect_callable_plans(
 ) {
     for contract in contracts {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
+            if let Some(expression) = fact.as_expression() {
                 collect_expression_nodes(program, *expression, proof_nodes);
-            } else if let ProofFact::Membership(membership) = fact {
+            } else if let Some(membership) = fact.as_membership() {
                 collect_expression_nodes(program, membership.value, proof_nodes);
             }
         }
@@ -163,7 +162,7 @@ fn collect_callable_plans(
     let mut by_algebra: HashMap<String, ExpressionHandle> = HashMap::new();
     for contract in contracts {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if !expression_uses_content_surface(program, projections, *expression) {

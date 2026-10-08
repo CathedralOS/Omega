@@ -199,7 +199,7 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
             return false;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 return false;
             };
             let Some(path) = program.expression_table.name_path_node(membership.value) else {
@@ -285,7 +285,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
 
     let mut output = Vec::new();
     for checked in checked_requires {
-        let ProofFact::Membership(membership) = program.proof_facts.get(checked.fact) else {
+        let Some(membership) = program.proof_facts.get(checked.fact).as_membership() else {
             // A machine-level scalar predicate is not a qualification check:
             // it travels as a checked scalar requires row
             // (`boundary_scalar_requires`), which refuses any clause the
@@ -455,7 +455,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             {
                 continue;
             }
-            let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
+            let Some(membership) = program.proof_facts.get(fact).as_membership() else {
                 continue;
             };
             // Authorization also admits mutable output parameters, but this

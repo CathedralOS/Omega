@@ -4,7 +4,7 @@
 //! This consumes membership, including routed membership, without minting it.
 
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
-use typed_trees::domain::{ProofFact, ProofMembershipFact};
+use typed_trees::domain::ProofMembershipFact;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -52,7 +52,7 @@ pub(super) fn append_membership_premises(
         return;
     };
     for predicate in domain.facts.handles() {
-        let ProofFact::Expression(expression) = program.proof_facts.get(predicate) else {
+        let Some(expression) = program.proof_facts.get(predicate).as_expression() else {
             continue;
         };
         decompose_premise_expression(

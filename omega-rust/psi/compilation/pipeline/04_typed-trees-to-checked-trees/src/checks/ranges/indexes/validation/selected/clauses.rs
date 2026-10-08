@@ -1,7 +1,6 @@
 use language_core::operator_spelling::OperatorSpelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::signature::SignatureContractKind;
@@ -49,7 +48,7 @@ pub(super) fn validate(
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 return Err(
                     "has an unsupported selected `requires` fact; bounds alone cannot discharge it",
                 );

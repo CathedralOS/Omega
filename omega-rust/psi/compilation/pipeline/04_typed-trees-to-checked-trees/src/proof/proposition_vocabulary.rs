@@ -128,9 +128,7 @@ pub(crate) fn build_checked_proposition_vocabulary(
         .collect();
     let applications = typed_trees::references::program_proof_facts(program)
         .filter_map(|(_, fact)| {
-            let typed_trees::domain::ProofFact::Proposition(application) = fact else {
-                return None;
-            };
+            let application = fact.as_proposition()?;
             let normalized =
                 program.normalize_nominal_proposition_application(application, None)?;
             Some(lower_checked_proposition_application(normalized))

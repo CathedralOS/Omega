@@ -316,7 +316,7 @@ pub(crate) fn suggest_missing_citation(
                 }
                 SignatureContractKind::Ensures => {
                     for lemma_fact in program.proof_facts.span_or_empty(contract.facts) {
-                        if let ProofFact::Expression(expression) = lemma_fact {
+                        if let Some(expression) = lemma_fact.as_expression() {
                             ensures_facts.push(*expression);
                         }
                     }
@@ -733,7 +733,7 @@ pub(crate) fn instantiate_citation(
             }
             SignatureContractKind::Ensures => {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    if let ProofFact::Expression(expression) = fact {
+                    if let Some(expression) = fact.as_expression() {
                         ensures_facts.push(*expression);
                     }
                 }

@@ -1,6 +1,6 @@
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
-    StatementNode, SymbolHandle, TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, RESULT_BINDER, StatementNode,
+    SymbolHandle, TransitionGuardNode, TransitionTargetNode, is_arm_pattern_marker,
     structural_call_machine_name, structural_term, structural_term_pair, term_contains,
 };
 use language_semantics::const_value::boolean_literal_spelling;
@@ -762,7 +762,7 @@ impl<'program> StructuralJudge<'program> {
                     continue;
                 }
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let ProofFact::Expression(expression) = fact else {
+                    let Some(expression) = fact.as_expression() else {
                         continue;
                     };
                     if let Some(term) = self.functional_ensures_result(

@@ -4,9 +4,8 @@
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitNominalAffineCallerRequirementPlan,
-    CheckedUnitNominalAffineCleanupRequirementPlan, ContractProofFactKind,
-    ContractProofFactOwner, DataMember,
-    Diagnostic, ExpressionNode, PrimitiveType, ProofFact, StateParameter, SymbolHandle,
+    CheckedUnitNominalAffineCleanupRequirementPlan, ContractProofFactKind, ContractProofFactOwner,
+    DataMember, Diagnostic, ExpressionNode, PrimitiveType, StateParameter, SymbolHandle,
 };
 
 pub(crate) fn nominal_cleanup_boolean_requirements(
@@ -186,9 +185,7 @@ pub(crate) fn checked_contract_expressions(
         if checked.kind != kind {
             continue;
         }
-        let ProofFact::Expression(expression) = program.proof_facts.get(checked.fact) else {
-            return None;
-        };
+        let expression = program.proof_facts.get(checked.fact).as_expression()?;
         expressions.push(*expression);
     }
     Some(expressions)
@@ -264,4 +261,3 @@ pub(crate) fn direct_boolean_field_requirement(
         expected,
     })
 }
-

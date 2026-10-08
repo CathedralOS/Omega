@@ -2,7 +2,6 @@ use crate::value_custody::places::unwrapped_type_reference;
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
 
@@ -30,7 +29,7 @@ fn validate_boundary_requirements(
                 .filter(|contract| contract.kind == SignatureContractKind::Ensures)
             {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let ProofFact::Membership(membership) = fact else {
+                    let Some(membership) = fact.as_membership() else {
                         continue;
                     };
                     if let Some(permission) = crate::proof_contracts::proof_facts::carry_permission(
@@ -172,7 +171,7 @@ fn validate_external_machine_claims(
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Membership(membership) = fact else {
+                let Some(membership) = fact.as_membership() else {
                     continue;
                 };
                 if let Some(permission) = crate::proof_contracts::proof_facts::carry_permission(

@@ -15,9 +15,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use crate::{
     BooleanFact, DataDefinitionFactRecord, DomainDefinitionFactRecord, DomainMembershipFact, Fact,
     FactContext, FactContextView, FactOrigin, FactPayload, FactPlace, FactRef,
-    InstantiatedExpression, Place, PlaceRoot, PlaceSegment, ProgramPoint, QualificationCorrespondence,
-    QualificationEvidence, SymbolFactSet,
-    effective_member_symbol, resolve_place_member_symbol,
+    InstantiatedExpression, Place, PlaceRoot, PlaceSegment, ProgramPoint,
+    QualificationCorrespondence, QualificationEvidence, SymbolFactSet, effective_member_symbol,
+    resolve_place_member_symbol,
 };
 
 pub type FactHandle = Handle<Fact>;
@@ -218,11 +218,7 @@ impl FactPlan {
                     .clone(),
             );
         }
-        let typed_trees::domain::ProofFact::Proposition(application) =
-            program.proof_facts.get(proof_fact)
-        else {
-            return None;
-        };
+        let application = program.proof_facts.get(proof_fact).as_proposition()?;
         program
             .normalize_proposition_application(application, None)
             .map(|formula| formula.identity_label())

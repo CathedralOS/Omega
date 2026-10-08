@@ -207,7 +207,7 @@ fn literal_mint_discharges(
         return MintJudgment::NotProved;
     };
     for fact in program.proof_facts.span_or_empty(domain.facts) {
-        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+        let Some(expression) = fact.as_expression() else {
             return MintJudgment::NotProved;
         };
         match program.expression_table.expression(*expression) {
@@ -266,9 +266,7 @@ fn interval_mint_judgment(
     use typed_trees::expression::BinaryOperator;
 
     for fact in program.proof_facts.span_or_empty(domain.facts) {
-        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-            return None;
-        };
+        let expression = fact.as_expression()?;
         match program.expression_table.expression(*expression) {
             ExpressionNode::Boolean(true) => continue,
             ExpressionNode::Boolean(false) => return Some(MintJudgment::FactFalse),

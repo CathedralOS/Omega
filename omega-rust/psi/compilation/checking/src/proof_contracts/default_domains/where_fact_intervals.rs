@@ -276,9 +276,7 @@ fn field_literal_bounds(
     let mut bounds = Vec::new();
     let mut conjuncts = Vec::new();
     for fact in facts {
-        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
-            return None;
-        };
+        let expression = fact.as_expression()?;
         conjuncts.push(*expression);
     }
     while let Some(conjunct) = conjuncts.pop() {
@@ -458,7 +456,7 @@ fn factor_lower_bound(
         return Some(low);
     }
     for fact in program.proof_facts.span_or_empty(definition.where_facts) {
-        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+        let Some(expression) = fact.as_expression() else {
             continue;
         };
         let Some(binary) = program.expression_table.binary_node(*expression) else {

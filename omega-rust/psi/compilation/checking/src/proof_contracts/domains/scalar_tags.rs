@@ -8,7 +8,7 @@
 //! their own graph evidence and must not disappear during this classification.
 
 use symbols::SymbolHandle;
-use typed_trees::domain::{DomainDefinition, ProofFact};
+use typed_trees::domain::DomainDefinition;
 
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::{
@@ -85,7 +85,7 @@ pub fn scalar_state_contracts_are_qualifications(
         };
         !facts.is_empty()
             && facts.iter().all(|fact| {
-                let ProofFact::Membership(membership) = fact else {
+                let Some(membership) = fact.as_membership() else {
                     return false;
                 };
                 let arguments = program

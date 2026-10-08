@@ -776,7 +776,7 @@ fn prove_edge(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
+            if let Some(expression) = fact.as_expression() {
                 collect_guard(&mut engine, *expression, true, &mut comparisons, 0)?;
             }
         }
@@ -1262,7 +1262,7 @@ fn contract_comparisons(
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             // Membership and proposition facts remain outside this arithmetic
             // projection. They are neither assumed nor claimed re-established.
-            if let ProofFact::Expression(expression) = fact {
+            if let Some(expression) = fact.as_expression() {
                 admit(*expression)?;
                 collect_guard(engine, *expression, true, &mut comparisons, 0)?;
             }

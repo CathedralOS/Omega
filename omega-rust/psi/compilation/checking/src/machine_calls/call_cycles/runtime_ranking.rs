@@ -8,7 +8,6 @@ mod prefix;
 mod projection;
 
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::signature::SignatureContractKind;
@@ -343,7 +342,7 @@ pub(super) fn project_component(
                         continue;
                     }
                     for fact in program.proof_facts.span_or_empty(contract.facts) {
-                        if let ProofFact::Expression(expression) = fact {
+                        if let Some(expression) = fact.as_expression() {
                             guards.push((*expression, true));
                             crate::expression_traversal::collect_expression_nodes(
                                 program,

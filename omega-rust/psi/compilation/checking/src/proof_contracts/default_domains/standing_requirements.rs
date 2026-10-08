@@ -11,7 +11,6 @@
 
 use super::place_queries::data_definition_for_expression;
 use crate::proof_contracts::collection_predicates::{fact_argument_field, predicate_application};
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
@@ -88,7 +87,7 @@ pub fn standing_facts_prove_requirement(
         .span_or_empty(definition.where_facts)
         .iter()
         .any(|fact| {
-            let ProofFact::Expression(fact) = fact else {
+            let Some(fact) = fact.as_expression() else {
                 return false;
             };
             let Some(standing) = predicate_application(program, definition.symbol, *fact) else {

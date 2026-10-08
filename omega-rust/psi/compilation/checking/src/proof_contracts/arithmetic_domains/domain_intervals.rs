@@ -113,7 +113,7 @@ fn predicate_interval(
         exact: true,
     };
     for fact in program.proof_facts(definition) {
-        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+        let Some(expression) = fact.as_expression() else {
             interval.exact = false;
             continue;
         };

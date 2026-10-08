@@ -207,7 +207,7 @@ pub(crate) fn intern_proof_membership_instances(
 ) -> Result<(), Diagnostic> {
     let mut instances = Vec::new();
     for (handle, fact) in program.proof_facts.iter() {
-        let typed::domain::ProofFact::Membership(membership) = fact else {
+        let Some(membership) = fact.as_membership() else {
             continue;
         };
         if membership.domain_arguments.is_empty() || !membership.domain_symbol.is_valid() {

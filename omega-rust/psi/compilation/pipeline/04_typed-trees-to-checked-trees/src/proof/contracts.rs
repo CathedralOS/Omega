@@ -117,9 +117,7 @@ pub(crate) fn append_machine_contract_facts(
                     &mut requires_position,
                     &mut ensures_position,
                 );
-                let typed_trees::domain::ProofFact::Proposition(application) =
-                    program.proof_facts.get(fact)
-                else {
+                let Some(application) = program.proof_facts.get(fact).as_proposition() else {
                     unreachable!("validated named contract must bind a proposition")
                 };
                 let normalized = program
@@ -216,9 +214,7 @@ pub(crate) fn append_state_contract_facts(
                         unreachable!("states admit only arrival requires contracts")
                     }
                 };
-                let typed_trees::domain::ProofFact::Proposition(application) =
-                    program.proof_facts.get(fact)
-                else {
+                let Some(application) = program.proof_facts.get(fact).as_proposition() else {
                     unreachable!("validated named state contract must bind a proposition")
                 };
                 let normalized = program
@@ -314,9 +310,7 @@ pub(crate) fn append_state_signature_contract_facts(
                         &mut requires_position,
                         &mut ensures_position,
                     );
-                    let typed_trees::domain::ProofFact::Proposition(application) =
-                        program.proof_facts.get(fact)
-                    else {
+                    let Some(application) = program.proof_facts.get(fact).as_proposition() else {
                         unreachable!("validated named signature contract must bind a proposition")
                     };
                     let normalized = program

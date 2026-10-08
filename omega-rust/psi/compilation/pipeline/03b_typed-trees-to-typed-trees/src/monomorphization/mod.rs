@@ -701,7 +701,7 @@ pub(crate) fn finalize_domain_instance_identities(
     let mut membership_updates = Vec::new();
     for handle in references.proof_facts {
         let fact = program.proof_facts.get(handle);
-        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+        let Some(membership) = fact.as_membership() else {
             continue;
         };
         if !membership.domain_symbol.is_valid() {

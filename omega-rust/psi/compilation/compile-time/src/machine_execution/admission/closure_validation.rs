@@ -156,7 +156,6 @@ fn is_parameter_domain_premise(
     state: &typed_trees::state::State,
     contract: &typed_trees::signature::SignatureContract,
 ) -> bool {
-    use typed_trees::domain::ProofFact;
     use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
 
     if contract.keyword_source_span.is_some() || contract.binding.is_some() {
@@ -165,7 +164,7 @@ fn is_parameter_domain_premise(
     let facts = program.proof_facts.span_or_empty(contract.facts);
     !facts.is_empty()
         && facts.iter().all(|fact| {
-            let ProofFact::Membership(membership) = fact else {
+            let Some(membership) = fact.as_membership() else {
                 return false;
             };
             if !membership.domain_symbol.is_valid()

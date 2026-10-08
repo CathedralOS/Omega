@@ -359,7 +359,7 @@ fn selected_decrease_relation(
     for owner in owners {
         for contract in program.machine_contracts(owner) {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                let Some(expression) = fact.as_expression() else {
                     continue;
                 };
                 conjuncts.clear();

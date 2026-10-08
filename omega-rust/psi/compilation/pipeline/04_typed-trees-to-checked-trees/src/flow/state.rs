@@ -147,7 +147,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         })
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             // A `requires pred(place)` clause is the callee's own assumption:

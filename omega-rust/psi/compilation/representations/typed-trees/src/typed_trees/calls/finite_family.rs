@@ -85,7 +85,7 @@ impl TypedTrees {
                 )
             };
         };
-        let crate::domain::ProofFact::Expression(root) = fact else {
+        let Some(root) = fact.as_expression() else {
             return FamilyProbe::NotFinite(
                 "the `where` clause is a domain membership, not an explicit finite enumeration"
                     .to_owned(),

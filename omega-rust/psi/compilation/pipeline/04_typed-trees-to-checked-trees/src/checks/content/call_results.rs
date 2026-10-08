@@ -176,8 +176,7 @@ pub(super) fn check_call_result_qualifications(
                     {
                         return false;
                     }
-                    let typed_trees::domain::ProofFact::Membership(membership) =
-                        program.proof_facts.get(contract.fact)
+                    let Some(membership) = program.proof_facts.get(contract.fact).as_membership()
                     else {
                         return false;
                     };
@@ -383,9 +382,7 @@ fn call_parameter_qualification_join(
             {
                 return false;
             }
-            let typed_trees::domain::ProofFact::Membership(membership) =
-                program.proof_facts.get(contract.fact)
-            else {
+            let Some(membership) = program.proof_facts.get(contract.fact).as_membership() else {
                 return false;
             };
             if membership.domain_symbol != domain_symbol

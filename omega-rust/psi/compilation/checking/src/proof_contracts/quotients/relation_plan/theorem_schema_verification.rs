@@ -216,7 +216,7 @@ fn conclusion_matches(
     theorem_parameters: &[StateParameter],
     expected: &ExpectedTheoremSchema,
 ) -> bool {
-    let ProofFact::Proposition(application) = actual else {
+    let Some(application) = actual.as_proposition() else {
         return false;
     };
     if application.proposition != expected.result_relation.relation_symbol

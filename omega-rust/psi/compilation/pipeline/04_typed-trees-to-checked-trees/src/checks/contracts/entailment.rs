@@ -170,8 +170,7 @@ pub(super) fn transparent_proposition_proves_exit(
     else {
         return false;
     };
-    let typed_trees::domain::ProofFact::Proposition(application) = program.proof_facts.get(source)
-    else {
+    let Some(application) = program.proof_facts.get(source).as_proposition() else {
         return false;
     };
     let Some(machine) = program.machines().iter().find(|machine| {

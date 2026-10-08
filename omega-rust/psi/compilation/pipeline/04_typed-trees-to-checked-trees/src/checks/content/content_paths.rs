@@ -10,7 +10,6 @@ use language_semantics::{
     SemanticDomainId,
 };
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -188,7 +187,7 @@ fn contracts_establish_domain(
                 .span_or_empty(contract.facts)
                 .iter()
                 .any(|fact| {
-                    let ProofFact::Membership(membership) = fact else {
+                    let Some(membership) = fact.as_membership() else {
                         return false;
                     };
                     membership.domain_symbol == domain

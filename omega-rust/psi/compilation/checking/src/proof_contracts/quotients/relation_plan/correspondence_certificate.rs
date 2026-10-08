@@ -262,15 +262,13 @@ fn public_expression_hypotheses(
     locations
         .iter()
         .map(|location| {
-            let ProofFact::Expression(expression) = precondition_fact_at(
+            let expression = precondition_fact_at(
                 program,
                 public_machine.contracts,
                 public_state.contracts,
                 *location,
             )?
-            else {
-                return None;
-            };
+            .as_expression()?;
             Some(*expression)
         })
         .collect::<Option<Vec<_>>>()

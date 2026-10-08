@@ -13,7 +13,6 @@ use crate::checker::guards::{apply_left_literal_guard, apply_right_literal_guard
 use crate::checker::integer_ranges::AssignmentRangeContext;
 use crate::obligations::{BinaryValueOperands, IntegerRange, ProofPlan, integer_binary_range};
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 
@@ -52,7 +51,7 @@ pub(super) fn surviving_conditions(
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(condition) = fact else {
+            let Some(condition) = fact.as_expression() else {
                 continue;
             };
             // Calls, indexing and unknown identities need their own evaluated

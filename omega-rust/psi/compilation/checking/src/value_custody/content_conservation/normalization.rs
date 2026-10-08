@@ -8,7 +8,6 @@ use language_semantics::content::{
     ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
 };
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -539,7 +538,7 @@ fn contracts_establish_domain(
                 .span_or_empty(contract.facts)
                 .iter()
                 .any(|fact| {
-                    let ProofFact::Membership(membership) = fact else {
+                    let Some(membership) = fact.as_membership() else {
                         return false;
                     };
                     membership.domain_symbol == domain

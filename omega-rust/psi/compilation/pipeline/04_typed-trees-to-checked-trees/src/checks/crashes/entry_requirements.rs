@@ -38,7 +38,7 @@ pub(super) fn collect(
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {
@@ -86,7 +86,7 @@ pub(super) fn collect(
         })
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if !has_exact_entry_meaning(program, machine, operators, parameter_names, *expression) {

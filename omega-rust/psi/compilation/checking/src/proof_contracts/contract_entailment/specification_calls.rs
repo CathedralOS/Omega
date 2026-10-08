@@ -154,7 +154,7 @@ fn validate_expression(
         let arguments_select_plainly = call.machine_arguments.is_empty()
             && (matches!(contract_owner, RequirementOwner::Signature(..))
                 || call.static_requirement_dispatch.is_none());
-        let proven = if let ProofFact::Expression(required) = requirement
+        let proven = if let Some(required) = requirement.as_expression()
             && arguments_select_plainly
         {
             let structural = requirement_parameters_are_bound(program, *required, parameters)

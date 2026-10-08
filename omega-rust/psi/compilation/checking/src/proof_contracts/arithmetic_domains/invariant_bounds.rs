@@ -839,7 +839,7 @@ fn each_proof_conjunct<'program>(
     mut visit: impl FnMut(ExpressionHandle, &'program typed_trees::expression::TableBinaryExpression),
 ) {
     for fact in facts {
-        let ProofFact::Expression(expression) = fact else {
+        let Some(expression) = fact.as_expression() else {
             continue;
         };
         let mut conjuncts = vec![*expression];

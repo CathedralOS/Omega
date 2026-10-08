@@ -397,8 +397,7 @@ fn instantiate_outcome_arm_fact(
     Option<checked_trees::CheckedPropositionApplication>,
     Option<String>,
 ) {
-    let typed_trees::domain::ProofFact::Proposition(application) = program.proof_facts.get(fact)
-    else {
+    let Some(application) = program.proof_facts.get(fact).as_proposition() else {
         let identity = match program.proof_facts.get(fact) {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 Some(program.render_proof_expression(
@@ -497,8 +496,7 @@ pub(crate) fn outcome_specific_assignment_matches_result(
     let Some(result) = result else {
         return false;
     };
-    let typed_trees::domain::ProofFact::Proposition(application) = program.proof_facts.get(fact)
-    else {
+    let Some(application) = program.proof_facts.get(fact).as_proposition() else {
         return false;
     };
     let result_label = program.render_proof_expression(result, ProofSubstitutions::None);

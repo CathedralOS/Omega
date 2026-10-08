@@ -244,6 +244,32 @@ pub enum ProofFact {
     Proposition(crate::proposition::PropositionApplication),
 }
 
+impl ProofFact {
+    /// The expression handle, if this fact observes one.
+    pub fn as_expression(&self) -> Option<&crate::expression::ExpressionHandle> {
+        let ProofFact::Expression(expression) = self else {
+            return None;
+        };
+        Some(expression)
+    }
+
+    /// The membership fact, if this fact records one.
+    pub fn as_membership(&self) -> Option<&ProofMembershipFact> {
+        let ProofFact::Membership(membership) = self else {
+            return None;
+        };
+        Some(membership)
+    }
+
+    /// The proposition application, if this fact asserts one.
+    pub fn as_proposition(&self) -> Option<&crate::proposition::PropositionApplication> {
+        let ProofFact::Proposition(proposition) = self else {
+            return None;
+        };
+        Some(proposition)
+    }
+}
+
 impl Default for ProofFact {
     fn default() -> Self {
         Self::Expression(crate::expression::ExpressionHandle::invalid())
@@ -309,7 +335,6 @@ pub fn supports_symbol_only_proof(program: &TypedTrees, domain_symbol: SymbolHan
     }
     visit(program, domain_symbol, &mut Vec::new())
 }
-
 
 /// Matches the declaration-owned subject, independently of its authored name.
 pub fn domain_subject_reference(

@@ -161,7 +161,7 @@ fn check_law_conformance_with_matches(
         program,
         program.machine_contracts(machine),
     ) {
-        if let ProofFact::Expression(expression) = fact {
+        if let Some(expression) = fact.as_expression() {
             let mut conjuncts = Vec::new();
             collect_equality_conjuncts(program, *expression, &mut conjuncts);
             proven_conjuncts.extend(

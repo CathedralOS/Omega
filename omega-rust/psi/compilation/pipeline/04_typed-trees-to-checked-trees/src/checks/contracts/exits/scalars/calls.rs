@@ -284,9 +284,7 @@ impl ExitScalars<'_, '_> {
             {
                 return None;
             }
-            let typed_trees::domain::ProofFact::Expression(expression) = self.program.proof_facts.get(guarantee.fact) else {
-                return None;
-            };
+            let expression = self.program.proof_facts.get(guarantee.fact).as_expression()?;
             Some(*expression)
         })
     }

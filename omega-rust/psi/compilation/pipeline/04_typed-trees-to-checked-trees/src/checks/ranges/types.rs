@@ -522,8 +522,7 @@ fn const_extent_requires_floor(
     }
     let mut floor = None;
     for fact in super::requirements::state_requires_facts(program, machine, state) {
-        let typed_trees::domain::ProofFact::Expression(expression) = program.proof_facts.get(fact)
-        else {
+        let Some(expression) = program.proof_facts.get(fact).as_expression() else {
             continue;
         };
         let mut pending = vec![*expression];

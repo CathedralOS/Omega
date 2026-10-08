@@ -125,7 +125,7 @@ pub(super) fn establishes_scalar_predicates(
                 continue;
             };
             for predicate in program.proof_facts.span_or_empty(candidate.facts) {
-                let typed_trees::domain::ProofFact::Expression(expression) = predicate else {
+                let Some(expression) = predicate.as_expression() else {
                     continue;
                 };
                 let mut subjects = Vec::new();
@@ -157,7 +157,7 @@ pub(super) fn establishes_scalar_predicates(
         .span_or_empty(domain.facts)
         .iter()
         .all(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 // A membership or proposition conjunct remains an obligation; an
                 // arithmetic proof of its neighbors cannot discard it.
                 return false;

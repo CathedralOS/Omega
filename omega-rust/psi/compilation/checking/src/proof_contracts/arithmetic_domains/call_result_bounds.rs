@@ -1,6 +1,6 @@
 //! Modular result bounds from exact, builtin normal-return contract facts.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, ProofFact, SignatureContractKind,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, SignatureContractKind,
     TypeReferenceHandle, ValueEnvironment, guard_narrowing, range_constraint_interval,
 };
 use crate::machine_calls::calls::CalleeContract;
@@ -40,7 +40,7 @@ pub(super) fn normal_return_interval(
             .filter(|contract| contract.kind == SignatureContractKind::Requires)
         {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let ProofFact::Expression(expression) = fact {
+                if let Some(expression) = fact.as_expression() {
                     interval = interval.intersect(project(
                         program,
                         callee,

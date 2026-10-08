@@ -30,7 +30,6 @@ pub(crate) mod integer_sets;
 use exploration::{Binding, Frame, Stop, ValueShape, integer_carrier, value_shape};
 pub(crate) use integer_sets::IntegerSet;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -316,7 +315,7 @@ pub(crate) fn standing_field_elements(
     };
     let mut constrained = false;
     for fact in program.proof_facts.span_or_empty(definition.where_facts) {
-        let ProofFact::Expression(fact) = fact else {
+        let Some(fact) = fact.as_expression() else {
             continue;
         };
         let Some((unfolding, fields)) =

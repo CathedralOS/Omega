@@ -281,7 +281,7 @@ fn collect_result_contract_float_pairs(
 ) {
     for contract in contracts {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             collect_comparison_pairs(

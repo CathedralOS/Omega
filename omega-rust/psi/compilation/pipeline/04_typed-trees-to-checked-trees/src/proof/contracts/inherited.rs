@@ -39,16 +39,13 @@ pub(crate) fn estimated_contract_fact_capacity(program: &dyn ::validation::Check
                 .map(|signature| signature_fact_total(program, signature))
                 .sum::<usize>()
         }))
-        .chain(
-            program.all_operators()
-                .map(|operator| {
-                    program
-                        .operator_contracts(operator)
-                        .iter()
-                        .map(|contract| contract.facts.len())
-                        .sum::<usize>()
-                }),
-        )
+        .chain(program.all_operators().map(|operator| {
+            program
+                .operator_contracts(operator)
+                .iter()
+                .map(|contract| contract.facts.len())
+                .sum::<usize>()
+        }))
         .chain(program.machines().iter().map(|machine| {
             program
                 .machine_type_parameters(machine)
@@ -356,6 +353,5 @@ fn trait_definition_by_symbol(
         return None;
     }
 
-    program
-        .trait_definition_by_symbol(symbol)
+    program.trait_definition_by_symbol(symbol)
 }

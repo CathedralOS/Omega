@@ -342,7 +342,7 @@ pub(crate) fn handle_assignment<'program>(
         .iter()
         .filter(|fact| fact_mentions_any_field(program, definition, fact))
         .filter(|fact| {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 return true;
             };
             written_field.is_none_or(|written| {

@@ -153,7 +153,7 @@ fn requires_product_coupling(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if let Some(k) =

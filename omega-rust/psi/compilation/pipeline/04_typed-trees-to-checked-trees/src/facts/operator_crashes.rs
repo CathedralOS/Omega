@@ -14,7 +14,6 @@ use diagnostics::Diagnostic;
 use facts::FactPlan;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceNode;
@@ -316,9 +315,7 @@ fn retained_operator_crash_routes(
                 .filter(|contract| matches!(contract.kind, SignatureContractKind::Crashes { .. }))
                 .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
                 .find_map(|fact| {
-                    let ProofFact::Expression(expression) = fact else {
-                        return None;
-                    };
+                    let expression = fact.as_expression()?;
                     let candidate = super::crash_calls::crash_predicate_from_expression(
                         program,
                         *expression,

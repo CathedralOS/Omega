@@ -180,7 +180,7 @@ fn validate_data_default_domain(
     );
 
     for fact in facts {
-        let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+        let Some(membership) = fact.as_membership() else {
             continue;
         };
         let Some(domain) = program.domain_definition(membership.domain_symbol) else {

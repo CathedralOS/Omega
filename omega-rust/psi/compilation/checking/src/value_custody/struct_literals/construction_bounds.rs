@@ -379,7 +379,7 @@ pub(super) fn validate_literal_case_constraints(
     );
     let mut out_of_scope = Vec::new();
     for fact in program.proof_facts.span_or_empty(variant.where_facts) {
-        if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+        if let Some(expression) = fact.as_expression() {
             collect_out_of_scope_leaf_names(program, &declared, *expression, &mut out_of_scope);
         }
     }

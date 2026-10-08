@@ -254,7 +254,7 @@ fn u64_blessed_literals(program: &dyn crate::CheckingInput) -> Vec<ExpressionHan
         // domain only; the exact engine is their sole reader.
         for contract in program.machine_contracts(machine) {
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+                if let Some(expression) = fact.as_expression() {
                     bless_fact_literals(program, *expression, &mut blessed);
                 }
             }

@@ -64,7 +64,7 @@ pub fn restates_structural_parameter_qualification(
     state: &typed_trees::state::State,
     fact: &typed_trees::domain::ProofFact,
 ) -> bool {
-    let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+    let Some(membership) = fact.as_membership() else {
         return false;
     };
     let Some(symbol) =

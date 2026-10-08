@@ -317,8 +317,8 @@ fn inherited_contract_scope_parts<'program>(
         .inherited_contract_scopes
         .get(contract.inherited_scope?);
     let trait_definition = program.trait_definition_by_symbol(scope.declaring_trait)?;
-    let requirement = program
-        .trait_machine_signature_by_symbol(trait_definition, scope.requirement)?;
+    let requirement =
+        program.trait_machine_signature_by_symbol(trait_definition, scope.requirement)?;
     let ContractProofFactOwner::MachineState { state_symbol, .. } = contract.owner else {
         return None;
     };
@@ -348,9 +348,7 @@ fn instantiate_inherited_contract_payload(
     else {
         return;
     };
-    let typed_trees::domain::ProofFact::Proposition(application) =
-        program.proof_facts.get(contract.fact)
-    else {
+    let Some(application) = program.proof_facts.get(contract.fact).as_proposition() else {
         return;
     };
     let Some(label) = validation::inherited_requirement_proposition_label(
@@ -388,9 +386,7 @@ fn instantiate_call_domain_membership_instance(
     else {
         return;
     };
-    let typed_trees::domain::ProofFact::Membership(membership) =
-        program.proof_facts.get(contract.fact)
-    else {
+    let Some(membership) = program.proof_facts.get(contract.fact).as_membership() else {
         return;
     };
     let Some(domain) = program.domain_definition(*domain_symbol) else {
@@ -558,8 +554,7 @@ fn instantiate_call_contract_payload(
         let Some(requirement) = program
             .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
-                program
-                    .trait_machine_signature_by_symbol(definition, dispatch.requirement)
+                program.trait_machine_signature_by_symbol(definition, dispatch.requirement)
             })
         else {
             return;
@@ -610,9 +605,7 @@ fn instantiate_call_contract_payload(
             )
             .collect();
         if matches!(payload, FactPayload::ContractPropositionApplication { .. }) {
-            let typed_trees::domain::ProofFact::Proposition(application) =
-                program.proof_facts.get(contract.fact)
-            else {
+            let Some(application) = program.proof_facts.get(contract.fact).as_proposition() else {
                 return;
             };
             let Some(endpoint) = validation::inherited_requirement_proposition_application(
@@ -660,9 +653,7 @@ fn instantiate_call_contract_payload(
     let (application, binder_labels) = match inherited_endpoint {
         Some(endpoint) => (endpoint.application, endpoint.binder_labels),
         None => {
-            let typed_trees::domain::ProofFact::Proposition(application) =
-                program.proof_facts.get(contract.fact)
-            else {
+            let Some(application) = program.proof_facts.get(contract.fact).as_proposition() else {
                 return;
             };
             let binder_labels = application

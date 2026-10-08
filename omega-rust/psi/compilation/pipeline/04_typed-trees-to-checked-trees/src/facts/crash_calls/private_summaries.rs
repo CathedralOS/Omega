@@ -52,7 +52,8 @@ pub(crate) fn infer_private_body_summaries(
         let before = nodes.len();
         nodes.retain(|node| {
             node.invocations.iter().all(|invocation| {
-                if let Some(plan) = checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
+                if let Some(plan) =
+                    checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
                 {
                     program
                         .machine_by_symbol(plan.machine)
@@ -110,7 +111,8 @@ pub(crate) fn infer_private_body_summaries(
             .expect("a retained summary invocation has its typed call site");
             let arguments = validation::call_site_argument_expressions(program, &call_site);
 
-            if let Some(target_plan) = checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
+            if let Some(target_plan) =
+                checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
             {
                 let target_machine = program
                     .machine_by_symbol(invocation.target_machine)
@@ -483,10 +485,7 @@ pub(crate) fn requirement_signature(
     }
     program
         .trait_definition_by_symbol(target_machine)
-        .and_then(|definition| {
-            program
-                .trait_machine_signature_by_symbol(definition, target_state)
-        })
+        .and_then(|definition| program.trait_machine_signature_by_symbol(definition, target_state))
 }
 
 pub(crate) fn crash_route_expressions_by_identity(
@@ -507,7 +506,7 @@ pub(crate) fn crash_route_expressions_by_identity(
             continue;
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if is_true_crash_route(program, fact) {

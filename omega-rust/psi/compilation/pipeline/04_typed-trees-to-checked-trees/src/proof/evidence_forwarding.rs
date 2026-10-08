@@ -116,12 +116,11 @@ pub(crate) fn bind_evidence_projection_facts(
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     use checked_trees::CheckedEvidenceProjection;
-    use typed_trees::domain::ProofFact;
 
     let mut diagnostics = Vec::new();
     let mut applications = Vec::new();
     for (fact_handle, fact) in typed_trees::references::program_proof_facts(program) {
-        let ProofFact::Proposition(application) = fact else {
+        let Some(application) = fact.as_proposition() else {
             continue;
         };
         let Some(normalized) = program.normalize_nominal_proposition_application(application, None)

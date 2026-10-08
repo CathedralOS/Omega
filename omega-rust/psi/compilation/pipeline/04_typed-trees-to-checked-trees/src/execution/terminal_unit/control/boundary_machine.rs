@@ -161,8 +161,8 @@ pub(crate) fn build_dynamic_slot_plans(
         let Some(definition) = program.trait_definition_by_symbol(slot.declaring_trait) else {
             continue;
         };
-        let Some(requirement) = program
-            .trait_machine_signature_by_symbol(definition, slot.requirement)
+        let Some(requirement) =
+            program.trait_machine_signature_by_symbol(definition, slot.requirement)
         else {
             continue;
         };
@@ -521,7 +521,7 @@ fn build_boundary_operator(
         }
         let mut conjunction = None;
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 // A membership must be retained by the structural qualification
                 // route, never silently erased from this scalar contract.
                 return None;

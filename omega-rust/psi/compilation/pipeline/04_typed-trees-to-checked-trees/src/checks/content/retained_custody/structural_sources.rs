@@ -8,7 +8,6 @@
 use super::DomainApplication;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataMember, TypeParameterKind};
-use typed_trees::domain::ProofFact;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -42,7 +41,7 @@ pub(super) fn parameter_sources(
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Membership(membership) = fact
+            if let Some(membership) = fact.as_membership()
                 && membership.domain_symbol.is_valid()
                 && membership.semantic_domain.is_valid()
                 && program

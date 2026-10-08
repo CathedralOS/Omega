@@ -219,7 +219,7 @@ pub(crate) fn check_operator_contract_conformance(
                 | SignatureContractKind::Crashes { .. } => continue,
             };
             for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let ProofFact::Expression(expression) = fact else {
+                let Some(expression) = fact.as_expression() else {
                     match &contract.kind {
                         SignatureContractKind::Requires => *unsupported_requires = true,
                         SignatureContractKind::Ensures => *unsupported_ensures = true,
@@ -411,7 +411,7 @@ fn operator_crash_bucket(
     for contract in matching {
         let mut contract_routes = Vec::new();
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
+            let Some(expression) = fact.as_expression() else {
                 continue;
             };
             if matches!(
