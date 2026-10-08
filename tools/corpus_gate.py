@@ -835,6 +835,7 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
         if record["tier"] == "fail" and record["status"] == "checked"]
     lost_successes = [record["fixture"]
                       for record in corpus_records.lost_successes(records)]
+    off_target = corpus_records.pinned_off_target(records)
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
               or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
@@ -860,6 +861,9 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
             "fail_not_rejected_fixtures": fail_not_rejected,
             "lost_successes": len(lost_successes),
             "lost_success_fixtures": lost_successes,
+            "pinned_off_target": len(off_target),
+            "pinned_off_target_fixtures": [record["fixture"]
+                                           for record in off_target],
             "by_verdict": dict(by_verdict)},
         "oracle_failures": oracle_failures,
         "infrastructure_error": infrastructure_error,
@@ -877,6 +881,39 @@ def write_verdict(options, document):
     if path.parent != Path(""):
         path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+
+def pinned_regression_lines(records, list_rows=False) -> list[str]:
+    """Golden rows pinned in a status their tier contradicts.
+
+    `regressed-from` counts only rows that recorded a success before; a
+    pass fixture pinned `rejected` from birth is still a pinned failure,
+    so this count covers every off-target pin, token or not. One summary
+    line when the flag is absent — the list is there, not the noise."""
+    off_target = corpus_records.pinned_off_target(records)
+    if not off_target:
+        return []
+    refused = [record for record in off_target
+               if record["tier"] in ("pass", "run")]
+    succeeded = [record for record in off_target
+                 if record["tier"] == "fail"]
+    carried = sum(1 for record in off_target
+                  if record.get("regressed_from"))
+    lines = [f"corpus_gate: {len(refused)} pass/run row(s) pinned without "
+             f"a success and {len(succeeded)} fail row(s) pinned as a "
+             f"success ({carried} carry regressed-from)"]
+    if not list_rows:
+        lines.append("corpus_gate:   list them with "
+                     "--list-pinned-regressions")
+        return lines
+    for record in off_target:
+        line = f"corpus_gate:   {record['fixture']} {record['status']}"
+        if record.get("regressed_from"):
+            line += (" (lost " + corpus_records.format_regression(
+                record["regressed_from"])[
+                    len(corpus_records.REGRESSION_PREFIX):] + ")")
+        lines.append(line)
+    return lines
 
 
 def main() -> int:
@@ -934,6 +971,9 @@ def main() -> int:
     parser.add_argument("--shard",
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
+    parser.add_argument("--list-pinned-regressions", action="store_true",
+                        help="name every golden row pinned in a status its "
+                             "tier contradicts")
     parser.add_argument("--write-moves", type=Path, metavar="PATH",
                         help="write every moved fixture's BEFORE and AFTER "
                              "records to PATH as JSON, untruncated — the "
@@ -1153,6 +1193,9 @@ def main() -> int:
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
               f"to {options.golden}; {len(recorded_gaps)} unimplemented rows "
               f"remain, {len(lost)} rows record a lost success")
+        for line in pinned_regression_lines(
+                merged, options.list_pinned_regressions):
+            print(line)
         if failures:
             # The golden now says what the fixture does; it does not say that
             # is acceptable. A recorded regression is still a regression.
@@ -1344,6 +1387,9 @@ def main() -> int:
         print(f"corpus_gate: clean — {summary}")
         print(provenance)
         print_expectation_defects()
+        for line in pinned_regression_lines(
+                prior_records, options.list_pinned_regressions):
+            print(line)
         for line in perf_notes[:20]:
             print(line)
         for warning in perf_warnings:
@@ -1375,6 +1421,9 @@ def main() -> int:
     print(move_classes(structured_diffs))
     print(provenance)
     print_expectation_defects()
+    for line in pinned_regression_lines(
+            prior_records, options.list_pinned_regressions):
+        print(line)
     write_moves()
     if options.jev:
         jev_advise(structured_diffs)

@@ -189,5 +189,24 @@ class RoundTrip(unittest.TestCase):
             "pass/a/x checked 1ms\n# context: {}\n"))
 
 
+class PinnedOffTarget(unittest.TestCase):
+    def row(self, fixture, status, regressed_from=None):
+        return {"fixture": fixture, "tier": fixture.split("/", 1)[0],
+                "status": status, "millis": 1, "expected_satisfied": None,
+                "facts": {}, "diagnostics": [],
+                "regressed_from": regressed_from, "recorded_at": None}
+
+    def test_selects_rows_pinned_against_their_tier(self):
+        rows = [self.row("pass/a/rejected", "rejected"),
+                self.row("pass/a/checked", "checked"),
+                self.row("fail/a/checked", "checked"),
+                self.row("fail/a/rejected", "rejected"),
+                self.row("run/a/incomplete", "incomplete")]
+        self.assertEqual(
+            [record["fixture"]
+             for record in corpus_records.pinned_off_target(rows)],
+            ["pass/a/rejected", "fail/a/checked", "run/a/incomplete"])
+
+
 if __name__ == "__main__":
     unittest.main()

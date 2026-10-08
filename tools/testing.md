@@ -190,7 +190,11 @@ attributing each row. `python tools/corpus_pin_audit.py` lists fixtures
 whose expected fragment matches many other fixtures' diagnostics (a pin
 that cannot tell its rule from any rejection) and fixtures whose extra
 diagnostics trip a sibling's pinned rule; tighten those pins before
-relying on `expected` at --record time.
+relying on `expected` at --record time. Every gate run also prints how
+many golden rows are pinned in a status their tier contradicts (a pass
+fixture recorded `rejected`); `--list-pinned-regressions` names them.
+That count is the honest size of the pinned backlog whether or not the
+rows carry `regressed-from:`.
 
 Two measurement hazards, both of which have produced a wrong mechanism here.
 The compiler caches resolved package snapshots under its user cache

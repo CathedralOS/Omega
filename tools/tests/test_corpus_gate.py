@@ -339,6 +339,45 @@ class MainVerdicts(unittest.TestCase):
         self.assertEqual(self.run_gate(regressed, golden_records=
                                        [record("pass/a/x", status="built")]), 3)
 
+    def test_clean_path_reports_rows_pinned_against_their_tier(self):
+        rows = [record("pass/a/x", status="rejected"),
+                record("fail/a/y", status="rejected")]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = self.run_gate(rows)
+        self.assertEqual(code, 0)
+        text = output.getvalue()
+        self.assertIn("corpus_gate: 1 pass/run row(s) pinned without a "
+                      "success and 0 fail row(s) pinned as a success "
+                      "(0 carry regressed-from)", text)
+        self.assertIn("--list-pinned-regressions", text)
+        self.assertNotIn("corpus_gate:   pass/a/x", text)
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = self.run_gate(rows, "--list-pinned-regressions")
+        self.assertEqual(code, 0)
+        text = output.getvalue()
+        self.assertIn("corpus_gate:   pass/a/x rejected", text)
+        self.assertNotIn("list them with", text)
+
+    def test_pinned_regression_lines_names_lost_successes(self):
+        rows = corpus_records.parse(
+            "pass/a/x rejected 1ms\n"
+            "run/a/y timeout 1ms regressed-from:built+exit:70\n")
+        lines = corpus_gate.pinned_regression_lines(rows, list_rows=True)
+        self.assertEqual(lines[0],
+                         "corpus_gate: 2 pass/run row(s) pinned without a "
+                         "success and 0 fail row(s) pinned as a success "
+                         "(1 carry regressed-from)")
+        self.assertEqual(lines[1], "corpus_gate:   pass/a/x rejected")
+        self.assertEqual(lines[2],
+                         "corpus_gate:   run/a/y timeout (lost built+exit:70)")
+        self.assertEqual(corpus_gate.pinned_regression_lines([]), [])
+        only_flag = corpus_gate.pinned_regression_lines(rows)
+        self.assertEqual(len(only_flag), 2)
+        self.assertIn("--list-pinned-regressions", only_flag[1])
+
     def test_infrastructure_failure_is_4_and_125_under_bisect(self):
         self.write_golden([record("pass/a/x")])
         argv = ["corpus_gate", "--runner", "unused", "--golden",

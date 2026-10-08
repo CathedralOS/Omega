@@ -124,6 +124,19 @@ def lost_successes(records: list) -> list:
     return [record for record in records if record.get("regressed_from")]
 
 
+def pinned_off_target(records: list) -> list:
+    """Rows the golden pins in a status their tier contradicts: a pass or
+    run row recorded without a success, or a fail row recorded as one.
+    `regressed_from` says whether a success was recorded before, but its
+    absence does not make the row acceptable -- a pass fixture pinned
+    `rejected` is a pinned failure whether or not it ever built here."""
+    return [record for record in records
+            if (record["tier"] in ("pass", "run")
+                and record["status"] not in SUCCESS_STATUSES)
+            or (record["tier"] == "fail"
+                and record["status"] in SUCCESS_STATUSES)]
+
+
 _ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
 _UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r", "t": "\t"}
 
