@@ -66,10 +66,7 @@ pub(super) fn shared_owner_view(
                 source,
             )
         } else if let Some(arrival) = function.arrival_parameter(argument.place) {
-            let source = if let Some(parameter) = prepared
-                .parameters
-                .iter()
-                .find(|parameter| parameter.place == argument.place)
+            let source = if let Some(parameter) = prepared.parameter(argument.place)
             {
                 parameter.placement.clone().into()
             } else if live.address_joins.contains(&argument.place) {

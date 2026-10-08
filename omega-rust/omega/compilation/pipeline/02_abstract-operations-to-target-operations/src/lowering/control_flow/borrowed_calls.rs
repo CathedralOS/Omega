@@ -180,10 +180,7 @@ pub(super) fn argument(
             },
         )
     } else {
-        let source = prepared
-            .parameters
-            .iter()
-            .find(|source| source.place == argument.place)
+        let source = prepared.parameter(argument.place)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let allowed = match source.access {
             StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
@@ -398,10 +395,7 @@ pub(super) fn byte_argument(
     }
     if !argument.path.is_empty() {
         let (Some(source), Some(root)) = (
-            prepared
-                .parameters
-                .iter()
-                .find(|source| source.place == argument.place),
+            prepared.parameter(argument.place),
             function.structural_parameter(argument.place),
         ) else {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -537,10 +531,7 @@ pub(super) fn byte_argument(
             },
         )
     } else {
-        let source = prepared
-            .parameters
-            .iter()
-            .find(|source| source.place == argument.place)
+        let source = prepared.parameter(argument.place)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if source.access != argument.access
             || source.multiplicity != declaration.multiplicity

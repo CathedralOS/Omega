@@ -67,10 +67,7 @@ pub(super) fn parameter_root(
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     source: PlaceId,
 ) -> Option<&TargetStructuralParameter> {
-    prepared
-        .parameters
-        .iter()
-        .find(|parameter| parameter.place == source)
+    prepared.parameter(source)
         .filter(|parameter| parameter.access != StructuralAccess::WriteOnlyBorrow)
 }
 

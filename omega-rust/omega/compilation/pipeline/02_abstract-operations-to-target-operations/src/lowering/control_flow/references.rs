@@ -307,10 +307,7 @@ pub(super) fn reference_call_argument(
         let source = home.argument_source();
         (home.structural_type(), source)
     } else {
-        let parameter = prepared
-            .parameters
-            .iter()
-            .find(|parameter| parameter.place == argument.place)
+        let parameter = prepared.parameter(argument.place)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if parameter.access == StructuralAccess::WriteOnlyBorrow {
             return Err(LoweringError::unsupported_control_flow(function.machine));

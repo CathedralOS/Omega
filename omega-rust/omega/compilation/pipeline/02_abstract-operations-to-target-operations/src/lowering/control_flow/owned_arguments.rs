@@ -99,10 +99,7 @@ pub(super) fn argument(
                 0,
             )
         } else {
-            let parameter = prepared
-                .parameters
-                .iter()
-                .find(|parameter| parameter.place == argument.place)
+            let parameter = prepared.parameter(argument.place)
                 .ok_or_else(invalid)?;
             if parameter.access != StructuralAccess::Owned {
                 return Err(invalid());

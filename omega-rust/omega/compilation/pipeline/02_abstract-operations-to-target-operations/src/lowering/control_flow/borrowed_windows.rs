@@ -178,10 +178,7 @@ pub(super) fn store_field(
         // the incoming fragments or indirect pointer for this parameter.
         let declaration = function.structural_parameter(value.place)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let parameter = prepared
-            .parameters
-            .iter()
-            .find(|parameter| parameter.place == value.place)
+        let parameter = prepared.parameter(value.place)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if declaration.access != StructuralAccess::Owned
             || declaration.structural_type != field_type
