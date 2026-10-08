@@ -287,3 +287,26 @@ fn walk_constrained_bases(
         reference = *base_type;
     }
 }
+
+/// Whether `cast` is a plain Exact widening whose result value is its
+/// operand's: not a borrow recast, not a semantic-domain conversion, carrying
+/// no annotation payload, and landing on a nominal primitive target. Only
+/// such a cast lets the source's own evidence carry the result carrier.
+pub fn plain_exact_widening_cast(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+) -> bool {
+    !cast.form.is_recast()
+        && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
+        && cast.semantic_domain.is_empty()
+        && cast.semantic_domain_arguments.is_empty()
+        && !cast.semantic_domain_symbol.is_valid()
+        && !cast.semantic_domain_id.is_valid()
+        && !(cast.result_type.is_valid() && cast.result_type != cast.target_type)
+        && matches!(
+            program
+                .type_reference_table
+                .type_reference(cast.target_type),
+            typed_trees::types::TypeReferenceNode::Named { .. }
+        )
+}

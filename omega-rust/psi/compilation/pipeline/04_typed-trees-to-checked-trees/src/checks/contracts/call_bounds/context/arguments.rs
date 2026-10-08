@@ -182,20 +182,7 @@ fn meaning(
             })
         }
         ExpressionNode::Cast(cast) => {
-            if cast.form.is_recast()
-                || cast.domain != ArithmeticDomain::Exact
-                || !cast.semantic_domain.is_empty()
-                || !cast.semantic_domain_arguments.is_empty()
-                || cast.semantic_domain_symbol.is_valid()
-                || cast.semantic_domain_id.is_valid()
-                || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
-                || !matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(cast.target_type),
-                    typed_trees::types::TypeReferenceNode::Named { .. }
-                )
-            {
+            if !validation::plain_exact_widening_cast(program, cast) {
                 return None;
             }
             let source = meaning(program, facts, owner, parameters, cast.value)?;
