@@ -617,6 +617,35 @@ impl TypedTrees {
         self.signature_contracts.span_or_empty(machine.contracts)
     }
 
+    /// Visits each (machine, state) contract frame in program order: the
+    /// state's own contracts, extended by the machine's contracts at state 0,
+    /// and the diagnostic label (the bare machine name at state 0,
+    /// `machine::state` otherwise).
+    pub fn for_each_machine_state_contract_frame(
+        &self,
+        mut visit: impl FnMut(
+            &machine::Machine,
+            &crate::state::State,
+            Vec<&signature::SignatureContract>,
+            String,
+        ),
+    ) {
+        for machine in self.machines() {
+            for (state_index, state) in self.machine_states(machine).iter().enumerate() {
+                let mut contracts = self.state_contracts(state).iter().collect::<Vec<_>>();
+                if state_index == 0 {
+                    contracts.extend(self.machine_contracts(machine));
+                }
+                let label = if state_index == 0 {
+                    machine.name.to_string()
+                } else {
+                    format!("{}::{}", machine.name, state.name)
+                };
+                visit(machine, state, contracts, label);
+            }
+        }
+    }
+
     /// The proof facts of every `kind` contract in `contracts`, in
     /// declaration order.
     pub fn contract_facts<'a>(

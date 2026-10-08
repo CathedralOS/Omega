@@ -93,34 +93,23 @@ fn collect_content_conservation_plans(
         }
     }
 
-    for machine in program.machines() {
-        for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            let mut contracts = program.state_contracts(state).iter().collect::<Vec<_>>();
-            if state_index == 0 {
-                contracts.extend(program.machine_contracts(machine));
-            }
-            let label = if state_index == 0 {
-                machine.name.to_string()
-            } else {
-                format!("{}::{}", machine.name, state.name)
-            };
-            collect_callable_plans(
-                program,
-                projections,
-                ContentConservationOwnerKind::Machine,
-                machine.symbol,
-                state.symbol,
-                &label,
-                program.state_parameters(state),
-                state.return_type,
-                machine.attached_data_symbol,
-                &contracts,
-                &mut proof_nodes,
-                &mut plans,
-                diagnostics,
-            );
-        }
-    }
+    program.for_each_machine_state_contract_frame(|machine, state, contracts, label| {
+        collect_callable_plans(
+            program,
+            projections,
+            ContentConservationOwnerKind::Machine,
+            machine.symbol,
+            state.symbol,
+            &label,
+            program.state_parameters(state),
+            state.return_type,
+            machine.attached_data_symbol,
+            &contracts,
+            &mut proof_nodes,
+            &mut plans,
+            diagnostics,
+        );
+    });
 
     // These calls erase completely. Any occurrence outside a proof fact is a
     // runtime-use attempt, including a direct call to a projection machine.

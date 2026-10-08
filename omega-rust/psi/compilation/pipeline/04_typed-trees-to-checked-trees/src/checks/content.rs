@@ -361,43 +361,32 @@ pub(crate) fn check_retained_content_custody(
         }
     }
 
-    for machine in program.machines() {
-        for (state_index, state) in program.machine_states(machine).iter().enumerate() {
-            let mut contracts = program.state_contracts(state).iter().collect::<Vec<_>>();
-            if state_index == 0 {
-                contracts.extend(program.machine_contracts(machine));
-            }
-            let label = if state_index == 0 {
-                machine.name.to_string()
-            } else {
-                format!("{}::{}", machine.name, state.name)
-            };
-            check_callable(
+    program.for_each_machine_state_contract_frame(|machine, state, contracts, label| {
+        check_callable(
+            program,
+            facts,
+            &label,
+            state.symbol,
+            &machine.lifetime_parameters,
+            program.state_parameters(state),
+            state.return_type,
+            &contracts,
+            &mut diagnostics,
+            &mut retained_borrow_custodies,
+        );
+        if !machine.body_is_present {
+            check_boundary_partition_results(
                 program,
                 facts,
                 &label,
                 state.symbol,
-                &machine.lifetime_parameters,
                 program.state_parameters(state),
                 state.return_type,
                 &contracts,
                 &mut diagnostics,
-                &mut retained_borrow_custodies,
             );
-            if !machine.body_is_present {
-                check_boundary_partition_results(
-                    program,
-                    facts,
-                    &label,
-                    state.symbol,
-                    program.state_parameters(state),
-                    state.return_type,
-                    &contracts,
-                    &mut diagnostics,
-                );
-            }
         }
-    }
+    });
 
     if diagnostics.is_empty() {
         facts.qualifications.content.retained_borrow_custodies = retained_borrow_custodies;
