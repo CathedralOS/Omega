@@ -186,9 +186,7 @@ fn expression_data_symbol(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+            .data_definition_by_name_str(literal.type_name.as_str())
             .map(|definition| definition.symbol),
         ExpressionNode::Borrow(inner) => {
             expression_data_symbol(program, machine, state, inner.target)

@@ -597,9 +597,7 @@ fn attached_data_const_parameter_reference(
         .or_else(|| {
             machine.attached_data.as_ref().and_then(|name| {
                 program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name == *name)
+                    .data_definition_by_name(name)
             })
         })?;
     program

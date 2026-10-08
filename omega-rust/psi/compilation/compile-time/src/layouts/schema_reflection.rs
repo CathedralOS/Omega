@@ -50,9 +50,7 @@ pub(crate) fn schema_fields(
     schema_data: &str,
 ) -> Result<(Vec<SchemaFieldInfo>, u64), String> {
     let data = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == schema_data)
+        .data_definition_by_name_str(schema_data)
         .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
     if data.quotient.is_some() {
         return Err(format!(

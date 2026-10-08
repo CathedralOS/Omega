@@ -60,9 +60,7 @@ pub fn materialize_typed_owned_layout_into(
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
     let data = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == schema_data)
+        .data_definition_by_name_str(schema_data)
         .ok_or_else(|| {
             MaterializationDiagnostic(format!(
                 "no typed data definition named `{schema_data}` exists"

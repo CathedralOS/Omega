@@ -156,9 +156,7 @@ impl<'program> ShapeCollector<'program> {
                 // declaration in the same way.
                 machine.attached_data.as_ref().and_then(|name| {
                     self.program
-                        .data_definitions()
-                        .iter()
-                        .find(|data| data.name == *name)
+                        .data_definition_by_name(name)
                 })
             });
         if let Some(data) = attached

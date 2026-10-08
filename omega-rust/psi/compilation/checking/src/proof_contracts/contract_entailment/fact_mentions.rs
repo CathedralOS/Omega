@@ -25,9 +25,7 @@ pub(crate) fn fact_mentions_proof_only_data(
     };
     let proof_only_definition = |name: &str| {
         program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == name)
+            .data_definition_by_name_str(name)
             .filter(|definition| classification.is_proof_only(definition.symbol))
             .map(|definition| definition.name.clone())
     };

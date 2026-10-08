@@ -817,9 +817,7 @@ fn validate_typed_const_index_type(
                 return Ok(());
             }
             let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == name.as_str())
+                .data_definition_by_name_str(name.as_str())
                 .ok_or_else(|| format!("`{name}` is not declared data"))?;
             if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
                 return Err(format!("boundary-opaque data `{name}` is not structural"));

@@ -407,9 +407,7 @@ fn frontier_type_multiplicity(
                 return Multiplicity::Unrestricted;
             }
             program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == name.as_str())
+                .data_definition_by_name_str(name.as_str())
                 .map(|definition| definition.properties.multiplicity)
                 .unwrap_or(Multiplicity::Affine)
         }
@@ -424,9 +422,7 @@ fn frontier_type_multiplicity(
                 return definition.properties.multiplicity;
             }
             program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == base_name.as_str())
+                .data_definition_by_name_str(base_name.as_str())
                 .map(|definition| definition.properties.multiplicity)
                 .unwrap_or(Multiplicity::Affine)
         }
@@ -446,9 +442,7 @@ fn find_data_definition<'program>(
         return last_data_definition_by_symbol(program, symbol);
     }
     program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == name)
+        .data_definition_by_name_str(name)
 }
 
 /// Custody formerly collected declaration positions into a map, whose last

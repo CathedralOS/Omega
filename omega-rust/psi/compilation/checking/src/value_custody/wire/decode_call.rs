@@ -232,9 +232,7 @@ fn type_is_wire_verdict(
         return false;
     }
     let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == "WireVerdict")
+        .data_definition_by_name_str("WireVerdict")
     else {
         return false;
     };

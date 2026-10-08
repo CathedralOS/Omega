@@ -1163,9 +1163,7 @@ fn attached_persistent_fields<'program>(
         .as_ref()
         .and_then(|name| {
             program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name == *name)
+                .data_definition_by_name(name)
         })
         .into_iter()
         .flat_map(|definition| program.data_members(definition).iter())

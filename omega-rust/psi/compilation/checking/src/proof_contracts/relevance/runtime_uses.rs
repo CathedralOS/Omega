@@ -410,9 +410,7 @@ fn report_runtime_erased_attached_field(
         return;
     };
     let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name == *attached)
+        .data_definition_by_name(attached)
     else {
         return;
     };

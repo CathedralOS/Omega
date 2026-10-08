@@ -80,6 +80,23 @@ impl TypedTrees {
             .span_or_empty(self.roots.data_definitions)
     }
 
+    /// The first data declaration `name` spells, if any.
+    pub fn data_definition_by_name(
+        &self,
+        name: &crate::name::Identifier,
+    ) -> Option<&data::DataDefinition> {
+        self.data_definitions()
+            .iter()
+            .find(|definition| definition.name == *name)
+    }
+
+    /// The first data declaration spelled `name`, if any.
+    pub fn data_definition_by_name_str(&self, name: &str) -> Option<&data::DataDefinition> {
+        self.data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+    }
+
     /// The data declaration `machine` is attached to: the exact nominal
     /// symbol typing retained, never a same-spelled declaration from another
     /// package (every compilation loads bundled sources such as core's `Nat`

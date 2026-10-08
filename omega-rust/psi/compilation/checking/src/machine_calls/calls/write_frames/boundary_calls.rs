@@ -645,9 +645,7 @@ fn requirement_signature_for_receiver_path<'program>(
     }
     let attached = current_machine.attached_data.as_ref()?;
     let mut data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
+        .data_definition_by_name_str(attached.as_str())?;
     for (depth, member) in members.iter().enumerate() {
         let field_type = program
             .data_members(data)

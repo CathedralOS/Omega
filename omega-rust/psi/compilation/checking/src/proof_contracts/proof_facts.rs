@@ -621,9 +621,7 @@ fn proof_argument_declared_type(
             .find(|machine| machine.name.as_str() == machine_name)
             .and_then(|machine| machine.attached_data.as_ref())
         && let Some(definition) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name == *attached_data)
+            .data_definition_by_name(attached_data)
         && let Some(type_reference) =
             program
                 .data_members(definition)

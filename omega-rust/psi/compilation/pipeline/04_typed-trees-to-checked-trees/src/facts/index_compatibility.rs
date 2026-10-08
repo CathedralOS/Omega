@@ -419,9 +419,7 @@ fn append_expression_compatibilities(
     match program.expression_table.expression(value) {
         ExpressionNode::StructLiteral(literal) => {
             if let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+                .data_definition_by_name_str(literal.type_name.as_str())
                 .filter(|definition| definition.type_parameters.is_empty())
             {
                 for field in program.expression_table.struct_fields(literal.fields) {

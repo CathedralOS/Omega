@@ -190,9 +190,7 @@ pub(super) fn domain_definition_by_name<'program>(
     name: &str,
 ) -> Option<&'program DataDefinition> {
     program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == name)
+        .data_definition_by_name_str(name)
         .filter(|definition| {
             !definition.where_facts.is_empty()
                 || data_has_case_where_facts(program, definition)
@@ -232,9 +230,7 @@ pub(super) fn data_definition_for_expression<'program>(
     {
         let attached = machine.attached_data.as_ref()?;
         return program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name == *attached);
+            .data_definition_by_name(attached);
     }
     if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) {
         let mut collection_type = crate::value_custody::places::declared_place_type_raw(
@@ -266,9 +262,7 @@ fn data_definition_for_type(
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Named { name, .. } => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name == *name),
+            .data_definition_by_name(name),
         TypeReferenceNode::Reference { referee, .. } => data_definition_for_type(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             data_definition_for_type(program, *base_type)

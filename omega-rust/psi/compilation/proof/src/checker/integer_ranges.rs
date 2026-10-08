@@ -591,9 +591,7 @@ fn operand_declared_primitive(
             continue;
         };
         let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == attached.as_str())
+            .data_definition_by_name_str(attached.as_str())
         else {
             continue;
         };

@@ -65,9 +65,7 @@ pub(crate) fn scan_statement_reads(
                 && data_binding.is_some_and(|root| receiver[0].as_str() == root)
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
-                        .data_definitions()
-                        .iter()
-                        .find(|definition| definition.name == *attached)
+                        .data_definition_by_name(attached)
                 })
                 && crate::value_custody::data::data_requires_establishment(program, definition)
             {
@@ -231,9 +229,7 @@ fn scan_expression_use(
                 && members[0].is_self_receiver()
                 && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
                     program
-                        .data_definitions()
-                        .iter()
-                        .find(|definition| definition.name == *attached)
+                        .data_definition_by_name(attached)
                 })
             {
                 validate_data_read(
@@ -677,9 +673,7 @@ pub(crate) fn attached_value_established(
         return false;
     };
     let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name == *attached)
+        .data_definition_by_name(attached)
     else {
         return false;
     };

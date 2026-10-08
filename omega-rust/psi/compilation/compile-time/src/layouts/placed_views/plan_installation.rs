@@ -84,9 +84,7 @@ pub(super) fn install_placed_view_plan(
         .map(|field| (field.name.as_str().to_owned(), field))
         .collect::<BTreeMap<_, _>>();
     let view = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == record.synthetic_name)
+        .data_definition_by_name_str(&record.synthetic_name)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "placed view `{}` lost its derived data definition after typing",

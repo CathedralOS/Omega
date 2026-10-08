@@ -622,9 +622,7 @@ fn data_name_with_nominal_drop<'program>(
     name: &str,
 ) -> Option<&'program str> {
     let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == name)?;
+        .data_definition_by_name_str(name)?;
     nominal_drop_machine_symbol(program, definition.symbol)
         .is_some()
         .then_some(definition.name.as_str())

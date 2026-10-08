@@ -498,9 +498,7 @@ impl TypedTrees {
         let mut lifetime_parameters = machine.lifetime_parameters.clone();
         if let Some(attached_data) = &machine.attached_data
             && let Some(definition) = self
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name == *attached_data)
+                .data_definition_by_name(attached_data)
         {
             for parameter in self.data_type_parameters(definition) {
                 if !type_parameters

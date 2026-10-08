@@ -1854,9 +1854,7 @@ impl<'program> StructuralJudge<'program> {
         };
         let Some(definition) = self
             .program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == data.as_str())
+            .data_definition_by_name_str(data.as_str())
         else {
             return false;
         };

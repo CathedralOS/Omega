@@ -554,9 +554,7 @@ fn claim_outcomes_for_expression(
             if literal.case_name.is_none() =>
         {
             let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+                .data_definition_by_name_str(literal.type_name.as_str())
             else {
                 return Vec::new();
             };

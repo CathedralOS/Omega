@@ -261,9 +261,7 @@ fn type_requires_establishment_inner(
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
             } else {
                 program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == name.as_str())
+                    .data_definition_by_name_str(name.as_str())
             };
             definition.is_some_and(|definition| {
                 data_requires_establishment_inner(program, definition, index)

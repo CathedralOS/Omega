@@ -170,8 +170,6 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
     ) -> Option<&'program typed_trees::data::DataDefinition> {
         let attached_data = machine.attached_data.as_ref()?;
         self.program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name == *attached_data)
+            .data_definition_by_name(attached_data)
     }
 }

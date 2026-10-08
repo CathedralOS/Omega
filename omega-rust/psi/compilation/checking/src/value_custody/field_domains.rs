@@ -193,16 +193,12 @@ pub fn attached_data_field_type(
 
     let attached = machine.attached_data.as_ref()?;
     let mut data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
+        .data_definition_by_name_str(attached.as_str())?;
     for segment in parents {
         let field_type = data_field_type_by_name(program, data, segment)?;
         let next = type_reference_data_name(program, field_type)?;
         data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == next.as_str())?;
+            .data_definition_by_name_str(next.as_str())?;
     }
     data_field_type_by_name(program, data, last)
 }

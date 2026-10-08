@@ -28,9 +28,7 @@ pub fn called_boundary_signature<'program>(
         .last()?;
     let attached = machine.attached_data.as_ref()?;
     let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
+        .data_definition_by_name_str(attached.as_str())?;
     let field_type = program
         .data_members(data)
         .iter()

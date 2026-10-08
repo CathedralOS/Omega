@@ -85,9 +85,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             .strip_suffix("::plan")
             .unwrap_or(&record.policy_machine);
         let policy_symbol = typed
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == policy_name)
+            .data_definition_by_name_str(policy_name)
             .map(|data| data.symbol)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
@@ -106,9 +104,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             })?;
 
         let synthesized_data = typed
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == record.synthetic_name)
+            .data_definition_by_name_str(&record.synthetic_name)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "plan-laid value type `{}` lost its exact synthesized data identity",
@@ -129,9 +125,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             .collect::<Vec<_>>();
 
         let schema = typed
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == record.schema_data)
+            .data_definition_by_name_str(&record.schema_data)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "plan-laid value type `{}` lost its exact source schema identity",

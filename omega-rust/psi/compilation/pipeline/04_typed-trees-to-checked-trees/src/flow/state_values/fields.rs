@@ -207,9 +207,7 @@ fn root_data_definition<'program>(
     if symbol == machine.symbol {
         let attached = machine.attached_data.as_ref()?;
         return program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == attached.as_str());
+            .data_definition_by_name_str(attached.as_str());
     }
     let parameter = program.state_parameter_by_symbol(state, symbol)?;
     validation::field_domains::readable_nominal_definition(program, parameter.type_reference)

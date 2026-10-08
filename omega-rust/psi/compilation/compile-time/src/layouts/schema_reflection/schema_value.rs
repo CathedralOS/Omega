@@ -68,9 +68,7 @@ pub(crate) fn build_schema_value(
     schema_fields: &[SchemaFieldInfo],
 ) -> Result<BuildTimeValue, String> {
     let data = typed
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == schema_data)
+        .data_definition_by_name_str(schema_data)
         .ok_or_else(|| format!("no data definition named `{schema_data}` exists"))?;
     let mut fields = Vec::with_capacity(SCHEMA_FIELD_CAPACITY);
     for index in 0..SCHEMA_FIELD_CAPACITY {

@@ -286,9 +286,7 @@ impl TypedTrees {
             return None;
         }
         let data = self
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == name)?;
+            .data_definition_by_name_str(name)?;
         let mut items = None;
         let mut has_u64_length = false;
         for member in self.data_members(data) {

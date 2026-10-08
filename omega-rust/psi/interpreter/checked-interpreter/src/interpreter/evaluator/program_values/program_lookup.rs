@@ -46,8 +46,6 @@ impl<'program> Evaluator<'program> {
         name: &str,
     ) -> Option<&'program DataDefinition> {
         self.program
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == name)
+            .data_definition_by_name_str(name)
     }
 }

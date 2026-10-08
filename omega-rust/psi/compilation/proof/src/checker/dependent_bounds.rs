@@ -293,9 +293,7 @@ fn dependent_field_floor_at(
         .find(|machine| machine.name.as_str() == machine_name)?;
     let attached = machine.attached_data.as_ref()?;
     let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
+        .data_definition_by_name_str(attached.as_str())?;
     let field_type =
         ::validation::field_domains::data_field_type_by_name(program, data, max_field.as_str())?;
     enforced_literal_range_minimum(program, field_type)
