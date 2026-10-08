@@ -105,7 +105,7 @@ pub(super) fn value_class(
             };
         }
     }
-    if let ExpressionNode::Unary(unary) = program.expression_table.expression(value) {
+    if let Some(unary) = program.expression_table.unary_node(value) {
         return match unary.operator {
             typed_trees::expression::UnaryOperator::BitwiseNot => Some(ValueClass::Numeric),
             typed_trees::expression::UnaryOperator::LogicalNot => Some(ValueClass::Boolean),

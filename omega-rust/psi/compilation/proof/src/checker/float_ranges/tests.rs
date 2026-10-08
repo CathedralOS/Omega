@@ -387,9 +387,7 @@ fn reaching_float_store_invalidates_alias_rebinding_and_origin_writes() {
                 fixture.alias,
                 fixture.alias,
             )));
-        let ExpressionNode::Member(original) =
-            fixture.program.expression_table.expression(original_value)
-        else {
+        let Some(original) = fixture.program.expression_table.member_node(original_value) else {
             panic!("field place");
         };
         let original = original.clone();

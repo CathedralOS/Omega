@@ -154,7 +154,7 @@ pub(super) fn checked_case_classifier(
     {
         return Err(rejected());
     }
-    let ExpressionNode::Name(case) = compilation.expression_table.expression(binary.right) else {
+    let Some(case) = compilation.expression_table.name_path_node(binary.right) else {
         return Err(rejected());
     };
     let carrier = validation::exact_case_reference_owner(compilation.checking_input, binary.right)

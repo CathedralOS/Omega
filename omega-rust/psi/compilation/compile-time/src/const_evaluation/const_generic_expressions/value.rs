@@ -903,7 +903,7 @@ fn validate_shapes(
             matches.push(plan);
             continue;
         }
-        if let ExpressionNode::Unary(unary) = program.expression_table.expression(expression) {
+        if let Some(unary) = program.expression_table.unary_node(expression) {
             let operand = shapes.pop().ok_or("missing unary constant operand type")?;
             let result = match (unary.operator, operand) {
                 (UnaryOperator::LogicalNot, Shape::Boolean) => Shape::Boolean,

@@ -141,8 +141,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
 ) -> Result<&'compilation checked_trees::CheckedFactCallProjection, Vec<Diagnostic>> {
     use typed_trees::expression::ExpressionNode;
 
-    let ExpressionNode::Call(call) = compilation.expression_table.expression(call_expression)
-    else {
+    let Some(call) = compilation.expression_table.call_node(call_expression) else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` fact-call projection does not rejoin a call expression",
             context.subject_kind, context.subject_name

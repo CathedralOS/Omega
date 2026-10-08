@@ -55,8 +55,7 @@ pub(super) fn project_member_expression(
                     )
             })
     ) {
-        let ExpressionNode::Name(path) = compilation.expression_table.expression(member.receiver)
-        else {
+        let Some(path) = compilation.expression_table.name_path_node(member.receiver) else {
             unreachable!()
         };
         let actual = projection_substitutions
@@ -80,7 +79,7 @@ pub(super) fn project_member_expression(
             None,
         );
     }
-    if let ExpressionNode::Name(path) = compilation.expression_table.expression(member.receiver) {
+    if let Some(path) = compilation.expression_table.name_path_node(member.receiver) {
         if substitutions
             .iter()
             .any(|(symbol, _)| *symbol == path.symbol)
@@ -195,8 +194,7 @@ fn project_checked_or_computed_member(
             ))]
         })?;
     let receiver = if data_subject_root {
-        let ExpressionNode::Name(path) = compilation.expression_table.expression(root_expression)
-        else {
+        let Some(path) = compilation.expression_table.name_path_node(root_expression) else {
             unreachable!("guarded data-subject name root")
         };
         let [field_name] = compilation.expression_table.name_path_members(path.members) else {

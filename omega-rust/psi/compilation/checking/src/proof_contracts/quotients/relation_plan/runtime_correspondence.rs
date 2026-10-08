@@ -581,7 +581,7 @@ pub(super) fn closed_lift_literal_for_representative(
         }
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     }
-    if let ExpressionNode::String(bytes) = program.expression_table.expression(expression) {
+    if let Some(bytes) = program.expression_table.string_node(expression) {
         let exact_target = exact_shared_byte_slice(program, representative_type)
             || crate::value_custody::expression_types::bounded_byte_buffer_capacity(
                 program,

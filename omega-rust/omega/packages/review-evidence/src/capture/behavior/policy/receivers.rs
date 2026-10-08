@@ -13,9 +13,7 @@ pub(crate) fn validate_call_receiver_roots(
         if !call.has_receiver || !call.authored_expression.is_valid() {
             continue;
         }
-        let ExpressionNode::Call(expression) =
-            source.expression_table.expression(call.authored_expression)
-        else {
+        let Some(expression) = source.expression_table.call_node(call.authored_expression) else {
             continue;
         };
         if !expression.receiver.is_valid() {

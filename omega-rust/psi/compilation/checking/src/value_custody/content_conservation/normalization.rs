@@ -51,7 +51,7 @@ fn normalize_term(
     context: &NormalizationContext<'_, '_>,
     expression: ExpressionHandle,
 ) -> Result<(ContentConservationTerm, ContentAlgebraIdentity), String> {
-    let ExpressionNode::Call(call) = context.program.expression_table.expression(expression) else {
+    let Some(call) = context.program.expression_table.call_node(expression) else {
         return Err(format!(
             "term `{}` is not an exact content projection or `separate(...)` composition",
             context.program.expression_table.display_name(expression),

@@ -1538,9 +1538,7 @@ pub(super) fn collect_guard(
             ) =>
         {
             for (condition, boolean) in [(binary.left, binary.right), (binary.right, binary.left)] {
-                if let ExpressionNode::Boolean(polarity) =
-                    engine.program.expression_table.expression(boolean)
-                {
+                if let Some(polarity) = engine.program.expression_table.boolean_node(boolean) {
                     return collect_guard(
                         engine,
                         condition,
