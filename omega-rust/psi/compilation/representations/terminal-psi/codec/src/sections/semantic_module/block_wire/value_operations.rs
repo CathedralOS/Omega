@@ -52,7 +52,7 @@ pub(super) fn decode_establish_scalar_array(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::EstablishScalarArray {
-        elements: decode_counted(reader, |reader| reader.id("ValueId"))?,
+        elements: decode_ids(reader, "ValueId")?,
     })
 }
 

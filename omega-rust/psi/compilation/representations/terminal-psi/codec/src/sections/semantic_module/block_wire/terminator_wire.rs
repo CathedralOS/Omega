@@ -256,7 +256,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
         6 => Terminator::ReturnStructural {
             edge: reader.id("EdgeId")?,
             source: reader.id("PlaceId")?,
-            returned_claims: decode_counted(reader, |reader| reader.id("ClaimId"))?,
+            returned_claims: decode_ids(reader, "ClaimId")?,
             cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
         13 => Terminator::ReturnUnit {

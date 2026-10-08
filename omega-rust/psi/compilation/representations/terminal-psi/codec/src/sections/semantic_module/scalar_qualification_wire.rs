@@ -5,7 +5,7 @@ use super::{
         decode_ieee_float_value, decode_integer_type, decode_integer_value, decode_scalar_type,
         encode_ieee_float_value, encode_integer_type, encode_integer_value, encode_scalar_type,
     },
-    wire::{Reader, Writer},
+    wire::{Reader, Writer, decode_ids},
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
@@ -125,7 +125,7 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
         sets: decode_counted(reader, |reader| {
             Ok(ScalarQualificationSet {
                 id: ScalarQualificationSetId::new(reader.u64()?),
-                domains: decode_counted(reader, |reader| reader.id("ScalarDomainId"))?,
+                domains: decode_ids(reader, "ScalarDomainId")?,
             })
         })?,
         coercions: decode_counted(reader, |reader| {
