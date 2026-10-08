@@ -6,6 +6,7 @@
 
 use omega_language_std::console;
 use omega::language::core::binding;
+use psi::integers::integers;
 use psi::lex::lexer;
 use psi::parse::parser;
 use psi::resolution::resolution;
@@ -568,7 +569,7 @@ crashes Trap
 {
     let adaptation_value: Adaptation = Typing::adaptation(output, index);
     let adaptation: u8 = TypingHarness::adaptation_tag(adaptation_value);
-    let value: AnonymousValue = Typing::value(output, index);
+    let value: ExactInteger = Typing::value(output, index);
     let negative: u8 = TypingHarness::boolean_tag(value.negative);
     let expression_type: u64 in Trapping = Typing::expression_type(output, index);
     let selection: Selection = Typing::selection(output, index);
@@ -743,6 +744,7 @@ machine TypingHarness::diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
         TypeDiagnosticCode::UnsupportedExpression -> tag(31)
         TypeDiagnosticCode::TargetArgumentCount -> tag(32)
         TypeDiagnosticCode::UninferredGenericArgument -> tag(33)
+        TypeDiagnosticCode::SatisfierMismatch -> tag(34)
     }
 
     state tag(number: u8) -> u8 {

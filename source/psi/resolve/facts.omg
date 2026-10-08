@@ -1,0 +1,312 @@
+use psi::resolution::resolution;
+use psi::resolve::names;
+use psi::resolve::resolver;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Fact names. A machine's or state's `requires` fact names that body's
+// parameters (and the machine's value binders) exactly as its statements
+// do, with no locals in scope (wiki/spec/language/state_contracts.md). A
+// machine's `ensures` fact names the same, and `result` the value it
+// returns unless an entry parameter spells `result` (same page, Returns and
+// proof use). A data declaration's `where` fact names its
+// fields bare, then its value binders
+// (wiki/spec/language/data_and_literals.md#case-constraints); a path in it
+// names a case or an owned machine and a call's callee a machine. A case's
+// own `where` facts over its payload fields are not bound yet: checking
+// treats them as unsupported rather than reading them unbound.
+pub machine Resolver::bind_fact_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next_machine(resolver, sources, syntax, 0) }
+
+    state next_machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.machine_count && resolver.output.accepted {
+            true -> machine(resolver, sources, syntax, index)
+            _ -> next_data(resolver, sources, syntax, 0)
+        }
+    }
+
+    state machine(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let scope: NameScope = Resolver::fact_scope(true, index, item.first_parameter, item.parameter_count, false);
+        Resolver::bind_clause_facts(resolver, sources, syntax, scope, item.first_clause, item.clause_count, ClauseKind::Requires);
+        let returning: NameScope = Resolver::fact_scope(true, index, item.first_parameter, item.parameter_count, true);
+        Resolver::bind_clause_facts(resolver, sources, syntax, returning, item.first_clause, item.clause_count, ClauseKind::Ensures);
+        transition { _ -> next_state(resolver, sources, syntax, index, item, 0) }
+    }
+
+    state next_state(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.state_count && resolver.output.accepted {
+            true -> state_facts(resolver, sources, syntax, index, item, offset)
+            _ -> next_machine(resolver, sources, syntax, index + 1)
+        }
+    }
+
+    state state_facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        let state_item: StateItem = SyntaxTrees::state_item(syntax, item.first_state + offset);
+        let scope: NameScope = Resolver::fact_scope(true, index, state_item.first_parameter, state_item.parameter_count, false);
+        Resolver::bind_clause_facts(resolver, sources, syntax, scope, state_item.first_clause, state_item.clause_count, ClauseKind::Requires);
+        transition { _ -> next_state(resolver, sources, syntax, index, item, offset + 1) }
+    }
+
+    state next_data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.data_count && resolver.output.accepted {
+            true -> data(resolver, sources, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state data(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, index);
+        Resolver::bind_data_facts(resolver, sources, syntax, item);
+        transition { _ -> next_data(resolver, sources, syntax, index + 1) }
+    }
+
+    state done() {}
+}
+
+// A body's parameters with no statements visible, and in an `ensures`
+// fact its returned value; a data fact has no enclosing machine.
+machine Resolver::fact_scope(
+    has_machine: bool,
+    machine: u64 in Trapping,
+    first_parameter: u64 in Trapping,
+    parameter_count: u64 in Trapping,
+    names_result: bool
+) -> NameScope {
+    NameScope {
+        has_machine: has_machine,
+        machine: machine,
+        first_parameter: first_parameter,
+        parameter_count: parameter_count,
+        first_statement: 0,
+        visible_statement_end: 0,
+        first_binder: 0,
+        binder_count: 0,
+        names_result: names_result
+    }
+}
+
+// The facts of `kind` in a clause run, in `scope`.
+machine Resolver::bind_clause_facts(
+    resolver: &mut Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    scope: NameScope,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping,
+    kind: ClauseKind
+)
+crashes Trap
+{
+    transition { _ -> next(resolver, sources, syntax, scope, first_clause, first_clause + clause_count, kind) }
+
+    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
+        transition index < end && resolver.output.accepted {
+            true -> clause(resolver, sources, syntax, scope, index, end, kind)
+            _ -> done()
+        }
+    }
+
+    state clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
+        let clause: Clause = SyntaxTrees::clause(syntax, index);
+        transition clause.kind == kind && clause.expression > 0 {
+            true -> fact(resolver, sources, syntax, scope, index, end, kind, clause.expression)
+            _ -> next(resolver, sources, syntax, scope, index + 1, end, kind)
+        }
+    }
+
+    state fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind, root: u64 in Trapping) {
+        Resolver::bind_tree(resolver, sources, syntax, scope, root);
+        transition { _ -> next(resolver, sources, syntax, scope, index + 1, end, kind) }
+    }
+
+    state done() {}
+}
+
+// A data declaration's own `where` facts.
+machine Resolver::bind_data_facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem)
+crashes Trap
+{
+    transition { _ -> next(resolver, sources, syntax, item, item.first_clause, item.first_clause + item.clause_count) }
+
+    state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
+        transition index < end && resolver.output.accepted {
+            true -> clause(resolver, sources, syntax, item, index, end)
+            _ -> done()
+        }
+    }
+
+    state clause(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
+        let clause: Clause = SyntaxTrees::clause(syntax, index);
+        transition clause.kind == ClauseKind::Where && clause.expression > 0 {
+            true -> fact(resolver, sources, syntax, item, index, end, clause.expression)
+            _ -> next(resolver, sources, syntax, item, index + 1, end)
+        }
+    }
+
+    state fact(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, index: u64 in Trapping, end: u64 in Trapping, root: u64 in Trapping) {
+        let expression: Expression = SyntaxTrees::expression(syntax, root);
+        transition { _ -> node(resolver, sources, syntax, item, index, end, root, expression.first_row) }
+    }
+
+    state node(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        item: DataItem,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        root: u64 in Trapping,
+        handle: u64 in Trapping
+    ) {
+        transition handle <= root && resolver.output.accepted {
+            true -> named(resolver, sources, syntax, item, index, end, root, handle)
+            _ -> next(resolver, sources, syntax, item, index + 1, end)
+        }
+    }
+
+    state named(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        item: DataItem,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        root: u64 in Trapping,
+        handle: u64 in Trapping
+    ) {
+        let expression: Expression = SyntaxTrees::expression(syntax, handle);
+        Resolver::bind_data_name(resolver, sources, syntax, item, handle, expression);
+        transition { _ -> node(resolver, sources, syntax, item, index, end, root, handle + 1) }
+    }
+
+    state done() {}
+}
+
+// One name of a data fact: a value name binds a field of the declaration,
+// then its value binders; a callee a machine; a path as anywhere else.
+machine Resolver::bind_data_name(
+    resolver: &mut Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    item: DataItem,
+    handle: u64 in Trapping,
+    expression: Expression
+)
+crashes Trap
+{
+    let role: NameRole = Resolver::role(resolver, handle);
+    transition expression.kind {
+        ExpressionKind::Name -> single(resolver, sources, syntax, item, handle, expression, role)
+        ExpressionKind::Path -> path(resolver, sources, syntax, handle, expression, role)
+        _ -> done()
+    }
+
+    state single(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+        transition role {
+            NameRole::Value -> value(resolver, sources, syntax, item, handle, expression)
+            NameRole::Callee -> callee(resolver, sources, syntax, handle, expression)
+            _ -> bound(resolver, handle, expression, ValueBinding::Unresolved)
+        }
+    }
+
+    state value(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, handle: u64 in Trapping, expression: Expression) {
+        let binding: ValueBinding = Resolver::data_value_name(sources, syntax, item, expression.name.source_span);
+        transition { _ -> bound(resolver, handle, expression, binding) }
+    }
+
+    state callee(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, expression: Expression) {
+        let empty: SourceSpan = expression.name.source_span;
+        let binding: ValueBinding = Resolver::machine_name(&resolver.output, sources, syntax, false, empty, expression.name.source_span);
+        transition { _ -> bound(resolver, handle, expression, binding) }
+    }
+
+    state path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, handle: u64 in Trapping, expression: Expression, role: NameRole) {
+        let scope: NameScope = Resolver::fact_scope(false, 0, 0, 0, false);
+        let binding: ValueBinding = Resolver::name_binding(&resolver.output, sources, syntax, scope, expression, role);
+        transition { _ -> bound(resolver, handle, expression, binding) }
+    }
+
+    state bound(resolver: &mut Resolver, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
+        transition binding {
+            ValueBinding::Unresolved -> unresolved(resolver, expression)
+            ValueBinding::Ambiguous -> ambiguous(resolver, expression)
+            _ -> stored(resolver, handle, binding)
+        }
+    }
+
+    state stored(resolver: &mut Resolver, handle: u64 in Trapping, binding: ValueBinding) {
+        transition handle < 131072 {
+            true -> store(resolver, handle, binding)
+            _ -> invalid()
+        }
+    }
+
+    state store(resolver: &mut Resolver, handle: u64 in Trapping, binding: ValueBinding)
+    requires handle < 131072
+    {
+        resolver.output.value_bindings[handle] = binding;
+    }
+
+    state unresolved(resolver: &mut Resolver, expression: Expression) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnknownName, expression.source_span);
+    }
+
+    state ambiguous(resolver: &mut Resolver, expression: Expression) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::AmbiguousName, expression.source_span);
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+
+    state done() {}
+}
+
+// A bare value name in a data fact: one of the declaration's own fields,
+// then one of its value binders.
+machine Resolver::data_value_name(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan) -> ValueBinding
+crashes Trap
+{
+    transition { _ -> field(sources, syntax, item, name, 0) }
+
+    state field(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+        transition offset < item.field_count {
+            true -> field_named(sources, syntax, item, name, offset)
+            _ -> binder(sources, syntax, item, name, 0)
+        }
+    }
+
+    state field_named(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+        let field: DataField = SyntaxTrees::field(syntax, item.first_field + offset);
+        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, name);
+        transition spelled {
+            true -> found(ValueBinding::Field { field: item.first_field + offset })
+            _ -> field(sources, syntax, item, name, offset + 1)
+        }
+    }
+
+    state binder(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+        transition offset < item.generic_parameter_count {
+            true -> binder_named(sources, syntax, item, name, offset)
+            _ -> found(ValueBinding::Unresolved)
+        }
+    }
+
+    state binder_named(sources: &SourceSet, syntax: &SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
+        let handle: u64 in Trapping = item.first_generic_parameter + offset;
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        let spelled: bool = SourceSet::spans_equal(sources, parameter.name.source_span, name);
+        let value: bool = Resolver::binder_names(parameter.kind, false);
+        transition spelled && value {
+            true -> found(ValueBinding::GenericParameter { parameter: handle })
+            _ -> binder(sources, syntax, item, name, offset + 1)
+        }
+    }
+
+    state found(binding: ValueBinding) -> ValueBinding {
+        binding
+    }
+}

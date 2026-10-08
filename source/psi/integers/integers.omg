@@ -1,0 +1,219 @@
+use psi::resolution::resolution;
+
+// Exact mathematical integers, shared by literal folding (typing) and bounds
+// reasoning (checking). A value is a sign and a magnitude below 2^64, so
+// every fixed-integer carrier's range is representable
+// (wiki/spec/language/numeric_values.md#integer-equality-and-order).
+// Arithmetic is exact: `valid` fails when a result leaves the magnitude
+// range, or a quotient is inexact or divides by zero. Zero is never
+// negative.
+pub data ExactInteger [copy] {
+    negative: bool;
+    magnitude: u64 in Wrapping;
+}
+
+pub data ExactResult [copy] {
+    valid: bool;
+    value: ExactInteger;
+}
+
+pub machine ExactInteger::of(magnitude: u64 in Wrapping) -> ExactInteger {
+    ExactInteger { negative: false, magnitude: magnitude }
+}
+
+pub machine ExactInteger::negate(value: ExactInteger) -> ExactInteger {
+    ExactInteger { negative: !value.negative && value.magnitude > 0, magnitude: value.magnitude }
+}
+
+pub machine ExactInteger::add(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    transition left.negative == right.negative {
+        true -> same_sign(left, right)
+        _ -> opposite(left, right)
+    }
+
+    state same_sign(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        transition left.magnitude <= 18446744073709551615 - right.magnitude {
+            true -> sum(left, right)
+            _ -> overflow()
+        }
+    }
+
+    state sum(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        ExactResult {
+            valid: true,
+            value: ExactInteger { negative: left.negative, magnitude: left.magnitude + right.magnitude }
+        }
+    }
+
+    // Opposite signs: the larger magnitude keeps its sign.
+    state opposite(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        transition left.magnitude >= right.magnitude {
+            true -> difference(left.negative, left.magnitude - right.magnitude)
+            _ -> difference(right.negative, right.magnitude - left.magnitude)
+        }
+    }
+
+    state difference(negative: bool, magnitude: u64 in Wrapping) -> ExactResult {
+        ExactResult { valid: true, value: ExactInteger { negative: negative && magnitude > 0, magnitude: magnitude } }
+    }
+
+    state overflow() -> ExactResult {
+        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
+    }
+}
+
+pub machine ExactInteger::subtract(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    let negated: ExactInteger = ExactInteger::negate(right);
+    let result: ExactResult = ExactInteger::add(left, negated);
+    result
+}
+
+pub machine ExactInteger::multiply(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    transition left.magnitude == 0 || right.magnitude == 0 {
+        true -> zero()
+        _ -> bounded(left, right)
+    }
+
+    state bounded(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        transition left.magnitude <= 18446744073709551615 / right.magnitude {
+            true -> product(left, right)
+            _ -> overflow()
+        }
+    }
+
+    state product(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        ExactResult {
+            valid: true,
+            value: ExactInteger { negative: left.negative != right.negative, magnitude: left.magnitude * right.magnitude }
+        }
+    }
+
+    state zero() -> ExactResult {
+        ExactResult { valid: true, value: ExactInteger { negative: false, magnitude: 0 } }
+    }
+
+    state overflow() -> ExactResult {
+        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
+    }
+}
+
+// Rational division keeps only an exact integral quotient.
+pub machine ExactInteger::divide(left: ExactInteger, right: ExactInteger) -> ExactResult {
+    transition right.magnitude > 0 {
+        true -> divisible(left, right)
+        _ -> inexact()
+    }
+
+    state divisible(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        transition left.magnitude % right.magnitude == 0 {
+            true -> quotient(left, right)
+            _ -> inexact()
+        }
+    }
+
+    state quotient(left: ExactInteger, right: ExactInteger) -> ExactResult {
+        let magnitude: u64 in Wrapping = left.magnitude / right.magnitude;
+        ExactResult {
+            valid: true,
+            value: ExactInteger { negative: left.negative != right.negative && magnitude > 0, magnitude: magnitude }
+        }
+    }
+
+    state inexact() -> ExactResult {
+        ExactResult { valid: false, value: ExactInteger { negative: false, magnitude: 0 } }
+    }
+}
+
+// Whether `left <= right`.
+pub machine ExactInteger::at_most(left: ExactInteger, right: ExactInteger) -> bool {
+    transition left.negative == right.negative {
+        true -> same_sign(left, right)
+        _ -> opposite(left.negative)
+    }
+
+    state same_sign(left: ExactInteger, right: ExactInteger) -> bool {
+        transition left.negative {
+            true -> ordered(right.magnitude, left.magnitude)
+            _ -> ordered(left.magnitude, right.magnitude)
+        }
+    }
+
+    state ordered(lower: u64 in Wrapping, upper: u64 in Wrapping) -> bool {
+        lower <= upper
+    }
+
+    state opposite(left_negative: bool) -> bool {
+        left_negative
+    }
+}
+
+// The least value of a fixed-integer carrier; zero for any other type.
+pub machine ExactInteger::minimum(builtin: BuiltinType) -> ExactInteger {
+    transition builtin {
+        BuiltinType::I8 -> negative(128)
+        BuiltinType::I16 -> negative(32768)
+        BuiltinType::I32 -> negative(2147483648)
+        BuiltinType::I64 -> negative(9223372036854775808)
+        _ -> unsigned()
+    }
+
+    state negative(magnitude: u64 in Wrapping) -> ExactInteger {
+        ExactInteger { negative: true, magnitude: magnitude }
+    }
+
+    state unsigned() -> ExactInteger {
+        ExactInteger { negative: false, magnitude: 0 }
+    }
+}
+
+// The greatest value of a fixed-integer carrier; zero for any other type.
+pub machine ExactInteger::maximum(builtin: BuiltinType) -> ExactInteger {
+    transition builtin {
+        BuiltinType::I8 -> positive(127)
+        BuiltinType::I16 -> positive(32767)
+        BuiltinType::I32 -> positive(2147483647)
+        BuiltinType::I64 -> positive(9223372036854775807)
+        BuiltinType::U8 -> positive(255)
+        BuiltinType::U16 -> positive(65535)
+        BuiltinType::U32 -> positive(4294967295)
+        BuiltinType::U64 -> positive(18446744073709551615)
+        _ -> positive(0)
+    }
+
+    state positive(magnitude: u64 in Wrapping) -> ExactInteger {
+        ExactInteger { negative: false, magnitude: magnitude }
+    }
+}
+
+// Whether `builtin` is a fixed-width integer carrier.
+pub machine ExactInteger::is_carrier(builtin: BuiltinType) -> bool {
+    transition builtin {
+        BuiltinType::I8 -> yes()
+        BuiltinType::I16 -> yes()
+        BuiltinType::I32 -> yes()
+        BuiltinType::I64 -> yes()
+        BuiltinType::U8 -> yes()
+        BuiltinType::U16 -> yes()
+        BuiltinType::U32 -> yes()
+        BuiltinType::U64 -> yes()
+        _ -> no()
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Whether an exact integer fits a fixed-integer carrier.
+pub machine ExactInteger::fits(builtin: BuiltinType, value: ExactInteger) -> bool {
+    let carrier: bool = ExactInteger::is_carrier(builtin);
+    let least: ExactInteger = ExactInteger::minimum(builtin);
+    let greatest: ExactInteger = ExactInteger::maximum(builtin);
+    let above: bool = ExactInteger::at_most(least, value);
+    let below: bool = ExactInteger::at_most(value, greatest);
+    carrier && above && below
+}

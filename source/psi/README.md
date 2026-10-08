@@ -140,9 +140,15 @@ mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
 ([`resolve/forms.omg`](resolve/forms.omg)), at that form: an operator token, a
-`where machine` or `where proposition` contract, a `satisfies` or
-`terminates` clause, or a proposition or evidence binder, on any machine or
-declaration. Data
+`where machine` or `where proposition` contract, or a proposition or
+evidence binder, on any machine or declaration. A `satisfies` clause binds
+its trait (a trait position), the trait's static arguments in the machine's
+generic scope and the trait's member it names, recorded per clause in
+`NameResolution::requirements`, and its `via` payload in the machine's
+static scope, without its parameters; a trait reached through a module path
+rejects as unsupported. A `terminates by` witness's subjects and view bind
+in the body's parameter scope ([`resolve/clauses.omg`](resolve/clauses.omg)).
+Data
 declarations, traits and named conformances share one type namespace per
 module, constants (by owner and name) and propositions their own; a later root
 repeating an earlier one's path in its module rejects (as duplicate data when
@@ -209,10 +215,14 @@ whose implied domain it names; `value in Carrier::Name` binds the domain the
 carrier type selects, and a bare `value in Name` the one visible domain of
 that name, in the path bindings (a case and a domain of one path, or several
 bare candidates, or several domains at once reject). These value bindings are
-indexed by expression handle. Facts
-(`requires`, `ensures`, `where`, domain predicates and proposition bodies) bind
-no names here; which requirement a member or row fills, row completeness and a
-domain's establishment obligations are checking's.
+indexed by expression handle. A machine's `requires` and `ensures` facts and
+a state's `requires` facts bind in their body's parameter scope, `result` in
+an `ensures` fact naming the returned value unless a parameter spells it, and
+a data declaration's `where` facts bind its fields bare
+([`resolve/facts.omg`](resolve/facts.omg)). A case's own `where` facts,
+domain predicates and proposition bodies bind no names here; which
+requirement a member or row fills, row completeness and a domain's
+establishment obligations are checking's.
 
 Typing follows resolution ([`typing/typer.omg`](typing/typer.omg)) and
 records its results in [`types/types.omg`](types/types.omg): an interned
@@ -271,6 +281,18 @@ selects among the callee's family by machine path; a trait requirement (which
 runs only through a selected conformance), a generic conformance's member, a
 target-scoped family's body (a realization's choice), a conformance named as
 a static argument and a declared domain qualifier reject as unsupported.
+Facts type too ([`typing/facts.omg`](typing/facts.omg)): each machine's
+`requires` and `ensures` fact and each state's `requires` fact over its
+parameters (`result` has the machine's result type) and each data
+declaration's `where` fact over its fields is a Boolean. A case's own
+`where` facts are not bound or typed yet. A machine that `satisfies` a
+requirement must have the requirement's signature with the trait's type
+parameters replaced by the clause's arguments, and its `via` payload and a
+`terminates by` witness type like expressions
+([`typing/clauses.omg`](typing/clauses.omg)); a requirement with generic
+parameters of its own rejects as unsupported. Exact integer values and
+their arithmetic, which literal folding uses, live in
+[`integers/integers.omg`](integers/integers.omg).
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -364,6 +386,7 @@ owns bounded token selection and trivia traversal;
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
 | `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
+| `integers/` | Owns exact integer values and arithmetic for literal folding. | Absorb only into a successor exact-arithmetic owner its consumers share. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be

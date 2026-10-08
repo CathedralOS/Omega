@@ -31,6 +31,7 @@ DIAGNOSTICS = (
     "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
     "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
+    "SatisfierMismatch",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length")
 ADAPTATIONS = ("", "landed", "lent")
@@ -750,6 +751,36 @@ def main() -> None:
         b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) {}",
         "UnsupportedDomain",
         b"u64 in Small",
+    )
+    # A `satisfies` machine's signature is its requirement's under the
+    # clause's trait arguments.
+    order = b"trait Order<T> { machine before(left: T, right: T) -> bool; }\n"
+    accepted(
+        program,
+        "satisfier-matches-its-requirement",
+        order + b"machine ascending(left: u8, right: u8) -> bool satisfies Order<u8>::before { left < right }",
+        ((b"left < right", "bool"),),
+    )
+    rejected(
+        program,
+        "satisfier-parameter-differs",
+        order + b"machine ascending(left: u16, right: u8) -> bool satisfies Order<u8>::before { true }",
+        "SatisfierMismatch",
+        b"satisfies Order<u8>::before",
+    )
+    rejected(
+        program,
+        "satisfier-result-differs",
+        order + b"machine ascending(left: u8, right: u8) -> u8 satisfies Order<u8>::before { 0 }",
+        "SatisfierMismatch",
+        b"satisfies Order<u8>::before",
+    )
+    rejected(
+        program,
+        "satisfies-argument-count",
+        order + b"machine ascending(left: u8, right: u8) -> bool satisfies Order::before { true }",
+        "GenericArgumentCount",
+        b"satisfies Order::before",
     )
     rejected(
         program,

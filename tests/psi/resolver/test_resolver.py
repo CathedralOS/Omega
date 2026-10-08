@@ -89,6 +89,16 @@ def path_machine(handle: int) -> tuple[int, int]:
 def path_domain(handle: int) -> tuple[int, int]:
     return (2, handle)
 
+
+def field_name(handle: int) -> tuple[int, int, int]:
+    """A field a data declaration's `where` fact names bare."""
+    return (12, handle, 0)
+
+
+def returned_value(machine: int) -> tuple[int, int, int]:
+    """`result` in a machine's `ensures` fact."""
+    return (13, machine, 0)
+
 # Type bindings: (tag, handle, domain tag, declared domain handle).
 BUILTIN = 1
 DATA = 2
@@ -159,6 +169,7 @@ class Observation:
     bindings: tuple[TypeRow, ...]
     value_bindings: tuple[tuple[int, int, int], ...] = ()
     path_bindings: tuple[tuple[int, int], ...] = ()
+    requirements: tuple[tuple[int, int], ...] = ()
 
 
 class Reader:
@@ -184,7 +195,7 @@ class Reader:
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
     assert reader.bytes(8) == b"OMGRES1\0"
-    assert reader.u64() == 2
+    assert reader.u64() == 3
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -200,8 +211,12 @@ def decode(payload: bytes) -> Observation:
         (reader.byte(), reader.u64())
         for _ in range(reader.u64())
     )
+    requirements = tuple(
+        (reader.byte(), reader.u64())
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing resolution observation bytes"
-    return Observation(accepted, diagnostic, diagnostic_span, bindings, value_bindings, path_bindings)
+    return Observation(accepted, diagnostic, diagnostic_span, bindings, value_bindings, path_bindings, requirements)
 
 
 # Every distinct input the gate runs is one case; the determinism check runs
@@ -268,15 +283,17 @@ def expected_observation(
     bindings: tuple[TypeRow, ...],
     value_bindings: tuple[tuple[int, int, int], ...] | None,
     path_bindings: tuple[tuple[int, int], ...] | None,
+    requirements: tuple[tuple[int, int], ...] | None = None,
 ) -> tuple[Observation, Observation]:
-    """Value and path bindings are compared only when the case names them."""
-    if value_bindings is None:
-        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings,
-                             (), actual.path_bindings)
-    if path_bindings is None:
-        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings,
-                             actual.value_bindings, ())
-    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or (), path_bindings or ())
+    """Value, path and requirement bindings are compared only when the case
+    names them."""
+    actual = Observation(
+        actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings,
+        () if value_bindings is None else actual.value_bindings,
+        () if path_bindings is None else actual.path_bindings,
+        () if requirements is None else actual.requirements,
+    )
+    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or (), path_bindings or (), requirements or ())
     return actual, expected
 
 
@@ -287,10 +304,11 @@ def accepted(
     bindings: tuple[TypeRow, ...],
     value_bindings: tuple[tuple[int, int, int], ...] | None = None,
     path_bindings: tuple[tuple[int, int], ...] | None = None,
+    requirements: tuple[tuple[int, int], ...] | None = None,
 ) -> None:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
-    actual, expected = expected_observation(decode(payload), bindings, value_bindings, path_bindings)
+    actual, expected = expected_observation(decode(payload), bindings, value_bindings, path_bindings, requirements)
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -765,6 +783,51 @@ def main() -> None:
     )
     rejected(program, "unknown-static-argument-type", b"machine f() { g<Q>(1); }", UNKNOWN_DATA_TYPE, b"Q")
 
+    # Facts: a `requires` fact names its body's parameters, a data `where`
+    # fact its fields.
+    accepted(
+        program,
+        "fact-names",
+        b"data Range\nwhere\n    lo <= hi,\n{ lo: u64; hi: u64; }\n"
+        b"machine f(x: u64) -> u64\nrequires x > 0\n{\n"
+        b"    transition { _ -> g(x) }\n\n"
+        b"    state g(y: u64) -> u64\n    requires y > 1\n    { y }\n}",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (
+            field_name(0), field_name(1), NOT_A_NAME,
+            parameter(0), NOT_A_NAME, NOT_A_NAME,
+            state(0), parameter(0), NOT_A_NAME,
+            parameter(1), NOT_A_NAME, NOT_A_NAME,
+            parameter(1),
+        ),
+    )
+    rejected(program, "fact-unknown-name", b"machine f(x: u64)\nrequires y > 0\n{}", UNKNOWN_NAME, b"y")
+    # `result` names the returned value in `ensures` facts only, and an
+    # entry parameter spelled `result` shadows it.
+    accepted(
+        program,
+        "ensures-names-result",
+        b"machine f(x: u64) -> u64\nensures result >= x\n{ x }",
+        (builtin("u64"), builtin("u64")),
+        (returned_value(0), parameter(0), NOT_A_NAME, parameter(0)),
+    )
+    accepted(
+        program,
+        "parameter-shadows-result",
+        b"machine f(result: u64) -> u64\nensures result > 0\n{ result }",
+        (builtin("u64"), builtin("u64")),
+        (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
+    )
+    rejected(program, "result-only-in-ensures", b"machine f(x: u64)\nrequires result > 0\n{}", UNKNOWN_NAME, b"result")
+    rejected(
+        program,
+        "data-fact-names-only-its-fields",
+        b"data A { a: u64; }\ndata B\nwhere\n    a > 0,\n{ b: u64; }",
+        UNKNOWN_NAME,
+        b"a > 0",
+        length=1,
+    )
+
     # Expression names: locals, then pattern binders, then the body's own
     # parameters; callees name machines, targets a state before a machine,
     # constructions and paths a data declaration's case.
@@ -1079,22 +1142,70 @@ def main() -> None:
          UNSUPPORTED_OPERATOR_TOKEN, b"[]"),
         ("unsupported-machine-contract", b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }",
          UNSUPPORTED_MACHINE_CONTRACT, b"where machine F(value: u8) -> u8;"),
-        ("unsupported-satisfies-clause", b"machine f() satisfies Order::before {}",
-         UNSUPPORTED_CLAUSE, b"satisfies Order::before"),
-        ("unsupported-terminates-clause", b"machine f(n: u64) requires n > 0 terminates by n; {}",
-         UNSUPPORTED_CLAUSE, b"terminates by n;"),
         ("unsupported-evidence-binder", b"machine m<T, O satisfies Order<T>>() {}",
          UNSUPPORTED_GENERIC_PARAMETER, b"O satisfies Order<T>"),
         ("unsupported-proposition-binder", b"machine m<proposition R>() {}",
          UNSUPPORTED_GENERIC_PARAMETER, b"proposition R"),
         ("unsupported-requirement-token", b"trait Ranked { machine < compare(left: u8, right: u8) -> bool; }",
          UNSUPPORTED_OPERATOR_TOKEN, b"<"),
-        ("unsupported-target-satisfies-clause", b"linux_arm64 machine C::now() satisfies Clock::now via binding();",
-         UNSUPPORTED_CLAUSE, b"satisfies Clock::now via binding()"),
     ):
         rejected(program, name, source, diagnostic, spelling)
-    source = b"data A { x: Q; }\nmachine f() satisfies Order::before {}"
-    rejected(program, "unsupported-form-before-binding", source, UNSUPPORTED_CLAUSE, b"satisfies Order::before")
+    source = b"data A { x: Q; }\nmachine + f(a: u8) -> u8 { a }"
+    rejected(program, "unsupported-form-before-binding", source, UNSUPPORTED_OPERATOR_TOKEN, b"+")
+
+    # A `satisfies` clause binds its trait, the trait's static arguments and
+    # the named requirement; its `via` payload sees the machine's static
+    # scope, never its parameters. A `terminates by` witness ranks the
+    # body's parameters.
+    order = b"trait Order<T> { machine before(left: T, right: T) -> bool; }\n"
+    accepted(
+        program,
+        "satisfies-binds-the-requirement",
+        order + b"machine ascending(left: u8, right: u8) -> bool satisfies Order<u8>::before { left < right }",
+        (generic(0), generic(0), builtin("bool"), builtin("u8"), builtin("u8"), builtin("bool"), builtin("u8")),
+        requirements=((1, 0),),
+    )
+    accepted(
+        program,
+        "satisfies-payload-binds-statically",
+        b"data Binding { case Intrinsic; }\ntrait Clock { machine now() -> u64; }\n"
+        b"machine C::now() -> u64 satisfies Clock::now via Binding::Intrinsic;",
+        (builtin("u64"), builtin("u64")),
+        (data_case(0, 0),),
+        requirements=((1, 0),),
+    )
+    rejected(
+        program,
+        "satisfies-payload-sees-no-parameter",
+        b"trait Clock { machine now() -> u64; }\nmachine C::now(x: u64) -> u64 satisfies Clock::now via x;",
+        UNKNOWN_NAME,
+        b"x",
+        2,
+    )
+    rejected(program, "satisfies-unknown-trait", b"machine f() satisfies Order::before {}", UNKNOWN_DATA_TYPE, b"Order")
+    rejected(
+        program,
+        "satisfies-unknown-requirement",
+        order + b"machine f() satisfies Order<u8>::after {}",
+        NOT_A_REQUIREMENT,
+        b"after",
+    )
+    rejected(program, "satisfies-data-is-not-a-trait", b"data D { }\nmachine f() satisfies D::g {}", NOT_A_TRAIT, b"D", 2)
+    rejected(
+        program,
+        "satisfies-through-a-module-path",
+        b"machine f() satisfies shapes::Order::before {}",
+        UNSUPPORTED_CLAUSE,
+        b"satisfies shapes::Order::before",
+    )
+    accepted(
+        program,
+        "terminates-ranks-parameters",
+        b"machine f(n: u64) requires n > 0 terminates by n; {}",
+        (builtin("u64"),),
+        (parameter(0), NOT_A_NAME, NOT_A_NAME, parameter(0)),
+    )
+    rejected(program, "terminates-unknown-subject", b"machine f(n: u64) terminates by m; {}", UNKNOWN_NAME, b"m;", length=1)
 
     # A membership in `Type::Case` binds the case whose implied domain it
     # names; a `Carrier::Name` path or a bare name binds a declared domain;

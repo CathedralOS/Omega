@@ -56,6 +56,9 @@ pub data NameScope [copy] {
     visible_statement_end: u64 in Trapping;
     first_binder: u64 in Trapping;
     binder_count: u64 in Trapping;
+    // Whether `result` names the machine's returned value: its `ensures`
+    // facts.
+    names_result: bool;
 }
 
 pub machine Resolver::bind_body_names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
@@ -139,7 +142,8 @@ crashes Trap
             first_statement: 0,
             visible_statement_end: 0,
             first_binder: 0,
-            binder_count: 0
+            binder_count: 0,
+            names_result: false
         }, item.value);
         transition { _ -> next(resolver, sources, syntax, index + 1) }
     }
@@ -216,7 +220,7 @@ crashes Trap
     }
 }
 
-machine Resolver::role(resolver: &Resolver, index: u64 in Trapping) -> NameRole
+pub machine Resolver::role(resolver: &Resolver, index: u64 in Trapping) -> NameRole
 crashes Trap
 {
     transition index < 131072 {
@@ -255,7 +259,8 @@ crashes Trap
         first_statement: first_statement,
         visible_statement_end: first_statement,
         first_binder: 0,
-        binder_count: 0
+        binder_count: 0,
+        names_result: false
     }, first_statement + statement_count) }
 
     state next(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, end: u64 in Trapping) {
@@ -283,7 +288,8 @@ machine Resolver::through_statement(scope: NameScope) -> NameScope {
         first_statement: scope.first_statement,
         visible_statement_end: scope.visible_statement_end + 1,
         first_binder: scope.first_binder,
-        binder_count: scope.binder_count
+        binder_count: scope.binder_count,
+        names_result: scope.names_result
     }
 }
 
@@ -296,7 +302,8 @@ machine Resolver::with_binders(scope: NameScope, first_binder: u64 in Trapping, 
         first_statement: scope.first_statement,
         visible_statement_end: scope.visible_statement_end,
         first_binder: first_binder,
-        binder_count: binder_count
+        binder_count: binder_count,
+        names_result: scope.names_result
     }
 }
 
@@ -458,7 +465,7 @@ crashes Trap
 
 // Every name and path in the expression rooted at `root`: its subtree is the
 // contiguous run from the root's first row to the root.
-machine Resolver::bind_tree(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, root: u64 in Trapping)
+pub machine Resolver::bind_tree(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, root: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = SyntaxTrees::expression(syntax, root);
@@ -554,7 +561,7 @@ crashes Trap
 }
 
 // What a name in `role` denotes, or `Unresolved`.
-machine Resolver::name_binding(
+pub machine Resolver::name_binding(
     resolution: &NameResolution,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
@@ -610,8 +617,9 @@ crashes Trap
 }
 
 // A value name: the latest earlier `let` of this body, then the arm's
-// pattern binders, then the body's parameters, then a value binder of the
-// enclosing machine, then a constant.
+// pattern binders, then the body's parameters, then, in an `ensures` fact,
+// `result`, then a value binder of the enclosing machine, then a constant.
+// An entry parameter spelled `result` shadows the returned value.
 machine Resolver::local_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
@@ -655,6 +663,14 @@ crashes Trap
     state parameter(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < scope.parameter_count {
             true -> parameter_named(resolution, sources, syntax, scope, name, offset)
+            _ -> returned(resolution, sources, syntax, scope, name)
+        }
+    }
+
+    state returned(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
+        let spelled: bool = SourceSet::span_spells(sources, name, "result");
+        transition scope.names_result && spelled {
+            true -> found(ValueBinding::ReturnedValue { machine: scope.machine })
             _ -> generic(resolution, sources, syntax, scope, name)
         }
     }
@@ -852,7 +868,7 @@ crashes Trap
 // A machine whose path is `name` (owned by `owner` when `owned`): its
 // overload family's first declaration, since typing selects among the
 // overloads.
-machine Resolver::machine_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+pub machine Resolver::machine_name(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
     let lookup: Lookup = Resolver::machine_named(resolution, sources, syntax, owned, owner, name);
@@ -1026,7 +1042,7 @@ crashes Trap
 }
 
 // Whether a binder of `kind` names a machine (`machine_binder`) or a value.
-machine Resolver::binder_names(kind: GenericParameterKind, machine_binder: bool) -> bool {
+pub machine Resolver::binder_names(kind: GenericParameterKind, machine_binder: bool) -> bool {
     transition kind {
         GenericParameterKind::Machine -> machine_kind(machine_binder)
         GenericParameterKind::Value -> value_kind(machine_binder)

@@ -1,3 +1,4 @@
+use psi::integers::integers;
 use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -67,9 +68,9 @@ crashes Trap
     }
 
     state anonymous(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow) -> Admission {
-        let value: AnonymousValue = Typing::value(&typer.output, expression);
+        let value: ExactInteger = Typing::value(&typer.output, expression);
         let fixed: bool = Typer::fixed_integer(wanted.builtin);
-        let fits: bool = Typer::fits(wanted.builtin, value);
+        let fits: bool = ExactInteger::fits(wanted.builtin, value);
         transition wanted.kind == TypeKind::Builtin && fixed {
             true -> landing(fits)
             _ -> rejected()

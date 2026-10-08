@@ -1,3 +1,4 @@
+use psi::integers::integers;
 use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -21,8 +22,8 @@ use psi::typing::typer;
 pub machine Typer::type_tree(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping)
 crashes Trap
 {
-    let low: u64 in Trapping = Typer::tree_low(typer, syntax, root);
-    transition { _ -> next(typer, sources, syntax, resolution, root, low) }
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> next(typer, sources, syntax, resolution, root, tree.first_row) }
 
     state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         transition index <= root && typer.output.accepted {
@@ -46,116 +47,6 @@ crashes Trap
     }
 
     state done() {}
-}
-
-// The lowest handle in the tree at `root`. A tree's nodes are emitted
-// contiguously, children first, so its nodes are exactly the handles from
-// this one through the root.
-machine Typer::tree_low(typer: &mut Typer, syntax: &SyntaxTrees, root: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    Typer::stack_store(typer, 0, root);
-    transition { _ -> pop(typer, syntax, 1, root) }
-
-    state pop(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping) -> u64 in Trapping {
-        transition depth > 0 {
-            true -> visit(typer, syntax, depth - 1, low)
-            _ -> result(low)
-        }
-    }
-
-    state visit(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping) -> u64 in Trapping {
-        let handle: u64 in Trapping = Typer::stacked(typer, depth);
-        let expression: Expression = SyntaxTrees::expression(syntax, handle);
-        let lowest: u64 in Trapping = Typer::lesser(low, handle);
-        transition expression.kind {
-            ExpressionKind::Field -> one(typer, syntax, depth, lowest, expression.left)
-            ExpressionKind::Unary -> one(typer, syntax, depth, lowest, expression.left)
-            ExpressionKind::Cast -> one(typer, syntax, depth, lowest, expression.left)
-            ExpressionKind::Index -> two(typer, syntax, depth, lowest, expression.left, expression.right)
-            ExpressionKind::Binary -> two(typer, syntax, depth, lowest, expression.left, expression.right)
-            ExpressionKind::Call -> arguments(typer, syntax, depth, lowest, expression, 0)
-            ExpressionKind::Apply -> one(typer, syntax, depth, lowest, expression.left)
-            ExpressionKind::Construct -> fields(typer, syntax, depth, lowest, expression, 0)
-            _ -> pop(typer, syntax, depth, lowest)
-        }
-    }
-
-    state one(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
-        transition depth < 4096 {
-            true -> push_one(typer, syntax, depth, low, child)
-            _ -> overflow()
-        }
-    }
-
-    state push_one(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
-        Typer::stack_store(typer, depth, child);
-        transition { _ -> pop(typer, syntax, depth + 1, low) }
-    }
-
-    state two(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
-        transition depth + 1 < 4096 {
-            true -> push_two(typer, syntax, depth, low, left, right)
-            _ -> overflow()
-        }
-    }
-
-    state push_two(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
-        Typer::stack_store(typer, depth, left);
-        Typer::stack_store(typer, depth + 1, right);
-        transition { _ -> pop(typer, syntax, depth + 2, low) }
-    }
-
-    // A call's callee, then its arguments.
-    state arguments(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        transition offset < expression.count {
-            true -> argument(typer, syntax, depth, low, expression, offset)
-            _ -> one(typer, syntax, depth, low, expression.left)
-        }
-    }
-
-    state argument(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        let child: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + offset);
-        transition depth < 4096 {
-            true -> push_argument(typer, syntax, depth, low, expression, offset, child)
-            _ -> overflow()
-        }
-    }
-
-    state push_argument(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
-        Typer::stack_store(typer, depth, child);
-        transition { _ -> arguments(typer, syntax, depth + 1, low, expression, offset + 1) }
-    }
-
-    // A construction's path, then its field values.
-    state fields(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        transition offset < expression.count {
-            true -> field(typer, syntax, depth, low, expression, offset)
-            _ -> one(typer, syntax, depth, low, expression.left)
-        }
-    }
-
-    state field(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping) -> u64 in Trapping {
-        let construct_field: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + offset);
-        transition depth < 4096 {
-            true -> push_field(typer, syntax, depth, low, expression, offset, construct_field.value)
-            _ -> overflow()
-        }
-    }
-
-    state push_field(typer: &mut Typer, syntax: &SyntaxTrees, depth: u64 in Trapping, low: u64 in Trapping, expression: Expression, offset: u64 in Trapping, child: u64 in Trapping) -> u64 in Trapping {
-        Typer::stack_store(typer, depth, child);
-        transition { _ -> fields(typer, syntax, depth + 1, low, expression, offset + 1) }
-    }
-
-    state result(low: u64 in Trapping) -> u64 in Trapping {
-        low
-    }
-
-    // Deeper than the parser's own nesting bound: a violated invariant.
-    state overflow() -> u64 in Trapping {
-        crash Trap;
-    }
 }
 
 machine Typer::lesser(left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
@@ -210,14 +101,14 @@ crashes Trap
 
     state integer(typer: &mut Typer, sources: &SourceSet, index: u64 in Trapping, expression: Expression) {
         let value: LiteralValue = Typer::literal_value(sources, expression.name.source_span);
-        let anonymous: AnonymousValue = AnonymousValue { negative: false, magnitude: value.magnitude };
+        let anonymous: ExactInteger = ExactInteger { negative: false, magnitude: value.magnitude };
         transition value.valid {
             true -> integer_valid(typer, index, expression, value, anonymous)
             _ -> literal_rejected(typer, expression)
         }
     }
 
-    state integer_valid(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: AnonymousValue) {
+    state integer_valid(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
         Typing::set_value(&mut typer.output, index, anonymous);
         transition value.has_suffix {
             true -> suffixed(typer, index, expression, value, anonymous)
@@ -231,8 +122,8 @@ crashes Trap
     }
 
     // A suffix lands its literal at that occurrence.
-    state suffixed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: AnonymousValue) {
-        let fits: bool = Typer::fits(value.suffix, anonymous);
+    state suffixed(typer: &mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
+        let fits: bool = ExactInteger::fits(value.suffix, anonymous);
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = value.suffix;
         transition fits {
@@ -308,8 +199,9 @@ crashes Trap
 }
 
 // The declared type a name's binding carries: a local's, a parameter's, a
-// pattern binder's, a constant's, or a payload-free case's data type. Every
-// other binding denotes no value and is absent.
+// pattern binder's, a constant's, a payload-free case's data type, or, for
+// an `ensures` fact's `result`, its machine's result type (Unit when it
+// declares none). Every other binding denotes no value and is absent.
 machine Typer::binding_type(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
@@ -321,7 +213,22 @@ crashes Trap
         ValueBinding::DataCase { item, data_case } -> data_case(typer, syntax, index, item, data_case)
         ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter)
         ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant)
+        ValueBinding::Field { field } -> field(typer, syntax, field)
+        ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
         _ -> absent()
+    }
+
+    state returned(typer: &mut Typer, syntax: &SyntaxTrees, machine: u64 in Trapping) -> u64 in Trapping {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
+        let handle: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
+        handle
+    }
+
+    // A data fact's field name has the field's declared type.
+    state field(typer: &mut Typer, syntax: &SyntaxTrees, field: u64 in Trapping) -> u64 in Trapping {
+        let declared: DataField = SyntaxTrees::field(syntax, field);
+        let handle: u64 in Trapping = Typing::reference_type(&typer.output, declared.type_reference);
+        handle
     }
 
     // A constant is a value of its declared type; its initializer types
@@ -653,8 +560,8 @@ crashes Trap
     }
 
     state negate_anonymous(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
-        let value: AnonymousValue = Typing::value(&typer.output, expression.left);
-        let negated: AnonymousValue = Typer::anonymous_negate(value);
+        let value: ExactInteger = Typing::value(&typer.output, expression.left);
+        let negated: ExactInteger = ExactInteger::negate(value);
         Typing::set_value(&mut typer.output, index, negated);
     }
 
@@ -962,12 +869,12 @@ crashes Trap
     }
 
     state fold(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
-        let left: AnonymousValue = Typing::value(&typer.output, expression.left);
-        let right: AnonymousValue = Typing::value(&typer.output, expression.right);
-        let sum: AnonymousResult = Typer::anonymous_add(left, right);
-        let difference: AnonymousResult = Typer::anonymous_subtract(left, right);
-        let product: AnonymousResult = Typer::anonymous_multiply(left, right);
-        let quotient: AnonymousResult = Typer::anonymous_divide(left, right);
+        let left: ExactInteger = Typing::value(&typer.output, expression.left);
+        let right: ExactInteger = Typing::value(&typer.output, expression.right);
+        let sum: ExactResult = ExactInteger::add(left, right);
+        let difference: ExactResult = ExactInteger::subtract(left, right);
+        let product: ExactResult = ExactInteger::multiply(left, right);
+        let quotient: ExactResult = ExactInteger::divide(left, right);
         let anonymous_type: u64 in Trapping = typer.output.anonymous;
         Typing::set_expression_type(&mut typer.output, index, anonymous_type);
         transition expression.operator {
@@ -980,7 +887,7 @@ crashes Trap
         }
     }
 
-    state folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: AnonymousResult) {
+    state folded(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: ExactResult) {
         Typing::set_value(&mut typer.output, index, result.value);
         transition result.valid {
             true -> done()
@@ -988,7 +895,7 @@ crashes Trap
         }
     }
 
-    state divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: AnonymousResult) {
+    state divided(typer: &mut Typer, index: u64 in Trapping, expression: Expression, result: ExactResult) {
         Typing::set_value(&mut typer.output, index, result.value);
         transition result.valid {
             true -> done()
@@ -1145,9 +1052,9 @@ crashes Trap
     }
 
     state land(typer: &mut Typer, expression: Expression, target: u64 in Trapping) {
-        let value: AnonymousValue = Typing::value(&typer.output, expression.left);
+        let value: ExactInteger = Typing::value(&typer.output, expression.left);
         let row: TypeRow = TypeTable::row(&typer.output.types, target);
-        let fits: bool = Typer::fits(row.builtin, value);
+        let fits: bool = ExactInteger::fits(row.builtin, value);
         transition fits {
             true -> landed(typer, expression, target)
             _ -> out_of_range(typer, expression)

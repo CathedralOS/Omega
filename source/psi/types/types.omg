@@ -1,3 +1,4 @@
+use psi::integers::integers;
 use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -27,7 +28,7 @@ pub data TypeKind [copy] {
     // The result of a machine or state that declares none.
     case Unit;
     // An integer literal tree that has not landed at a destination yet. Its
-    // exact value lives with the expression (`AnonymousValue`).
+    // exact value lives with the expression (an `ExactInteger`).
     case AnonymousInteger;
     // A decimal literal tree that has not landed at a float format yet.
     // Landing rounds once (wiki/spec/language/numeric_values.md); the value
@@ -79,15 +80,6 @@ pub data Adaptation [copy] {
     case SharedLend;
 }
 
-// The exact value of an anonymous integer tree: wholly anonymous arithmetic
-// is exact (wiki/spec/language/numeric_values.md#literal-landing-and-destinations).
-// This slice keeps magnitudes below 2^64; a tree outside that range rejects
-// rather than wrapping.
-pub data AnonymousValue [copy] {
-    negative: bool;
-    magnitude: u64 in Wrapping;
-}
-
 pub data TypeDiagnosticCode [copy] {
     case None;
     case TypeCapacityExceeded;
@@ -123,6 +115,9 @@ pub data TypeDiagnosticCode [copy] {
     case UnsupportedExpression;
     case TargetArgumentCount;
     case UninferredGenericArgument;
+    // A machine's signature is not the requirement's it `satisfies`, under
+    // the clause's trait arguments.
+    case SatisfierMismatch;
 }
 
 pub data TypeDiagnostic [copy] {
@@ -139,6 +134,7 @@ where
     reference_count <= 32768,
     expression_count <= 131072,
     binder_count <= 2048,
+    construct_count <= 2048,
 {
     types: TypeTable;
     reference_types: [u64; 32768];
@@ -146,10 +142,15 @@ where
     expression_types: [u64; 131072];
     selections: [Selection; 131072];
     adaptations: [Adaptation; 131072];
-    values: [AnonymousValue; 131072];
+    values: [ExactInteger; 131072];
     expression_count: u64;
     binder_types: [u64; 2048];
     binder_count: u64;
+    // Each construction field's common field (its handle plus one), or zero
+    // for a case payload field: which declared field a written value
+    // establishes.
+    construct_targets: [u64; 2048];
+    construct_count: u64;
     unit: u64 in Trapping;
     boolean: u64 in Trapping;
     anonymous: u64 in Trapping;
@@ -303,7 +304,7 @@ crashes Trap
     }
 }
 
-pub machine Typing::value(typing: &Typing, index: u64 in Trapping) -> AnonymousValue
+pub machine Typing::value(typing: &Typing, index: u64 in Trapping) -> ExactInteger
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -311,16 +312,16 @@ crashes Trap
         _ -> invalid()
     }
 
-    state read(typing: &Typing, index: u64 in Trapping) -> AnonymousValue {
+    state read(typing: &Typing, index: u64 in Trapping) -> ExactInteger {
         typing.values[index]
     }
 
-    state invalid() -> AnonymousValue {
+    state invalid() -> ExactInteger {
         crash Trap;
     }
 }
 
-pub machine Typing::set_value(typing: &mut Typing, index: u64 in Trapping, value: AnonymousValue)
+pub machine Typing::set_value(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -328,8 +329,42 @@ crashes Trap
         _ -> invalid()
     }
 
-    state write(typing: &mut Typing, index: u64 in Trapping, value: AnonymousValue) {
+    state write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
         typing.values[index] = value;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+pub machine Typing::construct_target(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition field < typing.construct_count {
+        true -> read(typing, field)
+        _ -> invalid()
+    }
+
+    state read(typing: &Typing, field: u64 in Trapping) -> u64 in Trapping {
+        typing.construct_targets[field] as u64 in Trapping
+    }
+
+    state invalid() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+pub machine Typing::set_construct_target(typing: &mut Typing, field: u64 in Trapping, target: u64 in Trapping)
+crashes Trap
+{
+    transition field < typing.construct_count {
+        true -> write(typing, field, target)
+        _ -> invalid()
+    }
+
+    state write(typing: &mut Typing, field: u64 in Trapping, target: u64 in Trapping) {
+        typing.construct_targets[field] = target as u64;
     }
 
     state invalid() {

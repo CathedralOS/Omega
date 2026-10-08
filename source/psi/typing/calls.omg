@@ -642,6 +642,8 @@ crashes Trap
         let declared_type: u64 in Trapping = Typing::reference_type(&typer.output, reference);
         let destination: u64 in Trapping = Typer::substitute_if(typer, declared_type, generic, written.source_span);
         let admitted: bool = Typer::admit(typer, syntax, destination, written.value, false);
+        let target: u64 in Trapping = Typer::common_field(sources, syntax, declared, written.name);
+        Typing::set_construct_target(&mut typer.output, expression.first + offset, target);
         transition { _ -> next(typer, sources, syntax, expression, declared, has_case, data_case, generic, offset + 1) }
     }
 
@@ -820,6 +822,38 @@ crashes Trap
 // The type-reference handle of the field `name` names: a common field of
 // `declared`, else a payload field of its case when `has_case`. All ones when
 // it names none.
+// The common field of `declared` spelled `name`, as its handle plus one, or
+// zero when none is.
+pub machine Typer::common_field(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, name: IdentifierSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> next(sources, syntax, declared, name, 0) }
+
+    state next(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, name: IdentifierSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        transition offset < declared.field_count {
+            true -> compare(sources, syntax, declared, name, offset)
+            _ -> none()
+        }
+    }
+
+    state compare(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, name: IdentifierSpan, offset: u64 in Trapping) -> u64 in Trapping {
+        let field: DataField = SyntaxTrees::field(syntax, declared.first_field + offset);
+        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, name.source_span);
+        transition spelled {
+            true -> found(declared.first_field + offset + 1)
+            _ -> next(sources, syntax, declared, name, offset + 1)
+        }
+    }
+
+    state found(target: u64 in Trapping) -> u64 in Trapping {
+        target
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
 pub machine Typer::member_field_type(sources: &SourceSet, syntax: &SyntaxTrees, declared: DataItem, has_case: bool, data_case: u64 in Trapping, name: IdentifierSpan) -> u64 in Trapping
 crashes Trap
 {

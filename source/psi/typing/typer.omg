@@ -1,9 +1,12 @@
+use psi::integers::integers;
 use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::admission;
+use psi::typing::clauses;
 use psi::typing::expressions;
+use psi::typing::facts;
 use psi::typing::generics;
 use psi::typing::literals;
 use psi::typing::references;
@@ -19,8 +22,6 @@ use psi::typing::statements;
 // operation, a cast or a result. The first rejection is the diagnostic.
 pub data Typer {
     output: Typing;
-    // Explicit traversal stack for an expression tree's lowest handle.
-    stack: [u64; 4096];
     // Which expressions have typed.
     typed: [bool; 131072];
     // Generic bindings (generics.omg): a type per generic-parameter handle,
@@ -56,6 +57,22 @@ crashes Trap
 
     state bodies(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
         Typer::type_bodies(typer, sources, syntax, resolution);
+        transition typer.output.accepted {
+            true -> facts(typer, sources, syntax, resolution)
+            _ -> done()
+        }
+    }
+
+    state facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+        Typer::type_facts(typer, sources, syntax, resolution);
+        transition typer.output.accepted {
+            true -> clauses(typer, sources, syntax, resolution)
+            _ -> done()
+        }
+    }
+
+    state clauses(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+        Typer::type_clauses(typer, sources, syntax, resolution);
     }
 
     state done() {}
@@ -74,6 +91,7 @@ crashes Trap
     typer.output.types.argument_count = 0;
     typer.output.reference_count = 0;
     typer.output.binder_count = syntax.pattern_field_count;
+    typer.output.construct_count = syntax.construct_field_count;
     typer.output.expression_count = syntax.expression_count;
     let unit_row: TypeRow = TypeRow::of(TypeKind::Unit);
     let unit: u64 in Trapping = TypeTable::intern(&mut typer.output.types, unit_row);
@@ -101,7 +119,7 @@ crashes Trap
         Typing::set_expression_type(&mut typer.output, index, 0);
         Typing::set_selection(&mut typer.output, index, Selection::None);
         Typing::set_adaptation(&mut typer.output, index, Adaptation::None);
-        Typing::set_value(&mut typer.output, index, AnonymousValue { negative: false, magnitude: 0 });
+        Typing::set_value(&mut typer.output, index, ExactInteger { negative: false, magnitude: 0 });
         Typer::mark_typed(typer, index, false);
         transition { _ -> expression(typer, index + 1) }
     }
@@ -109,13 +127,25 @@ crashes Trap
     state binder(typer: &mut Typer, index: u64 in Trapping) {
         transition index < typer.output.binder_count {
             true -> clear_binder(typer, index)
-            _ -> done()
+            _ -> construct(typer, 0)
         }
     }
 
     state clear_binder(typer: &mut Typer, index: u64 in Trapping) {
         Typing::set_binder_type(&mut typer.output, index, 0);
         transition { _ -> binder(typer, index + 1) }
+    }
+
+    state construct(typer: &mut Typer, index: u64 in Trapping) {
+        transition index < typer.output.construct_count {
+            true -> clear_construct(typer, index)
+            _ -> done()
+        }
+    }
+
+    state clear_construct(typer: &mut Typer, index: u64 in Trapping) {
+        Typing::set_construct_target(&mut typer.output, index, 0);
+        transition { _ -> construct(typer, index + 1) }
     }
 
     state done() {}
@@ -303,40 +333,6 @@ crashes Trap
 
     state write(typer: &mut Typer, index: u64 in Trapping, typed: bool) {
         typer.typed[index] = typed;
-    }
-
-    state invalid() {
-        crash Trap;
-    }
-}
-
-pub machine Typer::stacked(typer: &Typer, depth: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    transition depth < 4096 {
-        true -> read(typer, depth)
-        _ -> invalid()
-    }
-
-    state read(typer: &Typer, depth: u64 in Trapping) -> u64 in Trapping {
-        typer.stack[depth] as u64 in Trapping
-    }
-
-    state invalid() -> u64 in Trapping {
-        crash Trap;
-    }
-}
-
-pub machine Typer::stack_store(typer: &mut Typer, depth: u64 in Trapping, handle: u64 in Trapping)
-crashes Trap
-{
-    transition depth < 4096 {
-        true -> write(typer, depth, handle)
-        _ -> invalid()
-    }
-
-    state write(typer: &mut Typer, depth: u64 in Trapping, handle: u64 in Trapping) {
-        typer.stack[depth] = handle as u64;
     }
 
     state invalid() {

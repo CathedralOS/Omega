@@ -1,8 +1,10 @@
 use psi::resolution::resolution;
+use psi::resolve::clauses;
 use psi::resolve::containers;
 use psi::resolve::domains;
 use psi::resolve::forms;
 use psi::resolve::identities;
+use psi::resolve::facts;
 use psi::resolve::imports;
 use psi::resolve::names;
 use psi::source::source;
@@ -177,6 +179,22 @@ crashes Trap
     state names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::bind_body_names(resolver, sources, syntax);
         transition resolver.output.accepted {
+            true -> facts(resolver, sources, syntax)
+            _ -> done()
+        }
+    }
+
+    state facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+        Resolver::bind_fact_names(resolver, sources, syntax);
+        transition resolver.output.accepted {
+            true -> clauses(resolver, sources, syntax)
+            _ -> done()
+        }
+    }
+
+    state clauses(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+        Resolver::bind_clause_names(resolver, sources, syntax);
+        transition resolver.output.accepted {
             true -> publish(resolver, syntax)
             _ -> done()
         }
@@ -186,6 +204,7 @@ crashes Trap
         resolver.output.binding_count = syntax.type_reference_count;
         resolver.output.value_binding_count = syntax.expression_count;
         resolver.output.path_binding_count = syntax.name_path_count;
+        resolver.output.requirement_count = syntax.clause_count;
     }
 
     state done() {}
