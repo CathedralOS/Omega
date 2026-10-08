@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 2.42, "load1_start": 2.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 9.41, "load1_start": 3.87, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -241,8 +241,9 @@ fail/borrows/borrow_mut_and_read rejected 215ms expected @c08960bee2b1+wt
 	state `copy` receives `main.value` as both mutable and read-only
 fail/borrows/borrow_mut_literal rejected 745ms expected @2d8ed253669f
 	mutable argument for state `write` must be a named place
-fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
+fail/borrows/borrow_unknown_index_pair_mut rejected 396ms expected @c910d797b35a
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 3 mutates `left` while local borrow `right` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 706ms expected @cba4afbf6f2f+wt
@@ -279,8 +280,9 @@ fail/borrows/duplicate_retained_subject_arguments rejected 117ms expected @cb6b0
 	state `take` receives `main` as mutable more than once
 fail/borrows/fixed_element_reference_return_out_of_bounds rejected 429ms expected @3fa817733300+wt
 	cannot prove index `2` is within length 2
-fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 374ms expected @acdf102c21ea+wt
+fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 390ms expected @c910d797b35a
 	statement 3 creates local borrow `fresh` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
+	statement 4 mutates `held` while local borrow `fresh` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 1575ms expected @f3a79ef091a9
 	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/local_array_borrow_operand_read rejected 191ms expected @a0af6064e4c8+wt
@@ -350,6 +352,10 @@ fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected @e477ee0294de+wt
 	statement 0 moves `main.inventory` while local borrow `bundle` is still active (borrowed at statement 0; its last use is at statement 1)
+fail/borrows/selected_reference_live_nested_parent_write rejected 393ms expected @c910d797b35a
+	statement 4 mutates `second_parent` while local borrow `nested` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/selected_reference_live_reborrow_parent_write rejected 391ms expected @c910d797b35a
+	statement 3 mutates `second_view` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/shared_entry_jump_into_mutable_receiver_state rejected 799ms expected @c5d32a00863
 	argument `main` for state `next` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 	argument `main` for state `write` is declared `&mut` (`&mut Main`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
@@ -2189,6 +2195,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms check-target:macos_arm64 @b5d8c6882a8b+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1151ms check-target:macos_arm64 @104c2da31081
+pass/borrows/runtime_selected_reference_nested_restoration_exit checked 1862ms check-target:macos_arm64 @c910d797b35a
 pass/borrows/runtime_shared_qualified_view_cycle_exit checked 1705ms check-target:macos_arm64 @954364ed064e
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit checked 2700ms check-target:macos_arm64 @fb52befd538a
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms check-target:macos_arm64 @b5d8c6882a8b+wt
@@ -3083,6 +3090,7 @@ pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms check-target:maco
 pass/layouts/runtime_reborrow_preserves_store_origin_exit checked 1509ms check-target:macos_arm64 @aab0810e5e06
 pass/layouts/runtime_recast_reference_captures_index_exit checked 1759ms check-target:macos_arm64 @acdf102c21ea+wt
 pass/layouts/runtime_returned_encoded_reference_exit checked 1710ms check-target:macos_arm64 @83cbaac892d6
+pass/layouts/runtime_selected_reference_parent_restoration_exit checked 1866ms check-target:macos_arm64 @c910d797b35a
 pass/layouts/runtime_size_of_align_of_exit checked 1659ms check-target:macos_arm64 @2d8ed253669f
 pass/layouts/runtime_sparse_fragmented_bits_exit checked 1653ms check-target:macos_arm64 @acdf102c21ea+wt
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 1712ms check-target:macos_arm64 @4cbb568dee2d+wt
