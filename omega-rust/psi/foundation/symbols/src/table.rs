@@ -181,18 +181,11 @@ impl SymbolTableBuilder {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> HandleSpan<Symbol> {
-        let names = &mut self.names;
-        let sources = self.sources.as_deref();
-        self.symbols.insert_children(
-            parent,
-            children.into_iter().map(|(kind, name)| Symbol {
-                parent,
-                children: HandleSpan::empty(),
-                kind,
-                name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
-                generated_from: SymbolHandle::invalid(),
-            }),
-        )
+        let children = children
+            .into_iter()
+            .map(|(kind, name)| self.symbol_from_parts(parent, kind, name))
+            .collect::<Vec<_>>();
+        self.symbols.insert_children(parent, children)
     }
 
     pub fn child_handles(span: HandleSpan<Symbol>) -> impl Iterator<Item = SymbolHandle> {
@@ -223,16 +216,23 @@ impl SymbolTableBuilder {
         kind: SymbolKind,
         name: SymbolNameRef<'_>,
     ) -> Symbol {
-        Symbol {
-            parent,
-            children: HandleSpan::empty(),
-            kind,
-            name: self.names.insert(SymbolName::from_ref_with_sources(
-                name,
-                self.sources.as_deref(),
-            )),
-            generated_from: SymbolHandle::invalid(),
-        }
+        child_symbol(&mut self.names, self.sources.as_deref(), parent, kind, name)
+    }
+}
+
+fn child_symbol(
+    names: &mut Arena<SymbolName>,
+    sources: Option<&SourceMap>,
+    parent: SymbolHandle,
+    kind: SymbolKind,
+    name: SymbolNameRef<'_>,
+) -> Symbol {
+    Symbol {
+        parent,
+        children: HandleSpan::empty(),
+        kind,
+        name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
+        generated_from: SymbolHandle::invalid(),
     }
 }
 
@@ -996,8 +996,8 @@ impl SymbolTable {
         reference: SourceSpan,
         symbol: SymbolHandle,
     ) -> bool {
-        if reference.span.start == reference.span.end {
-            return true;
+        if !self.source_reference_can_see_symbol(reference, symbol) {
+            return false;
         }
         let Some(sources) = self.sources.as_deref() else {
             return true;
@@ -1005,9 +1005,6 @@ impl SymbolTable {
         let Some(declaration) = self.provenance_source_span(symbol) else {
             return true;
         };
-        if !sources.reference_can_see_declaration(reference, declaration) {
-            return false;
-        }
         declaration.source_id == reference.source_id
             || sources.same_checked_instance(reference, declaration)
             || self
@@ -1054,7 +1051,6 @@ impl SymbolTable {
             .position(|candidate| candidate == symbol)
             .and_then(BuiltinFunction::from_ordinal)
     }
-
 
     /// The root child installed for `declaration`, if this table carries the
     /// fixed `core::*` vocabulary at its canonical slots.
@@ -1193,7 +1189,6 @@ impl SymbolTable {
         &self.names
     }
 
-
     pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
         &self.path_members
     }
@@ -1265,18 +1260,21 @@ impl SymbolTableExtension {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
     ) -> HandleSpan<Symbol> {
-        let sources = self.table.sources.as_deref();
-        let names = &mut self.table.names;
-        self.table.symbols.insert_generated_children(
-            parent,
-            children.into_iter().map(|(kind, name)| Symbol {
-                parent,
-                children: HandleSpan::empty(),
-                kind,
-                name: names.insert(SymbolName::from_ref_with_sources(name, sources)),
-                generated_from: SymbolHandle::invalid(),
-            }),
-        )
+        let children = children
+            .into_iter()
+            .map(|(kind, name)| {
+                child_symbol(
+                    &mut self.table.names,
+                    self.table.sources.as_deref(),
+                    parent,
+                    kind,
+                    name,
+                )
+            })
+            .collect::<Vec<_>>();
+        self.table
+            .symbols
+            .insert_generated_children(parent, children)
     }
 
     pub fn finish(mut self) -> SymbolTable {
