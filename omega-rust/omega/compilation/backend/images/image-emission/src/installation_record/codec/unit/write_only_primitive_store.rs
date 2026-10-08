@@ -187,10 +187,7 @@ fn encode_source(
 fn decode_source(
     reader: &mut Reader<'_>,
 ) -> Result<UnitWriteOnlyPrimitiveStoreSourceRecord, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     match tag {
         1 => Ok(UnitWriteOnlyPrimitiveStoreSourceRecord::IntegerImmediate {
             defining_operation: OperationId::new(reader.u64()?)

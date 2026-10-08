@@ -88,10 +88,7 @@ pub(crate) fn encode_completion_claim_source(
 pub(crate) fn decode_completion_claim_source(
     reader: &mut Reader<'_>,
 ) -> Result<CompletionClaimSource, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     let claim =
         ClaimId::new(reader.u64()?).ok_or(InstallationError::ZeroSettlementIdentity("ClaimId"))?;
     if tag == 0 || tag & !3 != 0 {

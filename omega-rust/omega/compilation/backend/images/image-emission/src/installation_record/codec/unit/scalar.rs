@@ -151,10 +151,7 @@ pub(crate) fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
 pub(crate) fn decode_integer_value(
     reader: &mut Reader<'_>,
 ) -> Result<IntegerValue, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     let bits = reader.u128()?;
     match tag {
         1 => Ok(IntegerValue::Signed(bits as i128)),

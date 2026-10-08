@@ -194,10 +194,7 @@ pub(crate) fn encode_argument_source(
 pub(crate) fn decode_argument_source(
     reader: &mut Reader<'_>,
 ) -> Result<InternalUnitScalarArgumentSourceRecord, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     match tag {
         5 => Ok(InternalUnitScalarArgumentSourceRecord::SelectedCall {
             source_value: ValueId::new(reader.u64()?)

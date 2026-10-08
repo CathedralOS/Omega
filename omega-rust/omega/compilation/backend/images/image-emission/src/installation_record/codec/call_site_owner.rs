@@ -36,10 +36,7 @@ pub(crate) fn encode_call_site_owner(bytes: &mut Vec<u8>, owner: CallSiteOwner) 
 pub(crate) fn decode_call_site_owner(
     reader: &mut Reader<'_>,
 ) -> Result<CallSiteOwner, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     match tag {
         1 => Ok(CallSiteOwner::Operation(
             OperationId::new(reader.u64()?)

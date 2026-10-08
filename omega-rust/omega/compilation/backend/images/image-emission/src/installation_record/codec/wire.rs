@@ -56,6 +56,17 @@ impl<'bytes> Reader<'bytes> {
         Ok(bytes)
     }
 
+    /// A tagged record prologue: the tag byte then the record's three
+    /// reserved bytes, which must read zero — the wire form every record
+    /// decoder opens with.
+    pub(crate) fn tag_reserved(&mut self) -> Result<u8, InstallationError> {
+        let tag = self.u8()?;
+        if self.take(3)? != [0; 3] {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        Ok(tag)
+    }
+
     pub(crate) fn array<const N: usize>(&mut self) -> Result<[u8; N], InstallationError> {
         self.take(N)?
             .try_into()

@@ -647,10 +647,7 @@ fn decode_structural_result(
     reader: &mut Reader<'_>,
     machine: MachineId,
 ) -> Result<Option<InternalStructuralCallResult>, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     match tag {
         0 => return Ok(None),
         1 => {}

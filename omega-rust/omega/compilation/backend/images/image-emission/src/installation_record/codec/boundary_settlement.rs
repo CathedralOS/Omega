@@ -527,10 +527,7 @@ fn encode_boundary_result(
 fn decode_boundary_result(
     reader: &mut Reader<'_>,
 ) -> Result<BoundaryResultRecord, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     match tag {
         0 => Ok(BoundaryResultRecord::Unit),
         1 => Ok(BoundaryResultRecord::Scalar(BoundaryScalarResultRecord {
@@ -896,10 +893,7 @@ fn encode_boundary_runtime_source(
 fn decode_boundary_runtime_source(
     reader: &mut Reader<'_>,
 ) -> Result<InternalUnitScalarArgumentSourceRecord, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
+    let tag = reader.tag_reserved()?;
     match tag {
         0 => {
             let parameter_index = reader.u32()?;
