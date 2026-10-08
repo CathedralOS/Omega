@@ -1230,26 +1230,9 @@ impl OperationKind {
     /// Structural operand roster of call-shaped operations.
     pub fn structural_arguments(&self) -> &[StructuralArgument] {
         match self {
-            Self::CallUnit {
-                structural_arguments,
-                ..
+            crate::static_call_structural_argument_variants!(structural_arguments) => {
+                structural_arguments
             }
-            | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralWithScalarArguments {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            } => structural_arguments,
             _ => &[],
         }
     }
@@ -1257,29 +1240,56 @@ impl OperationKind {
     /// Mutable view of [`Self::structural_arguments`].
     pub fn structural_arguments_mut(&mut self) -> Option<&mut Vec<StructuralArgument>> {
         match self {
-            Self::CallUnit {
-                structural_arguments,
-                ..
+            crate::static_call_structural_argument_variants!(structural_arguments) => {
+                Some(structural_arguments)
             }
-            | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralWithScalarArguments {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            } => Some(structural_arguments),
             _ => None,
         }
     }
+}
+
+/// Match-arm pattern for the statically-addressed call operations whose
+/// `structural_arguments` roster carries the call's structural actuals
+/// (in-module, structural and boundary calls — every call shape except
+/// `CallDynamic`, which dispatches through its own selector roster), used
+/// as `terminal_psi::static_call_structural_argument_variants!(arguments)`
+/// in a pattern position.
+#[macro_export]
+macro_rules! static_call_structural_argument_variants {
+    ($arguments:ident) => {
+        $crate::OperationKind::CallUnit {
+            structural_arguments: $arguments,
+            ..
+        } | $crate::OperationKind::CallStructuralScalar {
+            structural_arguments: $arguments,
+            ..
+        } | $crate::OperationKind::CallStructural {
+            structural_arguments: $arguments,
+            ..
+        } | $crate::OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments: $arguments,
+            ..
+        } | $crate::OperationKind::BoundaryCall {
+            structural_arguments: $arguments,
+            ..
+        }
+    };
+}
+
+/// Match-arm pattern for every operation whose `structural_arguments`
+/// roster carries structural actuals — the statically-addressed calls
+/// plus `CallDynamic`, used as
+/// `terminal_psi::call_structural_argument_variants!(arguments)` in a
+/// pattern position.
+#[macro_export]
+macro_rules! call_structural_argument_variants {
+    ($arguments:ident) => {
+        $crate::static_call_structural_argument_variants!($arguments)
+            | $crate::OperationKind::CallDynamic {
+                structural_arguments: $arguments,
+                ..
+            }
+    };
 }
 
 /// Match-arm pattern for the integer arithmetic operations (the Exact,

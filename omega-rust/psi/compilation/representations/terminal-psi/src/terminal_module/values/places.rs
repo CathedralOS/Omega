@@ -320,30 +320,7 @@ impl OperationKind {
                     }
                 }
             }
-            Self::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralWithScalarArguments {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | Self::CallDynamic {
-                structural_arguments,
-                ..
-            } => {
+            crate::call_structural_argument_variants!(structural_arguments) => {
                 for argument in structural_arguments {
                     argument.place = map(argument.place, argument.access);
                 }
@@ -455,30 +432,9 @@ impl OperationKind {
                     crate::RecordFieldValue::Scalar { .. } => None,
                 }));
             }
-            Self::CallUnit {
-                structural_arguments,
-                ..
+            crate::call_structural_argument_variants!(structural_arguments) => {
+                projections.extend(structural_arguments.iter().map(argument_projection))
             }
-            | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralWithScalarArguments {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | Self::CallDynamic {
-                structural_arguments,
-                ..
-            } => projections.extend(structural_arguments.iter().map(argument_projection)),
             // No name-spelled projection. Listed exhaustively so a new
             // operation must declare here whether its paths may carry a
             // runtime element (and so an obligation it owns).
@@ -560,30 +516,7 @@ impl OperationKind {
                         }),
                 );
             }
-            Self::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralWithScalarArguments {
-                structural_arguments,
-                ..
-            }
-            | Self::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | Self::CallDynamic {
-                structural_arguments,
-                ..
-            } => paths.extend(
+            crate::call_structural_argument_variants!(structural_arguments) => paths.extend(
                 structural_arguments
                     .iter_mut()
                     .map(|argument| &mut argument.path),
