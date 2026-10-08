@@ -38,16 +38,7 @@ pub(crate) fn project_domain_predicate_facts(
             )]
         })?;
     let mut projected = Vec::new();
-    for offset in 0..definition.facts.count() {
-        let fact_handle = arena::Handle::from_parts(
-            definition
-                .facts
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("domain predicate fact handle index overflow"),
-            definition.facts.start().generation(),
-        );
+    for fact_handle in definition.facts.handles() {
         require_exact_checked_domain_fact(compilation, definition.symbol, fact_handle, identity)?;
         projected.push(project_definition_contract_fact(
             compilation,

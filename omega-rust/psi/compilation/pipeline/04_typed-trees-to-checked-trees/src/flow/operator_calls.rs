@@ -17,7 +17,7 @@ use crate::flow::retained_flow_contexts;
 
 use crate::labels::semantic_contract_fact_kind;
 
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
     ContractProofFactKind, DomainFacts, FlowConstraintKind, FlowConstraintRef,

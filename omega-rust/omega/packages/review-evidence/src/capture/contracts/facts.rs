@@ -142,16 +142,7 @@ pub(crate) fn project_contracts(
                 context.subject_kind, context.subject_name, kind
             ))]);
         }
-        for offset in 0..contract.facts.count() {
-            let fact_handle = arena::Handle::from_parts(
-                contract
-                    .facts
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("proof fact handle index overflow"),
-                contract.facts.start().generation(),
-            );
+        for fact_handle in contract.facts.handles() {
             let fact = match compilation.proof_facts.get(fact_handle) {
                 ProofFact::Expression(expression) => {
                     PackageReviewContractFact::Expression(project_contract_expression(

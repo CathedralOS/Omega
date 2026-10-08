@@ -48,16 +48,7 @@ pub(crate) fn project_data_invariant_facts(
             )]
         })?;
     let mut projected = Vec::new();
-    for offset in 0..definition.where_facts.count() {
-        let fact_handle = arena::Handle::from_parts(
-            definition
-                .where_facts
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("data invariant fact handle index overflow"),
-            definition.where_facts.start().generation(),
-        );
+    for fact_handle in definition.where_facts.handles() {
         require_exact_checked_data_fact(compilation, definition.symbol, fact_handle, identity)?;
         projected.push(project_definition_contract_fact(
             compilation,
