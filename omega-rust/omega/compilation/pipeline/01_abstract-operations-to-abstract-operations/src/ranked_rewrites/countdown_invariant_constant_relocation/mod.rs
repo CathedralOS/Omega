@@ -21,7 +21,6 @@ use crate::{
 
 mod apply;
 mod propose;
-mod validate;
 
 pub fn propose_countdown_invariant_constant_relocations(
     session: &VerifiedPsiOptimizationSession,
