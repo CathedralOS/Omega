@@ -36,13 +36,7 @@ pub(super) fn section_kind_id(section_kind: SectionKind) -> u32 {
 }
 
 pub(super) fn relocation_kind_id(relocation_kind: RelocationKind) -> u32 {
-    match relocation_kind {
-        RelocationKind::Aarch64Page21 => 1,
-        RelocationKind::Aarch64PageOffset12 => 2,
-        RelocationKind::Aarch64Branch26 => 3,
-        RelocationKind::Absolute64 => 4,
-        RelocationKind::X86_64Relative32 => 5,
-    }
+    crate::object_plan::relocations::relocation_kind_tag(relocation_kind) as u32
 }
 
 #[cfg(test)]
