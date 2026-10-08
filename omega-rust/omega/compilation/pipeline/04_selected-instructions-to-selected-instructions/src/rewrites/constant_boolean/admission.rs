@@ -279,46 +279,9 @@ pub(super) fn admit<'source>(
     if !rule.admits_declarations(&flag_universe, consumer_declaration, rewritten_declaration) {
         return Err(ConstantBooleanError::EffectSurfaceMismatch);
     }
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let edge_count = successors
-        .iter()
-        .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let block_count = function.blocks.len();
-    // Producer scans walk the whole function once per compared register —
-    // two at most. The flag walk's shared setup resolves every edge's
-    // target index, fills the predecessor lists, and marks the backward
-    // cone. Each used unit then pays its partition checks — flag-universe
-    // and materialize-surface membership and the producer-definitions
-    // lookup — plus, for a flag unit, the block-prefix scan and — on an
-    // in-block miss — every block's stream for its last event, after
-    // which entry-set propagation requeues a block only while its set
-    // grows: a set holds at most one element per event site plus the
-    // unknown marker, so pops stay under `blocks × (elements + 1)` and
-    // each pop visits its out-edges — no more than the widest
-    // terminator's — at a bounded union cost. Charging every use for the
-    // full flag walk keeps the bound independent of the partition split.
-    let elements = function_scan
-        .checked_add(1)
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let pops = block_count
-        .checked_mul(
-            elements
-                .checked_add(1)
-                .ok_or(ConstantBooleanError::IdentityOverflow)?,
-        )
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let widest_out = successors
-        .iter()
-        .map(|targets| targets.len())
-        .max()
-        .unwrap_or(0);
+    let cone = crate::rewrites::cone_propagation(function, &successors, || {
+        ConstantBooleanError::IdentityOverflow
+    })?;
     let materialize_surface = rewritten_row
         .implicit_uses
         .iter()
@@ -326,10 +289,7 @@ pub(super) fn admit<'source>(
         .chain(rewritten_row.clobbers.iter())
         .collect::<BTreeSet<_>>()
         .len();
-    let per_unit = function_scan
-        .checked_add(block_count)
-        .and_then(|total| total.checked_add(pops))
-        .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
+    let per_unit = Some(cone.per_unit_base)
         .and_then(|total| {
             total.checked_add(
                 flag_universe
@@ -339,17 +299,11 @@ pub(super) fn admit<'source>(
             )
         })
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let walk_setup = edge_count
-        .checked_mul(
-            block_count
-                .checked_add(1)
-                .ok_or(ConstantBooleanError::IdentityOverflow)?,
-        )
-        .and_then(|total| total.checked_add(block_count))
-        .and_then(|total| total.checked_add(edge_count))
+    let walk_setup = Some(cone.walk_setup_base)
         .and_then(|total| total.checked_add(flag_universe.len()))
         .and_then(|total| total.checked_add(materialize_surface))
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let function_scan = cone.function_scan;
     let reach_scan = materialization_instruction
         .implicit_uses
         .len()
