@@ -31,9 +31,9 @@ pub(in crate::encoding::recovery) fn domain_shape(
         },
         semantic_roles: reader.sequence(1, |reader| {
             Ok(super::super::tag!(reader => {
-            0 => PackageReviewDomainSemanticRole::DenotationDimension,
-            1 => PackageReviewDomainSemanticRole::ArithmeticPolicy,
-        }))
+                0 => PackageReviewDomainSemanticRole::DenotationDimension,
+                1 => PackageReviewDomainSemanticRole::ArithmeticPolicy,
+            }))
         })?,
         establishment_routes: reader.sequence(42, establishment_route)?,
     })

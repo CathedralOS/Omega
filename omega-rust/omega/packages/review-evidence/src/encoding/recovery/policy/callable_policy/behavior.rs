@@ -109,9 +109,9 @@ pub(in crate::encoding::recovery) fn termination(
                         use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
                         Ok(PackagePolicyServiceProgressRoute {
                             kind: super::super::tag!(reader => {
-            0 => Kind::CheckedRequirement,
-            1 => Kind::BoundaryRequirement,
-        }),
+                                0 => Kind::CheckedRequirement,
+                                1 => Kind::BoundaryRequirement,
+                            }),
                             requirement_owner: nominal(reader)?,
                             requirement: nominal(reader)?,
                         })

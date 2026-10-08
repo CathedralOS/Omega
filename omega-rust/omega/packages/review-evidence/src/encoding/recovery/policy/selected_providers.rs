@@ -24,7 +24,8 @@ impl PackagePolicySelectedProviders {
     super::recover_canonical_component!(
         SELECTED_PROVIDER_POLICY_MAGIC,
         PACKAGE_SELECTED_PROVIDER_POLICY_VERSION,
-        policy, validate,
+        policy,
+        validate,
     );
 }
 
@@ -63,9 +64,9 @@ pub(in crate::encoding::recovery) fn plan(
         rows: reader.sequence(1, row)?,
         grants: reader.sequence(1, |reader| {
             Ok(super::tag!(reader => {
-            0 => PackageReviewProviderGrantSelectorKind::PlanName,
-            1 => PackageReviewProviderGrantSelectorKind::ProviderSlot,
-        }))
+                0 => PackageReviewProviderGrantSelectorKind::PlanName,
+                1 => PackageReviewProviderGrantSelectorKind::ProviderSlot,
+            }))
         })?,
     })
 }

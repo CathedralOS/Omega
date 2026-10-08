@@ -27,13 +27,13 @@ pub(in crate::encoding::recovery) fn method(
                 carrier_identity: reader.string()?,
                 domain: reader.string()?,
                 predicate_body: super::super::tag!(reader => {
-            0 => DomainPredicateBody::Bodyless,
-            1 => DomainPredicateBody::Present,
-        }),
+                    0 => DomainPredicateBody::Bodyless,
+                    1 => DomainPredicateBody::Present,
+                }),
                 effective_carry: carry(reader)?,
                 authority_flow: super::super::tag!(reader => {
-            0 => ServiceEntryAuthorityFlow::Accepts,
-        }),
+                    0 => ServiceEntryAuthorityFlow::Accepts,
+                }),
             })
         })?,
         completion: match reader.byte()? {
@@ -68,9 +68,9 @@ pub(in crate::encoding::recovery) fn method(
                 establishment_routes: reader.sequence(9, |reader| {
                     Ok(ServiceProgressEstablishmentRoute {
                         kind: super::super::tag!(reader => {
-            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-        }),
+                            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                        }),
                         requirement_identity: reader.string()?,
                     })
                 })?,

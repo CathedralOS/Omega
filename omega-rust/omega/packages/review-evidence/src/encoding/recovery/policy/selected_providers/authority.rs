@@ -24,9 +24,9 @@ pub(in crate::encoding::recovery) fn authority(
                 establishment_routes: reader.sequence(83, |reader| {
                     Ok(PackagePolicyServiceProgressRoute {
                         kind: super::super::tag!(reader => {
-            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-        }),
+                            0 => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
+                            1 => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
+                        }),
                         requirement_owner: nominal(reader)?,
                         requirement: nominal(reader)?,
                     })

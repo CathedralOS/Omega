@@ -25,7 +25,8 @@ impl PackagePolicyCallables {
     super::recover_canonical_component!(
         CALLABLE_POLICY_MAGIC,
         PACKAGE_CALLABLE_POLICY_VERSION,
-        policy, validate,
+        policy,
+        validate,
     );
 }
 
@@ -119,13 +120,13 @@ pub(in crate::encoding::recovery) fn supply(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCallableSupply, Error> {
     Ok(super::tag!(reader => {
-            0 => PackageReviewCallableSupply::CheckedBody,
-            1 => PackageReviewCallableSupply::Requirement,
-            2 => PackageReviewCallableSupply::Boundary,
-            3 => PackageReviewCallableSupply::AdmissionClaim,
-            4 => PackageReviewCallableSupply::ExternalRealization,
-            5 => PackageReviewCallableSupply::TopLevelRequirement,
-        }))
+        0 => PackageReviewCallableSupply::CheckedBody,
+        1 => PackageReviewCallableSupply::Requirement,
+        2 => PackageReviewCallableSupply::Boundary,
+        3 => PackageReviewCallableSupply::AdmissionClaim,
+        4 => PackageReviewCallableSupply::ExternalRealization,
+        5 => PackageReviewCallableSupply::TopLevelRequirement,
+    }))
 }
 
 pub(in crate::encoding::recovery) fn callable_conformance(

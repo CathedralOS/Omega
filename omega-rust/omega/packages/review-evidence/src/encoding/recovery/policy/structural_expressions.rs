@@ -36,10 +36,10 @@ pub(in crate::encoding::recovery) fn boolean_expression(
             },
             6 => Expression::IntegerComparison {
                 kind: super::tag!(reader => {
-            0 => PackageReviewIntegerComparisonKind::Equal,
-            1 => PackageReviewIntegerComparisonKind::LessThan,
-            2 => PackageReviewIntegerComparisonKind::LessOrEqual,
-        }),
+                    0 => PackageReviewIntegerComparisonKind::Equal,
+                    1 => PackageReviewIntegerComparisonKind::LessThan,
+                    2 => PackageReviewIntegerComparisonKind::LessOrEqual,
+                }),
                 left: reader.boxed(scalar_expression)?,
                 right: reader.boxed(scalar_expression)?,
             },
@@ -84,13 +84,13 @@ fn ieee_float_comparison_kind(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewIeeeFloatComparisonKind, Error> {
     Ok(super::tag!(reader => {
-            0 => PackageReviewIeeeFloatComparisonKind::Equal,
-            1 => PackageReviewIeeeFloatComparisonKind::NotEqual,
-            2 => PackageReviewIeeeFloatComparisonKind::LessThan,
-            3 => PackageReviewIeeeFloatComparisonKind::LessOrEqual,
-            4 => PackageReviewIeeeFloatComparisonKind::NotLessThan,
-            5 => PackageReviewIeeeFloatComparisonKind::NotLessOrEqual,
-        }))
+        0 => PackageReviewIeeeFloatComparisonKind::Equal,
+        1 => PackageReviewIeeeFloatComparisonKind::NotEqual,
+        2 => PackageReviewIeeeFloatComparisonKind::LessThan,
+        3 => PackageReviewIeeeFloatComparisonKind::LessOrEqual,
+        4 => PackageReviewIeeeFloatComparisonKind::NotLessThan,
+        5 => PackageReviewIeeeFloatComparisonKind::NotLessOrEqual,
+    }))
 }
 
 pub(in crate::encoding::recovery) fn structural_field(

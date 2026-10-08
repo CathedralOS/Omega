@@ -35,9 +35,9 @@ pub(in crate::encoding::recovery) fn expression(
             },
             7 => Expression::Unary {
                 operator: super::tag!(reader => {
-            0 => PackageReviewContractUnaryOperator::BitwiseNot,
-            1 => PackageReviewContractUnaryOperator::LogicalNot,
-        }),
+                    0 => PackageReviewContractUnaryOperator::BitwiseNot,
+                    1 => PackageReviewContractUnaryOperator::LogicalNot,
+                }),
                 operand: reader.boxed(expression)?,
             },
             8 => Expression::Member {
@@ -49,18 +49,18 @@ pub(in crate::encoding::recovery) fn expression(
                 value: reader.boxed(expression)?,
                 target: type_identity(reader)?,
                 arithmetic_domain: super::tag!(reader => {
-            0 => PackageReviewArithmeticDomain::Exact,
-            1 => PackageReviewArithmeticDomain::Wrapping,
-            2 => PackageReviewArithmeticDomain::Saturating,
-            3 => PackageReviewArithmeticDomain::Trapping,
-        }),
+                    0 => PackageReviewArithmeticDomain::Exact,
+                    1 => PackageReviewArithmeticDomain::Wrapping,
+                    2 => PackageReviewArithmeticDomain::Saturating,
+                    3 => PackageReviewArithmeticDomain::Trapping,
+                }),
                 semantic_domain: reader.option(nominal)?,
                 semantic_domain_arguments: reader.sequence(8, type_identity)?,
                 form: super::tag!(reader => {
-            0 => PackageReviewCastForm::Value,
-            1 => PackageReviewCastForm::RecastShared,
-            2 => PackageReviewCastForm::RecastMutable,
-        }),
+                    0 => PackageReviewCastForm::Value,
+                    1 => PackageReviewCastForm::RecastShared,
+                    2 => PackageReviewCastForm::RecastMutable,
+                }),
             },
             10 => Expression::DomainSubject,
             11 => Expression::Call {
@@ -103,18 +103,18 @@ pub(in crate::encoding::recovery) fn expression(
             }),
             20 => Expression::Reference {
                 access: super::tag!(reader => {
-            0 => PackageReviewReferenceAccess::Shared,
-            1 => PackageReviewReferenceAccess::Mutable,
-            2 => PackageReviewReferenceAccess::WriteOnly,
-        }),
+                    0 => PackageReviewReferenceAccess::Shared,
+                    1 => PackageReviewReferenceAccess::Mutable,
+                    2 => PackageReviewReferenceAccess::WriteOnly,
+                }),
                 target: reader.boxed(expression)?,
             },
             21 => {
                 let ordering = super::tag!(reader => {
-            0 => PackageReviewAtomicLoadOrdering::NoOrdering,
-            1 => PackageReviewAtomicLoadOrdering::Receive,
-            2 => PackageReviewAtomicLoadOrdering::GlobalOrder,
-        });
+                    0 => PackageReviewAtomicLoadOrdering::NoOrdering,
+                    1 => PackageReviewAtomicLoadOrdering::Receive,
+                    2 => PackageReviewAtomicLoadOrdering::GlobalOrder,
+                });
                 Expression::AtomicLoad {
                     value: reader.boxed(expression)?,
                     ordering,
@@ -149,25 +149,25 @@ pub(in crate::encoding::recovery) fn binary_operator(
 ) -> Result<PackageReviewContractBinaryOperator, Error> {
     use PackageReviewContractBinaryOperator as Operator;
     Ok(super::tag!(reader => {
-            0 => Operator::Add,
-            1 => Operator::And,
-            2 => Operator::BitwiseAnd,
-            3 => Operator::BitwiseOr,
-            4 => Operator::BitwiseXor,
-            5 => Operator::Divide,
-            6 => Operator::Equal,
-            7 => Operator::Greater,
-            8 => Operator::GreaterOrEqual,
-            9 => Operator::Less,
-            10 => Operator::LessOrEqual,
-            11 => Operator::Modulo,
-            12 => Operator::Multiply,
-            13 => Operator::NotEqual,
-            14 => Operator::Or,
-            15 => Operator::ShiftLeft,
-            16 => Operator::ShiftRight,
-            17 => Operator::Subtract,
-        }))
+        0 => Operator::Add,
+        1 => Operator::And,
+        2 => Operator::BitwiseAnd,
+        3 => Operator::BitwiseOr,
+        4 => Operator::BitwiseXor,
+        5 => Operator::Divide,
+        6 => Operator::Equal,
+        7 => Operator::Greater,
+        8 => Operator::GreaterOrEqual,
+        9 => Operator::Less,
+        10 => Operator::LessOrEqual,
+        11 => Operator::Modulo,
+        12 => Operator::Multiply,
+        13 => Operator::NotEqual,
+        14 => Operator::Or,
+        15 => Operator::ShiftLeft,
+        16 => Operator::ShiftRight,
+        17 => Operator::Subtract,
+    }))
 }
 
 pub(in crate::encoding::recovery) fn call_target(

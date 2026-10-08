@@ -19,7 +19,8 @@ impl PackagePolicyTerminalPermissions {
     super::recover_canonical_component!(
         TERMINAL_PERMISSION_POLICY_MAGIC,
         PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
-        policy, validate,
+        policy,
+        validate,
     );
 }
 

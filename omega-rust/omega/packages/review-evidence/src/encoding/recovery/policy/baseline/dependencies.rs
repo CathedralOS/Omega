@@ -57,12 +57,12 @@ pub(in crate::encoding::recovery) fn authority_class(
 ) -> Result<PackageReviewDangerousAuthorityClass, Error> {
     use PackageReviewDangerousAuthorityClass as Class;
     Ok(super::super::tag!(reader => {
-            0 => Class::Filesystem,
-            1 => Class::MachineControl,
-            2 => Class::PortIo,
-            3 => Class::InterruptControl,
-            4 => Class::InterruptEntry,
-            5 => Class::RootMemory,
-            6 => Class::Process,
-        }))
+        0 => Class::Filesystem,
+        1 => Class::MachineControl,
+        2 => Class::PortIo,
+        3 => Class::InterruptControl,
+        4 => Class::InterruptEntry,
+        5 => Class::RootMemory,
+        6 => Class::Process,
+    }))
 }

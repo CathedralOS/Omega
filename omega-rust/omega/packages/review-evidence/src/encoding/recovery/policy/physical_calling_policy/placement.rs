@@ -37,9 +37,9 @@ pub(in crate::encoding::recovery) fn eightbyte(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewSystemVEightbyteClass, Error> {
     Ok(super::super::tag!(reader => {
-            0 => PackageReviewSystemVEightbyteClass::Integer,
-            1 => PackageReviewSystemVEightbyteClass::Sse,
-        }))
+        0 => PackageReviewSystemVEightbyteClass::Integer,
+        1 => PackageReviewSystemVEightbyteClass::Sse,
+    }))
 }
 
 pub(in crate::encoding::recovery) fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {

@@ -21,10 +21,10 @@ pub(in crate::encoding::recovery) fn data_properties(
 ) -> Result<PackageReviewDataProperties, Error> {
     use language_semantics::Multiplicity;
     let multiplicity = super::tag!(reader => {
-            0 => Multiplicity::Unrestricted,
-            1 => Multiplicity::Affine,
-            2 => Multiplicity::Linear,
-        });
+        0 => Multiplicity::Unrestricted,
+        1 => Multiplicity::Affine,
+        2 => Multiplicity::Linear,
+    });
     let carry = reader.option(super::selected_providers::service::carry)?;
     Ok(PackageReviewDataProperties {
         multiplicity,

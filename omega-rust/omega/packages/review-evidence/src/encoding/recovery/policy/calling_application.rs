@@ -16,7 +16,8 @@ impl PackagePolicyCallingPlan {
     super::recover_canonical_component!(
         CALLING_POLICY_MAGIC,
         PACKAGE_CALLING_POLICY_VERSION,
-        application, validate,
+        application,
+        validate,
     );
 }
 

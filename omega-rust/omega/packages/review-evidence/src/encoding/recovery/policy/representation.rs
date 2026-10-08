@@ -19,7 +19,8 @@ impl PackagePolicyRepresentation {
     super::recover_canonical_component!(
         REPRESENTATION_POLICY_MAGIC,
         PACKAGE_REPRESENTATION_POLICY_VERSION,
-        policy, validate,
+        policy,
+        validate,
     );
 }
 
