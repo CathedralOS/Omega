@@ -140,11 +140,7 @@ impl ExitScalars<'_, '_> {
         let (result_expression, result_type) = result_operand;
         let entry = self.program.machine_states(self.machine).first()?;
         let primitive = exact_integer_carrier(self.program, result_type)?;
-        let state = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        )?;
+        let state = self.state()?;
         let returned = exit_return_expression(self.program, self.exit);
         if !self.return_expression_is_stable(returned) {
             return None;

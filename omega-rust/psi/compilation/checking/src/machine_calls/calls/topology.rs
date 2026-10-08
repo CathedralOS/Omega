@@ -11,6 +11,14 @@ pub fn find_state_in_machine(
     program.state_in_machine(machine, state_symbol)
 }
 
+/// The state an exit fact sits on, resolved through the fact's machine.
+pub fn find_state_for_exit<'program>(
+    program: &'program dyn crate::CheckingInput,
+    exit: &checked_trees::FlowExitFact,
+) -> Option<&'program typed_trees::state::State> {
+    find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+}
+
 /// The actual storage owner and state, resolved by the typed program's owner query.
 pub fn find_state_with_machine(
     program: &dyn crate::CheckingInput,

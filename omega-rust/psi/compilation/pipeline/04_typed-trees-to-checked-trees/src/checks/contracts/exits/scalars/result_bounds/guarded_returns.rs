@@ -65,11 +65,7 @@ impl ExitScalars<'_, '_> {
                 maximum: value,
             };
         }
-        let state = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        )?;
+        let state = self.state()?;
         if let Some(StatementNode::Transition(transition)) = self
             .program
             .statement_table
@@ -123,11 +119,7 @@ impl ExitScalars<'_, '_> {
     ) -> Option<(&CheckedScalarExpression, &[SymbolHandle], u32)> {
         *remaining = remaining.checked_sub(1)?;
         let symbol = *symbols.get(position)?;
-        let state = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        )?;
+        let state = self.state()?;
         let statements = self
             .program
             .statement_table

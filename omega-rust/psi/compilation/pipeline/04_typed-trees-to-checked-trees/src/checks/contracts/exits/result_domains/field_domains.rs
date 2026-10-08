@@ -346,7 +346,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
     // StateParameterDomain facts. Their declaration still creates a return
     // obligation, even when a write retired every copy of the entry evidence.
     if let Some(state) =
-        validation::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+        validation::find_state_for_exit(program, exit)
     {
         for parameter in program
             .state_parameters(state)

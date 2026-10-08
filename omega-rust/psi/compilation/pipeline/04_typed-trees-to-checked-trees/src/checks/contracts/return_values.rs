@@ -73,7 +73,7 @@ pub(super) fn exit_return_expression(
     exit: &FlowExitFact,
 ) -> ExpressionHandle {
     let Some(state) =
-        validation::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+        validation::find_state_for_exit(program, exit)
     else {
         return Default::default();
     };

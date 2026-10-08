@@ -49,11 +49,7 @@ impl ExitScalars<'_, '_> {
             true,
             &mut remaining,
         )?;
-        let state = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        )?;
+        let state = self.state()?;
         let parameters = self.program.state_parameters(entry);
         let scalar_parameters = || {
             parameters.iter().filter(|parameter| {
@@ -178,11 +174,7 @@ impl ExitScalars<'_, '_> {
                     return entry_position(symbol)
                         .map(|position| CheckedBooleanExpression::Parameter { position });
                 }
-                let state = validation::find_state_in_machine(
-                    self.program,
-                    self.exit.machine_symbol,
-                    self.exit.state_symbol,
-                )?;
+                let state = self.state()?;
                 let parameters = super::primitive_parameters(self.program, state).count();
                 let binding_ordinal = u32::try_from(position.checked_sub(parameters)?).ok()?;
                 let (statement, local) = self

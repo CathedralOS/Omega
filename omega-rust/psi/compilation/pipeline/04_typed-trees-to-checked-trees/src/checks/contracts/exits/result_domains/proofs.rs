@@ -27,7 +27,7 @@ pub(super) fn establishes_scalar_predicates(
         return false;
     };
     let Some(state) =
-        validation::find_state_in_machine(program, exit.machine_symbol, exit.state_symbol)
+        validation::find_state_for_exit(program, exit)
     else {
         return false;
     };

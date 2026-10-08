@@ -109,6 +109,13 @@ struct ExitScalars<'program, 'facts> {
     call_frames: Option<&'facts validation::CallFrameResolver<'program>>,
 }
 
+impl<'program, 'facts> ExitScalars<'program, 'facts> {
+    /// The state this exit sits on, resolved through the exit's machine.
+    fn state(&self) -> Option<&'program typed_trees::state::State> {
+        validation::find_state_for_exit(self.program, self.exit)
+    }
+}
+
 /// Parameters typed primitive — the leading slots of a scalar binding
 /// roster at any occurrence in `state`.
 pub(crate) fn primitive_parameters<'a>(
@@ -158,11 +165,7 @@ impl ExitScalars<'_, '_> {
         {
             return false;
         }
-        let Some(state) = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        ) else {
+        let Some(state) = self.state() else {
             return false;
         };
         let boolean = match self.program.expression_table.expression(expression) {
@@ -331,11 +334,7 @@ impl ExitScalars<'_, '_> {
         else {
             return false;
         };
-        let Some(state) = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        ) else {
+        let Some(state) = self.state() else {
             return false;
         };
         if !self
@@ -509,11 +508,7 @@ impl ExitScalars<'_, '_> {
     }
 
     fn return_expression_role(&self) -> Option<CheckedScalarExpressionRole> {
-        let state = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        )?;
+        let state = self.state()?;
         Some(
             match self
                 .program
@@ -565,11 +560,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-        let state = validation::find_state_in_machine(
-            self.program,
-            self.exit.machine_symbol,
-            self.exit.state_symbol,
-        )?;
+        let state = self.state()?;
         // Dense positions describe the declaration roster at this occurrence,
         // not a caller-chosen substitution. Check it without reading values.
         let parameters = primitive_parameters(self.program, state);
