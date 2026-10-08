@@ -498,3 +498,16 @@ impl Frame {
         self.guard_call_results.push((expression, value.clone()));
     }
 }
+
+impl Evaluator<'_> {
+    /// Terminal outcome carrying this evaluator's captured output channels —
+    /// the shape every early-exit error return in `interpreter` shares.
+    pub(crate) fn error_outcome(self, message: String) -> crate::evaluation::InterpretOutcome {
+        crate::evaluation::InterpretOutcome::error(
+            message,
+            self.stdout,
+            self.stderr,
+            self.usage,
+        )
+    }
+}

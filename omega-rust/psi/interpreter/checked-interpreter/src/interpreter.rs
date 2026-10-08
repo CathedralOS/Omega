@@ -700,12 +700,8 @@ fn interpret_on_current_thread(
         .operators
         .has_crash_qualified_uses(&checked.typed)
     {
-        return InterpretOutcome::error(
-            "selected operator crash invocations have no checked execution support".to_owned(),
-            evaluator.stdout,
-            evaluator.stderr,
-            evaluator.usage,
-        );
+        return evaluator.error_outcome(
+            "selected operator crash invocations have no checked execution support".to_owned());
     }
     if checked
         .expression_table
@@ -721,12 +717,7 @@ fn interpret_on_current_thread(
             )
         })
     {
-        return InterpretOutcome::error(
-            "observing single-attempt compare-exchange has no runtime result carrier".to_owned(),
-            evaluator.stdout,
-            evaluator.stderr,
-            evaluator.usage,
-        );
+        return evaluator.error_outcome("observing single-attempt compare-exchange has no runtime result carrier".to_owned());
     }
     for (position, binding) in options.virtual_clock_bindings.iter().enumerate() {
         let validity = binding.validate_for(checked).and_then(|()| {
@@ -740,12 +731,7 @@ fn interpret_on_current_thread(
             }
         });
         if let Err(message) = validity {
-            return InterpretOutcome::error(
-                message,
-                evaluator.stdout,
-                evaluator.stderr,
-                evaluator.usage,
-            );
+            return evaluator.error_outcome(message.to_owned());
         }
     }
     evaluator.virtual_clock_bindings = options.virtual_clock_bindings;
@@ -754,12 +740,7 @@ fn interpret_on_current_thread(
         Some(binding) => match binding.declaration_symbol_for(checked) {
             Ok(symbol) => Some(symbol),
             Err(message) => {
-                return InterpretOutcome::error(
-                    message,
-                    evaluator.stdout,
-                    evaluator.stderr,
-                    evaluator.usage,
-                );
+                return evaluator.error_outcome(message.to_owned());
             }
         },
         None => None,
@@ -779,12 +760,7 @@ fn interpret_on_current_thread(
             ) {
                 Ok(filesystem) => filesystem,
                 Err(message) => {
-                    return InterpretOutcome::error(
-                        message,
-                        evaluator.stdout,
-                        evaluator.stderr,
-                        evaluator.usage,
-                    );
+                    return evaluator.error_outcome(message.to_owned());
                 }
             };
             evaluator.real_fs = Some(filesystem);
@@ -799,12 +775,7 @@ fn interpret_on_current_thread(
             ) {
                 Ok(filesystem) => evaluator.real_fs = Some(filesystem),
                 Err(message) => {
-                    return InterpretOutcome::error(
-                        message,
-                        evaluator.stdout,
-                        evaluator.stderr,
-                        evaluator.usage,
-                    );
+                    return evaluator.error_outcome(message.to_owned());
                 }
             }
         }
@@ -815,12 +786,7 @@ fn interpret_on_current_thread(
             ) {
                 Ok(filesystem) => filesystem,
                 Err(message) => {
-                    return InterpretOutcome::error(
-                        message,
-                        evaluator.stdout,
-                        evaluator.stderr,
-                        evaluator.usage,
-                    );
+                    return evaluator.error_outcome(message.to_owned());
                 }
             };
             evaluator.real_fs = Some(filesystem);
