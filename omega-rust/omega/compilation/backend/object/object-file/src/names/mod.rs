@@ -161,7 +161,7 @@ mod tests {
         section_name, symbol_section_name,
     };
     use crate::{
-        NormalizedImportPlan, ObjectPlan, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
+        NormalizedImportPlan, ObjectPlan, SectionKind, SymbolSection,
     };
     use function_identity::{MachineFunctionIdentity, StateKey};
     use target::{
@@ -239,18 +239,9 @@ mod tests {
         )
         .expect("valid mutated locator");
         let mut object = ObjectPlan::with_capacity(NativeTarget::windows_x64(), 0, 1);
-        let symbol = object.layout.symbols.insert(SymbolPlan {
-            name: "diagnostic-only".into(),
-            section: SymbolSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-            import_library: String::new(),
-        });
-        object.layout.normalized_imports.push(NormalizedImportPlan {
-            symbol,
-            locator: locator.clone(),
-        });
+        let symbol = object
+            .layout
+            .insert_import("diagnostic-only".into(), &locator);
         assert_eq!(
             object_symbol_handle_by_foreign_locator(&object, &locator),
             symbol

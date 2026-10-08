@@ -15,10 +15,10 @@ use crate::{
 };
 use machine_code::{CallbackAddressEncoding, NormalizedForeignCallResolutionKind};
 use object_file::{
-    NormalizedImportPlan, ObjectPlan, RelocationKind, RelocationPlan,
+    ObjectPlan, RelocationKind, RelocationPlan,
     boundary_relocation_origin,
     RelocationRecord, SectionKind, StagedOptimizedRelocationFreeObjectContainer, SymbolKind,
-    SymbolPlan, SymbolSection, normalized_foreign_import_symbol_name, object_function_symbol,
+    SymbolSection, normalized_foreign_import_symbol_name, object_function_symbol,
     object_symbol_handle_by_foreign_locator,
 };
 
@@ -119,19 +119,7 @@ pub(super) fn publish(
             {
                 return Err(Error::Mismatch("fragment import symbol name collision"));
             }
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name,
-                section: SymbolSection::None,
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Import,
-                import_library: String::new(),
-            });
-            object.layout.normalized_imports.push(NormalizedImportPlan {
-                symbol,
-                locator: locator.clone(),
-            });
-            symbol
+            object.layout.insert_import(name, locator)
         };
         relocations.push_record(RelocationRecord {
             origin,

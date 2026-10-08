@@ -6,8 +6,8 @@ use crate::object_artifact::{ObjectCompilerPrivateFunction, ObjectError, ObjectF
 use machine_code::MachineCodeFunction;
 use machine_code::MachineCodePlan;
 use object_file::{
-    NormalizedImportPlan, ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin,
-    RelocationPlan, RelocationRecord, SectionKind, SymbolKind, SymbolPlan, SymbolSection,
+    ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin,
+    RelocationPlan, RelocationRecord, SectionKind,
     normalized_foreign_import_symbol_name,
 };
 use semantic_vocabulary::MachineId;
@@ -37,18 +37,10 @@ pub(super) fn declare_foreign_imports(
                     owner: call.owner,
                 });
             }
-            let symbol = object.layout.symbols.insert(SymbolPlan {
-                name: normalized_foreign_import_symbol_name(&call.locator),
-                section: SymbolSection::None,
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Import,
-                import_library: String::new(),
-            });
-            object.layout.normalized_imports.push(NormalizedImportPlan {
-                symbol,
-                locator: call.locator.clone(),
-            });
+            let symbol = object.layout.insert_import(
+                normalized_foreign_import_symbol_name(&call.locator),
+                &call.locator,
+            );
             import_symbols.push((call.locator.clone(), symbol));
         }
     }

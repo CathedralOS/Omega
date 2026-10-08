@@ -9,7 +9,8 @@ pub(crate) mod sections;
 pub(crate) mod symbols;
 
 use crate::{
-    FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SectionPlan, SymbolPlan,
+    FunctionSymbolPlan, NormalizedImportPlan, ObjectSymbolHandle, SectionPlan, SymbolKind,
+    SymbolPlan, SymbolSection,
 };
 use arena::Arena;
 use target::NativeTarget;
@@ -38,6 +39,28 @@ impl ObjectFileLayout {
             normalized_imports,
             entry_symbol,
         }
+    }
+
+    /// Insert an import symbol bound to `locator` and register it in the
+    /// normalized import table. Returns the new symbol handle.
+    pub fn insert_import(
+        &mut self,
+        name: String,
+        locator: &target::NormalizedForeignLocator,
+    ) -> ObjectSymbolHandle {
+        let symbol = self.symbols.insert(SymbolPlan {
+            name,
+            section: SymbolSection::None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Import,
+            import_library: String::new(),
+        });
+        self.normalized_imports.push(NormalizedImportPlan {
+            symbol,
+            locator: locator.clone(),
+        });
+        symbol
     }
 
     pub fn with_capacity(section_capacity: usize, symbol_capacity: usize) -> Self {
