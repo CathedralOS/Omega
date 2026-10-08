@@ -28,6 +28,22 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// `expression` is a literal when the lift wants a target-driven read; a
+/// nonliteral expression leaves the closed lift to other recognizers.
+fn literal_target_mismatch_or_none<T>(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    position: usize,
+) -> Result<Option<T>, RelationPlanError> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
+            Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
+        }
+        _ => Ok(None),
+    }
+}
+
+
 use super::static_application::substituted_type_matches;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -606,30 +622,15 @@ pub(super) fn closed_lift_literal_for_representative(
         .type_reference_table
         .type_reference(representative_type)
     else {
-        return match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
-                Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
-            }
-            _ => Ok(None),
-        };
+        return literal_target_mismatch_or_none(program, expression, position);
     };
     let Some(primitive) = PrimitiveType::from_name(name.as_str()) else {
-        return match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
-                Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
-            }
-            _ => Ok(None),
-        };
+        return literal_target_mismatch_or_none(program, expression, position);
     };
     // Atomic aliases also report an underlying primitive. This rung accepts
     // only the exact scalar spelling, never an adapted wrapper.
     if name.as_str() != primitive.name() {
-        return match program.expression_table.expression(expression) {
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
-                Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position))
-            }
-            _ => Ok(None),
-        };
+        return literal_target_mismatch_or_none(program, expression, position);
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) if primitive == PrimitiveType::Bool => {
