@@ -179,8 +179,7 @@ fn validate_native_callback_roster(
         let mut matching = target
             .functions
             .iter()
-            .flat_map(|function| function.graph.blocks.iter())
-            .flat_map(|block| block.operations.iter())
+            .flat_map(|function| function.graph.operations())
             .filter_map(|operation| match operation {
                 TargetUnitOperation::NormalizedForeignCall {
                     psi_operation,
