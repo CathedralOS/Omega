@@ -170,16 +170,10 @@ impl Checker<'_> {
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()
-                && self
-                    .types
-                    .iter()
-                    .find(|declaration| declaration.id == structural_type)
+                && terminal_psi::find_structural_type(self.types, structural_type)
                     .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
-                && self
-                    .types
-                    .iter()
-                    .find(|declaration| declaration.id == *element)
-                    .is_some_and(|declaration| {
+                && terminal_psi::find_structural_type(self.types, *element).is_some_and(
+                    |declaration| {
                         matches!(
                             declaration.shape,
                             terminal_psi::StructuralTypeShape::PrimitiveScalar(
@@ -190,7 +184,8 @@ impl Checker<'_> {
                                     8,
                                 )
                         )
-                    })
+                    },
+                )
         })
     }
 }
