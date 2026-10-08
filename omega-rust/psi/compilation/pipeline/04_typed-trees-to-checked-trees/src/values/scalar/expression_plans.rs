@@ -47,6 +47,25 @@ pub(crate) struct ScalarLocal {
 }
 
 impl ScalarLocal {
+    /// The scalar reading of an ordinary `LocalData` declaration: a named,
+    /// non-reference local carrying its declared primitive shape and domain.
+    pub(crate) fn from_local_data(
+        program: &dyn ::validation::CheckingInput,
+        local: &typed_trees::statement::TableLocalData,
+        primitive_type: PrimitiveType,
+    ) -> Self {
+        Self {
+            is_mutable: local.is_mutable,
+            symbol: local.symbol,
+            name: local.name.as_str().to_owned(),
+            primitive_type,
+            arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
+            is_reference: false,
+        }
+    }
+}
+
+impl ScalarLocal {
     /// Immutable value bindings own a `Local` position and a binding
     /// ordinal; reference carriers stay out of the
     /// value-binding namespace.

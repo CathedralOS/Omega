@@ -47,14 +47,7 @@ pub(crate) fn lower_state_scalar_expression(
             return None;
         }
         let primitive_type = program.primitive_type_reference(local.type_reference)?;
-        locals.push(ScalarLocal {
-            is_mutable: false,
-            symbol: local.symbol,
-            name: local.name.as_str().to_owned(),
-            primitive_type,
-            arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
-            is_reference: false,
-        });
+        locals.push(ScalarLocal::from_local_data(program, local, primitive_type));
     }
     lower_return_expression(
         program,
@@ -187,14 +180,7 @@ pub(super) fn unit_scalar_context(
         {
             return None;
         }
-        locals.push(ScalarLocal {
-            is_mutable: local.is_mutable,
-            symbol: local.symbol,
-            name: local.name.as_str().to_owned(),
-            primitive_type,
-            arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
-            is_reference: false,
-        });
+        locals.push(ScalarLocal::from_local_data(program, local, primitive_type));
     }
     Some((parameters, locals))
 }
