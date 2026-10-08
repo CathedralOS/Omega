@@ -6,9 +6,8 @@
 //! admit a guarded return arm's result binding and forwarded parameters. The
 //! terminator module shares these with `build_traced` through `super::`.
 use super::super::{
-    CheckFacts, CheckedByteSequenceCarrier, CheckedComposedUnitControlStatePlan,
-    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PrimitiveType,
+    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, PrimitiveType,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -43,11 +42,7 @@ pub(in crate::execution::terminal_unit) fn retire_guarded_reference_completion(
     if tails.next().is_some() {
         return None;
     }
-    let arms = facts
-        .flow
-        .guarded_exits
-        .exits
-        .span(tail.arms)?;
+    let arms = facts.flow.guarded_exits.exits.span(tail.arms)?;
     // Each value-return arm owns its own completion. A sibling invocation
     // or state edge does not produce this sequence's reference binding and
     // therefore neither contributes a value coordinate nor prevents retiring
@@ -125,104 +120,26 @@ pub(in crate::execution::terminal_unit) fn forwards_qualified_parameter(
     target_index: usize,
     parameter_index: usize,
 ) -> bool {
-    let Some(target) = planned.get(target_index) else {
-        return false;
-    };
-    let Some(parameter) = target.structural_parameters.get(parameter_index) else {
-        return false;
-    };
-    if !(parameter.access == CheckedStructuralAccess::SharedBorrow
-        || (matches!(
-            parameter.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
-        ) && parameter.projected_qualifications.is_empty()
-            && shapes
+    checked_trees::forwards_qualified_parameter(
+        planned,
+        live,
+        target_index,
+        parameter_index,
+        |identity| {
+            shapes
                 .types
-                .get(&parameter.type_identity)
-                .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                            CheckedByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
-                })
-            && parameter.qualifications.iter().all(|qualification| {
-                shapes.domains.iter().any(|domain| {
-                    domain.domain == *qualification
-                        && domain.carrier_type_identity == parameter.type_identity
-                        && domain.byte_predicate.is_some()
-                        && domain.establishment_routes.is_empty()
-                })
-            })))
-        || parameter.multiplicity != Multiplicity::Unrestricted
-    {
-        return false;
-    }
-    let literal_establishes_qualifications = parameter.access
-        == CheckedStructuralAccess::SharedBorrow
-        && parameter.projected_qualifications.is_empty()
-        && shapes
-            .types
-            .get(&parameter.type_identity)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                        CheckedByteSequenceCarrier::BorrowedView { .. }
-                    )
-                )
-            })
-        && parameter.qualifications.iter().all(|qualification| {
+                .get(identity)
+                .map(|declaration| &declaration.shape)
+        },
+        |qualification, identity| {
             shapes.domains.iter().any(|domain| {
-                domain.domain == *qualification
-                    && domain.carrier_type_identity == parameter.type_identity
+                domain.domain == qualification
+                    && domain.carrier_type_identity == identity
                     && domain.byte_predicate.is_some()
                     && domain.establishment_routes.is_empty()
             })
-        });
-    planned
-        .iter()
-        .zip(live)
-        .filter(|(_, live)| **live)
-        .all(|(source, _)| {
-            source
-                .successors()
-                .into_iter()
-                .filter(|successor| successor.target_state == target.state)
-                .all(|successor| {
-                    successor.transfers.iter().any(|transfer| {
-                        transfer.target_parameter_index as usize == parameter_index
-                            && match &transfer.source {
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
-                                    literal_establishes_qualifications
-                                }
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                    source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
-                                        forwarded.type_identity == parameter.type_identity
-                                            && forwarded.access == parameter.access
-                                            && forwarded.multiplicity == parameter.multiplicity
-                                            && forwarded.qualifications == parameter.qualifications
-                                            && forwarded.projected_qualifications
-                                                == parameter.projected_qualifications
-                                    })
-                                }
-                                // A projected loan or copy forwards custody of
-                                // storage declared under the same base identity
-                                // and access: the subject's admission already
-                                // proved the declared type match, and byte-
-                                // predicate qualifications re-verify on the
-                                // storage at the edge either way.
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
-                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject } => {
-                                    subject.type_identity == parameter.type_identity
-                                        && subject.access == parameter.access
-                                }
-                                _ => false,
-                            }
-                    })
-                })
-        })
+        },
+    )
 }
 
 /// The exact Boolean value one authored guard retains at its `Guard`

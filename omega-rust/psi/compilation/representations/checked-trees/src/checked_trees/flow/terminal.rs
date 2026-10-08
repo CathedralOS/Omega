@@ -52,7 +52,7 @@ pub use composed_unit_control_plans::{
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
     CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
-    CheckedScalarReturnPlan, CheckedStateNaturalRank,
+    CheckedScalarReturnPlan, CheckedStateNaturalRank, forwards_qualified_parameter,
 };
 pub use dynamic_slot_plans::CheckedDynamicSlotPlan;
 pub use result_binding_plans::{
@@ -78,7 +78,7 @@ pub use structural_control_plans::{
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 pub use structural_type_plans::{
-    is_partial_affine_field_type,    CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
+    CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
     CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt, CheckedRuntimeIndex,
     CheckedStructuralAccess, CheckedStructuralPathQualification, CheckedStructuralResultPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitStructuralCasePlan,
@@ -86,7 +86,7 @@ pub use structural_type_plans::{
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_borrowed_view,
-    is_bounded_nominal_cleanup_record,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use terminal_selections::{
     CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,

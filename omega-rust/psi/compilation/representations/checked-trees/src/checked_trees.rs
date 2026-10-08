@@ -138,7 +138,7 @@ pub use flow::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralCasePlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    is_partial_affine_field_type, CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
     FlowBorrowActivationFact, FlowBorrowLifetimeFacts, FlowBorrowWeakeningFact,
@@ -152,7 +152,8 @@ pub use flow::{
     FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
     FlowOwnedSelectionTransfer, FlowOwnershipFacts, FlowPermissionEvaluation,
     FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact, FlowStateOutgoingFact,
-    FlowStatementFact, RetiredFlowCall, is_borrowed_view, is_bounded_nominal_cleanup_record,
+    FlowStatementFact, RetiredFlowCall, forwards_qualified_parameter, is_borrowed_view,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type,
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,

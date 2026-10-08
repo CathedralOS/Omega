@@ -1268,126 +1268,36 @@ fn forwards_qualified_parameter(
     target_index: usize,
     parameter_index: usize,
 ) -> bool {
-    let Some(target) = plan.states.get(target_index) else {
-        return false;
-    };
-    let Some(parameter) = target.structural_parameters.get(parameter_index) else {
-        return false;
-    };
-    if !(parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-        || (matches!(
-            parameter.access,
-            checked_trees::CheckedStructuralAccess::MutableBorrow
-                | checked_trees::CheckedStructuralAccess::Owned
-        ) && parameter.projected_qualifications.is_empty()
-            && checked
+    checked_trees::forwards_qualified_parameter(
+        &plan.states,
+        live,
+        target_index,
+        parameter_index,
+        |identity| {
+            checked
                 .facts
                 .flow
                 .terminal_unit_effects
                 .structural_types
                 .iter()
-                .any(|declaration| {
-                    declaration.identity == parameter.type_identity
-                        && matches!(
-                            declaration.shape,
-                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                .find(|declaration| declaration.identity == identity)
+                .map(|declaration| &declaration.shape)
+        },
+        |qualification, identity| {
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_domains
+                .iter()
+                .any(|domain| {
+                    domain.domain == qualification
+                        && domain.carrier_type_identity == identity
+                        && domain.byte_predicate.is_some()
+                        && domain.establishment_routes.is_empty()
                 })
-            && parameter.qualifications.iter().all(|qualification| {
-                checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .structural_domains
-                    .iter()
-                    .any(|domain| {
-                        domain.domain == *qualification
-                            && domain.carrier_type_identity == parameter.type_identity
-                            && domain.byte_predicate.is_some()
-                            && domain.establishment_routes.is_empty()
-                    })
-            })))
-        || parameter.multiplicity != Multiplicity::Unrestricted
-    {
-        return false;
-    }
-    let byte_predicate_domains = parameter.qualifications.iter().all(|qualification| {
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_domains
-            .iter()
-            .any(|domain| {
-                domain.domain == *qualification
-                    && domain.carrier_type_identity == parameter.type_identity
-                    && domain.byte_predicate.is_some()
-                    && domain.establishment_routes.is_empty()
-            })
-    });
-    let literal_establishes_qualifications = parameter.access
-        == checked_trees::CheckedStructuralAccess::SharedBorrow
-        && parameter.projected_qualifications.is_empty()
-        && byte_predicate_domains
-        && checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_types
-            .iter()
-            .any(|declaration| {
-                declaration.identity == parameter.type_identity
-                    && matches!(
-                        declaration.shape,
-                        checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    )
-            });
-    plan.states
-        .iter()
-        .zip(live)
-        .filter(|(_, live)| **live)
-        .all(|(source, _)| {
-            source
-                .successors()
-                .into_iter()
-                .filter(|successor| successor.target_state == target.state)
-                .all(|successor| {
-                    successor.transfers.iter().any(|transfer| {
-                        transfer.target_parameter_index as usize == parameter_index
-                            && match &transfer.source {
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
-                                    literal_establishes_qualifications
-                                }
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
-                                    source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
-                                        forwarded.type_identity == parameter.type_identity
-                                            && forwarded.access == parameter.access
-                                            && forwarded.multiplicity == parameter.multiplicity
-                                            && forwarded.qualifications == parameter.qualifications
-                                            && forwarded.projected_qualifications
-                                                == parameter.projected_qualifications
-                                    })
-                                }
-                                // A projected loan or copy forwards custody of
-                                // storage declared under the same base identity
-                                // and access: the subject's admission already
-                                // proved the declared type match, and byte-
-                                // predicate qualifications re-verify on the
-                                // storage at the edge either way.
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
-                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject } => {
-                                    subject.type_identity == parameter.type_identity
-                                        && subject.access == parameter.access
-                                }
-                                _ => false,
-                            }
-                    })
-                })
-        })
+        },
+    )
 }
 
 fn invocation_only_entry(plan: &CheckedComposedUnitControlMachinePlan, live: &[bool]) -> bool {

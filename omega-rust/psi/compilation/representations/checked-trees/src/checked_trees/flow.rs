@@ -80,10 +80,11 @@ pub use self::terminal::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralCasePlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
-    is_partial_affine_field_type, CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
-    is_borrowed_view, is_bounded_nominal_cleanup_record,
+    forwards_qualified_parameter, is_borrowed_view, is_bounded_nominal_cleanup_record,
+    is_partial_affine_field_type,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,

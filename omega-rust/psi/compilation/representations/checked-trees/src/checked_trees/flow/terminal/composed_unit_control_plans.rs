@@ -2,16 +2,17 @@
 //! closed-sum successors.
 
 use crate::checked_trees::flow::terminal::{
-    CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan,
-    CheckedReferenceResultSourcePlan, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
-    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralParameterPlan,
+    CheckedByteSequenceCarrier, CheckedCallScalarArgument,
+    CheckedProviderAttachmentRequirementPlan, CheckedReferenceResultSourcePlan,
+    CheckedScalarBranchDestination, CheckedScalarGuardedExit, CheckedStructuralAccess,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferSourcePlan,
+    CheckedStructuralResultPlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{CheckedScalarExpression, ClosedScalarContractValue};
-use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
+use language_semantics::{Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
@@ -659,4 +660,107 @@ pub struct CheckedClosedSumPayloadTransferPlan {
     pub field_identity: String,
     pub primitive_type: PrimitiveType,
     pub target_scalar_parameter_index: u32,
+}
+
+/// A shared loan freezes its referent. A mutable bounded byte owner instead
+/// preserves its primitive byte predicates through independently checked
+/// stores. Neither rule grants transport for arbitrary mutable qualified
+/// values. An immutable owned byte parameter likewise forwards its
+/// established value whole, with exactly the same primitive predicate roster
+/// on every arrival. A successor's qualified parameter is admitted only when
+/// every live edge into its state forwards a source parameter with exactly
+/// the same carrier, access, multiplicity and qualifications, or, for a
+/// shared byte view, establishes an authored literal under those
+/// qualifications: each is then a byte-predicate domain without establishment
+/// routes, which Terminal verification decides from the literal's octets at
+/// the edge.
+///
+/// Checking and lowering share this admission: the container of structural
+/// types and domains differs per stage, so callers pass the two lookups.
+pub fn forwards_qualified_parameter<'shapes>(
+    states: &[CheckedComposedUnitControlStatePlan],
+    live: &[bool],
+    target_index: usize,
+    parameter_index: usize,
+    structural_type_shape: impl Fn(&str) -> Option<&'shapes CheckedUnitStructuralTypeShape>,
+    domain_without_establishment_routes: impl Fn(SemanticDomainId, &str) -> bool,
+) -> bool {
+    let Some(target) = states.get(target_index) else {
+        return false;
+    };
+    let Some(parameter) = target.structural_parameters.get(parameter_index) else {
+        return false;
+    };
+    if !(parameter.access == CheckedStructuralAccess::SharedBorrow
+        || (matches!(
+            parameter.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
+        ) && parameter.projected_qualifications.is_empty()
+            && matches!(
+                structural_type_shape(&parameter.type_identity),
+                Some(CheckedUnitStructuralTypeShape::ByteSequence(
+                    CheckedByteSequenceCarrier::BoundedOwned { .. }
+                ))
+            )
+            && parameter.qualifications.iter().all(|qualification| {
+                domain_without_establishment_routes(*qualification, &parameter.type_identity)
+            })))
+        || parameter.multiplicity != Multiplicity::Unrestricted
+    {
+        return false;
+    }
+    let literal_establishes_qualifications = parameter.access
+        == CheckedStructuralAccess::SharedBorrow
+        && parameter.projected_qualifications.is_empty()
+        && matches!(
+            structural_type_shape(&parameter.type_identity),
+            Some(CheckedUnitStructuralTypeShape::ByteSequence(
+                CheckedByteSequenceCarrier::BorrowedView { .. }
+            ))
+        )
+        && parameter.qualifications.iter().all(|qualification| {
+            domain_without_establishment_routes(*qualification, &parameter.type_identity)
+        });
+    states
+        .iter()
+        .zip(live)
+        .filter(|(_, live)| **live)
+        .all(|(source, _)| {
+            source
+                .successors()
+                .into_iter()
+                .filter(|successor| successor.target_state == target.state)
+                .all(|successor| {
+                    successor.transfers.iter().any(|transfer| {
+                        transfer.target_parameter_index as usize == parameter_index
+                            && match &transfer.source {
+                                CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral { .. } => {
+                                    literal_establishes_qualifications
+                                }
+                                CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+                                    source.structural_parameters.get(*index as usize).is_some_and(|forwarded| {
+                                        forwarded.type_identity == parameter.type_identity
+                                            && forwarded.access == parameter.access
+                                            && forwarded.multiplicity == parameter.multiplicity
+                                            && forwarded.qualifications == parameter.qualifications
+                                            && forwarded.projected_qualifications
+                                                == parameter.projected_qualifications
+                                    })
+                                }
+                                // A projected loan or copy forwards custody of
+                                // storage declared under the same base identity
+                                // and access: the subject's admission already
+                                // proved the declared type match, and byte-
+                                // predicate qualifications re-verify on the
+                                // storage at the edge either way.
+                                CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
+                                | CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject } => {
+                                    subject.type_identity == parameter.type_identity
+                                        && subject.access == parameter.access
+                                }
+                                _ => false,
+                            }
+                    })
+                })
+        })
 }
