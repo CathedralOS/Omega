@@ -808,3 +808,13 @@ fn require_identity<T: Copy + PartialEq>(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+pub(crate) fn container_test_limits() -> ContainerLimits {
+    ContainerLimits {
+        max_total_bytes: 4096,
+        max_sections: 16,
+        max_section_bytes: 1024,
+        max_relocations: 16,
+    }
+}

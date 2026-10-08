@@ -15,7 +15,7 @@ use wire_byte_custody_fields::{
 use crate::artifacts::Artifact;
 use crate::artifacts::ArtifactEntry;
 use crate::artifacts::container::ArtifactRelocationKind;
-use crate::artifacts::container::ContainerLimits;
+use crate::artifacts::container::container_test_limits;
 use crate::artifacts::container::DecodedArtifactContainer;
 use crate::artifacts::container::DecodedArtifactRelocation;
 use crate::artifacts::container::OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
@@ -60,14 +60,6 @@ use layout_plans::RelocationTarget;
 use optimization_core::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
 use target::Architecture;
 
-fn limits() -> ContainerLimits {
-    ContainerLimits {
-        max_total_bytes: 4096,
-        max_sections: 16,
-        max_section_bytes: 1024,
-        max_relocations: 16,
-    }
-}
 
 fn write_record(destination: &mut [u8], layout: LayoutPlanReport, values: &[(&str, u16, u64)]) {
     encode_record(destination, layout, values, "test record").expect("test record materializes");
@@ -264,7 +256,7 @@ fn canonical_bytes() -> Vec<u8> {
 }
 
 fn strong_artifact() -> Artifact {
-    let legacy = decode_executable_container(&canonical_bytes(), limits())
+    let legacy = decode_executable_container(&canonical_bytes(), container_test_limits())
         .expect("legacy compatibility candidate");
     let source = legacy.artifact();
     let regime = MachineRegimeId::from_normalized_identity(10).expect("machine regime");
@@ -340,12 +332,12 @@ fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8
 #[test]
 fn canonical_encoder_round_trips_the_exact_validated_artifact() {
     let canonical = canonical_bytes();
-    let source = decode_executable_container(&canonical, limits()).expect("source");
+    let source = decode_executable_container(&canonical, container_test_limits()).expect("source");
     assert_eq!(source.artifact().code(), &[0x90; 64]);
     assert_eq!(source.artifact().entries()[0].code_offset(), 16);
     assert_eq!(source.relocations()[0].addend, -4);
     let encoded =
-        encode_executable_container_v1_compatibility(source.artifact(), limits()).expect("encode");
+        encode_executable_container_v1_compatibility(source.artifact(), container_test_limits()).expect("encode");
     assert_eq!(
         encoded, canonical,
         "container-v1 wire bytes must remain stable"
@@ -357,21 +349,21 @@ fn canonical_encoder_round_trips_the_exact_validated_artifact() {
             .non_authoritative_container_fingerprint()
             .compatibility_value()
     );
-    let decoded = decode_executable_container(&encoded, limits()).expect("round trip");
+    let decoded = decode_executable_container(&encoded, container_test_limits()).expect("round trip");
     assert_eq!(decoded.artifact(), source.artifact());
 }
 
 #[test]
 fn container_v2_round_trips_strong_authority_commitments() {
     let artifact = strong_artifact();
-    let encoded = encode_executable_container(&artifact, limits()).expect("encode v2");
+    let encoded = encode_executable_container(&artifact, container_test_limits()).expect("encode v2");
     assert_eq!(
         u16::from_le_bytes(encoded[8..10].try_into().unwrap()),
         OMEGA_EXECUTABLE_CONTAINER_V2_MARKER,
     );
     assert_eq!(u16::from_le_bytes(encoded[14..16].try_into().unwrap()), 7);
 
-    let decoded = decode_executable_container(&encoded, limits()).expect("decode v2");
+    let decoded = decode_executable_container(&encoded, container_test_limits()).expect("decode v2");
     assert_eq!(decoded.artifact(), &artifact);
     assert_eq!(
         decoded.artifact().authority_commitments(),
@@ -382,7 +374,7 @@ fn container_v2_round_trips_strong_authority_commitments() {
 #[test]
 fn optional_section_trace_identity_is_derived_from_exact_opaque_bytes() {
     let known = add_optional_section(canonical_bytes(), SECTION_INFORMATIONAL, b"debug");
-    let decoded = decode_executable_container(&known, limits()).expect("known information");
+    let decoded = decode_executable_container(&known, container_test_limits()).expect("known information");
     assert_eq!(
         decoded.informational_sections()[0].compatibility_value(),
         non_authoritative_informational_section_fingerprint(SECTION_INFORMATIONAL, b"debug")
@@ -390,7 +382,7 @@ fn optional_section_trace_identity_is_derived_from_exact_opaque_bytes() {
     );
 
     let unknown = add_optional_section(canonical_bytes(), 99, b"future");
-    let decoded = decode_executable_container(&unknown, limits()).expect("unknown information");
+    let decoded = decode_executable_container(&unknown, container_test_limits()).expect("unknown information");
     assert_eq!(
         decoded.unknown_informational_sections(),
         &[
@@ -401,7 +393,7 @@ fn optional_section_trace_identity_is_derived_from_exact_opaque_bytes() {
 
     let mut substituted = known;
     *substituted.last_mut().expect("payload byte") ^= 1;
-    let error = decode_executable_container(&substituted, limits()).expect_err("identity replay");
+    let error = decode_executable_container(&substituted, container_test_limits()).expect_err("identity replay");
     assert!(error.0.contains("does not match its exact opaque bytes"));
 }
 
@@ -409,18 +401,18 @@ fn optional_section_trace_identity_is_derived_from_exact_opaque_bytes() {
 fn truncation_directory_overlap_and_bad_reserved_bits_reject() {
     let mut truncated = canonical_bytes();
     truncated.pop();
-    let error = decode_executable_container(&truncated, limits()).expect_err("truncation");
+    let error = decode_executable_container(&truncated, container_test_limits()).expect_err("truncation");
     assert!(error.0.contains("declares"));
 
     let mut prefix_overlap = canonical_bytes();
     let first_section = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize;
     prefix_overlap[first_section + 16..first_section + 24].copy_from_slice(&64_u64.to_le_bytes());
-    let error = decode_executable_container(&prefix_overlap, limits()).expect_err("prefix overlap");
+    let error = decode_executable_container(&prefix_overlap, container_test_limits()).expect_err("prefix overlap");
     assert!(error.0.contains("header/directory"));
 
     let mut reserved = canonical_bytes();
     reserved[13] = 1;
-    let error = decode_executable_container(&reserved, limits()).expect_err("reserved");
+    let error = decode_executable_container(&reserved, container_test_limits()).expect_err("reserved");
     assert!(error.0.contains("reserved0"));
 }
 
@@ -432,14 +424,14 @@ fn payload_gaps_and_unreferenced_trailing_bytes_reject() {
         u64::from_le_bytes(gap[code_record + 16..code_record + 24].try_into().unwrap());
     gap[code_record + 16..code_record + 24].copy_from_slice(&(code_offset + 1).to_le_bytes());
     gap[code_record + 24..code_record + 32].copy_from_slice(&63_u64.to_le_bytes());
-    let error = decode_executable_container(&gap, limits()).expect_err("payload gap");
+    let error = decode_executable_container(&gap, container_test_limits()).expect_err("payload gap");
     assert!(error.0.contains("leaves a gap"));
 
     let mut trailing = canonical_bytes();
     let entries_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 5 * 32;
     trailing[entries_record + 24..entries_record + 32].copy_from_slice(&15_u64.to_le_bytes());
     let error =
-        decode_executable_container(&trailing, limits()).expect_err("unreferenced trailing");
+        decode_executable_container(&trailing, container_test_limits()).expect_err("unreferenced trailing");
     assert!(error.0.contains("unreferenced bytes"));
 }
 
@@ -453,28 +445,28 @@ fn malformed_counts_unknown_required_and_identity_drift_reject() {
             .unwrap(),
     ) as usize;
     count[relocation_payload..relocation_payload + 8].copy_from_slice(&2_u64.to_le_bytes());
-    let error = decode_executable_container(&count, limits()).expect_err("count mismatch");
+    let error = decode_executable_container(&count, container_test_limits()).expect_err("count mismatch");
     assert!(error.0.contains("does not match 2"));
 
     let mut unknown = canonical_bytes();
     let code_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize;
     unknown[code_record..code_record + 2].copy_from_slice(&99_u16.to_le_bytes());
     unknown[code_record + 8..code_record + 16].copy_from_slice(&99_u64.to_le_bytes());
-    let error = decode_executable_container(&unknown, limits()).expect_err("unknown required");
+    let error = decode_executable_container(&unknown, container_test_limits()).expect_err("unknown required");
     assert!(error.0.contains("unknown required"));
 
     let mut identity = canonical_bytes();
     let contracts_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 2 * 32;
     identity[contracts_record + 8..contracts_record + 16].copy_from_slice(&99_u64.to_le_bytes());
-    let error = decode_executable_container(&identity, limits()).expect_err("identity drift");
+    let error = decode_executable_container(&identity, container_test_limits()).expect_err("identity drift");
     assert!(error.0.contains("payload identity"));
 }
 
 #[test]
 fn executable_container_wire_rejects_every_one_field_substitution() {
     let artifact = strong_artifact();
-    let encoded = encode_executable_container(&artifact, limits()).expect("encode v2");
-    let authentic = decode_executable_container(&encoded, limits()).expect("authentic v2");
+    let encoded = encode_executable_container(&artifact, container_test_limits()).expect("encode v2");
+    let authentic = decode_executable_container(&encoded, container_test_limits()).expect("authentic v2");
 
     // Every declared artifact lane substitutes independently through the
     // shared driver. The family's independent checker is the canonical seam
@@ -501,7 +493,7 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
                 matches!(verdict, ContainerWireRejection::Construction(_))
             })
         })?;
-        let mutated_bytes = encode_executable_container(&mutated, limits()).map_err(|error| {
+        let mutated_bytes = encode_executable_container(&mutated, container_test_limits()).map_err(|error| {
             classify(&error, |verdict| {
                 matches!(verdict, ContainerWireRejection::Encoding(_))
             })
@@ -511,7 +503,7 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
             "the substitution must change the artifact"
         );
         assert_ne!(mutated_bytes, encoded, "the wire bytes must change");
-        let substituted = decode_executable_container(&mutated_bytes, limits())
+        let substituted = decode_executable_container(&mutated_bytes, container_test_limits())
             .expect("mutated container canonically decodes");
         assert_eq!(
             substituted.artifact(),
@@ -551,7 +543,7 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
     });
 
     // A version-1 encoding of strong commitments rejects before any container exists.
-    let error = encode_executable_container_v1_compatibility(&artifact, limits())
+    let error = encode_executable_container_v1_compatibility(&artifact, container_test_limits())
         .expect_err("v1 encoding cannot discard strong commitments");
     assert!(
         error
@@ -565,7 +557,7 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
     // decoder alone.
     let mut donor = ArtifactSeed::from(&artifact);
     donor.identity = ArtifactId::from_normalized_identity(2).expect("artifact identity");
-    let donor = encode_executable_container(&donor.into_artifact(), limits())
+    let donor = encode_executable_container(&donor.into_artifact(), container_test_limits())
         .expect("foreign container encodes");
     run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
         family: "executable container wire bytes",
@@ -574,7 +566,7 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
         donor,
         custody: &|bytes: &Vec<u8>| bytes.clone(),
         substitute: &substitute_container_wire_byte_for_test,
-        check: &|bytes: &Vec<u8>| match decode_executable_container(bytes, limits()) {
+        check: &|bytes: &Vec<u8>| match decode_executable_container(bytes, container_test_limits()) {
             Ok(_) => Ok(bytes.clone()),
             Err(error) => Err(classify_container_wire_rejection(
                 &error,

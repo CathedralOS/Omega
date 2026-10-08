@@ -13,7 +13,8 @@ use executable_container_custody_fields::{
 use crate::artifacts::ArtifactAdmissionEvidence;
 use crate::artifacts::ArtifactEntry;
 use crate::artifacts::container::{
-    ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
+    ArtifactRelocationKind, ContainerSection, ContainerSectionKind,
+    container_test_limits,
     DecodedArtifactContainer, DecodedArtifactRelocation, OMEGA_EXECUTABLE_CONTAINER_MARKER,
     ValidatedArtifactContainer, ValidatedContainerAdmissionEvidence, admit_validated_container,
     non_authoritative_decoded_container_fingerprint, normalized_decoded_content_digest,
@@ -35,14 +36,6 @@ fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, InstallationDiagnostic
     constructor(identity).expect("normalized identity")
 }
 
-fn limits() -> ContainerLimits {
-    ContainerLimits {
-        max_total_bytes: 4096,
-        max_sections: 16,
-        max_section_bytes: 1024,
-        max_relocations: 16,
-    }
-}
 
 fn decoded() -> DecodedArtifactContainer {
     let contracts = id(3, MachineContractSetId::from_normalized_identity);
@@ -130,7 +123,7 @@ fn decoded() -> DecodedArtifactContainer {
 #[test]
 fn canonical_bounded_container_produces_only_an_artifact_candidate() {
     let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
-    let container = validate_decoded_container(decoded(), limits()).expect("container");
+    let container = validate_decoded_container(decoded(), container_test_limits()).expect("container");
     assert_eq!(container.artifact().identity().normalized_identity(), 1);
     assert_eq!(container.artifact().architecture(), Architecture::X86_64);
     assert_eq!(container.artifact().byte_length(), 64);
@@ -155,7 +148,7 @@ fn canonical_bounded_container_produces_only_an_artifact_candidate() {
 
 #[test]
 fn validated_container_admission_binds_the_exact_artifact() {
-    let container = validate_decoded_container(decoded(), limits()).expect("container");
+    let container = validate_decoded_container(decoded(), container_test_limits()).expect("container");
     let evidence = ValidatedContainerAdmissionEvidence::from_validator(
         id(70, AdmissionReceiptId::from_normalized_identity),
         &container,
@@ -181,7 +174,7 @@ fn content_identity_binds_the_instruction_set_architecture() {
     changed.architecture = Architecture::Aarch64;
 
     let error =
-        validate_decoded_container(changed, limits()).expect_err("architecture drift rejects");
+        validate_decoded_container(changed, container_test_limits()).expect_err("architecture drift rejects");
     assert!(error.0.contains("content fingerprint"));
 }
 
@@ -196,14 +189,14 @@ fn aarch64_entry_offsets_are_instruction_aligned() {
         non_authoritative_decoded_container_fingerprint(&aarch64).expect("candidate fingerprint");
 
     let error =
-        validate_decoded_container(aarch64, limits()).expect_err("unaligned AArch64 entry rejects");
+        validate_decoded_container(aarch64, container_test_limits()).expect_err("unaligned AArch64 entry rejects");
     assert!(error.0.contains("not instruction-aligned"));
 
     let mut x86 = decoded();
     x86.entries = vec![ArtifactEntry::from_canonical_decode(entry, 17)];
     x86.content_fingerprint =
         non_authoritative_decoded_container_fingerprint(&x86).expect("x86 candidate fingerprint");
-    validate_decoded_container(x86, limits()).expect("x86 permits byte-aligned entries");
+    validate_decoded_container(x86, container_test_limits()).expect("x86 permits byte-aligned entries");
 }
 
 #[test]
@@ -218,7 +211,7 @@ fn unknown_required_rejects_while_unknown_optional_is_informational() {
         offset: 576,
         length: 64,
     });
-    let container = validate_decoded_container(optional, limits()).expect("optional information");
+    let container = validate_decoded_container(optional, container_test_limits()).expect("optional information");
     assert_eq!(container.unknown_informational_sections(), &[99]);
 
     let mut required = decoded();
@@ -231,7 +224,7 @@ fn unknown_required_rejects_while_unknown_optional_is_informational() {
         offset: 576,
         length: 64,
     });
-    let error = validate_decoded_container(required, limits()).expect_err("required unknown");
+    let error = validate_decoded_container(required, container_test_limits()).expect_err("required unknown");
     assert!(error.0.contains("unknown required"));
 }
 
@@ -244,17 +237,17 @@ fn duplicate_missing_overlapping_and_out_of_bounds_sections_reject() {
         offset: 576,
         length: 64,
     });
-    let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate code");
+    let error = validate_decoded_container(duplicate, container_test_limits()).expect_err("duplicate code");
     assert!(error.0.contains("exactly one code"));
 
     let mut overlapping = decoded();
     overlapping.sections[1].offset = 32;
-    let error = validate_decoded_container(overlapping, limits()).expect_err("overlap");
+    let error = validate_decoded_container(overlapping, container_test_limits()).expect_err("overlap");
     assert!(error.0.contains("overlap"));
 
     let mut outside = decoded();
     outside.sections[6].offset = 620;
-    let error = validate_decoded_container(outside, limits()).expect_err("outside");
+    let error = validate_decoded_container(outside, container_test_limits()).expect_err("outside");
     assert!(error.0.contains("exceeds"));
 }
 
@@ -279,7 +272,7 @@ fn relocation_records_are_bounded_canonical_and_non_overlapping() {
     canonical.sections[1].length = 72;
     canonical.content_fingerprint = non_authoritative_decoded_container_fingerprint(&canonical)
         .expect("relocation content fingerprint");
-    let validated = validate_decoded_container(canonical, limits()).expect("canonical relocations");
+    let validated = validate_decoded_container(canonical, container_test_limits()).expect("canonical relocations");
     assert_eq!(validated.relocations()[0].destination_offset, 8);
     assert_eq!(validated.relocations()[1].destination_offset, 48);
 
@@ -299,16 +292,16 @@ fn relocation_records_are_bounded_canonical_and_non_overlapping() {
         },
     ];
     overlapping.sections[1].length = 72;
-    let error = validate_decoded_container(overlapping, limits()).expect_err("overlap rejects");
+    let error = validate_decoded_container(overlapping, container_test_limits()).expect_err("overlap rejects");
     assert!(error.0.contains("overlaps"));
 
     let mut outside = decoded();
     outside.relocations[0].destination_offset = 62;
-    let error = validate_decoded_container(outside, limits()).expect_err("outside rejects");
+    let error = validate_decoded_container(outside, container_test_limits()).expect_err("outside rejects");
     assert!(error.0.contains("exceeds 64-byte code"));
 
     let mut too_many = decoded();
-    let mut strict_limits = limits();
+    let mut strict_limits = container_test_limits();
     strict_limits.max_relocations = 1;
     too_many.relocations.push(DecodedArtifactRelocation {
         kind: ArtifactRelocationKind::Aarch64Page21,
@@ -325,13 +318,13 @@ fn relocation_records_are_bounded_canonical_and_non_overlapping() {
 fn architecture_specific_relocations_reject_during_candidate_validation() {
     let mut aarch64_in_x86 = decoded();
     aarch64_in_x86.relocations[0].kind = ArtifactRelocationKind::Aarch64Branch26;
-    let error = validate_decoded_container(aarch64_in_x86, limits())
+    let error = validate_decoded_container(aarch64_in_x86, container_test_limits())
         .expect_err("AArch64 relocation in x86 artifact rejects");
     assert!(error.0.contains("incompatible with architecture X86_64"));
 
     let mut x86_in_aarch64 = decoded();
     x86_in_aarch64.architecture = Architecture::Aarch64;
-    let error = validate_decoded_container(x86_in_aarch64, limits())
+    let error = validate_decoded_container(x86_in_aarch64, container_test_limits())
         .expect_err("x86 relocation in AArch64 artifact rejects");
     assert!(error.0.contains("incompatible with architecture Aarch64"));
 
@@ -341,7 +334,7 @@ fn architecture_specific_relocations_reject_during_candidate_validation() {
     portable_absolute.content_fingerprint =
         non_authoritative_decoded_container_fingerprint(&portable_absolute)
             .expect("absolute relocation is valid on AArch64");
-    validate_decoded_container(portable_absolute, limits())
+    validate_decoded_container(portable_absolute, container_test_limits())
         .expect("absolute relocation remains architecture-neutral");
 }
 
@@ -349,12 +342,12 @@ fn architecture_specific_relocations_reject_during_candidate_validation() {
 fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
     let mut changed_code = decoded();
     changed_code.code[0] ^= 1;
-    let error = validate_decoded_container(changed_code, limits()).expect_err("code drift rejects");
+    let error = validate_decoded_container(changed_code, container_test_limits()).expect_err("code drift rejects");
     assert!(error.0.contains("content fingerprint"));
 
     let mut changed_relocation = decoded();
     changed_relocation.relocations[0].addend = 1;
-    let error = validate_decoded_container(changed_relocation, limits())
+    let error = validate_decoded_container(changed_relocation, container_test_limits())
         .expect_err("relocation drift rejects");
     assert!(error.0.contains("content fingerprint"));
 
@@ -370,7 +363,7 @@ fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
         normalized_decoded_content_digest(&reordered).expect("two-entry strong digest");
     reordered.entries.reverse();
     let validated =
-        validate_decoded_container(reordered, limits()).expect("entry order normalizes");
+        validate_decoded_container(reordered, container_test_limits()).expect("entry order normalizes");
     assert_eq!(validated.artifact().content(), two_entry_identity);
 }
 
@@ -380,7 +373,7 @@ fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
 fn reidentified(mut changed: DecodedArtifactContainer) -> ValidatedArtifactContainer {
     changed.content_fingerprint = non_authoritative_decoded_container_fingerprint(&changed)
         .expect("honest compatibility-fingerprint recompute");
-    validate_decoded_container(changed, limits())
+    validate_decoded_container(changed, container_test_limits())
         .expect("representable substitution must remain canonical")
 }
 
@@ -396,7 +389,7 @@ fn reidentified(mut changed: DecodedArtifactContainer) -> ValidatedArtifactConta
 /// `admit_validated_container` replaying the authentic evidence.
 #[test]
 fn executable_container_rejects_every_one_field_substitution() {
-    let authentic = validate_decoded_container(decoded(), limits()).expect("authentic container");
+    let authentic = validate_decoded_container(decoded(), container_test_limits()).expect("authentic container");
 
     // The driver substitutes before every check, so `leg` always names the
     // lane an internal invariant failure belongs to.
@@ -414,7 +407,7 @@ fn executable_container_rejects_every_one_field_substitution() {
         if let Ok(fingerprint) = non_authoritative_decoded_container_fingerprint(&changed) {
             changed.content_fingerprint = fingerprint;
         }
-        let validated = match validate_decoded_container(changed, limits()) {
+        let validated = match validate_decoded_container(changed, container_test_limits()) {
             Ok(validated) => validated,
             Err(error) => {
                 return Err(classify_container_validation(&error));
@@ -555,7 +548,7 @@ fn executable_container_rejects_every_one_field_substitution() {
     // canonical check.
     let mut changed = decoded();
     changed.code[0] ^= 1;
-    let error = validate_decoded_container(changed, limits())
+    let error = validate_decoded_container(changed, container_test_limits())
         .expect_err("a stale compatibility fingerprint must reject");
     assert!(error.0.contains("content fingerprint"));
 }
