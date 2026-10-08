@@ -9,35 +9,45 @@ use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget};
 use target_operations::CallSiteOwner;
 
+fn validated_call_relocation(
+    architecture: Architecture,
+    bytes: &[u8],
+    offset: usize,
+) -> Option<(RelocationKind, usize)> {
+    let valid = match architecture {
+        Architecture::X86_64 => {
+            offset >= 1
+                && bytes.get(offset - 1) == Some(&0xe8)
+                && bytes.get(offset..offset.saturating_add(4)) == Some(&[0; 4])
+        }
+        Architecture::Aarch64 => {
+            offset.is_multiple_of(4)
+                && bytes.get(offset..offset.saturating_add(4))
+                    == Some(&0x9400_0000u32.to_le_bytes())
+        }
+    };
+    if !valid {
+        return None;
+    }
+    Some(match architecture {
+        Architecture::X86_64 => (RelocationKind::X86_64Relative32, 4),
+        Architecture::Aarch64 => (RelocationKind::Aarch64Branch26, 4),
+    })
+}
+
 pub(crate) fn validate_internal_call_site(
     architecture: Architecture,
     caller: MachineId,
     bytes: &[u8],
     call: machine_code::InternalCallRelocation,
 ) -> Result<(RelocationKind, usize), ObjectError> {
-    let valid = match architecture {
-        Architecture::X86_64 => {
-            call.offset >= 1
-                && bytes.get(call.offset - 1) == Some(&0xe8)
-                && bytes.get(call.offset..call.offset.saturating_add(4)) == Some(&[0; 4])
-        }
-        Architecture::Aarch64 => {
-            call.offset.is_multiple_of(4)
-                && bytes.get(call.offset..call.offset.saturating_add(4))
-                    == Some(&0x9400_0000u32.to_le_bytes())
-        }
-    };
-    if !valid {
-        return Err(ObjectError::InvalidInternalCallSite {
+    validated_call_relocation(architecture, bytes, call.offset).ok_or(
+        ObjectError::InvalidInternalCallSite {
             caller,
             owner: call.owner,
             offset: call.offset,
-        });
-    }
-    Ok(match architecture {
-        Architecture::X86_64 => (RelocationKind::X86_64Relative32, 4),
-        Architecture::Aarch64 => (RelocationKind::Aarch64Branch26, 4),
-    })
+        },
+    )
 }
 
 pub(crate) fn validate_foreign_call_site(
@@ -46,29 +56,13 @@ pub(crate) fn validate_foreign_call_site(
     bytes: &[u8],
     call: &machine_code::ForeignCallRelocation,
 ) -> Result<(RelocationKind, usize), ObjectError> {
-    let valid = match architecture {
-        Architecture::X86_64 => {
-            call.offset >= 1
-                && bytes.get(call.offset - 1) == Some(&0xe8)
-                && bytes.get(call.offset..call.offset.saturating_add(4)) == Some(&[0; 4])
-        }
-        Architecture::Aarch64 => {
-            call.offset.is_multiple_of(4)
-                && bytes.get(call.offset..call.offset.saturating_add(4))
-                    == Some(&0x9400_0000u32.to_le_bytes())
-        }
-    };
-    if !valid {
-        return Err(ObjectError::InvalidForeignCallSite {
+    validated_call_relocation(architecture, bytes, call.offset).ok_or(
+        ObjectError::InvalidForeignCallSite {
             caller,
             owner: call.owner,
             offset: call.offset,
-        });
-    }
-    Ok(match architecture {
-        Architecture::X86_64 => (RelocationKind::X86_64Relative32, 4),
-        Architecture::Aarch64 => (RelocationKind::Aarch64Branch26, 4),
-    })
+        },
+    )
 }
 
 pub(crate) fn validate_foreign_call_floating_control(
