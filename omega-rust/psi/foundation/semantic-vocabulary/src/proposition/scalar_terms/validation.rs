@@ -24,58 +24,12 @@ impl ScalarTerm {
         let mut pending = vec![Step::Visit(self)];
         while let Some(step) = pending.pop() {
             match step {
-                Step::Visit(term) => match term {
-                    Self::BooleanNot { operand }
-                    | Self::IntegerBitwiseNot { operand, .. }
-                    | Self::IntegerWiden { operand, .. }
-                    | Self::IntegerExactCast { operand, .. } => {
-                        pending.push(Step::Finalize(term));
+                Step::Visit(term) => {
+                    pending.push(Step::Finalize(term));
+                    for operand in term.operands().into_iter().rev() {
                         pending.push(Step::Visit(operand));
                     }
-                    Self::WrappingIntegerShiftLeft { value, count, .. }
-                    | Self::WrappingIntegerShiftRight { value, count, .. }
-                    | Self::ExactIntegerShiftLeft { value, count, .. }
-                    | Self::ExactIntegerShiftRight { value, count, .. } => {
-                        pending.push(Step::Finalize(term));
-                        pending.push(Step::Visit(count));
-                        pending.push(Step::Visit(value));
-                    }
-                    Self::BooleanEqual { left, right }
-                    | Self::IntegerEqual { left, right, .. }
-                    | Self::IntegerLessThan { left, right, .. }
-                    | Self::IntegerLessOrEqual { left, right, .. }
-                    | Self::IntegerBitwiseAnd { left, right, .. }
-                    | Self::IntegerBitwiseOr { left, right, .. }
-                    | Self::IntegerBitwiseXor { left, right, .. }
-                    | Self::ExactIntegerAdd { left, right, .. }
-                    | Self::ExactIntegerSubtract { left, right, .. }
-                    | Self::ExactIntegerMultiply { left, right, .. }
-                    | Self::ExactIntegerDivide { left, right, .. }
-                    | Self::ExactIntegerRemainder { left, right, .. }
-                    | Self::WrappingIntegerDivide { left, right, .. }
-                    | Self::WrappingIntegerRemainder { left, right, .. }
-                    | Self::SaturatingIntegerDivide { left, right, .. }
-                    | Self::SaturatingIntegerRemainder { left, right, .. }
-                    | Self::WrappingIntegerAdd { left, right, .. }
-                    | Self::SaturatingIntegerAdd { left, right, .. }
-                    | Self::WrappingIntegerSubtract { left, right, .. }
-                    | Self::SaturatingIntegerSubtract { left, right, .. }
-                    | Self::WrappingIntegerMultiply { left, right, .. }
-                    | Self::SaturatingIntegerMultiply { left, right, .. } => {
-                        pending.push(Step::Finalize(term));
-                        pending.push(Step::Visit(right));
-                        pending.push(Step::Visit(left));
-                    }
-                    Self::Value { .. }
-                    | Self::BooleanField { .. }
-                    | Self::IntegerField { .. }
-                    | Self::IeeeFloatField { .. }
-                    | Self::ViewExtent { .. }
-                    | Self::ByteSequencePredicate { .. }
-                    | Self::Boolean(_)
-                    | Self::Integer { .. }
-                    | Self::IeeeFloatLiteral(_) => pending.push(Step::Finalize(term)),
-                },
+                }
                 Step::Finalize(term) => term.validate_after_operands()?,
             }
         }
