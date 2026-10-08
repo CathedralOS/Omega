@@ -16,6 +16,7 @@ use layout_plans::{
     LayoutPlanReport,
 };
 use symbols::SymbolHandle;
+use typed_trees::RecordSumProfile;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, TypeParameterKind};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -1183,238 +1184,42 @@ fn project_recursive_paths(
     })
 }
 
-#[derive(Default)]
-struct RecordSumProfile {
-    direct: bool,
-    array: bool,
-    deeper: bool,
-}
-
-fn record_sum_profile(
-    program: &TypedTrees,
-    definition: &DataDefinition,
-    reachability: &mut SumReachability<'_>,
-) -> Result<RecordSumProfile, Diagnostic> {
-    let mut profile = RecordSumProfile::default();
-    for field in relevant_record_fields(program, definition) {
-        match program
-            .type_reference_table
-            .type_reference(field.type_reference)
-        {
-            TypeReferenceNode::Named { .. } => {
-                let Some(named) = exact_named_data(program, field.type_reference)? else {
-                    continue;
-                };
-                match DataDefinition::shape_kind_from_members(program.data_members(named)) {
-                    DataShapeKind::Enum | DataShapeKind::Mixed => profile.direct = true,
-                    DataShapeKind::Record => {
-                        if reachability.type_contains_sum(field.type_reference)? {
-                            profile.deeper = true;
-                        }
-                    }
-                    DataShapeKind::Empty => {}
-                }
-            }
-            TypeReferenceNode::FixedArray { .. }
-                if reachability.type_contains_sum(field.type_reference)? =>
-            {
-                profile.array = true;
-            }
-            _ => {}
-        }
-    }
-    Ok(profile)
-}
-
-#[derive(Clone, Copy)]
-enum ReachabilityState {
-    Visiting,
-    Done(bool),
-}
-
-struct ReachabilityFrame<'a> {
-    data: &'a DataDefinition,
-    next_member: usize,
-    found: bool,
-}
-
+/// The backend-layout reachability walk: the shared
+/// [`typed_trees::SumReachability`] engine stamped with this domain's label.
 struct SumReachability<'a> {
-    program: &'a TypedTrees,
-    states: std::collections::HashMap<(u32, u32), ReachabilityState>,
-    traversed_edges: usize,
+    inner: typed_trees::SumReachability<'a>,
 }
 
 impl<'a> SumReachability<'a> {
-    const MAX_RECORDS: usize = 4096;
-    const MAX_EDGES: usize = 16384;
+    const MAX_EDGES: usize = typed_trees::SumReachability::MAX_EDGES;
 
     fn new(program: &'a TypedTrees) -> Self {
         Self {
-            program,
-            states: std::collections::HashMap::new(),
-            traversed_edges: 0,
+            inner: typed_trees::SumReachability::new(
+                program,
+                "nested-record sum",
+                "nested-sum field type",
+            ),
         }
     }
 
     fn type_contains_sum(
         &mut self,
-        mut type_reference: typed_trees::types::TypeReferenceHandle,
+        type_reference: TypeReferenceHandle,
     ) -> Result<bool, Diagnostic> {
-        let mut array_depth = 0usize;
-        while let TypeReferenceNode::FixedArray { element_type, .. } = self
-            .program
-            .type_reference_table
-            .type_reference(type_reference)
-        {
-            array_depth += 1;
-            if array_depth > 64 {
-                return Err(Diagnostic::error(
-                    "nested-record sum path exceeds bounded fixed-array depth",
-                ));
-            }
-            type_reference = *element_type;
-        }
-        let Some(data) = exact_named_data(self.program, type_reference)? else {
-            return Ok(false);
-        };
-        match DataDefinition::shape_kind_from_members(self.program.data_members(data)) {
-            DataShapeKind::Enum | DataShapeKind::Mixed => Ok(true),
-            DataShapeKind::Empty => Ok(false),
-            DataShapeKind::Record => self.record_contains_sum(data),
-        }
-    }
-
-    fn record_contains_sum(&mut self, root: &'a DataDefinition) -> Result<bool, Diagnostic> {
-        let root_identity = symbol_identity(root.symbol)?;
-        if let Some(state) = self.states.get(&root_identity) {
-            return match state {
-                ReachabilityState::Done(found) => Ok(*found),
-                ReachabilityState::Visiting => Err(Diagnostic::error(format!(
-                    "nested-record sum path is recursive through `{}`",
-                    root.name
-                ))),
-            };
-        }
-        self.insert_state(root_identity, ReachabilityState::Visiting)?;
-        let mut stack = Vec::new();
-        stack.try_reserve(1).map_err(|_| {
-            Diagnostic::error("nested-record sum traversal stack exceeds compiler resources")
-        })?;
-        stack.push(ReachabilityFrame {
-            data: root,
-            next_member: 0,
-            found: false,
-        });
-
-        loop {
-            let Some(frame) = stack.last_mut() else {
-                unreachable!("root reachability frame returns when completed")
-            };
-            let members = self.program.data_members(frame.data);
-            // `found` is the eventual answer, not permission to skip later
-            // fields: a later branch can still expose a cycle, malformed
-            // nominal identity, or resource-bound failure.
-            if frame.next_member == members.len() {
-                let completed = stack.pop().expect("active reachability frame");
-                let identity = symbol_identity(completed.data.symbol)?;
-                self.states
-                    .insert(identity, ReachabilityState::Done(completed.found));
-                if let Some(parent) = stack.last_mut() {
-                    parent.found |= completed.found;
-                    continue;
-                }
-                return Ok(completed.found);
-            }
-            let member = &members[frame.next_member];
-            frame.next_member += 1;
-            let DataMember::Field(field) = member else {
-                frame.found = true;
-                continue;
-            };
-            if field.relevance.is_erased() {
-                continue;
-            }
-            self.traversed_edges = self.traversed_edges.checked_add(1).ok_or_else(|| {
-                Diagnostic::error("nested-record sum traversal edge count overflows")
-            })?;
-            if self.traversed_edges > Self::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "nested-record sum path exceeds bounded schema traversal edges",
-                ));
-            }
-            let mut child_type = field.type_reference;
-            let mut array_depth = 0usize;
-            while let TypeReferenceNode::FixedArray { element_type, .. } =
-                self.program.type_reference_table.type_reference(child_type)
-            {
-                array_depth += 1;
-                if array_depth > 64 {
-                    return Err(Diagnostic::error(
-                        "nested-record sum path exceeds bounded fixed-array depth",
-                    ));
-                }
-                child_type = *element_type;
-            }
-            let Some(child) = exact_named_data(self.program, child_type)? else {
-                continue;
-            };
-            match DataDefinition::shape_kind_from_members(self.program.data_members(child)) {
-                DataShapeKind::Enum | DataShapeKind::Mixed => frame.found = true,
-                DataShapeKind::Empty => {}
-                DataShapeKind::Record => {
-                    let identity = symbol_identity(child.symbol)?;
-                    match self.states.get(&identity).copied() {
-                        Some(ReachabilityState::Done(found)) => frame.found |= found,
-                        Some(ReachabilityState::Visiting) => {
-                            return Err(Diagnostic::error(format!(
-                                "nested-record sum path is recursive through `{}`",
-                                child.name
-                            )));
-                        }
-                        None => {
-                            self.insert_state(identity, ReachabilityState::Visiting)?;
-                            stack.try_reserve(1).map_err(|_| {
-                                Diagnostic::error(
-                                    "nested-record sum traversal stack exceeds compiler resources",
-                                )
-                            })?;
-                            stack.push(ReachabilityFrame {
-                                data: child,
-                                next_member: 0,
-                                found: false,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn insert_state(
-        &mut self,
-        identity: (u32, u32),
-        state: ReachabilityState,
-    ) -> Result<(), Diagnostic> {
-        if self.states.len() >= Self::MAX_RECORDS {
-            return Err(Diagnostic::error(
-                "nested-record sum path exceeds bounded schema traversal records",
-            ));
-        }
-        self.states.try_reserve(1).map_err(|_| {
-            Diagnostic::error("nested-record sum visited map exceeds compiler resources")
-        })?;
-        self.states.insert(identity, state);
-        Ok(())
+        self.inner
+            .type_contains_sum(type_reference)
+            .map_err(|fault| Diagnostic::error(fault.0))
     }
 }
 
-fn symbol_identity(symbol: SymbolHandle) -> Result<(u32, u32), Diagnostic> {
-    if !symbol.is_valid() {
-        return Err(Diagnostic::error(
-            "nested-record sum path encountered an invalid nominal identity",
-        ));
-    }
-    Ok((symbol.arena_index(), symbol.generation()))
+fn record_sum_profile(
+    program: &TypedTrees,
+    data: &DataDefinition,
+    reachability: &mut SumReachability<'_>,
+) -> Result<RecordSumProfile, Diagnostic> {
+    typed_trees::record_sum_profile(program, data, &mut reachability.inner)
+        .map_err(|fault| Diagnostic::error(fault.0))
 }
 
 /// A fully-applied generic instance qualifies here: instantiation already

@@ -27,6 +27,9 @@ pub use typed_trees::evidence::{
 };
 pub use typed_trees::inspection::snapshot;
 pub use typed_trees::names::{identity, name};
+pub use typed_trees::sum_reachability::{
+    RecordSumProfile, SumReachability, SumTraversalFault, record_sum_profile,
+};
 pub use typed_trees::type_system::{closed_numeric, type_identity, types};
 pub use typed_trees::values::expression;
 
