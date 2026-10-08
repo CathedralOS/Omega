@@ -8,7 +8,7 @@ use register_environment::baseline_target_register_environment;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedTerminator, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    VirtualRegisterId, VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,
