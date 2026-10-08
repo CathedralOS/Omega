@@ -545,20 +545,7 @@ impl Evaluation {
             terminal_scalar_type(control.primitive_type)?,
             qualifications,
         )?;
-        let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
-            checked,
-            qualifications,
-            machine,
-            1,
-        )
-        .with_structural_types(&self.structural_types)
-        .with_produced_values(&self.produced_values)
-        .with_literals(&self.literals)
-        .with_copies(&self.copies)
-        .with_subslices(&self.subslices)
-        .with_cases(&self.cases)
-        .with_fields(&self.record_fields)
-        .enter_proof_scope(&self.erased_proof_formals);
+        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
         let mut completion_types = source_types.clone();
         completion_types.push(result_type);
         let completions = cleanups

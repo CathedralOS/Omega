@@ -148,6 +148,31 @@ impl Evaluation {
 
     /// Selected cleanup sources that are declared parameters, in descending
     /// authored-position order and deduplicated by place.
+
+    /// A full scalar-computation expansion populated from this
+    /// evaluation's prepared tables.
+    fn scalar_computation_expansion<'a>(
+        &'a self,
+        checked: &'a CheckedTrees,
+        qualifications: &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
+        machine: symbols::SymbolHandle,
+    ) -> crate::scalar_graph::scalar_computations::Expansion<'a> {
+        crate::scalar_graph::scalar_computations::Expansion::new(
+            checked,
+            qualifications,
+            machine,
+            1,
+        )
+        .with_structural_types(&self.structural_types)
+        .with_produced_values(&self.produced_values)
+        .with_literals(&self.literals)
+        .with_copies(&self.copies)
+        .with_subslices(&self.subslices)
+        .with_cases(&self.cases)
+        .with_fields(&self.record_fields)
+        .enter_proof_scope(&self.erased_proof_formals)
+    }
+
     pub(crate) fn cleanup_parameter_places(&self) -> Vec<PlaceId> {
         let mut parameter_sources = Vec::new();
         for cleanup in &self.selection_cleanups {
@@ -1040,20 +1065,7 @@ impl Evaluation {
                 .map(Some);
         }
 
-        let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
-            checked,
-            qualifications,
-            machine,
-            1,
-        )
-        .with_structural_types(&self.structural_types)
-        .with_produced_values(&self.produced_values)
-        .with_literals(&self.literals)
-        .with_copies(&self.copies)
-        .with_subslices(&self.subslices)
-        .with_cases(&self.cases)
-        .enter_proof_scope(&self.erased_proof_formals)
-        .with_fields(&self.record_fields);
+        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
         let entry_index = expansion.call_arguments(
             state,
             coordinate,
@@ -1176,20 +1188,7 @@ impl Evaluation {
                 _ => unsupported("field assignment has no single completed RHS"),
             };
         }
-        let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
-            checked,
-            qualifications,
-            machine,
-            1,
-        )
-        .with_structural_types(&self.structural_types)
-        .with_produced_values(&self.produced_values)
-        .with_literals(&self.literals)
-        .with_copies(&self.copies)
-        .with_subslices(&self.subslices)
-        .with_cases(&self.cases)
-        .enter_proof_scope(&self.erased_proof_formals)
-        .with_fields(&self.record_fields);
+        let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
         let entry = expansion.retained_value(
             state,
             statement_index,
