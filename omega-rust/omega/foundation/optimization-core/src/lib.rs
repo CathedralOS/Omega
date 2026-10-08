@@ -67,7 +67,7 @@ pub use optimization_core::rollback::{
     OptimizationRollbackSettlement,
 };
 pub use optimization_core::{
-    hex,
+    encode_option_u64, hex,
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
     OptimizationSelections, PostTerminalOptimizationSelectionProjection,

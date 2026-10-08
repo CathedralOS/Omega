@@ -34,11 +34,11 @@ pub fn selected_instruction_plan_identity(
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        encode_option_id(
+        optimization_core::encode_option_u64(
             &mut bytes,
             function.attachment.map(|attachment| attachment.get()),
         );
-        encode_option_id(
+        optimization_core::encode_option_u64(
             &mut bytes,
             function
                 .nominal_cleanup_subject
@@ -641,15 +641,6 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     }
 }
 
-fn encode_option_id(bytes: &mut Vec<u8>, value: Option<u64>) {
-    match value {
-        Some(value) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
-}
 
 fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     match value {

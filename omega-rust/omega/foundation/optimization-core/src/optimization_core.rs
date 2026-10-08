@@ -853,3 +853,14 @@ pub fn hex(bytes: &[u8]) -> String {
     }
     output
 }
+
+/// Tagged optional u64 payload: 0 discriminant, or 1 followed by 8 LE bytes.
+pub fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {
+    match value {
+        Some(value) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        None => bytes.push(0),
+    }
+}

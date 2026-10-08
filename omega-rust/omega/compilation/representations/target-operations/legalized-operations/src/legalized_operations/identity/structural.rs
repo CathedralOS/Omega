@@ -1,14 +1,12 @@
-use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option_id};
+use super::encoding::{encode_fuel, encode_ids, encode_len};
 use crate::legalized_operations::identity::structural_types::{
     encode_access, encode_entry_claim, encode_multiplicity, encode_string,
-    encode_structural_argument, encode_structural_path,
-};
+    encode_structural_argument, encode_structural_path};
 use crate::legalized_operations::{LegalizedBoundarySettlement, NativeCallOrigin};
 use abstract_operations::CompletionClaimSource;
 use optimization_unit::{EffectLink, OwnershipEvent};
 use semantic_vocabulary::{
-    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
-};
+    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion};
 use terminal_psi::{ClaimContentProjection, ProviderCandidateConformance};
 
 pub(super) fn encode_boundary_settlement(
@@ -70,8 +68,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin)
             boundary,
             provider,
             completion_claim_sources,
-            completion_receipts,
-        } => {
+            completion_receipts} => {
             bytes.push(2);
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
             encode_provider_candidate(bytes, provider);
@@ -138,16 +135,14 @@ pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &Compl
             bytes.push(1);
             encode_entry_claim(bytes, entry);
         }
-        None => bytes.push(0),
-    }
+        None => bytes.push(0)}
     match &source.content {
         Some(content) => {
             bytes.push(1);
             bytes.extend_from_slice(&content.claim.get().to_le_bytes());
             bytes.push(match content.input.version {
                 ContentPlaceVersion::Entry => 1,
-                ContentPlaceVersion::Current => 2,
-            });
+                ContentPlaceVersion::Current => 2});
             bytes.extend_from_slice(&content.input.root.get().to_le_bytes());
             encode_len(bytes, content.input.segments.len());
             for segment in &content.input.segments {
@@ -171,8 +166,7 @@ pub(super) fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &Compl
                 encode_claim_projection(bytes, projection);
             }
         }
-        None => bytes.push(0),
-    }
+        None => bytes.push(0)}
 }
 
 pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
@@ -189,8 +183,7 @@ pub(super) fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimCon
 pub(super) fn encode_content_algebra(bytes: &mut Vec<u8>, algebra: &ContentAlgebra) {
     bytes.push(match algebra.kind {
         ContentAlgebraKind::IntervalSet => 1,
-        ContentAlgebraKind::CountedQuantity => 2,
-    });
+        ContentAlgebraKind::CountedQuantity => 2});
     encode_string(bytes, &algebra.parameter);
 }
 
@@ -263,7 +256,7 @@ pub(super) fn encode_cleanup_action(
                 bytes,
                 cleanup.consumed_claims.iter().map(|claim| claim.get()),
             );
-            encode_option_id(bytes, cleanup.cleanup_receiver.map(|place| place.get()));
+            optimization_core::encode_option_u64(bytes, cleanup.cleanup_receiver.map(|place| place.get()));
             encode_ids(
                 bytes,
                 cleanup
@@ -299,8 +292,7 @@ mod tests {
                 cleanup_machine: MachineId::new(3).unwrap(),
                 consumed_claims: Vec::new(),
                 cleanup_receiver: None,
-                requirement_obligations: Vec::new(),
-            });
+                requirement_obligations: Vec::new()});
             let mut encoded = Vec::new();
             encode_cleanup_action(&mut encoded, &action);
             if let Some(previous) = previous_encoding {

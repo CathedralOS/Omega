@@ -22,15 +22,6 @@ pub(super) fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
     }
 }
 
-pub(super) fn encode_option_id(bytes: &mut Vec<u8>, value: Option<u64>) {
-    match value {
-        Some(value) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        None => bytes.push(0),
-    }
-}
 
 pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl IntoIterator<Item = u64>) {
     let values = values.into_iter().collect::<Vec<_>>();
