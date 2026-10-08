@@ -93,7 +93,7 @@ impl RangeFacts<'_> {
         state: &State,
         target: typed_trees::expression::ExpressionHandle,
     ) -> Option<(String, Option<i64>, Option<i64>)> {
-        use typed_trees::{expression::ExpressionNode, types::TypeReferenceNode};
+        use typed_trees::expression::ExpressionNode;
         if !crate::checks::ranges::indexes::is_builtin_scalar_index(
             program, machine, state, self, target,
         ) {
@@ -106,30 +106,7 @@ impl RangeFacts<'_> {
         else {
             return None;
         };
-        let parameter = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == name.symbol)?;
-        let TypeReferenceNode::Reference {
-            referee,
-            access: language_core::ReferenceAccess::Mutable,
-            ..
-        } = program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        else {
-            return None;
-        };
-        let TypeReferenceNode::Slice { element_type } =
-            program.type_reference_table.type_reference(*referee)
-        else {
-            return None;
-        };
-        if program.primitive_type_reference(*element_type)
-            != Some(typed_trees::types::PrimitiveType::U8)
-        {
-            return None;
-        }
+        ::validation::mutable_byte_slice_parameter_element(program, state, name.symbol)?;
         let collection = program.expression_table.display_name(indexed.collection);
         let minimum = self.minimum_length(&collection);
         let exact = self.exact_length(&collection);

@@ -192,6 +192,38 @@ pub fn place_has_builtin_coordinates(
     builtin_coordinates(program, machine, state, expression, 0)
 }
 
+/// The element type when `symbol` names a state parameter whose declared
+/// type is a mutable view over bytes (`&mut [u8]`). Other collection shapes
+/// and other access permissions have no builtin byte-write geometry.
+pub fn mutable_byte_slice_parameter_element(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    symbol: symbols::SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    use typed_trees::types::TypeReferenceNode;
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)?;
+    let TypeReferenceNode::Reference {
+        referee,
+        access: language_core::ReferenceAccess::Mutable,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(*referee)
+    else {
+        return None;
+    };
+    (program.primitive_type_reference(*element_type) == Some(typed_trees::types::PrimitiveType::U8))
+        .then_some(*element_type)
+}
+
 fn builtin_coordinates(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

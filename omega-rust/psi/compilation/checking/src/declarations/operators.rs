@@ -47,7 +47,9 @@ pub fn comparison_operator_spelling(
         | BinaryOperator::Less
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual => typed_trees::operator::binary_operator_spelling(operator),
+        | BinaryOperator::GreaterOrEqual => {
+            typed_trees::operator::binary_operator_spelling(operator)
+        }
         _ => None,
     }
 }

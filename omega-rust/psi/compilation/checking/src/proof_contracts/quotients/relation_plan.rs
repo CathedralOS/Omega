@@ -60,8 +60,8 @@ pub(super) struct ContractFactLocation {
 
 pub(super) use representative::pure_representative_effect;
 use representative::{
-    RepresentativeTelescope, derive_representative_telescope,
-    representative_machine_state, unconditional_representative_termination,
+    RepresentativeTelescope, derive_representative_telescope, representative_machine_state,
+    unconditional_representative_termination,
 };
 use runtime_correspondence::DefineRuntimePosition;
 use runtime_correspondence::{

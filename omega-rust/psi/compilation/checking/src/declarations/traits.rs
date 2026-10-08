@@ -35,8 +35,8 @@ mod conformance;
 pub mod conformance_applications;
 mod dynamic;
 mod named_implementations;
-mod requirements;
 pub mod refinement_fit;
+mod requirements;
 mod trait_implementation_arguments;
 
 pub use conformance::compose_forwarded_trait_arguments;

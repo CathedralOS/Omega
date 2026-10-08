@@ -391,34 +391,18 @@ pub(super) fn byte_store_collection(
     let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection) else {
         return None;
     };
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == name.symbol)?;
-    let TypeReferenceNode::Reference {
-        referee,
-        access: language_core::ReferenceAccess::Mutable,
-        ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    let TypeReferenceNode::Slice { element_type } =
-        program.type_reference_table.type_reference(*referee)
+    let Some(element_type) =
+        crate::mutable_byte_slice_parameter_element(program, state, name.symbol)
     else {
         return None;
     };
     if !matches!(
-        program.type_reference_table.type_reference(*element_type),
+        program.type_reference_table.type_reference(element_type),
         TypeReferenceNode::Named { .. }
-    ) || program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
-        || matches!(
-            program.expression_table.expression(indexed.index),
-            ExpressionNode::Range(_)
-        )
-    {
+    ) || matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ) {
         return None;
     }
     operand(program, machine, state, indexed.collection)
