@@ -7,11 +7,7 @@ use register_homes::{
 use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{
-    PhysicalRegisterModel, RegisterClass, RegisterClassId, RegisterUnit, RegisterUnitId,
-    RegisterUnitKind, RegisterView, RegisterViewId, RegisterWriteSemantics,
-    TargetRegisterEnvironmentIdentity, validate_physical_register_model,
-};
+use register_model::{RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, SelectedTerminator,
     VirtualRegisterId,
@@ -140,37 +136,7 @@ pub fn exercise_multiple_use_rematerialization(
     let suffix = &post_ranges.plan().functions[0].virtual_registers[3];
     assert_eq!(suffix.occurrences.len(), 3);
 
-    let physical = validate_physical_register_model(PhysicalRegisterModel {
-        architecture: target::Architecture::X86_64,
-        units: (0..2)
-            .map(|id| RegisterUnit {
-                id: RegisterUnitId(id),
-                name: format!("r{id}.storage"),
-                bits: 64,
-                kind: RegisterUnitKind::IntegerLane,
-            })
-            .collect(),
-        views: (0..2)
-            .map(|id| RegisterView {
-                id: RegisterViewId(id),
-                name: format!("r{id}"),
-                class: RegisterClassId(0),
-                units: vec![RegisterUnitId(id)],
-                write_units: vec![RegisterUnitId(id)],
-                bits: 64,
-                write_semantics: RegisterWriteSemantics::ExactView,
-                allocatable: true,
-            })
-            .collect(),
-        classes: vec![RegisterClass {
-            id: RegisterClassId(0),
-            name: "integer".into(),
-            views: vec![RegisterViewId(0), RegisterViewId(1)],
-        }],
-        conventions: Vec::new(),
-        reservations: Vec::new(),
-    })
-    .unwrap();
+    let physical = super::fixtures::two_lane_integer_model();
     let legality = FunctionAllocationLegality {
         machine: transformed_machine,
         virtual_registers: post_ranges.plan().functions[0]
