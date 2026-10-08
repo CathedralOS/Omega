@@ -37,7 +37,6 @@ pub use snapshots::{SelectionSnapshot, replay_selection_snapshot};
 
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::types::TypeReferenceHandle;
 
 use super::schema_graph::exact_symbol_identity;
 
@@ -160,51 +159,6 @@ impl SelectionRequirement {
         })
     }
 
-    /// Pin one exact trait application inside the requirement: the type
-    /// arguments canonicalize through the package-qualified identity and the
-    /// lifetime arguments normalize by first occurrence, so the demanded
-    /// application survives binder renaming on both sides of a package
-    /// boundary. Arity is checked against the trait's declared parameter
-    /// lists — a mismatched application is a construction error here, not a
-    /// later selection rejection.
-    pub fn for_trait_application(
-        typed: &TypedTrees,
-        trait_symbol: SymbolHandle,
-        requirement: Option<SymbolHandle>,
-        type_arguments: &[TypeReferenceHandle],
-        lifetime_arguments: &[u32],
-    ) -> Result<Self, String> {
-        let mut requirement = Self::for_trait(typed, trait_symbol, requirement)?;
-        let definition = typed
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == trait_symbol)
-            .expect("for_trait resolved this declaration");
-        if type_arguments.len() != typed.trait_type_parameters(definition).len() {
-            return Err(
-                "a demanded trait application must supply every declared type parameter".to_owned(),
-            );
-        }
-        if lifetime_arguments.len() != definition.lifetime_parameters.len() {
-            return Err(
-                "a demanded trait application must supply every declared lifetime parameter"
-                    .to_owned(),
-            );
-        }
-        let type_argument_identities = type_arguments
-            .iter()
-            .map(|argument| {
-                typed
-                    .package_qualified_type_identity(*argument)
-                    .into_string()
-            })
-            .collect();
-        requirement.trait_application = Some(DemandedTraitApplication {
-            type_argument_identities,
-            lifetime_arguments: first_occurrence_normalized(lifetime_arguments),
-        });
-        Ok(requirement)
-    }
 }
 
 /// One recorded choice for a member: an exact static declaration or an

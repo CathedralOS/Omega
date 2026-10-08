@@ -1,9 +1,5 @@
 //! Schema node handles, nodes, descriptions, shapes and query authorities.
 
-use crate::reflection::schema_graph::graph_construction::exact_symbol_identity;
-use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-
 /// A node handle indexes only its owning graph. Index 0 is the invalid
 /// sentinel, so a forged or dangling handle resolves to a dummy node instead
 /// of aliasing compiler storage or another node (ZII).
@@ -168,26 +164,4 @@ pub enum SchemaQueryAuthority {
 }
 
 impl SchemaQueryAuthority {
-    /// Derive the scope `requester` holds over `subject` under ordinary
-    /// package visibility. Source-free focused trees model one package and
-    /// therefore derive the owning scope.
-    pub fn for_requester(
-        typed: &TypedTrees,
-        requester: SymbolHandle,
-        subject: SymbolHandle,
-    ) -> Result<Self, String> {
-        if !requester.is_valid() {
-            return Err(
-                "a schema query requires a resolved lexical author as its requester".to_owned(),
-            );
-        }
-        let (requester_identity, _) = exact_symbol_identity(typed, requester)?;
-        Ok(
-            if typed.symbols.same_symbol_source_package(requester, subject) {
-                Self::OwningScope { requester_identity }
-            } else {
-                Self::ForeignScope { requester_identity }
-            },
-        )
-    }
 }
