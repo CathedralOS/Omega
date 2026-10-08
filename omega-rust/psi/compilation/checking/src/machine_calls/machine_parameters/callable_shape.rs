@@ -20,10 +20,6 @@ pub(super) struct CallableParts<'a> {
     pub(super) type_parameters: &'a [TypeParameter],
     pub(super) parameters: &'a [StateParameter],
     pub(super) return_type: TypeReferenceHandle,
-    pub(super) services: &'a [language_semantics::ServiceReachId],
-    pub(super) invocations: Vec<flow_effects::InvocationTarget>,
-    pub(super) may_suspend: bool,
-    pub(super) may_block: bool,
     pub(super) terminates: bool,
     pub(super) contracts: &'a [SignatureContract],
 }
@@ -39,12 +35,6 @@ impl<'a> CallableParts<'a> {
             type_parameters: program.state_signature_type_parameters(signature),
             parameters: program.state_signature_parameters(signature),
             return_type: signature.return_type,
-            services: program
-                .service_reach_rows
-                .services(signature.service_reach_row),
-            invocations: crate::declared_signature_invocations(program, signature),
-            may_suspend: signature.suspends,
-            may_block: signature.blocks,
             terminates: signature.termination_guarantee.promises_termination(),
             contracts: program.state_signature_contracts(signature),
         }
@@ -55,10 +45,6 @@ impl<'a> CallableParts<'a> {
 pub(super) fn validate_selected_callable_shape(
     program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
-    suspensions: &[MachineSuspensionRow],
-    blockings: &[MachineBlockingRow],
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-    invocations: &flow_effects::InvocationInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
@@ -72,10 +58,6 @@ pub(super) fn validate_selected_callable_shape(
     {
         validate_callable_shape(
             program,
-            suspensions,
-            blockings,
-            service_reaches,
-            invocations,
             generic_call,
             parameter,
             requirement,
@@ -101,6 +83,7 @@ pub(super) fn validate_selected_callable_shape(
             parameter,
             requirement,
             &CallableParts::of_signature(program, actual_signature),
+            actual_signature,
             generic_types,
             bindings,
             &mut Vec::new(),
@@ -117,10 +100,6 @@ pub(super) fn validate_selected_callable_shape(
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_shape(
     program: &dyn crate::CheckingInput,
-    suspensions: &[MachineSuspensionRow],
-    blockings: &[MachineBlockingRow],
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-    invocations: &flow_effects::InvocationInferencePlan,
     generic_call: &str,
     parameter: &TypeParameter,
     requirement: &typed_trees::signature::StateSignature,
@@ -134,31 +113,7 @@ fn validate_callable_shape(
         "machine argument `{}` for `{generic_call}`",
         actual_machine.name
     );
-    let inferred_suspension = suspensions
-        .iter()
-        .find(|row| row.symbol == actual_machine.symbol);
-    let inferred_blocking = blockings
-        .iter()
-        .find(|row| row.symbol == actual_machine.symbol);
-    let actual_services = service_reaches
-        .for_machine(actual_machine.symbol)
-        .map(|summary| service_reaches.services(summary.effective))
-        .unwrap_or_else(|| {
-            program
-                .service_reach_rows
-                .services(actual_machine.service_reach_row)
-        });
-    let actual_may_suspend = inferred_suspension
-        .map(|row| row.transitive_may_suspend)
-        .unwrap_or(actual_machine.suspends);
-    let actual_may_block = inferred_blocking
-        .map(|row| row.transitive_may_block)
-        .unwrap_or(actual_machine.blocks);
-    let actual_invocations = invocations
-        .for_machine(actual_machine.symbol)
-        .map(|summary| summary.effective.as_slice())
-        .unwrap_or_default();
-    validate_callable_parts(
+    validate_callable_formation(
         program,
         &label,
         parameter,
@@ -167,10 +122,6 @@ fn validate_callable_shape(
             type_parameters: program.machine_type_parameters(actual_machine),
             parameters: program.state_parameters(actual_state),
             return_type: actual_state.return_type,
-            services: actual_services,
-            invocations: actual_invocations.to_vec(),
-            may_suspend: actual_may_suspend,
-            may_block: actual_may_block,
             terminates: matches!(
                 &actual_machine.termination_plan.interface,
                 language_semantics::TerminationInterface::Published(
@@ -188,6 +139,46 @@ fn validate_callable_shape(
 
 #[allow(clippy::too_many_arguments)]
 fn validate_callable_parts(
+    program: &dyn crate::CheckingInput,
+    label: &str,
+    parameter: &TypeParameter,
+    requirement: &typed_trees::signature::StateSignature,
+    actual: &CallableParts<'_>,
+    actual_signature: &typed_trees::signature::StateSignature,
+    generic_types: &[&TypeParameter],
+    bindings: &mut Vec<TypeBinding>,
+    binder_bindings: &mut Vec<BinderBinding>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_callable_formation(
+        program,
+        label,
+        parameter,
+        requirement,
+        actual,
+        generic_types,
+        bindings,
+        binder_bindings,
+        diagnostics,
+    );
+    validate_callable_effects(
+        program,
+        label,
+        parameter,
+        requirement,
+        actual.parameters,
+        program
+            .service_reach_rows
+            .services(actual_signature.service_reach_row),
+        &crate::declared_signature_invocations(program, actual_signature),
+        actual_signature.suspends,
+        actual_signature.blocks,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_callable_formation(
     program: &dyn crate::CheckingInput,
     label: &str,
     parameter: &TypeParameter,
@@ -268,10 +259,95 @@ fn validate_callable_parts(
         )));
     }
 
+    if requirement.termination_guarantee.promises_termination() && !actual.terminates {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not refine `{}`: the requirement guarantees termination",
+            parameter.name
+        )));
+    }
+
+    validate_contract_facts(
+        program,
+        label,
+        parameter,
+        requirement,
+        actual.contracts,
+        required_parameters,
+        actual_parameters,
+        diagnostics,
+    );
+}
+
+/// Only this judgment needs the cleanup-complete concrete dependency graph.
+/// Shape, nominal identity, and predicate formation have already been judged.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_selected_callable_effects(
+    program: &dyn crate::CheckingInput,
+    suspensions: &[MachineSuspensionRow],
+    blockings: &[MachineBlockingRow],
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+    invocations: &flow_effects::InvocationInferencePlan,
+    label: &str,
+    parameter: &TypeParameter,
+    requirement: &typed_trees::signature::StateSignature,
+    actual_machine: &Machine,
+    actual_state: &State,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let services = service_reaches
+        .for_machine(actual_machine.symbol)
+        .map(|summary| service_reaches.services(summary.effective))
+        .unwrap_or_else(|| {
+            program
+                .service_reach_rows
+                .services(actual_machine.service_reach_row)
+        });
+    let actual_invocations = invocations
+        .for_machine(actual_machine.symbol)
+        .map(|summary| summary.effective.as_slice())
+        .unwrap_or_default();
+    let may_suspend = suspensions
+        .iter()
+        .find(|row| row.symbol == actual_machine.symbol)
+        .map(|row| row.transitive_may_suspend)
+        .unwrap_or(actual_machine.suspends);
+    let may_block = blockings
+        .iter()
+        .find(|row| row.symbol == actual_machine.symbol)
+        .map(|row| row.transitive_may_block)
+        .unwrap_or(actual_machine.blocks);
+    validate_callable_effects(
+        program,
+        label,
+        parameter,
+        requirement,
+        program.state_parameters(actual_state),
+        services,
+        actual_invocations,
+        may_suspend,
+        may_block,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_callable_effects(
+    program: &dyn crate::CheckingInput,
+    label: &str,
+    parameter: &TypeParameter,
+    requirement: &typed_trees::signature::StateSignature,
+    actual_parameters: &[StateParameter],
+    services: &[language_semantics::ServiceReachId],
+    invocations: &[flow_effects::InvocationTarget],
+    may_suspend: bool,
+    may_block: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let required_parameters = program.state_signature_parameters(requirement);
     let allowed_services = program
         .service_reach_rows
         .services(requirement.service_reach_row);
-    for service in actual.services {
+    for service in services {
         if allowed_services.contains(service) {
             continue;
         }
@@ -290,7 +366,7 @@ fn validate_callable_parts(
         .iter()
         .filter_map(|target| full_parameter_invocation(*target, required_parameters))
         .collect::<Vec<_>>();
-    for invocation in &actual.invocations {
+    for invocation in invocations {
         if full_parameter_invocation(*invocation, actual_parameters)
             .is_some_and(|target| allowed_invocations.contains(&target))
         {
@@ -315,36 +391,18 @@ fn validate_callable_parts(
         )));
     }
 
-    if actual.may_suspend && !requirement.suspends {
+    if may_suspend && !requirement.suspends {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends;`",
             parameter.name
         )));
     }
-    if actual.may_block && !requirement.blocks {
+    if may_block && !requirement.blocks {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may block, but the requirement omits `blocks;`",
             parameter.name
         )));
     }
-
-    if requirement.termination_guarantee.promises_termination() && !actual.terminates {
-        diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: the requirement guarantees termination",
-            parameter.name
-        )));
-    }
-
-    validate_contract_facts(
-        program,
-        label,
-        parameter,
-        requirement,
-        actual.contracts,
-        required_parameters,
-        actual_parameters,
-        diagnostics,
-    );
 }
 
 /// Check an authored callable generic parameter list against a trait
@@ -391,6 +449,7 @@ pub(crate) fn validate_trait_callable_parameter_refinement(
             required,
             required_contract,
             &CallableParts::of_signature(program, actual_contract),
+            actual_contract,
             generic_types,
             &mut bindings,
             &mut binder_bindings,
@@ -499,6 +558,7 @@ fn validate_callable_type_parameters(
                     required,
                     required_contract,
                     &CallableParts::of_signature(program, actual_contract),
+                    actual_contract,
                     generic_types,
                     bindings,
                     binder_bindings,

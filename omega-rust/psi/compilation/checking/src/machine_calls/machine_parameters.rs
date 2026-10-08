@@ -15,6 +15,7 @@ mod nominal_admission;
 mod type_refinement;
 pub(super) use type_refinement::infer_call_type_arguments;
 
+use callable_shape::validate_selected_callable_effects;
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
 pub(crate) use contract_facts::validate_callable_contract_refinement;
@@ -123,6 +124,21 @@ pub struct ValidatedStaticMachineSelections {
     pub requirement_call_specializations: Vec<ValidatedRequirementCallSpecialization>,
 }
 
+/// Invocation-local formation work. Its rows cannot be consumed as admitted
+/// selections until concrete effect obligations have also been discharged.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct FormedStaticMachineSelections {
+    rows: ValidatedStaticMachineSelections,
+    pending_effects: Vec<StaticMachineEffectObligation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticMachineEffectObligation {
+    parameter: SymbolHandle,
+    selected: SymbolHandle,
+    label: String,
+}
+
 fn project_operational_rows(
     operational: &flow_effects::OperationalPlan,
 ) -> (Vec<MachineSuspensionRow>, Vec<MachineBlockingRow>) {
@@ -145,18 +161,11 @@ fn project_operational_rows(
     (suspensions, blockings)
 }
 
-pub(crate) fn validate_static_machine_arguments_with_facts(
+pub(crate) fn form_static_machine_selections(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
-    selections: &mut ValidatedStaticMachineSelections,
-) {
-    let (service_reaches, suspensions, blockings) = {
-        let operational = crate::infer_operational_may(program);
-        let service_reaches = crate::infer_service_reaches(program, &operational);
-        let (suspensions, blockings) = project_operational_rows(&operational);
-        (service_reaches, suspensions, blockings)
-    };
-    let invocations = crate::infer_synchronous_invocations(program);
+) -> FormedStaticMachineSelections {
+    let mut selections = FormedStaticMachineSelections::default();
     let mathematical_expressions = mathematical_occurrences::expression_nodes(program);
     // Every call site resolves its machine/state target through this index;
     // the program is frozen for the duration of the pass so one build covers
@@ -199,17 +208,12 @@ pub(crate) fn validate_static_machine_arguments_with_facts(
             validate_call_selection(
                 program,
                 &index,
-                &suspensions,
-                &blockings,
-                &service_reaches,
-                &invocations,
                 ValidatedNominalMachineUseSite::Expression(handle),
                 target_symbol,
                 target,
                 arguments,
                 diagnostics,
-                &mut selections.nominal_uses,
-                &mut selections.requirement_call_specializations,
+                &mut selections,
             );
         }
     }
@@ -250,21 +254,58 @@ pub(crate) fn validate_static_machine_arguments_with_facts(
                     validate_call_selection(
                         program,
                         &index,
-                        &suspensions,
-                        &blockings,
-                        &service_reaches,
-                        &invocations,
                         ValidatedNominalMachineUseSite::Statement(statement_handle),
                         target_symbol,
                         target,
                         arguments,
                         diagnostics,
-                        &mut selections.nominal_uses,
-                        &mut selections.requirement_call_specializations,
+                        &mut selections,
                     );
                 }
             }
         }
+    }
+    selections
+}
+
+pub(crate) fn admit_static_machine_effects(
+    program: &dyn crate::CheckingInput,
+    operational: &flow_effects::OperationalPlan,
+    formed: FormedStaticMachineSelections,
+) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let service_reaches = crate::infer_service_reaches(program, operational);
+    let invocations = crate::infer_synchronous_invocations(program);
+    let (suspensions, blockings) = project_operational_rows(operational);
+    let index = machine_state_index(program);
+    for obligation in formed.pending_effects {
+        let parameter = program
+            .data_type_parameter_by_symbol(obligation.parameter)
+            .expect("formed selection retains its original binder");
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            unreachable!("formed machine selection has a machine binder")
+        };
+        let requirement = machine_parameter_signature(program, contract);
+        let (machine, state) = machine_and_state(program, &index, obligation.selected)
+            .expect("formed concrete selection retains its callable entry");
+        validate_selected_callable_effects(
+            program,
+            &suspensions,
+            &blockings,
+            &service_reaches,
+            &invocations,
+            &obligation.label,
+            parameter,
+            requirement,
+            machine,
+            state,
+            &mut diagnostics,
+        );
+    }
+    if diagnostics.is_empty() {
+        Ok(formed.rows)
+    } else {
+        Err(diagnostics)
     }
 }
 
@@ -272,10 +313,10 @@ pub fn validate_static_machine_selections_with_facts(
     program: &dyn crate::CheckingInput,
 ) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let mut selections = ValidatedStaticMachineSelections::default();
-    validate_static_machine_arguments_with_facts(program, &mut diagnostics, &mut selections);
+    let selections = form_static_machine_selections(program, &mut diagnostics);
     if diagnostics.is_empty() {
-        Ok(selections)
+        let operational = crate::infer_operational_may(program);
+        admit_static_machine_effects(program, &operational, selections)
     } else {
         Err(diagnostics)
     }
@@ -301,17 +342,12 @@ pub(crate) fn machine_selection_arguments<'call>(
 fn validate_call_selection(
     program: &dyn crate::CheckingInput,
     index: &MachineStateIndex,
-    suspensions: &[MachineSuspensionRow],
-    blockings: &[MachineBlockingRow],
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-    invocations: &flow_effects::InvocationInferencePlan,
     site: ValidatedNominalMachineUseSite,
     target_symbol: SymbolHandle,
     target_name: &str,
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
-    nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
-    specializations: &mut Vec<ValidatedRequirementCallSpecialization>,
+    selections: &mut FormedStaticMachineSelections,
 ) {
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
@@ -451,10 +487,6 @@ fn validate_call_selection(
         validate_selected_callable_shape(
             program,
             index,
-            suspensions,
-            blockings,
-            service_reaches,
-            invocations,
             target_name,
             parameter,
             requirement,
@@ -472,6 +504,15 @@ fn validate_call_selection(
             machine_and_state(program, index, selected.symbol)
                 .map(|(machine, state)| (machine.symbol, state.symbol))
                 .unwrap_or((SymbolHandle::invalid(), selected.symbol));
+        if let Some((machine, _)) = machine_and_state(program, index, selected.symbol) {
+            selections
+                .pending_effects
+                .push(StaticMachineEffectObligation {
+                    parameter: parameter.symbol,
+                    selected: selection_symbol,
+                    label: format!("machine argument `{}` for `{target_name}`", machine.name),
+                });
+        }
         machine_selections.push(ValidatedRequirementCallMachineSelection {
             static_machine_ordinal: u32::try_from(static_machine_ordinal)
                 .expect("static machine argument ordinal overflow"),
@@ -480,17 +521,20 @@ fn validate_call_selection(
             selected: selection_symbol,
         });
         if let Some(selection) = nominal_selection {
-            nominal_uses.push(ValidatedNominalMachineUse {
-                site,
-                registration_operation: target_symbol,
-                static_machine_ordinal: u32::try_from(static_machine_ordinal)
-                    .expect("static machine argument ordinal overflow"),
-                selected_machine: selection.selected_machine,
-                selected_entry: selection.selected_entry,
-                satisfaction_trait: selection.satisfaction_trait,
-                satisfaction_requirement: selection.satisfaction_requirement,
-                canonical_requirement_overload: selection.canonical_requirement_overload,
-            });
+            selections
+                .rows
+                .nominal_uses
+                .push(ValidatedNominalMachineUse {
+                    site,
+                    registration_operation: target_symbol,
+                    static_machine_ordinal: u32::try_from(static_machine_ordinal)
+                        .expect("static machine argument ordinal overflow"),
+                    selected_machine: selection.selected_machine,
+                    selected_entry: selection.selected_entry,
+                    satisfaction_trait: selection.satisfaction_trait,
+                    satisfaction_requirement: selection.satisfaction_requirement,
+                    canonical_requirement_overload: selection.canonical_requirement_overload,
+                });
         }
     }
 
@@ -500,18 +544,20 @@ fn validate_call_selection(
     // `runtime.start<Worker::run>(token)` otherwise loses `T`, `Arguments`,
     // and `Target` before checked call planning can see them.
     if !machine_selections.is_empty() {
-        specializations.push(ValidatedRequirementCallSpecialization {
-            site,
-            registration_operation: target_symbol,
-            type_bindings: bindings
-                .iter()
-                .map(|binding| ValidatedRequirementCallTypeBinding {
-                    parameter: binding.symbol,
-                    actual: binding.actual,
-                })
-                .collect(),
-            machine_selections,
-        });
+        selections.rows.requirement_call_specializations.push(
+            ValidatedRequirementCallSpecialization {
+                site,
+                registration_operation: target_symbol,
+                type_bindings: bindings
+                    .iter()
+                    .map(|binding| ValidatedRequirementCallTypeBinding {
+                        parameter: binding.symbol,
+                        actual: binding.actual,
+                    })
+                    .collect(),
+                machine_selections,
+            },
+        );
     }
 }
 
@@ -558,10 +604,6 @@ pub(crate) fn validate_data_machine_selection(
     validate_selected_callable_shape(
         program,
         &index,
-        &suspensions,
-        &blockings,
-        &service_reaches,
-        &invocations,
         family_name,
         parameter,
         requirement,
@@ -571,6 +613,22 @@ pub(crate) fn validate_data_machine_selection(
         &mut bindings,
         diagnostics,
     );
+    if let Some((machine, state)) = machine_and_state(program, &index, selected_symbol) {
+        let label = format!("machine argument `{}` for `{family_name}`", machine.name);
+        validate_selected_callable_effects(
+            program,
+            &suspensions,
+            &blockings,
+            &service_reaches,
+            &invocations,
+            &label,
+            parameter,
+            requirement,
+            machine,
+            state,
+            diagnostics,
+        );
+    }
 }
 
 fn machine_parameter_contract(

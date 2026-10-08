@@ -83,6 +83,7 @@ pub fn expression_interval(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
     pub static_machine_selections: machine_parameters::ValidatedStaticMachineSelections,
+    formed_static_machine_selections: machine_parameters::FormedStaticMachineSelections,
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     /// Successful immediate receiving judgments, not invariant-window closure.
     pub integer_assignments: Vec<checked_trees::CheckedIntegerAssignmentDecision>,
@@ -277,12 +278,26 @@ fn validate(
     operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
     let mut static_machine_selections =
         machine_parameters::ValidatedStaticMachineSelections::default();
+    let formation_diagnostic_start = diagnostics.len();
+    let mut formed_static_machine_selections =
+        machine_parameters::form_static_machine_selections(program, &mut diagnostics);
+    // A rejected authored application has no well-formed concrete body to
+    // check. Report its source contract instead of derivative clone errors.
+    if diagnostics[formation_diagnostic_start..]
+        .iter()
+        .any(Diagnostic::is_error)
+    {
+        return Err(diagnostics);
+    }
     if effect_admission == EffectAdmission::Complete {
-        machine_parameters::validate_static_machine_arguments_with_facts(
+        match machine_parameters::admit_static_machine_effects(
             program,
-            &mut diagnostics,
-            &mut static_machine_selections,
-        );
+            &conformance_operational,
+            std::mem::take(&mut formed_static_machine_selections),
+        ) {
+            Ok(selections) => static_machine_selections = selections,
+            Err(mut errors) => diagnostics.append(&mut errors),
+        }
         invocations::validate_invocation_contracts(program, &mut diagnostics);
     }
 
@@ -709,6 +724,7 @@ fn validate(
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
             static_machine_selections,
+            formed_static_machine_selections,
             stored_integer_writes,
             integer_assignments,
             boundary_operator_applications,
@@ -754,11 +770,14 @@ pub fn admit_prepared_program_effects(
     if let Err(mut errors) = collect_dynamic_implementation_selections(program) {
         diagnostics.append(&mut errors);
     }
-    machine_parameters::validate_static_machine_arguments_with_facts(
+    match machine_parameters::admit_static_machine_effects(
         program,
-        &mut diagnostics,
-        &mut facts.static_machine_selections,
-    );
+        operational,
+        std::mem::take(&mut facts.formed_static_machine_selections),
+    ) {
+        Ok(selections) => facts.static_machine_selections = selections,
+        Err(mut errors) => diagnostics.append(&mut errors),
+    }
     invocations::validate_invocation_contracts(program, &mut diagnostics);
     for machine in program.machines() {
         validate_machine_trait_conformances(

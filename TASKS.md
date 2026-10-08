@@ -2806,16 +2806,18 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  now judges `validate_generic_machine_contract_entailment` once and
-  `validate_conformance_applications` once before and once after
-  convergence. Each iteration still runs
-  `validate_static_machine_selections_with_facts`, because it derives the
-  selections monomorphization consumes, and `infer_operational_may` inside
-  it. The loop also repeats `bind_selected_operator_calls` (3 + N runs),
+  now derives executable tuples without whole-roster static-machine admission.
+  Erased source applications retain original declaration/operand identities in
+  typed arenas; frozen checking judges callable formation once before bodies
+  and concrete effect ceilings once against the cleanup-complete graph.
+  Generic contract entailment and conformance application admission belong to
+  immutable checking; private compile-time graphs admit once before execution.
+  Remaining: repeated type/const/evidence bound judgments and authored-template
+  effect/commitment inference inside specialization. The loop also repeats
+  `bind_selected_operator_calls` (3 + N runs),
   `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
-  (2) and `land_float_literal_destinations` (2–3). Split selection derivation
-  from its validation so the loop specializes and binds only, and run each
-  remaining pass once after convergence. Coordinate with
+  (2) and `land_float_literal_destinations` (2–3). The loop must specialize
+  and bind only; run each remaining pass once at its required point. Coordinate with
   **TYPED-FROZEN-BEFORE-CHECKING**, which qualifies the immutable boundary after this stage.
   Acceptance: each named pass runs once per check except the per-iteration
   specialize/bind step; the generic-value-call fence and call-contract
@@ -2999,10 +3001,10 @@ of a check the same flow already performed, not the check itself.
   Remaining: coordinate the repeated specialization/rebinding passes with
   **SPECIALIZATION-LOOP-ONCE**, now owned by the preparation stage;
   run each pass once at its required point without losing authored requirement
-  identity or call-contract diagnostics. Retain erased call applications and
-  clone correspondence in typed input, then admit them in immutable checking;
-  specialization already derives executable tuples and never reads its repeated
-  admission table. Keep authored template dependencies separate from instance
+  identity or call-contract diagnostics. Erased applications and clone
+  correspondence now remain typed input; immutable checking admits their
+  source formation and completed effects, without preparation-granted contract
+  exemptions or repeated selection tables. Keep authored template dependencies separate from instance
   effects when completing commitments. Runtime selected-provider choices are
   not a preparation input; source checks every candidate before Omega selection.
 
@@ -3018,9 +3020,9 @@ of a check the same flow already performed, not the check itself.
   Range branches borrow a worker-owned bound lookup; contract evaluation uses
   ordinary mutable recursion stacks; return-body inference carries its capture
   policy explicitly. The whole checking/stage-04 source guard rejects ambient
-  caches and runtime borrow cells. Qualify this working-state cut on the full
-  source corpus and focused native cohort before completing the remaining
-  once-only specialization admission. Do not port runtime borrow checking into
+  caches and runtime borrow cells. Complete the remaining once-only
+  specialization/rebinding work, preserving source and native outcomes.
+  Do not port runtime borrow checking into
   Omega.
 
   Acceptance: the immutable-boundary source guard, full check corpus and focused
