@@ -217,11 +217,9 @@ fn exact_theorem_state<'a>(
     theorem: &SelectedTheoremTelescope,
 ) -> Result<&'a State, RelationPlanError> {
     let mut matches = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == theorem.machine_symbol)
-        .flat_map(|machine| program.machine_states(machine))
-        .filter(|state| state.symbol == theorem.state_symbol);
+        .machine_states_named(theorem.state_symbol)
+        .filter(|(machine, _)| machine.symbol == theorem.machine_symbol)
+        .map(|(_, state)| state);
     let Some(state) = matches.next() else {
         return Err(RelationPlanError::TheoremEntryDoesNotResolveExactly);
     };

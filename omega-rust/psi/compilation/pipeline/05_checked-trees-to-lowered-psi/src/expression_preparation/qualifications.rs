@@ -286,11 +286,7 @@ impl PreparedScalarQualifications {
         checked: &CheckedTrees,
         symbol: SymbolHandle,
     ) -> Result<(Vec<QualifiedScalarType>, QualifiedScalarType), LoweringError> {
-        let mut states = checked
-            .machines()
-            .iter()
-            .flat_map(|machine| checked.machine_states(machine))
-            .filter(|state| state.symbol == symbol);
+        let mut states = checked.machine_states_named(symbol).map(|(_, state)| state);
         let state = states.next().ok_or(LoweringError::Unsupported(
             "scalar signature lost its state",
         ))?;

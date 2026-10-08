@@ -60,11 +60,8 @@ fn contract_call_target_parameter_sets<'a>(
     target: SymbolHandle,
 ) -> Vec<&'a [typed_trees::signature::StateParameter]> {
     let mut candidates = compilation
-        .machines()
-        .iter()
-        .flat_map(|machine| compilation.machine_states(machine))
-        .filter(|state| state.symbol == target)
-        .map(|state| compilation.state_parameters(state))
+        .machine_states_named(target)
+        .map(|(_, state)| compilation.state_parameters(state))
         .collect::<Vec<_>>();
     if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
         candidates.push(compilation.state_signature_parameters(signature));
