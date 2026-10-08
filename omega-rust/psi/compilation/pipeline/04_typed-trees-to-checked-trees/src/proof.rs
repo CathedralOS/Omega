@@ -39,9 +39,9 @@ use crate::proof::proposition_vocabulary::{
 };
 use contracts::{
     append_inherited_trait_contract_facts, append_machine_contract_facts,
-    append_operator_declaration_contract_facts, append_state_contract_facts,
-    append_state_signature_contract_facts, build_contract_call_facts, build_contract_exit_facts,
-    build_contract_operator_use_facts, estimated_contract_fact_capacity,
+    append_operator_declaration_contract_facts, append_parameter_evidence_contract_facts,
+    append_state_contract_facts, append_state_signature_contract_facts, build_contract_call_facts,
+    build_contract_exit_facts, build_contract_operator_use_facts, estimated_contract_fact_capacity,
 };
 use obligations::lower_proof_obligation;
 
@@ -148,71 +148,43 @@ pub(crate) fn build_proof_facts_with_operators(
             &mut inherited_contract_scopes,
             &evidence_terms,
         );
-        for (owner_symbol, _, contract) in
-            machine_parameter_evidence_signatures(program, program.machine_type_parameters(machine))
-        {
-            append_state_signature_contract_facts(
-                program,
-                owner_symbol,
-                std::slice::from_ref(contract),
-                &mut contract_facts,
-                &mut evidence_terms,
-            );
-        }
+        append_parameter_evidence_contract_facts(
+            program,
+            program.machine_type_parameters(machine),
+            &mut contract_facts,
+            &mut evidence_terms,
+        );
     }
     for definition in program.data_definitions() {
-        for (owner_symbol, _, contract) in
-            machine_parameter_evidence_signatures(program, program.data_type_parameters(definition))
-        {
-            append_state_signature_contract_facts(
-                program,
-                owner_symbol,
-                std::slice::from_ref(contract),
-                &mut contract_facts,
-                &mut evidence_terms,
-            );
-        }
+        append_parameter_evidence_contract_facts(
+            program,
+            program.data_type_parameters(definition),
+            &mut contract_facts,
+            &mut evidence_terms,
+        );
     }
     for definition in program.domain_definitions() {
-        for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(
+        append_parameter_evidence_contract_facts(
             program,
             program.domain_type_parameters(definition),
-        ) {
-            append_state_signature_contract_facts(
-                program,
-                owner_symbol,
-                std::slice::from_ref(contract),
-                &mut contract_facts,
-                &mut evidence_terms,
-            );
-        }
+            &mut contract_facts,
+            &mut evidence_terms,
+        );
     }
     for trait_definition in program.traits() {
-        for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(
+        append_parameter_evidence_contract_facts(
             program,
             program.trait_type_parameters(trait_definition),
-        ) {
-            append_state_signature_contract_facts(
+            &mut contract_facts,
+            &mut evidence_terms,
+        );
+        for requirement in program.trait_machine_signatures(trait_definition) {
+            append_parameter_evidence_contract_facts(
                 program,
-                owner_symbol,
-                std::slice::from_ref(contract),
+                program.state_signature_type_parameters(requirement),
                 &mut contract_facts,
                 &mut evidence_terms,
             );
-        }
-        for requirement in program.trait_machine_signatures(trait_definition) {
-            for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(
-                program,
-                program.state_signature_type_parameters(requirement),
-            ) {
-                append_state_signature_contract_facts(
-                    program,
-                    owner_symbol,
-                    std::slice::from_ref(contract),
-                    &mut contract_facts,
-                    &mut evidence_terms,
-                );
-            }
         }
         append_state_signature_contract_facts(
             program,

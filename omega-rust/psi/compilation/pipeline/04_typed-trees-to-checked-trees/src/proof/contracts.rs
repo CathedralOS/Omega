@@ -268,6 +268,25 @@ pub(crate) fn append_state_contract_facts(
     }
 }
 
+/// Append the contract facts owed by every evidence signature reachable
+/// from `parameters` through machine-parameter evidence.
+pub(crate) fn append_parameter_evidence_contract_facts(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[typed_trees::data::TypeParameter],
+    contract_facts: &mut arena::Arena<ContractProofFact>,
+    evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
+) {
+    for (owner_symbol, _, contract) in machine_parameter_evidence_signatures(program, parameters) {
+        append_state_signature_contract_facts(
+            program,
+            owner_symbol,
+            std::slice::from_ref(contract),
+            contract_facts,
+            evidence_terms,
+        );
+    }
+}
+
 pub(crate) fn append_state_signature_contract_facts(
     program: &dyn ::validation::CheckingInput,
     owner_symbol: SymbolHandle,
