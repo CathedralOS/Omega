@@ -1942,10 +1942,7 @@ fn runtime_projection_with_leaf_shape(
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     if !path.is_empty()
         && matches!(
-            declarations
-                .iter()
-                .find(|row| row.id == root)
-                .map(|row| &row.shape),
+            find_structural_type(declarations, root).map(|row| &row.shape),
             Some(StructuralTypeShape::ByteSequence(_))
         )
     {
@@ -2584,10 +2581,7 @@ pub(crate) fn typed_collection_layout_matches(
 ) -> bool {
     let Some(StructuralTypeShape::FixedArray {
         element: source, ..
-    }) = declarations
-        .iter()
-        .find(|row| row.id == collection)
-        .map(|row| &row.shape)
+    }) = find_structural_type(declarations, collection).map(|row| &row.shape)
     else {
         return true;
     };

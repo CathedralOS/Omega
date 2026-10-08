@@ -329,7 +329,7 @@ impl StorageRecipes<'_> {
             )
             .ok()?;
             let field = if let Some(case) = case {
-                let case_position = cases.iter().position(|row| row.id == case)?;
+                let case_position = terminal_psi::structural_case_position(cases, case)?;
                 layout.cases.get(case_position)?.fields.get(position)?
             } else {
                 layout.common_fields.get(position)?
