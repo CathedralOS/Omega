@@ -48,7 +48,8 @@ impl Denotations<'_> {
             && let ExpressionNode::Name(path) = table.expression(right)
             && path.symbol == path.head_symbol
             && table.name_path_members(path.members).len() == 1
-            && let Some(position) = self.parameters.iter().position(|p| p.symbol == path.symbol)
+            && let Some(position) =
+                typed_trees::signature::state_parameter_position(self.parameters, path.symbol)
         {
             return self
                 .arguments
@@ -64,7 +65,8 @@ impl Denotations<'_> {
         if formal
             && let Some(mut required) = crate::flow::projected_leaf_place(self.program, right)
             && let facts::PlaceRoot::Symbol(root) = required.root
-            && let Some(position) = self.parameters.iter().position(|p| p.symbol == root)
+            && let Some(position) =
+                typed_trees::signature::state_parameter_position(self.parameters, root)
             && let Some(actual) = self.arguments.get(position)
             && let Some(mut actual) = crate::flow::projected_leaf_place(self.program, *actual)
             && let Some(observed) = crate::flow::projected_leaf_place(self.program, left)
