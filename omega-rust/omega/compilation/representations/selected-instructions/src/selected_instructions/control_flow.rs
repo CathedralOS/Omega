@@ -35,6 +35,11 @@ impl SelectedFunction {
         self.blocks.iter().flat_map(|block| &block.instructions)
     }
 
+    /// The block keyed `block`, mutably, when the function declares it.
+    pub fn block_mut(&mut self, block: SelectedBlockId) -> Option<&mut SelectedBlock> {
+        self.blocks.iter_mut().find(|row| row.id == block)
+    }
+
     /// Physical entry liveness, after independent source/ABI replay. A hidden
     /// result destination is an ABI input but never a semantic parameter.
     pub fn is_entry_register(&self, register: &VirtualRegister) -> bool {

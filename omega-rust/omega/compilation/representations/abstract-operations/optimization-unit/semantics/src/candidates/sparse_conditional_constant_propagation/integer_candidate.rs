@@ -128,9 +128,7 @@ pub fn validate_integer_evaluation_candidate(
         .find(|function| function.machine == patch.location.machine)
         .expect("candidate source function exists");
     let block = function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("candidate source block exists");
     let node = &mut block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
     node.operation = abstract_operations::AbstractOperation::IntegerConstant {

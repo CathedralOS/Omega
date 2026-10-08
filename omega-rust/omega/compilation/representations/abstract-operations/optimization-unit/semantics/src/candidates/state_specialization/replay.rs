@@ -234,8 +234,7 @@ fn plan_dispatch(
         if !resolved.structural_bindings.is_empty() || !resolved.cleanup_actions.is_empty() {
             continue;
         }
-        let Some(resolved_block) = function.block(resolved.target)
-        else {
+        let Some(resolved_block) = function.block(resolved.target) else {
             continue;
         };
         if !resolved_block.structural_parameters.is_empty() {
@@ -382,7 +381,8 @@ fn fused_node(
                 .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
         )
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let dispatch_block = function.block(dispatch)
+    let dispatch_block = function
+        .block(dispatch)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     // The dispatch terminator may trail a pure scalar-computation prefix —
     // an integer state argument's `parameter CMP literal` — so the arm edges
@@ -749,9 +749,7 @@ pub(super) fn validate(
         let index = usize::try_from(location.node)
             .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
         let Some(slot) = output_function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == location.block)
+            .block_mut(location.block)
             .and_then(|block| block.nodes.get_mut(index))
         else {
             return Err(OptimizationUnitValidationError::CandidateLocationMissing);

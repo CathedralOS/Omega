@@ -26,9 +26,7 @@ pub(crate) fn normalize_redundant_parameter_observation_input(
         .find(|function| function.machine == patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let target = function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.block)
+        .block_mut(patch.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let position = usize::try_from(patch.position).expect("u32 fits usize");
     let removed = target
@@ -319,8 +317,7 @@ pub(crate) fn unchanged_outside_redundant_parameter_region(
         else {
             return false;
         };
-        let Some(output_block) = output_function.block(*block_id)
-        else {
+        let Some(output_block) = output_function.block(*block_id) else {
             return false;
         };
         *expected_block = output_block.clone();

@@ -40,7 +40,8 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
     }
 
-    let predecessor = function.block(patch.predecessor.block)
+    let predecessor = function
+        .block(patch.predecessor.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let predecessor_index = usize::try_from(patch.predecessor.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -67,7 +68,8 @@ pub(super) fn validate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let target = function.block(patch.target)
+    let target = function
+        .block(patch.target)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [terminal] = target.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -177,9 +179,7 @@ pub(super) fn validate(
         .find(|function| function.machine == patch.predecessor.machine)
         .expect("candidate function exists");
     let output_predecessor = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.predecessor.block)
+        .block_mut(patch.predecessor.block)
         .expect("candidate predecessor exists");
     output_predecessor.nodes[predecessor_index] = clone;
     let output_function =

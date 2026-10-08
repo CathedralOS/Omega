@@ -261,9 +261,7 @@ pub(crate) fn validate_proof_certified_same_operand_integer_constant_candidate(
         .find(|function| function.machine == patch.location.machine)
         .expect("candidate source function exists");
     let output_block = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("candidate source block exists");
     let output_node = &mut output_block.nodes[patch.location.node as usize];
     output_node.operation = O::IntegerConstant {

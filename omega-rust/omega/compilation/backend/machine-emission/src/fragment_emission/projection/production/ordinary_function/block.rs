@@ -17,9 +17,7 @@ pub(super) fn emit(
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     let selected_block = selected
-        .blocks
-        .iter()
-        .find(|block| block.id == resolved.block)
+        .block(resolved.block)
         .ok_or(ResolvedFragmentEmissionError::MissingBlock(resolved.block))?;
     let mut instructions = Vec::with_capacity(resolved.instructions.len());
     for row in &resolved.instructions {

@@ -40,15 +40,13 @@ pub(crate) fn realize(
                 node: location.node,
             });
         }
-        let block = function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == location.block)
-            .ok_or(CountdownInvariantConstantRelocationError::MissingNode {
+        let block = function.block_mut(location.block).ok_or(
+            CountdownInvariantConstantRelocationError::MissingNode {
                 machine,
                 block: location.block,
                 node: location.node,
-            })?;
+            },
+        )?;
         let index = usize::try_from(location.node)
             .map_err(|_| CountdownInvariantConstantRelocationError::CoordinateOverflow)?;
         let node = block.nodes.get(index).filter(|node| {
@@ -83,15 +81,13 @@ pub(crate) fn realize(
         .ok_or(CountdownInvariantConstantRelocationError::CandidateMismatch)?
         .destination
         .before;
-    let preheader = function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == destination.block)
-        .ok_or(CountdownInvariantConstantRelocationError::MissingNode {
+    let preheader = function.block_mut(destination.block).ok_or(
+        CountdownInvariantConstantRelocationError::MissingNode {
             machine,
             block: destination.block,
             node: destination.node,
-        })?;
+        },
+    )?;
     let jump = preheader
         .nodes
         .len()

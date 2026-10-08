@@ -9,9 +9,7 @@ use crate::unit_validation::derived_metadata::{
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
-use optimization_unit::{
-    NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-};
+use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -43,7 +41,8 @@ pub(super) fn validate(
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    let empty_block = function.block(patch.empty.block)
+    let empty_block = function
+        .block(patch.empty.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -168,9 +167,7 @@ pub(super) fn validate(
         .find(|function| function.machine == patch.predecessor.machine)
         .expect("candidate function exists");
     let output_predecessor = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.predecessor.block)
+        .block_mut(patch.predecessor.block)
         .and_then(|block| {
             block
                 .nodes
@@ -236,8 +233,7 @@ pub(super) fn validate(
     for input_block in &function.blocks {
         if input_block.id != patch.empty.block
             && !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id)
-                != Some(input_block)
+            && output_function.block(input_block.id) != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
         }

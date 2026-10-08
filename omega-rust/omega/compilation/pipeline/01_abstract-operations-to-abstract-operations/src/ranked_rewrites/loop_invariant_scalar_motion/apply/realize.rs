@@ -43,15 +43,13 @@ pub(crate) fn realize(
                 node: location.node,
             });
         }
-        let block = function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == location.block)
-            .ok_or(LoopInvariantScalarMotionError::MissingNode {
+        let block = function.block_mut(location.block).ok_or(
+            LoopInvariantScalarMotionError::MissingNode {
                 machine,
                 block: location.block,
                 node: location.node,
-            })?;
+            },
+        )?;
         let index = usize::try_from(location.node)
             .map_err(|_| LoopInvariantScalarMotionError::CoordinateOverflow)?;
         let node = block
@@ -180,15 +178,13 @@ pub(crate) fn realize(
     else {
         return Err(LoopInvariantScalarMotionError::CandidateMismatch);
     };
-    let preheader = function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == preheader_source)
-        .ok_or(LoopInvariantScalarMotionError::MissingNode {
+    let preheader = function.block_mut(preheader_source).ok_or(
+        LoopInvariantScalarMotionError::MissingNode {
             machine,
             block: preheader_source,
             node: 0,
-        })?;
+        },
+    )?;
     let insertion = preheader
         .nodes
         .len()
@@ -253,15 +249,14 @@ pub(crate) fn realize(
             component.members.iter().copied().collect();
         let structural_places = function.structural_places.clone();
         for member in &component.members {
-            let block = function
-                .blocks
-                .iter_mut()
-                .find(|block| block.id == *member)
-                .ok_or(LoopInvariantScalarMotionError::MissingNode {
-                    machine,
-                    block: *member,
-                    node: 0,
-                })?;
+            let block =
+                function
+                    .block_mut(*member)
+                    .ok_or(LoopInvariantScalarMotionError::MissingNode {
+                        machine,
+                        block: *member,
+                        node: 0,
+                    })?;
             for node in &mut block.nodes {
                 crate::validation::relocation_rewrites::rewrite_scalar_case_custody(
                     &structural_places,

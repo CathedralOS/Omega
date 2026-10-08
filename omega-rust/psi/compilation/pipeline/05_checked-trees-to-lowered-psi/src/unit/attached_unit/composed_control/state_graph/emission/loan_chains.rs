@@ -755,9 +755,7 @@ fn header_parameters(
     header: BlockId,
 ) -> Result<Vec<(PlaceId, u32)>, LoweringError> {
     Ok(machine
-        .blocks
-        .iter()
-        .find(|block| block.id == header)
+        .block(&header)
         .ok_or(LoweringError::Unsupported(
             "Unit graph state loan chain member block is absent",
         ))?

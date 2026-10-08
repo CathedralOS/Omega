@@ -178,11 +178,7 @@ pub(super) fn propagate(
         .iter()
         .filter(|invariant| invariant.machine == machine.id)
     {
-        let Some(header) = machine
-            .blocks
-            .iter()
-            .find(|block| block.id == invariant.header)
-        else {
+        let Some(header) = machine.block(&invariant.header) else {
             continue;
         };
         let telescope = machine

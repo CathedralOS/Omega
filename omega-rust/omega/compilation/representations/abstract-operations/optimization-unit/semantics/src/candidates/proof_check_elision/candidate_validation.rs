@@ -207,7 +207,8 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    let literal = function.block(literal_block)
+    let literal = function
+        .block(literal_block)
         .and_then(|block| {
             usize::try_from(literal_node)
                 .ok()
@@ -286,9 +287,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         .find(|function| function.machine == patch.location.machine)
         .expect("candidate function exists");
     let output_block = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("candidate block exists");
     let removed = output_block.nodes.remove(node_index);
     let receiver = output_block

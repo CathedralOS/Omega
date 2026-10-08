@@ -1,6 +1,7 @@
 //! Independent constant-conditional replay mechanics.
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
+use crate::candidates::{candidate_block, candidate_function};
 use crate::unit_validation::derived_metadata::reconstruct_declared_places;
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::unit_validation::services::refresh_root_service_reach;
@@ -15,7 +16,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::BTreeSet;
-use crate::candidates::{candidate_block, candidate_function};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -124,9 +124,7 @@ pub(super) fn validate(
         .find(|function| function.machine == patch.location.machine)
         .expect("candidate function exists");
     let output_block = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("candidate block exists");
     let output_node =
         &mut output_block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
@@ -212,7 +210,8 @@ pub(crate) fn reconstruct_conditional_fold_accounting(
     rejected_edge: EdgeId,
     reachable: &BTreeSet<BlockId>,
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let decision_node = function.block(decision.block)?
+    let decision_node = function
+        .block(decision.block)?
         .nodes
         .get(usize::try_from(decision.node).ok()?)?;
     let selected = decision_node

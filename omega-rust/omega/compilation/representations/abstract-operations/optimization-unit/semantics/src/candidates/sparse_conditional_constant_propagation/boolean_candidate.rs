@@ -2,6 +2,7 @@
 use crate::candidates::sparse_conditional_constant_propagation::{
     boolean_evaluation, observation_at, same_closed_scalar_observation,
 };
+use crate::candidates::{candidate_block, candidate_function};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
@@ -16,7 +17,6 @@ use optimization_unit::{
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::ScalarType;
-use crate::candidates::{candidate_block, candidate_function};
 
 pub fn validate_boolean_evaluation_candidate(
     input: &PsiOptimizationUnit,
@@ -100,9 +100,7 @@ pub fn validate_boolean_evaluation_candidate(
         .find(|function| function.machine == patch.location.machine)
         .expect("candidate source function exists");
     let block = function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("candidate source block exists");
     let node = &mut block.nodes[usize::try_from(patch.location.node).expect("u32 fits usize")];
     node.operation = abstract_operations::AbstractOperation::BooleanConstant {

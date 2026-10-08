@@ -1,6 +1,7 @@
 //! Independently apply an admitted total scalar identity.
 use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
+use crate::candidates::set_node_effect_link;
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
 };
@@ -12,7 +13,6 @@ use optimization_unit::{
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::BlockId;
-use crate::candidates::set_node_effect_link;
 
 pub(super) fn independently_apply_total_scalar_identity(
     input: &PsiOptimizationUnit,
@@ -30,9 +30,7 @@ pub(super) fn independently_apply_total_scalar_identity(
         .find(|function| function.machine == patch.location.machine)
         .expect("validated candidate function exists");
     let output_block = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("validated candidate block exists");
     let removed = output_block.nodes.remove(node_index);
     let receiver = output_block
@@ -75,8 +73,7 @@ pub(super) fn independently_apply_total_scalar_identity(
         .expect("validated output function exists");
     for input_block in &input_function.blocks {
         if !affected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id)
-                != Some(input_block)
+            && output_function.block(input_block.id) != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
         }

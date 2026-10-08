@@ -10,9 +10,7 @@ use crate::unit_validation::derived_metadata::{
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
-use optimization_unit::{
-    NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-};
+use optimization_unit::{NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -41,7 +39,8 @@ pub(super) fn validate(
     if function.entry == patch.empty.block {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);
     }
-    let empty_block = function.block(patch.empty.block)
+    let empty_block = function
+        .block(patch.empty.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let [empty_node] = empty_block.nodes.as_slice() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -118,7 +117,8 @@ pub(super) fn validate(
     if incoming.is_empty()
         || (incoming.len() == 1
             && matches!(
-                function.block(incoming[0].0.block)
+                function
+                    .block(incoming[0].0.block)
                     .and_then(|block| block.nodes.get(usize::try_from(incoming[0].0.node).ok()?))
                     .map(|node| &node.operation),
                 Some(O::Jump { .. })
@@ -152,9 +152,7 @@ pub(super) fn validate(
         .expect("candidate function exists");
     for (location, incoming_edge, composed) in &incoming {
         let node = output_function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == location.block)
+            .block_mut(location.block)
             .and_then(|block| block.nodes.get_mut(usize::try_from(location.node).ok()?))
             .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
         if !rewrite_successor_operation(&mut node.operation, *incoming_edge, patch.target, composed)
@@ -196,8 +194,7 @@ pub(super) fn validate(
     for input_block in &function.blocks {
         if input_block.id != patch.empty.block
             && !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id)
-                != Some(input_block)
+            && output_function.block(input_block.id) != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
         }

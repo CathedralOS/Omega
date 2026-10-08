@@ -27,9 +27,8 @@ use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::unit_validation::derived_metadata::{
-    reconstruct_declared_places,
-};
+use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
+use crate::unit_validation::derived_metadata::reconstruct_declared_places;
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
@@ -43,7 +42,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
 /// `StructuralScalarFieldRead` observing the evidence's place whose stored
@@ -227,7 +225,8 @@ fn folded_node(
 ) -> Result<OptimizationNode, OptimizationUnitValidationError> {
     let index = usize::try_from(row.site.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let node = function.block(row.site.block)
+    let node = function
+        .block(row.site.block)
         .and_then(|block| block.nodes.get(index))
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let O::StructuralScalarFieldRead {
@@ -467,9 +466,7 @@ pub(super) fn validate(
         let index = usize::try_from(location.node)
             .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
         let Some(slot) = output_function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == location.block)
+            .block_mut(location.block)
             .and_then(|block| block.nodes.get_mut(index))
         else {
             return Err(OptimizationUnitValidationError::CandidateLocationMissing);
@@ -504,9 +501,7 @@ pub(super) fn validate(
     }
     for (block_id, sites) in removals {
         let block = output_function
-            .blocks
-            .iter_mut()
-            .find(|block| block.id == block_id)
+            .block_mut(block_id)
             .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
         for site in sites.iter().rev() {
             let index = usize::try_from(*site)

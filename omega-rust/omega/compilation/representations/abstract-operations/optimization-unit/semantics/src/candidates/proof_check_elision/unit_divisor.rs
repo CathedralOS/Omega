@@ -206,7 +206,8 @@ pub(crate) fn validate_proof_certified_integer_remainder_by_unit_candidate(
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    let literal = function.block(literal_block)
+    let literal = function
+        .block(literal_block)
         .and_then(|block| {
             usize::try_from(literal_node)
                 .ok()
@@ -302,9 +303,7 @@ pub(crate) fn validate_proof_certified_integer_remainder_by_unit_candidate(
         .find(|function| function.machine == patch.location.machine)
         .expect("candidate source function exists");
     let output_block = output_function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.location.block)
+        .block_mut(patch.location.block)
         .expect("candidate source block exists");
     let output_node = &mut output_block.nodes[patch.location.node as usize];
     output_node.operation = O::IntegerConstant {

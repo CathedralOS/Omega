@@ -166,9 +166,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
         .find(|function| function.machine == patch.machine)
         .expect("candidate function exists");
     let block = function
-        .blocks
-        .iter_mut()
-        .find(|block| block.id == patch.block)
+        .block_mut(patch.block)
         .expect("candidate block exists");
     block.parameters.remove(position);
     for (new_position, parameter) in block.parameters.iter_mut().enumerate().skip(position) {

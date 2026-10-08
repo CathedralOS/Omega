@@ -71,9 +71,7 @@ pub fn validate_global_value_numbering(
         )> = Vec::new();
         for block_id in terminal_semantics::control_graph::reverse_postorder(old) {
             let old_block = old
-                .blocks
-                .iter()
-                .find(|block| block.id == block_id)
+                .block(&block_id)
                 .ok_or(GlobalValueNumberingRewriteError::ChangedProgramStructure)?;
             for operation in &old_block.operations {
                 let eligible = operation.static_reach_binding.is_none()

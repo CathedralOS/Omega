@@ -210,6 +210,11 @@ impl PsiOptimizationFunction {
         self.blocks.iter().find(|row| row.id == block)
     }
 
+    /// The block keyed `block`, mutably, when the function declares it.
+    pub fn block_mut(&mut self, block: BlockId) -> Option<&mut OptimizationBlock> {
+        self.blocks.iter_mut().find(|row| row.id == block)
+    }
+
     /// Every block's nodes, in block order.
     pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
         self.blocks.iter().flat_map(|block| &block.nodes)
