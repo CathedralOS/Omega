@@ -182,9 +182,7 @@ impl ExitScalars<'_, '_> {
                     .statement_table
                     .indexed_statements(state.statement_nodes)
                     .filter_map(|(statement, node)| {
-                        let typed_trees::statement::StatementNode::LocalData(local) = node else {
-                            return None;
-                        };
+                        let local = node.as_local_data()?;
                         super::is_scalar_roster_local(self.program, local)
                             .then_some((statement, local))
                     })

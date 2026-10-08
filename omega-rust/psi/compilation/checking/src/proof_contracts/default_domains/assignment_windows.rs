@@ -515,9 +515,7 @@ fn case_fact_spans_mentioning(
         .data_members(place.definition)
         .iter()
         .filter_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             if variant.where_facts.is_empty()
                 || !fact_span_mentions_field(program, variant.where_facts, field_name)
                 || place

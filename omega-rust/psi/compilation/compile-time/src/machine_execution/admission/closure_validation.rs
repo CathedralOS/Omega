@@ -116,9 +116,7 @@ fn each_closure_machine(
             continue;
         }
         visited.push(machine_symbol);
-        let Some(found) = program
-            .machine(machine_symbol)
-        else {
+        let Some(found) = program.machine(machine_symbol) else {
             continue;
         };
         if machine(found).is_some() {
@@ -178,8 +176,7 @@ fn is_parameter_domain_premise(
             {
                 return false;
             }
-            let Some(path) = program.expression_table.name_path_node(membership.value)
-            else {
+            let Some(path) = program.expression_table.name_path_node(membership.value) else {
                 return false;
             };
             let Some(parameter) = program
@@ -428,7 +425,7 @@ fn machine_linear_carrier_violation(
             return Some(violation);
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let Some(local) = statement.as_local_data() else {
                 continue;
             };
             if let Some(violation) = describe(

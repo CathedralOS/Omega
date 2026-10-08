@@ -42,10 +42,10 @@ fn proof_nat_type(
                     }
                     && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
                         .is_some_and(|data| {
-                            use typed_trees::data::DataMember;
+                            
                             let members = program.data_members(data);
                             members.len() == 2 && members.iter().all(|member| {
-                                let DataMember::Variant(variant) = member else { return false; };
+                                let Some(variant) = member.as_variant() else { return false; };
                                 let fields = program.data_payload_fields(variant);
                                 match variant.name.as_str() {
                                     "Zero" => fields.is_empty(),

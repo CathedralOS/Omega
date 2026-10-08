@@ -2,7 +2,6 @@
 //! (`checked_trees::StateLocalFacts`).
 
 use checked_trees::{CheckedStateLocal, StateLocalFacts};
-use typed_trees::statement::StatementNode;
 
 pub(crate) fn record_state_locals(program: &dyn validation::CheckingInput) -> StateLocalFacts {
     let mut states = Vec::new();
@@ -10,9 +9,10 @@ pub(crate) fn record_state_locals(program: &dyn validation::CheckingInput) -> St
         for state in program.machine_states(machine) {
             let mut locals = Vec::new();
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
-                let StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 let Ok(statement_index) = u32::try_from(statement_index) else {

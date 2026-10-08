@@ -11,7 +11,7 @@ pub(super) fn validate(
     outputs: &mut StatementOutputs<'_>,
     statement: &StatementNode,
 ) {
-    let StatementNode::AssemblyFact(fact) = statement else {
+    let Some(fact) = statement.as_assembly_fact() else {
         unreachable!("dispatched assembly_fact_statements")
     };
     let StatementScope {

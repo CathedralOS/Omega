@@ -102,7 +102,7 @@ pub(crate) fn infer_return_interval(
         return_expressions.push(*expression);
     }
     for statement in statements {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             continue;
         };
         for target in [transition.target, transition.continuation] {

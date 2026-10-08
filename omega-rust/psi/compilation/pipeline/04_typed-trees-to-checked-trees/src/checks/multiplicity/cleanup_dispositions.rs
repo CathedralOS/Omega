@@ -31,7 +31,7 @@ impl RemainingCustody {
         program: &dyn ::validation::CheckingInput,
         statement: &typed_trees::statement::StatementNode,
     ) {
-        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             return;
         };
         if local.initial_value.is_valid()

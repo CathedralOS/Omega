@@ -5,7 +5,7 @@
 //! fixpoint, walk statements, or emit diagnostics.
 
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::TransitionTargetNode;
 
 /// One place's transported field valuation (`None` value = known-unknown)
 /// and its transported ACTIVE CASE (`None` = unknown or case-free). The case
@@ -66,7 +66,7 @@ pub(super) fn state_edges(
     let mut edges = Vec::new();
     for (from, state) in states.iter().enumerate() {
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             for handle in [transition.target, transition.continuation] {

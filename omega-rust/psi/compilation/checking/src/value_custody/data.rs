@@ -260,8 +260,7 @@ fn type_requires_establishment_inner(
             let definition = if symbol.is_valid() {
                 crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
             } else {
-                program
-                    .data_definition_by_name_str(name.as_str())
+                program.data_definition_by_name_str(name.as_str())
             };
             definition.is_some_and(|definition| {
                 data_requires_establishment_inner(program, definition, index)
@@ -398,7 +397,7 @@ fn validate_data_shape(
                 return;
             }
             for member in data_members {
-                let DataMember::Field(field) = member else {
+                let Some(field) = member.as_field() else {
                     continue;
                 };
                 // Erased common bindings have no runtime zero-initialization

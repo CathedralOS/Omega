@@ -621,7 +621,7 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<()> {
         let program = self.program;
         for member in program.data_members(data) {
-            let DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 continue;
             };
             let name = field.name.as_str().to_owned();

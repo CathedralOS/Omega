@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode,
-    Judgment, Machine, Polynomial, RESULT_BINDER, StatementNode, TransitionGuardNode,
-    TransitionTargetNode, is_arm_pattern_marker,
+    Judgment, Machine, Polynomial, RESULT_BINDER, TransitionGuardNode, TransitionTargetNode,
+    is_arm_pattern_marker,
 };
 
 /// One recognized transition arm of an inductive machine body.
@@ -49,7 +49,7 @@ pub(super) fn inductive_transition_entailment(
         if is_arm_pattern_marker(statement) {
             continue; // exhaustiveness carrier, not shape
         }
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             return; // assignments / locals / calls: out of shape, stand down
         };
         if transition.continuation.is_valid() {

@@ -882,7 +882,7 @@ fn for_each_record_field_path(
         };
         visiting.push(owner);
         for member in program.data_members(declaration) {
-            let DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 continue;
             };
             let (record, descend_into) = step(program, field);

@@ -230,8 +230,8 @@ fn container_member_type_position(
             let Some(trait_definition) = program.trait_definition_by_symbol(grandparent) else {
                 return ContainerOutcome::Unmapped;
             };
-            let Some(signature) = program
-                .trait_machine_signature_by_symbol(trait_definition, parent)
+            let Some(signature) =
+                program.trait_machine_signature_by_symbol(trait_definition, parent)
             else {
                 return ContainerOutcome::Unmapped;
             };
@@ -384,7 +384,7 @@ fn whole_program_member_type_position(
                 }
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::LocalData(local_data) = statement
+                if let Some(local_data) = statement.as_local_data()
                     && local_data.symbol == symbol
                 {
                     return Some(MemberPosition::Reference(local_data.type_reference));
@@ -431,9 +431,7 @@ fn whole_program_member_type_position(
                     return Some(MemberPosition::Reference(field.type_reference));
                 }
                 typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program
-                        .data_payload_field_by_symbol(variant, symbol)
-                    {
+                    if let Some(field) = program.data_payload_field_by_symbol(variant, symbol) {
                         return Some(MemberPosition::Reference(field.type_reference));
                     }
                 }

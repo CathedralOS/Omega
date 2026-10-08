@@ -456,9 +456,7 @@ fn realize_data_instance(
     let template_members = typed.data_members(&template).to_vec();
     let mut member_types = Vec::with_capacity(template_members.len());
     for member in &template_members {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         let type_reference = substitute_member_type(typed, field.type_reference, &bindings)?;
         member_types.push((field.clone(), type_reference));
     }
@@ -939,9 +937,7 @@ fn generic_type_parameters(
     if let Some(machine) = typed.machine(base_symbol) {
         return Some(typed.machine_type_parameters(machine));
     }
-    if let Some(trait_definition) = typed
-        .trait_definition_by_symbol(base_symbol)
-    {
+    if let Some(trait_definition) = typed.trait_definition_by_symbol(base_symbol) {
         return Some(typed.trait_type_parameters(trait_definition));
     }
     None

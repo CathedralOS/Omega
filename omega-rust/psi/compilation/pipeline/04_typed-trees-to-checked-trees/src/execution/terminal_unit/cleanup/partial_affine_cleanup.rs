@@ -5,9 +5,8 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::{
     BTreeMap, CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, PermissionEventKind, ScalarCalleeClosure,
-    control,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan, PermissionEventKind,
+    ScalarCalleeClosure, control,
 };
 
 pub(crate) fn build_partial_affine_unit_cleanup_machine(
@@ -66,4 +65,3 @@ pub(crate) fn partial_affine_residuals(
         .collect::<Vec<_>>();
     residuals::reconstruct(types, source, root_type, &borrowed, usize::MAX)
 }
-

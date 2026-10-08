@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 /// DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
 /// result the caller does not need while keeping the callee's observable work.
@@ -28,7 +27,7 @@ pub(super) fn validate_pure_discards(
         }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 if !call.discards_result {
@@ -142,8 +141,8 @@ fn resolve_discard_callee(
     }
 
     for trait_definition in program.traits() {
-        if let Some(signature) = program
-            .trait_machine_signature_by_symbol(trait_definition, target_symbol)
+        if let Some(signature) =
+            program.trait_machine_signature_by_symbol(trait_definition, target_symbol)
         {
             return Some(signature_discard_callee(
                 program,

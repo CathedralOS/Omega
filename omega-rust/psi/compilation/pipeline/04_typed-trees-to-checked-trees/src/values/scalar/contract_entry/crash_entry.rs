@@ -724,9 +724,7 @@ impl<'program> Reader<'program> {
                 .data_members(owner)
                 .iter()
                 .filter_map(|member_kind| {
-                    let DataMember::Field(field) = member_kind else {
-                        return None;
-                    };
+                    let field = member_kind.as_field()?;
                     (field.symbol == member.member_symbol).then_some(field)
                 });
             let field = fields.next()?;

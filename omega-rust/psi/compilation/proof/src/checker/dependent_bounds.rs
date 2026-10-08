@@ -210,7 +210,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
     let mut incoming_edges = 0usize;
     for source in states {
         for statement in program.statement_table.statements(source.statement_nodes) {
-            let StatementNode::Transition(row) = statement else {
+            let Some(row) = statement.as_transition() else {
                 continue;
             };
             // A value-dispatch edge could reach any state at runtime; the

@@ -13,7 +13,7 @@ pub(super) fn validate(
     statement_handle: typed_trees::statement::StatementHandle,
     direct_written: Option<Vec<String>>,
 ) {
-    let StatementNode::Call(call) = statement else {
+    let Some(call) = statement.as_call() else {
         unreachable!("dispatched call_statements")
     };
     let StatementScope {

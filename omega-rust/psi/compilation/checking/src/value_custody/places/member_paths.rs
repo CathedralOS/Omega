@@ -262,7 +262,7 @@ fn local_or_parameter_type(
 ) -> Option<TypeReferenceHandle> {
     let state = current_state?;
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && local.name.as_str() == name
         {
             return local
@@ -304,13 +304,13 @@ pub(super) fn data_field_or_payload<'program>(
     field_name: &str,
 ) -> Option<&'program typed_trees::data::DataField> {
     for member in program.data_members(data) {
-        if let typed_trees::data::DataMember::Field(field) = member
+        if let Some(field) = member.as_field()
             && field.name.as_str() == field_name
             && field.type_reference.is_valid()
         {
             return Some(field);
         }
-        if let typed_trees::data::DataMember::Variant(variant) = member {
+        if let Some(variant) = member.as_variant() {
             for field in program.data_payload_fields(variant) {
                 if field.name.as_str() == field_name && field.type_reference.is_valid() {
                     return Some(field);

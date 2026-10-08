@@ -250,7 +250,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
     }
     let mut immutable_local_count = 0_u32;
     for (statement_index, statement) in statements.iter().enumerate() {
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             retains_values_across_unit_call(
                 program,
                 borrow,

@@ -16,7 +16,7 @@ pub(super) fn validate(
     outputs: &mut StatementOutputs<'_>,
     statement: &StatementNode,
 ) {
-    let StatementNode::LocalData(local_data) = statement else {
+    let Some(local_data) = statement.as_local_data() else {
         unreachable!("dispatched local_data_statements")
     };
     let StatementScope {

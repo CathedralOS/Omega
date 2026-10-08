@@ -10,7 +10,6 @@ use std::collections::HashSet;
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 pub fn validate_selected_attached_method_bounds(
@@ -100,7 +99,7 @@ pub fn validate_selected_attached_method_bounds(
                         statement,
                         &mut expressions,
                     );
-                    if let StatementNode::Call(call) = statement {
+                    if let Some(call) = statement.as_call() {
                         selected.insert(call.target_symbol);
                         collect_static_selections(&call.machine_arguments, &mut selected);
                     }

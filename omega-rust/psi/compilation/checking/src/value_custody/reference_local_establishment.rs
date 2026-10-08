@@ -44,7 +44,7 @@ pub(crate) fn validate(
             }
             stored != Some(*symbol)
         });
-        if let StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && !local.initial_value.is_valid()
             && is_reference(program, local.type_reference)
         {

@@ -24,7 +24,6 @@ use crate::flow::mutation::WritePlaceNamespace;
 
 use super::local_origins::rebase_local_write_places;
 use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
 use symbols::SymbolHandle;
 
@@ -534,7 +533,7 @@ fn collect_state_mutation_summary_places(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
-        if let StatementNode::RootBinding(binding) = statement {
+        if let Some(binding) = statement.as_root_binding() {
             let places = crate::flow::reference_expression_storage_places(
                 program,
                 state.symbol,
@@ -555,7 +554,7 @@ fn collect_state_mutation_summary_places(
             }
             continue;
         }
-        let StatementNode::Assignment(assignment) = statement else {
+        let Some(assignment) = statement.as_assignment() else {
             continue;
         };
         let requires_exclusive_access =

@@ -63,10 +63,10 @@ pub(crate) fn scan_statement_reads(
                 .map(|name| name.as_str());
             if receiver.len() > 1
                 && data_binding.is_some_and(|root| receiver[0].as_str() == root)
-                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
-                    program
-                        .data_definition_by_name(attached)
-                })
+                && let Some(definition) = machine
+                    .attached_data
+                    .as_ref()
+                    .and_then(|attached| program.data_definition_by_name(attached))
                 && crate::value_custody::data::data_requires_establishment(program, definition)
             {
                 validate_data_read(
@@ -104,7 +104,7 @@ pub(crate) fn scan_statement_reads(
             reads.extend(transition_evaluated_expressions(program, transition));
         }
     }
-    if let StatementNode::Assignment(assignment) = statement {
+    if let Some(assignment) = statement.as_assignment() {
         // The place spine of the target is the write path, but every index
         // expression inside it is an ordinary evaluated read.
         reads.extend(write_target_index_expressions(program, assignment.target));
@@ -227,10 +227,10 @@ fn scan_expression_use(
             // merely because no standalone Member node was built.
             if members.len() > 1
                 && members[0].is_self_receiver()
-                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
-                    program
-                        .data_definition_by_name(attached)
-                })
+                && let Some(definition) = machine
+                    .attached_data
+                    .as_ref()
+                    .and_then(|attached| program.data_definition_by_name(attached))
             {
                 validate_data_read(
                     program,
@@ -672,9 +672,7 @@ pub(crate) fn attached_value_established(
     let Some(attached) = machine.attached_data.as_ref() else {
         return false;
     };
-    let Some(definition) = program
-        .data_definition_by_name(attached)
-    else {
+    let Some(definition) = program.data_definition_by_name(attached) else {
         return false;
     };
     // An authored default domain that rejects zero must be established by its
@@ -684,7 +682,7 @@ pub(crate) fn attached_value_established(
     }
     let root = tracked.iter().find(|place| place.spelling == data_binding);
     for member in program.data_members(definition) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             continue;
         };
         if !crate::value_custody::data::type_requires_establishment(program, field.type_reference) {
@@ -746,7 +744,7 @@ pub(crate) fn range_gates_hold(
     place: &TrackedPlace<'_>,
 ) -> bool {
     for member in program.data_members(place.definition) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             continue;
         };
         if !crate::value_custody::data::type_requires_establishment(program, field.type_reference) {

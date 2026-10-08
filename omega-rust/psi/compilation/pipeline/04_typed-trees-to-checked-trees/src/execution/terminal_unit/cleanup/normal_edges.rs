@@ -9,7 +9,6 @@ use checked_trees::{
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
     program: &dyn ::validation::CheckingInput,
@@ -103,12 +102,10 @@ fn cleanup_rows(
         let kind = if !outgoing.transition_target.is_valid() {
             checked_trees::FlowClaimJoinExitKind::FinalExpression
         } else {
-            let StatementNode::Transition(transition) = program
+            let transition = program
                 .statement_table
                 .statement_at(state, outgoing.statement_index)?
-            else {
-                return None;
-            };
+                .as_transition()?;
             if transition.target == outgoing.transition_target {
                 checked_trees::FlowClaimJoinExitKind::TransitionTarget
             } else if transition.continuation == outgoing.transition_target {

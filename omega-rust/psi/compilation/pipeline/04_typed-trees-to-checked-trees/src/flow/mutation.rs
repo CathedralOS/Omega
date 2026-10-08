@@ -631,7 +631,7 @@ pub(crate) fn statement_storage_writes(
     ) {
         return Some(Vec::new());
     }
-    let places = if let StatementNode::RootBinding(binding) = statement {
+    let places = if let Some(binding) = statement.as_root_binding() {
         super::reference_expression_storage_places(
             program,
             state_symbol,

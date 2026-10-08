@@ -513,7 +513,7 @@ fn exact_structured_const_carrier_is_eligible(
                             ) {
                                 typed_trees::data::DataShapeKind::Record => {
                                     members.iter().all(|member| {
-                                        let DataMember::Field(field) = member else {
+                                        let Some(field) = member.as_field() else {
                                             return false;
                                         };
                                         !field.relevance.is_erased()
@@ -526,7 +526,7 @@ fn exact_structured_const_carrier_is_eligible(
                                 }
                                 typed_trees::data::DataShapeKind::Enum => {
                                     members.iter().all(|member| {
-                                        let DataMember::Variant(variant) = member else {
+                                        let Some(variant) = member.as_variant() else {
                                             return false;
                                         };
                                         program.data_payload_fields(variant).iter().all(|field| {
@@ -661,7 +661,7 @@ fn validate_decoded_structured_const(
             visiting.push(*symbol);
             let result = members.iter().zip(fields).try_for_each(
                 |(member, (encoded_name, encoded_value))| {
-                    let DataMember::Field(field) = member else {
+                    let Some(field) = member.as_field() else {
                         return Err("structured const carrier contains a case".to_owned());
                     };
                     validate_named_field_value(
@@ -699,9 +699,7 @@ fn validate_decoded_structured_const(
                 return Err("canonical variant node names non-sum data".to_owned());
             }
             let mut matching_cases = members.iter().filter_map(|member| {
-                let DataMember::Variant(variant) = member else {
-                    return None;
-                };
+                let variant = member.as_variant()?;
                 (variant.name.as_str() == case_name.as_str()).then_some(variant)
             });
             let variant = matching_cases.next().ok_or_else(|| {

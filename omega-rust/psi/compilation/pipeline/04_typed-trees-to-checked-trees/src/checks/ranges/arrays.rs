@@ -7,7 +7,7 @@ pub(super) fn fixed_array_field_lengths(
     let mut fields = Vec::new();
     for data in program.data_definitions() {
         for member in program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 continue;
             };
             let Some(length) = fixed_array_type_length(program, field.type_reference) else {

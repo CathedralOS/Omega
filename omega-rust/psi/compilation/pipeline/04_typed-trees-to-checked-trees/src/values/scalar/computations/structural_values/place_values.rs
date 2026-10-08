@@ -55,9 +55,7 @@ impl Builder<'_, '_> {
         let data = self.program.data_definition_by_symbol(*symbol)?;
         let mut reads = Vec::new();
         for member in self.program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             let primitive_type = self
                 .program
                 .primitive_type_reference(field.type_reference)?;

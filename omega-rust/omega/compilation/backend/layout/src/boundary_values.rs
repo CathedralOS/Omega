@@ -304,8 +304,7 @@ impl<'input> BoundaryValueLayout<'input> {
         let definition = typed
             .data_definition_by_symbol(symbol)
             .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
-        let planned_layout = typed
-            .plan_laid_layout(definition.symbol);
+        let planned_layout = typed.plan_laid_layout(definition.symbol);
         let runtime_field_symbols = typed
             .data_members(definition)
             .iter()
@@ -334,7 +333,7 @@ impl<'input> BoundaryValueLayout<'input> {
         let mut float_members = 0usize;
         let mut record_fields = Vec::new();
         for member in typed.data_members(definition) {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 self.visiting.pop();
                 return Err(format!(
                     "case data `{name}` is not yet classifiable as a boundary value; pass it by reference"

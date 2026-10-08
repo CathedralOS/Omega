@@ -129,9 +129,7 @@ fn float_range_at(
     let current = statements.get(statement_index)?;
     let root = *identity.first()?;
     let reference_local = statements.iter().find_map(|statement| {
-        let StatementNode::LocalData(local) = statement else {
-            return None;
-        };
+        let local = statement.as_local_data()?;
         if local.symbol != root {
             return None;
         }
@@ -169,7 +167,7 @@ fn float_range_at(
     }
     for statement in statements[..statement_index].iter().rev() {
         // A local's initializer is its first store; nothing reaches past it.
-        if let StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && identity.as_slice() == [local.symbol]
         {
             if program.primitive_type_reference(local.type_reference) != Some(primitive) {
@@ -185,7 +183,7 @@ fn float_range_at(
                 .flatten()
                 .map(FloatRange::closed);
         }
-        if let StatementNode::Assignment(assignment) = statement
+        if let Some(assignment) = statement.as_assignment()
             && resolved_place_identity(program, assignment.target).as_ref() == Some(&identity)
         {
             if let Some(local) = reference_local

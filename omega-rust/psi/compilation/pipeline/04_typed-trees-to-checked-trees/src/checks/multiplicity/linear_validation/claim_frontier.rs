@@ -5,7 +5,6 @@ use crate::checks::multiplicity::linear_validation::permission_production::estab
 use crate::checks::multiplicity::type_multiplicity::{data_field_name, type_multiplicity};
 use language_semantics::{Multiplicity, PermissionEventSource};
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn initial_linear_places(
@@ -110,7 +109,7 @@ pub(crate) fn initial_linear_places(
         }
     }
     for statement in program.statement_table.statements(state.statement_nodes) {
-        let StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             continue;
         };
         let claims = linear_claim_frontier(program, local.type_reference);
@@ -251,9 +250,7 @@ fn claim_place_name(
             facts::PlaceSegment::Case { variant } => {
                 let case = program.data_definitions().iter().find_map(|definition| {
                     program.data_members(definition).iter().find_map(|member| {
-                        let typed_trees::data::DataMember::Variant(candidate) = member else {
-                            return None;
-                        };
+                        let candidate = member.as_variant()?;
                         (candidate.symbol == *variant).then_some(candidate.name.as_str())
                     })
                 });

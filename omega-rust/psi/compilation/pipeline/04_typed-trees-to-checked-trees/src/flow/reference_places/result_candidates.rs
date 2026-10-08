@@ -61,8 +61,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     }) {
         return None;
     }
-    let Some(call) = program.expression_table.call_node(local.initial_value)
-    else {
+    let Some(call) = program.expression_table.call_node(local.initial_value) else {
         return None;
     };
     call_result_candidates(program, state_symbol, binding_index, call, call_frames)
@@ -244,7 +243,7 @@ fn callee_returned_expressions(
     let mut returned = Vec::new();
     let mut has_transition = false;
     for (index, statement) in statements.iter().enumerate() {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             continue;
         };
         has_transition = true;
@@ -263,9 +262,7 @@ fn callee_returned_expressions(
     }
     if !has_transition {
         let (index, last) = statements.iter().enumerate().next_back()?;
-        let StatementNode::Expression(value) = last else {
-            return None;
-        };
+        let value = last.as_expression()?;
         returned.push((index, *value));
     }
     Some(returned)

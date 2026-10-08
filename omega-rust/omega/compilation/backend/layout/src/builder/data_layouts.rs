@@ -359,7 +359,7 @@ impl<'program> LayoutBuilder<'program> {
         let mut planned_variants = Vec::new();
         let mut payload_alignment = 1usize;
         for member in members {
-            let DataMember::Variant(variant) = member else {
+            let Some(variant) = member.as_variant() else {
                 continue;
             };
             let planned = self

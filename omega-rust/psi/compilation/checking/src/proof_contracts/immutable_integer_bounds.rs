@@ -88,7 +88,7 @@ impl BoundMaps {
                     .statement_table
                     .iter_statements(state.statement_nodes)
                 {
-                    let StatementNode::LocalData(local) = statement else {
+                    let Some(local) = statement.as_local_data() else {
                         continue;
                     };
                     maps.locals_by_symbol

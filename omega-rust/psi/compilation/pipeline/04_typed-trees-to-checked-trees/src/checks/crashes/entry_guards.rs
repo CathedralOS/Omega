@@ -16,7 +16,7 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::statement::TransitionGuardNode;
 
 /// Where each `when` guard in `machine` was evaluated: the guard's own
 /// transition statement. A guard edge carries its fact into joined and
@@ -32,7 +32,7 @@ pub(super) fn guard_eval_sites(
             .statement_table
             .indexed_statements(state.statement_nodes)
         {
-            if let StatementNode::Transition(transition) = statement
+            if let Some(transition) = statement.as_transition()
                 && let TransitionGuardNode::When(guard) = transition.guard
             {
                 sites.push((guard, state.symbol, ordinal));

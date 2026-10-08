@@ -11,7 +11,6 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
-use typed_trees::statement::StatementNode;
 use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
 };
@@ -38,7 +37,7 @@ pub fn validate_conformance_applications(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     validate_call_arguments(
                         program,
                         StaticArgumentCall::Statement(call),
@@ -94,9 +93,7 @@ pub fn close_conformance_application(
     program: &dyn crate::CheckingInput,
     selected: &StaticMachineArgument,
 ) -> Result<ClosedConformanceApplication, Diagnostic> {
-    let Some(conformance) = program
-        .conformance_by_symbol(selected.symbol)
-    else {
+    let Some(conformance) = program.conformance_by_symbol(selected.symbol) else {
         return Err(Diagnostic::error(format!(
             "static argument `{}` does not name a package-scoped conformance",
             selected.display_name()
@@ -722,8 +719,7 @@ fn application_identity(
         if let Some(signature) = program
             .trait_definition_by_symbol(row.declaring_trait)
             .and_then(|definition| {
-                program
-                    .trait_machine_signature_by_symbol(definition, row.requirement)
+                program.trait_machine_signature_by_symbol(definition, row.requirement)
             })
         {
             let signature_bytes =

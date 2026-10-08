@@ -3,7 +3,7 @@
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 #[derive(Clone)]
 pub(super) struct Edge {
@@ -20,7 +20,7 @@ pub(super) fn build_edges(
     let mut edges = Vec::new();
     for state in program.machine_states(machine) {
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             push_edge(

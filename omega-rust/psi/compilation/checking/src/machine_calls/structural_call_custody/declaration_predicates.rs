@@ -542,9 +542,7 @@ fn find_data_field<'program>(
     name: &str,
 ) -> Option<&'program DataField> {
     program.data_members(definition).iter().find_map(|member| {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         if field.relevance.is_erased() {
             return None;
         }

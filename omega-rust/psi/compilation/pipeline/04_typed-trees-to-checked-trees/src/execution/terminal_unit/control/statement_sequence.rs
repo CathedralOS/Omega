@@ -84,7 +84,7 @@ pub(super) fn has_structural_result(
     machine: &typed_trees::machine::Machine,
     statement: &StatementNode,
 ) -> bool {
-    let StatementNode::LocalData(local) = statement else {
+    let Some(local) = statement.as_local_data() else {
         return false;
     };
     if !local.initial_value.is_valid() {

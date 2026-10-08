@@ -128,7 +128,7 @@ pub(super) fn probe_state_init(
             Some(true) | None => probe = InitProbe::Unknown,
             Some(false) => {}
         }
-        if let StatementNode::Assignment(assignment) = statement {
+        if let Some(assignment) = statement.as_assignment() {
             if assignment_counter_field(program, machine, state, assignment) != Some(counter) {
                 let disjoint = call_frames
                     .assignment_write_frame(machine, statement)
@@ -208,7 +208,7 @@ pub(super) fn statement_may_write_path(
     if overlaps(&value_writes) {
         return Some(true);
     }
-    let StatementNode::Call(call) = statement else {
+    let Some(call) = statement.as_call() else {
         return Some(false);
     };
     Some(overlaps(&call_frames.may_write_paths(machine, call)?))
@@ -230,7 +230,7 @@ pub(super) fn counter_display_name(
             continue;
         };
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Assignment(assignment) = statement else {
+            let Some(assignment) = statement.as_assignment() else {
                 continue;
             };
             if assignment_counter_field(program, machine, state, assignment) != Some(counter) {

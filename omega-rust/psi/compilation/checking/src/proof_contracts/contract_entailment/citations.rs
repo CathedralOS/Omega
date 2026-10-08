@@ -221,7 +221,7 @@ pub(crate) fn collect_citation_equations(
         })
         .collect();
     for statement in program.statement_table.statements(entry.statement_nodes) {
-        if let StatementNode::LocalData(local) = statement {
+        if let Some(local) = statement.as_local_data() {
             if let Some(judge) = site_judge.as_ref()
                 && let Some(term) = judge.callee_term(local.initial_value, &environment, 0)
             {

@@ -74,7 +74,7 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
-        if let typed_trees::statement::StatementNode::RootBinding(binding) = statement_node {
+        if let Some(binding) = statement_node.as_root_binding() {
             super::calls::check_exclusive_place_use(
                 program,
                 facts,
@@ -231,7 +231,7 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
-        let typed_trees::statement::StatementNode::Assignment(assignment) = statement_node else {
+        let Some(assignment) = statement_node.as_assignment() else {
             continue;
         };
         let mut owned_frames = None;

@@ -14,9 +14,7 @@ fn field_type(
 ) -> Option<TypeReferenceHandle> {
     let declaration = structural_data(program, receiver)?;
     program.data_members(declaration).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         let matches_identity = match field.identity {
             Some(field_identity) => identity == format!("#{field_identity}"),
             None => field.name.as_str() == identity,
@@ -57,9 +55,7 @@ pub(super) fn path_type_reference(
                 }
                 let data = structural_data(program, receiver)?;
                 let variant = program.data_members(data).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Variant(variant) = member else {
-                        return None;
-                    };
+                    let variant = member.as_variant()?;
                     let identity = variant.path_identity();
                     (identity == *case).then_some(variant)
                 })?;
@@ -104,9 +100,7 @@ pub(super) fn structural_record_fields(
     let data = structural_data(program, type_reference)?;
     let mut fields = Vec::new();
     for member in program.data_members(data) {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         if field.relevance.is_erased() {
             return None;
         }
@@ -130,9 +124,7 @@ pub(super) fn payloadless_sum_cases(
     members
         .iter()
         .map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             program
                 .data_payload_fields(variant)
                 .is_empty()

@@ -50,9 +50,7 @@ pub(crate) fn evaluated_case_subject(
     index: usize,
 ) -> Option<ExpressionHandle> {
     let tested = |statement: &StatementNode| {
-        let StatementNode::Transition(transition) = statement else {
-            return None;
-        };
+        let transition = statement.as_transition()?;
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };

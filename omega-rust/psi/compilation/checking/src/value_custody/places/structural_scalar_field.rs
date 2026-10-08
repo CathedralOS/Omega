@@ -243,9 +243,7 @@ fn selected_member_field<'program>(
     }
     let owner = if let Some(case_name) = &member.case_variant {
         let mut variants = program.data_members(record).iter().filter_map(|member| {
-            let DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             (variant.name == *case_name).then_some(variant)
         });
         let variant = variants.next()?;
@@ -502,9 +500,7 @@ fn dispatch_case_subject(
 ) -> Option<ExpressionHandle> {
     use typed_trees::expression::BinaryOperator;
     use typed_trees::statement::TransitionGuardNode;
-    let StatementNode::Transition(transition) = statement else {
-        return None;
-    };
+    let transition = statement.as_transition()?;
     let TransitionGuardNode::When(mut guard) = transition.guard else {
         return None;
     };

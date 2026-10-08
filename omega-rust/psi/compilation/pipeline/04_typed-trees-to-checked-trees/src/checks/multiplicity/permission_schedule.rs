@@ -28,7 +28,7 @@ pub(super) fn walk<S: Clone>(
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut transitions = Vec::new();
     for (statement, node) in statements.iter().enumerate() {
-        let StatementNode::Transition(transition) = node else {
+        let Some(transition) = node.as_transition() else {
             visit(
                 PermissionStep::Evaluate {
                     statement,

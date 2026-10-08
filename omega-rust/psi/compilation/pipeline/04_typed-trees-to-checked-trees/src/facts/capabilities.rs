@@ -478,7 +478,7 @@ fn call_stored_into_field(
         return false;
     };
 
-    let StatementNode::Assignment(assignment) = statement else {
+    let Some(assignment) = statement.as_assignment() else {
         return false;
     };
 
@@ -567,9 +567,7 @@ fn boundary_capability(
     })?;
 
     for conformance in program.machine_trait_conformances(machine) {
-        let Some(trait_definition) = program
-            .trait_definition_by_symbol(conformance.symbol)
-        else {
+        let Some(trait_definition) = program.trait_definition_by_symbol(conformance.symbol) else {
             continue;
         };
         if !trait_definition.is_boundary {

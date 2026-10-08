@@ -389,7 +389,7 @@ pub(crate) fn bound_symbol_declared_type(
                 .statements(state.statement_nodes)
                 .iter()
             {
-                if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                if let Some(local) = statement.as_local_data()
                     && local.symbol == symbol
                     && found.replace(local.type_reference).is_some()
                 {
@@ -690,7 +690,7 @@ pub fn zeroed_structural_parts(
                 });
                 let Some(first_case) = variants.next() else {
                     for member in members {
-                        let typed_trees::data::DataMember::Field(field) = member else {
+                        let Some(field) = member.as_field() else {
                             return false;
                         };
                         if field.relevance.is_erased() {
@@ -704,7 +704,7 @@ pub fn zeroed_structural_parts(
                 // They use the same recursive zero establishment as record
                 // fields, while only the first case contributes a payload.
                 for member in members {
-                    if let typed_trees::data::DataMember::Field(field) = member {
+                    if let Some(field) = member.as_field() {
                         if field.relevance.is_erased() {
                             return false;
                         }

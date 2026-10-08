@@ -98,7 +98,7 @@ pub fn nearest_scoped_local(
         .iter()
         .take(scope_limit)
     {
-        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             continue;
         };
         if local.name.as_str() == name.as_str() {

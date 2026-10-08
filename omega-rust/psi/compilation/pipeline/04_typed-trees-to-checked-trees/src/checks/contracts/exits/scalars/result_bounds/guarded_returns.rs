@@ -127,9 +127,7 @@ impl ExitScalars<'_, '_> {
             .iter()
             .enumerate()
             .filter_map(|(statement, node)| {
-                let StatementNode::LocalData(local) = node else {
-                    return None;
-                };
+                let local = node.as_local_data()?;
                 (!local.is_mutable
                     && local.initial_value.is_valid()
                     && self

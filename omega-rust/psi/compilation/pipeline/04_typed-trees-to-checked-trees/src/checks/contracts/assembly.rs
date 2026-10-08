@@ -38,7 +38,7 @@ fn check_state_assembly_facts(
 
     let statements = program.statement_table.statements(state.statement_nodes);
     for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::AssemblyFact(fact) = statement else {
+        let Some(fact) = statement.as_assembly_fact() else {
             continue;
         };
         let entry_constraints = facts
@@ -116,9 +116,7 @@ fn asm_block_writes_fact_place(
         .iter()
         .enumerate()
         .filter_map(|(offset, statement)| {
-            let StatementNode::Assignment(assignment) = statement else {
-                return None;
-            };
+            let assignment = statement.as_assignment()?;
             canonical_place_from_expression_in_state(
                 program,
                 state_symbol,

@@ -124,12 +124,10 @@ pub fn transition_call_target(
     statement_index: usize,
     call_ordinal: usize,
 ) -> Option<typed_trees::statement::TransitionTargetHandle> {
-    let StatementNode::Transition(transition) = program
+    let transition = program
         .statement_table
         .statement_at(state, statement_index)?
-    else {
-        return None;
-    };
+        .as_transition()?;
     let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     traversal::transition_call_target(&mut traversal, transition)
 }

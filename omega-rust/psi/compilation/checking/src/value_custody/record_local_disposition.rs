@@ -29,9 +29,7 @@ pub fn record_local_disposition(
         .iter()
         .find(|source| source.symbol == state)?;
     let statements = program.statement_table.statements(source.statement_nodes);
-    let StatementNode::LocalData(local) = statements.get(ordinal as usize)? else {
-        return None;
-    };
+    let local = statements.get(ordinal as usize)?.as_local_data()?;
     if !local.symbol.is_valid()
         || program
             .state_parameters(source)
@@ -126,9 +124,7 @@ fn local_provenance(
     state: SymbolHandle,
     ordinal: usize,
 ) -> Option<PermissionProvenance> {
-    let StatementNode::LocalData(local) = statements.get(ordinal)? else {
-        return None;
-    };
+    let local = statements.get(ordinal)?.as_local_data()?;
     if !local.initial_value.is_valid() {
         // A declared-but-uninitialized local has no origin expression: when the
         // ledger established it at this declaration, the declaration statement
@@ -224,9 +220,7 @@ fn initializer_transfer(
     ordinal: usize,
     source: &TableLocalData,
 ) -> Option<()> {
-    let StatementNode::LocalData(destination) = statements.get(ordinal)? else {
-        return None;
-    };
+    let destination = statements.get(ordinal)?.as_local_data()?;
     let plans = &facts.values.structural_values;
     let root = plans.root_at(state, u32::try_from(ordinal).ok()?)?;
     if root.machine != machine

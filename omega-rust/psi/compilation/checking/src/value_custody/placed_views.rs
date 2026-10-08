@@ -35,10 +35,10 @@ pub(crate) fn validate_statement(
     statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let StatementNode::Assignment(assignment) = statement {
+    if let Some(assignment) = statement.as_assignment() {
         validate_assignment(program, machine, state, assignment, diagnostics);
     }
-    if let StatementNode::Call(call) = statement
+    if let Some(call) = statement.as_call()
         && let Some((view, field)) =
             placed_view_field_for_statement_call(program, machine, state, call)
     {

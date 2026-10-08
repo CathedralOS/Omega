@@ -192,13 +192,11 @@ pub fn attached_data_field_type(
     let (last, parents) = path.split_last()?;
 
     let attached = machine.attached_data.as_ref()?;
-    let mut data = program
-        .data_definition_by_name_str(attached.as_str())?;
+    let mut data = program.data_definition_by_name_str(attached.as_str())?;
     for segment in parents {
         let field_type = data_field_type_by_name(program, data, segment)?;
         let next = type_reference_data_name(program, field_type)?;
-        data = program
-            .data_definition_by_name_str(next.as_str())?;
+        data = program.data_definition_by_name_str(next.as_str())?;
     }
     data_field_type_by_name(program, data, last)
 }
@@ -264,9 +262,7 @@ pub fn data_field_type_by_symbol_or_name(
         .data_members(data_definition)
         .iter()
         .find_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
 
             ((member_symbol.is_valid() && field.symbol == member_symbol)
                 || field.name == *member_name)

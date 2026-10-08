@@ -110,7 +110,7 @@ pub fn materialize_typed_owned_layout_into(
         )));
     }
     for member in members {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             unreachable!("sum cases rejected above")
         };
         if !supplied.contains_key(field.name.as_str()) {
@@ -268,7 +268,7 @@ pub(super) fn encode_outer_record_fields(
     }
     let mut active = vec![data.symbol];
     for member in members {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             unreachable!("outer record shape was validated above")
         };
         let field_value = supplied
@@ -486,7 +486,7 @@ pub(super) fn required_supplied_fields<'m, 's>(
 ) -> Result<Vec<&'m DataField>, MaterializationDiagnostic> {
     let mut fields = Vec::new();
     for member in members {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             unreachable!("outer record shape was validated above")
         };
         if !supplied.contains_key(field.name.as_str()) {

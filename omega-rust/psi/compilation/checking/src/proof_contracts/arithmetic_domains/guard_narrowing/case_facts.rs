@@ -228,9 +228,7 @@ where
     'program: 'a,
 {
     program.data_members(owner).iter().filter_map(|member| {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         Some(field)
     })
 }

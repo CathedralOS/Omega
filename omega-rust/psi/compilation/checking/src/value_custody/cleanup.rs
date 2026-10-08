@@ -15,7 +15,7 @@ use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::TransitionTargetNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -253,7 +253,7 @@ fn internal_cleanup_transitions(
     for machine in cleanups {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 for target in [transition.target, transition.continuation] {
@@ -322,9 +322,7 @@ pub fn nominal_cleanup_owner(
             return None;
         }
         visited.push(declaration.symbol);
-        let template = program
-            .machine_specialization(declaration.symbol)?
-            .template;
+        let template = program.machine_specialization(declaration.symbol)?.template;
         declaration = program.machine(template)?;
     }
     machine

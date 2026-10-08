@@ -615,7 +615,7 @@ fn mutable_record_representation_inner_body(
     field_types.try_reserve_exact(members.len()).ok()?;
     field_symbols.try_reserve_exact(members.len()).ok()?;
     for member in members {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             visiting.remove(&symbol_identity);
             return None;
         };

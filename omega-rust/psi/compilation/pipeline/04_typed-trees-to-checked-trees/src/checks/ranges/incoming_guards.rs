@@ -240,7 +240,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
     for state in program.machine_states(machine) {
         let mut prior_misses = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 prior_misses.clear();
                 continue;
             };
@@ -851,14 +851,14 @@ fn state_writes(
         };
         extend_unique(&mut paths, &value_writes);
 
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             let Some(statement_writes) = call_frames.may_write_paths(machine, call) else {
                 return StateWrites::Any;
             };
             extend_unique(&mut paths, &statement_writes);
         }
 
-        if let StatementNode::Assignment(assignment) = statement {
+        if let Some(assignment) = statement.as_assignment() {
             let target = program.expression_table.display_name(assignment.target);
             if data_binding.is_some_and(|root| place_field(root, &target).is_some())
                 && !paths.contains(&target)

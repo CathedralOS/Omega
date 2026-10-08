@@ -121,7 +121,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     // Reference carriers have the same lifetime rule at a root or a projection:
     // writing through one preserves its captured loan, while replacing it ends
     // the old occurrence. Classify the typed target before comparing owner paths.
-    if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
+    if let Some(assignment) = statement.as_assignment()
         && let Some((machine, state)) = validation::find_state_with_machine(
             program,
             program.symbols.get(reassigned_symbol).parent,

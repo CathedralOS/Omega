@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) fn named_transition_subgraph_is_acyclic(
     program: &dyn crate::CheckingInput,
@@ -34,7 +34,7 @@ pub(super) fn named_transition_subgraph_is_acyclic(
         }
         visiting.push(state.symbol);
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             for edge in [transition.target, transition.continuation] {
@@ -85,7 +85,7 @@ pub(crate) fn named_state_transition_subgraph_is_acyclic(
         .statements(state.statement_nodes)
         .iter()
         .all(|statement| {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 return true;
             };
             [transition.target, transition.continuation]

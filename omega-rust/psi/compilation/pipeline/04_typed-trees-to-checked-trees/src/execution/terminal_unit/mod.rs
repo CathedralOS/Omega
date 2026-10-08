@@ -683,14 +683,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .collect::<Vec<_>>();
     let mut retained_loan_identities = Vec::new();
     for machine in loaned_record_types {
-        let Some(source_machine) = program
-            .machine(machine)
-        else {
+        let Some(source_machine) = program.machine(machine) else {
             continue;
         };
         for state in program.machine_states(source_machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 let TypeReferenceNode::Reference {

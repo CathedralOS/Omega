@@ -7,8 +7,7 @@ use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
-    DataMember, Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
-    is_reference,
+    Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode, is_reference,
 };
 
 /// A Fused binding projected from an ordinary parameter retains its exact
@@ -272,7 +271,7 @@ pub(crate) fn provider_attachment_receiver_matches(
         return false;
     };
     program.data_members(attached).iter().any(|member| {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             return false;
         };
         if field.name != field_name
@@ -327,7 +326,7 @@ fn service_record_member_carries_requirement(
         return false;
     };
     program.data_members(definition).iter().any(|member| {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             return false;
         };
         !field.relevance.is_erased()

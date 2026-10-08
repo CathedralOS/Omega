@@ -169,7 +169,7 @@ fn dependent_maximum_substituted(
     let mut resolved: Option<i64> = None;
     for data in program.data_definitions() {
         for member in program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 continue;
             };
             if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid() {

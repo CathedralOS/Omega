@@ -191,9 +191,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         .and_then(|symbol| compilation.data_definition_by_symbol(symbol))
         .and_then(|data| {
             compilation.data_members(data).iter().find_map(|candidate| {
-                let typed_trees::data::DataMember::Field(field) = candidate else {
-                    return None;
-                };
+                let field = candidate.as_field()?;
                 (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
             })
         })

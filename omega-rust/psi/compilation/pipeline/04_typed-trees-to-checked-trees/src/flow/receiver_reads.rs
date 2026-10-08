@@ -55,7 +55,6 @@ use crate::flow::mutation::{
 };
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementRootRole;
@@ -439,7 +438,7 @@ impl DirectReads<'_, '_> {
             .enumerate()
         {
             self.statement_index = statement_index;
-            if let StatementNode::Call(call) = statement
+            if let Some(call) = statement.as_call()
                 && !self.delegated.statements.contains(&statement_index)
                 && let Some(receiver) = canonical_receiver_place_for_call_site(
                     program,

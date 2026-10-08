@@ -44,7 +44,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     let mut loan_index = 0usize;
 
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         append_proof_output_ensures(
             proof,
@@ -112,7 +113,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // can restore it for the fallthrough after this statement is flowed.
         let mut fallthrough_contexts = *active_contexts;
         let mut fallthrough_constraints = *active_constraints;
-        if let StatementNode::Transition(transition) = statement {
+        if let Some(transition) = statement.as_transition() {
             let start = call_index;
             while borrow_calls
                 .get(call_index)
@@ -176,7 +177,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // overwrites the target. Retire loans carried by the old value before
         // activating loans carried by the replacement below; otherwise the
         // replacement spuriously conflicts with the value it is replacing.
-        let reassigned_place = if let StatementNode::Assignment(assignment) = statement {
+        let reassigned_place = if let Some(assignment) = statement.as_assignment() {
             build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
         } else {
             None
@@ -306,7 +307,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 );
             }
         }
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             mutated_places.extend(operator_statement_call_mutated_places(
                 program,
                 build,
@@ -336,7 +337,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
         }
 
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             append_operator_statement_ensures(
                 program,
                 semantic,

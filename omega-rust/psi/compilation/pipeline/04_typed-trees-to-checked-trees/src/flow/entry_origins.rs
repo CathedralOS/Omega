@@ -4,7 +4,6 @@ use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 
-use checked_trees::statement::StatementNode;
 use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use validation::{CallFrameResolver, LocalWriteSource};
@@ -141,14 +140,14 @@ fn parameter_edges<'program>(
             Option<typed_trees::expression::ExpressionHandle>,
         )> = Vec::new();
         for statement in program.statement_table.statements(source.statement_nodes) {
-            if let StatementNode::LocalData(local) = statement {
+            if let Some(local) = statement.as_local_data() {
                 locals.push((
                     local.symbol,
                     (!local.is_mutable).then_some(local.initial_value),
                 ));
                 continue;
             }
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             if transition.exit != TransitionExit::Ordinary {

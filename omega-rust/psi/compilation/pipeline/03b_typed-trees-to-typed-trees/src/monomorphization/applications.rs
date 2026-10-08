@@ -91,7 +91,7 @@ pub(super) fn retain_call(
             )
         }
         CallSite::Statement(handle) => {
-            let StatementNode::Call(call) = program.statement_table.statement(handle) else {
+            let Some(call) = program.statement_table.statement(handle).as_call() else {
                 return;
             };
             (

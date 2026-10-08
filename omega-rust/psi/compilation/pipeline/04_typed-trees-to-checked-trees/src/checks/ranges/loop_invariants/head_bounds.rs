@@ -6,7 +6,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::statement::TransitionGuardNode;
 
 /// The weakest exclusive upper bound on the counter that holds at `head`'s entry across all its
 /// back edges, or `None` if any back edge reaches `head` unguarded, via a guard that is not a
@@ -134,7 +134,7 @@ pub(super) fn single_head_bound_edge<T>(
 ) -> Option<T> {
     let mut found = None;
     for statement in program.statement_table.statements(source.statement_nodes) {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             continue;
         };
         let target_is_head = transition_target_symbol(program, transition.target) == Some(head);

@@ -12,7 +12,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::{machine::Machine, state::State, statement::StatementNode};
+use typed_trees::{machine::Machine, state::State};
 use validation::{CallFrameResolver, CallWriteOrigins, LocalWriteSource};
 
 struct Invocation<'a> {
@@ -361,7 +361,7 @@ impl<'a> Admission<'a> {
                 .iter()
                 .enumerate()
             {
-                if let StatementNode::Assignment(assignment) = statement {
+                if let Some(assignment) = statement.as_assignment() {
                     let reference = validation::declared_place_type_raw(
                         self.program,
                         machine,

@@ -5,7 +5,6 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 /// Whether `path` stays unchanged throughout the natural loop. Direct writes
 /// and calls (including nested value calls) are treated with the same path
@@ -58,7 +57,7 @@ pub(super) fn state_preserves_path(
         {
             return false;
         }
-        if let StatementNode::Assignment(assignment) = statement {
+        if let Some(assignment) = statement.as_assignment() {
             let target = validation::canonical_storage_label(
                 program,
                 machine,

@@ -20,7 +20,7 @@ impl TransitionValueEnvironments {
         before: &ValueEnvironment,
         frames: Option<&CallFrameResolver<'program>>,
     ) -> Self {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             return Self::default();
         };
         let mut result = Self::default();

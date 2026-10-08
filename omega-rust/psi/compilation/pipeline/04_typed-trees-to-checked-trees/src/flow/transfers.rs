@@ -303,7 +303,7 @@ pub(super) fn propagate_statement_transfers(
     } else {
         None
     };
-    if let StatementNode::Assignment(assignment) = statement {
+    if let Some(assignment) = statement.as_assignment() {
         byte_sequences::append_element_replacement_predicates(
             program,
             semantic,
@@ -669,13 +669,9 @@ fn exact_structural_symbol_place(
                 };
                 let field = if let Some(variant_symbol) = selected_variant.take() {
                     program.data_members(data).iter().find_map(|member| {
-                        let typed_trees::data::DataMember::Variant(variant) = member else {
-                            return None;
-                        };
-                        (variant.symbol == variant_symbol).then(|| {
-                            program
-                                .data_payload_field_by_symbol(variant, *symbol)
-                        })?
+                        let variant = member.as_variant()?;
+                        (variant.symbol == variant_symbol)
+                            .then(|| program.data_payload_field_by_symbol(variant, *symbol))?
                     })
                 } else {
                     program.data_field(data, *symbol)

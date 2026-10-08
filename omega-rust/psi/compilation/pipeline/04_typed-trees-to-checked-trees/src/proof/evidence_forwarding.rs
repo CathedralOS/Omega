@@ -259,8 +259,7 @@ fn checked_evidence_producer(
     use typed_trees::trait_definition::ConformanceRowSource;
 
     let expected_interface = output.evidence_interface.as_ref()?;
-    let conformance = program
-        .conformance_by_symbol(conformance_symbol)?;
+    let conformance = program.conformance_by_symbol(conformance_symbol)?;
     if conformance.alias.as_ref()?.as_str() != source_name {
         return None;
     }
@@ -450,10 +449,10 @@ fn validate_evidence_forwarding_definite_assignment(
                 let Some(statement) = statements.get(statement_index) else {
                     continue;
                 };
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     intake_call_ensures_propositions(program, call, &mut known);
                 }
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 if transition.exit == TransitionExit::Ordinary {

@@ -27,7 +27,7 @@ pub(crate) fn validate_destructure_exhaustiveness(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 if let Some(encoded) = local.name.as_str().strip_prefix(ARM_MARKER_PREFIX) {

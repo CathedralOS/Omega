@@ -353,10 +353,7 @@ impl ExitScalars<'_, '_> {
                         .get(..self.exit.statement_index)?
                         .iter()
                         .filter_map(|node| {
-                            let typed_trees::statement::StatementNode::LocalData(local) = node
-                            else {
-                                return None;
-                            };
+                            let local = node.as_local_data()?;
                             (!local.is_mutable
                                 && local.initial_value.is_valid()
                                 && self
@@ -449,7 +446,7 @@ impl ExitScalars<'_, '_> {
         // original record after a loop re-enters with different arguments.
         if !subject.segments.is_empty() && self.program.machine_states(self.machine).iter().any(|state| {
             self.program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                let typed_trees::statement::StatementNode::Transition(transition) = statement else { return false; };
+                let Some(transition) = statement.as_transition() else { return false; };
                 [transition.target, transition.continuation].iter().any(|target| {
                     target.is_valid() && match self.program.statement_table.transition_target(*target) {
                         typed_trees::statement::TransitionTargetNode::Named { path, .. } =>
@@ -509,7 +506,7 @@ impl ExitScalars<'_, '_> {
                 )?;
                 let mut value_frames =
                     vec![frames.statement_value_write_frame(self.machine, statement)];
-                if let typed_trees::statement::StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     value_frames.push(frames.may_write_frame(self.machine, call));
                 }
                 for frame in value_frames {

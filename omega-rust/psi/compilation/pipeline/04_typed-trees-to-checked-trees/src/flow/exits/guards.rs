@@ -393,7 +393,7 @@ fn append_case_constraint_context(
             ));
         }
         for member in program.data_members(definition) {
-            if let typed_trees::data::DataMember::Field(field) = member {
+            if let Some(field) = member.as_field() {
                 substitutions.push((
                     field.symbol,
                     field.name.as_str().to_owned(),

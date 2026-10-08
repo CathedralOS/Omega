@@ -774,7 +774,7 @@ impl Invocation<'_> {
     fn probe_reference(&self) -> Result<source::SourceSpan, String> {
         let typed = self.program.typed();
         for statement in typed.statement_table.statements(self.state.statement_nodes) {
-            if let typed_trees::statement::StatementNode::Transition(transition) = statement {
+            if let Some(transition) = statement.as_transition() {
                 return Ok(transition.source_span);
             }
         }

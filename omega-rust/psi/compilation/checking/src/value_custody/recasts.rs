@@ -150,7 +150,7 @@ pub(crate) fn validate_recasts(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                if let StatementNode::LocalData(local) = statement
+                if let Some(local) = statement.as_local_data()
                     && local.type_reference.is_valid()
                     && local.initial_value.is_valid()
                     && let TypeReferenceNode::Reference {

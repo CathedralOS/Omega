@@ -76,9 +76,7 @@ pub fn transparent_proposition_application_entailed(
                 .data_members(data)
                 .iter()
                 .filter_map(|member| {
-                    let typed_trees::data::DataMember::Field(field) = member else {
-                        return None;
-                    };
+                    let field = member.as_field()?;
                     Some((
                         field.name.as_str().to_owned(),
                         StructuralTerm::CallProjection {

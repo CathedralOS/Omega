@@ -103,9 +103,7 @@ pub(crate) fn build_affine_array_construction_prefix(
 
     let mut rows = Vec::with_capacity(assignments.len());
     for (expected_index, statement) in assignments.iter().enumerate() {
-        let StatementNode::Assignment(assignment) = statement else {
-            return None;
-        };
+        let assignment = statement.as_assignment()?;
         let target = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,

@@ -347,7 +347,7 @@ pub(crate) fn is_data_subject_field_expression(
         return false;
     };
     compilation.data_members(data).iter().any(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             return false;
         };
         field.symbol == selected && field.name == *name
@@ -503,8 +503,7 @@ fn select_checked_dependency_member(
         if place.root != root {
             continue;
         }
-        if let Some(selected) =
-            checked_member_segments(compilation, place.segments, source_members)
+        if let Some(selected) = checked_member_segments(compilation, place.segments, source_members)
         {
             candidates.push(selected);
         }

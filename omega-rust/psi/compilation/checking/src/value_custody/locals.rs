@@ -1,7 +1,7 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use diagnostics::Diagnostic;
 use language_core::is_self_receiver;
-use typed_trees::data::{DataMember, TypeParameterKind};
+use typed_trees::data::TypeParameterKind;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::{machine::Machine, state::State};
@@ -132,7 +132,7 @@ pub(crate) fn state_value_root_is_known(
     // Enum case constant used bare (`let s: Signal = Red`).
     for definition in program.data_definitions() {
         for member in program.data_members(definition) {
-            if let DataMember::Variant(variant) = member
+            if let Some(variant) = member.as_variant()
                 && variant.name.as_str() == name
             {
                 return true;
@@ -162,7 +162,7 @@ impl WritableRoots<'_, '_> {
                 .iter()
                 .any(|owned| owned.name.as_str() == root_name))
             || self.statements.iter().any(|statement| {
-                let StatementNode::LocalData(local_data) = statement else {
+                let Some(local_data) = statement.as_local_data() else {
                     return false;
                 };
                 if local_data.name.as_str() != root_name {
@@ -229,7 +229,7 @@ pub(crate) fn validate_local_data_names(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::LocalData(local_data) = statement else {
+        let Some(local_data) = statement.as_local_data() else {
             continue;
         };
 

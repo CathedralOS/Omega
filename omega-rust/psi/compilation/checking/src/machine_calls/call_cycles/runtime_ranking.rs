@@ -367,7 +367,7 @@ pub(super) fn project_component(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     if prefix::preserves_rank(
                         program,
                         machine,
@@ -1049,7 +1049,7 @@ pub(crate) fn internal_arrivals<'program>(
     let mut arrivals = Vec::new();
     for (source, state) in states.iter().enumerate() {
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             for target in [transition.target, transition.continuation] {

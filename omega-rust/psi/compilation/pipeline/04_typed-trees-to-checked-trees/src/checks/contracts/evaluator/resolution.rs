@@ -1,6 +1,5 @@
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
 
 use super::{BooleanExpressionOwner, ContractExpressionEvaluator};
 
@@ -144,9 +143,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             .iter()
             .take(self.statement_index)
             .find_map(|statement| {
-                let StatementNode::LocalData(local) = statement else {
-                    return None;
-                };
+                let local = statement.as_local_data()?;
                 let has_resolved_symbol = head_symbol.is_valid() || symbol.is_valid();
                 let local_matches = if has_resolved_symbol {
                     (head_symbol.is_valid() && head_symbol == local.symbol)

@@ -48,9 +48,7 @@ pub(super) fn build(
     let &(machine, state) = fused.get(state_index)?;
     let (structural, _) = &signatures[state_index];
     let statements = program.statement_table.statements(state.statement_nodes);
-    let StatementNode::Transition(first) = statements.get(transition_start)? else {
-        return None;
-    };
+    let first = statements.get(transition_start)?.as_transition()?;
     let TransitionGuardNode::When(guard) = first.guard else {
         return None;
     };
@@ -154,11 +152,9 @@ pub(super) fn build(
                 .iter()
                 .filter_map(super::retained_structural_result)
                 .filter_map(|result| {
-                    let StatementNode::LocalData(local) =
-                        statements.get(result.statement_index as usize)?
-                    else {
-                        return None;
-                    };
+                    let local = statements
+                        .get(result.statement_index as usize)?
+                        .as_local_data()?;
                     (dispatch.is_symbol(local.symbol)
                         && !local.is_mutable
                         && result.statement_index < transition_start as u32)
@@ -256,9 +252,7 @@ pub(super) fn build(
         .iter()
         .enumerate()
     {
-        let StatementNode::LocalData(local) = statement else {
-            return None;
-        };
+        let local = statement.as_local_data()?;
         let encoded = local.name.as_str().strip_prefix("__arm_destructure#V=")?;
         let (variant, encoded) = encoded.split_once('#')?;
         let (fields, _) = encoded.split_once("#~subject=")?;
@@ -293,9 +287,7 @@ pub(super) fn build(
     // subjects and the payload reads' receivers.
     let mut subject_reads = Vec::new();
     for (index, statement) in statements[transition_start..].iter().enumerate() {
-        let StatementNode::Transition(transition) = statement else {
-            return None;
-        };
+        let transition = statement.as_transition()?;
         let ordinal = u32::try_from(transition_start + index).ok()?;
         let selected_variants = match transition.guard {
             TransitionGuardNode::When(guard) => {
@@ -768,8 +760,7 @@ impl DispatchSubject<'_> {
                 if *selected != variant.symbol {
                     return None;
                 }
-                let field = program
-                    .data_payload_field_by_symbol(variant, *symbol)?;
+                let field = program.data_payload_field_by_symbol(variant, *symbol)?;
                 destructures
                     .contains(&(variant.name.as_str(), field.name.as_str()))
                     .then_some(Some(field))
@@ -856,11 +847,9 @@ fn subject_call(
         .iter()
         .filter_map(|operation| {
             let result = operation.structural_result_binding()?;
-            let StatementNode::LocalData(local) =
-                statements.get(result.statement_index as usize)?
-            else {
-                return None;
-            };
+            let local = statements
+                .get(result.statement_index as usize)?
+                .as_local_data()?;
             local
                 .symbol
                 .is_valid()

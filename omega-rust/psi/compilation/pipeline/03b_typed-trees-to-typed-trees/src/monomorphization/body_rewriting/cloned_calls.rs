@@ -330,7 +330,7 @@ pub(crate) fn rewrite_static_machine_transition_targets(
     candidate: &Candidate,
     rewrites: &[(SymbolHandle, SymbolHandle, typed_trees::name::Identifier)],
 ) {
-    let StatementNode::Transition(transition) = program.statement_table.statement(statement) else {
+    let Some(transition) = program.statement_table.statement(statement).as_transition() else {
         return;
     };
     let targets = [transition.target, transition.continuation];
@@ -383,7 +383,7 @@ pub(crate) fn rewrite_clone_transition_subjects(
     if subjects.is_empty() {
         return;
     }
-    let StatementNode::Transition(transition) = program.statement_table.statement(statement) else {
+    let Some(transition) = program.statement_table.statement(statement).as_transition() else {
         return;
     };
     let targets = [transition.target, transition.continuation];

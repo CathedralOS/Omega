@@ -294,7 +294,7 @@ fn validate_dll_import_shape(
         )]);
     }
     for (index, (member, (variant_name, field_names))) in members.iter().zip(expected).enumerate() {
-        let DataMember::Variant(variant) = member else {
+        let Some(variant) = member.as_variant() else {
             return Err(vec![Diagnostic::error(
                 "compiler-owned DllImport must remain a closed case sum",
             )]);

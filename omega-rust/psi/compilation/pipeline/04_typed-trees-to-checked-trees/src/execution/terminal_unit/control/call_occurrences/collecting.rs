@@ -275,7 +275,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
-    if let StatementNode::Assignment(assignment) = statement {
+    if let Some(assignment) = statement.as_assignment() {
         collect_assignment_calls(
             program,
             facts,

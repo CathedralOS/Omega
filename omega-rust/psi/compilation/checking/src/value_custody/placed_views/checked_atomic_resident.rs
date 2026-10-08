@@ -6,7 +6,7 @@
 //! sealed runtime request whose placement authority already owns resident
 //! custody.
 
-use typed_trees::typed_trees::{PlacedAtomicObservingResultContract};
+use typed_trees::typed_trees::PlacedAtomicObservingResultContract;
 
 /// The checked observing-result rows an Atomic compare-exchange permission
 /// set promises: `Decisive` for `compare_exchange`, `SingleAttempt` for
@@ -33,4 +33,3 @@ pub fn placed_atomic_observing_results(
     }
     observing_results
 }
-

@@ -155,7 +155,7 @@ pub(crate) fn prepare_permission_events(
                     &mut places,
                 );
             }
-            let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+            let Some(expression) = statement.as_expression() else {
                 continue;
             };
             let Some(place) = validation::canonical_place_from_expression_in_state(

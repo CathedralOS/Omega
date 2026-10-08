@@ -291,7 +291,7 @@ fn record_view_is_fact_free(
         return false;
     }
     for member in program.data_members(data) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             visiting.remove(&symbol_identity);
             return false;
         };

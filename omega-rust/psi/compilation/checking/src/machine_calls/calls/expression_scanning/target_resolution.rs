@@ -10,7 +10,6 @@ use language_semantics::declaration_selection::CollectionViewOperation;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The declared TYPE NAME of a receiver that is a state param, state local,
@@ -44,9 +43,7 @@ pub(crate) fn declared_receiver_type_reference(
                 .statements(state.statement_nodes)
                 .iter()
                 .find_map(|statement| {
-                    let StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
+                    let local = statement.as_local_data()?;
                     (local.name.as_str() == receiver).then_some(local.type_reference)
                 })
         })
@@ -60,9 +57,7 @@ pub(crate) fn declared_receiver_type_reference(
         .or_else(|| {
             let definition = program.attached_data_definition(machine)?;
             program.data_members(definition).iter().find_map(|member| {
-                let typed_trees::data::DataMember::Field(field) = member else {
-                    return None;
-                };
+                let field = member.as_field()?;
                 (field.name.as_str() == receiver).then_some(field.type_reference)
             })
         })

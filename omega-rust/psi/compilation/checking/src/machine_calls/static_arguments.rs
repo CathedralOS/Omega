@@ -12,7 +12,6 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 pub fn validate_authored_static_arguments(
@@ -33,7 +32,7 @@ pub fn validate_authored_static_arguments(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     validate_call(
                         program,
                         StaticArgumentCall::Statement(call),

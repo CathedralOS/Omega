@@ -240,7 +240,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         statement: &StatementNode,
     ) -> Option<Vec<super::StoredReferenceEffect>> {
-        let StatementNode::Call(call) = statement else {
+        let Some(call) = statement.as_call() else {
             return Some(Vec::new());
         };
         let (state, _, index) = super::caller_aliases::caller_statement_at_site(

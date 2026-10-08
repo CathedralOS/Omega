@@ -285,7 +285,7 @@ pub(super) fn collect_call_selections(
                 );
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::LocalData(local) = statement {
+                if let Some(local) = statement.as_local_data() {
                     const_arguments::collect_type_expressions(
                         program,
                         local.type_reference,

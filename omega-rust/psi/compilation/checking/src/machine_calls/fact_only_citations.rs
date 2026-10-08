@@ -122,7 +122,7 @@ pub fn is_fact_only_citation(
     program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> bool {
-    let StatementNode::Call(call) = statement else {
+    let Some(call) = statement.as_call() else {
         return false;
     };
     is_fact_only_citation_call(program, call)

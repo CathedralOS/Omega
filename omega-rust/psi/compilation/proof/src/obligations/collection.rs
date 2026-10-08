@@ -608,7 +608,7 @@ fn collect_bounded_transition_argument_obligations(
     };
     let mut refuted_exit_guards = Vec::new();
     for statement in &statements[..statement_index] {
-        let StatementNode::Transition(prior) = statement else {
+        let Some(prior) = statement.as_transition() else {
             continue;
         };
         if let TransitionGuardNode::When(guard) = prior.guard
@@ -820,9 +820,7 @@ fn variant_payload_field_type_reference(
 ) -> Option<TypeReferenceHandle> {
     program.data_definitions().iter().find_map(|definition| {
         program.data_members(definition).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             if variant.symbol != variant_symbol {
                 return None;
             }
@@ -1133,7 +1131,7 @@ fn incoming_state_guard(
             .statement_table
             .statements(source_state.statement_nodes)
         {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
 

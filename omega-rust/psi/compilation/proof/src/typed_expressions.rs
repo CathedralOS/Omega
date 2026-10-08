@@ -195,9 +195,7 @@ fn type_reference_for_symbol(
                         .data_members(data_definition)
                         .iter()
                         .find_map(|member| {
-                            let typed_trees::data::DataMember::Field(field) = member else {
-                                return None;
-                            };
+                            let field = member.as_field()?;
 
                             (field.symbol == symbol).then_some(field.type_reference)
                         })

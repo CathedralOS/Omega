@@ -234,9 +234,7 @@ pub(super) fn call_result_place(
     {
         None => {
             let (terminal, prefix) = statements.split_last()?;
-            let StatementNode::Expression(result) = terminal else {
-                return None;
-            };
+            let result = terminal.as_expression()?;
             (prefix, vec![*result])
         }
         Some(index) => {
@@ -245,9 +243,7 @@ pub(super) fn call_result_place(
             for statement in arms {
                 // A binding route, a named successor or a continuation cannot
                 // select which input supplied the result.
-                let StatementNode::Transition(transition) = statement else {
-                    return None;
-                };
+                let transition = statement.as_transition()?;
                 if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid()
                 {
                     return None;

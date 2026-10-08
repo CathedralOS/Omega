@@ -211,7 +211,7 @@ fn assignment_is_overwritten_before_consumption(
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         if !reached_assignment {
-            if let StatementNode::Assignment(assignment) = statement
+            if let Some(assignment) = statement.as_assignment()
                 && assignment.target == obligation.target
                 && assignment.value == obligation.value
             {

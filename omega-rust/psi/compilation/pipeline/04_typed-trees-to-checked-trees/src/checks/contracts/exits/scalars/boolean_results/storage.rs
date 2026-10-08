@@ -164,9 +164,7 @@ impl ExitScalars<'_, '_> {
         *remaining = remaining.checked_sub(statements.len())?;
         let definition = usize::try_from(definition).ok()?;
         let before = usize::try_from(before_statement).ok()?;
-        let StatementNode::LocalData(local) = statements.get(definition)? else {
-            return None;
-        };
+        let local = statements.get(definition)?.as_local_data()?;
         if definition >= before || local.symbol != symbol
             || self.program.symbols.get(symbol).kind != symbols::SymbolKind::Local
             || self.program.symbols.get(symbol).parent != state.symbol

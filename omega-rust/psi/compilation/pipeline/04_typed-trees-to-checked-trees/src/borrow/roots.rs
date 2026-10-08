@@ -19,7 +19,7 @@ pub(super) fn append_state_writable_roots(
     }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
-        let StatementNode::LocalData(local_data) = statement else {
+        let Some(local_data) = statement.as_local_data() else {
             continue;
         };
         writable_roots.append_to_span(

@@ -178,7 +178,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 }
                 // Every operand of this statement sees the same declarations;
                 // the enclosing initializer becomes available only afterward.
-                if let StatementNode::LocalData(local) = statement
+                if let Some(local) = statement.as_local_data()
                     && local.initial_value.is_valid()
                 {
                     if let Some(primitive_type) =

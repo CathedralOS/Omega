@@ -23,7 +23,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
 
 /// Check one exact substituted requirement on every recognized path to a call.
 /// Unsupported paths and unknown judgments do not establish the requirement.
@@ -324,9 +324,7 @@ fn intake_state_induction(
         .statement_table
         .indexed_statements(state.statement_nodes)
         .filter_map(|(position, statement)| {
-            let StatementNode::Transition(transition) = statement else {
-                return None;
-            };
+            let transition = statement.as_transition()?;
             Some((position, transition))
         });
     let Some((position, transition)) = transitions.next() else {

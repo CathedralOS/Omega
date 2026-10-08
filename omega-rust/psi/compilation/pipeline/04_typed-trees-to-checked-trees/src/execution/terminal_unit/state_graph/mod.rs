@@ -26,9 +26,7 @@ use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
-use crate::execution::terminal_unit::types::{
-    ShapeCollector, machine_binders, state_flow,
-};
+use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 use crate::execution::terminal_unit::types::{borrowed_slice_view_element, byte_sequence_carrier};
 use crate::execution::terminal_unit::{composed_control, control};
 

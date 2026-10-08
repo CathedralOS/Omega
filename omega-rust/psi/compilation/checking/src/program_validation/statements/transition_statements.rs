@@ -15,7 +15,7 @@ pub(super) fn validate(
     outputs: &mut StatementOutputs<'_>,
     statement: &StatementNode,
 ) {
-    let StatementNode::Transition(transition) = statement else {
+    let Some(transition) = statement.as_transition() else {
         unreachable!("dispatched transition_statements")
     };
     let StatementScope {

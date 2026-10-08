@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
-use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::statement::TableCall;
 
 pub(crate) fn validate_proposition_entailment(
     program: &dyn crate::CheckingInput,
@@ -52,7 +52,7 @@ pub(crate) fn validate_proposition_entailment(
                     statement_index,
                     &mut known,
                 );
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     intake_call_propositions(program, machine, call, &mut known, diagnostics);
                 }
             }
@@ -233,8 +233,7 @@ pub fn select_named_evidence_implementation<'program>(
     &'program typed_trees::trait_definition::Conformance,
     symbols::SymbolHandle,
 )> {
-    let conformance = program
-        .conformance_by_symbol(conformance_symbol)?;
+    let conformance = program.conformance_by_symbol(conformance_symbol)?;
     if conformance.alias.as_ref()?.as_str() != source_name {
         return None;
     }

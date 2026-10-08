@@ -321,9 +321,7 @@ fn local_type_reference_before_statement(
         .iter()
         .take(statement_index)
         .find_map(|statement| {
-            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-                return None;
-            };
+            let local = statement.as_local_data()?;
             ((symbol.is_valid() && local.symbol == symbol)
                 || name.is_some_and(|name| local.name.as_str() == name))
             .then_some(local.type_reference)
@@ -361,9 +359,7 @@ fn data_binding_field_type_reference(
 
     let data = program.data_definition_by_symbol(machine.attached_data_symbol)?;
     program.data_members(data).iter().find_map(|data_member| {
-        let typed_trees::data::DataMember::Field(field) = data_member else {
-            return None;
-        };
+        let field = data_member.as_field()?;
         ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
             || field.name == member.member)
             .then_some(field.type_reference)

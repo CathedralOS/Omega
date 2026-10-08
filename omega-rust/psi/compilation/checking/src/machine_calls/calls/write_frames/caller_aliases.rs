@@ -238,9 +238,7 @@ pub(super) fn assignment_destination_origins(
     ) {
         return Some(Vec::new());
     }
-    let StatementNode::Assignment(assignment) = statement else {
-        return None;
-    };
+    let assignment = statement.as_assignment()?;
     let mut inference = FrameInference::for_state(state.symbol);
     for local in &evidence.stored {
         inference.record_local(local);
@@ -313,9 +311,7 @@ fn assignment_evidence(
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
 ) -> Option<AssignmentEvidence> {
-    let StatementNode::Assignment(assignment) = statement else {
-        return None;
-    };
+    let assignment = statement.as_assignment()?;
     let site = caller_prefix_site(
         program,
         machine,

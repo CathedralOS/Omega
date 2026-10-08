@@ -63,7 +63,7 @@ pub(super) fn check_domain_field_writes(
         // A local annotation is an obligation on its initializer, not an
         // establishment route. Check before the local's own statement facts
         // can be consulted, retaining exact indexed qualification identity.
-        if let StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && local.initial_value.is_valid()
         {
             for (domain_symbol, semantic_domain) in
@@ -119,7 +119,7 @@ pub(super) fn check_domain_field_writes(
             }
         }
         // (1) Assignment into a domain-refined field, parameter, or local.
-        if let StatementNode::Assignment(assignment) = statement {
+        if let Some(assignment) = statement.as_assignment() {
             for domain in validation::field_domains::assignment_target_domain_constraints(
                 program,
                 machine,
@@ -193,7 +193,7 @@ pub(super) fn check_domain_field_writes(
         // `&[u8] in D` owns no inline storage (capacity is None) and is skipped.
         // A value whose maximum length cannot be bounded (an unbounded view
         // source, a runtime call result) is conservatively rejected.
-        if let StatementNode::Assignment(assignment) = statement
+        if let Some(assignment) = statement.as_assignment()
             && !validation::field_domains::assignment_target_domain_symbols(
                 program,
                 machine,
@@ -302,7 +302,7 @@ pub(super) fn check_domain_field_writes(
             .iter()
             .map(|reference| reference.context)
             .collect::<Vec<_>>();
-        if let StatementNode::Transition(transition) = statement {
+        if let Some(transition) = statement.as_transition() {
             if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
                 scan_construction_field_domains(
                     program,

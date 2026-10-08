@@ -26,13 +26,16 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
     /// Follow only an immutable descriptor whose binding is still unexposed at
     /// this occurrence; general initializer evaluation remains forbidden.
     fn immutable_fixed_array_view_length(&mut self, expression: ExpressionHandle) -> Option<usize> {
-        use typed_trees::statement::{StatementNode, TransitionGuardNode};
+        use typed_trees::statement::TransitionGuardNode;
 
-        let Some(path) = self.program.expression_table.name_path_node(expression)
-        else {
+        let Some(path) = self.program.expression_table.name_path_node(expression) else {
             return None;
         };
-        if !self.program.expression_table.name_path_is_single_member(path) {
+        if !self
+            .program
+            .expression_table
+            .name_path_is_single_member(path)
+        {
             return None;
         }
         let statements = self
@@ -41,9 +44,7 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
             .statements(self.caller_state.statement_nodes);
         // This first length-only route has no effects between the prefix and
         // its actuals: neither a guard nor an earlier argument can rebind a view.
-        let StatementNode::Transition(transition) = statements.get(self.statement_index)? else {
-            return None;
-        };
+        let transition = statements.get(self.statement_index)?.as_transition()?;
         if !matches!(transition.guard, TransitionGuardNode::Always)
             || !matches!(self.call_site, validation::CallSite::TransitionNamed { .. })
             || validation::call_site_argument_expressions(self.program, self.call_site)
@@ -105,7 +106,10 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
     fn fixed_array_self_field_length(&mut self, member: &TableMemberExpression) -> Option<usize> {
         // Only `self.<field>` receivers: the self type is the one type the
         // callee contract pins statically.
-        let Some(path) = self.program.expression_table.name_path_node(member.receiver)
+        let Some(path) = self
+            .program
+            .expression_table
+            .name_path_node(member.receiver)
         else {
             return None;
         };
@@ -133,7 +137,7 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
             .map(|machine| self.self_data_definition(machine))
             .unwrap_or_else(|| self.target_self_data_definition())?;
         for data_member in self.program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = data_member else {
+            let Some(field) = data_member.as_field() else {
                 continue;
             };
             if field.name == member.member {
@@ -169,7 +173,6 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
         machine: &typed_trees::machine::Machine,
     ) -> Option<&'program typed_trees::data::DataDefinition> {
         let attached_data = machine.attached_data.as_ref()?;
-        self.program
-            .data_definition_by_name(attached_data)
+        self.program.data_definition_by_name(attached_data)
     }
 }

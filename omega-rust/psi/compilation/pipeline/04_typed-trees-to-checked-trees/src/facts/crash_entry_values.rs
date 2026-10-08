@@ -33,7 +33,7 @@ use checked_trees::CrashPredicateExpression;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::TransitionTargetNode;
 use typed_trees::types::TypeReferenceNode;
 use validation::has_contents;
 
@@ -1131,7 +1131,7 @@ fn named_transition_arguments(
             .iter()
             .enumerate()
         {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             for target in [transition.target, transition.continuation] {

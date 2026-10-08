@@ -16,9 +16,7 @@ pub(super) fn guarded_self_loop<'program>(
     state: &typed_trees::state::State,
     statement: &StatementNode,
 ) -> Option<GuardedSelfLoop<'program>> {
-    let StatementNode::Transition(transition) = statement else {
-        return None;
-    };
+    let transition = statement.as_transition()?;
     let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
@@ -70,7 +68,7 @@ pub(super) fn edges_to_state<'program>(
         .iter()
         .enumerate()
     {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             previous.clear();
             continue;
         };

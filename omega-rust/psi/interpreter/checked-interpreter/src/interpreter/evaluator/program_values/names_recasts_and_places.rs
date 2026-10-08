@@ -954,7 +954,7 @@ impl<'program> Evaluator<'program> {
         field_name: &str,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         for member in self.program.data_members(data) {
-            if let DataMember::Field(field) = member
+            if let Some(field) = member.as_field()
                 && field.name.as_str() == field_name
             {
                 return Some(field.type_reference);

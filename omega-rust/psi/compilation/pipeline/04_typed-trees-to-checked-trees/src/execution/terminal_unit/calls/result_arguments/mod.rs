@@ -603,13 +603,11 @@ fn argument_contract(
                 || owned_reference_record
             {
                 let source_state = program.state_by_symbol(state)?;
-                let StatementNode::LocalData(local) = program
+                let local = program
                     .statement_table
                     .statements(source_state.statement_nodes)
                     .get(usize::try_from(result.statement_index).ok()?)?
-                else {
-                    return None;
-                };
+                    .as_local_data()?;
                 // Moves consume the checked ownership of the current value;
                 // binding mutability only permits its later reestablishment.
                 // Loans, whole or projected, use the exact captured access
@@ -910,12 +908,10 @@ fn whole_local_storage_type(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    let StatementNode::LocalData(local) = program
+    let local = program
         .statement_table
         .statements(source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
-    else {
-        return None;
-    };
+        .as_local_data()?;
     (place.segments.is_empty() && local.symbol == symbol).then_some(local.type_reference)
 }

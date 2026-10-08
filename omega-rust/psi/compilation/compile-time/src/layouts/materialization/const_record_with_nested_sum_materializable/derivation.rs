@@ -384,7 +384,7 @@ pub(super) fn stage_record_level_fields(
     active.push(data.symbol);
     let mut staged_index = 0usize;
     for member in members {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             unreachable!("outer record shape was validated above")
         };
         let field_value = supplied

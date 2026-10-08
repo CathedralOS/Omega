@@ -635,9 +635,7 @@ fn boundary_service_for_receiver_path(
             .type_symbol(&program.type_reference_table);
         let definition = data_definition_by_symbol(program, owner_symbol)?;
         let field = program.data_members(definition).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             (field.name.as_str() == member_name.as_str()).then_some(field)
         })?;
         type_reference = field.type_reference;
@@ -662,9 +660,7 @@ fn type_reference_for_symbol(
         .or_else(|| {
             let definition = data_definition_by_symbol(program, machine.attached_data_symbol)?;
             program.data_members(definition).iter().find_map(|member| {
-                let typed_trees::data::DataMember::Field(field) = member else {
-                    return None;
-                };
+                let field = member.as_field()?;
                 (field.symbol == symbol).then_some(field.type_reference)
             })
         })
@@ -873,9 +869,7 @@ fn origin_for_symbol(
         }
         return Some(InvocationTarget::Service(service));
     }
-    if let Some(owned) = program
-        .machine_owned_data_by_symbol(machine, symbol)
-    {
+    if let Some(owned) = program.machine_owned_data_by_symbol(machine, symbol) {
         return boundary_service_for_type(program, owned.type_reference)
             .map(InvocationTarget::Service);
     }

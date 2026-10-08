@@ -151,7 +151,7 @@ fn plan_selected_boundary_adapter_dispatch(
     let mut boundary_fields = Vec::new();
     for data in typed.data_definitions() {
         for member in typed.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 continue;
             };
             let symbol = if let Some(requirement) =
@@ -359,7 +359,7 @@ fn plan_selected_boundary_adapter_dispatch(
     for machine in typed.machines() {
         for state in typed.machine_states(machine) {
             for statement in typed.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     resolve_adapter_call(
                         typed,
                         &adapters,

@@ -159,7 +159,7 @@ fn receiver_is_writable(
     // Writable-root facts retain local bindings; the declared reference access
     // still decides whether the referent can be exclusively borrowed.
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && local.symbol == receiver.root_symbol
         {
             return match program

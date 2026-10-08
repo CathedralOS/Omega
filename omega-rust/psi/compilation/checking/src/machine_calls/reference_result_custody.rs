@@ -98,7 +98,7 @@ fn reference_origin_expansion_is_bounded(
             crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
         {
             for member in program.data_members(data) {
-                if let typed_trees::data::DataMember::Field(field) = member {
+                if let Some(field) = member.as_field() {
                     visit(program, field.type_reference, depth + 1, visits, leaves)?;
                 }
             }
@@ -158,9 +158,7 @@ pub fn is_reference_record(
         seen.push(*symbol);
         let mut contains_reference = false;
         for member in program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             if field.relevance.is_erased() {
                 return None;
             }
@@ -1055,7 +1053,7 @@ fn returned_sources_with_calls(
     }
     let mut sources = Vec::new();
     for statement in program.statement_table.statements(state.statement_nodes) {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             continue;
         };
         // A crash has no normal result and therefore contributes no origin.
@@ -1138,12 +1136,10 @@ pub fn terminal_call_reference_sources(
     {
         return None;
     }
-    let StatementNode::Transition(transition) = program
+    let transition = program
         .statement_table
         .statement_at(state, call.statement_index)?
-    else {
-        return None;
-    };
+        .as_transition()?;
     if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
         return None;
     }
@@ -1235,9 +1231,7 @@ pub fn record_carrier_sources(
             .unparameterized_type_symbol(reference)?;
         let data = crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)?;
         for member in program.data_members(data) {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
                 field.path_identity(),
             ));
@@ -1314,9 +1308,7 @@ fn aggregate_construction_sources(
             return None;
         }
         for member in fields {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             let mut matching = initializers
                 .iter()
                 .filter(|initializer| initializer.field_symbol == field.symbol);
@@ -1376,13 +1368,11 @@ pub fn local_record_loans(
     state: &typed_trees::state::State,
     statement_index: u32,
 ) -> Option<Vec<RecordLeafLoans>> {
-    let StatementNode::LocalData(local) = program
+    let local = program
         .statement_table
         .statements(state.statement_nodes)
         .get(statement_index as usize)?
-    else {
-        return None;
-    };
+        .as_local_data()?;
     let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
         (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
             .then_some(borrowing)
@@ -1663,13 +1653,11 @@ fn active_record_loans(
     if declaration_statement >= statement_index {
         return None;
     }
-    let StatementNode::LocalData(local) = program
+    let local = program
         .statement_table
         .statements(state.statement_nodes)
         .get(declaration_statement as usize)?
-    else {
-        return None;
-    };
+        .as_local_data()?;
     let constraints = statement_entry_constraints(facts, machine, state.symbol, statement_index)?;
     let mut loans = constraints
         .iter()
@@ -1922,13 +1910,11 @@ pub fn record_argument(
     destination: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let (referent, access) = stored_loan_parts(program, destination)?;
-    let StatementNode::LocalData(local) = program
+    let local = program
         .statement_table
         .statements(state.statement_nodes)
         .get(result.statement_index as usize)?
-    else {
-        return None;
-    };
+        .as_local_data()?;
     if result.type_identity
         != program
             .normalized_type_identity(local.type_reference)
@@ -2423,9 +2409,7 @@ pub fn whole_local_release_boundary(
     statement_index: u32,
 ) -> Option<u32> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    let StatementNode::LocalData(local) = statements.get(statement_index as usize)? else {
-        return None;
-    };
+    let local = statements.get(statement_index as usize)?.as_local_data()?;
     let loans = local_record_loans(program, facts, machine, state, statement_index)?;
     if loans.is_empty() || !local.symbol.is_valid() {
         return None;

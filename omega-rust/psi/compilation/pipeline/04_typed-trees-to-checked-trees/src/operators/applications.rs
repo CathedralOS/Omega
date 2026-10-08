@@ -7,7 +7,6 @@ use checked_trees::{
 };
 use typed_trees::expression::ExpressionNode;
 use typed_trees::operator::ClosedOperatorApplicationArgument;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 use validation::{expression_type_reference_for_origin, indexed_operand_types};
@@ -79,8 +78,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
         }
         match application.site {
             validation::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression) => {
-                let Some(call) = program.expression_table.call_node(expression)
-                else {
+                let Some(call) = program.expression_table.call_node(expression) else {
                     diagnostics.push(diagnostics::Diagnostic::error(
                         "validated named operator application no longer names a call expression",
                     ));
@@ -162,7 +160,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 }
             }
             validation::ValidatedBoundaryOperatorApplicationUseSite::Statement(statement) => {
-                let StatementNode::Call(call) = program.statement_table.statement(statement) else {
+                let Some(call) = program.statement_table.statement(statement).as_call() else {
                     diagnostics.push(diagnostics::Diagnostic::error(
                         "validated named operator application no longer names a call statement",
                     ));

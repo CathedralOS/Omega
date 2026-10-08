@@ -201,7 +201,7 @@ fn retire_replaced_carrier_loans(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     current: &mut Vec<StateLoanTracker>,
 ) {
-    let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
+    let Some(assignment) = statement.as_assignment() else {
         return;
     };
     if validation::declared_place_type_raw(program, machine, Some(state), assignment.target)

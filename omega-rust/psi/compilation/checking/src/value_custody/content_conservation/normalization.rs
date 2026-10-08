@@ -437,9 +437,7 @@ fn structural_place_type(
                     })?;
                 let selected = if let Some(variant_symbol) = active_variant.take() {
                     program.data_members(data).iter().find_map(|member| {
-                        let typed_trees::data::DataMember::Variant(variant) = member else {
-                            return None;
-                        };
+                        let variant = member.as_variant()?;
                         (variant.symbol == variant_symbol).then(|| {
                             program
                                 .data_payload_fields(variant)

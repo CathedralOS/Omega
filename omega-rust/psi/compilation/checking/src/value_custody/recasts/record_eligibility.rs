@@ -124,7 +124,7 @@ fn fact_free_record_graph_is_eligible(
                 }
                 work.push(RecordEligibilityWork::Exit { symbol, context });
                 for member in members.iter().rev() {
-                    let typed_trees::data::DataMember::Field(field) = member else {
+                    let Some(field) = member.as_field() else {
                         return false;
                     };
                     if field.relevance.is_erased() {

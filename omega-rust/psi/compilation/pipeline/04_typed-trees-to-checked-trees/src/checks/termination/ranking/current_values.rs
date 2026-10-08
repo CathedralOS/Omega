@@ -26,7 +26,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::TransitionTargetNode;
 use validation::ScopedArithmeticValue;
 
 pub(super) fn component_decreases(
@@ -165,12 +165,10 @@ fn prove_edge(
     edge: &patterns::GuardedEdge<'_>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
-    let StatementNode::Transition(transition) = program
+    let transition = program
         .statement_table
         .statement_at(source, edge.statement_ordinal)?
-    else {
-        return None;
-    };
+        .as_transition()?;
     let selected = if edge.is_continuation {
         transition.continuation
     } else {

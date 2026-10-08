@@ -164,7 +164,7 @@ pub(crate) fn collect_checked_proof_view_call_selections(
                 .statements(state.statement_nodes)
                 .iter()
             {
-                let typed_trees::statement::StatementNode::AssemblyFact(fact) = statement else {
+                let Some(fact) = statement.as_assembly_fact() else {
                     continue;
                 };
                 fact_roots.push(fact.expression);
@@ -276,7 +276,7 @@ pub(crate) fn collect_checked_statement_selections(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                let typed_trees::statement::StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 if call.operational_acknowledgement.origin

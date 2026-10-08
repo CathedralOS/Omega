@@ -2,9 +2,7 @@
 //! establishment. A canonical place's borrowability and the leaf type a
 //! projected path selects are decided here, ahead of value production.
 
-use super::super::{
-    ExpressionHandle, ExpressionNode, StatementNode, SymbolHandle, TypeReferenceNode,
-};
+use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle, TypeReferenceNode};
 use typed_trees::types::TypeReferenceHandle;
 
 /// The declared type of a shared borrow's exact target without state scope: a
@@ -119,7 +117,7 @@ pub(super) fn symbol_declared_type(
                 return Some(parameter.type_reference);
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::LocalData(local) = statement
+                if let Some(local) = statement.as_local_data()
                     && local.symbol == symbol
                 {
                     return Some(local.type_reference);

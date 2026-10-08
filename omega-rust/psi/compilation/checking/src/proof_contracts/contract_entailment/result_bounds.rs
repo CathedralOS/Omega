@@ -378,9 +378,7 @@ impl ReturnReader<'_, '_> {
                 .iter()
                 .enumerate()
                 .filter_map(|(position, node)| {
-                    let StatementNode::LocalData(local) = node else {
-                        return None;
-                    };
+                    let local = node.as_local_data()?;
                     (local.symbol == path.symbol).then_some((position, local))
                 });
             let Some((definition, local)) = locals.next() else {
@@ -634,9 +632,7 @@ impl ReturnReader<'_, '_> {
                     .iter()
                     .enumerate()
                     .filter_map(|(ordinal, statement)| {
-                        let StatementNode::LocalData(local) = statement else {
-                            return None;
-                        };
+                        let local = statement.as_local_data()?;
                         (local.symbol == path.symbol).then_some((ordinal, local))
                     });
                 let Some((ordinal, local)) = locals.next() else {

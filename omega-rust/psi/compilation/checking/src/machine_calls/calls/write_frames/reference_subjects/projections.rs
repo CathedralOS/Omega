@@ -65,9 +65,7 @@ pub(super) fn validate_owned_source(
         .data_members(definition)
         .iter()
         .filter_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             (field.symbol == *symbol && symbol.is_valid()).then_some(field)
         });
     let field = fields.next()?;

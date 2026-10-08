@@ -81,8 +81,7 @@ pub fn collect_checked_transition_target_selections(
         }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let typed_trees::statement::StatementNode::Transition(transition) = statement
-                else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 for target in [transition.target, transition.continuation] {

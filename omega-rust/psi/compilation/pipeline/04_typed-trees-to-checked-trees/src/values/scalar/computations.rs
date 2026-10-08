@@ -166,7 +166,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 // it. The root keys on the invalid initializer handle, which
                 // the local plan arm matches by equality. Whole-local
                 // rebinding permission does not govern member establishment.
-                if let StatementNode::LocalData(local) = statement
+                if let Some(local) = statement.as_local_data()
                     && program
                         .primitive_type_reference(local.type_reference)
                         .is_none()
@@ -263,7 +263,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         program.expression_table.expression_handles(call.arguments),
                     );
                 }
-                if let StatementNode::LocalData(local) = statement {
+                if let Some(local) = statement.as_local_data() {
                     let structural_destination = program
                         .primitive_type_reference(local.type_reference)
                         .is_none();
@@ -329,7 +329,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                     continue;
                 }
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     builder.record_call_arguments(
                         statement_ordinal,
                         0,
@@ -338,7 +338,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     );
                     continue;
                 }
-                if let StatementNode::Expression(expression) = statement
+                if let Some(expression) = statement.as_expression()
                     && let ExpressionNode::Call(call) =
                         program.expression_table.expression(*expression)
                 {
@@ -357,7 +357,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         continue;
                     }
                 }
-                if let StatementNode::Assignment(assignment) = statement {
+                if let Some(assignment) = statement.as_assignment() {
                     // A constructed assignment value is the same structural
                     // constructor a `let` initializer roots. Each scalar field
                     // initializer of a record keeps its own `RecordField`
@@ -542,7 +542,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                     continue;
                 }
-                if let StatementNode::Expression(expression) = statement
+                if let Some(expression) = statement.as_expression()
                     && statement_index + 1 == statements.len()
                     && let Some(result_type) = program.primitive_type_reference(state.return_type)
                 {
@@ -554,7 +554,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         result_type,
                     );
                 }
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 // Named machine invocations use the same argument roles as

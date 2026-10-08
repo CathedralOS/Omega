@@ -20,7 +20,7 @@ use layout_plans::{
     LayoutPlanReport, MaterializationDiagnostic, materialize_aggregate_layout_into,
 };
 use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use typed_trees::data::{DataDefinition, DataShapeKind};
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
 pub(crate) struct DerivedRecordWithSumMaterialization {
@@ -214,7 +214,7 @@ pub(crate) fn derive_record_with_sum_bytes(
 
     let mut direct_sums = Vec::new();
     for member in members {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             unreachable!("outer record shape was validated above")
         };
         if !supplied.contains_key(field.name.as_str()) {
@@ -377,9 +377,7 @@ fn reconstruct_legacy_sum_array_elements(
 ) -> Result<Vec<ValidatedConstRecordSumArrayElementMaterialization>, MaterializationDiagnostic> {
     let data = unique_data_by_name(typed, schema_name)?;
     let mut matching_fields = typed.data_members(data).iter().filter_map(|member| {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         field_occurrence_matches(
             field.name.as_str(),
             field.identity,

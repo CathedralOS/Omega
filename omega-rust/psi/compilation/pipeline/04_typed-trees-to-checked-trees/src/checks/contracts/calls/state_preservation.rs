@@ -163,9 +163,8 @@ pub(super) fn caller_state_preserves_field(
     state: &typed_trees::state::State,
     field: &typed_trees::name::Identifier,
 ) -> bool {
-    use typed_trees::statement::StatementNode;
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if let StatementNode::Assignment(assignment) = statement
+        if let Some(assignment) = statement.as_assignment()
             && assignment_target_mentions_field(program, assignment.target, field)
         {
             return false;

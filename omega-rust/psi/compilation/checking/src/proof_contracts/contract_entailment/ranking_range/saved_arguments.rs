@@ -20,7 +20,6 @@ use super::super::StrictArithmeticExpressionBinding;
 use super::{BigInt, Engine, ExpressionHandle, Machine, Polynomial, State, lengths, meanings};
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// An actual that carries a saved caller observation: a plain name bound by
@@ -55,7 +54,7 @@ pub(super) fn install(
         .statements(state.statement_nodes)
         .iter()
     {
-        let StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             continue;
         };
         if !local.initial_value.is_valid()

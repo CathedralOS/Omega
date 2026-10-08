@@ -183,7 +183,7 @@ pub(super) fn append_replacement(
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
+    let Some(assignment) = statement.as_assignment() else {
         return;
     };
     let Some(place) = validation::canonical_place_from_expression_in_state(

@@ -66,7 +66,7 @@ pub(super) fn prepare_prefix<'program>(
         prefix
             .written_paths
             .extend(call_frames.statement_value_may_write_paths(machine, statement)?);
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             prefix
                 .written_paths
                 .extend(call_frames.may_write_paths(machine, call)?);

@@ -6,7 +6,7 @@ use crate::checks::termination::ranking::RankingOrder;
 use crate::checks::termination::ranking::patterns;
 use symbols::SymbolHandle;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::statement::TransitionGuardNode;
 
 mod state_edges;
 
@@ -242,7 +242,7 @@ fn preserved_entry_prefix<'program>(
         if validation::is_arm_pattern_marker(statement) {
             continue;
         }
-        if let StatementNode::Assignment(assignment) = statement {
+        if let Some(assignment) = statement.as_assignment() {
             // Entry hypotheses name the protected premise carriers only. A
             // direct store whose alias-closed frame is disjoint from each of
             // them preserves every hypothesis, whatever it stores into an
@@ -270,7 +270,7 @@ fn preserved_entry_prefix<'program>(
             evaluated.push(assignment.value);
             continue;
         }
-        if let StatementNode::LocalData(local) = statement {
+        if let Some(local) = statement.as_local_data() {
             // An unrelated local does not revise the entry
             // telescope. Keep numeric substitution handle-first: local
             // expressions are not promoted into parameter hypotheses.
@@ -310,7 +310,7 @@ fn preserved_entry_prefix<'program>(
             }
             continue;
         }
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             // A statement-position call preserves the entry telescope only
             // with complete write-frame evidence: its own caller-relative
             // frame and the aggregated frame of any value calls nested in
@@ -346,7 +346,7 @@ fn preserved_entry_prefix<'program>(
             }
             continue;
         }
-        if let StatementNode::Expression(expression) = statement {
+        if let Some(expression) = statement.as_expression() {
             // A bare evaluated expression writes nothing only while it stays
             // inert; nested calls and authored operators keep failing closed
             // rather than borrowing the discarded value as a hypothesis.
@@ -355,9 +355,7 @@ fn preserved_entry_prefix<'program>(
             }
             continue;
         }
-        let StatementNode::Transition(transition) = statement else {
-            return None;
-        };
+        let transition = statement.as_transition()?;
         match transition.guard {
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {

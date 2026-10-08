@@ -217,7 +217,7 @@ where
             if statement_may_touch_slot(program, machine, state, index, frames, statement, &slot)? {
                 return None;
             }
-            if let StatementNode::Assignment(assignment) = statement {
+            if let Some(assignment) = statement.as_assignment() {
                 let target = flow::statement_mutated_place(
                     program,
                     machine.symbol,
@@ -261,7 +261,7 @@ where
             )? {
                 return None;
             }
-            if let StatementNode::Call(call_statement) = statement {
+            if let Some(call_statement) = statement.as_call() {
                 let writes = flow::frame_storage_writes(
                     program,
                     machine.symbol,

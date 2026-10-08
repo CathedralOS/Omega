@@ -148,9 +148,7 @@ pub(crate) fn literal_variant<'program>(
         .iter()
         .find(|definition| definition.name == literal.type_name)?;
     program.data_members(definition).iter().find_map(|member| {
-        let typed_trees::data::DataMember::Variant(variant) = member else {
-            return None;
-        };
+        let variant = member.as_variant()?;
         (variant.name == *case_name).then_some(variant)
     })
 }

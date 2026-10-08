@@ -512,7 +512,8 @@ impl StatementTable {
         &self,
         span: HandleSpan<StatementNode>,
     ) -> impl Iterator<Item = (StatementHandle, &StatementNode)> {
-        span.handles().map(|handle| (handle, self.statements.get(handle)))
+        span.handles()
+            .map(|handle| (handle, self.statements.get(handle)))
     }
 
     /// Mutable span access for deterministic pre-check normalization passes.
@@ -674,6 +675,64 @@ pub enum StatementNode {
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
     Transition(TableTransition),
+}
+
+impl StatementNode {
+    /// The `RootBinding` record, if this statement is one.
+    pub fn as_root_binding(&self) -> Option<&RootBinding> {
+        let StatementNode::RootBinding(binding) = self else {
+            return None;
+        };
+        Some(binding)
+    }
+
+    /// The `AssemblyFact` record, if this statement is one.
+    pub fn as_assembly_fact(&self) -> Option<&TableAssemblyFact> {
+        let StatementNode::AssemblyFact(fact) = self else {
+            return None;
+        };
+        Some(fact)
+    }
+
+    /// The `Assignment` record, if this statement is one.
+    pub fn as_assignment(&self) -> Option<&TableAssignment> {
+        let StatementNode::Assignment(assignment) = self else {
+            return None;
+        };
+        Some(assignment)
+    }
+
+    /// The `Call` record, if this statement is one.
+    pub fn as_call(&self) -> Option<&TableCall> {
+        let StatementNode::Call(call) = self else {
+            return None;
+        };
+        Some(call)
+    }
+
+    /// The expression handle, if this statement is a bare expression.
+    pub fn as_expression(&self) -> Option<&crate::expression::ExpressionHandle> {
+        let StatementNode::Expression(expression) = self else {
+            return None;
+        };
+        Some(expression)
+    }
+
+    /// The `LocalData` record, if this statement is one.
+    pub fn as_local_data(&self) -> Option<&TableLocalData> {
+        let StatementNode::LocalData(local) = self else {
+            return None;
+        };
+        Some(local)
+    }
+
+    /// The `Transition` record, if this statement is one.
+    pub fn as_transition(&self) -> Option<&TableTransition> {
+        let StatementNode::Transition(transition) = self else {
+            return None;
+        };
+        Some(transition)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

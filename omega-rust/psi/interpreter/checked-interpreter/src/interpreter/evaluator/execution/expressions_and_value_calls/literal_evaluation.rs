@@ -106,7 +106,7 @@ impl<'program> Evaluator<'program> {
         // never the declared default -- validation rejects defaults on mixed
         // common fields), unless the literal names them below.
         for member in self.program.data_members(data) {
-            let DataMember::Field(common_field) = member else {
+            let Some(common_field) = member.as_field() else {
                 continue;
             };
             let name: crate::value::ValueName = common_field.name.as_str().into();

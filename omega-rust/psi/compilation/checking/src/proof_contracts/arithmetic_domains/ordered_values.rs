@@ -118,10 +118,7 @@ impl Operand {
                     .statements(state.statement_nodes)
                     .iter()
                     .filter_map(|statement| {
-                        let typed_trees::statement::StatementNode::LocalData(local) = statement
-                        else {
-                            return None;
-                        };
+                        let local = statement.as_local_data()?;
                         (local.symbol == *root).then_some((!local.is_mutable, local.type_reference))
                     });
                 let mut declarations = parameters.chain(locals);

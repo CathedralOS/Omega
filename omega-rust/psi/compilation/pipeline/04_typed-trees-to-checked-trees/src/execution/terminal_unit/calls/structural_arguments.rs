@@ -19,7 +19,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    StatementNode, SymbolHandle, strips_erased_parameter,
+    SymbolHandle, strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(
@@ -705,12 +705,10 @@ pub(crate) fn exact_structural_argument_access(
     let returned_loans = program
         .state_by_symbol(state)
         .and_then(|source_state| {
-            let StatementNode::LocalData(local) = program
+            let local = program
                 .statement_table
                 .statement_at(source_state, call.statement_index)?
-            else {
-                return None;
-            };
+                .as_local_data()?;
             if crate::execution::terminal_unit::reference_results::is_reference_record(
                 program,
                 local.type_reference,

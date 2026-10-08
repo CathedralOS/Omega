@@ -154,10 +154,10 @@ impl<'program> ShapeCollector<'program> {
                 // generated name that carries no source-resolved symbol; the
                 // signature builder joins that spelling to the exact shell
                 // declaration in the same way.
-                machine.attached_data.as_ref().and_then(|name| {
-                    self.program
-                        .data_definition_by_name(name)
-                })
+                machine
+                    .attached_data
+                    .as_ref()
+                    .and_then(|name| self.program.data_definition_by_name(name))
             });
         if let Some(data) = attached
             && let Some(identity) = self.add_placed_accessor_attachment(data, binders)
@@ -845,8 +845,7 @@ impl<'program> ShapeCollector<'program> {
         }
 
         let program = self.program;
-        let authored_layout = program
-            .plan_laid_layout(data.symbol);
+        let authored_layout = program.plan_laid_layout(data.symbol);
         let record_storage = match authored_layout {
             Some(layout) => Some(semantic_vocabulary::AuthoredRecordStorage {
                 byte_size: u64::try_from(layout.size).ok()?,
@@ -856,7 +855,7 @@ impl<'program> ShapeCollector<'program> {
         };
         let mut fields = Vec::new();
         for member in &members {
-            let DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 self.in_progress.remove(&identity);
                 return None;
             };

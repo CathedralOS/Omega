@@ -1,4 +1,4 @@
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::TransitionTargetNode;
 
 /// A transition edge between two states of a machine, identified by their
 /// indices into `program.machine_states(machine)`.
@@ -157,7 +157,7 @@ fn outgoing_state_indices(
     let mut outgoing = Vec::new();
 
     for statement in program.statement_table.statements(state.statement_nodes) {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             continue;
         };
 

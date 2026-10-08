@@ -65,9 +65,7 @@ pub(crate) fn validate_checked_write_only_slice(
                     .statements(state.statement_nodes)
                     .iter()
                     .filter_map(|statement| {
-                        let StatementNode::LocalData(local) = statement else {
-                            return None;
-                        };
+                        let local = statement.as_local_data()?;
                         let TypeReferenceNode::Reference {
                             referee,
                             access: ReferenceAccess::WriteOnly,
@@ -359,7 +357,7 @@ fn is_unrestricted_write_only_sum(
             && DataDefinition::shape_kind_from_members(program.data_members(definition))
                 == DataShapeKind::Enum
             && program.data_members(definition).iter().all(|member| {
-                let DataMember::Variant(variant) = member else {
+                let Some(variant) = member.as_variant() else {
                     return false;
                 };
                 program
@@ -573,9 +571,7 @@ fn mutable_formation_sources(
                 )
             })
             .filter_map(|statement| {
-                let StatementNode::LocalData(source) = statement else {
-                    return None;
-                };
+                let source = statement.as_local_data()?;
                 if !source.symbol.is_valid() || source.relevance.is_erased() {
                     return None;
                 }
@@ -785,7 +781,7 @@ fn write_only_literal_indexed_record_field_assignment(
         return false;
     };
     program.data_members(definition).iter().any(|candidate| {
-        let DataMember::Field(field) = candidate else {
+        let Some(field) = candidate.as_field() else {
             return false;
         };
         ((final_member.member_symbol.is_valid() && field.symbol == final_member.member_symbol)

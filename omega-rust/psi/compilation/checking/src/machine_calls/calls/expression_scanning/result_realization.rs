@@ -1025,7 +1025,7 @@ pub(super) fn report_void_value_callee(
                 .statements(state.statement_nodes)
                 .iter()
                 .any(|statement| {
-                    let StatementNode::Transition(transition) = statement else {
+                    let Some(transition) = statement.as_transition() else {
                         return false;
                     };
                     [transition.target, transition.continuation]

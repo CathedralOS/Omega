@@ -369,9 +369,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                     }
                 } else {
                     for member in program.data_members(definition) {
-                        let DataMember::Field(field) = member else {
-                            return None;
-                        };
+                        let field = member.as_field()?;
                         fields.push((field.name.as_str(), field.symbol, field.type_reference));
                     }
                 }

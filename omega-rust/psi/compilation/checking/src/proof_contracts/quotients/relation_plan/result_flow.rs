@@ -54,9 +54,7 @@ pub(in crate::proof_contracts::quotients) fn fallthrough_result_root(
         .statements(state.statement_nodes)
         .last()
         .and_then(|statement| {
-            let StatementNode::Expression(expression) = statement else {
-                return None;
-            };
+            let expression = statement.as_expression()?;
             matches!(
                 program.expression_table.expression(*expression),
                 ExpressionNode::Call(call) if call.quotient_operation.is_some()
@@ -86,9 +84,7 @@ pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
     let mut expected_symbol = exact_local_name_symbol(program, *result)?;
     let mut seen = Vec::new();
     for (position, statement) in prefix.iter().enumerate().rev() {
-        let StatementNode::LocalData(local) = statement else {
-            return None;
-        };
+        let local = statement.as_local_data()?;
         if local.is_mutable
             || local.symbol != expected_symbol
             || seen.contains(&local.symbol)

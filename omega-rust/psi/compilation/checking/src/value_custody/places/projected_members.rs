@@ -97,9 +97,7 @@ pub fn exact_data_member_field<'program>(
 ) -> Option<&'program typed_trees::data::DataField> {
     if let Some(case_variant) = case_variant {
         let mut matches = program.data_members(data).iter().filter_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             (variant.name.as_str() == case_variant).then_some(variant)
         });
         let variant = matches.next()?;
@@ -117,9 +115,7 @@ pub fn exact_data_member_field<'program>(
     }
 
     let mut fields = program.data_members(data).iter().filter_map(|member| {
-        let typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         (field.name.as_str() == member_name
             && (!member_symbol.is_valid() || field.symbol == member_symbol)
             && field.symbol.is_valid()

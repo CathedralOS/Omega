@@ -95,12 +95,10 @@ impl AvailableGuarantee<'_> {
         if state.symbol != self.invocation.caller_state {
             return None;
         }
-        let typed_trees::statement::StatementNode::LocalData(local) = program
+        let local = program
             .statement_table
             .statement_at(state, self.invocation.statement)?
-        else {
-            return None;
-        };
+            .as_local_data()?;
         let CallSite::Expression { expression, .. } = self.invocation.site else {
             return None;
         };

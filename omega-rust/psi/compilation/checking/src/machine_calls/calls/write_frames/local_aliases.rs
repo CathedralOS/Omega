@@ -177,7 +177,7 @@ pub(super) fn statement_mentions_place_roots(
     statement: &StatementNode,
     roots: &[String],
 ) -> bool {
-    if let StatementNode::Call(call) = statement
+    if let Some(call) = statement.as_call()
         && program
             .statement_table
             .name_path_members(call.receiver)

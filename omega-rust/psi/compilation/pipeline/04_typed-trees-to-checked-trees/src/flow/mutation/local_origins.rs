@@ -108,9 +108,7 @@ pub(super) fn assignment_storage_places(
     statement: &StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let StatementNode::Assignment(assignment) = statement else {
-        return None;
-    };
+    let assignment = statement.as_assignment()?;
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let mut projection = assignment.target;
@@ -388,9 +386,7 @@ pub(crate) fn place_from_origin_path(
                 .iter()
                 .take(statement_index)
                 .find_map(|statement| {
-                    let StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
+                    let local = statement.as_local_data()?;
                     (local.name.as_str() == root_name).then_some(local.symbol)
                 })
         })?;

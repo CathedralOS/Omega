@@ -157,9 +157,10 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
-                let StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 if let Some(selected) = selected_named_statement_callable_symbol(
@@ -173,9 +174,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     None,
                     &mut diagnostics,
                 ) {
-                    if let Some(operator) = program
-                        .operator_definition_by_symbol(selected)
-                    {
+                    if let Some(operator) = program.operator_definition_by_symbol(selected) {
                         if !operator.return_type.is_valid() {
                             statement_updates.push((state.statement_nodes, index, selected));
                             continue;
@@ -187,8 +186,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                             TypeReferenceNode::Unit
                         );
                         if returns_non_unit && !call.discards_result {
-                            let path = program
-                                .operator_path_string(operator.name);
+                            let path = program.operator_path_string(operator.name);
                             diagnostics.push(Diagnostic::error(format!(
                                 "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
                                 program.display_type_reference_with_constraints(operator.return_type)

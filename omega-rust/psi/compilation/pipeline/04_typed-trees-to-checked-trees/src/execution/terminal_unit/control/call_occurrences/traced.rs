@@ -89,7 +89,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         // A stored range is evaluated by its LocalBinding consumer. The
         // expression coordinate may also retain the same endpoint occurrence;
         // it is not another scheduled construction at this statement.
-        let local_range = if let StatementNode::LocalData(local) = statement
+        let local_range = if let Some(local) = statement.as_local_data()
             && !local.is_mutable
             && collect_range_calls(
                 program,
@@ -252,7 +252,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         // A primitive local's initializer computation owns the calls it
         // evaluates, whether it binds an immutable local or initializes
         // mutable storage; only immutable locals take a binding ordinal.
-        if let StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
         {
             let role = if local.is_mutable {
@@ -311,7 +311,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 &mut consumed,
             )?;
         }
-        let StatementNode::Assignment(assignment) = statement else {
+        let Some(assignment) = statement.as_assignment() else {
             continue;
         };
         collect_assignment_calls(

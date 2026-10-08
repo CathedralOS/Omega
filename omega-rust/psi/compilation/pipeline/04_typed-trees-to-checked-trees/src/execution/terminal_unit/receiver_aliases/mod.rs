@@ -325,7 +325,7 @@ pub(super) fn aliases(
     let mut loans = Vec::new();
     let mut parents = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             continue;
         };
         let formed = formation(
@@ -407,9 +407,7 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
     state: &typed_trees::state::State,
 ) -> Option<Vec<SymbolHandle>> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    let StatementNode::LocalData(parent_local) = statements.first()? else {
-        return None;
-    };
+    let parent_local = statements.first()?.as_local_data()?;
     let child_count = facts
         .borrow
         .reborrow_restored_call_use_certificates

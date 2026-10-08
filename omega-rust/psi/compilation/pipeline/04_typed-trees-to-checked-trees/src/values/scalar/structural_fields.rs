@@ -36,9 +36,7 @@ fn declared_data_field(
             _ => None,
         }
     } else {
-        let typed_trees::data::DataMember::Variant(variant) = member else {
-            return None;
-        };
+        let variant = member.as_variant()?;
         program
             .data_payload_fields(variant)
             .get(position.2 as usize)
@@ -339,11 +337,8 @@ pub(super) fn structural_parameter_field_path(
                     .data_variant_positions_for_name(case_name.as_str())
                     .into_iter()
                     .find_map(|(data_index, member_index)| {
-                        let typed_trees::data::DataMember::Variant(variant) =
-                            declared_data_member(program, data_index, member_index)
-                        else {
-                            return None;
-                        };
+                        let variant =
+                            declared_data_member(program, data_index, member_index).as_variant()?;
                         program
                             .data_payload_field_by_symbol(variant, member.member_symbol)
                             .map(|field| (variant.path_identity(), field_identity(field)))
@@ -435,9 +430,7 @@ fn resolve_structural_path(
                 }
                 let definition = structural_data(program, receiver)?;
                 let variant = program.data_members(definition).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Variant(variant) = member else {
-                        return None;
-                    };
+                    let variant = member.as_variant()?;
                     let actual = variant
                         .identity
                         .map(|number| format!("#{number}"))
@@ -468,9 +461,7 @@ fn resolve_structural_path(
                         .data_members(definition)
                         .iter()
                         .filter_map(|member| {
-                            let typed_trees::data::DataMember::Field(field) = member else {
-                                return None;
-                            };
+                            let field = member.as_field()?;
                             Some(field)
                         })
                         .find(matches)?

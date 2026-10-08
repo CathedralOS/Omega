@@ -2,7 +2,6 @@
 
 use super::{DecodedCanonicalConstValue, IntegerLiteral, IntegerRadix, integer_value};
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -98,9 +97,7 @@ fn record(
     };
     let declared_fields = if let Some(case_name) = case_name {
         let variant = program.data_members(definition).iter().find_map(|member| {
-            let DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             (variant.name.as_str() == case_name).then_some(variant)
         })?;
         literal.case_name = Some(variant.name.clone());
@@ -111,9 +108,7 @@ fn record(
             .data_members(definition)
             .iter()
             .map(|member| {
-                let DataMember::Field(field) = member else {
-                    return None;
-                };
+                let field = member.as_field()?;
                 Some(field.clone())
             })
             .collect::<Option<Vec<_>>>()?

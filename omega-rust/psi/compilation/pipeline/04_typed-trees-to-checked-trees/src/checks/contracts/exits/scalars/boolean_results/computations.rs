@@ -83,9 +83,7 @@ impl ExitScalars<'_, '_> {
                 .get(..statement as usize)?
                 .iter()
                 .filter_map(|statement| {
-                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
+                    let local = statement.as_local_data()?;
                     (!local.is_mutable
                         && local.initial_value.is_valid()
                         && self

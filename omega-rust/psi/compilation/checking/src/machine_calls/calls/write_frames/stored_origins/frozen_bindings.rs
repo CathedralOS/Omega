@@ -24,8 +24,8 @@ pub(in crate::machine_calls::calls::write_frames) fn statement_exposes_frozen_bi
     inference: &mut FrameInference,
 ) -> bool {
     use crate::machine_calls::calls::write_frames::statement_value_expression_roots;
-    use typed_trees::statement::StatementNode;
-    if let StatementNode::Call(call) = statement {
+
+    if let Some(call) = statement.as_call() {
         return call_exposes_frozen_binding(
             program, machine, state, call, stored, aliases, symbols, inference,
         );

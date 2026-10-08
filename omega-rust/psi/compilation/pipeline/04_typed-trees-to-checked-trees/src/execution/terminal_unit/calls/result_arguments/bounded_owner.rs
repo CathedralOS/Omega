@@ -17,7 +17,7 @@
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StateParameter,
-    StatementNode, SymbolHandle, exact_structural_argument_access, names_whole_local,
+    SymbolHandle, exact_structural_argument_access, names_whole_local,
 };
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, byte_sequence_type_identity, structural_access_for_type_reference,
@@ -43,13 +43,11 @@ pub(super) fn loan(
     if !place.segments.is_empty() {
         return None;
     }
-    let StatementNode::LocalData(local) = program
+    let local = program
         .statement_table
         .statements(source_state.statement_nodes)
         .get(usize::try_from(result.statement_index).ok()?)?
-    else {
-        return None;
-    };
+        .as_local_data()?;
     let CheckedByteSequenceCarrier::BoundedOwned { capacity } =
         byte_sequence_carrier(program, local.type_reference, &[])?
     else {

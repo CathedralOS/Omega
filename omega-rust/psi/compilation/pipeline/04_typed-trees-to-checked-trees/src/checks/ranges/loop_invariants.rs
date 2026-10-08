@@ -157,7 +157,7 @@ pub(super) fn collect_loop_invariant_facts(
                 continue;
             };
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Assignment(assignment) = statement
+                if let Some(assignment) = statement.as_assignment()
                     && let Some(field) =
                         assignment_counter_field(program, machine, state, assignment)
                     && matches!(
@@ -434,8 +434,7 @@ fn classify_counter_write(
     ) {
         return CounterWrite::Other;
     }
-    let Some(binary) = program.expression_table.binary_node(assignment.value)
-    else {
+    let Some(binary) = program.expression_table.binary_node(assignment.value) else {
         return CounterWrite::Other;
     };
     match binary.operator {
@@ -569,7 +568,7 @@ fn loop_modifications_direction(
             )? {
                 return None;
             }
-            if let StatementNode::Assignment(assignment) = statement {
+            if let Some(assignment) = statement.as_assignment() {
                 if assignment_counter_field(program, machine, state, assignment) != Some(counter) {
                     // A different syntactic receiver can alias the attached
                     // storage. Only a complete disjoint store frame permits

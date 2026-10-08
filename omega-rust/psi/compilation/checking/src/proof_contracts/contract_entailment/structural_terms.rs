@@ -130,9 +130,7 @@ fn constant_machine_constructor(
     let [statement] = non_marker[..] else {
         return None;
     };
-    let StatementNode::Transition(transition) = statement else {
-        return None;
-    };
+    let transition = statement.as_transition()?;
     if !matches!(transition.guard, TransitionGuardNode::Always) {
         return None;
     }

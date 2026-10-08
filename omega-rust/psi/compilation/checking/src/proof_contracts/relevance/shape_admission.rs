@@ -2,7 +2,6 @@ use diagnostics::Diagnostic;
 use language_core::BindingRelevance;
 use language_semantics::DataSupplyMode;
 use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn validate_supported_shapes(
@@ -128,7 +127,7 @@ fn validate_erased_binding_qualifiers(
                 )));
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 if local.relevance.is_erased() && local.is_mutable {
@@ -270,7 +269,7 @@ fn validate_unresolved_erased_generic_uses(
                 )));
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 if let Some(base) = unresolved_erased_generic_base(program, local.type_reference) {

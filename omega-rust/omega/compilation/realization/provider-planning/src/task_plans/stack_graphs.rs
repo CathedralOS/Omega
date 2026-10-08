@@ -176,7 +176,7 @@ fn task_frame_summary<'program>(
             )?;
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let Some(local) = statement.as_local_data() else {
                 continue;
             };
             if local.relevance.is_erased() {
@@ -374,7 +374,7 @@ fn frame_state_closure<'program>(
             ))]
         })?;
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             push_transition_successor(program, machine, transition.target, &mut pending);

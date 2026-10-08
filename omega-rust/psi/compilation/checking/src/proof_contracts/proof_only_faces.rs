@@ -8,7 +8,6 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::proof_only::ProofOnlyClassification;
-use typed_trees::statement::StatementNode;
 
 pub(crate) fn validate_proof_only_consumption(
     program: &dyn crate::CheckingInput,
@@ -119,7 +118,7 @@ pub(crate) fn validate_proof_only_consumption(
             }
 
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local_data) = statement else {
+                let Some(local_data) = statement.as_local_data() else {
                     continue;
                 };
                 // `let proof [erased]: T` owns no runtime storage either.

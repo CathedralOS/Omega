@@ -20,7 +20,7 @@ use super::{
     operator_is_builtin,
 };
 use checked_trees::CheckedScalarComputationStructuralArgument;
-use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use typed_trees::data::{DataDefinition, DataShapeKind};
 use typed_trees::expression::BinaryOperator;
 
 impl Builder<'_, '_> {
@@ -58,9 +58,7 @@ impl Builder<'_, '_> {
         let cases = members
             .iter()
             .map(|member| {
-                let DataMember::Variant(variant) = member else {
-                    return None;
-                };
+                let variant = member.as_variant()?;
                 self.program
                     .data_payload_fields(variant)
                     .is_empty()

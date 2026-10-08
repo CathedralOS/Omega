@@ -9,7 +9,6 @@ use checked_trees::{
     CheckedOperatorFacts, CheckedValueFacts, CheckedValueOrigin, CheckedValueStatementRole,
     FlowFacts, MutationFacts, PerformedIntegerWrite,
 };
-use typed_trees::statement::StatementNode;
 
 pub(super) mod obligations;
 
@@ -60,9 +59,10 @@ pub(super) fn retain(
                     .then_some(fact)
             });
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
-                let StatementNode::Assignment(assignment) = statement else {
+                let Some(assignment) = statement.as_assignment() else {
                     continue;
                 };
                 let primitive = validation::declared_place_type_raw(

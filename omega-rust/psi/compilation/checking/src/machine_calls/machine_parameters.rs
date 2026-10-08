@@ -28,7 +28,7 @@ use typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKi
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementHandle, StatementNode};
+use typed_trees::statement::StatementHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Clone, Copy)]
@@ -224,7 +224,7 @@ pub(crate) fn form_static_machine_selections(
                 .statement_table
                 .iter_statements(state.statement_nodes)
             {
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     if !typed_trees::operator::named_statement_call_candidates(program, call)
                         .is_empty()
                     {

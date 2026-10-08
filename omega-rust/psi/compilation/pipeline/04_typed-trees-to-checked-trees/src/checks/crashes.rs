@@ -30,17 +30,16 @@ mod source_fallthrough;
 pub(crate) fn check_crash_exit_edge_isolation(
     program: &dyn ::validation::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
-    use typed_trees::statement::{
-        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-    };
+    use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
 
     let mut diagnostics = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_ordinal, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 let TransitionExit::Crash(cause) = transition.exit else {
@@ -1168,7 +1167,7 @@ impl IntegerTypeClassification {
                     classification.record(program, parameter.symbol, parameter.type_reference);
                 }
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+                    if let Some(local) = statement.as_local_data() {
                         classification.record(program, local.symbol, local.type_reference);
                     }
                 }

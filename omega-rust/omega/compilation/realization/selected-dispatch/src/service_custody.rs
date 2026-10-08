@@ -16,7 +16,7 @@ use checked_trees::{CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStr
 use diagnostics::Diagnostic;
 use provider_planning::CompositionMode;
 use provider_planning::SelectedProviderReviewProvenance;
-use typed_trees::data::{DataDefinition, DataField, DataMember};
+use typed_trees::data::{DataDefinition, DataField};
 
 fn data_field_identity(field: &DataField) -> String {
     field

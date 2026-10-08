@@ -249,7 +249,7 @@ fn closed_record(
     }
     active.push(expression);
     let valid = fields.iter().enumerate().all(|(ordinal, member)| {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             return false;
         };
         if !field.symbol.is_valid()

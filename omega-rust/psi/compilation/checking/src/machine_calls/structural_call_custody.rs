@@ -583,7 +583,7 @@ pub fn structural_qualification_contract(
                 }
                 active.push(reference);
                 for member in program.data_members(record) {
-                    let typed_trees::data::DataMember::Field(field) = member else {
+                    let Some(field) = member.as_field() else {
                         continue;
                     };
                     if field.relevance.is_erased()
@@ -840,9 +840,7 @@ pub fn structural_owned_path(
                     .data_members(definition)
                     .iter()
                     .find_map(|member| {
-                        let typed_trees::data::DataMember::Field(field) = member else {
-                            return None;
-                        };
+                        let field = member.as_field()?;
                         (field.symbol == *symbol).then_some(field)
                     })
                     .ok_or("structural claim field differs from its typed owner")?;

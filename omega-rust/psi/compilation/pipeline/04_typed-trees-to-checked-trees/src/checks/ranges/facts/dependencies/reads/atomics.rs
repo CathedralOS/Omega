@@ -189,9 +189,7 @@ pub(super) fn atomic_carrier_target(
     let statement = program
         .statement_table
         .statement_at(state, statement_index)?;
-    let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
-        return None;
-    };
+    let assignment = statement.as_assignment()?;
     (assignment.value == expression).then_some(assignment.target)
 }
 

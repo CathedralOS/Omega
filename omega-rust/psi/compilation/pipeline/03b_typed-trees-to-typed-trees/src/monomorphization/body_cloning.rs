@@ -478,7 +478,7 @@ pub(super) fn clone_specialized_machine(
     }
     for state in program.machine_states(&cloned).to_vec() {
         for handle in statement_span_handles(state.statement_nodes) {
-            let StatementNode::Call(call) = program.statement_table.statement(handle) else {
+            let Some(call) = program.statement_table.statement(handle).as_call() else {
                 continue;
             };
             let mut arguments = call.machine_arguments.clone();

@@ -33,9 +33,7 @@ pub(crate) fn contract_parameter_field_symbol(
         .data_definition_by_symbol(data_symbol)
         .and_then(|data| {
             compilation.data_members(data).iter().find_map(|member| {
-                let typed_trees::data::DataMember::Field(field) = member else {
-                    return None;
-                };
+                let field = member.as_field()?;
                 (field.name.as_str() == field_name).then_some(field.symbol)
             })
         })

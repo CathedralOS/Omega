@@ -101,9 +101,7 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
                     .statement_table
                     .iter_statements(state.statement_nodes)
                     .filter_map(|(handle, statement)| {
-                        let StatementNode::Call(call) = statement else {
-                            return None;
-                        };
+                        let call = statement.as_call()?;
                         (!call.machine_arguments.is_empty()
                             && !call.authored_machine_application.is_valid())
                         .then(|| (handle, machine.symbol, call.clone()))

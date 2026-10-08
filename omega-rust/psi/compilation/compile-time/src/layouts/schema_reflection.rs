@@ -60,7 +60,7 @@ pub(crate) fn schema_fields(
 
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             continue;
         };
         // Reflection describes physical placement demand. Erased bindings stay
@@ -255,7 +255,7 @@ fn reflected_record_layout(
     let mut offset = 0u64;
     let mut aggregate_align = 1u64;
     for member in typed.data_members(data) {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             visiting.pop();
             return None;
         };

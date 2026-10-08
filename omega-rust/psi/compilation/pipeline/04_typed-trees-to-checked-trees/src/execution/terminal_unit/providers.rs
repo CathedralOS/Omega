@@ -81,9 +81,7 @@ pub(super) fn checked_provider_attachment_requirements(
     let mut providers = Vec::with_capacity(provider_fields.len());
     for (field, provider_type_identity) in &provider_fields {
         let provider_symbol = program.data_members(attached).iter().find_map(|member| {
-            let DataMember::Field(source_field) = member else {
-                return None;
-            };
+            let source_field = member.as_field()?;
             if source_field.name.as_str() != field.identity {
                 return None;
             }
@@ -158,8 +156,7 @@ pub(super) fn checked_provider_attachment_requirements(
             // an unrelated console field must not turn it into a receiver use.
             let has_independent_requirement = boundary.is_some_and(|planned| {
                 let target_machine = planned.target.machine;
-                program
-                    .machine(target_machine).is_some()
+                program.machine(target_machine).is_some()
                     || (call.target_symbol == target_machine
                         && program.operators().iter().any(|operator| {
                             operator.is_boundary && operator.symbol == target_machine

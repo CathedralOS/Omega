@@ -203,9 +203,7 @@ impl<'program> CurrentScalarValues<'program> {
             }
         }
         if target.is_valid() {
-            let StatementNode::Transition(transition) = statements.get(statement_index)? else {
-                return None;
-            };
+            let transition = statements.get(statement_index)?.as_transition()?;
             if transition.target != target && transition.continuation != target {
                 return None;
             }

@@ -474,7 +474,7 @@ pub(super) fn prepare_storage_deaths(
                 }
                 // Replacement evaluation and destination selectors must both
                 // finish before the store discharges restoration debt.
-                if let StatementNode::Assignment(assignment) = statement {
+                if let Some(assignment) = statement.as_assignment() {
                     if let Some(death) = windows.replacement_death(
                         program,
                         machine,
@@ -621,8 +621,7 @@ fn data_name_with_nominal_drop<'program>(
     program: &'program dyn ::validation::CheckingInput,
     name: &str,
 ) -> Option<&'program str> {
-    let definition = program
-        .data_definition_by_name_str(name)?;
+    let definition = program.data_definition_by_name_str(name)?;
     nominal_drop_machine_symbol(program, definition.symbol)
         .is_some()
         .then_some(definition.name.as_str())

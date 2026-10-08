@@ -5,7 +5,6 @@ use super::{
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -690,7 +689,7 @@ fn scoped_maximum_error(
         let mut prior_is_integer = false;
         let mut found = false;
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::LocalData(local) = statement else {
+            let Some(local) = statement.as_local_data() else {
                 continue;
             };
             if local.name.as_str() == local_name {

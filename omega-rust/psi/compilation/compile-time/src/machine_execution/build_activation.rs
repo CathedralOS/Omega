@@ -115,13 +115,13 @@ fn validate_build_activation_integrity(
     typed: &TypedTrees,
     build_symbol: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
-    use typed_trees::{data::DataMember, expression::ExpressionNode, statement::StatementNode};
+    use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
     let mut build_value_symbols = Vec::new();
     let mut diagnostics = Vec::new();
     for definition in typed.data_definitions() {
         for member in typed.data_members(definition) {
-            let DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 continue;
             };
             if type_reference_names_exact_data(typed, field.type_reference, build_symbol) {

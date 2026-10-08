@@ -14,7 +14,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+    use typed_trees::statement::TransitionGuardNode;
 
     let mut diagnostics = Vec::new();
     let mut arms = arena::Arena::default();
@@ -25,7 +25,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 .statement_table
                 .statements(caller_state.statement_nodes);
             for (statement_index, statement) in statements.iter().enumerate() {
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 let selectors = program
@@ -81,9 +81,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     .take(statement_index)
                     .enumerate()
                     .filter_map(|(index, statement)| {
-                        let StatementNode::LocalData(local) = statement else {
-                            return None;
-                        };
+                        let local = statement.as_local_data()?;
                         let identity_matches = if result_symbol.is_valid() {
                             local.symbol == result_symbol
                         } else {

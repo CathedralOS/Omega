@@ -25,8 +25,7 @@ fn assignment_copies_primitive_referent(
     state: &State,
     assignment: &TableAssignment,
 ) -> bool {
-    let Some(target) = program.expression_table.name_path_node(assignment.target)
-    else {
+    let Some(target) = program.expression_table.name_path_node(assignment.target) else {
         return false;
     };
     if target.symbol != target.head_symbol
@@ -106,7 +105,7 @@ pub fn state_reference_parameter_binding_is_stable(
             if statement_returns_reference_without_effects(program, state, statement) {
                 return true;
             }
-            if let typed_trees::statement::StatementNode::Assignment(assignment) = statement
+            if let Some(assignment) = statement.as_assignment()
                 && is_binding(assignment.target)
                 && !assignment_copies_primitive_referent(program, machine, state, assignment)
                 && expression_may_rebind_mutable_alias(program, machine, state, assignment.value)
@@ -133,7 +132,7 @@ pub(super) fn statement_returns_reference_without_effects(
     state: &State,
     statement: &typed_trees::statement::StatementNode,
 ) -> bool {
-    let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+    let Some(expression) = statement.as_expression() else {
         return false;
     };
     type_reference_is_reference(program, state.return_type)

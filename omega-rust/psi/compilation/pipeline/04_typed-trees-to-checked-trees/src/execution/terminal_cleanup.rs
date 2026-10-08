@@ -63,7 +63,7 @@ fn build_state_plan(
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let has_structural_control = statements.iter().any(|statement| {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             return false;
         };
         transition.exit == TransitionExit::Ordinary
@@ -95,7 +95,7 @@ fn build_state_plan(
     );
     let mut edges = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             continue;
         };
         if transition.exit != TransitionExit::Ordinary {
@@ -421,9 +421,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                     }
                     _ => None,
                 };
-                edge_target != Some(target_symbol)
-                    && program
-                        .machine(target_symbol).is_some()
+                edge_target != Some(target_symbol) && program.machine(target_symbol).is_some()
             }
             _ => false,
         }

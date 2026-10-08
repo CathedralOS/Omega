@@ -219,7 +219,7 @@ fn solve_state_effects<'program>(
             .statement_table
             .indexed_statements(state.statement_nodes)
         {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             has_transition = true;

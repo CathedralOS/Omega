@@ -15,7 +15,6 @@ use checked_trees::{
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::PrimitiveType;
 
 /// Lower one call argument in the caller state's checked scalar namespace.
@@ -40,9 +39,7 @@ pub(crate) fn lower_state_scalar_expression(
     let prefix = statements.get(..before_statement)?;
     let mut locals = Vec::new();
     for statement in prefix {
-        let StatementNode::LocalData(local) = statement else {
-            return None;
-        };
+        let local = statement.as_local_data()?;
         if local.is_mutable || !local.initial_value.is_valid() {
             return None;
         }
@@ -166,7 +163,7 @@ pub(super) fn unit_scalar_context(
     let prefix = statements.get(..before_statement)?;
     let mut locals = Vec::new();
     for statement in prefix {
-        let StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             continue;
         };
         let Some(primitive_type) = program.primitive_type_reference(local.type_reference) else {

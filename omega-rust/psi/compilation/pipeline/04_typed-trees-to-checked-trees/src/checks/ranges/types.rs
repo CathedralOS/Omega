@@ -408,9 +408,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
         // only inside this exact receiver declaration, then rejoin the field's
         // declared extent symbol before substituting the actual argument.
         let mut fields = program.data_members(data).iter().filter_map(|definition| {
-            let typed_trees::data::DataMember::Field(field) = definition else {
-                return None;
-            };
+            let field = definition.as_field()?;
             (if member.member_symbol.is_valid() {
                 field.symbol == member.member_symbol
             } else {

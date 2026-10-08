@@ -89,7 +89,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     };
     let mut stores = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate().skip(statement_start) {
-        let StatementNode::Assignment(assignment) = statement else {
+        let Some(assignment) = statement.as_assignment() else {
             continue;
         };
         // An atomic carrier is one atomic event, planned by the sequence
@@ -260,7 +260,7 @@ fn runtime_index_expression(
             let position = usize::try_from(*position).ok()?;
             let mut dense = 0usize;
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 let primitive_type = program.primitive_type_reference(local.type_reference);
@@ -872,7 +872,7 @@ fn unrestricted_sum(
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Enum
         && program.data_members(data).iter().all(|member| {
-            let DataMember::Variant(variant) = member else {
+            let Some(variant) = member.as_variant() else {
                 return false;
             };
             program.data_payload_fields(variant).is_empty()

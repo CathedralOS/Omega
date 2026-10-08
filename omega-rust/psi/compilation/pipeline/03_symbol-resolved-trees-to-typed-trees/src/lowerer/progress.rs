@@ -303,9 +303,7 @@ fn resolve_subject_member_symbol(
 
     let (data, _) = replay_subject_position(program, position, &substitution)?;
     program.data_members(data).iter().find_map(|member| {
-        let typed::data::DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         (field.name.as_str() == member_name).then_some(field.symbol)
     })
 }

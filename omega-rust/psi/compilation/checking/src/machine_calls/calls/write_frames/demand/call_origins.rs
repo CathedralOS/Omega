@@ -283,8 +283,7 @@ impl<'program> CallFrameResolver<'program> {
                         .is_some_and(|paths| paths.is_empty())
             }
             CallerWriteSite::Transition(_) => {
-                let typed_trees::statement::StatementNode::Transition(transition) = statement
-                else {
+                let Some(transition) = statement.as_transition() else {
                     return true;
                 };
                 match transition.guard {

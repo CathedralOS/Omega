@@ -12,7 +12,6 @@
 use diagnostics::Diagnostic;
 use language_core::place_label;
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,7 +132,7 @@ fn check_stored_output_relations(
         }
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 let requires_relation = program.machines().iter().any(|callee| {
@@ -254,9 +253,7 @@ fn state_transition_edges(
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| {
-            let StatementNode::Transition(transition) = statement else {
-                return None;
-            };
+            let transition = statement.as_transition()?;
             Some([transition.target, transition.continuation])
         })
         .flatten()
@@ -392,7 +389,8 @@ fn analyze_persistent_state(
     let mut static_persistent_paths = entry_paths.to_vec();
     let mut diagnostics = Vec::new();
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         if retain_static_paths_across_call_frame(
             program,
@@ -408,7 +406,7 @@ fn analyze_persistent_state(
             static_persistent_places.clear();
         }
 
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             if retain_static_paths_across_call_frame(
                 program,
                 state,
@@ -422,7 +420,7 @@ fn analyze_persistent_state(
             continue;
         }
 
-        let StatementNode::Assignment(assignment) = statement else {
+        let Some(assignment) = statement.as_assignment() else {
             continue;
         };
         let Some(place) = validation::canonical_place_from_expression_in_state(
@@ -673,9 +671,7 @@ fn exact_name_symbol(
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
+            let local = statement.as_local_data()?;
             (local.name == *name).then_some(local.symbol)
         })
 }
@@ -994,9 +990,7 @@ fn immutable_local_index_symbol(
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
+            let local = statement.as_local_data()?;
             (!local.is_mutable
                 && resolved
                     .map(|symbol| local.symbol == symbol)
@@ -1089,9 +1083,7 @@ fn state_returns_only_static_borrows(
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| {
-            let StatementNode::Transition(transition) = statement else {
-                return None;
-            };
+            let transition = statement.as_transition()?;
             Some([transition.target, transition.continuation])
         })
         .flatten()
@@ -1161,10 +1153,7 @@ fn attached_persistent_fields<'program>(
     machine
         .attached_data
         .as_ref()
-        .and_then(|name| {
-            program
-                .data_definition_by_name(name)
-        })
+        .and_then(|name| program.data_definition_by_name(name))
         .into_iter()
         .flat_map(|definition| program.data_members(definition).iter())
         .filter_map(|member| match member {

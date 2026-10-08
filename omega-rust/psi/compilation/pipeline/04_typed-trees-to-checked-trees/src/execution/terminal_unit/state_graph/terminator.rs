@@ -454,11 +454,7 @@ pub(super) fn build(
                 let [retained] = retained.as_slice() else {
                     return None;
                 };
-                let exits = facts
-                    .flow
-                    .guarded_exits
-                    .exits
-                    .span(retained.arms)?;
+                let exits = facts.flow.guarded_exits.exits.span(retained.arms)?;
                 // The shared scalar roster owns this tail's guard order,
                 // coverage and selected destinations; the composed edges
                 // must agree with it exactly. A guarded final arm is the
@@ -473,9 +469,7 @@ pub(super) fn build(
                 for (index, (statement, exit)) in
                     tail[..tail.len() - 1].iter().zip(exits.iter()).enumerate()
                 {
-                    let StatementNode::Transition(transition) = statement else {
-                        return None;
-                    };
+                    let transition = statement.as_transition()?;
                     let arm_ordinal = ordinal.checked_add(u32::try_from(index).ok()?)?;
                     // A mid-chain arm transfers to its named state or completes
                     // with its authored Unit/value result under the guard, just
@@ -827,11 +821,7 @@ fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32)
     let [retained] = retained.as_slice() else {
         return None;
     };
-    let exits = facts
-        .flow
-        .guarded_exits
-        .exits
-        .span(retained.arms)?;
+    let exits = facts.flow.guarded_exits.exits.span(retained.arms)?;
     (retained.fallback.is_none()
         && exits.len() == 2
         && exits[0].guard_statement_ordinal == ordinal

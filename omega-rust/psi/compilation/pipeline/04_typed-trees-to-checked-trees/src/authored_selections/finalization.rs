@@ -60,7 +60,7 @@ pub(crate) fn finalize_checked_authored_selections(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                let typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
+                let Some(binding) = statement.as_root_binding() else {
                     continue;
                 };
                 let receiver_type = validation::expression_type_reference_in_state(

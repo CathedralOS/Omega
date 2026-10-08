@@ -354,7 +354,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     collect(program, &call.machine_arguments, &mut literals, &mut types);
                 }
             }
@@ -828,7 +828,7 @@ fn resolve_specialized_receiver_calls(
             .indexed_statements(state.statement_nodes)
         {
             collect_statement_expression_trees(program, statement, &mut expression_handles);
-            let StatementNode::Call(call) = statement else {
+            let Some(call) = statement.as_call() else {
                 continue;
             };
             let target = validation::resolve_state_call_target(

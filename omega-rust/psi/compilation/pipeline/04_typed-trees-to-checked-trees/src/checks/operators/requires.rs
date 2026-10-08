@@ -396,7 +396,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 .statements(state.statement_nodes)
                 .iter()
             {
-                let typed_trees::statement::StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)

@@ -136,7 +136,7 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
             collect_contract_type_roots(program, contract, &mut roots);
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
-            if let StatementNode::LocalData(local) = statement {
+            if let Some(local) = statement.as_local_data() {
                 roots.push(local.type_reference);
             }
             if let StatementNode::Call(call) = &statement {

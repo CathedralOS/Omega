@@ -1027,7 +1027,7 @@ fn pair(
                         .data_members(definition)
                         .iter()
                         .filter_map(|member| {
-                            if let DataMember::Field(field) = member {
+                            if let Some(field) = member.as_field() {
                                 Some(field)
                             } else {
                                 None

@@ -13,7 +13,6 @@ use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
-use typed_trees::statement::StatementNode;
 
 pub(super) fn is_case_requirement(
     program: &dyn validation::CheckingInput,
@@ -64,7 +63,7 @@ pub(super) fn body_preserves_case_tags(
                 return false;
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Assignment(assignment) = statement {
+                if let Some(assignment) = statement.as_assignment() {
                     let scalar_destination = validation::declared_place_type_raw(
                         program,
                         machine,

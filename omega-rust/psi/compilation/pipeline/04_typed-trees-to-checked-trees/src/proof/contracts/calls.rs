@@ -186,7 +186,7 @@ pub(crate) fn build_contract_exit_facts(
 
             let mut has_transition = false;
             for (statement_index, statement) in statements.iter().enumerate() {
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     continue;
                 };
                 has_transition = true;

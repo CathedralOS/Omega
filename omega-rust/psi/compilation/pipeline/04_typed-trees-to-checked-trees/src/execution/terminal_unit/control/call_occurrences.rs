@@ -39,9 +39,7 @@ pub(in crate::execution::terminal_unit) fn terminal_named_call(
     if statement_index.checked_add(1)? != statements.len() {
         return None;
     }
-    let StatementNode::Transition(transition) = statements.get(statement_index)? else {
-        return None;
-    };
+    let transition = statements.get(statement_index)?.as_transition()?;
     if transition.guard != TransitionGuardNode::Always
         || transition.continuation.is_valid()
         || transition.exit != TransitionExit::Ordinary
@@ -84,9 +82,7 @@ pub(in crate::execution::terminal_unit) fn tail_call<'a>(
     if !is_unit(program, state.return_type) || statement_index.checked_add(1)? != statements.len() {
         return None;
     }
-    let StatementNode::Expression(expression) = statements.get(statement_index)? else {
-        return None;
-    };
+    let expression = statements.get(statement_index)?.as_expression()?;
     if !program.expression_table.expression_is_valid(*expression) {
         return None;
     }
@@ -108,12 +104,10 @@ pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
     if let Some(call) = tail_call(program, state, statement_index) {
         return Some(call);
     }
-    let StatementNode::Expression(expression) = program
+    let expression = program
         .statement_table
         .statement_at(state, statement_index)?
-    else {
-        return None;
-    };
+        .as_expression()?;
     if !program.expression_table.expression_is_valid(*expression) {
         return None;
     }
@@ -134,12 +128,10 @@ pub(super) fn ordered_statement_call<'program>(
     if let Some(call) = unit_statement_call(program, machine, state, statement_index) {
         return Some(call);
     }
-    let StatementNode::Expression(expression) = program
+    let expression = program
         .statement_table
         .statement_at(state, statement_index)?
-    else {
-        return None;
-    };
+        .as_expression()?;
     let call = program.expression_table.call_node(*expression)?;
     if !crate::values::is_scalar_return_call(program, state, *expression) {
         // A final structural call is an ordinary result-producing operation.

@@ -49,7 +49,7 @@ fn guarded_integer_predecessor_call(
         .statements(state.statement_nodes)
         .iter()
         .any(|statement| {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 return false;
             };
             let TransitionGuardNode::When(guard) = transition.guard else {
@@ -179,7 +179,7 @@ pub(crate) fn validate_proof_machine_recursion(
         .next()
         .unwrap_or(machine.name.as_str());
     let mut self_calls: Vec<Vec<ExpressionHandle>> = Vec::new();
-    if let StatementNode::Call(call) = statement {
+    if let Some(call) = statement.as_call() {
         let receiver = program.statement_table.name_path_members(call.receiver);
         let entry_symbol = program
             .machine_states(machine)
@@ -207,7 +207,7 @@ pub(crate) fn validate_proof_machine_recursion(
     // Runtime tail normalization changes an exact self call into an entry
     // backedge. Proof-only classification happens later, so retain that edge
     // in this same induction check: constant-stack execution is not descent.
-    if let StatementNode::Transition(transition) = statement {
+    if let Some(transition) = statement.as_transition() {
         let entry_symbol = program
             .machine_states(machine)
             .first()
@@ -509,7 +509,7 @@ fn substate_parameter_descends(
             let mut all_descend = true;
             for source in states {
                 for statement in program.statement_table.statements(source.statement_nodes) {
-                    let StatementNode::Transition(transition) = statement else {
+                    let Some(transition) = statement.as_transition() else {
                         continue;
                     };
                     for target_handle in [transition.target, transition.continuation] {

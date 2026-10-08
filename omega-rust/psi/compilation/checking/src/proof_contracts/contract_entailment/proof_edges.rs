@@ -49,7 +49,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     let mut incoming = 0usize;
     for other in program.machine_states(machine) {
         for statement in program.statement_table.statements(other.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             if !transition.target.is_valid() {
@@ -79,7 +79,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             break;
         }
         for statement in program.statement_table.statements(other.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             let TransitionGuardNode::When(guard) = transition.guard else {

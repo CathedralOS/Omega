@@ -2,7 +2,6 @@
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
-use typed_trees::statement::StatementNode;
 
 use super::RootBinding;
 
@@ -30,8 +29,10 @@ pub fn collect_root_bindings(
     let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
     let mut diagnostics = Vec::new();
     for request in executed {
-        let StatementNode::RootBinding(binding) =
-            execution.statement_table.statement(request.statement)
+        let Some(binding) = execution
+            .statement_table
+            .statement(request.statement)
+            .as_root_binding()
         else {
             return Err(vec![Diagnostic::error(
                 "executed root-binding coordinate is not a declaration in the admitted program",
@@ -49,9 +50,7 @@ pub fn collect_root_bindings(
                 );
                 continue;
             }
-            if !typed
-                .machine(described.machine_symbol).is_some()
-            {
+            if !typed.machine(described.machine_symbol).is_some() {
                 return Err(vec![
                     Diagnostic::error(
                         "product description names a machine outside the admitted program",

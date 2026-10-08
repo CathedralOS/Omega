@@ -409,15 +409,11 @@ fn report_runtime_erased_attached_field(
     let Some(attached) = machine.attached_data.as_ref() else {
         return;
     };
-    let Some(definition) = program
-        .data_definition_by_name(attached)
-    else {
+    let Some(definition) = program.data_definition_by_name(attached) else {
         return;
     };
     if let Some(field) = program.data_members(definition).iter().find_map(|member| {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
+        let field = member.as_field()?;
         (field.name.as_str() == name).then_some(field)
     }) {
         report_runtime_erased_field(program, field.symbol, diagnostics);
@@ -450,9 +446,7 @@ fn report_runtime_erased_member_by_receiver(
     };
     let field = if let Some(case_variant) = case_variant {
         program.data_members(definition).iter().find_map(|member| {
-            let DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             (variant.name.as_str() == case_variant).then(|| {
                 program
                     .data_payload_fields(variant)
@@ -462,16 +456,12 @@ fn report_runtime_erased_member_by_receiver(
         })
     } else {
         let common = program.data_members(definition).iter().find_map(|member| {
-            let DataMember::Field(field) = member else {
-                return None;
-            };
+            let field = member.as_field()?;
             (field.name.as_str() == name).then_some(field)
         });
         common.or_else(|| {
             program.data_members(definition).iter().find_map(|member| {
-                let DataMember::Variant(variant) = member else {
-                    return None;
-                };
+                let variant = member.as_variant()?;
                 program
                     .data_payload_fields(variant)
                     .iter()

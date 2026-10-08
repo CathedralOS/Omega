@@ -117,7 +117,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
         .iter()
         .rev()
     {
-        if let StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && !local.relevance.is_erased()
         {
             append(local.symbol, local.type_reference);

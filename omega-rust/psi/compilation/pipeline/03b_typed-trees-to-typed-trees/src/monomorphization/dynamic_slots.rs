@@ -181,7 +181,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                 .iter()
                 .enumerate()
             {
-                if let StatementNode::Call(call) = statement
+                if let Some(call) = statement.as_call()
                     && call.machine_arguments.is_empty()
                     && let Some(slot) = slot_for(
                         program,

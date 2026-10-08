@@ -114,6 +114,24 @@ pub enum DataMember {
     Variant(DataVariant),
 }
 
+impl DataMember {
+    /// The field record, if this member is one.
+    pub fn as_field(&self) -> Option<&DataField> {
+        let DataMember::Field(field) = self else {
+            return None;
+        };
+        Some(field)
+    }
+
+    /// The variant record, if this member is one.
+    pub fn as_variant(&self) -> Option<&DataVariant> {
+        let DataMember::Variant(variant) = self else {
+            return None;
+        };
+        Some(variant)
+    }
+}
+
 impl Default for DataMember {
     fn default() -> Self {
         Self::Variant(DataVariant::default())

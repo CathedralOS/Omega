@@ -216,7 +216,7 @@ impl ValueEnvironment {
             );
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
-            if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+            if let Some(local) = statement.as_local_data() {
                 declaration(local.name.as_str(), !local.is_mutable, local.type_reference);
             }
         }

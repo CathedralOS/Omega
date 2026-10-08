@@ -152,7 +152,7 @@ fn record_children(
     };
     let mut children = Vec::new();
     for member in program.data_members(definition) {
-        if let DataMember::Field(field) = member {
+        if let Some(field) = member.as_field() {
             children.push(vec![PlaceSegment::Field {
                 symbol: field.symbol,
             }]);

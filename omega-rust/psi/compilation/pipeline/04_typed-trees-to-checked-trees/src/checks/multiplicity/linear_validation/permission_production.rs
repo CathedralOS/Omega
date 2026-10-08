@@ -365,7 +365,7 @@ pub(crate) fn apply_statement_permission_production(
     }
     // Returning a completed expression transfers its established frontier;
     // it is not an implicit cleanup of a freshly created linear value.
-    if let StatementNode::Expression(expression) = statement
+    if let Some(expression) = statement.as_expression()
         && program.state_by_symbol(state_symbol).is_some_and(|state| {
             statement_index + 1
                 == program

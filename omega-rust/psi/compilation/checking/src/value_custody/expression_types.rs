@@ -40,7 +40,6 @@ use diagnostics::Diagnostic;
 use std::fmt;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -706,7 +705,7 @@ fn state_symbol_declared_type(
         return Some(parameter.type_reference);
     }
     for statement in program.statement_table.statements(state.statement_nodes) {
-        if let StatementNode::LocalData(local) = statement
+        if let Some(local) = statement.as_local_data()
             && matches_symbol(local.symbol)
         {
             return Some(local.type_reference);

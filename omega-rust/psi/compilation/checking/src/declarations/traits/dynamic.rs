@@ -134,9 +134,7 @@ fn collect_selections_in(
             return;
         }
     };
-    let Some(conformance) = program
-        .conformance_by_symbol(implementation)
-    else {
+    let Some(conformance) = program.conformance_by_symbol(implementation) else {
         return;
     };
     let implementation_name = program.symbols.name(implementation);
@@ -227,9 +225,7 @@ pub fn collect_dynamic_slot_demands(
         }
     };
     for selection in collect_dynamic_implementation_selections(program)? {
-        let Some(implementation) = program
-            .conformance_by_symbol(selection.implementation)
-        else {
+        let Some(implementation) = program.conformance_by_symbol(selection.implementation) else {
             continue;
         };
         let Some((selector_trait, selector_arguments)) =
@@ -262,7 +258,7 @@ pub fn collect_dynamic_slot_demands(
         for state in program.machine_states(machine) {
             let mut visited = Vec::new();
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Call(call) = statement
+                if let Some(call) = statement.as_call()
                     && let Some(demand) = dynamic_call_demand(
                         program,
                         machine,
@@ -468,7 +464,7 @@ pub fn resolve_selected_dynamic_call_targets(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                if let StatementNode::Call(call) = statement {
+                if let Some(call) = statement.as_call() {
                     let members = program.statement_table.name_path_members(call.receiver);
                     // A projected receiver belongs to its entire place, not
                     // the final field spelling in the caller's attachment.
@@ -705,8 +701,7 @@ fn receiver_trait_symbol(
             receiver_trait_symbol(program, *base_type)
         }
         TypeReferenceNode::Named { symbol, .. }
-            if program
-                .trait_definition_by_symbol(*symbol).is_some() =>
+            if program.trait_definition_by_symbol(*symbol).is_some() =>
         {
             Some(*symbol)
         }
@@ -739,9 +734,7 @@ fn collect_dynamic_requirements_named<'program>(
         }
     }
     for parent in program.trait_requirements(trait_definition) {
-        let Some(parent_trait) = program
-            .trait_definition_by_symbol(parent.symbol)
-        else {
+        let Some(parent_trait) = program.trait_definition_by_symbol(parent.symbol) else {
             continue;
         };
         collect_dynamic_requirements_named(program, parent_trait, target, visited, matches);

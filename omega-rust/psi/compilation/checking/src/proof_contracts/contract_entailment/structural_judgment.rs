@@ -789,7 +789,7 @@ impl<'program> StructuralJudge<'program> {
             if is_arm_pattern_marker(statement) {
                 continue; // exhaustiveness carrier, not shape
             }
-            if let StatementNode::LocalData(local) = statement {
+            if let Some(local) = statement.as_local_data() {
                 let term = self.callee_term_with_machines(
                     local.initial_value,
                     &environment,
@@ -803,7 +803,7 @@ impl<'program> StructuralJudge<'program> {
             // Ordinary body tails carry the same result value as a terminal
             // transition. An earlier expression is not a return and cannot
             // bypass subsequent statements or their effects.
-            if let StatementNode::Expression(expression) = statement {
+            if let Some(expression) = statement.as_expression() {
                 return (index + 1 == statements.len())
                     .then(|| {
                         self.callee_term_with_machines(
@@ -816,9 +816,7 @@ impl<'program> StructuralJudge<'program> {
                     })
                     .flatten();
             }
-            let StatementNode::Transition(transition) = statement else {
-                return None;
-            };
+            let transition = statement.as_transition()?;
             if transition.continuation.is_valid() {
                 return None;
             }
@@ -1063,9 +1061,7 @@ impl<'program> StructuralJudge<'program> {
                         data_symbol,
                     )?;
                     let field = program.data_members(data).iter().find_map(|candidate| {
-                        let typed_trees::data::DataMember::Field(field) = candidate else {
-                            return None;
-                        };
+                        let field = candidate.as_field()?;
                         (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
                     })?;
                     return Some(StructuralTerm::CallProjection {

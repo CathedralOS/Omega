@@ -445,7 +445,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                             // exclusive view: its binding is then the affine
                             // loan custody `let` planning gave a `&mut` view.
                             // A shared view local never gains mutation here.
-                            let StatementNode::LocalData(local) = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)? else { return None; };
+                            let local = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)?.as_local_data()?;
                             if local.is_mutable
                                 || result.multiplicity != Multiplicity::Affine
                                 || !validation::slice_view_shell(program, local.type_reference, &[])
@@ -1168,9 +1168,7 @@ fn case_payload_transfer(
     // subtree's identity and type.
     let field = program.data_definitions().iter().find_map(|data| {
         program.data_members(data).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             (variant.symbol == selected_case)
                 .then(|| program.data_payload_field_by_symbol(variant, *field_symbol))
                 .flatten()
@@ -1260,13 +1258,11 @@ fn case_payload_transfer(
             }
             let result = retained_structural_result(operation)
                 .filter(|result| result.statement_index < ordinal)?;
-            let StatementNode::LocalData(local) = program
+            let local = program
                 .statement_table
                 .statements(source.statement_nodes)
                 .get(result.statement_index as usize)?
-            else {
-                return None;
-            };
+                .as_local_data()?;
             (local.symbol == root && !local.is_mutable).then_some((result, local))
         });
         let (result, local) = results.next()?;
@@ -1300,9 +1296,7 @@ fn case_payload_transfer(
         .collect::<Option<Vec<_>>>()?;
     let variant = program.data_definitions().iter().find_map(|data| {
         program.data_members(data).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
+            let variant = member.as_variant()?;
             (variant.symbol == selected_case).then_some(variant)
         })
     })?;

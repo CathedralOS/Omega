@@ -376,7 +376,7 @@ fn state_result_named_transitions(
         .iter()
         .enumerate()
         .flat_map(|(statement_index, statement)| {
-            let StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 return Vec::new();
             };
             [transition.target, transition.continuation]

@@ -297,7 +297,7 @@ fn tail(
         if fallback.is_some() {
             return None;
         }
-        let StatementNode::Transition(transition) = statement else {
+        let Some(transition) = statement.as_transition() else {
             if matches!(statement, StatementNode::Expression(_)) && !arms.is_empty() {
                 fallback = Some(CheckedScalarBranchDestination::Return {
                     statement_ordinal: ordinal,

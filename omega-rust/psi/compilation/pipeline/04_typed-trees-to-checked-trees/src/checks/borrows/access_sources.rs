@@ -13,7 +13,6 @@ use checked_trees::{
 use facts::PlaceRoot;
 use language_semantics::ReferenceAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::StatementNode;
 
 pub(in crate::checks::borrows) fn resolve(
     program: &dyn ::validation::CheckingInput,
@@ -121,12 +120,10 @@ pub(in crate::checks::borrows) fn resolve_all(
         // at formation and cannot follow from overlapping captured places.
         let supplying = (|| {
             let source_state = program.state_by_symbol(state.state_symbol)?;
-            let StatementNode::LocalData(local) = program
+            let local = program
                 .statement_table
                 .statement_at(source_state, loan.statement_index)?
-            else {
-                return None;
-            };
+                .as_local_data()?;
             if local.symbol != root_symbol {
                 return None;
             }

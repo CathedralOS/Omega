@@ -213,9 +213,7 @@ fn borrowed_data_literal_initializers(
             let mut field_path = owner_path.to_vec();
             if let Some(case_name) = &literal.case_name
                 && let Some(variant) = program.data_members(definition).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Variant(variant) = member else {
-                        return None;
-                    };
+                    let variant = member.as_variant()?;
                     (variant.name.as_str() == case_name.as_str()).then_some(variant)
                 })
             {

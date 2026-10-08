@@ -1,6 +1,5 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -58,7 +57,7 @@ impl<'program> MachineSymbols<'program> {
             crate::value_custody::places::machine_attached_data(program, machine)
         {
             for member in program.data_members(data_definition) {
-                let DataMember::Field(field) = member else {
+                let Some(field) = member.as_field() else {
                     continue;
                 };
 

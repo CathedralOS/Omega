@@ -468,7 +468,7 @@ fn reference_result_relation(
         .statements(state.statement_nodes)
         .get(..boundary_index)?
     {
-        let StatementNode::LocalData(local) = statement else {
+        let Some(local) = statement.as_local_data() else {
             continue;
         };
         if !super::type_reference_is_reference(program, local.type_reference) {

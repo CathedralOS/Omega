@@ -191,7 +191,7 @@ fn encode_typed_owned_record(
         )));
     }
     for member in members {
-        let typed_trees::data::DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             unreachable!("sum cases rejected above")
         };
         if !supplied.contains_key(field.name.as_str()) {
@@ -207,7 +207,7 @@ fn encode_typed_owned_record(
         let mut bytes = Vec::new();
         let mut aggregate_align = 1u64;
         for member in members {
-            let typed_trees::data::DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 unreachable!("record subset validated above")
             };
             if field.relevance.is_erased() {

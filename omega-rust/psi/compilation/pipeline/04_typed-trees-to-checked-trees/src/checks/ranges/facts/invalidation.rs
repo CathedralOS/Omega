@@ -16,7 +16,7 @@ impl RangeFacts<'_> {
         state: &State,
         statement: &StatementNode,
     ) {
-        let StatementNode::Assignment(assignment) = statement else {
+        let Some(assignment) = statement.as_assignment() else {
             return;
         };
         // A builtin byte-element write changes contents, not the descriptor.

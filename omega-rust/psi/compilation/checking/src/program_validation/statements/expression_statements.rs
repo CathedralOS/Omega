@@ -15,7 +15,7 @@ pub(super) fn validate(
     outputs: &mut StatementOutputs<'_>,
     statement: &StatementNode,
 ) {
-    let StatementNode::Expression(expression) = statement else {
+    let Some(expression) = statement.as_expression() else {
         unreachable!("dispatched expression_statements")
     };
     let StatementScope {

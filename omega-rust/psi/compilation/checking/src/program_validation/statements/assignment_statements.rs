@@ -20,7 +20,7 @@ pub(super) fn validate<'a, 'p>(
         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
     ),
 ) {
-    let StatementNode::Assignment(assignment) = statement else {
+    let Some(assignment) = statement.as_assignment() else {
         unreachable!("dispatched assignment_statements")
     };
     let StatementScope {

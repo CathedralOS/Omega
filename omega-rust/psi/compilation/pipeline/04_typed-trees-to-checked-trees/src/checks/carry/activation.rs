@@ -67,7 +67,7 @@ fn build_machine_activation_carry_fact(
         accumulator.add_machine_return_type(state.return_type);
 
         for statement in program.statement_table.statements(state.statement_nodes) {
-            if let StatementNode::LocalData(local) = statement {
+            if let Some(local) = statement.as_local_data() {
                 accumulator.add_machine_type(local.type_reference);
             }
             accumulator.visit_statement(statement);
@@ -405,16 +405,14 @@ fn find_operator(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
 ) -> Option<&typed_trees::operator::OperatorDefinition> {
-    program
-        .operator_definition_by_symbol(target)
-        .or_else(|| {
-            program.domain_definitions().iter().find_map(|domain| {
-                program
-                    .domain_operators(domain)
-                    .iter()
-                    .find(|operator| operator.symbol == target)
-            })
+    program.operator_definition_by_symbol(target).or_else(|| {
+        program.domain_definitions().iter().find_map(|domain| {
+            program
+                .domain_operators(domain)
+                .iter()
+                .find(|operator| operator.symbol == target)
         })
+    })
 }
 
 fn same_semantic_name(left: &str, right: &str) -> bool {

@@ -47,7 +47,7 @@ pub(super) fn guarded_slice_tail_call<'a>(
     ) {
         return false;
     }
-    let StatementNode::Transition(transition) = statement else {
+    let Some(transition) = statement.as_transition() else {
         return false;
     };
     let TransitionGuardNode::When(guard) = transition.guard else {

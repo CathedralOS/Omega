@@ -17,7 +17,6 @@ use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use typed_trees::signature::SignatureContractKind;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 mod named_routes;
@@ -217,7 +216,7 @@ pub(crate) fn build(
                 .statements(state.statement_nodes)
                 .iter()
             {
-                let StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 let Some(operator) = crate::flow::resolved_operator_statement_symbol(program, call)

@@ -589,7 +589,7 @@ fn build_checked_crash_sites(
             .statement_table
             .indexed_statements(state.statement_nodes)
         {
-            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+            let Some(transition) = statement.as_transition() else {
                 continue;
             };
             let typed_trees::statement::TransitionExit::Crash(cause) = transition.exit else {

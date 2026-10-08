@@ -37,7 +37,6 @@ use facts::{
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use validation::field_domains::{
@@ -94,7 +93,7 @@ fn append_zero_initialized_field_domain_facts(
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
     for member in program.data_members(data) {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             continue;
         };
 
@@ -684,7 +683,7 @@ pub(super) fn append_local_case_payload_domain_facts(
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local_data) = statement else {
+                let Some(local_data) = statement.as_local_data() else {
                     continue;
                 };
                 if !local_data.initial_value.is_valid() {
@@ -699,8 +698,7 @@ pub(super) fn append_local_case_payload_domain_facts(
                 let Some(case_name) = literal.case_name.as_ref() else {
                     continue;
                 };
-                let Some(data) = program
-                    .data_definition_by_name_str(literal.type_name.as_str())
+                let Some(data) = program.data_definition_by_name_str(literal.type_name.as_str())
                 else {
                     continue;
                 };
@@ -801,7 +799,7 @@ pub(super) fn append_local_zii_field_domain_facts(
         for state in program.machine_states(machine) {
             let mut refs = arena::HandleSpan::empty();
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local_data) = statement else {
+                let Some(local_data) = statement.as_local_data() else {
                     continue;
                 };
                 if local_data.initial_value.is_valid() {

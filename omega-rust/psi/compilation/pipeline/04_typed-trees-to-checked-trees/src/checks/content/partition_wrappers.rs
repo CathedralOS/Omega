@@ -64,9 +64,7 @@ pub(crate) fn returned_partition_invocations(
         .iter()
         .enumerate()
         .filter_map(|(statement_index, statement)| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
+            let local = statement.as_local_data()?;
             let mut invocation =
                 direct_expression_invocation(program, statement_index, local.initial_value)?;
             invocation.form = ReturnedPartitionInvocationForm::StagedLocal {

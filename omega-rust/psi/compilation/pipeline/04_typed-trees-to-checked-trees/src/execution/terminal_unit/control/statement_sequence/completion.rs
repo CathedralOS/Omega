@@ -91,9 +91,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     // statement, so rejoin the returned expression, not a presumed unique
     // statement root.
     let tail = statements.last().and_then(|statement| {
-        let StatementNode::Expression(expression) = statement else {
-            return None;
-        };
+        let expression = statement.as_expression()?;
         Some((
             u32::try_from(statements.len().checked_sub(1)?).ok()?,
             *expression,
@@ -115,9 +113,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         {
             return None;
         }
-        let StatementNode::Expression(expression) = statement else {
-            return None;
-        };
+        let expression = statement.as_expression()?;
         let path = program.expression_table.name_path_node(*expression)?;
         if path.head_symbol != path.symbol
             || program
@@ -307,9 +303,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
         trace.phase("statement sequence: structural result: returned scalar array");
         let statements = program.statement_table.statements(state.statement_nodes);
-        let StatementNode::Expression(expression) = statements.last()? else {
-            return None;
-        };
+        let expression = statements.last()?.as_expression()?;
         let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
         if let Some(path) = program.expression_table.name_path_node(*expression) {
             if let Some((_, binding)) = array_bindings
@@ -403,9 +397,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         // A tail that transfers control to a named state produces no scalar
         // completion; the state terminator owns those exits.
         if !matches!(statements.last(), Some(StatementNode::Transition(_))) {
-            let StatementNode::Expression(expression) = statements.last()? else {
-                return None;
-            };
+            let expression = statements.last()?.as_expression()?;
             let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
             let role = CheckedScalarExpressionRole::Return;
             let computations = &facts.values.scalar_computations;

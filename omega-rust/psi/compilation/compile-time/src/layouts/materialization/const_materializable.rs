@@ -5,7 +5,7 @@ use layout_plans::{
     layout_plan_reports_match_for_replay, normalized_layout_plan_report_fingerprint,
 };
 use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use typed_trees::data::{DataDefinition, DataShapeKind};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::{
@@ -362,7 +362,7 @@ fn validate_record_value(
     active.push(data.symbol);
     let result = (|| {
         for member in members {
-            let DataMember::Field(field) = member else {
+            let Some(field) = member.as_field() else {
                 return Err(MaterializationDiagnostic(format!(
                     "{path} type `{}` contains a sum case",
                     data.name

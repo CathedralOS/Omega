@@ -16,7 +16,7 @@ use checked_trees::CheckFacts;
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::TransitionTargetNode;
 
 /// The call occurrences inside the outgoing operands of the transition
 /// at `statement_index` that pass `local` whole as a positional argument, as
@@ -36,9 +36,7 @@ pub fn transition_operand_moves(
     local: SymbolHandle,
 ) -> Option<Vec<PermissionEventSource>> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    let StatementNode::Transition(transition) = statements.get(statement_index)? else {
-        return None;
-    };
+    let transition = statements.get(statement_index)?.as_transition()?;
     let operands = match program.statement_table.transition_target(transition.target) {
         TransitionTargetNode::Named { arguments, .. } => {
             program.statement_table.expression_handles(*arguments)

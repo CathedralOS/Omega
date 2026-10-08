@@ -158,7 +158,7 @@ impl Decomposition<'_> {
                     self.nested_mixed_seen = true;
                 }
                 for member in members {
-                    let DataMember::Field(field) = member else {
+                    let Some(field) = member.as_field() else {
                         continue;
                     };
                     if field.relevance.is_erased() {
@@ -182,7 +182,7 @@ impl Decomposition<'_> {
     ) -> Option<()> {
         let mut arms = Vec::new();
         for member in members {
-            let DataMember::Variant(variant) = member else {
+            let Some(variant) = member.as_variant() else {
                 continue;
             };
             let case = variant.path_identity();

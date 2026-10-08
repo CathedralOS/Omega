@@ -167,7 +167,7 @@ pub(super) fn admitted_build_declaration_call(
 }
 
 fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use typed_trees::statement::TransitionTargetNode;
     program.machine_states(machine).iter().any(|state| {
         (state.return_type.is_valid() && !unit_type(program, state.return_type))
             || program
@@ -175,7 +175,7 @@ fn has_inferred_value_return(program: &dyn crate::CheckingInput, machine: &Machi
                 .statements(state.statement_nodes)
                 .iter()
                 .any(|statement| {
-                    let StatementNode::Transition(transition) = statement else {
+                    let Some(transition) = statement.as_transition() else {
                         return false;
                     };
                     [transition.target, transition.continuation]

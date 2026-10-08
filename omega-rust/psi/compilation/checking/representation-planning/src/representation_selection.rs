@@ -54,7 +54,7 @@ pub fn harvest_opaque_representation_selections(
 
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
-            if let typed_trees::statement::StatementNode::Expression(expression) = statement
+            if let Some(expression) = statement.as_expression()
                 && validation::compiler_operations::build_operation(typed, *expression)
                     == Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection)
                 && let typed_trees::expression::ExpressionNode::Call(call) =

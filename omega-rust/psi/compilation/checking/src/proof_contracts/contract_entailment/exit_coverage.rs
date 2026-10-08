@@ -87,9 +87,7 @@ fn complete_case_guards(
                 .data_members(data)
                 .iter()
                 .filter_map(|member| {
-                    let typed_trees::data::DataMember::Variant(case) = member else {
-                        return None;
-                    };
+                    let case = member.as_variant()?;
                     Some(case.symbol)
                 })
                 .collect();

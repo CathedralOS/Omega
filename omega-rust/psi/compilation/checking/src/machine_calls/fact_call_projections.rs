@@ -6,7 +6,7 @@
 //! execution model.
 
 use diagnostics::Diagnostic;
-use typed_trees::data::{DataMember, DataShapeKind};
+use typed_trees::data::DataShapeKind;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::proposition::{PropositionBody, PropositionFormula};
@@ -310,9 +310,7 @@ fn validate_direct_projection(
     let field = (member.case_variant.is_none())
         .then(|| {
             program.data_members(data).iter().find_map(|candidate| {
-                let DataMember::Field(field) = candidate else {
-                    return None;
-                };
+                let field = candidate.as_field()?;
                 (field.name.as_str() == member.member.as_str()).then_some(field.symbol)
             })
         })

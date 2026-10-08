@@ -562,9 +562,7 @@ impl ExitScalars<'_, '_> {
             .get(..statement_ordinal as usize)?
             .iter()
             .filter_map(|statement| {
-                let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-                    return None;
-                };
+                let local = statement.as_local_data()?;
                 is_scalar_roster_local(self.program, local).then_some(local.symbol)
             });
         if !parameters.chain(locals).eq(symbols.iter().copied()) {

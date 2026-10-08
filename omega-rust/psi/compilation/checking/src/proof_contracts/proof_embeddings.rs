@@ -117,7 +117,7 @@ pub(crate) fn validate_proof_embeddings(
         } else {
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let StatementNode::AssemblyFact(fact) = statement {
+                    if let Some(fact) = statement.as_assembly_fact() {
                         collect_expression_nodes(
                             program,
                             fact.expression,
@@ -175,7 +175,7 @@ pub(crate) fn validate_proof_embeddings(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let StatementNode::Call(call) = statement
+                if let Some(call) = statement.as_call()
                     && (program
                         .symbols
                         .builtin_function_for_symbol(call.target_symbol)

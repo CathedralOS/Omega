@@ -1,9 +1,7 @@
 //! Selected successors partition existing local obligations, not value storage.
 
 use super::super::{CheckedUnitStructuralResultBindingPlan, SymbolHandle};
-use super::{
-    CheckedStructuralControlSuccessorPlan, Multiplicity, StatementNode, TypeReferenceNode,
-};
+use super::{CheckedStructuralControlSuccessorPlan, Multiplicity, TypeReferenceNode};
 
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
@@ -26,9 +24,9 @@ fn validate(
     disposable_locals: &[SymbolHandle],
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    let StatementNode::LocalData(local) = statements.get(result.statement_index as usize)? else {
-        return None;
-    };
+    let local = statements
+        .get(result.statement_index as usize)?
+        .as_local_data()?;
     // Byte results and element views retain the structural identity their
     // constructors and call signatures publish: a view without its loan
     // shell, a bounded byte owner with its qualification. Other qualifications

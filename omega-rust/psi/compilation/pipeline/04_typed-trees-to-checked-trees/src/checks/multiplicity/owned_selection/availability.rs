@@ -731,7 +731,7 @@ pub(super) fn linear_source_use_conflicts(
         .filter(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
         .map(|place| place.segments)
         .collect();
-    if let StatementNode::Call(call) = statement
+    if let Some(call) = statement.as_call()
         && call.receiver_root_symbol == source_symbol
     {
         match crate::flow::canonical_receiver_place_for_call_site(

@@ -605,7 +605,7 @@ fn excluded_input_at_call(
             &frames.statement_value_write_frame(machine, statement),
             Some(&frames),
         )?);
-        if let StatementNode::Call(call) = statement {
+        if let Some(call) = statement.as_call() {
             writes.extend(crate::flow::frame_storage_writes(
                 program,
                 machine.symbol,

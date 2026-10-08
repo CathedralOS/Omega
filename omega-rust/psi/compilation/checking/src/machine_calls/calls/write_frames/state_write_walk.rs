@@ -490,7 +490,7 @@ fn walk_state_write_prefix_inner(
             && local_alias_origins.is_empty()
             && stored.is_empty()
             && divergent_alias_origins.is_empty()
-            && let StatementNode::Assignment(assignment) = statement
+            && let Some(assignment) = statement.as_assignment()
             && let Some(path) = coarse_place_path(program, assignment.target)
         {
             // The direct-store query has always admitted an untracked coarse
@@ -602,7 +602,7 @@ fn walk_state_write_prefix_inner(
         // frozen-binding opacity fence does not apply to it.
         let wire_codec_call = matches!(statement, StatementNode::Call(call)
             if wire_codecs::is_wire_codec_call(program, call));
-        let stored_call_effects = if let StatementNode::Call(call) = statement {
+        let stored_call_effects = if let Some(call) = statement.as_call() {
             super::stored_calls::call_effects(
                 program,
                 machine,
@@ -619,7 +619,7 @@ fn walk_state_write_prefix_inner(
         } else {
             None
         };
-        if !wire_codec_call && let StatementNode::Call(call) = statement {
+        if !wire_codec_call && let Some(call) = statement.as_call() {
             stored_origins::retire_private_call_argument_cases(
                 program,
                 state,
@@ -652,7 +652,7 @@ fn walk_state_write_prefix_inner(
             if local_aliases::statement_mentions_place_roots(program, statement, &divergent_roots) {
                 // Assignment transfer distinguishes replacing the local
                 // reference binding from writing through its referent set.
-                if let StatementNode::Assignment(assignment) = statement
+                if let Some(assignment) = statement.as_assignment()
                     && let Some(relative) = coarse_place_path(program, assignment.target)
                     && let Some(position) = divergent_alias_origins
                         .iter()

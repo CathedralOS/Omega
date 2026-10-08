@@ -50,7 +50,7 @@ pub(crate) fn resolve_projected_receiver_calls(
                         expression_updates.push((expression, target));
                     }
                 }
-                let StatementNode::Call(call) = statement else {
+                let Some(call) = statement.as_call() else {
                     continue;
                 };
                 let members = program.statement_table.name_path_members(call.receiver);

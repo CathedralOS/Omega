@@ -20,7 +20,7 @@
 //! borrow named. Anything else keeps the ordinary local planning, which
 //! declines a reference local it cannot establish.
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::statement::{StatementNode, TableLocalData, TransitionGuardNode};
+use typed_trees::statement::{TableLocalData, TransitionGuardNode};
 
 /// The borrowed place `local` erases to, when it is a runtime-indexed case
 /// dispatch subject: its initializer's borrow target.
@@ -62,9 +62,7 @@ pub(crate) fn erased_subject(
         return None;
     }
     for statement in arms {
-        let StatementNode::Transition(transition) = statement else {
-            return None;
-        };
+        let transition = statement.as_transition()?;
         match transition.guard {
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {

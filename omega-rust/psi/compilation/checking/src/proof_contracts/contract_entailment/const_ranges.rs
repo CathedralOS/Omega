@@ -266,7 +266,7 @@ fn scope_engine<'program>(
             bind_scoped_integer(parameter.symbol, parameter.type_reference);
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
-            let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            let Some(local) = statement.as_local_data() else {
                 continue;
             };
             bind_scoped_integer(local.symbol, local.type_reference);

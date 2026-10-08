@@ -25,7 +25,7 @@ pub(super) fn refresh_generic_call_results(
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                let StatementNode::LocalData(local) = statement else {
+                let Some(local) = statement.as_local_data() else {
                     continue;
                 };
                 if !local.type_is_inferred {
@@ -185,7 +185,7 @@ pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
     let mut updates = Vec::new();
     for (owner, body) in bodies {
         for (offset, statement) in program.statement_table.indexed_statements(body) {
-            let StatementNode::LocalData(local) = statement else {
+            let Some(local) = statement.as_local_data() else {
                 continue;
             };
             if !local.type_is_inferred {

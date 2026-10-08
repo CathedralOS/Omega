@@ -1347,7 +1347,7 @@ fn root_has_incoming_transition(
     machine: &Machine,
     root: &State,
 ) -> bool {
-    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    use typed_trees::statement::TransitionTargetNode;
 
     program.machine_states(machine).iter().any(|state| {
         program
@@ -1355,7 +1355,7 @@ fn root_has_incoming_transition(
             .statements(state.statement_nodes)
             .iter()
             .any(|statement| {
-                let StatementNode::Transition(transition) = statement else {
+                let Some(transition) = statement.as_transition() else {
                     return false;
                 };
                 [transition.target, transition.continuation]

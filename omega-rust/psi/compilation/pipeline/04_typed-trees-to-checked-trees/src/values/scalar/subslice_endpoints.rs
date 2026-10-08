@@ -73,7 +73,7 @@ pub(super) fn sites(
     statement: &StatementNode,
 ) -> Vec<(ExpressionHandle, CheckedSubsliceSite)> {
     let mut result = Vec::new();
-    if let StatementNode::LocalData(local) = statement
+    if let Some(local) = statement.as_local_data()
         && !local.is_mutable
     {
         result.push((local.initial_value, CheckedSubsliceSite::LocalBinding));
@@ -104,7 +104,7 @@ pub(super) fn sites(
             ));
         }
     }
-    if let StatementNode::Transition(transition) = statement
+    if let Some(transition) = statement.as_transition()
         && transition.target.is_valid()
         && let typed_trees::statement::TransitionTargetNode::Named {
             path, arguments, ..

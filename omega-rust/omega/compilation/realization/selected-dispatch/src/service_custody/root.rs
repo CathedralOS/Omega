@@ -12,8 +12,7 @@
 
 use super::{
     CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, CompositionMode,
-    DataDefinition, DataField, DataMember, Diagnostic, SelectedProviderReviewProvenance,
-    data_field_identity,
+    DataDefinition, DataField, Diagnostic, SelectedProviderReviewProvenance, data_field_identity,
 };
 use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePlan};
 use typed_trees::service::ExactServiceCarrier;
@@ -406,7 +405,7 @@ fn collect_service_fields<'a>(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for member in checked.data_members(source) {
-        let DataMember::Field(field) = member else {
+        let Some(field) = member.as_field() else {
             continue;
         };
         let field_identity = data_field_identity(field);
