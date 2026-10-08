@@ -62,29 +62,13 @@ pub(super) fn signature_matches(
                 });
                 return identity.as_str() == result.type_identity
                     && result.multiplicity == Multiplicity::Affine
-                    && view_result_qualifications(checked, source.return_type).as_ref()
-                        == Some(&result.qualifications)
-                    && validation::structural_result_projected_qualifications(
-                        &checked.typed,
-                        source.return_type,
-                    )
-                    .ok()
-                    .as_ref()
-                        == Some(&result.projected_qualifications);
+                    && result_qualifications_match(checked, source.return_type, result);
             }
             if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
                 return checked.normalized_type_identity(slice).as_str() == result.type_identity
                     && crate::reference_custody::result_multiplicity(checked, source.return_type)
                         == result.multiplicity
-                    && view_result_qualifications(checked, source.return_type).as_ref()
-                        == Some(&result.qualifications)
-                    && validation::structural_result_projected_qualifications(
-                        &checked.typed,
-                        source.return_type,
-                    )
-                    .ok()
-                    .as_ref()
-                        == Some(&result.projected_qualifications);
+                    && result_qualifications_match(checked, source.return_type, result);
             }
             // A `&mut T` result is alias custody, not an owned structural
             // claim: the plan identity spells the whole reference type, the
@@ -120,15 +104,7 @@ pub(super) fn signature_matches(
                     .as_str()
                     == result.type_identity
                     && result.multiplicity == Multiplicity::Affine
-                    && view_result_qualifications(checked, source.return_type).as_ref()
-                        == Some(&result.qualifications)
-                    && validation::structural_result_projected_qualifications(
-                        &checked.typed,
-                        source.return_type,
-                    )
-                    .ok()
-                    .as_ref()
-                        == Some(&result.projected_qualifications);
+                    && result_qualifications_match(checked, source.return_type, result);
             }
             // Contents classification reads the carrier beneath its
             // qualifications; the plan identity follows the shared rule.
@@ -213,6 +189,21 @@ fn view_result_qualifications(
     reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<language_semantics::SemanticDomainId>> {
     validation::view_result_carrier_qualifications(&checked.typed, reference).ok()
+}
+
+/// The lowered result carries exactly the authored evidence: authored
+/// qualifications on the (peeled) carrier and projected qualifications on
+/// the structural result.
+fn result_qualifications_match(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+    result: &checked_trees::CheckedStructuralResultPlan,
+) -> bool {
+    view_result_qualifications(checked, reference).as_ref() == Some(&result.qualifications)
+        && validation::structural_result_projected_qualifications(&checked.typed, reference)
+            .ok()
+            .as_ref()
+            == Some(&result.projected_qualifications)
 }
 
 pub(super) fn validate_structural(
