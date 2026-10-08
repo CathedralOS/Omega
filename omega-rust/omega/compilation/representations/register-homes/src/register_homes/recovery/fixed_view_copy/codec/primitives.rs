@@ -67,12 +67,7 @@ pub(super) fn decode_ids<T>(
     cursor: &mut Cursor<'_>,
     constructor: fn(u64) -> Option<T>,
 ) -> Result<Vec<T>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut values = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        values.push(decode_id(cursor, constructor)?);
-    }
-    Ok(values)
+    decode_list(cursor, |cursor| decode_id(cursor, constructor))
 }
 
 pub(super) fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) {
@@ -83,12 +78,7 @@ pub(super) fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<It
 }
 
 pub(super) fn decode_u16s(cursor: &mut Cursor<'_>) -> Result<Vec<u16>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut values = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        values.push(cursor.u16()?);
-    }
-    Ok(values)
+    decode_list(cursor, |cursor| Ok(cursor.u16()?))
 }
 
 pub(super) fn decode_id<T>(

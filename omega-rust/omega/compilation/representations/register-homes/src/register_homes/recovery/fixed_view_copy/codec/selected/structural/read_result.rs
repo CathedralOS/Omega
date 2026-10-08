@@ -8,7 +8,7 @@ use super::declarations::{decode_multiplicity, decode_path, encode_multiplicity}
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_ids, encode_ids, length,
+    Cursor, decode_id, decode_ids, decode_list, encode_ids, length,
 };
 use legalized_operations::encode_shape;
 use selected_instructions::effects::program::identity::encode_path;
@@ -58,14 +58,12 @@ pub(super) fn decode_result(
     let multiplicity = decode_multiplicity(cursor)?;
     let qualifications = decode_ids(cursor, StructuralDomainId::new)?;
     let projected_qualifications = decode_projected(cursor, true)?;
-    let count = cursor.length()?;
-    let mut claims = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        claims.push(StructuralResultClaimBinding {
+    let claims = decode_list(cursor, |cursor| {
+        Ok(StructuralResultClaimBinding {
             claim: decode_id(cursor, ClaimId::new)?,
             path: decode_path(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(StructuralOperationResult {
         qualification_establishments: Vec::new(),
         place,
@@ -92,13 +90,11 @@ pub(super) fn decode_layout(
     let tag_shape = decode_shape(cursor)?;
     let common_fields = decode_fields(cursor)?;
     let payload_byte_offset = cursor.u32()?;
-    let count = cursor.length()?;
-    let mut cases = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        cases.push(ConventionalSumCaseLayout {
+    let cases = decode_list(cursor, |cursor| {
+        Ok(ConventionalSumCaseLayout {
             fields: decode_fields(cursor)?,
-        });
-    }
+        })
+    })?;
     Ok(ConventionalSumLayout {
         shape,
         tag_byte_offset,
@@ -120,15 +116,12 @@ fn encode_fields(bytes: &mut Vec<u8>, fields: &[PackedFieldLayout]) {
 fn decode_fields(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<PackedFieldLayout>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut fields = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        fields.push(PackedFieldLayout {
+    decode_list(cursor, |cursor| {
+        Ok(PackedFieldLayout {
             shape: decode_shape(cursor)?,
             byte_offset: cursor.u32()?,
-        });
-    }
-    Ok(fields)
+        })
+    })
 }
 
 #[cfg(test)]

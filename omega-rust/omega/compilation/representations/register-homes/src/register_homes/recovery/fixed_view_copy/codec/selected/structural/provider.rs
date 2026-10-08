@@ -16,7 +16,7 @@ use super::{
     projected_qualifications::{decode_projected, encode_projected},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_ids, encode_ids, length,
+    Cursor, decode_id, decode_ids, decode_list, encode_ids, length,
 };
 
 pub(super) fn encode(
@@ -74,34 +74,28 @@ pub(super) fn decode(
     let provider_identity = decode_string(cursor)?;
     let candidate_identity = decode_string(cursor)?;
     let candidate = decode_id(cursor, MachineId::new)?;
-    let signature_count = cursor.length()?;
-    let mut parameters = Vec::with_capacity(signature_count.min(cursor.remaining()));
-    for _ in 0..signature_count {
-        parameters.push(ProviderSignatureParameter {
+    let parameters = decode_list(cursor, |cursor| {
+        Ok(ProviderSignatureParameter {
             position: cursor.u32()?,
             structural_type: decode_id(cursor, StructuralTypeId::new)?,
             multiplicity: decode_multiplicity(cursor)?,
             access: decode_access(cursor)?,
             qualifications: decode_ids(cursor, semantic_vocabulary::StructuralDomainId::new)?,
             projected_qualifications: decode_projected(cursor, retain_projected_qualifications)?,
-        });
-    }
-    let positional_count = cursor.length()?;
-    let mut positional_parameters = Vec::with_capacity(positional_count.min(cursor.remaining()));
-    for _ in 0..positional_count {
-        positional_parameters.push(ProviderParameterRefinement {
+        })
+    })?;
+    let positional_parameters = decode_list(cursor, |cursor| {
+        Ok(ProviderParameterRefinement {
             boundary_index: cursor.u32()?,
             candidate_index: cursor.u32()?,
-        });
-    }
-    let requirement_count = cursor.length()?;
-    let mut required_domains = Vec::with_capacity(requirement_count.min(cursor.remaining()));
-    for _ in 0..requirement_count {
-        required_domains.push(StructuralDomainRequirement {
+        })
+    })?;
+    let required_domains = decode_list(cursor, |cursor| {
+        Ok(StructuralDomainRequirement {
             argument_index: cursor.u32()?,
             domain: decode_id(cursor, semantic_vocabulary::StructuralDomainId::new)?,
-        });
-    }
+        })
+    })?;
     Ok(ProviderCandidateConformance {
         boundary,
         requirement_identity,
