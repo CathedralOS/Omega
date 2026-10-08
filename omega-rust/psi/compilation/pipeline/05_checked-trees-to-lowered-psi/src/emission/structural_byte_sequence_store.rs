@@ -261,9 +261,7 @@ pub(crate) fn emit_content_store(
                 parameter.access,
                 terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || !structural_types
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
+            ) || !terminal_psi::find_structural_type(structural_types, parameter.structural_type)
                 .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
             {
                 return unsupported("whole byte store requires a borrowed bounded owner");
@@ -471,9 +469,7 @@ pub(crate) fn prepare_descriptor_store(
         else {
             return unsupported("whole descriptor store requires a declared descriptor home");
         };
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == *structural_type)
+        let declaration = terminal_psi::find_structural_type(structural_types, *structural_type)
             .ok_or(LoweringError::Unsupported(
                 "whole descriptor store home type was not declared",
             ))?;
@@ -693,9 +689,7 @@ pub(crate) fn emit_owned_literal(
 > {
     let Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
         capacity,
-    })) = structural_types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
+    })) = terminal_psi::find_structural_type(structural_types, structural_type)
         .map(|declaration| declaration.shape.clone())
     else {
         return unsupported("owned literal local carrier is not a bounded byte owner");

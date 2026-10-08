@@ -111,10 +111,11 @@ pub(super) fn validate_type_shape(
                                     else {
                                         return None;
                                     };
-                                    let StructuralTypeShape::PrimitiveScalar(scalar) = module
-                                        .structural_types
-                                        .iter()
-                                        .find(|declaration| declaration.id == identity)?
+                                    let StructuralTypeShape::PrimitiveScalar(scalar) =
+                                        terminal_psi::find_structural_type(
+                                            &module.structural_types,
+                                            identity,
+                                        )?
                                         .shape
                                     else {
                                         return None;
@@ -338,11 +339,9 @@ fn validate_authored_field_extent(
             let StructuralFieldType::Structural(array) = field.field_type else {
                 return malformed("repeated field requires a fixed array");
             };
-            let Some(StructuralTypeShape::FixedArray { element, length }) = module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == array)
-                .map(|declaration| &declaration.shape)
+            let Some(StructuralTypeShape::FixedArray { element, length }) =
+                terminal_psi::find_structural_type(&module.structural_types, array)
+                    .map(|declaration| &declaration.shape)
             else {
                 return malformed("repeated field requires a fixed array");
             };
@@ -448,11 +447,8 @@ fn authored_fragment_source_width(
         let StructuralFieldType::Structural(identity) = field else {
             return None;
         };
-        let StructuralTypeShape::PrimitiveScalar(scalar) = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == *identity)?
-            .shape
+        let StructuralTypeShape::PrimitiveScalar(scalar) =
+            terminal_psi::find_structural_type(&module.structural_types, *identity)?.shape
         else {
             return None;
         };

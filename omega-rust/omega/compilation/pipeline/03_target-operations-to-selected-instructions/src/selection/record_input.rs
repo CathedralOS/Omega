@@ -5,6 +5,7 @@ use legalized_operations::{
 };
 use terminal_psi::{
     RecordFieldValue, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+    find_structural_type,
 };
 
 pub(super) fn fields(
@@ -188,9 +189,7 @@ pub(super) fn structural_operand_shape(
             // Primitive domain implication was checked before target lowering;
             // selection preserves the exact qualified source home and copies
             // its length-prefixed value, not its capacity as a live extent.
-            let declaration = declarations
-                .iter()
-                .find(|declaration| declaration.id == child_type)?;
+            let declaration = find_structural_type(declarations, child_type)?;
             if declaration.shape
                 != StructuralTypeShape::ByteSequence(field_type.byte_sequence_carrier()?)
             {
@@ -219,15 +218,11 @@ pub(super) fn structural_operand_shape(
                 })?;
             let readable = super::established_view_input::view_access(source, argument.place)
                 == Some(terminal_psi::StructuralAccess::SharedBorrow);
-            if (declarations
-                .iter()
-                .find(|declaration| declaration.id == child_type)
+            if (find_structural_type(declarations, child_type)
                 .map(|declaration| &declaration.shape)
                 != Some(&expected)
                 && !descriptor_family(
-                    declarations
-                        .iter()
-                        .find(|declaration| declaration.id == child_type)
+                    find_structural_type(declarations, child_type)
                         .map(|declaration| &declaration.shape),
                     &expected,
                 ))
@@ -316,9 +311,7 @@ fn descriptor_shape(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<StructuralTypeShape> {
     match field_type {
-        StructuralFieldType::Structural(child) => declarations
-            .iter()
-            .find(|declaration| declaration.id == *child)
+        StructuralFieldType::Structural(child) => find_structural_type(declarations, *child)
             .map(|declaration| declaration.shape.clone())
             .filter(|shape| {
                 matches!(

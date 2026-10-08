@@ -1,5 +1,6 @@
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
 use optimization_unit_semantics::byte_field_root;
+use terminal_psi::find_structural_type;
 
 pub(in crate::legalization) fn scalar_store_destination(
     destination: &abstract_operations::StructuralScalarStoreDestination,
@@ -476,9 +477,7 @@ pub(in crate::legalization) fn read(
         let (_, result) = super::structural_case::source_result(function, place).ok()?;
         // A view or reference lends storage through its descriptor; an owned
         // aggregate instead observes its own value storage.
-        let (structural_type, access) = match types
-            .iter()
-            .find(|declaration| declaration.id == result.structural_type)
+        let (structural_type, access) = match find_structural_type(types, result.structural_type)
             .map(|declaration| &declaration.shape)
         {
             Some(terminal_psi::StructuralTypeShape::ElementView { .. }) => (
@@ -573,10 +572,8 @@ fn runtime_path(
     for (position, segment) in path.iter().enumerate() {
         match segment {
             semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                let terminal_psi::StructuralTypeShape::Record { fields, .. } = &types
-                    .iter()
-                    .find(|declaration| declaration.id == carrier)?
-                    .shape
+                let terminal_psi::StructuralTypeShape::Record { fields, .. } =
+                    &find_structural_type(types, carrier)?.shape
                 else {
                     return None;
                 };
@@ -601,11 +598,7 @@ fn runtime_path(
             // Replay each fixed extent even when a later field continues
             // inside the element; the producer's offset is not authority.
             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
-                let element = match &types
-                    .iter()
-                    .find(|declaration| declaration.id == carrier)?
-                    .shape
-                {
+                let element = match &find_structural_type(types, carrier)?.shape {
                     terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
                         if index >= length {
                             return None;

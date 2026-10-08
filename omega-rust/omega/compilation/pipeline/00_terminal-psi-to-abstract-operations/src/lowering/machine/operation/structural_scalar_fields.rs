@@ -14,6 +14,7 @@ use terminal_psi::{
     BindingRelevance, Block, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    find_structural_type,
 };
 
 use crate::lowering::LoweringError;
@@ -131,18 +132,14 @@ fn lower_store(
             let Some(StructuralTypeShape::Reference {
                 referent,
                 access: StructuralAccess::MutableBorrow,
-            }) = structural_types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
+            }) = find_structural_type(structural_types, result.structural_type)
                 .map(|declaration| &declaration.shape)
             else {
                 return Err(invalid());
             };
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !matches!(
-                    structural_types
-                        .iter()
-                        .find(|declaration| declaration.id == *referent)
+                    find_structural_type(structural_types, *referent)
                         .map(|declaration| &declaration.shape),
                     Some(StructuralTypeShape::Record { .. })
                 )
@@ -266,9 +263,7 @@ fn lower_integer_read(
     // A call result's `Reference` shell keeps the loan's access on the type;
     // the observed record is its referent, the same peel the verifying and
     // codec-side validators apply to this read.
-    let (observed_root, access) = match structural_types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
+    let (observed_root, access) = match find_structural_type(structural_types, structural_type)
         .map(|declaration| &declaration.shape)
     {
         Some(StructuralTypeShape::Reference { referent, access }) => (*referent, *access),

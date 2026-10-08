@@ -1040,11 +1040,7 @@ pub(super) fn retained(
     if let Some(terminal_psi::StructuralTypeShape::Reference {
         referent,
         access: reference_access,
-    }) = target
-        .graph
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == carrier)
+    }) = terminal_psi::find_structural_type(target.graph.structural_types.as_slice(), carrier)
         .map(|declaration| &declaration.shape)
     {
         if access != terminal_psi::StructuralAccess::Owned
@@ -1076,12 +1072,10 @@ pub(super) fn retained(
     for (position, segment) in carrier_path.iter().enumerate() {
         match segment {
             semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                let Some(declaration) = target
-                    .graph
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == carrier)
-                else {
+                let Some(declaration) = terminal_psi::find_structural_type(
+                    target.graph.structural_types.as_slice(),
+                    carrier,
+                ) else {
                     return false;
                 };
                 let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape
@@ -1107,12 +1101,10 @@ pub(super) fn retained(
             // each declared bound. Element views keep the terminal-index rule:
             // their bound comes from the separately proved live extent.
             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index) => {
-                let Some(declaration) = target
-                    .graph
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == carrier)
-                else {
+                let Some(declaration) = terminal_psi::find_structural_type(
+                    target.graph.structural_types.as_slice(),
+                    carrier,
+                ) else {
                     return false;
                 };
                 let element = match &declaration.shape {
@@ -1264,11 +1256,11 @@ fn write_destination(
     {
         return None;
     }
-    let terminal_psi::StructuralTypeShape::Reference { referent, .. } = target
-        .graph
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)?
+    let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
+        terminal_psi::find_structural_type(
+            target.graph.structural_types.as_slice(),
+            result.structural_type,
+        )?
         .shape
     else {
         return None;
