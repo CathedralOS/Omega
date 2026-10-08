@@ -249,9 +249,7 @@ impl SelectedTargetMachineDeclarations {
     ) -> Result<(), Vec<Diagnostic>> {
         let machine_index = |symbol| {
             typed
-                .machines()
-                .iter()
-                .position(|machine| machine.symbol == symbol)
+                .machine_position_by_symbol(symbol)
         };
         let mut diagnostics = Vec::new();
         let mut replacements = Vec::new();
