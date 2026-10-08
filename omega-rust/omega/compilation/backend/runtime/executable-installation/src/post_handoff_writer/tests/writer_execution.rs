@@ -6,7 +6,7 @@
 //! `layout-plans`.
 
 use layout_plans::test_support::{
-    deeply_nested_layout, post_handoff_context, post_handoff_context_with,
+    constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context,
     recursive_record_array_report, repeated_layout, split_layout, sum_layout, symbolic_path,
 };
 
@@ -14,13 +14,12 @@ use crate::post_handoff_writer::{
     apply_post_handoff_writes_atomically, execute_post_handoff_writer_plan,
 };
 use layout_plans::{
-    ArtifactInstallationScopeId, ByteOrder, ConventionalRecordSumChildHop,
-    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
-    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
-    ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, DataSymbolId,
-    EntryStubId, IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport,
-    LayoutPlanReport, MachineRegimeId, MaterializationAction, MaterializationWrite,
-    PlacementAddressRange, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
+    ByteOrder, ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
+    ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
+    ConventionalSumPayloadFieldLayoutReport, DataSymbolId, EntryStubId, IntegerInterpretation,
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
+    MaterializationWrite, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
     StoredIntegerFit, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
     derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
 };
@@ -482,27 +481,7 @@ fn unresolved_writer_targets_leave_the_destination_unchanged() {
 
 #[test]
 fn writer_execution_validates_the_placement_site_before_writes() {
-    let regime = MachineRegimeId::from_normalized_identity(11).expect("machine regime");
-    let scope =
-        ArtifactInstallationScopeId::from_normalized_identity(12).expect("installation scope");
-    let constraints = PlacementConstraints::new(
-        Some(PlacementAddressRange::new(0x1000, 0x10_0000).expect("low-memory range")),
-        4096,
-        PlacementPhase::PostHandoff,
-        Some(regime),
-        Some(scope),
-    )
-    .expect("placement constraints");
-    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-    let mut layout = split_layout();
-    layout.align = 16;
-    let plan = derive_symbolic_materialization(
-        &layout,
-        &[symbolic],
-        post_handoff_context_with(constraints),
-        |_| None,
-    )
-    .expect("constrained post-handoff plan");
+    let (plan, regime, scope) = constrained_post_handoff_plan();
     let writer = derive_post_handoff_writer(&plan).expect("runtime actions form a writer program");
 
     let wrong_phase = PlacementSite {

@@ -2,7 +2,7 @@
 //! layouts.
 
 use crate::test_support::{
-    deeply_nested_layout, post_handoff_context, post_handoff_context_with,
+    data, deeply_nested_layout, entry, post_handoff_context, post_handoff_context_with,
     recursive_record_array_report, repeated_layout, split_layout, sum_layout, symbolic_path,
 };
 
@@ -14,21 +14,9 @@ mod writer_fragments;
 use crate::{
     ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
     ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    DataSymbolId, EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
-    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldValue,
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, SymbolicFieldInnerLayout,
+    SymbolicFieldValue,
 };
-
-fn entry() -> RelocationTarget {
-    RelocationTarget::Entry(
-        EntryStubId::from_normalized_identity(0x55aa).expect("nonzero identity"),
-    )
-}
-
-fn data() -> RelocationTarget {
-    RelocationTarget::Data(
-        DataSymbolId::from_normalized_identity(0x1234).expect("nonzero identity"),
-    )
-}
 
 /// A nested record field occupies one whole `At` extent inside the flat outer
 /// plan; its member offsets live in the interior carrier supplied beside it.

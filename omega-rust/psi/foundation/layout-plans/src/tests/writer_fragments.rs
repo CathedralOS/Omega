@@ -1,9 +1,10 @@
-use super::{entry, post_handoff_context, post_handoff_context_with, split_layout};
+use super::{entry, post_handoff_context, split_layout};
+use crate::test_support::constrained_post_handoff_plan;
 use crate::{
-    ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, IntegerInterpretation,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MachineRegimeId,
-    MaterializationAction, MaterializationContext, PlacementAddressRange, PlacementConstraints,
-    PlacementPhase, PlacementSite, SymbolicFieldValue, derive_symbolic_materialization,
+    ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
+    LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
+    PlacementConstraints, PlacementPhase, PlacementSite, SymbolicFieldValue,
+    derive_symbolic_materialization,
 };
 
 #[test]
@@ -139,27 +140,7 @@ fn unresolved_action_cannot_partially_materialize() {
 
 #[test]
 fn placement_constraints_join_layout_alignment_and_validate_all_axes() {
-    let regime = MachineRegimeId::from_normalized_identity(11).expect("machine regime");
-    let scope =
-        ArtifactInstallationScopeId::from_normalized_identity(12).expect("installation scope");
-    let constraints = PlacementConstraints::new(
-        Some(PlacementAddressRange::new(0x1000, 0x10_0000).expect("low-memory range")),
-        4096,
-        PlacementPhase::PostHandoff,
-        Some(regime),
-        Some(scope),
-    )
-    .expect("placement constraints");
-    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
-    let mut layout = split_layout();
-    layout.align = 16;
-    let plan = derive_symbolic_materialization(
-        &layout,
-        &[symbolic],
-        post_handoff_context_with(constraints),
-        |_| None,
-    )
-    .expect("constrained post-handoff plan");
+    let (plan, regime, scope) = constrained_post_handoff_plan();
 
     assert_eq!(plan.placement.alignment(), 4096);
     plan.placement

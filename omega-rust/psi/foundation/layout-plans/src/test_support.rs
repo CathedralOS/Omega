@@ -1,12 +1,13 @@
 //! Fresh owned layout fixtures for tests of portable plans and their writer consumers.
 
 use crate::{
-    ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
+    ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
-    ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport,
-    LayoutPlacementReport, LayoutPlanReport, MaterializationContext, PlacementConstraints,
-    PlacementPhase, SymbolicFieldInnerLayout, SymbolicFieldPathSegment,
+    ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, DataSymbolId,
+    EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MachineRegimeId,
+    MaterializationContext, PlacementAddressRange, PlacementConstraints, PlacementPhase,
+    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
 };
 
 /// A nested symbolic path: `symbolic_path(&["a", "b"])` is `a` containing `b`.
@@ -304,4 +305,50 @@ pub fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLay
             ),
         }],
     }
+}
+
+/// The relocation target every symbolic test field uses.
+pub fn entry() -> RelocationTarget {
+    RelocationTarget::Entry(
+        EntryStubId::from_normalized_identity(0x55aa).expect("nonzero identity"),
+    )
+}
+
+/// The data relocation target used beside `entry` in test layouts.
+pub fn data() -> RelocationTarget {
+    RelocationTarget::Data(
+        DataSymbolId::from_normalized_identity(0x1234).expect("nonzero identity"),
+    )
+}
+
+/// The constrained post-handoff plan over a `0x1000..0x10_0000` range:
+/// the materialization plan plus the regime and scope identities the
+/// constraint carries, for tests that build placement sites from them.
+pub fn constrained_post_handoff_plan() -> (
+    crate::SymbolicMaterializationPlan,
+    MachineRegimeId,
+    ArtifactInstallationScopeId,
+) {
+    let regime = MachineRegimeId::from_normalized_identity(11).expect("machine regime");
+    let scope =
+        ArtifactInstallationScopeId::from_normalized_identity(12).expect("installation scope");
+    let constraints = PlacementConstraints::new(
+        Some(PlacementAddressRange::new(0x1000, 0x10_0000).expect("low-memory range")),
+        4096,
+        PlacementPhase::PostHandoff,
+        Some(regime),
+        Some(scope),
+    )
+    .expect("placement constraints");
+    let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
+    let mut layout = split_layout();
+    layout.align = 16;
+    let plan = crate::derive_symbolic_materialization(
+        &layout,
+        &[symbolic],
+        post_handoff_context_with(constraints),
+        |_| None,
+    )
+    .expect("constrained post-handoff plan");
+    (plan, regime, scope)
 }
