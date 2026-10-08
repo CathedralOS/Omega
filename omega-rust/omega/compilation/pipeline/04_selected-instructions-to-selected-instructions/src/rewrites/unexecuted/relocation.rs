@@ -377,11 +377,7 @@ fn reconstruct<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .ok_or(MemberRunRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| MemberRunRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(MemberRunRelocationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || MemberRunRelocationError::IdentityOverflow, || MemberRunRelocationError::WorkBudgetExceeded)?;
     Ok(Reconstructed {
         function,
         run_block,

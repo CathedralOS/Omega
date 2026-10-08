@@ -112,11 +112,7 @@ pub(super) fn admit(
         &|candidate| terminator_successors(&candidate.terminator).len(),
     )
     .ok_or(InflowRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| InflowRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(InflowRelocationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || InflowRelocationError::IdentityOverflow, || InflowRelocationError::WorkBudgetExceeded)?;
     Ok(Admission {
         block_index: derived.block_index,
         member_index: derived.member_index,

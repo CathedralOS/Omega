@@ -680,11 +680,7 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(StoredLoadForwardingError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| StoredLoadForwardingError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(StoredLoadForwardingError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || StoredLoadForwardingError::IdentityOverflow, || StoredLoadForwardingError::WorkBudgetExceeded)?;
     Ok(Admission {
         block_index,
         load_index,

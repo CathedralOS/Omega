@@ -314,11 +314,7 @@ fn charge(
         .and_then(|total| total.checked_add(uses.checked_mul(2)?))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeSplitError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| RuntimeSplitError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(RuntimeSplitError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || RuntimeSplitError::IdentityOverflow, || RuntimeSplitError::WorkBudgetExceeded)?;
     Ok(())
 }
 

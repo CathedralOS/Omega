@@ -539,11 +539,7 @@ fn reconstruct<'source>(
             total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
         })
         .ok_or(ScheduledRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ScheduledRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ScheduledRelocationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || ScheduledRelocationError::IdentityOverflow, || ScheduledRelocationError::WorkBudgetExceeded)?;
     Ok(Reconstructed {
         function,
         block_index,

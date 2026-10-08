@@ -311,11 +311,7 @@ pub(super) fn admit<'source>(
         .checked_add(block.instructions.len())
         .and_then(|total| total.checked_add(block.instructions.len()))
         .ok_or(AddressFoldError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| AddressFoldError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(AddressFoldError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || AddressFoldError::IdentityOverflow, || AddressFoldError::WorkBudgetExceeded)?;
     Ok(Admission {
         function,
         block_index,

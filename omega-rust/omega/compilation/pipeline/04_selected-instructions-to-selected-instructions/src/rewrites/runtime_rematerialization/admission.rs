@@ -254,11 +254,7 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(uses.checked_mul(2)?))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| RuntimeRematerializationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(RuntimeRematerializationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || RuntimeRematerializationError::IdentityOverflow, || RuntimeRematerializationError::WorkBudgetExceeded)?;
     require_dominated_uses(function, block_index, &use_blocks).map_err(|error| match error {
         crate::RuntimeSpillError::SourceMismatch => RuntimeRematerializationError::SourceMismatch,
         _ => RuntimeRematerializationError::UnsupportedUse,

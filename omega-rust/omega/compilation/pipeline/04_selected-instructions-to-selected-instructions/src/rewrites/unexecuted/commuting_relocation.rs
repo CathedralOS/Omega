@@ -304,11 +304,7 @@ fn reconstruct<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .ok_or(CommutingRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| CommutingRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(CommutingRelocationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || CommutingRelocationError::IdentityOverflow, || CommutingRelocationError::WorkBudgetExceeded)?;
     Ok(Reconstructed {
         function,
         block_index,

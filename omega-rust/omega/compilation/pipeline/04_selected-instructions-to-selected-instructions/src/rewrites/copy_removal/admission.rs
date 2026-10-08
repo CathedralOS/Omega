@@ -415,11 +415,7 @@ pub(super) fn admit<'source>(
                 .checked_add(function.calls.len())
         })
         .ok_or(CopyRemovalError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| CopyRemovalError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(CopyRemovalError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || CopyRemovalError::IdentityOverflow, || CopyRemovalError::WorkBudgetExceeded)?;
     Ok(Admission {
         function,
         block_index,

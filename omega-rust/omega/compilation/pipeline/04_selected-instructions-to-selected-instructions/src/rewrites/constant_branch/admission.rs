@@ -332,11 +332,7 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ConstantBranchError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ConstantBranchError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || ConstantBranchError::IdentityOverflow, || ConstantBranchError::WorkBudgetExceeded)?;
     Ok(Admission {
         block_index,
         branch_id: branch,

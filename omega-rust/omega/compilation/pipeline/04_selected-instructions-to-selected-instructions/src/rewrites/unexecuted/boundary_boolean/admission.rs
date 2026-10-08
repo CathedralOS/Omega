@@ -238,11 +238,7 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| BoundaryBooleanError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(BoundaryBooleanError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || BoundaryBooleanError::IdentityOverflow, || BoundaryBooleanError::WorkBudgetExceeded)?;
     Ok(Admission {
         function,
         block_index,

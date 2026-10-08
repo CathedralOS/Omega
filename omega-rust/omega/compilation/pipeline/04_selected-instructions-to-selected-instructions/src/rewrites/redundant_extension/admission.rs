@@ -301,11 +301,7 @@ pub(super) fn admit<'source>(
             })
         })
         .ok_or(RedundantExtensionError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| RedundantExtensionError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(RedundantExtensionError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || RedundantExtensionError::IdentityOverflow, || RedundantExtensionError::WorkBudgetExceeded)?;
     Ok(Admission {
         block_index,
         extension_index,

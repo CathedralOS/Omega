@@ -299,11 +299,7 @@ pub(super) fn derive_interchange<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .ok_or(InterchangeError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| InterchangeError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(InterchangeError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || InterchangeError::IdentityOverflow, || InterchangeError::WorkBudgetExceeded)?;
     Ok(InterchangeDerivation {
         function,
         block_index,

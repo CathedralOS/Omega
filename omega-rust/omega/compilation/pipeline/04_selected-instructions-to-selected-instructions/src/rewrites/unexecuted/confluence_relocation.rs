@@ -233,11 +233,7 @@ pub(super) fn confluence_settle_steps(
             total.checked_add(block_scan.saturating_mul(run_locations.saturating_add(1)))
         })
         .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ConfluenceRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ConfluenceRelocationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || ConfluenceRelocationError::IdentityOverflow, || ConfluenceRelocationError::WorkBudgetExceeded)?;
     Ok(())
 }
 

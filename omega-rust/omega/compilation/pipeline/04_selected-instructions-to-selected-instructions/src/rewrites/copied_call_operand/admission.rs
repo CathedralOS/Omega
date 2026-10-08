@@ -332,11 +332,7 @@ pub(super) fn admit<'source>(
                 .checked_add(block.instructions.len())
         })
         .ok_or(CopiedCallOperandError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| CopiedCallOperandError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(CopiedCallOperandError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || CopiedCallOperandError::IdentityOverflow, || CopiedCallOperandError::WorkBudgetExceeded)?;
     Ok(AdmittedPair {
         function,
         block_index,

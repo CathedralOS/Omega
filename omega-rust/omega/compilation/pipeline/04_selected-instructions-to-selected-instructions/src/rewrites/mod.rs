@@ -230,6 +230,7 @@ pub use load_forwarding::{
     forward_selected_stored_load,
 };
 
+use optimization_core::OptimizationWorkBudget;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
@@ -244,6 +245,21 @@ pub(crate) fn plan_instruction_scan(plan: &SelectedInstructionPlan) -> Option<us
             total.checked_add(block.instructions.len())?.checked_add(1)
         })
     })
+}
+
+/// Charge a measured-step total against the budget: `overflow` when the
+/// count cannot fit the measured-step width, `exceeded` when it passes the
+/// family's own validation cap.
+pub(crate) fn charge_steps<E>(
+    steps: usize,
+    budget: OptimizationWorkBudget,
+    overflow: impl FnOnce() -> E,
+    exceeded: impl FnOnce() -> E,
+) -> Result<(), E> {
+    if u64::try_from(steps).map_err(|_| overflow())? > budget.validation_steps() {
+        return Err(exceeded());
+    }
+    Ok(())
 }
 
 pub(crate) fn instruction(

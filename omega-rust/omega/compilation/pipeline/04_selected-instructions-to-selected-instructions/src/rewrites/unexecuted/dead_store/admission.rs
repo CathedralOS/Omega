@@ -542,11 +542,7 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| DeadStoreEliminationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(DeadStoreEliminationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || DeadStoreEliminationError::IdentityOverflow, || DeadStoreEliminationError::WorkBudgetExceeded)?;
     Ok(Admission {
         function,
         block_index,

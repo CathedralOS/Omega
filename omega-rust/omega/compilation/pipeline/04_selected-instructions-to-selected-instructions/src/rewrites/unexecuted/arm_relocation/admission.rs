@@ -62,11 +62,7 @@ pub(super) fn admit<'source>(
         &|_| 0,
     )
     .ok_or(ArmRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ArmRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ArmRelocationError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || ArmRelocationError::IdentityOverflow, || ArmRelocationError::WorkBudgetExceeded)?;
     Ok(Admission {
         block_index: derived.block_index,
         member_index: derived.member_index,

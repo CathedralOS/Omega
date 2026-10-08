@@ -364,11 +364,7 @@ pub(super) fn admit<'source>(
         })
         .and_then(|total| total.checked_add(dead_audit))
         .ok_or(DeadCompareError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| DeadCompareError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(DeadCompareError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || DeadCompareError::IdentityOverflow, || DeadCompareError::WorkBudgetExceeded)?;
     Ok(Admission {
         function,
         block_index,

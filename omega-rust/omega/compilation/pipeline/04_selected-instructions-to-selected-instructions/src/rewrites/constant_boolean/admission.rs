@@ -373,11 +373,7 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ConstantBooleanError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ConstantBooleanError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || ConstantBooleanError::IdentityOverflow, || ConstantBooleanError::WorkBudgetExceeded)?;
     Ok(Admission {
         block_index,
         materialization_index,

@@ -310,11 +310,7 @@ pub(super) fn admit<'source>(
                 .checked_add(block.instructions.len())
         })
         .ok_or(ProjectedAccessError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ProjectedAccessError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ProjectedAccessError::WorkBudgetExceeded);
-    }
+    crate::rewrites::charge_steps(steps, budget, || ProjectedAccessError::IdentityOverflow, || ProjectedAccessError::WorkBudgetExceeded)?;
     Ok(AdmittedPair {
         function,
         block_index,
