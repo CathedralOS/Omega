@@ -644,15 +644,7 @@ pub(crate) fn emit_direct_expression(
             // A missing dominating observation may still form a valid read
             // shape. Its canonical bounds certificate must then be produced;
             // constructing a fresh length does not prove the read is in bounds.
-            let obligation = obligation_id(
-                operations
-                    .next_identity
-                    .checked_add(1)
-                    .expect("read obligation follows its operation identity"),
-            );
-            if *bound_decided {
-                operations.source_checked_obligations.push(obligation);
-            }
+            let obligation = operations.push_read_obligation(*bound_decided);
             emit_scalar_leaf(
                 OperationKind::ByteSequenceRead {
                     source: *source,
@@ -707,15 +699,7 @@ pub(crate) fn emit_direct_expression(
                         operations,
                     )
                 });
-            let obligation = obligation_id(
-                operations
-                    .next_identity
-                    .checked_add(1)
-                    .expect("read obligation follows its operation identity"),
-            );
-            if *bound_decided {
-                operations.source_checked_obligations.push(obligation);
-            }
+            let obligation = operations.push_read_obligation(*bound_decided);
             emit_scalar_leaf(
                 OperationKind::StructuralByteSequenceFieldRead {
                     source: *source,
@@ -741,15 +725,7 @@ pub(crate) fn emit_direct_expression(
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let element_path =
                 emit_prepared_path(element_path, 0, parameters, next_value_identity, operations);
-            let obligation = obligation_id(
-                operations
-                    .next_identity
-                    .checked_add(1)
-                    .expect("read obligation follows its operation identity"),
-            );
-            if *bound_decided {
-                operations.source_checked_obligations.push(obligation);
-            }
+            let obligation = operations.push_read_obligation(*bound_decided);
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             path.extend(element_path);
@@ -784,15 +760,7 @@ pub(crate) fn emit_direct_expression(
             // A missing dominating observation may still form a valid read
             // shape. Its canonical bounds certificate must then be produced;
             // constructing a fresh length does not prove the read is in bounds.
-            let obligation = obligation_id(
-                operations
-                    .next_identity
-                    .checked_add(1)
-                    .expect("read obligation follows its operation identity"),
-            );
-            if *bound_decided {
-                operations.source_checked_obligations.push(obligation);
-            }
+            let obligation = operations.push_read_obligation(*bound_decided);
             emit_scalar_leaf(
                 OperationKind::ElementViewRead {
                     source: *source,

@@ -202,6 +202,23 @@ pub(crate) struct OperationBuffer {
 }
 
 impl OperationBuffer {
+    /// Allocate the read obligation that canonically certifies the next
+    /// operation's bounds, recording it when `bound_decided` requires proof.
+    pub(crate) fn push_read_obligation(
+        &mut self,
+        bound_decided: bool,
+    ) -> semantic_vocabulary::ObligationId {
+        let obligation = crate::terminal_identities::obligation_id(
+            self.next_identity
+                .checked_add(1)
+                .expect("read obligation follows its operation identity"),
+        );
+        if bound_decided {
+            self.source_checked_obligations.push(obligation);
+        }
+        obligation
+    }
+
     pub(crate) fn new(
         identity_base: u64,
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
