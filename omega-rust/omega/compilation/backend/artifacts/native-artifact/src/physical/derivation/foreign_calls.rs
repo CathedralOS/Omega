@@ -182,10 +182,7 @@ pub(crate) fn derive_normalized_foreign_child(
     // physical evidence rather than claiming a custody join it cannot prove.
     let structural_parameter_shapes =
         if !structural_arguments.is_empty() || !declaration.structural_parameters.is_empty() {
-            let caller = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == occurrence.machine())
+            let caller = module.machine(occurrence.machine())
                 .ok_or("normalized foreign D41 child names an absent caller machine")?;
             let Some(shapes) = normalized_foreign_structural_parameter_shapes(
                 structural_arguments,

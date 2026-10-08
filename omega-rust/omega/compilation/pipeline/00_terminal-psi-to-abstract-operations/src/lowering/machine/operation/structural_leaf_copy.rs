@@ -56,10 +56,7 @@ pub(super) fn lower(
         || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
         || !matches!(
-            machine
-                .structural_places
-                .iter()
-                .find(|place| place.id == result.place)
+            machine.structural_place(result.place)
                 .map(|place| place.kind),
             Some(StructuralPlaceKind::OperationResult {
                 producer,

@@ -48,15 +48,9 @@ pub(super) fn replay_installed_provider_calls(
                 .iter()
                 .find(|function| function.machine == provider.candidate)
                 .ok_or_else(malformed)?;
-            let terminal_candidate = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == provider.candidate)
+            let terminal_candidate = module.machine(provider.candidate)
                 .ok_or_else(malformed)?;
-            let terminal_caller = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == caller.machine)
+            let terminal_caller = module.machine(caller.machine)
                 .ok_or_else(malformed)?;
             let terminal_operation = terminal_caller
                 .operation(*psi_operation)

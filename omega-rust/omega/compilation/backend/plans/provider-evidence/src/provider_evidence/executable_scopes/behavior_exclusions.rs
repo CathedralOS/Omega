@@ -617,10 +617,7 @@ fn inspect_machine<'module>(
                         }
                     }
                     for realization in realizations {
-                        match module
-                            .machines
-                            .iter()
-                            .find(|target| target.id == realization)
+                        match module.machine(realization)
                         {
                             Some(target) => pending.push_back(target),
                             None => report.gaps.push(EvidenceGap {
@@ -665,10 +662,7 @@ fn inspect_machine<'module>(
         // closure exactly like a static call. Claim-free discards carry no
         // code and are not invocations.
         for cleanup_machine in nominal_cleanup_machines(&block.terminator) {
-            match module
-                .machines
-                .iter()
-                .find(|target| target.id == cleanup_machine)
+            match module.machine(cleanup_machine)
             {
                 Some(target) => pending.push_back(target),
                 None => report.gaps.push(EvidenceGap {
