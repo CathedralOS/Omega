@@ -193,22 +193,6 @@ impl SelectedBuildTimeBinaryOperator {
                 .machines()
                 .iter()
                 .filter(|machine| machine.symbol == self.requirement)
-                .any(|machine| {
-                    program
-                        .machine_contracts(machine)
-                        .iter()
-                        .chain(
-                            program
-                                .machine_states(machine)
-                                .iter()
-                                .flat_map(|state| program.state_contracts(state)),
-                        )
-                        .any(|contract| {
-                            matches!(
-                                contract.kind,
-                                typed_trees::signature::SignatureContractKind::Crashes { .. }
-                            )
-                        })
-                })
+                .any(|machine| program.machine_declares_crash(machine))
     }
 }

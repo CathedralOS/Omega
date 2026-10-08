@@ -781,6 +781,25 @@ impl TypedTrees {
         self.signature_contracts.span_or_empty(state.contracts)
     }
 
+    /// Whether `machine` itself or any of its states declares a crash
+    /// contract: the whole signature roster where an abrupt exit is
+    /// admissible for this machine.
+    pub fn machine_declares_crash(&self, machine: &machine::Machine) -> bool {
+        self.machine_contracts(machine)
+            .iter()
+            .chain(
+                self.machine_states(machine)
+                    .iter()
+                    .flat_map(|state| self.state_contracts(state)),
+            )
+            .any(|contract| {
+                matches!(
+                    contract.kind,
+                    signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+    }
+
     /// The top-level statement of `state` that declares local `symbol`: its
     /// ordinal in `state.statement_nodes` and its `LocalData` node. Nested
     /// blocks and state parameters are not searched.

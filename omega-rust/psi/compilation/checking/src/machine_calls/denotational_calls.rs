@@ -354,20 +354,6 @@ pub(crate) fn has_no_crash_routes(
     operational: &flow_effects::OperationalPlan,
 ) -> bool {
     each_reachable_checked_machine(program, machine_symbol, operational, |program, machine| {
-        !program
-            .machine_contracts(machine)
-            .iter()
-            .chain(
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .flat_map(|state| program.state_contracts(state)),
-            )
-            .any(|contract| {
-                matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Crashes { .. }
-                )
-            })
+        !program.machine_declares_crash(machine)
     })
 }
