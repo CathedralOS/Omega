@@ -3,7 +3,7 @@
 //! This root describes program data at this resolution level. Its subordinate
 //! areas own related facts; it does not contain transformation-stage objects.
 
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +25,18 @@ pub struct AbstractOperationPlan {
     /// independent storage and ownership identities.
     pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog,
     pub functions: Vec<AbstractFunction>,
+}
+
+impl AbstractOperationPlan {
+    /// The boundary machine keyed `id`, when the plan declares it.
+    pub fn boundary_machine(
+        &self,
+        id: BoundaryMachineId,
+    ) -> Option<&BoundaryMachineDeclaration> {
+        self.boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == id)
+    }
 }
 
 pub mod ownership;

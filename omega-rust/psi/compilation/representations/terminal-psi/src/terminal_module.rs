@@ -234,6 +234,16 @@ impl TerminalModule {
         find_structural_type(&self.structural_types, id)
     }
 
+    /// The boundary machine keyed `id`, when the module declares it.
+    pub fn boundary_machine(
+        &self,
+        id: semantic_vocabulary::BoundaryMachineId,
+    ) -> Option<&BoundaryMachineDeclaration> {
+        self.boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == id)
+    }
+
     /// A module for `entry` with the current vocabulary and every roster
     /// empty. Producers name only the rosters they fill
     /// (`TerminalModule { machines, structural_types, ..TerminalModule::for_entry(entry) }`),

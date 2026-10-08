@@ -141,6 +141,16 @@ pub struct PsiOptimizationUnit {
 }
 
 impl PsiOptimizationUnit {
+    /// The boundary machine keyed `id`, when the unit declares it.
+    pub fn boundary_machine(
+        &self,
+        id: semantic_vocabulary::BoundaryMachineId,
+    ) -> Option<&BoundaryMachineDeclaration> {
+        self.boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == id)
+    }
+
     /// Possible invoked machines, separate from rows retained as table data.
     /// Formation does not invoke a machine, and a dynamic call invokes only
     /// its requirement slot across the interface's complete table alternatives.
