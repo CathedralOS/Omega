@@ -201,7 +201,7 @@ mod tests {
     use terminal_psi::{
         Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
-        TerminalMachineResult, TerminalModule,
+        TerminalAffineCleanupAction, TerminalMachineResult, TerminalModule,
     };
 
     fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
@@ -354,6 +354,21 @@ mod tests {
         }
     }
 
+    fn mark_boundary_external_completion(
+        program: &mut AdmittedTerminalProgram<'_>,
+        boundary: BoundaryMachineId,
+        kind: ExternalCompletionKind,
+    ) {
+        program
+            .catalogs
+            .to_mut()
+            .boundary_machines
+            .iter_mut()
+            .find(|declaration| declaration.id == boundary)
+            .unwrap()
+            .completion = terminal_psi::BoundaryCompletion::External(kind);
+    }
+
     fn boundary_call(boundary: BoundaryMachineId) -> OperationKind {
         OperationKind::BoundaryCall {
             boundary,
@@ -368,15 +383,11 @@ mod tests {
     fn capability_graph_refuses_external_completion_before_provider_dispatch() {
         let mut program = program();
         let boundary = BoundaryMachineId::new(1).unwrap();
-        program
-            .catalogs
-            .to_mut()
-            .boundary_machines
-            .iter_mut()
-            .find(|declaration| declaration.id == boundary)
-            .unwrap()
-            .completion =
-            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        mark_boundary_external_completion(
+            &mut program,
+            boundary,
+            ExternalCompletionKind::ProcessExit,
+        );
         set_machine(
             &mut program,
             MachineId::new(1).unwrap(),
@@ -398,15 +409,11 @@ mod tests {
     fn capability_graph_ignores_unreachable_external_completion() {
         let mut program = program();
         let boundary = BoundaryMachineId::new(1).unwrap();
-        program
-            .catalogs
-            .to_mut()
-            .boundary_machines
-            .iter_mut()
-            .find(|declaration| declaration.id == boundary)
-            .unwrap()
-            .completion =
-            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        mark_boundary_external_completion(
+            &mut program,
+            boundary,
+            ExternalCompletionKind::ProcessExit,
+        );
         set_machine(
             &mut program,
             MachineId::new(2).unwrap(),
@@ -437,15 +444,11 @@ mod tests {
         let mut program = program();
         let boundary = BoundaryMachineId::new(1).unwrap();
         let selected = MachineId::new(2).unwrap();
-        program
-            .catalogs
-            .to_mut()
-            .boundary_machines
-            .iter_mut()
-            .find(|declaration| declaration.id == boundary)
-            .unwrap()
-            .completion =
-            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        mark_boundary_external_completion(
+            &mut program,
+            boundary,
+            ExternalCompletionKind::ProcessExit,
+        );
         set_machine(
             &mut program,
             MachineId::new(1).unwrap(),
@@ -622,15 +625,11 @@ mod tests {
         let mut program = dynamic_program();
         program.catalogs.to_mut().dynamic_dispatch.tables[0].rows[0] = Some(program.catalogs.entry);
         let boundary = BoundaryMachineId::new(1).unwrap();
-        program
-            .catalogs
-            .to_mut()
-            .boundary_machines
-            .iter_mut()
-            .find(|declaration| declaration.id == boundary)
-            .unwrap()
-            .completion =
-            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        mark_boundary_external_completion(
+            &mut program,
+            boundary,
+            ExternalCompletionKind::ProcessExit,
+        );
         set_machine(
             &mut program,
             MachineId::new(2).unwrap(),
