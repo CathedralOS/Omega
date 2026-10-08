@@ -440,10 +440,7 @@ pub fn byte_copied_field_predicates_at_transfer(
         return None;
     }
     let consuming = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == consumer)?;
+        .operation(consumer)?;
     let call_arguments = consuming.kind.structural_arguments();
     // Whole constructors and ordinary calls consume the same completed value.
     // Their source occurrence, rather than the requested destination predicates,

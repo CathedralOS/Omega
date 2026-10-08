@@ -61,10 +61,7 @@ pub(super) fn replay_installed_provider_calls(
                 .find(|machine| machine.id == caller.machine)
                 .ok_or_else(malformed)?;
             let terminal_operation = terminal_caller
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find(|operation| operation.id == *psi_operation)
+                .operation(*psi_operation)
                 .ok_or_else(malformed)?;
             let exact_result = match (result, &terminal_operation.result) {
                 (

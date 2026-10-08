@@ -567,10 +567,7 @@ impl TerminalExecution<'_> {
                     return None;
                 };
                 let result = machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .find(|operation| operation.id == producer)?
+                    .operation(producer)?
                     .result
                     .structural()?;
                 if result.place != argument.place

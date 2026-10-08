@@ -568,10 +568,7 @@ fn lower_proof_output_runtime_call(
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output caller is absent from terminal Psi",
         ))?
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == operation_id)
+        .operation(operation_id)
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output call has no emitted terminal operation",
         ))?;

@@ -51,10 +51,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             };
             let result = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find(|operation| operation.id == producer)
+                .operation(producer)
                 .and_then(|operation| operation.result.structural())
                 .ok_or_else(malformed)?;
             if result.place != destination || result.structural_type != structural_type {

@@ -163,10 +163,7 @@ fn lower_site(
             "operator crash site joins a Terminal machine outside the lowered module",
         ))?;
     let operation = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == operation_id)
+        .operation(operation_id)
         .ok_or(LoweringError::Unsupported(
             "operator crash site joins an operation outside its Terminal machine",
         ))?;
