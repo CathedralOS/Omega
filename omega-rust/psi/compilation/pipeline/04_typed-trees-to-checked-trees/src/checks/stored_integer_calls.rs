@@ -1,6 +1,10 @@
 //! Concrete encoded stores performed through ordinary invocations. Each leaf
 //! write is checked at the actual storage and operand snapshots of this call;
 //! a returned value or an aggregate mutation footprint cannot replace it.
+//! A cycle requires fitting evidence established inside its invocation, not
+//! merely at its first arrival. Track that boundary per active invocation:
+//! reaching a cycle does not invalidate caller-proven stores outside it, and
+//! acyclic helper substitution can establish a store within the cyclic body.
 use super::contracts::call_values;
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression as Boolean, CheckedStoredIntegerWrite, FlowCallFact,
@@ -16,6 +20,9 @@ struct Invocation<'a> {
     call: &'a FlowCallFact,
     target: &'a Machine,
     origins: CallWriteOrigins,
+    cyclic: bool,
+    /// Every reached store fits before crossing this invocation's entry.
+    interior_writes_fit: bool,
 }
 
 struct Admission<'a> {
@@ -25,10 +32,6 @@ struct Admission<'a> {
     entry_origins: &'a [(SymbolHandle, crate::flow::MachineParameterOrigins)],
     stack: Vec<Invocation<'a>>,
     decisions: Vec<CheckedStoredIntegerWrite>,
-    /// Cyclic invocation cannot inherit a proof about only its first arrival.
-    /// All reached stores must then have occurrence-wide fitting bounds.
-    recursive: bool,
-    all_ranges_fit: bool,
 }
 
 pub(super) fn check(
@@ -73,16 +76,8 @@ pub(super) fn check(
             entry_origins: &entry_origins,
             stack: Vec::new(),
             decisions: Vec::new(),
-            recursive: false,
-            all_ranges_fit: true,
         };
-        let result = admission.visit_body(machine).and_then(|()| {
-            if admission.recursive && !admission.all_ranges_fit {
-                Err("recursive write values have no occurrence-wide fitting bounds")
-            } else {
-                Ok(())
-            }
-        });
+        let result = admission.visit_body(machine);
         match result {
             Ok(()) => decisions.extend(admission.decisions),
             Err(reason) => diagnostics.push(Diagnostic::error(format!(
@@ -220,15 +215,17 @@ impl<'a> Admission<'a> {
         if self.program.machine_states(target).is_empty() {
             return self.check_unknown_call(state, call, &origins);
         }
-        if self
+        if let Some(cycle_entry) = self
             .stack
             .iter()
-            .any(|entry| entry.target.symbol == target.symbol)
+            .position(|entry| entry.target.symbol == target.symbol)
         {
             // No recursive edge is accepted as an empty body. The completed
-            // traversal must establish unconditional range fit for its entire
-            // reached write inventory before a cycle can be closed.
-            self.recursive = true;
+            // traversal must establish fit within each member of this cycle,
+            // including writes visited before discovery of the backedge.
+            for invocation in &mut self.stack[cycle_entry..] {
+                invocation.cyclic = true;
+            }
             return self.check_recursive_origins(state, call, &origins);
         }
         self.stack.push(Invocation {
@@ -236,10 +233,20 @@ impl<'a> Admission<'a> {
             call,
             target,
             origins,
+            cyclic: false,
+            interior_writes_fit: true,
         });
         let result = self.visit_body(target);
-        self.stack.pop();
-        result
+        let invocation = self
+            .stack
+            .pop()
+            .ok_or("invocation storage frame is absent")?;
+        result?;
+        if invocation.cyclic && !invocation.interior_writes_fit {
+            Err("recursive write values have no occurrence-wide fitting bounds")
+        } else {
+            Ok(())
+        }
     }
 
     fn check_operator_invocations(&self, machine: &'a Machine) -> Result<(), &'static str> {
@@ -714,10 +721,13 @@ impl<'a> Admission<'a> {
             crate::facts::integer_write_obligation(write, stored)
                 .ok_or("performed integer value has no fitting bounds or entry relation")?
         };
-        self.all_ranges_fit &= predicate == Boolean::Constant(true);
-        for invocation in self.stack.iter().rev() {
+        for invocation in self.stack.iter_mut().rev() {
+            // Proof established below this entry applies on every arrival.
+            // Crossing the entry may instead use only the current caller's
+            // actual value, which cannot justify later recursive arrivals.
+            invocation.interior_writes_fit &= predicate == Boolean::Constant(true);
             if predicate == Boolean::Constant(true) {
-                break;
+                continue;
             }
             let contexts = self
                 .facts
@@ -735,7 +745,7 @@ impl<'a> Admission<'a> {
                 Some(self.frames),
             ) {
                 predicate = Boolean::Constant(true);
-                break;
+                continue;
             }
             predicate = call_values::entry_predicate(
                 self.program,

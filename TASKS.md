@@ -3257,10 +3257,9 @@ deletions, which the commit lists.
 
   Carry backing and encoding through joins, returns, recursion and stored
   references in native and both interpreters without losing the original
-  endpoint or authored storage codec. Recursive transport still needs complete
-  lineage. Runtime encoding choices cannot be solved by
+  endpoint or authored storage codec. Runtime encoding choices cannot be solved by
   specialization; raw carrier-width pointers and delayed copy-out are not
-  substitutes. Foreign pointers need compatible checked adapters.
+  substitutes. Foreign pointer boundaries still need compatible checked adapters.
 
   Acceptance: `python tools/corpus_gate.py --both --filter
   layouts/runtime_callee_integer_at_fitting_write_exit` runs with exit 0 and
@@ -3276,6 +3275,10 @@ deletions, which the commit lists.
   `layouts/runtime_selected_reference_parent_restoration_exit` and
   `borrows/runtime_selected_reference_nested_restoration_exit`; both live-parent
   write controls under `borrows/selected_reference_live_*_parent_write` reject.
+  `layouts/runtime_recursive_encoded_reference_exit` retains selected backing
+  and codecs through ranked recursion. Its
+  `layouts/recursive_integer_at_requires_all_arrivals_fit` control rejects a later
+  non-fitting arrival despite a fitting first caller value.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:
