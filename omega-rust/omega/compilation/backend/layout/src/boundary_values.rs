@@ -107,15 +107,7 @@ impl<'input> BoundaryValueLayout<'input> {
             } else {
                 BoundaryValueClass::Integer
             };
-            let root = append_boundary_value_shape(
-                &mut self.shapes,
-                BoundaryValueShape {
-                    class,
-                    byte_size: u16::try_from(abi.byte_size)
-                        .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
-                    alignment: abi.alignment,
-                },
-            )?;
+            let root = abi_boundary_shape(&mut self.shapes, class, &abi)?;
             return Ok((abi, root));
         }
         match typed.type_reference_table.type_reference(type_reference) {
@@ -151,15 +143,7 @@ impl<'input> BoundaryValueLayout<'input> {
                     pointer_size
                 };
                 let abi = ValueShape::integer(u32::from(byte_size), pointer_alignment);
-                let root = append_boundary_value_shape(
-                    &mut self.shapes,
-                    BoundaryValueShape {
-                        class: BoundaryValueClass::Reference,
-                        byte_size: u16::try_from(abi.byte_size)
-                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
-                        alignment: abi.alignment,
-                    },
-                )?;
+                let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
             TypeReferenceNode::Slice { .. } => {
@@ -173,15 +157,7 @@ impl<'input> BoundaryValueLayout<'input> {
                     "target pointer alignment exceeds boundary shape range".to_owned()
                 })?;
                 let abi = ValueShape::integer(u32::from(byte_size), alignment);
-                let root = append_boundary_value_shape(
-                    &mut self.shapes,
-                    BoundaryValueShape {
-                        class: BoundaryValueClass::Reference,
-                        byte_size: u16::try_from(abi.byte_size)
-                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
-                        alignment: abi.alignment,
-                    },
-                )?;
+                let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
             TypeReferenceNode::FixedArray {
@@ -197,19 +173,15 @@ impl<'input> BoundaryValueLayout<'input> {
                         .map_err(|_| "fixed-array boundary shape exceeds 65535 bytes".to_owned())?,
                     element.alignment,
                 );
-                let root = append_boundary_value_shape(
+                let root = abi_boundary_shape(
                     &mut self.shapes,
-                    BoundaryValueShape {
-                        class: BoundaryValueClass::FixedArray {
-                            element: element_root,
-                            length: u16::try_from(*length).map_err(|_| {
-                                "fixed-array boundary length exceeds 65535 elements".to_owned()
-                            })?,
-                        },
-                        byte_size: u16::try_from(abi.byte_size)
-                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
-                        alignment: abi.alignment,
+                    BoundaryValueClass::FixedArray {
+                        element: element_root,
+                        length: u16::try_from(*length).map_err(|_| {
+                            "fixed-array boundary length exceeds 65535 elements".to_owned()
+                        })?,
                     },
+                    &abi,
                 )?;
                 Ok((abi, root))
             }
@@ -226,15 +198,7 @@ impl<'input> BoundaryValueLayout<'input> {
                     "target pointer alignment exceeds boundary shape range".to_owned()
                 })?;
                 let abi = ValueShape::integer(u32::from(byte_size), alignment);
-                let root = append_boundary_value_shape(
-                    &mut self.shapes,
-                    BoundaryValueShape {
-                        class: BoundaryValueClass::Reference,
-                        byte_size: u16::try_from(abi.byte_size)
-                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
-                        alignment: abi.alignment,
-                    },
-                )?;
+                let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
             TypeReferenceNode::Generic { .. } => Err(format!(
@@ -536,6 +500,22 @@ pub fn append_boundary_value_shape(
     let index = u16::try_from(shapes.len()).expect("boundary shape capacity fits u16");
     shapes.push(shape);
     Ok(index)
+}
+
+fn abi_boundary_shape(
+    shapes: &mut Vec<BoundaryValueShape>,
+    class: BoundaryValueClass,
+    abi: &ValueShape,
+) -> Result<u16, String> {
+    append_boundary_value_shape(
+        shapes,
+        BoundaryValueShape {
+            class,
+            byte_size: u16::try_from(abi.byte_size)
+                .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
+            alignment: abi.alignment,
+        },
+    )
 }
 
 fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String> {
