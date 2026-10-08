@@ -172,3 +172,13 @@ impl TerminalMachine {
             .find(|parameter| parameter.place == place)
     }
 }
+
+/// The roster position of the signature-level structural parameter keyed `place`.
+pub fn structural_parameter_position(
+    parameters: &[StructuralParameterDeclaration],
+    place: PlaceId,
+) -> Option<usize> {
+    parameters
+        .iter()
+        .position(|parameter| parameter.place == place)
+}

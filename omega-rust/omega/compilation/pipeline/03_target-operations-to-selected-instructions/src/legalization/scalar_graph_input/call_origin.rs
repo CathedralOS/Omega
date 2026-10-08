@@ -132,10 +132,7 @@ pub(in crate::legalization) fn installed_operation(
         return Err(LegalizationError::custody());
     }
     for entry in &candidate.entry_claims {
-        let position = candidate
-            .structural_parameters
-            .iter()
-            .position(|parameter| parameter.place == entry.input)
+        let position = terminal_psi::structural_parameter_position(&candidate.structural_parameters, entry.input)
             .ok_or_else(|| LegalizationError::custody())?;
         let argument = structural_arguments
             .get(position)

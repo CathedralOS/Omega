@@ -106,10 +106,7 @@ pub(super) fn replay_installed_provider_calls(
                 if !claim.path.is_empty() {
                     return Err(malformed());
                 }
-                let argument_index = terminal_candidate
-                    .structural_parameters
-                    .iter()
-                    .position(|parameter| parameter.place == claim.input)
+                let argument_index = terminal_psi::structural_parameter_position(&terminal_candidate.structural_parameters, claim.input)
                     .ok_or_else(malformed)? as u32;
                 expected_claims.push((argument_index, claim.claim));
             }

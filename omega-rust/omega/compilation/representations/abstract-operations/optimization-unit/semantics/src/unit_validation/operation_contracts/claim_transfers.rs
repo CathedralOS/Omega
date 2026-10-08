@@ -93,10 +93,7 @@ pub(crate) fn validate_internal_claim_transfers(
         let _ = argument;
     }
     callee_claims.into_values().all(|input| {
-        callee
-            .structural_parameters
-            .iter()
-            .position(|parameter| parameter.place == input)
+        terminal_psi::structural_parameter_position(&callee.structural_parameters, input)
             .is_some_and(|index| {
                 transfers
                     .iter()

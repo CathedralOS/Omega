@@ -121,9 +121,7 @@ pub fn call_source(
     arguments: &[StructuralArgument],
     formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {
-    let position = structural_parameters
-        .iter()
-        .position(|parameter| parameter.place == formal.place)?;
+    let position = terminal_psi::structural_parameter_position(structural_parameters, formal.place)?;
     let mut source = arguments.get(position)?.clone();
     source.path.extend(formal.path.iter().cloned());
     source.access = formal.access;
