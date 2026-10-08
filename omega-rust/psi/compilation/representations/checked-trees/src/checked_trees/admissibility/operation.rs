@@ -16,17 +16,7 @@ impl<'facts> AcceptanceView for StateOperationAcceptance<'facts> {
 }
 
 impl<'facts> StateOperationAcceptance<'facts> {
-    pub fn verdict(&self) -> AcceptanceVerdict {
-        AcceptanceView::verdict(self)
-    }
-
-    pub fn is_accepted(&self) -> bool {
-        AcceptanceView::is_accepted(self)
-    }
-
-    pub fn summary(&self) -> AcceptanceSummary {
-        AcceptanceView::summary(self)
-    }
+    super::acceptance_accessors!();
 
     pub const fn kind(&self) -> StateOperationAcceptanceKind {
         match self {

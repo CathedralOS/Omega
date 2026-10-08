@@ -20,17 +20,7 @@ impl<'facts> AcceptanceView for ExitAcceptance<'facts> {
 }
 
 impl<'facts> ExitAcceptance<'facts> {
-    pub fn verdict(&self) -> AcceptanceVerdict {
-        AcceptanceView::verdict(self)
-    }
-
-    pub fn is_accepted(&self) -> bool {
-        AcceptanceView::is_accepted(self)
-    }
-
-    pub fn summary(&self) -> AcceptanceSummary {
-        AcceptanceView::summary(self)
-    }
+    super::acceptance_accessors!();
 
     pub fn exit(&self) -> &'facts FlowExitFact {
         self.exit

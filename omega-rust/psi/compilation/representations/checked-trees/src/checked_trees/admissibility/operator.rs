@@ -18,17 +18,7 @@ impl<'facts> AcceptanceView for OperatorAcceptance<'facts> {
 }
 
 impl<'facts> OperatorAcceptance<'facts> {
-    pub fn verdict(&self) -> AcceptanceVerdict {
-        AcceptanceView::verdict(self)
-    }
-
-    pub fn is_accepted(&self) -> bool {
-        AcceptanceView::is_accepted(self)
-    }
-
-    pub fn summary(&self) -> AcceptanceSummary {
-        AcceptanceView::summary(self)
-    }
+    super::acceptance_accessors!();
 
     pub fn operator_use(&self) -> &'facts ContractOperatorUseFact {
         self.operator_use
