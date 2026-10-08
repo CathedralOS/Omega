@@ -45,6 +45,45 @@ pub(super) struct NativeArtifactIdentityFields<'a> {
     pub(super) physical_evidence_gap_identity: Option<[u8; 32]>,
 }
 
+/// The compiler-attached evidence digests the artifact identity carries as
+/// optional custody anchors: present only when the emitted image retained that
+/// validation evidence, so both artifact flavors hash the same absence.
+pub(super) fn compiler_identity_evidence(
+    output: &image::EmittedImageOutput,
+) -> (
+    Option<[u8; 32]>,
+    Option<([u8; 32], u64)>,
+    Option<([u8; 32], u64)>,
+    Option<([u8; 32], u64)>,
+) {
+    (
+        output
+            .compiler_text_validation
+            .map(|evidence| *evidence.derivation_digest.as_bytes()),
+        output.compiler_function_validation.map(|evidence| {
+            (
+                *evidence.evidence_digest().as_bytes(),
+                evidence.evidence_report_fingerprint(),
+            )
+        }),
+        output
+            .compiler_entry_region_binding
+            .as_ref()
+            .map(|evidence| {
+                (
+                    *evidence.evidence_digest.as_bytes(),
+                    evidence.evidence_report_fingerprint,
+                )
+            }),
+        output.compiler_entry_footprint_binding.map(|evidence| {
+            (
+                *evidence.evidence_digest.as_bytes(),
+                evidence.evidence_report_fingerprint,
+            )
+        }),
+    )
+}
+
 pub(super) fn derive_native_artifact_identity(
     fields: NativeArtifactIdentityFields<'_>,
 ) -> NativeArtifactIdentity {

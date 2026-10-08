@@ -40,7 +40,8 @@ pub use dynamic_elf::{
 };
 pub use emission::RequestedNativeArtifact;
 use identity::{
-    NativeArtifactIdentityFields, derive_native_artifact_identity, foreign_call_custody_digest,
+    NativeArtifactIdentityFields, compiler_identity_evidence,
+    derive_native_artifact_identity, foreign_call_custody_digest,
 };
 
 /// Complete source-independent Terminal-Psi native realization.
@@ -315,32 +316,12 @@ impl NativeArtifact {
 
     fn recomputed_identity(&self) -> NativeArtifactIdentity {
         let output = self.image.output();
-        let compiler_text_validation_digest = output
-            .compiler_text_validation
-            .map(|evidence| *evidence.derivation_digest.as_bytes());
-        let compiler_function_validation = output.compiler_function_validation.map(|evidence| {
-            (
-                *evidence.evidence_digest().as_bytes(),
-                evidence.evidence_report_fingerprint(),
-            )
-        });
-        let compiler_entry_region_binding =
-            output
-                .compiler_entry_region_binding
-                .as_ref()
-                .map(|evidence| {
-                    (
-                        *evidence.evidence_digest.as_bytes(),
-                        evidence.evidence_report_fingerprint,
-                    )
-                });
-        let compiler_entry_footprint_binding =
-            output.compiler_entry_footprint_binding.map(|evidence| {
-                (
-                    *evidence.evidence_digest.as_bytes(),
-                    evidence.evidence_report_fingerprint,
-                )
-            });
+        let (
+            compiler_text_validation_digest,
+            compiler_function_validation,
+            compiler_entry_region_binding,
+            compiler_entry_footprint_binding,
+        ) = compiler_identity_evidence(output);
         derive_native_artifact_identity(NativeArtifactIdentityFields {
             terminal_artifact_identity: *self.psi_artifact.manifest().identity().as_bytes(),
             target: self.target,

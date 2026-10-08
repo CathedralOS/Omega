@@ -1,7 +1,8 @@
 //! Non-installable dynamic-ELF artifact construction and replay.
 
 use super::identity::{
-    NativeArtifactIdentityFields, derive_native_artifact_identity, foreign_call_custody_digest,
+    NativeArtifactIdentityFields, compiler_identity_evidence,
+    derive_native_artifact_identity, foreign_call_custody_digest,
 };
 use super::{
     NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
@@ -310,32 +311,12 @@ impl DynamicElfNativeArtifact {
 
     fn recomputed_identity(&self) -> DynamicElfNativeArtifactIdentity {
         let output = self.image.output();
-        let compiler_text_validation_digest = output
-            .compiler_text_validation
-            .map(|evidence| *evidence.derivation_digest.as_bytes());
-        let compiler_function_validation = output.compiler_function_validation.map(|evidence| {
-            (
-                *evidence.evidence_digest().as_bytes(),
-                evidence.evidence_report_fingerprint(),
-            )
-        });
-        let compiler_entry_region_binding =
-            output
-                .compiler_entry_region_binding
-                .as_ref()
-                .map(|evidence| {
-                    (
-                        *evidence.evidence_digest.as_bytes(),
-                        evidence.evidence_report_fingerprint,
-                    )
-                });
-        let compiler_entry_footprint_binding =
-            output.compiler_entry_footprint_binding.map(|evidence| {
-                (
-                    *evidence.evidence_digest.as_bytes(),
-                    evidence.evidence_report_fingerprint,
-                )
-            });
+        let (
+            compiler_text_validation_digest,
+            compiler_function_validation,
+            compiler_entry_region_binding,
+            compiler_entry_footprint_binding,
+        ) = compiler_identity_evidence(output);
         let final_image_symbol_digest =
             *image::final_image_symbol_digest(self.image.emission().admitted().image()).as_bytes();
         let base = derive_native_artifact_identity(NativeArtifactIdentityFields {
