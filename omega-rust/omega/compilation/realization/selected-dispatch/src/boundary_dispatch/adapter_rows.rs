@@ -268,14 +268,7 @@ pub(crate) fn resolve_selected_adapter_row(
     }
 
     let actual_parameters = typed.state_parameters(entry);
-    if actual_parameters.len() != method.parameter_count {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            method.requirement_identity,
-            actual_parameters.len(),
-            method.parameter_count,
-        )));
-    }
+    require_parameter_count(method, actual_parameters.len())?;
 
     Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
         receiver_trait: receiver_trait.symbol,
@@ -325,6 +318,19 @@ pub(crate) fn resolve_selected_adapter_row(
 /// does not settle.
 /// Execution consumes the association while Terminal retains the
 /// requirement.
+fn require_parameter_count(
+    method: &effects::provider_plan::ServiceMethod,
+    actual: usize,
+) -> Result<(), Diagnostic> {
+    if actual != method.parameter_count {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
+            method.requirement_identity, actual, method.parameter_count,
+        )));
+    }
+    Ok(())
+}
+
 fn resolve_top_level_requirement_adapter_row(
     typed: &TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
@@ -373,14 +379,7 @@ fn resolve_top_level_requirement_adapter_row(
         "requirement",
     )?;
     let actual_parameters = typed.state_parameters(adapter_entry);
-    if actual_parameters.len() != method.parameter_count {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            method.requirement_identity,
-            actual_parameters.len(),
-            method.parameter_count,
-        )));
-    }
+    require_parameter_count(method, actual_parameters.len())?;
     // A direct machine call targets the requirement's entry state, exactly
     // as the realization is keyed by its own entry state.
     Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
@@ -531,14 +530,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             )));
         }
         let actual_parameters = typed.state_parameters(instance_entry);
-        if actual_parameters.len() != method.parameter_count {
-            return Err(Diagnostic::error(format!(
-                "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-                method.requirement_identity,
-                actual_parameters.len(),
-                method.parameter_count,
-            )));
-        }
+        require_parameter_count(method, actual_parameters.len())?;
         resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
             receiver_trait: closed.symbol,
             provider_plan_digest: *plan.identity_digest().as_bytes(),
@@ -670,14 +662,7 @@ fn resolve_family_adapter_row(
     // The template entry's parameter shape is invariant under const
     // specialization, so the arity check is computed once on the template.
     let actual_parameters = typed.state_parameters(template_entry);
-    if actual_parameters.len() != method.parameter_count {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
-            method.requirement_identity,
-            actual_parameters.len(),
-            method.parameter_count,
-        )));
-    }
+    require_parameter_count(method, actual_parameters.len())?;
 
     let mut rows = Vec::new();
     let mut missing = Vec::new();
