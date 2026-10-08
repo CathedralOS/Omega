@@ -736,113 +736,103 @@ fn physical_contract_matches(
     false
 }
 
-fn macos_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
-    use program_entry_plan::{MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY};
-    let expected = program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan();
+fn physical_contract_shape_matches(
+    physical: &ProgramEntryPhysicalContractPlan,
+    slot: target::ProgramEntrySlotDeclaration,
+    package: target::ProgramEntryPhysicalContractPackage,
+    package_source_digest: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+    parameter_identities: &[&str],
+    result_identity: &str,
+    expected: &calling_conventions::ValidatedBoundaryEntryPlan,
+) -> bool {
     // Native settlement separately rejoins the accepted package requirement
     // identity. A package-qualified requirement is not the standalone spelling;
     // it must still carry these exact target-source bytes, role, and ABI/state.
-    physical.target_slot() == target::TargetProfile::MacosArm64.program_entry_slot()
-        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::MacosArm64
-        && physical.target_package_source_digest()
-            == program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest()
+    physical.target_slot() == slot
+        && physical.target_package() == package
+        && physical.target_package_source_digest() == package_source_digest
         && !physical.requirement_identity().is_empty()
-        && physical.parameter_type_identities()
-            == [
-                MACOS_ARM64_I32_TYPE_IDENTITY,
-                MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-                MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-                MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-            ]
-        && physical.result_type_identity() == MACOS_ARM64_I32_TYPE_IDENTITY
+        && physical.parameter_type_identities() == parameter_identities
+        && physical.result_type_identity() == result_identity
         && physical.boundary_entry_plan() == expected.plan()
         && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
         && physical.guaranteed_entry_stack().is_none()
         && physical.guaranteed_entry_stack_application().is_none()
+}
+
+fn macos_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
+    use program_entry_plan::{MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY};
+    physical_contract_shape_matches(
+        physical,
+        target::TargetProfile::MacosArm64.program_entry_slot(),
+        target::ProgramEntryPhysicalContractPackage::MacosArm64,
+        program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest(),
+        &[
+            MACOS_ARM64_I32_TYPE_IDENTITY,
+            MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+            MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+            MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+        ],
+        MACOS_ARM64_I32_TYPE_IDENTITY,
+        &program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan(),
+    )
 }
 
 fn macos_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
     use program_entry_plan::{MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY};
-    let expected = program_entry_plan::exact_macos_x86_64_physical_boundary_entry_plan();
-    // Native settlement separately rejoins the accepted package requirement
-    // identity. A package-qualified requirement is not the standalone spelling;
-    // it must still carry these exact target-source bytes, role, and ABI/state.
-    physical.target_slot() == target::TargetProfile::MacosX64.program_entry_slot()
-        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::MacosX64
-        && physical.target_package_source_digest()
-            == program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest()
-        && !physical.requirement_identity().is_empty()
-        && physical.parameter_type_identities()
-            == [
-                MACOS_X86_64_I32_TYPE_IDENTITY,
-                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-            ]
-        && physical.result_type_identity() == MACOS_X86_64_I32_TYPE_IDENTITY
-        && physical.boundary_entry_plan() == expected.plan()
-        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
-        && physical.guaranteed_entry_stack().is_none()
-        && physical.guaranteed_entry_stack_application().is_none()
+    physical_contract_shape_matches(
+        physical,
+        target::TargetProfile::MacosX64.program_entry_slot(),
+        target::ProgramEntryPhysicalContractPackage::MacosX64,
+        program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest(),
+        &[
+            MACOS_X86_64_I32_TYPE_IDENTITY,
+            MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+            MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+            MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+        ],
+        MACOS_X86_64_I32_TYPE_IDENTITY,
+        &program_entry_plan::exact_macos_x86_64_physical_boundary_entry_plan(),
+    )
 }
 
 fn linux_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
     use program_entry_plan::{LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY};
-    let expected = program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan();
-    // Same custody rule as the Darwin bridge: the accepted-package requirement
-    // may carry a qualified spelling, but the target-source bytes, slot,
-    // parameter/result identities, ABI plan, and state are all exact.
-    physical.target_slot() == target::TargetProfile::LinuxX64.program_entry_slot()
-        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::LinuxX86_64
-        && physical.target_package_source_digest()
-            == program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest()
-        && !physical.requirement_identity().is_empty()
-        && physical.parameter_type_identities() == [LINUX_X86_64_ADDRESS_TYPE_IDENTITY]
-        && physical.result_type_identity() == LINUX_X86_64_I32_TYPE_IDENTITY
-        && physical.boundary_entry_plan() == expected.plan()
-        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
-        && physical.guaranteed_entry_stack().is_none()
-        && physical.guaranteed_entry_stack_application().is_none()
+    physical_contract_shape_matches(
+        physical,
+        target::TargetProfile::LinuxX64.program_entry_slot(),
+        target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
+        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
+        &[LINUX_X86_64_ADDRESS_TYPE_IDENTITY],
+        LINUX_X86_64_I32_TYPE_IDENTITY,
+        &program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan(),
+    )
 }
 
 fn linux_arm64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
     use program_entry_plan::{LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY};
-    let expected = program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan();
-    // Same custody rule as the other bridges: the accepted-package requirement
-    // may carry a qualified spelling, but the target-source bytes, slot,
-    // parameter/result identities, ABI plan, and state are all exact.
-    physical.target_slot() == target::TargetProfile::LinuxArm64.program_entry_slot()
-        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::LinuxArm64
-        && physical.target_package_source_digest()
-            == program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest()
-        && !physical.requirement_identity().is_empty()
-        && physical.parameter_type_identities() == [LINUX_ARM64_U64_TYPE_IDENTITY]
-        && physical.result_type_identity() == LINUX_ARM64_I32_TYPE_IDENTITY
-        && physical.boundary_entry_plan() == expected.plan()
-        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
-        && physical.guaranteed_entry_stack().is_none()
-        && physical.guaranteed_entry_stack_application().is_none()
+    physical_contract_shape_matches(
+        physical,
+        target::TargetProfile::LinuxArm64.program_entry_slot(),
+        target::ProgramEntryPhysicalContractPackage::LinuxArm64,
+        program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest(),
+        &[LINUX_ARM64_U64_TYPE_IDENTITY],
+        LINUX_ARM64_I32_TYPE_IDENTITY,
+        &program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan(),
+    )
 }
 
 fn windows_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
     use program_entry_plan::WINDOWS_X86_64_U32_TYPE_IDENTITY;
-    let expected = program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan();
-    // Same custody rule as the other bridges: the accepted-package
-    // requirement may carry a qualified spelling, but the target-source
-    // bytes, slot, parameter/result identities, ABI plan, and state are all
-    // exact. The loader arrival carries no contractual input and completes
-    // through the eax process-completion status.
-    physical.target_slot() == target::TargetProfile::WindowsX64.program_entry_slot()
-        && physical.target_package() == target::ProgramEntryPhysicalContractPackage::WindowsX64
-        && physical.target_package_source_digest()
-            == program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest()
-        && !physical.requirement_identity().is_empty()
-        && physical.parameter_type_identities().is_empty()
-        && physical.result_type_identity() == WINDOWS_X86_64_U32_TYPE_IDENTITY
-        && physical.boundary_entry_plan() == expected.plan()
-        && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
-        && physical.guaranteed_entry_stack().is_none()
-        && physical.guaranteed_entry_stack_application().is_none()
+    physical_contract_shape_matches(
+        physical,
+        target::TargetProfile::WindowsX64.program_entry_slot(),
+        target::ProgramEntryPhysicalContractPackage::WindowsX64,
+        program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest(),
+        &[],
+        WINDOWS_X86_64_U32_TYPE_IDENTITY,
+        &program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan(),
+    )
 }
 
 /// Layout-side zero checking cannot establish authored default domains or
@@ -1207,11 +1197,9 @@ fn zero_valid_record_storage(
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
 ) -> bool {
     use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
-    let Some(declaration) = terminal_psi::unique_structural_declaration(
-        declarations,
-        structural_type,
-        visiting,
-    ) else {
+    let Some(declaration) =
+        terminal_psi::unique_structural_declaration(declarations, structural_type, visiting)
+    else {
         return false;
     };
     visiting.push(structural_type);
