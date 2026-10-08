@@ -281,13 +281,7 @@ pub fn declared_place_type_raw(
     }
 
     if let ExpressionNode::Name(path) = program.expression_table.expression(handle)
-        && path.symbol.is_valid()
-        && path.head_symbol == path.symbol
-        && program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            == 1
+        && program.expression_table.name_path_is_single_member(path)
         && let Some(parameter) = program
             .machine_type_parameters(current_machine)
             .iter()

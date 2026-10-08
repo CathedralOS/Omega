@@ -490,13 +490,7 @@ pub fn identity_subject_matches(
             .state_parameters(state)
             .iter()
             .find(|parameter| {
-                path.symbol.is_valid()
-                    && path.head_symbol == path.symbol
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1
+                program.expression_table.name_path_is_single_member(path)
                     && parameter.symbol == path.symbol
             })
             .map(|parameter| parameter.type_reference)
