@@ -173,18 +173,14 @@ pub(crate) fn validate_checked_contract_evidence_components(
         .iter()
         .map(|requirement| {
             let owner = compilation
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == requirement.declaring_trait)
+                .trait_definition_by_symbol(requirement.declaring_trait)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "checked witness requirement has no exact declaring trait",
                     )]
                 })?;
             let signature = compilation
-                .trait_machine_signatures(owner)
-                .iter()
-                .find(|candidate| candidate.symbol == requirement.requirement)
+                .trait_machine_signature_by_symbol(owner, requirement.requirement)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(
                         "checked witness requirement has no exact overload declaration",

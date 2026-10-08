@@ -121,9 +121,7 @@ pub(crate) fn project_public_conformances(
             }
             let declaring_trait = nominal_identity(compilation, row.declaring_trait)?;
             let definition = compilation
-                .traits()
-                .iter()
-                .find(|candidate| candidate.symbol == row.declaring_trait)
+                .trait_definition_by_symbol(row.declaring_trait)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(format!(
                         "public conformance `{}` has a row with an unresolved declaring trait",
@@ -131,9 +129,7 @@ pub(crate) fn project_public_conformances(
                     ))]
                 })?;
             let requirement = compilation
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|candidate| candidate.symbol == row.requirement)
+                .trait_machine_signature_by_symbol(definition, row.requirement)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(format!(
                         "public conformance `{}` has a row outside its declaring trait's requirement sequence",

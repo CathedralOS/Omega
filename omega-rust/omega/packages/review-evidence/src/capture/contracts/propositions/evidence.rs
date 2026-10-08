@@ -41,9 +41,7 @@ pub(crate) fn project_evidence_interface(
         }
     };
     let definition = compilation
-        .traits()
-        .iter()
-        .find(|candidate| candidate.symbol == trait_symbol)
+        .trait_definition_by_symbol(trait_symbol)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "reviewed witness proposition has an unresolved evidence trait",
@@ -104,9 +102,7 @@ pub(crate) fn collect_evidence_requirements(
     requirements: &mut Vec<PackageReviewEvidenceRequirement>,
 ) -> Result<(), Vec<Diagnostic>> {
     let definition = compilation
-        .traits()
-        .iter()
-        .find(|candidate| candidate.symbol == trait_symbol)
+        .trait_definition_by_symbol(trait_symbol)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "reviewed evidence interface inherits an unresolved trait",
