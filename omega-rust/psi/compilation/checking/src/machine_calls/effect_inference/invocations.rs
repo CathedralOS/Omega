@@ -6,6 +6,7 @@
 //! nth non-`self` entry parameter of the machine whose summary carries it.
 
 use symbols::SymbolHandle;
+use crate::declarations::data_queries::data_definition_by_symbol;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
@@ -678,12 +679,7 @@ fn type_reference_for_symbol(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — receiver-path and attached-data walks otherwise re-scan
 /// the declaration table per member hop.
-fn data_definition_by_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
-}
+
 
 fn collect_expression_call(
     program: &dyn crate::CheckingInput,

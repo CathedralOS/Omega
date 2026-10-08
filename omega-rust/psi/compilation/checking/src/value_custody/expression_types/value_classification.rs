@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use crate::declarations::data_queries::data_definition_by_symbol;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -277,12 +278,7 @@ fn concrete_data_type_symbol(
 
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open (the declaration slice is otherwise re-scanned per query).
-fn data_definition_by_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: symbols::SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
-}
+
 
 pub(super) fn concrete_data_type_name(
     program: &dyn crate::CheckingInput,

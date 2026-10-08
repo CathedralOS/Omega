@@ -5,6 +5,7 @@
 //! knowledge of the opaque member's contents or their caller-visible effects.
 
 use super::super::isolation::concrete_nominal_type;
+use crate::declarations::data_queries::data_definition_by_symbol;
 use super::{FramePathPrecision, FramePlaceOrigin, StoredLocalOrigins, StoredWriteOrigin};
 use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
@@ -386,12 +387,7 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — the type walk otherwise re-scans the declaration table per
 /// nominal node it descends into.
-fn data_definition_by_symbol(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<&typed_trees::data::DataDefinition> {
-    crate::declarations::data_queries::data_definition_by_symbol(program, symbol)
-}
+
 
 fn push_field(
     program: &dyn crate::CheckingInput,
