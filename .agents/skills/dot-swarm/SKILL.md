@@ -153,6 +153,12 @@ publication; do not use it unchanged for diagnostics or local-only work. Give a
 self-contained prompt matching the actual authorization instead. Keep a draft
 manifest and all runtime ledgers under ignored `build/swarm/<wave>/`.
 
+Cloud sessions reach the Jev advisories only when the manifest injects
+`"secret_ids": ["TYPESAFE_API_KEY"]`
+([tools/swarm/README.md](../../../tools/swarm/README.md)) AND the session
+network policy allows api.typesafe.ai — the ccr2 wave ran with neither and
+recorded Jev unavailable (tools/swarm/waves/ccr2.outcomes.json).
+
 `launch.py launch` is the Devin path and is not used here. Host gates are
 prerequisites, not the expected-red customer acceptance. Do not bypass checks to
 make an invalid implementation wave appear launchable.

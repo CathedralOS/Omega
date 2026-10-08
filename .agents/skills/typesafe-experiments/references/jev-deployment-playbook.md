@@ -99,6 +99,16 @@ Every shipped instrument shares these; deviation needs a reason:
 | Golden pinning | `tools/corpus_gate.py --jev` | "is this diff safe to `--record`?" |
 | Wave launch fences | `tools/swarm/launch.py` (`jev_fence` hint) | "does the fence cover the real edit surface?" |
 | Doc claim audit | `tools/spec_drift_advisor.py` | "does this claim still match reality?" |
+| Window blame ranking | `tools/jev_attribute.py` | "which commit in the window carries this failure's evidence?" |
+| Failure attribution | `tools/test_affected.py --base X --attribute LOG` | "is this red mine, baseline, or environmental?" |
+
+Discovery pointers: `advance` names proof_advisor, corpus_gate `--jev`,
+triage_advisor and jev_attribute; `tools/testing.md` names the test_affected
+augment, `--attribute LOG`, triage_advisor, jev_attribute and corpus_gate
+`--jev`; the swarm skills (devin-swarm, dot-swarm, codex-swarm) name the
+`secret_ids` injection cloud sessions need to reach the API, and devin-swarm
+and local-swarm name the two testing.md pointers. A deleted skill must not
+orphan a row above — move its pointer into one of these files.
 
 Proven-deferred: board dedup (recipe in experiment record). Falsified:
 Jev-alone scoping for test-time savings — it hedges to run-everything

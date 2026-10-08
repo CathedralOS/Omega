@@ -50,7 +50,10 @@ acceptance remains incomplete. Only then choose new work within user scope.
 Use local branches and landing.py, not merge commits/direct pushes. Rebase
 incoming changes, preserve behavior and validate the combined result. Existing
 unrelated failures do not require another repair assignment. Reconcile board
-requirements; never union-merge accumulated notes.
+requirements; never union-merge accumulated notes. Two advisories order that
+verification: `tools/jev_attribute.py` ranks a commit window for a failing
+signature before a bisect, and `corpus_gate.py --jev` gives the record-safety
+verdict before any `--record` (tools/testing.md).
 
 Inspect actual agent handles/processes, not mtimes. An idle turn or missing
 notification does not prove death. Do not duplicate a worker or release its

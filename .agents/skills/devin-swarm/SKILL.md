@@ -38,7 +38,12 @@ Reuse warm checkouts safely; never run two agents in one checkout.
 Each dispatch includes the outcome/acceptance, governing design, expected behavior,
 exact worktree/base, publication authority, peers, next action, dependencies,
 focused validation, reporting destination and stopping condition. Include the
-short assignment to reread after compaction.
+short assignment to reread after compaction. Cloud sessions reach the Jev
+advisories only when the manifest injects `"secret_ids":
+["TYPESAFE_API_KEY"]` ([tools/swarm/README.md](../../../tools/swarm/README.md))
+AND the session network policy allows api.typesafe.ai — the ccr2 wave ran
+with neither and recorded Jev unavailable
+(tools/swarm/waves/ccr2.outcomes.json).
 
 Use `notify_on_response=true` where supported; re-arm on follow-ups because
 notifications are one-shot. Inspect existing events before retrying an uncertain
@@ -62,6 +67,10 @@ Count completed outcomes, not commits or occupied slots.
 
 Use landing.py and linear history. Rebase current main, preserve incoming behavior
 and revalidate affected inputs. No direct main push or batch-merge bypass.
+Two advisories order that verification: `tools/jev_attribute.py` ranks a
+commit window for a failing signature before a bisect, and
+`corpus_gate.py --jev` gives the record-safety verdict before any `--record`
+(tools/testing.md).
 Shared executors use local worktrees. Independent executors publish through the
 same queue or return candidates through authorized artifact transport; do not
 invent remote worker branches or force-push workflows.

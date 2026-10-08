@@ -140,7 +140,8 @@ test-name filters select different things. For e2e-visible changes — diagnosti
 pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
 <domain>` diffs the touched fixture domain against the recorded corpus golden in
 seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
-regression signal. Include affected crate and integration
+regression signal. `--jev` on the same run gives the advisory record-safety
+verdict before any `--record`. Include affected crate and integration
 checks. Reuse successful results on unchanged inputs, including at landing.
 
 Before landing, challenge the assumptions that make this change correct, even
@@ -164,6 +165,10 @@ assumption, resolve it or name the missing dependency before claiming completion
 Attribute unexpected failures using a focused baseline comparison on the base
 commit. A failure that reproduces on the base is outside this change; record
 its command and revision. A failure introduced by this change blocks landing.
+For a failure already red on landed main, `tools/triage_advisor.py` (failure
+output plus command -> suspect commit and layer) and `tools/jev_attribute.py`
+(signature plus commit window -> ranked blame) order the investigation before
+a bisect; advisory only, see [testing](../../../tools/testing.md).
 Use [testing](../../../tools/testing.md) for scope and
 [test-cycle measurements](../../../wiki/drafts/measurements/test_cycle_measurements.md) for build diagnosis.
 Run one host build at a time.

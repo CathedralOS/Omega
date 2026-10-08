@@ -92,6 +92,11 @@ authorization already given by the user, model/effort, exact repository and
 program, ownership, known blockers, report destination and stopping condition.
 The worker verifies its own environment, source revision, identity, custody,
 toolchain, resources and actual smoke run before expensive implementation.
+Cloud sessions reach the Jev advisories only when the manifest injects
+`"secret_ids": ["TYPESAFE_API_KEY"]`
+([tools/swarm/README.md](../../../tools/swarm/README.md)) AND the session
+network policy allows api.typesafe.ai — the ccr2 wave ran with neither and
+recorded Jev unavailable (tools/swarm/waves/ccr2.outcomes.json).
 
 Creating Codex chats requires an explicit user request for sessions/chats; a
 request for a Codex session swarm supplies that scope. Apply current app rules
