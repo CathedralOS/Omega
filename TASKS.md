@@ -226,19 +226,24 @@ helper that passes does not close an item.
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Lower a call that consumes a linear input and returns an affine result
   as an ordinary call.
-  - Customer: `tests/omega/pass/core/task_lifecycle_operations`. Its current
-    rejection is "suspension frontier has live claims without an exact
-    Terminal ClaimId join", raised in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`
-    while retaining the explicit call frontier. Join checked claim identities
-    to the operation's exact Terminal claims; do not discard the claim roster
-    or infer claims from carrier types. Receiver and implicit persistent-field
-    origins have been removed from the crossing representation.
-  - Next known stop: `Main::settle` statement 1, `call operation: claim-free
-    affine result`. Stage 04's
+  - Customer: `tests/omega/pass/core/task_lifecycle_operations`. `omega
+    --check` accepts it; product realization refuses the
+    `suspend block Task::finish(task)` in `Task::settle_claim`'s
+    specialization: "has no executable body: this compiler does not lower an
+    expression of it yet (call operation: claim transfers)", the
+    `call_claim_transfers` join in stage 04's
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/call_operations.rs`.
+    Stage 05's suspension-frontier join
+    (`05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`,
+    "suspension frontier has live claims without an exact Terminal ClaimId
+    join") lies beyond it. Join checked claim identities to the operation's
+    exact Terminal claims; do not discard the claim roster or infer claims
+    from carrier types. Receiver and implicit persistent-field origins have
+    been removed from the crossing representation.
+  - Stage 04's
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/structural_result_call.rs`
     and `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`
-    now plan input transfers (`claim_transfers`) separately from path-bound
+    plan input transfers (`claim_transfers`) separately from path-bound
     result claims (`result_claims`). The former Terminal-verifier copy is
     gone; do not recreate it.
   Acceptance: the unchanged customer checks and produces a terminal artifact
@@ -435,8 +440,10 @@ helper that passes does not close an item.
     provider or storage authority.
   - Scratch fields become ordinary locals; pass only live values across
     states. Temporary-scoping design is deferred and not a prerequisite.
-    Validate `samples/cli/algorithms/maze_flood` with `omega run --both`:
-    exit 0 and its documented 235-byte output. Keep search and row/input
+    `omega run --both samples/cli/algorithms/maze_flood/main.omg` must exit 0
+    with its documented 235-byte output in both engines. Native does; Terminal
+    interpretation fails with `runtime execution failed:
+    Execution(VerifiedOperationMalformed)` (status 201). Keep search and row/input
     storage local, with only the Console binding in Main. Preserve the
     later-state/repeated-loan control
     `pass/text/borrowed_bounded_byte_indexed_write_exit` (70).
@@ -496,16 +503,19 @@ defines the complete product bar.
     `fail/calls/constructor_child_local_epochs_not_equal`: remaining composed
     calls must preserve completed child observations, not replay initializers.
     The checked interpreter still declines explicit borrowing of an owned call
-    result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`;
-    exercise `pass/calls/runtime_temporary_lending_order_exit` (native exit 0)
-    with nested borrowing calls, mixed operand order and Unit consumers.
+    result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`
+    (`pass/calls/runtime_temporary_lending_order_exit`).
     Keep `runtime_constructed_borrowed_payload_arguments_exit`,
     `runtime_selected_trivial_local_cleanup_exit` and
     `runtime_selected_local_owner_exit` (exit 0): completed owners must outlive
     their shared calls, copyable temporaries owe no affine disposal, and each
     selected completion owns its transfer/disposal partition. A producer's
-    return-discard flag is not liveness authority. Runtime-indexed observations
-    below case payloads still reject an unsupported case path before emission.
+    return-discard flag is not liveness authority. A runtime-indexed read below
+    a case payload (`Reply::Values { items } -> (items[index])`, or
+    `first.values[index]` on a record payload) stops in Terminal production at
+    stage 05's
+    `expression_preparation/bindings/structural_fields/observation_paths.rs`:
+    "field observation has an incompatible declared projection".
     **CML4** owns remaining residual cleanup. Reference debt must
     follow ordinary disposal, not a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a
@@ -592,16 +602,7 @@ defines the complete product bar.
     runtime_call_endpoint,runtime_inclusive_call_endpoint` (70),
     `fail/slices/inclusive_*` for bounds/overlap rejection, and
     `layouts/runtime_reborrow_preserves_store_origin_exit` (70) for address
-    origins across shared-value and write-prefix queries. Public acceptance is
-    `omega run tests/omega/pass/slices/runtime_inclusive_call_endpoint_view_exit/main.omg`;
-    distinguish package-policy refusal from missing compiler behavior.
-    At the `45782ade0cb`-based repair on macOS ARM64,
-    `pass/slices/runtime_direct_view_requires_index_exit` passes source
-    checking and interprets to 70 unchanged, but `python3 tools/corpus_gate.py
-    --both --filter runtime_direct_view_requires_index_exit` still fails native
-    production with `OperationProofUnavailable(ObligationId(9223372036854775808))`.
-    Late certificate search is gone; reproduce the current failure before
-    repair. Its expected native exit remains 70. Carry exact
+    origins across shared-value and write-prefix queries. Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.
@@ -609,14 +610,11 @@ defines the complete product bar.
     `as _` waivers, `__` field names, renamed fields and rest opt-out, with
     non-place subjects evaluated once
     (`pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit`
-    exits 70 natively and in Terminal). Execute a consumer of a
-    selected case payload transferred on an edge
-    (`.../state_graph/emission/successor_edge.rs`). Keep
+    exits 70 natively and in Terminal). Keep
     `pass/data/record_pattern_let_exit`,
     `pass/control_flow/{ordered_unconditional_arm_exit,record_pattern_arm_rename_guard_exit,arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit}`,
     `pass/borrow/runtime_exclusive_loan_local_write_exit` and
-    `pass/calls/runtime_value_call_nested_entry_call_exit` (exit 70; needs
-    matching-host coverage).
+    `pass/calls/runtime_value_call_nested_entry_call_exit` (exit 70).
 
   Acceptance: a composed caller tolerates renamed/reordered states and
   inserted computations; operands execute left-to-right once, skipped calls
@@ -729,8 +727,11 @@ defines the complete product bar.
     Keep `runtime_parent_hook_preserves_linear_descendants_exit` as the intact
     nominal receiver and retained child-claim control. Apply parent hook
     guarantees before checking linear descendants' cleanup prerequisites:
-    a computed temporary whose parent ensures both child values equal 9 still
-    rejects `Receipt::drop requires receipt.value == 9` during source checking.
+    when `Receipt::drop` requires `receipt.value == 9`, a computed temporary
+    whose parent ensures both child values equal 9 still rejects during source
+    checking: "cannot prove automatic cleanup requires at selected edge from
+    main state entry after statement 0: Owner.first does not establish
+    Receipt::drop clause `receipt.value == 9`".
     Scalar materialization
     of moved linear places and claim-bearing call results remains unfinished;
     an anonymous returned owner without a unique conserved claim map must
@@ -945,16 +946,12 @@ defines the complete product bar.
   Diagnostic acceptance:
   - **IMPLICIT-STORE-CONVERSION** owns duplicate conversion/weakening reports in
     `fail/calls/terminal_return_type_mismatch_rejected`,
-    `fail/expressions/bool_numeric_operand_mixing_rejected`,
-    `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected` and
-    `fail/range/indexed_field_range_runtime_write_rejected`.
+    `fail/expressions/bool_numeric_operand_mixing_rejected` and
+    `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected`.
   - **ENTRY-SLOT-EXACT-SCHEMA-SELECTION** owns the remaining accepted-package
     physical-convention mismatch customer. The local-schema negative now
     rejects its invalid register architecture; it does not select the target
     entry contract or prove the selected-convention comparison.
-  - `fail/providers/checked_boundary_operator_const_application_unselected`:
-    recorded diagnostic and `expected.txt` disagree; it must reject for missing
-    exact authored selection (**OPERATOR-BOUNDARY-CALLS**).
   - Keep `fail/arithmetic/narrowing_anonymous_expression_unproven` (range
     obligation) distinct from `narrowing_signedness_rejected` (carrier), and
     the `fail/modules/duplicate_data_keeps_guard_facts` control.
@@ -1475,10 +1472,7 @@ defines the complete product bar.
   Remaining: `pass/core/numeric_*` reach all 170 public machines of
   `source/library/core/numeric_conversion.omg` but run natively and
   interpreted on macOS ARM64 only; run them on Linux x86-64 and Windows x86-64
-  and record those goldens. The comparison canaries above end through
-  `ProcessExit`, which the interpreter refuses before entry
-  ([process exit](#process-exit-contract)), so interpreter agreement for the
-  six relations and mixed-width orientations has no running witness. Direct
+  and record those goldens. Direct
   signed and mixed-sign `in Saturating` casts (`value as i8 in Saturating`
   from `i16`) now pass checking, but no fixture executes them and the
   [numeric values status](wiki/spec/language/numeric_values.md#status) still
