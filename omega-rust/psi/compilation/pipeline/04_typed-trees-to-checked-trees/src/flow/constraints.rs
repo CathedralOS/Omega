@@ -15,13 +15,11 @@ pub(super) fn append_contiguous_borrow_root_constraints(
         return;
     }
 
-    for offset in 0..roots.count() {
+    for root in roots.handles() {
         append_constraint_ref(
             constraint_refs,
             refs,
-            FlowConstraintKind::BorrowWritableRoot {
-                root: roots.handle_at(offset),
-            },
+            FlowConstraintKind::BorrowWritableRoot { root },
         );
     }
 }
@@ -36,13 +34,11 @@ pub(super) fn append_contiguous_borrow_access_constraints(
         return;
     }
 
-    for offset in 0..accesses.count() {
+    for access in accesses.handles() {
         append_constraint_ref(
             constraint_refs,
             refs,
-            FlowConstraintKind::BorrowAccess {
-                access: accesses.handle_at(offset),
-            },
+            FlowConstraintKind::BorrowAccess { access },
         );
     }
 }

@@ -76,8 +76,8 @@ impl<'program> Collector<'program> {
         if children.len() != arguments.len() {
             return Err("constant dependency has stale type arguments".to_owned());
         }
-        for offset in 0..arguments.count() {
-            self.type_child(arguments.handle_at(offset))?;
+        for argument in arguments.handles() {
+            self.type_child(argument)?;
         }
         Ok(())
     }

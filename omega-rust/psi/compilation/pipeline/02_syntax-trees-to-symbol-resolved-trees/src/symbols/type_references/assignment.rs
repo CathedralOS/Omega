@@ -781,8 +781,7 @@ pub(in crate::symbols) fn assign_type_reference_argument_symbols_with_constraint
     local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
     arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
 ) {
-    for offset in 0..arguments.count() {
-        let handle = arguments.handle_at(offset);
+    for handle in arguments.handles() {
         let mut argument = std::mem::take(child_type_references.get_mut(handle));
         assign_type_reference_symbol_with_context(
             symbols,

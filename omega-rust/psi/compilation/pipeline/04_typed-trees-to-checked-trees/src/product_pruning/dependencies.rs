@@ -26,11 +26,8 @@ impl MachineIndex {
             machine_symbols.insert(machine.symbol);
             for state in program.machine_states(machine) {
                 state_machine.insert(state.symbol, machine.symbol);
-                for offset in 0..state.statement_nodes.count() {
-                    statement_machine.insert(
-                        state.statement_nodes.handle_at(offset),
-                        machine.symbol,
-                    );
+                for node in state.statement_nodes.handles() {
+                    statement_machine.insert(node, machine.symbol);
                 }
             }
         }
