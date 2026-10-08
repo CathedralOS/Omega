@@ -343,9 +343,6 @@ pub(super) fn indexed_recast_loan_parts<'a>(
     else {
         return None;
     };
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = program.machine(machine_symbol)?;
     Some((machine, *referee, *access))
 }

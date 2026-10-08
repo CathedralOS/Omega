@@ -78,9 +78,7 @@ fn collection_premises_prove_exit(
         return false;
     };
     program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
+        .machine(state_flow.machine_symbol)
         .is_some_and(|machine| validation::premises_prove_expression(program, machine, expression))
 }
 
@@ -188,10 +186,7 @@ pub(super) fn check_exit_ensures(
                 )
             };
             let authorized_route = match fact.payload {
-                facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == state_flow.machine_symbol)
+                facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program.machine(state_flow.machine_symbol)
                     .is_some_and(|machine| {
                         crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
                             program,

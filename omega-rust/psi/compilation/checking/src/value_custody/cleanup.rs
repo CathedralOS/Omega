@@ -314,10 +314,7 @@ pub fn nominal_cleanup_owner(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)?;
+    let machine = program.machine(symbol)?;
     let mut declaration = machine;
     let mut visited = Vec::new();
     while !is_reserved_cleanup(program, declaration) {
@@ -330,10 +327,7 @@ pub fn nominal_cleanup_owner(
             .iter()
             .find(|specialization| specialization.instance == declaration.symbol)?
             .template;
-        declaration = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == template)?;
+        declaration = program.machine(template)?;
     }
     machine
         .attached_data_symbol

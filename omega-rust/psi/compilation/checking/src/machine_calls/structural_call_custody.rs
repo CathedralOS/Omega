@@ -1021,9 +1021,7 @@ pub fn structural_call_custody(
     let target_state = &call.target.state;
     let structural_arguments = &call.structural_arguments;
     let caller = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller_machine)
+        .machine(caller_machine)
         .ok_or("structural call has no exact caller")?;
     let source_state = program
         .machine_states(caller)

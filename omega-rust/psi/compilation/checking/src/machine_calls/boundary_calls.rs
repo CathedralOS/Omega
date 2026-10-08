@@ -440,11 +440,7 @@ fn symbol_name(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Stri
         return "unknown".to_owned();
     }
 
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
-    {
+    if let Some(machine) = program.machine(symbol) {
         return machine.name.as_str().to_owned();
     }
 

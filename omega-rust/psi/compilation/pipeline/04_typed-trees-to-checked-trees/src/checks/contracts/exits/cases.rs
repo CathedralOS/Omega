@@ -73,10 +73,7 @@ impl<'a> CaseObservation<'a> {
         contexts: &'a [FactContextHandle],
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == exit.machine_symbol)?;
+        let machine = program.machine(exit.machine_symbol)?;
         let state = program
             .machine_states(machine)
             .iter()

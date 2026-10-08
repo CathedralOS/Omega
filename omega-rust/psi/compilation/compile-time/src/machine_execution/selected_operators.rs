@@ -168,9 +168,7 @@ pub(crate) fn prepare_selected_execution(
     program.retain_authored_declaration_selections(selections);
     for row in selected {
         let provider_name = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == row.provider_machine)
+            .machine(row.provider_machine)
             .map(|machine| machine.name.as_str().to_owned())
             .ok_or_else(|| "selected build-time provider body lost its exact machine".to_owned())?;
         let arguments = program
@@ -668,11 +666,7 @@ pub fn validate_selected_operators(
         let [operator] = matching.as_slice() else {
             return Err("selected build-time requirement is not unique".into());
         };
-        if let Some(requirement) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == row.requirement)
-        {
+        if let Some(requirement) = program.machine(row.requirement) {
             let [entry] = program.machine_states(requirement) else {
                 return Err("selected build-time Float requirement has no unique entry".into());
             };

@@ -25,10 +25,7 @@ pub(super) fn derive(
     selection: &CheckedTerminalMachineSelection,
     module: &TerminalModule,
 ) -> Option<CheckedProgramEntryReceiverEligibility> {
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == selection.machine)?;
+    let machine = checked.machine(selection.machine)?;
     let state = checked.machine_states(machine).first()?;
     let source_parameters = checked.state_parameters(state);
     let mut receivers = source_parameters.iter().enumerate().filter(|(_, parameter)| {

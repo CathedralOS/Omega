@@ -19,10 +19,7 @@ pub(in crate::facts) fn entry_value(
     before_statement: usize,
     expression: ExpressionHandle,
 ) -> Option<CrashPredicateExpression> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)?;
+    let machine = program.machine(state_flow.machine_symbol)?;
     super::literal_projection::entry_value_with_selector(
         program,
         machine.symbol,

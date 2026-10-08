@@ -78,11 +78,7 @@ fn each_reachable_checked_machine(
             continue;
         }
         visited.push(current);
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == current)
-        else {
+        let Some(machine) = program.machine(current) else {
             return false;
         };
         if !admits(program, machine)

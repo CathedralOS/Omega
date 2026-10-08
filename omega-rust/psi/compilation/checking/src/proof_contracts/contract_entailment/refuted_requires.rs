@@ -224,10 +224,7 @@ fn authored_requires_spellings(
     if machine_symbol == callee_machine.symbol {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = program.machine(machine_symbol)?;
     // A cloned state's derivation origin is the machine that owns it, not the
     // state it copies, so the state pairs by the name the clone preserves.
     let state = program

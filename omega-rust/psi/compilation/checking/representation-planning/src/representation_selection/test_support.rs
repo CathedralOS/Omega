@@ -426,9 +426,7 @@ pub fn fixture() -> Fixture {
     typed.push_machine(machine);
 
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == build_machine)
+        .machine(build_machine)
         .expect("fixture must declare the authoritative build machine");
     let selections = harvest_opaque_representation_selections(&typed, machine)
         .expect("baseline program must harvest cleanly");

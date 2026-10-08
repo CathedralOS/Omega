@@ -15,9 +15,7 @@ pub(super) fn validate_checked_dispositions(
     let plan = &nominal.machine;
     let source = checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == plan.machine)
+        .machine(plan.machine)
         .ok_or(LoweringError::Unsupported(
             "nominal cleanup source machine is absent",
         ))?;

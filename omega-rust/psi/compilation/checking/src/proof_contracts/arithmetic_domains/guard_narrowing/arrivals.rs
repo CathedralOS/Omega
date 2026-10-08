@@ -6,7 +6,8 @@ use super::super::{
     record_unsigned_literal_assignment,
 };
 use super::{
-    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, SignatureContractKind, State, ValueEnvironment, declared_place_type_raw,
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
+    SignatureContractKind, State, ValueEnvironment, declared_place_type_raw,
     incoming_guard_environment, literal_i64, narrow_environment_by_condition, ordered_values,
     place_path,
 };
@@ -112,11 +113,7 @@ pub fn occurrence_integer_expression_fits_range(
     let Some(environment) = observation.environment else {
         return false;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return false;
     };
     let Some(state) = program.state_in_machine(machine, state_symbol) else {

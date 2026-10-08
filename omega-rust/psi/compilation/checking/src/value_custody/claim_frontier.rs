@@ -41,11 +41,7 @@ pub fn owned_receiver_claims(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> (Multiplicity, Vec<ClaimFrontierClaim>) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return (Multiplicity::Affine, Vec::new());
     };
     if machine.attached_data_application.is_valid() {

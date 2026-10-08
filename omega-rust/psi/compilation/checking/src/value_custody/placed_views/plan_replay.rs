@@ -107,11 +107,7 @@ pub(crate) fn validate_plans(
             )));
             continue;
         };
-        let Some(policy_plan_machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == view.policy_plan_machine_symbol)
-        else {
+        let Some(policy_plan_machine) = program.machine(view.policy_plan_machine_symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact placement-policy plan machine",
                 view.data_name
@@ -312,11 +308,7 @@ pub(crate) fn validate_plans(
                 continue;
             }
             for target in &field.accessor_targets {
-                let Some(machine) = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == target.machine_symbol)
-                else {
+                let Some(machine) = program.machine(target.machine_symbol) else {
                     diagnostics.push(Diagnostic::error(format!(
                         "placed view `{}` field `{}` operation `{}` no longer names its exact generated accessor machine",
                         view.data_name, field.field_name, target.operation

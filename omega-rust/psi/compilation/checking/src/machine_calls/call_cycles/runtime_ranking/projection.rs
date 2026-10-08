@@ -681,9 +681,7 @@ pub(super) fn retain_internal_transfer(
     statement_ordinal: usize,
 ) -> bool {
     let target = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == target)
+        .machine(target)
         .and_then(|machine| program.machine_states(machine).first())
         .map_or(target, |state| state.symbol);
     let Some(source_rank) = component.states.iter().find(|rank| rank.state == source) else {

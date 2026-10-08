@@ -23,11 +23,7 @@ pub(super) fn admitted(
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
 ) -> Vec<AdmittedGuarantee> {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return Vec::new();
     };
     let states = program.machine_states(machine);

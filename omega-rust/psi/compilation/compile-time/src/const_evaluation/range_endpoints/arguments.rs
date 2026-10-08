@@ -50,9 +50,7 @@ impl Invocation<'_> {
     fn result_position(&self, callee: super::EndpointCallee) -> Result<ScalarPosition, String> {
         let machine = self
             .execution
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == callee.instance)
+            .machine(callee.instance)
             .ok_or("range endpoint lost its selected machine")?;
         let entry = self
             .execution
@@ -77,9 +75,7 @@ impl Invocation<'_> {
         };
         let machine = self
             .execution
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == callee.instance)
+            .machine(callee.instance)
             .ok_or("range endpoint lost its selected machine")?;
         let entry = self
             .execution
@@ -226,12 +222,7 @@ impl ConstantCalls for Invocation<'_> {
     fn result_type(&self, expression: ExpressionHandle) -> TypeReferenceHandle {
         self.callee(expression)
             .ok()
-            .and_then(|callee| {
-                self.execution
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == callee.instance)
-            })
+            .and_then(|callee| self.execution.machine(callee.instance))
             .and_then(|machine| self.execution.machine_states(machine).first())
             .map_or(TypeReferenceHandle::invalid(), |entry| entry.return_type)
     }
@@ -248,9 +239,7 @@ impl ConstantCalls for Invocation<'_> {
         let callee = self.callee(expression)?;
         let machine = self
             .execution
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == callee.instance)
+            .machine(callee.instance)
             .ok_or("range endpoint lost its selected machine")?;
         let entry = self
             .execution
@@ -328,9 +317,7 @@ impl ConstantCalls for Invocation<'_> {
         let (arguments, literals, warnings) = self.arguments(expression, callee)?;
         let machine = self
             .execution
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == callee.instance)
+            .machine(callee.instance)
             .ok_or("range endpoint lost its selected machine")?;
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),

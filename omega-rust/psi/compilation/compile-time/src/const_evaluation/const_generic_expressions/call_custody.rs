@@ -411,15 +411,11 @@ impl<'program> Collector<'program> {
         }
         let concrete = self
             .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == instance.instance)
+            .machine(instance.instance)
             .ok_or("constant call lost its concrete specialization")?;
         let template = self
             .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == instance.template)
+            .machine(instance.template)
             .ok_or("constant call lost its authored template")?;
         let states = self.program.machine_states(concrete);
         let templates = self.program.machine_states(template);

@@ -137,11 +137,7 @@ fn validate_closed_rows(
                     root_trait.name, row.declaring_trait_name, row.requirement_name
                 )));
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == row.realization_machine)
-        else {
+        let Some(machine) = program.machine(row.realization_machine) else {
             diagnostics.push(Diagnostic::error(format!(
                 "closed conformance `{implementation_name} satisfies {}` row `{}::{}` retains no exact realization machine",
                 root_trait.name, row.declaring_trait_name, row.requirement_name

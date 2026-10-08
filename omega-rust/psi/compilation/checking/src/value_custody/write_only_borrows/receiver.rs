@@ -37,10 +37,7 @@ fn machine<'program>(
     if !root.receiver_machine.is_valid() {
         return None;
     }
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == root.receiver_machine)
+    program.machine(root.receiver_machine)
 }
 
 pub(super) fn matches_name(root: &WriteOnlyRoot, path: &TableNamePath) -> bool {

@@ -35,11 +35,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == exit.machine_symbol)
-    else {
+    let Some(machine) = program.machine(exit.machine_symbol) else {
         return;
     };
     let Some(entry) = program.machine_states(machine).first() else {

@@ -84,13 +84,9 @@ fn nominal_cleanup_subject_from_types<'types>(
     let Some(owner) = validation::nominal_cleanup_owner(&checked.typed, source) else {
         return Ok(None);
     };
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == source)
-        .ok_or(LoweringError::Unsupported(
-            "cleanup declaration lost its exact source",
-        ))?;
+    let machine = checked.machine(source).ok_or(LoweringError::Unsupported(
+        "cleanup declaration lost its exact source",
+    ))?;
     let data = checked
         .data_definitions()
         .iter()

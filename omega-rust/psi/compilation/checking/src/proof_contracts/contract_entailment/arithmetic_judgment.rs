@@ -585,12 +585,7 @@ impl<'program> Engine<'program> {
         &mut self,
         comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
     ) {
-        let Some(machine) = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == self.machine_symbol)
-        else {
+        let Some(machine) = self.program.machine(self.machine_symbol) else {
             return;
         };
         let Some(entry) = self.program.machine_states(machine).first() else {

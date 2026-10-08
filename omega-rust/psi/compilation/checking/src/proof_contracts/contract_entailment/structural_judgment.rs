@@ -1513,9 +1513,7 @@ impl<'program> StructuralJudge<'program> {
         comparison: &typed_trees::expression::TableBinaryExpression,
     ) -> bool {
         self.program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == self.machine_symbol)
+            .machine(self.machine_symbol)
             .is_some_and(|machine| {
                 crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
                     self.program,

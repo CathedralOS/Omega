@@ -35,9 +35,7 @@ pub fn canonical_closed_operator_realization_bytes(
     retained: &[typed_trees::operator::ClosedOperatorRealizationApplication],
 ) -> Result<Vec<u8>, &'static str> {
     let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+        .machine(machine_symbol)
         .ok_or("operator realization specialization lost its concrete machine")?;
     let expected = program
         .machine_trait_conformances(machine)

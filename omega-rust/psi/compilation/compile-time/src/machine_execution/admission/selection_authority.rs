@@ -135,10 +135,7 @@ fn machine_selection_violation(
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
 ) -> Option<SelectionViolation> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = program.machine(machine_symbol)?;
     for state in program.machine_states(machine) {
         let mut expressions = Vec::new();
         for statement in program.statement_table.statements(state.statement_nodes) {

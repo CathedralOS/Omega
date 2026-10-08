@@ -304,11 +304,7 @@ fn normalize_open_index_expression_operations(
         // concrete index expression, never an algebra selection.
         return;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner)
-    else {
+    let Some(machine) = program.machine(owner) else {
         diagnostics.push(Diagnostic::error(format!(
             "open index operator `{}` requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine",
             spelling.symbol(),

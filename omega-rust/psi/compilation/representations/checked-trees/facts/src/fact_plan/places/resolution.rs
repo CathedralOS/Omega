@@ -55,11 +55,7 @@ fn resolve_member_symbol_from_receiver(
         return Some(symbol);
     }
 
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == type_symbol)
-    {
+    if let Some(machine) = program.machine(type_symbol) {
         if let Some(data) = program.attached_data_definition(machine)
             && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
         {
@@ -234,10 +230,7 @@ fn symbol_type_reference(
         }
         symbols::SymbolKind::Field => match program.symbols.get(declaration.parent).kind {
             symbols::SymbolKind::Machine => {
-                let machine = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == declaration.parent)?;
+                let machine = program.machine(declaration.parent)?;
                 program
                     .machine_owned_data(machine)
                     .iter()
@@ -374,10 +367,7 @@ pub fn resolve_place_member_symbol(
     let place = facts.places.get(place);
     let base_symbol = fact_place_type_symbol(program, facts, place)?;
 
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == base_symbol)
+    if let Some(machine) = program.machine(base_symbol)
         && let Some(data) = program.attached_data_definition(machine)
         && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
     {

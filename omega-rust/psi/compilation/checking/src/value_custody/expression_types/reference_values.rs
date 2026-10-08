@@ -920,9 +920,7 @@ fn selected_value_type(
                 symbol
             } else {
                 program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == symbol)
+                    .machine(symbol)
                     .map(|machine| machine.attached_data_symbol)
                     .unwrap_or(symbol)
             };

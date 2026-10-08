@@ -172,10 +172,7 @@ fn entry_parameter_place_at_write_boundary(
             _ => return None,
         }
     };
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = program.machine(machine_symbol)?;
     let entry = crate::checks::termination::named_transition_target_state_index(
         program,
         machine,

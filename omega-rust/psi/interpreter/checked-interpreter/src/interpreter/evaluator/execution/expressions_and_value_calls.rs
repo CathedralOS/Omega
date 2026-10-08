@@ -499,9 +499,7 @@ impl<'program> Evaluator<'program> {
         };
         let machine = self
             .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == candidate.realization_machine_symbol)
+            .machine(candidate.realization_machine_symbol)
             .ok_or_else(|| {
                 Halt::Trap("selected trait operator lost its realization machine".to_owned())
             })?;

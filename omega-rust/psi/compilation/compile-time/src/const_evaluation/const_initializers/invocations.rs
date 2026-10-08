@@ -129,9 +129,7 @@ impl CheckedInitializers {
     ) -> Result<Invocation<'_>, String> {
         let typed = self.typed();
         let machine = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == symbol)
+            .machine(symbol)
             .ok_or("retained initializer probe lost its exact symbol")?;
         let [state] = typed.machine_states(machine) else {
             return Err("retained initializer probe lost its single state".into());

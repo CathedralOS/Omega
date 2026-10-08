@@ -21,11 +21,7 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
 ) -> bool {
-    let Some(machine) = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == plan.machine)
-    else {
+    let Some(machine) = checked.machine(plan.machine) else {
         return false;
     };
     // Authored lifetime binders erase at checking: the retained plan's
@@ -119,9 +115,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         return unsupported("Unit graph has unsupported qualification or provider custody");
     }
     let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == plan.machine)
+        .machine(plan.machine)
         .ok_or(LoweringError::Unsupported(
             "Unit graph has no authored machine",
         ))?;

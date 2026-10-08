@@ -39,11 +39,7 @@ pub(super) fn proves<'program>(
     else {
         return false;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == exit.machine_symbol)
-    else {
+    let Some(machine) = program.machine(exit.machine_symbol) else {
         return false;
     };
     let evaluator = ExitScalars {

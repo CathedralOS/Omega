@@ -23,11 +23,7 @@ pub(super) fn establishes_scalar_predicates(
     let Some(indices) = closed_domain_indices(program, domain, constraint) else {
         return false;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == exit.machine_symbol)
-    else {
+    let Some(machine) = program.machine(exit.machine_symbol) else {
         return false;
     };
     let Some(state) =

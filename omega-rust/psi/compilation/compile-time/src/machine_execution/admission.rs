@@ -157,11 +157,7 @@ impl BuildTimeAdmissionPlan {
                 continue;
             }
             visited.push(symbol);
-            let Some(machine) = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == symbol)
-            else {
+            let Some(machine) = program.machine(symbol) else {
                 continue;
             };
             if machine.structural_type_equations_pending {
@@ -511,15 +507,11 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
         custody: BuildTimeInvocationCustody,
     ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-            .ok_or_else(|| {
-                format!(
-                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-                )
-            })?;
+        let machine = program.machine(machine_symbol).ok_or_else(|| {
+            format!(
+                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+            )
+        })?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
         checked_interpreter::evaluate_build_time_machine(
             program,
@@ -538,15 +530,11 @@ impl BuildTimeAdmissionPlan {
         machine_symbol: SymbolHandle,
         custody: BuildTimeInvocationCustody,
     ) -> Result<Vec<SymbolHandle>, String> {
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
-            .ok_or_else(|| {
-                format!(
-                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-                )
-            })?;
+        let machine = program.machine(machine_symbol).ok_or_else(|| {
+            format!(
+                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+            )
+        })?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
 
         let machine_symbols = program

@@ -185,9 +185,7 @@ pub(crate) fn apply_source_condition(
     // state's scope before matching.
     let condition = proof_plan
         .program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+        .machine(machine_symbol)
         .and_then(|machine| {
             proof_plan
                 .program
@@ -253,9 +251,7 @@ pub(crate) fn apply_source_condition(
     let dehoist = |handle: ExpressionHandle| {
         let program = proof_plan.program;
         program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
+            .machine(machine_symbol)
             .and_then(|machine| {
                 program
                     .machine_states(machine)

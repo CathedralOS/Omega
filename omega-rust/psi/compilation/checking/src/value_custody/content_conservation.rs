@@ -238,11 +238,7 @@ fn projection_plan_for_call<'a>(
         return None;
     }
     projections.iter().find(|projection| {
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == projection.machine)
-        else {
+        let Some(machine) = program.machine(projection.machine) else {
             return false;
         };
         let target_matches = call.target_symbol == machine.symbol
@@ -401,9 +397,7 @@ fn projection_label(
     projection: &ContentProjectionPlan,
 ) -> String {
     program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == projection.machine)
+        .machine(projection.machine)
         .map(|machine| machine.name.to_string())
         .unwrap_or_else(|| format!("projection#{}", projection.machine.arena_index()))
 }

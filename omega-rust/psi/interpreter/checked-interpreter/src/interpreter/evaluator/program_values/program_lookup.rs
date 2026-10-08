@@ -13,10 +13,7 @@ impl<'program> Evaluator<'program> {
         &self,
         symbol: symbols::SymbolHandle,
     ) -> Option<&'program Machine> {
-        self.program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == symbol)
+        self.program.machine(symbol)
     }
 
     pub(in crate::interpreter::evaluator) fn find_state(

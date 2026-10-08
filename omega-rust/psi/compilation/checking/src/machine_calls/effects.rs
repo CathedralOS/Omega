@@ -12,11 +12,7 @@ pub fn validate_behavior_plan(
     validate_service_reach_ceilings(program, operational, &service_reaches, &mut diagnostics);
 
     for machine_summary in operational.machines() {
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_summary.symbol)
-        else {
+        let Some(machine) = program.machine(machine_summary.symbol) else {
             continue;
         };
 

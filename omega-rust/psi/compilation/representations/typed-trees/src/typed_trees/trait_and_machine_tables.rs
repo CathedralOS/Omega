@@ -406,12 +406,15 @@ impl TypedTrees {
                 .any(|state| state.symbol == symbol)
     }
 
-        /// The machine signature `symbol` declared by any trait, with its
+    /// The machine signature `symbol` declared by any trait, with its
     /// declaring trait.
     pub fn trait_machine_signature(
         &self,
         symbol: symbols::SymbolHandle,
-    ) -> Option<(&trait_definition::TraitDefinition, &signature::StateSignature)> {
+    ) -> Option<(
+        &trait_definition::TraitDefinition,
+        &signature::StateSignature,
+    )> {
         self.traits().iter().find_map(|trait_definition| {
             self.trait_machine_signatures(trait_definition)
                 .iter()
@@ -420,7 +423,7 @@ impl TypedTrees {
         })
     }
 
-        /// The machine `symbol` declares, if any.
+    /// The machine `symbol` declares, if any.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&machine::Machine> {
         self.machines()
             .iter()
@@ -434,10 +437,7 @@ impl TypedTrees {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &crate::state::State)> {
-        let machine = self
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)?;
+        let machine = self.machine(machine_symbol)?;
         let state = self
             .machine_states(machine)
             .iter()

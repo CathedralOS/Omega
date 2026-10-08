@@ -48,9 +48,7 @@ pub(super) fn resolve(
     let mut aliased = vec![BTreeMap::new(); plan.states.len()];
     let mut aliases = Vec::new();
     let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == plan.machine)
+        .machine(plan.machine)
         .ok_or(LoweringError::Unsupported(
             "Unit graph claim transport has no authored machine",
         ))?;

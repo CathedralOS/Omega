@@ -175,11 +175,7 @@ pub(crate) fn validate_equivalence_selection(
             )));
             continue;
         };
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == row.realization_machine)
-        else {
+        let Some(machine) = program.machine(row.realization_machine) else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` conformance `{}` row `{}::{}` has no exact realization",
                 definition.name,

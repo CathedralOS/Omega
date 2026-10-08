@@ -117,11 +117,7 @@ pub(crate) fn validate_plans(
             )));
             continue;
         };
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == plan.policy_plan_machine_symbol)
-        else {
+        let Some(machine) = program.machine(plan.policy_plan_machine_symbol) else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact policy plan machine",
                 plan.data_name

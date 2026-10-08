@@ -76,9 +76,7 @@ pub fn resolve<'program>(
         .filter(|receipt| receipt.template == requirement.symbol)
         .filter_map(|receipt| {
             program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == receipt.instance)
+                .machine(receipt.instance)
                 .map(|machine| (receipt, machine))
         })
         .filter(|(_, candidate)| {

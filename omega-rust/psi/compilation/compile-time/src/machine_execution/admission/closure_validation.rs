@@ -237,10 +237,7 @@ fn machine_termination_violation(
     if completed.contains(&machine_symbol) {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = program.machine(machine_symbol)?;
     path.push(machine.name.as_str().to_owned());
 
     if !discharge_authored_requires

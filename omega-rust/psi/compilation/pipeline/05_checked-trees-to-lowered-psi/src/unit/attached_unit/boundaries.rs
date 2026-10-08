@@ -39,19 +39,12 @@ pub(crate) fn lower_declarations(
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
         validate_requirement_kind(checked, plan)?;
-        if let Some(machine) = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == plan.machine)
-        {
+        if let Some(machine) = checked.typed.machine(plan.machine) {
             crate::scalar_lowering::contracts::validate_boundary_guarantees(checked, machine)?;
         }
         let expected_guarantees = checked
             .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == plan.machine)
+            .machine(plan.machine)
             .and_then(|machine| {
                 checked
                     .facts
@@ -381,9 +374,7 @@ fn unconditional_termination(
     let guarantee = match plan.kind {
         BoundaryRequirementKind::Machine => checked
             .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == plan.machine)
+            .machine(plan.machine)
             .and_then(|machine| machine.termination_plan.interface.published()),
         BoundaryRequirementKind::Trait => checked
             .typed

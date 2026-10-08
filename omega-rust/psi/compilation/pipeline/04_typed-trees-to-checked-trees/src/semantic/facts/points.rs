@@ -55,9 +55,7 @@ pub(super) fn contract_fact_point(
             // and become obligations at each normal exit instead.
             if contract.kind == ContractProofFactKind::Requires
                 && let Some(entry) = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == machine_symbol)
+                    .machine(machine_symbol)
                     .and_then(|machine| program.machine_states(machine).first())
             {
                 return ProgramPoint::State {

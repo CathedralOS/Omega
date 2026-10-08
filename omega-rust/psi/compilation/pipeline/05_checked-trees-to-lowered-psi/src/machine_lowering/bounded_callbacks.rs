@@ -28,9 +28,7 @@ pub fn callback_lowering_receipt(
     source_entry: symbols::SymbolHandle,
 ) -> Result<CallbackTerminalLoweringReceipt, LoweringError> {
     let machine_row = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == source_machine)
+        .machine(source_machine)
         .ok_or(LoweringError::Unsupported(
             "bounded callback body must name one checked source machine",
         ))?;

@@ -116,11 +116,7 @@ fn scoped_machine_state<'program>(
         }) {
             return Some(selected);
         }
-        if let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == owner)
-        {
+        if let Some(machine) = program.machine(owner) {
             return Some((machine, program.machine_states(machine).first()?));
         }
         owner = program.symbols.get(owner).parent;

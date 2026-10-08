@@ -387,13 +387,7 @@ fn contract_identity_is_public(program: &TypedTrees, symbol: SymbolHandle) -> Op
         .iter()
         .find(|definition| definition.symbol == symbol)
         .map(|definition| definition.is_public)
-        .or_else(|| {
-            program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == symbol)
-                .map(|machine| machine.is_public)
-        })
+        .or_else(|| program.machine(symbol).map(|machine| machine.is_public))
         .or_else(|| {
             program
                 .traits()

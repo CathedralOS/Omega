@@ -297,9 +297,7 @@ pub(super) fn resolve_endpoint_callee(
         return Err("range endpoint lost its authored static application".to_owned());
     };
     let template = execution
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == endpoint.machine)
+        .machine(endpoint.machine)
         .ok_or("range endpoint lost its generic template")?;
     if !call.machine_arguments.is_empty() {
         if call.machine_arguments.len() == template.type_parameters.len() {

@@ -338,10 +338,7 @@ pub(crate) fn nested_structural_call_return_type(
         // This is operand eligibility, not a purity judgment: the ordinary
         // call still checks the receiver loan and executes before its consumer.
         let own_self_receiver = || {
-            let caller_machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == caller)?;
+            let caller_machine = program.machine(caller)?;
             let ExpressionNode::Name(name) = program.expression_table.expression(call.receiver)
             else {
                 return None;

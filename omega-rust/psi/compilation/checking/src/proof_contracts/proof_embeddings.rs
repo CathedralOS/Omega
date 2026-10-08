@@ -388,10 +388,7 @@ pub(crate) fn expression_type_reference(
             // the attached definition's own symbols.
             if let ExpressionNode::Name(receiver) =
                 program.expression_table.expression(member.receiver)
-                && let Some(machine) = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == receiver.symbol)
+                && let Some(machine) = program.machine(receiver.symbol)
                 && let Some(field) =
                     crate::value_custody::places::exact_self_field(program, machine, expression)
             {

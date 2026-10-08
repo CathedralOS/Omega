@@ -108,11 +108,7 @@ pub fn refinement_fit_diagnostics(
         if clauses.is_empty() {
             continue;
         }
-        let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == row.realization_machine)
-        else {
+        let Some(machine) = program.machine(row.realization_machine) else {
             // An invalid realization survivor is an incomplete internal row
             // and fails closed in its own check.
             continue;

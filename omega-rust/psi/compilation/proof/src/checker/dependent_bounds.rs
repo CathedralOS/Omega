@@ -128,11 +128,7 @@ pub(crate) fn incoming_guard_proves_dependent_call_upper(
     use typed_trees::signature::SignatureContractKind;
     use typed_trees::statement::StatementNode;
     let program = proof_plan.program;
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == obligation.machine_symbol)
-    else {
+    let Some(machine) = program.machine(obligation.machine_symbol) else {
         return false;
     };
     let states = program.machine_states(machine);

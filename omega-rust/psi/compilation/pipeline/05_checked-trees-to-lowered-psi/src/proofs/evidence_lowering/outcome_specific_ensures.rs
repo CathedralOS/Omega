@@ -34,9 +34,7 @@ pub(crate) fn lower_outcome_specific_ensures(
     // payloadless case exits.
     let state = checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == selected_machine)
+        .machine(selected_machine)
         .and_then(|machine| checked.typed.machine_states(machine).first())
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless producer state is absent",

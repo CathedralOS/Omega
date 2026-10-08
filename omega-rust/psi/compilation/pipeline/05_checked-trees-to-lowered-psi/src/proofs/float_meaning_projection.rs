@@ -215,9 +215,7 @@ pub(crate) fn resolve_direct_float_source_binding(
     }
     let source_machine = checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner_machine)
+        .machine(owner_machine)
         .ok_or_else(invalid_source)?;
     let source_entry = checked
         .typed

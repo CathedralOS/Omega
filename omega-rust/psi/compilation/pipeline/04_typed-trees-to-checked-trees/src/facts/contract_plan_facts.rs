@@ -183,9 +183,7 @@ pub(crate) fn build_contract_plans(
             .iter()
             .map(|contract| {
                 let machine = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == contract.machine)
+                    .machine(contract.machine)
                     .expect("every contract must retain its exact typed machine");
                 let service_fact = service_reaches
                     .for_machine(contract.machine)

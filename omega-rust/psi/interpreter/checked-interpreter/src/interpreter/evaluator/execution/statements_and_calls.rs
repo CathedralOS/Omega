@@ -474,10 +474,7 @@ impl<'program> Evaluator<'program> {
         if !frame.machine_symbol.is_valid() {
             return None;
         }
-        self.program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == frame.machine_symbol)
+        self.program.machine(frame.machine_symbol)
     }
 
     pub(in crate::interpreter::evaluator) fn machine_entry_state(

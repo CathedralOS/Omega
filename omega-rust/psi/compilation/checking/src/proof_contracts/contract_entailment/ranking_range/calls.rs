@@ -1400,10 +1400,7 @@ fn scalar_entry<'program>(
     program: &'program dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
 ) -> Option<(&'program State, RankingRangeMeasure)> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == member.machine.symbol)?;
+    let machine = program.machine(member.machine.symbol)?;
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
     if witness.subjects.len() != custody.subjects.len()

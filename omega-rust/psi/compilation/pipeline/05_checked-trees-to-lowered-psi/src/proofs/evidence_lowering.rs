@@ -158,9 +158,7 @@ pub(crate) fn checked_requirement_family_rows(
     };
     let template = checked
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == realization_machine)
+        .machine(realization_machine)
         .ok_or(LoweringError::Unsupported(
             "conformance family row has no exact realization template machine",
         ))?;
@@ -197,14 +195,11 @@ pub(crate) fn checked_requirement_family_rows(
                     "conformance family tuple resolves to ambiguous provider specializations",
                 );
             }
-            let instance = checked
-                .typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.instance)
-                .ok_or(LoweringError::Unsupported(
+            let instance = checked.typed.machine(specialization.instance).ok_or(
+                LoweringError::Unsupported(
                     "conformance family specialization has no retained instance machine",
-                ))?;
+                ),
+            )?;
             let instance_state = checked
                 .typed
                 .machine_states(instance)

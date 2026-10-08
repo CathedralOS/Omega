@@ -943,12 +943,7 @@ impl<'program> Evaluator<'program> {
         {
             return self.data_field_type_reference(data, field_name);
         }
-        if let Some(machine) = self
-            .program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == type_symbol)
-        {
+        if let Some(machine) = self.program.machine(type_symbol) {
             if let Some(data) = machine
                 .attached_data
                 .as_ref()

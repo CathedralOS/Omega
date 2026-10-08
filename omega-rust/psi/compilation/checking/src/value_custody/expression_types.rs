@@ -661,11 +661,7 @@ fn hinted_named_value_type_reference(
         }
         // Machine-owned data: the binder's parent is the machine itself.
         symbols::SymbolKind::Machine => {
-            if let Some(machine) = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == parent)
-            {
+            if let Some(machine) = program.machine(parent) {
                 return program
                     .machine_owned_data(machine)
                     .iter()

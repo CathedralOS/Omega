@@ -1352,11 +1352,7 @@ fn machine_state_label(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
 ) -> String {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return "an unresolved machine".to_owned();
     };
     let states = program.machine_states(machine);

@@ -294,18 +294,14 @@ fn contract_owner_parameter(
         ContractProofFactOwner::MachineState { state_symbol, .. }
         | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
         ContractProofFactOwner::Machine { machine_symbol } => {
-            return program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)
-                .and_then(|machine| {
-                    program.machine_states(machine).first().and_then(|state| {
-                        program
-                            .state_parameters(state)
-                            .iter()
-                            .find(|parameter| matches(parameter))
-                    })
-                });
+            return program.machine(machine_symbol).and_then(|machine| {
+                program.machine_states(machine).first().and_then(|state| {
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| matches(parameter))
+                })
+            });
         }
         ContractProofFactOwner::OperatorDeclaration { operator_symbol } => {
             return typed_trees::operator::declaration_by_symbol(program, operator_symbol)

@@ -445,10 +445,7 @@ fn machine_for_symbol(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> Option<&Machine> {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
+    program.machine(machine_symbol)
 }
 
 fn enclosing_state<'program>(

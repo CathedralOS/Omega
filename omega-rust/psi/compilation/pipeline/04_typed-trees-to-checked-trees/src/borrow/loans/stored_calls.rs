@@ -11,11 +11,7 @@ pub(super) fn loans(
     statement: &checked_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<StatementBorrowLoan> {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return Vec::new();
     };
     let Some(effects) =

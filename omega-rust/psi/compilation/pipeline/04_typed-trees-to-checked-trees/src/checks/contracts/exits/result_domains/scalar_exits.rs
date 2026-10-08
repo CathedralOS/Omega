@@ -68,11 +68,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
     exit: &FlowExitFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == exit.machine_symbol)
-    else {
+    let Some(machine) = program.machine(exit.machine_symbol) else {
         return;
     };
     let domains = scalar_exit_domains(program, machine, exit.state_symbol);
@@ -220,11 +216,7 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     ) else {
         return;
     };
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == state_flow.machine_symbol)
-    else {
+    let Some(machine) = program.machine(state_flow.machine_symbol) else {
         return;
     };
     let Some(state) = program

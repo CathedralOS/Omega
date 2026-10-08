@@ -951,11 +951,7 @@ fn generic_type_parameters(
     {
         return Some(typed.data_type_parameters(data));
     }
-    if let Some(machine) = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == base_symbol)
-    {
+    if let Some(machine) = typed.machine(base_symbol) {
         return Some(typed.machine_type_parameters(machine));
     }
     if let Some(trait_definition) = typed

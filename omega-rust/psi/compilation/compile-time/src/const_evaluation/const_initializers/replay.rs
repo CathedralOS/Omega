@@ -362,9 +362,7 @@ fn validate_authored_custody(
     declaration: &typed_trees::constant::ConstDeclaration,
 ) -> Result<(), String> {
     let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner)
+        .machine(owner)
         .ok_or("constant lost its authored replay machine")?;
     let [state] = program.machine_states(machine) else {
         return Err("constant lost its authored replay state".into());
@@ -488,9 +486,7 @@ fn validate_anonymous_float(
         calls as &dyn crate::const_evaluation::const_generic_expressions::value::ConstantCalls
     });
     let machine = probe
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == owner)
+        .machine(owner)
         .ok_or("floating constant lost its receiving probe")?;
     let [state] = probe.machine_states(machine) else {
         return Err("floating constant lost its receiving expression state".into());
