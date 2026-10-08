@@ -1720,19 +1720,7 @@ fn member_field_types(
 /// bound rejects cycles without imposing a smaller depth limit on valid types.
 fn live_unconstrained_type(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    for _ in 0..program.type_reference_table.type_reference_count() {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return None;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            _ => return Some(reference),
-        }
-    }
-    None
+    typed_trees::operator::unconstrained_type_reference(program.typed_program(), reference)
 }

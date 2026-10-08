@@ -23,7 +23,7 @@ pub use applications::{
     closed_operator_application_for_operands, closed_operator_realization_application,
     symbolic_operator_type_application_for_operands,
 };
-pub use indexing::resolve_indexed_spelling_for_operands;
+pub use indexing::{resolve_indexed_spelling_for_operands, unconstrained_type_reference};
 pub use named_calls::{
     named_expression_call_candidates, named_statement_call_candidates, resolve_named_call,
     resolve_named_expression_call, selected_boundary_operator,
@@ -37,8 +37,8 @@ pub use satisfied_operators::{
     resolve_specialized_checked_operator_application,
 };
 pub use spellings::{
-    OperandType, binary_operator_spelling, has_builtin_spelled_expression_meaning, resolve_spelling,
-    resolve_spelling_for_operand_types, resolve_spelling_for_operands,
+    OperandType, binary_operator_spelling, has_builtin_spelled_expression_meaning,
+    resolve_spelling, resolve_spelling_for_operand_types, resolve_spelling_for_operands,
 };
 pub use trait_operators::{
     SelectedTraitOperatorMeaning, selected_trait_operator_meaning_exists,

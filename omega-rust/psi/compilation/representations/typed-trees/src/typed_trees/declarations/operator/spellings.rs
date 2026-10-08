@@ -1,6 +1,7 @@
 //! Operator spellings, operand matching and declared domain constraints.
 
 use crate::TypedTrees;
+use crate::expression::BinaryOperator;
 use crate::operator::indexing;
 use crate::typed_trees::declarations::operator::operand_signatures::normalized_operand_parameters;
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
@@ -8,7 +9,6 @@ use crate::typed_trees::declarations::operator::{
     OperatorConstBinding, OperatorDefinition, SpelledOperator,
     selected_trait_operator_meaning_exists,
 };
-use crate::expression::BinaryOperator;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;

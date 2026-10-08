@@ -51,7 +51,7 @@ pub(super) fn shared_collection_elements(
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, TypeReferenceHandle)> {
-    let expected = unconstrained(program, expected)?;
+    let expected = unconstrained_type_reference(program, expected)?;
     let TypeReferenceNode::Reference {
         referee,
         access: language_core::ReferenceAccess::Shared,
@@ -60,7 +60,7 @@ pub(super) fn shared_collection_elements(
     else {
         return None;
     };
-    let expected = unconstrained(program, *referee)?;
+    let expected = unconstrained_type_reference(program, *referee)?;
     let TypeReferenceNode::Slice {
         element_type: expected_element,
     } = program.type_reference_table.type_reference(expected)
@@ -68,13 +68,13 @@ pub(super) fn shared_collection_elements(
         return None;
     };
 
-    let mut actual = unconstrained(program, actual)?;
+    let mut actual = unconstrained_type_reference(program, actual)?;
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(actual)
     {
         // A shared view can reborrow either shared or mutable storage. The
         // ordinary ownership checker still validates the actual read access.
-        actual = unconstrained(program, *referee)?;
+        actual = unconstrained_type_reference(program, *referee)?;
     }
     match program.type_reference_table.type_reference(actual) {
         TypeReferenceNode::FixedArray { element_type, .. }
@@ -94,7 +94,7 @@ pub(super) fn borrowed_collection_match(
     bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
     const_bindings: &mut Vec<OperatorConstBinding>,
 ) -> bool {
-    let Some(expected) = unconstrained(program, expected) else {
+    let Some(expected) = unconstrained_type_reference(program, expected) else {
         return false;
     };
     let TypeReferenceNode::Reference {
@@ -110,7 +110,7 @@ pub(super) fn borrowed_collection_match(
         return false;
     }
     let expected = *referee;
-    let Some(actual) = unconstrained(program, actual) else {
+    let Some(actual) = unconstrained_type_reference(program, actual) else {
         return false;
     };
     let actual = match program.type_reference_table.type_reference(actual) {
@@ -124,7 +124,7 @@ pub(super) fn borrowed_collection_match(
             {
                 return false;
             }
-            let Some(referee) = unconstrained(program, *referee) else {
+            let Some(referee) = unconstrained_type_reference(program, *referee) else {
                 return false;
             };
             referee
@@ -142,7 +142,10 @@ pub(super) fn borrowed_collection_match(
     )
 }
 
-fn unconstrained(
+/// The first non-`Constrained` node on a type's base chain. Normal trees
+/// terminate before this count; cycles or stale references cannot acquire an
+/// adaptation through a dummy type or an unbounded traversal.
+pub fn unconstrained_type_reference(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
