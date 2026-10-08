@@ -16,3 +16,31 @@ pub enum StructuralAccess {
     MutableBorrow,
     WriteOnlyBorrow,
 }
+
+impl StructuralAccess {
+    /// `true` when `granted` covers the access `self` requires — the
+    /// ownership-covering compatibility lattice every ingress
+    /// establishment/projection consumer applies (`Owned` grants every
+    /// borrow kind; an `Owned` requirement admits nothing).
+    pub fn admits(self, granted: StructuralAccess) -> bool {
+        match self {
+            StructuralAccess::SharedBorrow => matches!(
+                granted,
+                StructuralAccess::Owned
+                    | StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+            ),
+            StructuralAccess::MutableBorrow => matches!(
+                granted,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            ),
+            StructuralAccess::WriteOnlyBorrow => matches!(
+                granted,
+                StructuralAccess::Owned
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
+            ),
+            StructuralAccess::Owned => false,
+        }
+    }
+}

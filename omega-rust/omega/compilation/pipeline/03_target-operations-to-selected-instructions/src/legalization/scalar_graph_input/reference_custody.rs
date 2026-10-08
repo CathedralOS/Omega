@@ -658,26 +658,7 @@ fn direct_storage_type(
                 && result.qualification_establishments.is_empty(),
         )
     };
-    let access_is_compatible = match source.access {
-        StructuralAccess::SharedBorrow => matches!(
-            access,
-            StructuralAccess::Owned
-                | StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-        ),
-        StructuralAccess::MutableBorrow => matches!(
-            access,
-            StructuralAccess::Owned | StructuralAccess::MutableBorrow
-        ),
-        StructuralAccess::WriteOnlyBorrow => matches!(
-            access,
-            StructuralAccess::Owned
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::WriteOnlyBorrow
-        ),
-        StructuralAccess::Owned => false,
-    };
-    if !access_is_compatible || !unqualified {
+    if !source.access.admits(access) || !unqualified {
         return None;
     }
     leaf_type(types, structural_type, &source.path)
