@@ -143,6 +143,17 @@ impl ByteSequencePredicateSet {
             .all(|predicate| predicate.holds_for(bytes))
     }
 
+    /// Every predicate `bytes` satisfies.
+    pub fn holding(bytes: &[u8]) -> Self {
+        let mut result = Self::EMPTY;
+        for predicate in ByteSequencePredicate::ALL {
+            if predicate.holds_for(bytes) {
+                result.insert(predicate);
+            }
+        }
+        result
+    }
+
     pub fn implies(self, required: Self) -> bool {
         required
             .predicates()

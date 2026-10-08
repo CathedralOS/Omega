@@ -630,13 +630,7 @@ pub fn byte_sequence_source_predicates(
                 if producers.next().is_some() {
                     return None;
                 }
-                let mut predicates = ByteSequencePredicateSet::EMPTY;
-                for predicate in ByteSequencePredicate::ALL {
-                    if predicate.holds_for(bytes) {
-                        predicates.insert(predicate);
-                    }
-                }
-                Some(predicates)
+                Some(ByteSequencePredicateSet::holding(bytes))
             }
             StructuralPlaceKind::OperationResult {
                 producer,
