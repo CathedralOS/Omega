@@ -539,10 +539,7 @@ fn source_contract(
     {
         return Some((parameter.structural_type, parameter.multiplicity));
     }
-    if let Some(parameter) = function
-        .block_structural_parameters()
-        .find(|parameter| parameter.place == place)
-    {
+    if let Some(parameter) = function.block_structural_parameter(place) {
         return Some((parameter.structural_type, parameter.multiplicity));
     }
     if let Some(contract) = custody.homes.get(&place) {

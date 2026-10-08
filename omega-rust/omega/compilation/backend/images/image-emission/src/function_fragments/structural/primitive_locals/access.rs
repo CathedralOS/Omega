@@ -133,10 +133,7 @@ fn readable(
     // entry, not the function signature: the edge already binds its referent
     // storage, so a whole-place read loads it exactly like a borrowed
     // function parameter's referent.
-    if let Some(parameter) = function
-        .block_structural_parameters()
-        .find(|parameter| parameter.place == place)
-    {
+    if let Some(parameter) = function.block_structural_parameter(place) {
         return matches!(
             parameter.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow

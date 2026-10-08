@@ -273,11 +273,7 @@ pub(super) fn source_signature(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<SourceSignature> {
-    if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
-    {
+    if let Some(parameter) = machine.structural_parameter(place) {
         return Some(SourceSignature {
             structural_type: parameter.structural_type,
             qualifications: parameter.qualifications.clone(),
@@ -315,7 +311,8 @@ pub(super) fn block_parameter(
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
-    machine.block(&block)?
+    machine
+        .block(&block)?
         .structural_parameters
         .get(position as usize)
         .filter(|parameter| parameter.place == place && parameter.position == position)

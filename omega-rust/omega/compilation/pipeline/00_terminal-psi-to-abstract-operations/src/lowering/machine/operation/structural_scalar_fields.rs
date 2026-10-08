@@ -329,12 +329,7 @@ fn readable_source_type(
         .entry_claims
         .iter()
         .any(|claim| claim.input == source);
-    if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .chain(machine.block_structural_parameters())
-        .find(|parameter| parameter.place == source)
-    {
+    if let Some(parameter) = machine.parameter(source) {
         return (parameter.access != StructuralAccess::WriteOnlyBorrow
             && (owned_storage(parameter.structural_type, parameter.access)
                 || (parameter.multiplicity != StructuralMultiplicity::Linear
@@ -436,18 +431,12 @@ pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: Pla
 /// evidence still require their own transport; resource custody does not
 /// make an otherwise exclusive storage home immutable.
 pub(super) fn has_unqualified_storage(machine: &TerminalMachine, place: PlaceId) -> bool {
-    machine
-        .structural_parameters
+    machine.parameter(place).is_some_and(|parameter| {
+        parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
+    }) && machine
+        .content_entry_claims
         .iter()
-        .chain(machine.block_structural_parameters())
-        .find(|parameter| parameter.place == place)
-        .is_some_and(|parameter| {
-            parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
-        })
-        && machine
-            .content_entry_claims
-            .iter()
-            .all(|claim| claim.input.root != place)
+        .all(|claim| claim.input.root != place)
 }
 
 fn resolve_structural_path(

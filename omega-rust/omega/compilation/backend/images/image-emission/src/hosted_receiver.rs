@@ -885,13 +885,9 @@ fn receiver_layout(
     let [parameter] = function.structural_parameters.as_slice() else {
         return Err(invalid());
     };
-    let terminal_parameter = terminal.machine(terminal.entry)
-        .and_then(|machine| {
-            machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == terminal_self)
-        });
+    let terminal_parameter = terminal
+        .machine(terminal.entry)
+        .and_then(|machine| machine.structural_parameter(terminal_self));
     if terminal_parameter != Some(parameter) {
         return Err(invalid());
     }

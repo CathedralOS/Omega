@@ -36,6 +36,14 @@ impl AbstractFunction {
             .iter()
             .flat_map(|entry| &entry.structural_parameters)
     }
+    /// The block structural parameter keyed `place`, when any entry declares it.
+    pub fn block_structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.block_structural_parameters()
+            .find(|parameter| parameter.place == place)
+    }
 
     /// The one exact declaration whose storage arrives at `place` through the
     /// function entrance or a block edge. Terminal-to-abstract lowering has

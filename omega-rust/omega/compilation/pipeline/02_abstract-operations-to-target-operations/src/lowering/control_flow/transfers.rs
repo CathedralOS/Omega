@@ -117,9 +117,7 @@ pub(super) fn address_parameter<'a>(
     if !live.address_joins.contains(&place) {
         return None;
     }
-    function
-        .block_structural_parameters()
-        .find(|parameter| parameter.place == place)
+    function.block_structural_parameter(place)
 }
 
 /// An address-join edge lends one readable root, or a static projection
