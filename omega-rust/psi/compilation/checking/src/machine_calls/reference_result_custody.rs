@@ -477,22 +477,6 @@ fn nominal_member_owner_type<'p>(
     }
 }
 
-/// Reconstruct the declaration-ordered reference roster from a complete
-/// constructor. Reference leaves retain formal ingress instead of scalar data.
-pub fn construction_sources(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    construction_sources_with_calls(
-        program,
-        state,
-        expression,
-        reference,
-        &mut vec![state.symbol],
-    )
-}
 
 /// Completion and call substitution share the complete normal-edge origin
 /// relation. Internal state ordinals are substituted through their actuals;
@@ -2209,18 +2193,6 @@ pub fn mutable_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
 
-/// The referee beneath a `&write T` carrier, with constraint shells peeled —
-/// the write-only analog of `mutable_borrowed_parts`. A write-only loan names
-/// the same caller-frame storage an exclusive borrow does; only the access
-/// authority differs (writes admitted, reads fenced).
-pub fn write_only_borrowed_parts(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    crate::reference_shell(program, reference)
-        .filter(|shell| shell.access == language_semantics::ReferenceAccess::WriteOnly)
-        .map(|shell| (shell.referee, CheckedStructuralAccess::WriteOnlyBorrow))
-}
 
 /// The named referee beneath a `&'a V` shared-borrowed view, with constraint
 /// shells peeled. The referent's storage lives in the caller's frame like

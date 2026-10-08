@@ -142,17 +142,6 @@ struct RecastScalarLayoutLeaf {
 }
 
 impl RecastScalarLayout {
-    /// Select an exact scalar leaf. Missing fields, aggregate endpoints,
-    /// out-of-bounds fixed indices and runtime selectors have no matching
-    /// normalized leaf and remain rejected.
-    pub fn scalar_path_projection(
-        &self,
-        path: &[checked_trees::CheckedUnitStructuralPathSegment],
-    ) -> Option<RecastScalarProjection> {
-        let mut matching = self.leaves.iter().filter(|leaf| leaf.path.as_ref() == path);
-        let selected = matching.next()?;
-        matching.next().is_none().then_some(selected.projection)
-    }
 
     /// Resolve fields and fixed coordinates exactly, retaining every runtime
     /// array occurrence separately. Selecting its zero element supplies the
