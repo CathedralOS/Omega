@@ -25,6 +25,34 @@ use optimization_unit::{
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// The node-shape spine every admitted call shape shares: the node's own
+/// operation is its first provenance row, it uses exactly the spelled
+/// `arguments` in operand order, and it carries no successors.
+fn call_shape_spine(
+    node: &OptimizationNode,
+    psi_operation: semantic_vocabulary::OperationId,
+    arguments: &[ValueId],
+) -> bool {
+    node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+        && node.uses.len() == arguments.len()
+        && node
+            .uses
+            .iter()
+            .zip(arguments.iter())
+            .all(|(value_use, argument)| value_use.value == *argument)
+        && node.successors.is_empty()
+}
+
+/// The claim-custody event shape the structural-signature call variants
+/// carry: no spelled transfers and exactly one empty `ClaimTransfer` row.
+fn empty_claim_transfer_shape(
+    node: &OptimizationNode,
+    claim_transfers: &[terminal_psi::ClaimTransfer],
+) -> bool {
+    claim_transfers.is_empty()
+        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())]
+}
+
 /// The source-owned node shape both scalar-call lanes share: an exact
 /// `Call` provenance whose node keeps its own operation identity as the
 /// first provenance row, defines exactly its spelled `result`/`scalar_type`,
@@ -47,17 +75,10 @@ fn scalar_call_shape(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (call_shape_spine(node, *psi_operation, arguments)
         && node.definitions.len() == 1
         && node.definitions[0].value == *result
         && node.definitions[0].scalar_type == *scalar_type
-        && node.uses.len() == arguments.len()
-        && node
-            .uses
-            .iter()
-            .zip(arguments.iter())
-            .all(|(value_use, argument)| value_use.value == *argument)
-        && node.successors.is_empty()
         && node.ownership.is_empty())
     .then_some((
         *callee,
@@ -133,17 +154,9 @@ fn unit_call_shape(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (call_shape_spine(node, *psi_operation, arguments)
         && node.definitions.is_empty()
-        && node.uses.len() == arguments.len()
-        && node
-            .uses
-            .iter()
-            .zip(arguments.iter())
-            .all(|(value_use, argument)| value_use.value == *argument)
-        && node.successors.is_empty()
-        && claim_transfers.is_empty()
-        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
+        && empty_claim_transfer_shape(node, claim_transfers))
     .then_some((
         *callee,
         arguments.as_slice(),
@@ -227,19 +240,11 @@ fn structural_scalar_call_shape(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (call_shape_spine(node, *psi_operation, arguments)
         && node.definitions.len() == 1
         && node.definitions[0].value == result.value
         && node.definitions[0].scalar_type == result.scalar_type
-        && node.uses.len() == arguments.len()
-        && node
-            .uses
-            .iter()
-            .zip(arguments.iter())
-            .all(|(value_use, argument)| value_use.value == *argument)
-        && node.successors.is_empty()
-        && claim_transfers.is_empty()
-        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
+        && empty_claim_transfer_shape(node, claim_transfers))
     .then_some((
         *callee,
         arguments.as_slice(),
@@ -340,15 +345,8 @@ fn structural_call_shape(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (call_shape_spine(node, *psi_operation, arguments)
         && node.definitions.is_empty()
-        && node.uses.len() == arguments.len()
-        && node
-            .uses
-            .iter()
-            .zip(arguments.iter())
-            .all(|(value_use, argument)| value_use.value == *argument)
-        && node.successors.is_empty()
         && matches!(
             result.multiplicity,
             terminal_psi::StructuralMultiplicity::Affine
@@ -357,9 +355,8 @@ fn structural_call_shape(
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
-        && claim_transfers.is_empty()
         && selected_evidence.is_empty()
-        && node.ownership.as_slice() == [OwnershipEvent::ClaimTransfer(Vec::new())])
+        && empty_claim_transfer_shape(node, claim_transfers))
     .then(|| (*callee, result.clone(), crash_continuations.as_slice()))
 }
 
