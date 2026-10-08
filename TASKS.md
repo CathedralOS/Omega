@@ -627,7 +627,7 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: contained-loan transport. Extraction from an exclusive borrowed
+  - Missing: invocation-relative contained-loan custody. Extraction from an exclusive borrowed
     carrier currently gives the detached local no active stored-leaf loan
     rows, so its consuming transform cannot bind returned loan custody.
     Retain the incoming descriptor leaves, distinct from the loan of the
@@ -647,6 +647,9 @@ defines the complete product bar.
   the ordinary-state return-origin control and
   `fail/ownership/borrowed_storage_repair_keeps_carried_loan` as the backing
   mutation rejection after carrier restoration.
+  Keep `pass/ownership/runtime_carried_loan_field_replacement_exit` (42) for
+  replacement's new backing, retained sibling and nonzero storage offset, and
+  `fail/borrows/replaced_carrier_keeps_new_backing_loan` for the installed loan.
   Missing repair, early return, stale reads, overlapping loans, wrong-place
   repair, repeated extraction and whole-owner cleanup reject, including
   `fail/ownership/borrowed_storage_boundary_call` and

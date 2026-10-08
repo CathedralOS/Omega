@@ -22,7 +22,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, structural_children};
+    StructuralTypeShape, structural_children,
+};
 
 /// One outstanding loan: the referent roots and immediate parent leaves it
 /// suspends, the producing operation, and the result row that formed the
@@ -1424,10 +1425,10 @@ fn discard_residual(
     Ok(())
 }
 
-/// Stage every selected reference leaf before committing the constructor.
+/// Stage every selected reference leaf before committing a storage transfer.
 /// Projection prefixes select source storage; destination prefixes relocate
 /// its leaves without moving a sibling or changing the loan's stable identity.
-fn relocate_constructor_leaves<'a>(
+fn relocate_subtree_leaves<'a>(
     custody: &mut Custody,
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
@@ -1436,22 +1437,22 @@ fn relocate_constructor_leaves<'a>(
         Item = (
             &'a StructuralArgument,
             StructuralTypeId,
-            StructuralPathSegment,
+            Vec<StructuralPathSegment>,
         ),
     >,
 ) -> Result<(), LegalizationError> {
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    if custody
-        .leaves
-        .keys()
-        .any(|(carrier, _)| *carrier == destination)
-    {
-        return Err(invalid());
-    }
     for (argument, nested, prefix) in operands {
         if !contains_reference(types, nested) {
             continue;
+        }
+        if custody
+            .leaves
+            .keys()
+            .any(|(carrier, path)| *carrier == destination && path.starts_with(&prefix))
+        {
+            return Err(invalid());
         }
         let contract = source_contract(function, custody, argument.place).ok_or(invalid())?;
         if argument.access != StructuralAccess::Owned
@@ -1470,7 +1471,7 @@ fn relocate_constructor_leaves<'a>(
             if !moved.insert(leaf.identity.clone()) {
                 return Err(invalid());
             }
-            let mut target_path = vec![prefix.clone()];
+            let mut target_path = prefix.clone();
             target_path.extend(path.iter().cloned());
             relocations.push(((argument.place, source_path), target_path));
         }
@@ -1626,6 +1627,13 @@ pub(in crate::legalization) fn apply(
             }
         }
         AbstractOperation::EstablishRecord { result, fields, .. } => {
+            if custody
+                .leaves
+                .keys()
+                .any(|(carrier, _)| *carrier == result.place)
+            {
+                return Err(invalid());
+            }
             let Some(StructuralTypeDeclaration {
                 shape:
                     StructuralTypeShape::Record {
@@ -1658,15 +1666,22 @@ pub(in crate::legalization) fn apply(
                     operands.push((
                         argument,
                         *nested,
-                        StructuralPathSegment::Field(declaration.identity.clone()),
+                        vec![StructuralPathSegment::Field(declaration.identity.clone())],
                     ));
                 }
             }
-            relocate_constructor_leaves(custody, function, types, result.place, operands)?;
+            relocate_subtree_leaves(custody, function, types, result.place, operands)?;
         }
         AbstractOperation::EstablishStructuralArray {
             result, elements, ..
         } => {
+            if custody
+                .leaves
+                .keys()
+                .any(|(carrier, _)| *carrier == result.place)
+            {
+                return Err(invalid());
+            }
             let Some(StructuralTypeDeclaration {
                 shape: StructuralTypeShape::FixedArray { element, length },
                 ..
@@ -1679,7 +1694,7 @@ pub(in crate::legalization) fn apply(
             if u64::try_from(elements.len()).ok() != Some(*length) {
                 return Err(invalid());
             }
-            relocate_constructor_leaves(
+            relocate_subtree_leaves(
                 custody,
                 function,
                 types,
@@ -1688,9 +1703,55 @@ pub(in crate::legalization) fn apply(
                     (
                         argument,
                         *element,
-                        StructuralPathSegment::FixedIndex(index as u64),
+                        vec![StructuralPathSegment::FixedIndex(index as u64)],
                     )
                 }),
+            )?;
+        }
+        AbstractOperation::MoveStructuralField {
+            result,
+            source,
+            path,
+            field,
+            ..
+        } => {
+            let extent = super::borrowed_windows::moved(
+                function, source, path, *field, result, plan, custody,
+            )?;
+            let argument = StructuralArgument {
+                place: source.place(),
+                path: extent.path,
+                access: StructuralAccess::Owned,
+            };
+            relocate_subtree_leaves(
+                custody,
+                function,
+                types,
+                result.place,
+                [(&argument, result.structural_type, Vec::new())],
+            )?;
+        }
+        AbstractOperation::StoreStructuralField {
+            destination,
+            path,
+            field,
+            value,
+            ..
+        } => {
+            let extent = super::borrowed_windows::extent(
+                function,
+                destination,
+                path,
+                *field,
+                plan,
+                custody,
+            )?;
+            relocate_subtree_leaves(
+                custody,
+                function,
+                types,
+                destination.place(),
+                [(value, extent.field_type, extent.path)],
             )?;
         }
         AbstractOperation::CallStructural {

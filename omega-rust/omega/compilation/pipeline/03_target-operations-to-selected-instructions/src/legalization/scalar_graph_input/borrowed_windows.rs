@@ -38,8 +38,8 @@ pub(in crate::legalization) struct WindowExtent {
 /// function's own mutable-borrowed entry or block parameter row, exactly as declared; the
 /// optional field must be a non-erased plain structural member of the record
 /// the path reaches. Without a field the path names the whole selected subtree.
-/// A reference-bearing
-/// subtree carries loan custody a byte copy cannot relocate.
+/// Reference-bearing subtrees retain their independently reconstructed leaf
+/// roster in `reference_custody::apply`; geometry does not grant that custody.
 pub(in crate::legalization) fn extent(
     function: &PsiOptimizationFunction,
     root: &abstract_operations::StructuralWindowRoot,
@@ -119,7 +119,7 @@ pub(in crate::legalization) fn extent(
     let (endpoint, byte_offset, elements) =
         structural_reference_input::runtime_projection(root_type, &full, types)
             .ok_or(LegalizationError::custody())?;
-    if endpoint != field_type || super::reference_custody::contains_reference(types, field_type) {
+    if endpoint != field_type {
         return Err(LegalizationError::custody());
     }
     let shape =

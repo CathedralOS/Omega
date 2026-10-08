@@ -1,0 +1,25 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32; }
+data Carrier<'storage> { marker: i32; reference: &'storage Cell; }
+data Holder<'storage> { prefix: i32; carrier: Carrier<'storage>; sibling: Carrier<'storage>; }
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let backing: Cell = Cell { value: 42 };
+    let previous_backing: Cell = Cell { value: 39 };
+    let mut holder: Holder = Holder {
+        prefix: 7,
+        carrier: Carrier { marker: 41, reference: &previous_backing },
+        sibling: Carrier { marker: 39, reference: &previous_backing }
+    };
+    holder.carrier = Carrier { marker: 42, reference: &backing };
+    let observed: i32 = holder.carrier.reference.value;
+    let preserved: i32 = holder.sibling.reference.value;
+    transition observed == 42 && holder.carrier.marker == 42 && preserved == 39 && holder.prefix == 7 {
+        true -> finish(main, 42)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

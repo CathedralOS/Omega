@@ -329,11 +329,11 @@ pub(super) fn establish(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 if reference_bearing && !descriptor_member {
-                    super::references::record_field_leaves(
+                    super::references::subtree_leaves(
                         function,
                         types,
                         live,
-                        destination.clone(),
+                        std::slice::from_ref(&destination),
                         nested,
                         argument,
                         &mut relocations,
@@ -361,7 +361,7 @@ pub(super) fn establish(
             live.structural_homes.remove(&place);
         }
     }
-    super::references::relocate_record_leaves(live, result.place, relocations);
+    super::references::relocate_leaves(live, result.place, relocations);
     live.structural_homes
         .insert(result.place, result_home.clone());
     operations.push(if let Some(elements) = elements {

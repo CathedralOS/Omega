@@ -20,9 +20,10 @@
 //! `TargetUnitOperation::StoreStructuralField`; selection realizes both
 //! directions with one chunked copy routine rather than a second copy machine.
 //!
-//! Resource claims do not change the byte layout: the selected operation
-//! already transports their custody. A reference-bearing field carries loan
-//! custody a byte copy cannot relocate, so it keeps rejecting here.
+//! Resource claims do not change the byte layout. Reference-bearing storage
+//! additionally transfers its exact descriptor roster with the bytes, through
+//! the same subtree transfer that construction uses. Backing and parent loan
+//! identities remain unchanged; a missing roster still rejects.
 //!
 //! A root window (`field: None`, empty path) is whole-value assignment
 //! through an exclusive loan: both copies span the whole referent at offset
@@ -35,7 +36,9 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::StructuralFieldId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
+use terminal_psi::{
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+};
 
 pub(super) fn move_field(
     operation: &AbstractOperation,
@@ -57,10 +60,7 @@ pub(super) fn move_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent = window_referent(function, live, types, source, path)?;
-    if !window_root(function, prepared, live, source)
-        || !root_window_loan(source, path, *field)
-        || super::references::contains_reference(types, result.structural_type)
-    {
+    if !window_root(function, prepared, live, source) || !root_window_loan(source, path, *field) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (geometry_type, geometry_path) = referent
@@ -73,6 +73,28 @@ pub(super) fn move_field(
     if referent.is_some() {
         path.insert(0, StructuralPathSegment::Referent);
     }
+    if live
+        .references
+        .keys()
+        .any(|(carrier, _)| *carrier == result.place)
+    {
+        return Err(LoweringError::unsupported_control_flow(function.machine));
+    }
+    let mut relocations = Vec::new();
+    super::references::subtree_leaves(
+        function,
+        types,
+        live,
+        &[],
+        result.structural_type,
+        &StructuralArgument {
+            place: source.place(),
+            path: path.clone(),
+            access: StructuralAccess::Owned,
+        },
+        &mut relocations,
+        &mut BTreeSet::new(),
+    )?;
     super::leaf_copy::copy_extent(
         *psi_operation,
         result,
@@ -84,7 +106,9 @@ pub(super) fn move_field(
         live,
         operations,
         provenance,
-    )
+    )?;
+    super::references::relocate_leaves(live, result.place, relocations);
+    Ok(())
 }
 
 pub(super) fn store_field(
@@ -170,9 +194,32 @@ pub(super) fn store_field(
         }
         declaration.multiplicity
     };
-    if super::references::contains_reference(types, field_type) {
+    // The displaced value's ordinary disposition must have vacated every
+    // descriptor slot. Installing a replacement cannot silently retire a loan
+    // still held in that region or release a disjoint sibling.
+    let mut custody_path = full_path;
+    if referent.is_some() {
+        custody_path.insert(0, StructuralPathSegment::Referent);
+    }
+    if live
+        .references
+        .keys()
+        .any(|(carrier, path)| *carrier == destination.place() && path.starts_with(&custody_path))
+    {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    let mut relocations = Vec::new();
+    super::references::subtree_leaves(
+        function,
+        types,
+        live,
+        &custody_path,
+        field_type,
+        value,
+        &mut relocations,
+        &mut BTreeSet::new(),
+    )?;
+    super::references::relocate_leaves(live, destination.place(), relocations);
     // The store consumes an owned value as record construction consumes a
     // field operand; an unrestricted value's home stays readable.
     if multiplicity != StructuralMultiplicity::Unrestricted {

@@ -17,7 +17,8 @@ use target_operations::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape, structural_children};
+    StructuralTypeShape, structural_children,
+};
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
 /// Exact incoming addresses for borrowed state parameters. The module query
@@ -1268,6 +1269,34 @@ pub(super) fn check_operation_access(
         AbstractOperation::StructuralScalarFieldStore { path, field, .. } => {
             check_projected_access(function, live, types, place, path, Some(*field))
         }
+        AbstractOperation::MoveStructuralField { path, field, .. }
+        | AbstractOperation::StoreStructuralField { path, field, .. } => {
+            // A storage transfer carries its descriptor leaves with it. It
+            // must not detach a suspended parent or touch borrowed backing,
+            // but a live descriptor in a disjoint sibling is not a whole-root
+            // loan. Use the same regional transfer judgment as owned operands.
+            let Some((contract, _)) = source_contract(function, live, place) else {
+                return true;
+            };
+            let Some(projection) = terminal_semantics::structural_window_projection(
+                types.values().copied(),
+                contract,
+                path,
+                *field,
+            ) else {
+                return true;
+            };
+            owned_transfer_is_suspended(
+                function,
+                live,
+                types,
+                &StructuralArgument {
+                    place,
+                    path: projection.path,
+                    access: StructuralAccess::Owned,
+                },
+            )
+        }
         _ => check_root_access(live, place),
     }
 }
@@ -1672,15 +1701,15 @@ pub(super) fn discard_subtree(
     Ok(true)
 }
 
-/// Record construction moves carriers, not referents. A `Structural` field
-/// argument whose declared type is reference-bearing relocates every live leaf
-/// of the argument carrier under the result's field path; the loan identity,
-/// root and parent are unchanged.
-pub(super) fn record_field_leaves(
+/// Structural storage transfer moves carriers, not referents. Stage the exact
+/// selected roster under its destination prefix before changing either home.
+/// Construction and window replacement preserve the same identity, backing and
+/// parents; neither a byte copy nor a matching type can create missing custody.
+pub(super) fn subtree_leaves(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
     live: &LiveDefinitions,
-    destination: StructuralPathSegment,
+    destination: &[StructuralPathSegment],
     nested: StructuralTypeId,
     argument: &StructuralArgument,
     relocations: &mut Vec<(
@@ -1689,6 +1718,9 @@ pub(super) fn record_field_leaves(
     )>,
     moved: &mut BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) -> Result<(), LoweringError> {
+    if !contains_reference(types, nested) {
+        return Ok(());
+    }
     let (contract, _) = source_contract(function, live, argument.place)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if leaf_type(types, contract, &argument.path) != Some(nested) {
@@ -1706,7 +1738,7 @@ pub(super) fn record_field_leaves(
         if !moved.insert(leaf.identity.clone()) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let mut destination = vec![destination.clone()];
+        let mut destination = destination.to_vec();
         destination.extend(path.iter().cloned());
         relocations.push(((argument.place, source_path), destination));
     }
@@ -1722,8 +1754,8 @@ pub(super) fn record_field_leaves(
     Ok(())
 }
 
-/// Apply the staged record relocations once every field checks out.
-pub(super) fn relocate_record_leaves(
+/// Apply staged relocations only after the complete operation checks out.
+pub(super) fn relocate_leaves(
     live: &mut LiveDefinitions,
     result_place: PlaceId,
     relocations: Vec<(

@@ -14,8 +14,8 @@
 //! source verification's concern, so this replay only tracks which leaf lives
 //! at which carrier path and which root it suspends.
 
-use abstract_operations::call_source;
 use crate::lowering::dominator_schedule;
+use abstract_operations::call_source;
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
@@ -26,7 +26,9 @@ use target_operations::TargetReferenceResult;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction, structural_children};
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    structural_children,
+};
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the
 /// installed-provider lane replays the call's custody effects; a settlement
@@ -1205,8 +1207,7 @@ fn establish_constructor(
             );
         if argument.access != StructuralAccess::Owned
             || multiplicity == StructuralMultiplicity::Linear
-            || (!argument.path.is_empty()
-                && (multiplicity != StructuralMultiplicity::Affine || reference_bearing))
+            || (!argument.path.is_empty() && multiplicity != StructuralMultiplicity::Affine)
             || function
                 .arrival_parameter(argument.place)
                 .is_some_and(|parameter| {
@@ -1252,28 +1253,15 @@ fn establish_constructor(
         if !reference_bearing {
             continue;
         }
-        let (contract, _) = source_contract(function, custody, argument.place)?;
-        if contract != nested {
-            return None;
-        }
-        let paths = leaf_paths(declarations, contract, custody.leaves.len())?;
-        for path in &paths {
-            if !custody.leaves.contains_key(&(argument.place, path.clone())) {
-                return None;
-            }
-            let mut destination = vec![destination.clone()];
-            destination.extend(path.iter().cloned());
-            relocations.push(((argument.place, path.clone()), destination));
-        }
-        // Every leaf the argument carrier owns must relocate; a differing
-        // roster cannot describe the operand's declared type.
-        if custody
-            .leaves
-            .keys()
-            .any(|(carrier, path)| *carrier == argument.place && !paths.contains(path))
-        {
-            return None;
-        }
+        stage_subtree_leaves(
+            function,
+            declarations,
+            custody,
+            argument,
+            nested,
+            std::slice::from_ref(&destination),
+            &mut relocations,
+        )?;
     }
     // The result place is fresh on an admissible plan: no live carrier leaf or
     // existing home may already name it.
@@ -1299,6 +1287,50 @@ fn establish_constructor(
         .homes
         .insert(result.place, (result.structural_type, result.multiplicity));
     Some(())
+}
+
+/// Reconstruct the declared selected roster once for construction and window
+/// transport. Paths select current carrier storage, not the leaf's referent;
+/// its backing root moves unchanged, and unrelated siblings stay in place.
+fn stage_subtree_leaves(
+    function: &AbstractFunction,
+    declarations: &[StructuralTypeDeclaration],
+    custody: &Custody,
+    argument: &terminal_psi::StructuralArgument,
+    selected: StructuralTypeId,
+    destination: &[StructuralPathSegment],
+    relocations: &mut Vec<(
+        (PlaceId, Vec<StructuralPathSegment>),
+        Vec<StructuralPathSegment>,
+    )>,
+) -> Option<()> {
+    if !contains_reference(declarations, selected) {
+        return Some(());
+    }
+    let (contract, _) = source_contract(function, custody, argument.place)?;
+    if argument.access != StructuralAccess::Owned
+        || leaf_type(declarations, contract, &argument.path) != Some(selected)
+    {
+        return None;
+    }
+    let paths = leaf_paths(declarations, selected, custody.leaves.len())?;
+    for path in &paths {
+        let mut source = argument.path.clone();
+        source.extend_from_slice(path);
+        custody.leaves.get(&(argument.place, source.clone()))?;
+        let mut target = destination.to_vec();
+        target.extend_from_slice(path);
+        relocations.push(((argument.place, source), target));
+    }
+    (!custody.leaves.keys().any(|(carrier, path)| {
+        *carrier == argument.place
+            && path
+                .strip_prefix(argument.path.as_slice())
+                .is_some_and(|relative| {
+                    !paths.iter().any(|selected| selected.as_slice() == relative)
+                })
+    }))
+    .then_some(())
 }
 
 /// Whole-owner disposal ends every reference leaf the carrier still owns. A
@@ -1440,6 +1472,91 @@ fn apply(
                 fields,
                 Some(*result_case),
             )?;
+        }
+        AbstractOperation::MoveStructuralField {
+            result,
+            source,
+            path,
+            field,
+            ..
+        } => {
+            if custody.homes.contains_key(&result.place)
+                || custody
+                    .leaves
+                    .keys()
+                    .any(|(carrier, _)| *carrier == result.place)
+            {
+                return None;
+            }
+            let (contract, _) = source_contract(function, custody, source.place())?;
+            let projection = terminal_semantics::structural_window_projection(
+                declarations.iter(),
+                contract,
+                path,
+                *field,
+            )?;
+            if projection.structural_type != result.structural_type {
+                return None;
+            }
+            let mut relocations = Vec::new();
+            stage_subtree_leaves(
+                function,
+                declarations,
+                custody,
+                &terminal_psi::StructuralArgument {
+                    place: source.place(),
+                    path: projection.path,
+                    access: StructuralAccess::Owned,
+                },
+                result.structural_type,
+                &[],
+                &mut relocations,
+            )?;
+            for (from, to) in relocations {
+                let leaf = custody.leaves.remove(&from)?;
+                custody.leaves.insert((result.place, to), leaf);
+            }
+            custody
+                .homes
+                .insert(result.place, (result.structural_type, result.multiplicity));
+        }
+        AbstractOperation::StoreStructuralField {
+            destination,
+            path,
+            field,
+            value,
+            ..
+        } => {
+            let (contract, _) = source_contract(function, custody, destination.place())?;
+            let projection = terminal_semantics::structural_window_projection(
+                declarations.iter(),
+                contract,
+                path,
+                *field,
+            )?;
+            if custody.leaves.keys().any(|(carrier, path)| {
+                *carrier == destination.place() && path.starts_with(&projection.path)
+            }) {
+                return None;
+            }
+            let mut relocations = Vec::new();
+            stage_subtree_leaves(
+                function,
+                declarations,
+                custody,
+                value,
+                projection.structural_type,
+                &projection.path,
+                &mut relocations,
+            )?;
+            for (from, to) in relocations {
+                let leaf = custody.leaves.remove(&from)?;
+                custody.leaves.insert((destination.place(), to), leaf);
+            }
+            let (_, multiplicity) = source_contract(function, custody, value.place)?;
+            if multiplicity != StructuralMultiplicity::Unrestricted {
+                custody.homes.remove(&value.place);
+            }
         }
         AbstractOperation::CallStructural {
             structural_arguments,

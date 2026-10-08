@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "1", "load1_end": 1.63, "load1_start": 1.33, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 5.43, "load1_start": 3.62, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -372,6 +372,8 @@ fail/borrows/reference_record_duplicate_mutable rejected 2326ms expected @ccd480
 	`pair` holds `main.first` as mutable more than once
 fail/borrows/reference_record_mutable_shared_overlap rejected 2207ms expected @ccd480905812+wt
 	`view` holds `main.first` as both mutable and read-only
+fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 386ms expected @ecd601af92fb
+	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/runtime_index_mut_borrow rejected 284ms expected @c08960bee2b1+wt
 	cannot prove index `main.off` is within length 48 in Main::main::main
 fail/borrows/same_initializer_reference_live_source_move rejected 538ms expected @e477ee0294de+wt
@@ -3328,6 +3330,7 @@ pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_a
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 1691ms check-target:macos_arm64 @461e97c328e8
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
+pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 1365ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 298ms @2d8ed253669f
 pass/parser/deep_nesting_within_limit checked 280ms @2d8ed253669f
