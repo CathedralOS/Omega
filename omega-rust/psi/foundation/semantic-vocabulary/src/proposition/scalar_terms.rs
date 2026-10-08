@@ -399,6 +399,142 @@ pub enum ScalarTerm {
     },
 }
 
+/// Operand-destructuring patterns for the one-operand term forms, shared by
+/// the traversals that would otherwise restate this variant list (codec depth
+/// walks, substitution, admission budgets). `ScalarTerm` resolves at the call
+/// site, so every consumer keeps its own import.
+#[macro_export]
+macro_rules! scalar_term_unary_operand {
+    ($operand:ident) => {
+        $crate::ScalarTerm::BooleanNot { operand: $operand }
+            | $crate::ScalarTerm::IntegerBitwiseNot {
+                operand: $operand,
+                ..
+            }
+            | $crate::ScalarTerm::IntegerWiden {
+                operand: $operand,
+                ..
+            }
+            | $crate::ScalarTerm::IntegerExactCast {
+                operand: $operand,
+                ..
+            }
+    };
+}
+
+/// Two-operand patterns for every binary term form; shift terms bind their
+/// `value`/`count` operands to `$left`/`$right` so a traversal sees one
+/// uniform pair.
+#[macro_export]
+macro_rules! scalar_term_binary_operands {
+    ($left:ident, $right:ident) => {
+        $crate::ScalarTerm::BooleanEqual {
+            left: $left,
+            right: $right,
+        } | $crate::ScalarTerm::IntegerEqual {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::IntegerLessThan {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::IntegerLessOrEqual {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::IntegerBitwiseAnd {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::IntegerBitwiseOr {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::IntegerBitwiseXor {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerShiftLeft {
+            value: $left,
+            count: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerShiftRight {
+            value: $left,
+            count: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerShiftLeft {
+            value: $left,
+            count: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerShiftRight {
+            value: $left,
+            count: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerAdd {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerSubtract {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerMultiply {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerDivide {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::ExactIntegerRemainder {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerDivide {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerRemainder {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::SaturatingIntegerDivide {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::SaturatingIntegerRemainder {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerAdd {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::SaturatingIntegerAdd {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerSubtract {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::SaturatingIntegerSubtract {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::WrappingIntegerMultiply {
+            left: $left,
+            right: $right,
+            ..
+        } | $crate::ScalarTerm::SaturatingIntegerMultiply {
+            left: $left,
+            right: $right,
+            ..
+        }
+    };
+}
+
 macro_rules! integer_binary_term {
     ($name:ident => $variant:ident) => {
         integer_binary_term!(@valid $name => $variant, validate_integer_operands);

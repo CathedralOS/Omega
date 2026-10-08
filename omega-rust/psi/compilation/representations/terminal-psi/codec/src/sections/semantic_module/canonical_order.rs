@@ -958,43 +958,12 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             return Err(CodecError::ScalarTermNestingTooDeep);
         }
         match term {
-            ScalarTerm::BooleanNot { operand }
-            | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. }
-            | ScalarTerm::IntegerExactCast { operand, .. } => {
+            semantic_vocabulary::scalar_term_unary_operand!(operand) => {
                 pending.push((operand, depth + 1));
             }
-            ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            semantic_vocabulary::scalar_term_binary_operands!(left, right) => {
                 pending.push((left, depth + 1));
                 pending.push((right, depth + 1));
-            }
-            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                pending.push((value, depth + 1));
-                pending.push((count, depth + 1));
             }
             ScalarTerm::Value { .. }
             | ScalarTerm::BooleanField { .. }
