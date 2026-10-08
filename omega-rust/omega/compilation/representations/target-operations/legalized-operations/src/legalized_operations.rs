@@ -60,7 +60,7 @@ pub mod identity;
 mod validation;
 pub use identity::{
     encode_call_binding, encode_call_plan, encode_callback_materialization, encode_eightbyte_class,
-    encode_hosted_read_byte_identity, encode_indirect_pointer, encode_integer, encode_locator,
+    encode_fuel, encode_hosted_read_byte_identity, encode_indirect_pointer, encode_integer, encode_locator,
     encode_machine_function_identity, encode_native_callback_argument, encode_native_place,
     encode_placement, encode_provider_execution, encode_register, encode_scalar_type, encode_shape,
     legalized_operation_plan_identity,

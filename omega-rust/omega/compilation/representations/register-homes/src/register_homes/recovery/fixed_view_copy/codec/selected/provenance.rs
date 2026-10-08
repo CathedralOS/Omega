@@ -5,7 +5,7 @@ use semantic_vocabulary::{EdgeId, ObligationId, OperationId, ValueId};
 use crate::FixedViewCopyDecodeError;
 
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_ids, encode_ids, length,
+    Cursor, decode_ids, encode_ids,
 };
 
 pub(super) fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
@@ -31,22 +31,7 @@ pub(super) fn decode_provenance(
     })
 }
 
-pub(super) fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
-    length(bytes, fuel.len());
-    for settlement in fuel {
-        match settlement.site {
-            PsiProvenance::Operation(id) => {
-                bytes.push(0);
-                bytes.extend_from_slice(&id.get().to_le_bytes());
-            }
-            PsiProvenance::Edge(id) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&id.get().to_le_bytes());
-            }
-        }
-        bytes.extend_from_slice(&settlement.units.to_le_bytes());
-    }
-}
+pub(super) use legalized_operations::encode_fuel;
 
 pub(super) fn decode_fuel(
     cursor: &mut Cursor<'_>,

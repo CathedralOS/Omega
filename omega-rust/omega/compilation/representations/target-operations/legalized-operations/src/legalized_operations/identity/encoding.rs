@@ -5,7 +5,7 @@
 
 use optimization_unit::{FuelSettlement, PsiProvenance};
 
-pub(super) fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
+pub fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
     encode_len(bytes, fuel.len());
     for settlement in fuel {
         match settlement.site {
