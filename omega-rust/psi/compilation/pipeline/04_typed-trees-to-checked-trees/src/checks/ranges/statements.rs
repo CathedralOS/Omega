@@ -290,8 +290,6 @@ pub(super) fn seed_boundary_call_ensures_facts(
     call: &typed_trees::statement::TableCall,
     facts: &mut RangeFacts<'_>,
 ) {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
     let arguments = program.statement_table.expression_handles(call.arguments);
     // Both callers apply the complete write frame before reaching this
     // postcondition publisher. Borrow syntax alone is not a write footprint.
@@ -301,78 +299,44 @@ pub(super) fn seed_boundary_call_ensures_facts(
     else {
         return;
     };
-    let parameters: Vec<_> = program
-        .state_signature_parameters(signature)
-        .iter()
-        .collect();
-    for contract in program
-        .signature_contracts
-        .span_or_empty(signature.contracts)
-    {
-        if !matches!(contract.kind, SignatureContractKind::Ensures) {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(expression) = fact else {
-                continue;
-            };
-            seed_ensures_bound_conjunct(program, &parameters, arguments, *expression, facts);
-        }
+    for conjunct in validation::ensures_contract_expressions(program, signature) {
+        seed_ensures_bound_conjunct(
+            program,
+            program.state_signature_parameters(signature),
+            arguments,
+            conjunct,
+            facts,
+        );
     }
 }
 
 fn seed_ensures_bound_conjunct(
     program: &dyn ::validation::CheckingInput,
-    parameters: &[&typed_trees::signature::StateParameter],
+    parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     conjunct: ExpressionHandle,
     facts: &mut RangeFacts<'_>,
 ) {
     use typed_trees::expression::BinaryOperator;
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
-        return;
-    };
-    if comparison.operator == BinaryOperator::And {
-        let (left, right) = (comparison.left, comparison.right);
-        seed_ensures_bound_conjunct(program, parameters, arguments, left, facts);
-        seed_ensures_bound_conjunct(program, parameters, arguments, right, facts);
-        return;
+    let mut comparisons = Vec::new();
+    validation::collect_parameter_bound_comparisons(
+        program,
+        parameters,
+        arguments,
+        conjunct,
+        &mut comparisons,
+    );
+    for (place, operator, literal) in comparisons {
+        // `param <= K` / `param < K`, param on the left (the ensures house
+        // spelling); the EXCLUSIVE bound feeds the index prover.
+        let exclusive = match operator {
+            BinaryOperator::LessOrEqual => 1,
+            BinaryOperator::Less => 0,
+            _ => continue,
+        };
+        let Some(bound) = literal.checked_add(exclusive) else {
+            continue;
+        };
+        facts.prove_index_upper_bound(place, bound);
     }
-    // `param <= K` / `param < K`, param on the left (the ensures house
-    // spelling); the EXCLUSIVE bound feeds the index prover.
-    let exclusive = match comparison.operator {
-        BinaryOperator::LessOrEqual => 1,
-        BinaryOperator::Less => 0,
-        _ => return,
-    };
-    let ExpressionNode::Name(path) = program.expression_table.expression(comparison.left) else {
-        return;
-    };
-    let [param_name] = program.expression_table.name_path_members(path.members) else {
-        return;
-    };
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(comparison.right)
-    else {
-        return;
-    };
-    let Some(bound) = literal
-        .value_i64()
-        .and_then(|value| value.checked_add(exclusive))
-    else {
-        return;
-    };
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.name.as_str() == param_name.as_str())
-    else {
-        return;
-    };
-    let Some(argument) = arguments.get(position).copied() else {
-        return;
-    };
-    let ExpressionNode::Borrow(place) = program.expression_table.expression(argument) else {
-        return;
-    };
-    let place = program.expression_table.display_name(place.target);
-    facts.prove_index_upper_bound(place, bound);
 }

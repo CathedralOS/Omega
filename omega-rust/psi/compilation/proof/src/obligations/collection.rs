@@ -515,8 +515,6 @@ pub(crate) fn ensures_witness_bounds_at(
     upto: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Vec<(String, i64)> {
-    use typed_trees::domain::ProofFact;
-    use typed_trees::signature::SignatureContractKind;
     let mut witnesses: Vec<(String, i64)> = Vec::new();
     for statement in &statements[..upto] {
         match statement {
@@ -538,29 +536,15 @@ pub(crate) fn ensures_witness_bounds_at(
                     continue;
                 };
                 let arguments = program.statement_table.expression_handles(call.arguments);
-                let parameters: Vec<_> = program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .collect();
-                for contract in program
-                    .signature_contracts
-                    .span_or_empty(signature.contracts)
-                {
-                    if !matches!(contract.kind, SignatureContractKind::Ensures) {
-                        continue;
-                    }
-                    for fact in program.proof_facts.span_or_empty(contract.facts) {
-                        let ProofFact::Expression(expression) = fact else {
-                            continue;
-                        };
-                        collect_witness_conjunct(
-                            program,
-                            &parameters,
-                            arguments,
-                            *expression,
-                            &mut witnesses,
-                        );
-                    }
+                let parameters = program.state_signature_parameters(signature);
+                for conjunct in validation::ensures_contract_expressions(program, signature) {
+                    collect_witness_conjunct(
+                        program,
+                        parameters,
+                        arguments,
+                        conjunct,
+                        &mut witnesses,
+                    );
                 }
             }
             // Spelling the target costs a formatted name per assignment; with
@@ -577,55 +561,30 @@ pub(crate) fn ensures_witness_bounds_at(
 
 fn collect_witness_conjunct(
     program: &dyn ::validation::CheckingInput,
-    parameters: &[&StateParameter],
+    parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
     conjunct: ExpressionHandle,
     witnesses: &mut Vec<(String, i64)>,
 ) {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
-        return;
-    };
-    if comparison.operator == BinaryOperator::And {
-        let (left, right) = (comparison.left, comparison.right);
-        collect_witness_conjunct(program, parameters, arguments, left, witnesses);
-        collect_witness_conjunct(program, parameters, arguments, right, witnesses);
-        return;
+    let mut comparisons = Vec::new();
+    validation::collect_parameter_bound_comparisons(
+        program,
+        parameters,
+        arguments,
+        conjunct,
+        &mut comparisons,
+    );
+    for (place, operator, literal) in comparisons {
+        let inclusive_offset = match operator {
+            BinaryOperator::LessOrEqual => 0,
+            BinaryOperator::Less => -1,
+            _ => continue,
+        };
+        let Some(bound) = literal.checked_add(inclusive_offset) else {
+            continue;
+        };
+        witnesses.push((place, bound));
     }
-    let inclusive_offset = match comparison.operator {
-        BinaryOperator::LessOrEqual => 0,
-        BinaryOperator::Less => -1,
-        _ => return,
-    };
-    let ExpressionNode::Name(path) = program.expression_table.expression(comparison.left) else {
-        return;
-    };
-    let [param_name] = program.expression_table.name_path_members(path.members) else {
-        return;
-    };
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(comparison.right)
-    else {
-        return;
-    };
-    let Some(bound) = literal
-        .value_i64()
-        .and_then(|value| value.checked_add(inclusive_offset))
-    else {
-        return;
-    };
-    let Some(position) = parameters
-        .iter()
-        .position(|parameter| parameter.name.as_str() == param_name.as_str())
-    else {
-        return;
-    };
-    let Some(argument) = arguments.get(position).copied() else {
-        return;
-    };
-    let ExpressionNode::Borrow(place) = program.expression_table.expression(argument) else {
-        return;
-    };
-    let place = program.expression_table.display_name(place.target);
-    witnesses.push((place, bound));
 }
 
 fn collect_bounded_transition_argument_obligations(

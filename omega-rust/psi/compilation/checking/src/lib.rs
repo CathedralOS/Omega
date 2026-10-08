@@ -46,13 +46,13 @@ pub use machine_calls::structural_call_custody::{
     structural_result_projected_qualifications, structural_result_qualifications,
     structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
 };
-pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
-pub use proof_contracts::contract_entailment::unique_literal_field;
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     closed_interval_from_comparison, declared_domain_predicate_bounds,
     exact_declared_domain_carrier_interval, exact_declared_domain_interval,
 };
+pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
 pub use proof_contracts::collection_predicates::premises_prove_expression;
+pub use proof_contracts::contract_entailment::unique_literal_field;
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
@@ -65,7 +65,9 @@ pub use proof_contracts::parameter_domains::{
     parameter_domain_constraints, parameter_domain_constraints_with_substitutions,
 };
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
-pub use value_custody::type_shapes::{exact_constrained_shells, exact_shells_symbolic_range_maximum};
+pub use proof_contracts::signature_ensures::{
+    collect_parameter_bound_comparisons, ensures_contract_expressions,
+};
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, linear_claim_frontier, owned_receiver_claims,
 };
@@ -98,6 +100,9 @@ pub use value_custody::structural_identity::{
     structural_type_identity,
 };
 pub use value_custody::transition_operand_moves::transition_operand_moves;
+pub use value_custody::type_shapes::{
+    exact_constrained_shells, exact_shells_symbolic_range_maximum,
+};
 pub use value_custody::wire::validate_wire_protocol;
 pub use value_custody::{collect_executable_value_origins, visit_executable_value_occurrences};
 

@@ -28,3 +28,4 @@ pub(crate) mod relevance;
 pub(crate) mod slice_ranking;
 
 pub(crate) mod scalar_boundary_guarantees;
+pub(crate) mod signature_ensures;
