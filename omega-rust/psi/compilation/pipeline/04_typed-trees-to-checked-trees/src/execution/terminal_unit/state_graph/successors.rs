@@ -1098,11 +1098,9 @@ fn projected_loan_transfer(
     if identity.is_some_and(|identity| declared_contains_reference(shapes, &identity)) {
         return None;
     }
-    let carrier_identity = if path.is_empty() {
-        String::new()
-    } else {
-        shapes.add_reference_type(target_type_reference, &[])?
-    };
+    // Successor operands carry the root and path directly under their declared
+    // loan access. No reference value is stored, so registering a reference
+    // shell here would impose unrelated carrier-construction restrictions.
     Some(CheckedStructuralControlTransferPlan {
         source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             subject: CheckedUnitStructuralArgumentPlan {
@@ -1111,7 +1109,6 @@ fn projected_loan_transfer(
                 type_identity: target.type_identity.clone(),
                 access: expected_access,
             },
-            carrier_identity,
         },
         target_parameter_index: u32::try_from(target_index).ok()?,
     })

@@ -654,7 +654,9 @@ impl TerminalExecution<'_> {
     }
 }
 
-fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
+/// Attenuation of existing storage authority, not proof of a loan's formation
+/// or lifetime. Write-only authority never supplies readable access.
+pub(crate) fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
     available == requested
         || available == StructuralAccess::Owned
         || matches!(

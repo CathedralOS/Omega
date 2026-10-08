@@ -108,8 +108,11 @@ current discriminator before moving, select only active payload siblings, and
 retain mixed common fields in their independent namespace. They do not create
 fresh affine copies. Qualified and claim-bearing projected owners still need
 their separate transport. Exact
-unqualified mutable byte-view block parameters retain an existing field loan;
-other mutable borrowed block parameters remain unsupported.
+unqualified mutable byte-view block parameters retain an existing field loan.
+Plain aggregate mutable and write-only block parameters retain their original
+subtree backing, with source declarations governing access attenuation. State
+edges carry a root and projection path, not a manufactured stored reference.
+Qualified and reference-bearing exclusive aggregate transport remains separate.
 
 ## Calls and work
 

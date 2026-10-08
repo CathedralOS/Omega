@@ -309,18 +309,15 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         operands: CheckedOperandSequence,
         establishment: Box<crate::CheckedUnitEffectOperationPlan>,
     },
-    /// An authored `&place` or `&mut place` argument loans the named subtree
+    /// A borrowed-place argument loans the named subtree
     /// into the borrowed target parameter: the successor argument keeps the
     /// source's place and walks `subject.path` beneath it, so the loan names
     /// the same storage the borrow does rather than a fresh establishment.
     /// `subject` describes the rooted place end to end — source root, the
     /// projection segments below it, the subtree's normalized type identity,
-    /// and the loan's own access. `carrier_identity` is the `&'a V`
-    /// reference-type identity the `EstablishReference` result declares when
-    /// the path descends below the root; a whole-place loan forwards the
-    /// rooted place directly and leaves it empty.
+    /// and the loan's own access. Projection does not manufacture a stored
+    /// reference carrier: every loan forwards the root plus this path.
     ProjectedLoan {
         subject: CheckedUnitStructuralArgumentPlan,
-        carrier_identity: String,
     },
 }

@@ -239,7 +239,7 @@ impl StateGraphEmission<'_, '_> {
                             destination
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                            ref subject, ref carrier_identity,
+                            ref subject,
                         } => {
                             let (root, root_type) = match subject.source {
                                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -263,7 +263,7 @@ impl StateGraphEmission<'_, '_> {
                             // case step selects geometry, not authority: the
                             // receiving verifier still requires live membership
                             // on the edge that borrows its payload.
-                            let mut path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                            let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                                 &subject.path,
                                 root_type,
                                 &self.catalogs.structural_types,
@@ -271,57 +271,13 @@ impl StateGraphEmission<'_, '_> {
                                 &mut std::iter::empty(),
                                 None,
                             )?;
-                            if path.is_empty() {
-                                // A whole-place loan forwards the rooted
-                                // place itself — the target borrows exactly
-                                // the storage the borrow expression names.
-                                root
-                            } else if matches!(
-                                subject.access,
-                                checked_trees::CheckedStructuralAccess::SharedBorrow
-                                    | checked_trees::CheckedStructuralAccess::MutableBorrow
-                            ) {
-                                // A projected loan joins the rooted
-                                // place and its projection path directly as
-                                // the continuation argument: the verifier
-                                // resolves the projected leaf against the
-                                // target's declared referent — no reference
-                                // carrier forms.
-                                argument_path = path;
-                                root
-                            } else {
-                                // A mutable projected loan mints a fresh
-                                // reference carrier over the subject's
-                                // rooted place: an EstablishReference op
-                                // captures the path below the root and the
-                                // argument names the carrier, never the
-                                // rooted place itself. The carrier's source
-                                // path ends in `Referent` — the terminal
-                                // verifier resolves the projected leaf
-                                // through that dereference marker.
-                                path.push(terminal_psi::StructuralPathSegment::Referent);
-                                let declaration = crate::unit::attached_unit::reference_results::emit_carrier(
-                                    crate::terminal_identities::lookup_type_id(
-                                        &self.catalogs.type_ids,
-                                        carrier_identity,
-                                    )?,
-                                    StructuralArgument {
-                                        place: root,
-                                        path,
-                                        access: match subject.access {
-                                            checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                                                StructuralAccess::MutableBorrow
-                                            }
-                                            _ => StructuralAccess::SharedBorrow,
-                                        },
-                                    },
-                                    None,
-                                    &mut self.catalogs.next_place,
-                                    operations,
-                                )?;
-                                self.structural_places.push(declaration);
-                                declaration.id
-                            }
+                            // Every borrowed successor binds the selected
+                            // subtree directly, including write-only access.
+                            // The target's declared access limits the loan;
+                            // a stored-reference operation would invent a
+                            // different carrier and an extra dereference.
+                            argument_path = path;
+                            root
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                             ref subject, ref case_identity, ref field_identity, ref path,

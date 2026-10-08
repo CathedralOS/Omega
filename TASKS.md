@@ -3817,10 +3817,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 - **WRITE-ONLY-BORROW.** Caller-visible `&write T` mutation is incomplete under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority).
   Remaining:
-  - Terminal state-forwarded record subloans: on macOS ARM64,
-    `python3 tools/corpus_gate.py --both --filter write_only_composed_forward_exit`
-    exits 70 natively but interpretation declines with
-    `Execution(VerifiedOperationMalformed)` (also on clean `c40dc9d9ca2`).
   - general aggregate and `[copy]` sum replacement beyond scalar-field record
     literals, preserving displaced custody and whole-value validity;
   - runtime domain-qualified byte-field replacement with encoding evidence;

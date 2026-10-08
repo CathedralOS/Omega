@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 5.54, "load1_start": 5.54, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 4.5, "load1_start": 4.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -86,6 +86,7 @@ pass/borrow/runtime_method_view_write_after_last_use_exit built 1212ms exit:70 @
 pass/borrow/runtime_write_only_record_array_argument_exit built 3619ms exit:0 @9beb2be72f2d+wt
 pass/borrow/write_only_composed_forward_exit built 1037ms exit:70 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 188ms
+pass/borrow/write_only_projected_state_receiver_exit built 1755ms exit:0 @8db36001d9fe+wt
 pass/borrow/write_only_whole_scalar_replace checked 204ms
 pass/borrows/borrow_domain_window_write_and_call built 11228ms exit:0 @51b2cebdd24f
 pass/borrows/borrow_guarded_window_write_and_call built 881ms exit:0 @f6c42bccfedd

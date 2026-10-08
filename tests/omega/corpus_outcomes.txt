@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 5.76, "load1_start": 5.76, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 4.28, "load1_start": 4.28, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -226,6 +226,10 @@ fail/borrow/write_only_mutable_widening rejected 312ms expected @69d297ae3ee5
 	mutable argument `value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/borrow/write_only_state_readable_widening rejected 200ms expected @8db36001d9fe+wt
+	machine `widen_mutable` state `entry` widens write-only parameter `pair` to `&mut`; forward it explicitly as `&write pair` instead
+	machine `widen_shared` state `entry` reads field `cell` from write-only parameter `pair`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+	mutable argument `pair` for state `store` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/affine_record_copy_handoff rejected 362ms expected @04d0fbe9d97c
 	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
 fail/borrows/array_carried_reference_live_source_move rejected 349ms expected @e477ee0294de+wt
@@ -2150,6 +2154,7 @@ pass/borrow/runtime_method_view_write_after_last_use_exit checked 1283ms check-t
 pass/borrow/runtime_write_only_record_array_argument_exit checked 1544ms check-target:macos_arm64 @cfe60a3a242
 pass/borrow/write_only_composed_forward_exit checked 1023ms check-target:macos_arm64 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
+pass/borrow/write_only_projected_state_receiver_exit checked 1756ms check-target:macos_arm64 @8db36001d9fe+wt
 pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
 pass/borrows/borrow_domain_window_write_and_call checked 11682ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f

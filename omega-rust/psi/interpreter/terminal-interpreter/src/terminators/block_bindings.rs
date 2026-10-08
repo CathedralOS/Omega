@@ -1,4 +1,8 @@
 //! Snapshot selected successor operands before cleanup or parameter replacement.
+//!
+//! A state edge relocates a borrowed descriptor, not its referent. Mutable and
+//! write-only aggregate loans use the same backing-preserving transport; their
+//! declared source access independently limits what the destination may do.
 
 use crate::program::MachineBlocks;
 use std::collections::{BTreeMap, BTreeSet};
@@ -260,11 +264,6 @@ impl TerminalExecution<'_> {
                         .values()
                         .any(|claim| claim.place == Some(argument.place)))
                 || argument.access != parameter.access
-                || (!argument.path.is_empty()
-                    && !(matches!(
-                        parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    ) || parameter.access == StructuralAccess::Owned))
             {
                 return Err(malformed());
             }
@@ -474,7 +473,9 @@ impl TerminalExecution<'_> {
                 // may present any aggregate, including one holding service
                 // bindings or claims, as the exact view its path selects. An
                 // exclusive loan still requires a plain owned shape.
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
                     if self.plain_aggregate_type(parameter.structural_type)
                         || matches!(
                             self.program
@@ -503,9 +504,9 @@ impl TerminalExecution<'_> {
                             .live_affine_frontier
                             .iter()
                             .any(|entry| entry.place == parameter.place)
-                        || (parameter.access == StructuralAccess::MutableBorrow
+                        || (parameter.access != StructuralAccess::SharedBorrow
                             && (!self.block_parameter_is_declared(target, parameter)
-                                || !self.mutable_place_source(argument.place)))
+                                || !self.exclusive_place_source(argument.place, parameter.access)))
                     {
                         return Err(malformed());
                     }
@@ -661,10 +662,10 @@ impl TerminalExecution<'_> {
         })
     }
 
-    /// Mutable forwarding preserves the current referent and its source debt.
+    /// Exclusive forwarding preserves the current referent and its source debt.
     /// Runtime identities alone carry no permission: recover it from the exact
     /// current parameter or independently admitted owned result declaration.
-    fn mutable_place_source(&self, place: PlaceId) -> bool {
+    fn exclusive_place_source(&self, place: PlaceId, requested: StructuralAccess) -> bool {
         let Some(value) = self.structural_values.get(&place) else {
             return false;
         };
@@ -672,11 +673,8 @@ impl TerminalExecution<'_> {
             if source.structural_type != value.structural_type
                 || !source.qualifications.is_empty()
                 || !source.projected_qualifications.is_empty()
-                || !matches!(
-                    source.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::Owned
-                )
-                || (source.access == StructuralAccess::MutableBorrow
+                || !crate::reference::access_covers(source.access, requested)
+                || (source.access != StructuralAccess::Owned
                     && source.multiplicity != StructuralMultiplicity::Unrestricted)
             {
                 return false;
