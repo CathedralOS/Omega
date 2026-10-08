@@ -759,10 +759,7 @@ fn correspondence_root_type_reference(
     root: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let machine = program.machine_by_symbol(machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let state = program.state_in_machine(machine, state_symbol)?;
     match program.symbols.get(root).kind {
         symbols::SymbolKind::Parameter
             if matches!(

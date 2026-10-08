@@ -887,8 +887,7 @@ fn result_claim(
     let state = program.state_by_symbol(invocation.state)?;
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(invocation.statement)?;
+        .statement_at(state, invocation.statement)?;
     let mut destination = match statement {
         StatementNode::LocalData(local) if local.initial_value == invocation.expression => {
             validation::CanonicalPlace {

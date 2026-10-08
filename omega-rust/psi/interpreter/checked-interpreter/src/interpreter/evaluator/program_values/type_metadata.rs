@@ -69,9 +69,7 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Call(call) if call.target_symbol.is_valid() => {
                 self.program.machines().iter().find_map(|machine| {
                     self.program
-                        .machine_states(machine)
-                        .iter()
-                        .find(|state| state.symbol == call.target_symbol)
+                        .state_in_machine(machine, call.target_symbol)
                         .map(|state| state.return_type)
                 })
             }

@@ -301,11 +301,7 @@ fn call_target<'a>(
             let state = program.machine_states(machine).first()?;
             return Some((machine, program.state_parameters(state)));
         }
-        if let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == call.target_symbol)
-        {
+        if let Some(state) = program.state_in_machine(machine, call.target_symbol) {
             return Some((machine, program.state_parameters(state)));
         }
     }

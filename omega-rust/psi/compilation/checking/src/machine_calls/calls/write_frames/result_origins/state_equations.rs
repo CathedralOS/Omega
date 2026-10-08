@@ -290,8 +290,7 @@ fn instantiate(
 ) -> Option<()> {
     let boundary = program
         .statement_table
-        .statements(equation.state.statement_nodes)
-        .get(edge.statement_index)?;
+        .statement_at(equation.state, edge.statement_index)?;
     instantiate_edge_origins(
         program,
         machine,

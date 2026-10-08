@@ -122,8 +122,7 @@ pub(in crate::checks::borrows) fn resolve_all(
             let source_state = program.state_by_symbol(state.state_symbol)?;
             let StatementNode::LocalData(local) = program
                 .statement_table
-                .statements(source_state.statement_nodes)
-                .get(loan.statement_index)?
+                .statement_at(source_state, loan.statement_index)?
             else {
                 return None;
             };

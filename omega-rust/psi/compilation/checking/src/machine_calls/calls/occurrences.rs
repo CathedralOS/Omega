@@ -92,8 +92,7 @@ pub fn find_call_site_in_state<'program>(
 ) -> Option<CallSite<'program>> {
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+        .statement_at(state, statement_index)?;
     let mut traversal = CallSiteTraversal::new(program, machine, state, call_ordinal);
     find_call_site_in_statement(&mut traversal, statement)
 }
@@ -127,8 +126,7 @@ pub fn transition_call_target(
 ) -> Option<typed_trees::statement::TransitionTargetHandle> {
     let StatementNode::Transition(transition) = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?
+        .statement_at(state, statement_index)?
     else {
         return None;
     };

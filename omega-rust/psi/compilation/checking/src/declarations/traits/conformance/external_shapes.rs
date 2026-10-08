@@ -142,9 +142,7 @@ pub(crate) fn validate_external_via_expression(
         .iter()
         .filter_map(|producer| {
             program
-                .machine_states(producer)
-                .iter()
-                .find(|state| state.symbol == call.target_symbol)
+                .state_in_machine(producer, call.target_symbol)
                 .map(|state| (producer, state))
         })
         .collect::<Vec<_>>();

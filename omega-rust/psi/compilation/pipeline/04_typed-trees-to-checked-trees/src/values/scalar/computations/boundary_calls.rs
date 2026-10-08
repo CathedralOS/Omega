@@ -48,8 +48,7 @@ impl Builder<'_, '_> {
                 .and_then(|state| {
                     self.program
                         .statement_table
-                        .statements(state.statement_nodes)
-                        .get(self.statement_index)
+                        .statement_at(state, self.statement_index)
                 })
                 .is_some_and(|statement| {
                     matches!(
@@ -70,8 +69,7 @@ impl Builder<'_, '_> {
                 self.program, self.machine, self.state,
             )
             .and_then(|state| {
-                self.program.statement_table.statements(state.statement_nodes)
-                    .get(self.statement_index)
+                self.program.statement_table.statement_at(state, self.statement_index)
             })
             .is_some_and(|statement| {
                 matches!(statement, typed_trees::statement::StatementNode::Assignment(assignment)

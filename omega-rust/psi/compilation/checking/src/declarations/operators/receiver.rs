@@ -262,8 +262,7 @@ fn contextual_type_reference_in_state(
     let state = program.state_by_symbol(state_symbol)?;
     match program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?
+        .statement_at(state, statement_index)?
     {
         typed_trees::statement::StatementNode::Assignment(assignment) => {
             expression_type_reference_in_state(

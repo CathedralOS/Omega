@@ -470,9 +470,7 @@ fn resolve_state_symbol_in_machine(
     }
 
     program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)
+        .state_in_machine(machine, state_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }

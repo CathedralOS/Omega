@@ -18,10 +18,7 @@ pub(crate) fn call_target_label(
         .machines()
         .iter()
         .find_map(|machine| {
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == target_symbol)?;
+            let state = program.state_in_machine(machine, target_symbol)?;
             // A FREE machine's implicit entry state carries the generated name
             // `entry`; the call is spelled with the machine name, so label it
             // that way.

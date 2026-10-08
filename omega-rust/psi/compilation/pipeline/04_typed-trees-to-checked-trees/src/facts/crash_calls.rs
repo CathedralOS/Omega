@@ -221,10 +221,8 @@ pub(super) fn attach_checked_crash_calls(
                 target_contract_fingerprint,
                 target_contract_commitment,
             ) = if let (Some(target_machine), Some(target_plan)) = (local_target, local_plan) {
-                let Some(target_state) = program
-                    .machine_states(target_machine)
-                    .iter()
-                    .find(|state| state.symbol == target_state_symbol)
+                let Some(target_state) =
+                    program.state_in_machine(target_machine, target_state_symbol)
                 else {
                     continue;
                 };

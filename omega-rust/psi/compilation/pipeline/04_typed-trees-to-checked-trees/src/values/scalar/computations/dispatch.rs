@@ -70,11 +70,7 @@ impl Builder<'_, '_> {
             return self.expression(selected, result_type);
         }
         let machine = self.program.machine_by_symbol(self.machine)?;
-        let state = self
-            .program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == self.state)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
         // A case-classified match on a payloadless-case sum subject is a
         // discriminant dispatch: ordered case-membership selections, with the
         // wildcard (or the last case arm) as the tail. No pattern value is

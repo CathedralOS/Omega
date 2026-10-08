@@ -154,8 +154,7 @@ pub(super) fn coordinate(
     let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
     let statement = checked
         .statement_table
-        .statements(authored.statement_nodes)
-        .get(statement_index);
+        .statement_at(authored, statement_index);
     let kind = match statement {
         Some(checked_trees::statement::StatementNode::Transition(transition)) => {
             let target = if continuation {

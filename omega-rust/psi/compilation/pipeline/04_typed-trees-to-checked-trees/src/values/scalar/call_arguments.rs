@@ -232,10 +232,7 @@ pub(super) fn nested_structural_call_sites<'program>(
         },
         _ => None,
     };
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == source.state_symbol);
+    let state = program.state_in_machine(machine, source.state_symbol);
     calls
         .iter()
         .filter_map(|source| {

@@ -144,11 +144,7 @@ fn validate_closed_rows(
             )));
             continue;
         };
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == row.realization_state)
-        else {
+        let Some(state) = program.state_in_machine(machine, row.realization_state) else {
             diagnostics.push(Diagnostic::error(format!(
                 "closed conformance `{implementation_name} satisfies {}` row `{}::{}` retains no exact realization state",
                 root_trait.name, row.declaring_trait_name, row.requirement_name

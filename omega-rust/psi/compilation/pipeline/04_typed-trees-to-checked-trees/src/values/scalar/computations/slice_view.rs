@@ -255,8 +255,7 @@ impl Builder<'_, '_> {
         let site = match self
             .program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(self.statement_index)
+            .statement_at(state, self.statement_index)
         {
             Some(StatementNode::LocalData(local)) if local.initial_value == expression => {
                 checked_trees::CheckedSubsliceSite::LocalBinding

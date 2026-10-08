@@ -112,8 +112,7 @@ pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
     }
     let StatementNode::Expression(expression) = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?
+        .statement_at(state, statement_index)?
     else {
         return None;
     };
@@ -141,8 +140,7 @@ pub(super) fn ordered_statement_call<'program>(
     }
     let StatementNode::Expression(expression) = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?
+        .statement_at(state, statement_index)?
     else {
         return None;
     };

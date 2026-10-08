@@ -399,10 +399,7 @@ fn direct_block_parameter_source(
     if entry.symbol == owner_state {
         return None;
     }
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == owner_state)?;
+    let state = program.state_in_machine(machine, owner_state)?;
     let parameter = program
         .state_parameters(state)
         .iter()

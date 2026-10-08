@@ -52,9 +52,7 @@ pub(crate) fn evaluate_one(
         .iter()
         .filter_map(|producer| {
             typed
-                .machine_states(producer)
-                .iter()
-                .find(|state| state.symbol == call.target_symbol)
+                .state_in_machine(producer, call.target_symbol)
                 .map(|state| (producer, state))
         })
         .collect::<Vec<_>>();

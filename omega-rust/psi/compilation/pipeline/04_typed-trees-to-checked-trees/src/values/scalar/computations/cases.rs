@@ -20,11 +20,7 @@ impl Builder<'_, '_> {
             return None;
         };
         let machine = self.program.machine_by_symbol(self.machine)?;
-        let state = self
-            .program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == self.state)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
         if !validation::has_exact_case_membership_meaning(
             self.program,
             machine,
@@ -110,11 +106,7 @@ impl Builder<'_, '_> {
             parameter.symbol
         } else {
             let machine = self.program.machine_by_symbol(self.machine)?;
-            let state = self
-                .program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == self.state)?;
+            let state = self.program.state_in_machine(machine, self.state)?;
             let (_, local) = self
                 .program
                 .state_local_declaration(state, root)

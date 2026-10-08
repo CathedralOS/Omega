@@ -109,11 +109,7 @@ pub(crate) fn call_permission_evaluation(
     call_ordinal: usize,
 ) -> checked_trees::FlowPermissionEvaluation {
     use checked_trees::FlowPermissionEvaluation as Evaluation;
-    match program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    {
+    match program.statement_table.statement_at(state, statement_index) {
         Some(typed_trees::statement::StatementNode::Transition(_)) => {
             match validation::transition_call_target(
                 program,

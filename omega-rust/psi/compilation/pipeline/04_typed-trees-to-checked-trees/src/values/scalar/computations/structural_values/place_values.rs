@@ -388,11 +388,7 @@ impl Builder<'_, '_> {
             return None;
         }
         let owner = self.program.machine_by_symbol(self.machine)?;
-        let state = self
-            .program
-            .machine_states(owner)
-            .iter()
-            .find(|state| state.symbol == self.state)?;
+        let state = self.program.state_in_machine(owner, self.state)?;
         let (source, reference) = if let Some((parameter_index, type_reference)) =
             self.structural_parameter(name.symbol)
         {

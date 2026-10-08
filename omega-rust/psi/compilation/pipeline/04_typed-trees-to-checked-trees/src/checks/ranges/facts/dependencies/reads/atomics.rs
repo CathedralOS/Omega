@@ -188,8 +188,7 @@ pub(super) fn atomic_carrier_target(
 ) -> Option<ExpressionHandle> {
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+        .statement_at(state, statement_index)?;
     let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
         return None;
     };

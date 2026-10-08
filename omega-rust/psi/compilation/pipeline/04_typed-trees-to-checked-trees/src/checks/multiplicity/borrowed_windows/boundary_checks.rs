@@ -57,11 +57,7 @@ pub(in crate::checks::multiplicity) fn check_recorded_invocations(
                 "borrowed-storage invocation has no owning machine",
             )]);
         };
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == invocation.state)
-        else {
+        let Some(state) = program.state_in_machine(machine, invocation.state) else {
             return Err(vec![Diagnostic::error(
                 "borrowed-storage invocation has no owning state",
             )]);

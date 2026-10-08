@@ -271,9 +271,7 @@ impl<'program> Evaluator<'program> {
                 let left = if matches!(left, Value::Ref(_))
                     && self.current_machine(frame).is_some_and(|machine| {
                         self.program
-                            .machine_states(machine)
-                            .iter()
-                            .find(|state| state.symbol == frame.state_symbol)
+                            .state_in_machine(machine, frame.state_symbol)
                             .is_some_and(|state| {
                                 validation::has_exact_case_membership_meaning(
                                     self.program,
@@ -505,9 +503,7 @@ impl<'program> Evaluator<'program> {
             })?;
         let state = self
             .program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == candidate.realization_state_symbol)
+            .state_in_machine(machine, candidate.realization_state_symbol)
             .ok_or_else(|| {
                 Halt::Trap("selected trait operator lost its realization state".to_owned())
             })?;

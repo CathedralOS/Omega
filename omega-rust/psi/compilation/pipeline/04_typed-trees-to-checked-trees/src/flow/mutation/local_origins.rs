@@ -41,8 +41,7 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
     let state = program.state_by_symbol(state_symbol)?;
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+        .statement_at(state, statement_index)?;
     let resolver = resolver?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let storage = places.clone();
@@ -245,8 +244,7 @@ pub(crate) fn rebase_exact_local_place(
     let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+        .statement_at(state, statement_index)?;
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;

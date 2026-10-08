@@ -108,9 +108,7 @@ pub(crate) fn call_argument_substitution(
     let before_statement = call_flow.statement_index;
     let owner = program.machines().iter().find_map(|machine| {
         program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == caller_state)
+            .state_in_machine(machine, caller_state)
             .map(|state| (machine, state))
     });
     // Each actual's proven current value is read only from this call's own
@@ -129,8 +127,7 @@ pub(crate) fn call_argument_substitution(
     let containing_statement = owner.and_then(|(_, state)| {
         program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(before_statement)
+            .statement_at(state, before_statement)
     });
     // Structural guard leaves name the authored parameter telescope. Each
     // actual's root is the frozen caller parameter (plus its member spine)
@@ -867,9 +864,7 @@ pub(crate) fn refine_published_crash_routes(
                         .iter()
                         .find_map(|machine| {
                             program
-                                .machine_states(machine)
-                                .iter()
-                                .find(|state| state.symbol == target_state_symbol)
+                                .state_in_machine(machine, target_state_symbol)
                                 .map(|state| {
                                     validation::has_builtin_bound_expression_meaning(
                                         program,

@@ -38,10 +38,7 @@ impl<'program> Evaluator<'program> {
         if symbol == symbols::SymbolHandle::invalid() {
             return None;
         }
-        self.program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
+        self.program.state_in_machine(machine, symbol)
     }
 
     pub(in crate::interpreter::evaluator) fn find_data_by_name(

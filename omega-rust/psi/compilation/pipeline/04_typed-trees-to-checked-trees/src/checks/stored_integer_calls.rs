@@ -275,9 +275,7 @@ impl<'a> Admission<'a> {
             };
             let body = self
                 .program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)
+                .state_in_machine(machine, state_symbol)
                 .ok_or("selected operator state is absent")?;
             let operands = operator_use
                 .operands(self.program)

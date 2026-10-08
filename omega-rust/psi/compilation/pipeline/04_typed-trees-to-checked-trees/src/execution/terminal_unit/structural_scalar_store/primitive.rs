@@ -491,7 +491,7 @@ pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
     if binding.role == CheckedScalarExpressionRole::StorageInitializer
         && !binding.expression.is_valid()
     {
-        return matches!(program.statement_table.statements(state.statement_nodes).get(statement_index),
+        return matches!(program.statement_table.statement_at(state, statement_index),
             Some(StatementNode::LocalData(local)) if local.symbol == binding.destination
                 && crate::values::zeroed_scalar_local_initializer(program, local).as_ref() == Some(value));
     }

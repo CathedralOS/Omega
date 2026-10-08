@@ -12,10 +12,7 @@ pub fn primitive_local_source(
     state: &typed_trees::state::State,
     statement: usize,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let StatementNode::LocalData(local) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement)?
+    let StatementNode::LocalData(local) = program.statement_table.statement_at(state, statement)?
     else {
         return None;
     };

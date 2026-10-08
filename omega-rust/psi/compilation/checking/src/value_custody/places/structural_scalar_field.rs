@@ -399,8 +399,7 @@ pub fn saved_dispatch_call(
     }
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+        .statement_at(state, statement_index)?;
     let mut pending =
         crate::machine_calls::calls::statement_value_expression_roots(program, statement)
             .into_iter()

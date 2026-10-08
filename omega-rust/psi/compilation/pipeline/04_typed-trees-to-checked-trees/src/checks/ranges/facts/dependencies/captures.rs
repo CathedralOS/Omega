@@ -255,7 +255,10 @@ pub(super) fn is_integer_value(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
-                return program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer());
+                return program
+                    .symbols
+                    .builtin_type_atom(*symbol)
+                    .is_some_and(|atom| atom.is_fixed_integer());
             }
             // A copied reference still observes storage; it is not a captured
             // integer value. Atomic and aggregate carriers are not snapshots.

@@ -574,8 +574,7 @@ pub(super) fn occurrence_contexts(
                     let Some(typed_trees::statement::StatementNode::Transition(transition)) =
                         program
                             .statement_table
-                            .statements(typed_state.statement_nodes)
-                            .get(coordinate.statement_index)
+                            .statement_at(typed_state, coordinate.statement_index)
                     else {
                         return None;
                     };

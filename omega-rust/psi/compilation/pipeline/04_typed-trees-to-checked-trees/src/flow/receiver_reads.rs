@@ -177,11 +177,7 @@ fn build_state_receiver_reads(
         let Some(machine) = program.machine_by_symbol(borrow_state.machine_symbol) else {
             continue;
         };
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == borrow_state.state_symbol)
-        else {
+        let Some(state) = program.state_in_machine(machine, borrow_state.state_symbol) else {
             continue;
         };
         let owner = FootprintOwner {

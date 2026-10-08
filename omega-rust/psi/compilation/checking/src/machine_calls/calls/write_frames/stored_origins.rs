@@ -193,10 +193,7 @@ fn local_declaration_state<'program>(
         return None;
     }
     let declaration = program.symbols.get(local.symbol);
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == declaration.parent)?;
+    let state = program.state_in_machine(machine, declaration.parent)?;
     (declaration.kind == symbols::SymbolKind::Local
         && program.symbols.name(local.symbol) == local.name.as_str()
         && program

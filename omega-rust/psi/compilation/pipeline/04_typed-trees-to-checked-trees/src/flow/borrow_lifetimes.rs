@@ -75,8 +75,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
             program.machine_states(machine).iter().any(|state| {
                 program
                     .statement_table
-                    .statements(state.statement_nodes)
-                    .get(statement_index)
+                    .statement_at(state, statement_index)
                     .is_some_and(|candidate| std::ptr::eq(candidate, statement))
             })
         });

@@ -216,14 +216,10 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     let Some(machine) = program.machine(state_flow.machine_symbol) else {
         return;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
         return;
     };
-    if !matches!(program.statement_table.statements(state.statement_nodes).get(call.statement_index),
+    if !matches!(program.statement_table.statement_at(state, call.statement_index),
         Some(typed_trees::statement::StatementNode::Transition(transition))
         if transition.exit == typed_trees::statement::TransitionExit::Ordinary)
     {

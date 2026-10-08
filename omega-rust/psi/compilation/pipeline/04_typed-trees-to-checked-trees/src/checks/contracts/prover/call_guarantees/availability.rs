@@ -97,8 +97,7 @@ impl AvailableGuarantee<'_> {
         }
         let typed_trees::statement::StatementNode::LocalData(local) = program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(self.invocation.statement)?
+            .statement_at(state, self.invocation.statement)?
         else {
             return None;
         };

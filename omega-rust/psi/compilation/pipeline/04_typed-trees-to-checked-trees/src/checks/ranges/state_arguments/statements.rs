@@ -91,11 +91,7 @@ fn collect_state_argument_facts_from_target(
             for argument in program.statement_table.expression_handles(*arguments) {
                 collect_state_argument_facts_from_expression(context, facts, *argument, collected);
             }
-            let Some(target_state) = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == path.symbol)
-            else {
+            let Some(target_state) = program.state_in_machine(machine, path.symbol) else {
                 return;
             };
 

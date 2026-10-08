@@ -230,11 +230,7 @@ pub(super) fn check_suspension_carry(
         let Some(machine) = program.machine_by_symbol(state_borrows.machine_symbol) else {
             continue;
         };
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_borrows.state_symbol)
-        else {
+        let Some(state) = program.state_in_machine(machine, state_borrows.state_symbol) else {
             continue;
         };
         let Some(state_flow) = facts

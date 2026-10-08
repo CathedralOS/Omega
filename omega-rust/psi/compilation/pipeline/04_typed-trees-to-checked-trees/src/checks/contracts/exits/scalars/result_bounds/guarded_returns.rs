@@ -73,8 +73,7 @@ impl ExitScalars<'_, '_> {
         if let Some(StatementNode::Transition(transition)) = self
             .program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(self.exit.statement_index)
+            .statement_at(state, self.exit.statement_index)
             && self.exit.transition_target.is_valid()
             && self.exit.transition_target == transition.target
             && let TransitionGuardNode::When(guard) = transition.guard

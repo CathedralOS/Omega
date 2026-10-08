@@ -72,8 +72,7 @@ pub(crate) fn validate_activation_carry_crossing(
     }
     if program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(crossing.statement_index)
+        .statement_at(state, crossing.statement_index)
         .is_none()
     {
         return Err(vec![Diagnostic::error(

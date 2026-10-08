@@ -96,11 +96,7 @@ pub(crate) fn call_array_constructions_in(
         // A scalar computation owns its nested structural operands. Giving
         // those leaves independent statement roots would schedule them twice
         // and could move construction out of a selective branch.
-        let direct_root = match program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index)
-        {
+        let direct_root = match program.statement_table.statement_at(state, statement_index) {
             Some(StatementNode::Call(_)) => {
                 matches!(site, validation::CallSite::Statement(_))
             }

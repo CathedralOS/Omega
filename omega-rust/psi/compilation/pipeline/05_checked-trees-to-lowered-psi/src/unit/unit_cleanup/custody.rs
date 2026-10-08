@@ -19,14 +19,13 @@ pub(super) fn validate_checked_dispositions(
         .ok_or(LoweringError::Unsupported(
             "nominal cleanup source machine is absent",
         ))?;
-    let state = checked
-        .typed
-        .machine_states(source)
-        .iter()
-        .find(|state| state.symbol == plan.state)
-        .ok_or(LoweringError::Unsupported(
-            "nominal cleanup source state is absent",
-        ))?;
+    let state =
+        checked
+            .typed
+            .state_in_machine(source, plan.state)
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup source state is absent",
+            ))?;
     let parameters = checked.typed.state_parameters(state);
     if parameters.len() != plan.structural_parameters.len() {
         return unsupported("nominal cleanup source parameter roster changed");

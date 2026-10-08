@@ -388,9 +388,7 @@ impl ActivationCarryAccumulator<'_> {
             return;
         }
 
-        if let Some((trait_definition, signature)) =
-            self.program.trait_machine_signature(target)
-        {
+        if let Some((trait_definition, signature)) = self.program.trait_machine_signature(target) {
             let parameters = self.program.trait_type_parameters(trait_definition);
             for parameter in self.program.state_signature_parameters(signature) {
                 self.add_type(parameters, parameter.type_reference);

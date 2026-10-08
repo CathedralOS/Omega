@@ -453,10 +453,7 @@ fn enclosing_state<'program>(
     machine: &Machine,
     state_symbol: SymbolHandle,
 ) -> Option<&'program State> {
-    program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)
+    program.state_in_machine(machine, state_symbol)
 }
 
 /// Finds a state by symbol across every machine in the program.
@@ -464,12 +461,10 @@ fn state_for_symbol(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
 ) -> Option<&State> {
-    program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_symbol)
-    })
+    program
+        .machines()
+        .iter()
+        .find_map(|machine| program.state_in_machine(machine, state_symbol))
 }
 
 /// Whether the assignment at `statement_index` stores its value into a field
@@ -569,9 +564,7 @@ fn boundary_capability(
     // signature its machine conforms to, matched by state name.
     let (machine, state) = program.machines().iter().find_map(|machine| {
         program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target_symbol)
+            .state_in_machine(machine, target_symbol)
             .map(|state| (machine, state))
     })?;
 

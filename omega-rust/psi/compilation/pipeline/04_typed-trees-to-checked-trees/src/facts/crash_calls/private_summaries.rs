@@ -120,9 +120,7 @@ pub(crate) fn infer_private_body_summaries(
                     .machine_by_symbol(invocation.target_machine)
                     .expect("a local crash plan has its typed machine");
                 let target_state = program
-                    .machine_states(target_machine)
-                    .iter()
-                    .find(|state| state.symbol == invocation.target_state)
+                    .state_in_machine(target_machine, invocation.target_state)
                     .expect("a local crash invocation has its typed state");
                 let target_parameters = program.state_parameters(target_state);
                 let target_parameter_names = program

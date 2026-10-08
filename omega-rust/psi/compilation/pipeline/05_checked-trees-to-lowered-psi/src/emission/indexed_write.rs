@@ -148,8 +148,7 @@ impl<'a> IndexedWriteLeaf<'a> {
         let (_, authored) = crate::declarations::state_declaration(checked, state)?;
         let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
             .statement_table
-            .statements(authored.statement_nodes)
-            .get(self.statement_index() as usize)
+            .statement_at(authored, self.statement_index() as usize)
         else {
             return unsupported(self.wording().lost_index);
         };

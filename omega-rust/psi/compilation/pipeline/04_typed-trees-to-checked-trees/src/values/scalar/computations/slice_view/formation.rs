@@ -23,8 +23,7 @@ impl Builder<'_, '_> {
         match self
             .program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(self.statement_index)?
+            .statement_at(state, self.statement_index)?
         {
             StatementNode::LocalData(local) => {
                 self.local_view_formation(local, expression, expected, expected_access)

@@ -1210,8 +1210,7 @@ pub fn terminal_call_reference_sources(
     }
     let StatementNode::Transition(transition) = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(call.statement_index)?
+        .statement_at(state, call.statement_index)?
     else {
         return None;
     };

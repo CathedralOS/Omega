@@ -774,7 +774,10 @@ fn immutable_integer_binding(
                 reference = *base_type
             }
             typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-                return program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer());
+                return program
+                    .symbols
+                    .builtin_type_atom(*symbol)
+                    .is_some_and(|atom| atom.is_fixed_integer());
             }
             _ => return false,
         }
@@ -903,10 +906,7 @@ fn state_data_binding_of(
     state_symbol: SymbolHandle,
 ) -> Option<&str> {
     let machine = program.machine_holding_state(state_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let state = program.state_in_machine(machine, state_symbol)?;
     program
         .state_data_binding(machine, state)
         .map(|name| name.as_str())

@@ -32,11 +32,7 @@ fn check_state_assembly_facts(
     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
         return;
     };
 

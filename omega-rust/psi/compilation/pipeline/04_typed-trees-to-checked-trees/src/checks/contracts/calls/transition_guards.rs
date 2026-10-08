@@ -27,14 +27,10 @@ fn selected_transition_call<'program>(
         call_flow.call_ordinal,
     )?;
     let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
-    let caller_state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)?;
+    let caller_state = program.state_in_machine(machine, state_flow.state_symbol)?;
     let Some(StatementNode::Transition(transition)) = program
         .statement_table
-        .statements(caller_state.statement_nodes)
-        .get(call_flow.statement_index)
+        .statement_at(caller_state, call_flow.statement_index)
     else {
         return None;
     };
@@ -271,15 +267,13 @@ pub(super) fn negated_guard_conjunct_matches(
         {
             negated_guard_conjunct_matches(program, binary.left, required_label)
         }
-        _ => binary.operator.complement().is_some_and(
-            |complement| {
-                format!(
-                    "{} {} {}",
-                    program.expression_table.display_name(binary.left),
-                    complement.display_name(),
-                    program.expression_table.display_name(binary.right)
-                ) == required_label
-            },
-        ),
+        _ => binary.operator.complement().is_some_and(|complement| {
+            format!(
+                "{} {} {}",
+                program.expression_table.display_name(binary.left),
+                complement.display_name(),
+                program.expression_table.display_name(binary.right)
+            ) == required_label
+        }),
     }
 }

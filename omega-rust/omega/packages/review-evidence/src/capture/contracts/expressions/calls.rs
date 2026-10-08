@@ -174,12 +174,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         .machines()
         .iter()
         .find(|machine| machine.symbol == projection.target_machine)
-        .and_then(|machine| {
-            compilation
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == projection.target_state)
-        });
+        .and_then(|machine| compilation.state_in_machine(machine, projection.target_state));
     if target.is_none_or(|state| state.return_type != projection.result_type) {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` fact-call projection certificate no longer rejoins its exact result type",

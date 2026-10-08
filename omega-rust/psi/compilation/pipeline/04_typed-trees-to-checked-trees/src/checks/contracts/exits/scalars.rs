@@ -518,8 +518,7 @@ impl ExitScalars<'_, '_> {
             match self
                 .program
                 .statement_table
-                .statements(state.statement_nodes)
-                .get(self.exit.statement_index)?
+                .statement_at(state, self.exit.statement_index)?
             {
                 typed_trees::statement::StatementNode::Transition(transition)
                     if self.exit.transition_target.is_valid()

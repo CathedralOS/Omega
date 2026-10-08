@@ -34,9 +34,7 @@ pub(crate) fn resolved_transition_target_state(
     let machine_symbol = program.symbols.get(target).parent;
     let machine = program.machine_by_symbol(machine_symbol)?;
     program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == target)
+        .state_in_machine(machine, target)
         .map(|state| (machine, state))
 }
 

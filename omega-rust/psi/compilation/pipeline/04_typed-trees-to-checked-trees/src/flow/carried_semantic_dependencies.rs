@@ -245,11 +245,7 @@ fn call_return_type_reference(
                 .first()
                 .map(|state| state.return_type);
         }
-        if let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target)
-        {
+        if let Some(state) = program.state_in_machine(machine, target) {
             return Some(state.return_type);
         }
     }

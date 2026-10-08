@@ -109,9 +109,7 @@ fn scoped_machine_state<'program>(
         visited.push(owner);
         if let Some(selected) = program.machines().iter().find_map(|machine| {
             program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == owner)
+                .state_in_machine(machine, owner)
                 .map(|state| (machine, state))
         }) {
             return Some(selected);

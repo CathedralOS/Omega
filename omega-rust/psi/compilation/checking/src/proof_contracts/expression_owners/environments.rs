@@ -56,10 +56,7 @@ pub(super) fn contract_owner_environment(
             state_symbol,
         } => {
             let machine = program.machine_by_symbol(machine_symbol)?;
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)?;
+            let state = program.state_in_machine(machine, state_symbol)?;
             Some(machine_environment(program, machine, Some(state)))
         }
         ContractProofFactOwner::StateSignature {

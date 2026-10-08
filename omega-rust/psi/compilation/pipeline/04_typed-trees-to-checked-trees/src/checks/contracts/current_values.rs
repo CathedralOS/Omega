@@ -21,11 +21,7 @@ pub(crate) fn proves_exit(
     let Some(machine) = program.machine_by_symbol(exit.machine_symbol) else {
         return false;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == exit.state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, exit.state_symbol) else {
         return false;
     };
     let Some(values) = CurrentScalarValues::at(
@@ -43,8 +39,7 @@ pub(crate) fn proves_exit(
     };
     let returned = match program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(exit.statement_index)
+        .statement_at(state, exit.statement_index)
     {
         Some(StatementNode::Expression(expression)) if !exit.transition_target.is_valid() => {
             *expression
@@ -82,11 +77,7 @@ pub(crate) fn proves_call(
     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
         return false;
     };
     let Some(site) = validation::find_call_site(
@@ -111,8 +102,7 @@ pub(crate) fn proves_call(
     {
         let Some(StatementNode::Transition(transition)) = program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(call.statement_index)
+            .statement_at(state, call.statement_index)
         else {
             return false;
         };
@@ -136,8 +126,7 @@ pub(crate) fn proves_call(
     if !target.is_valid() {
         let Some(statement) = program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(call.statement_index)
+            .statement_at(state, call.statement_index)
         else {
             return false;
         };

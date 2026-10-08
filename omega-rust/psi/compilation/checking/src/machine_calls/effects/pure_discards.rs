@@ -105,11 +105,7 @@ fn resolve_discard_callee(
     }
 
     for machine in program.machines() {
-        let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target_symbol)
-        else {
+        let Some(state) = program.state_in_machine(machine, target_symbol) else {
             continue;
         };
 

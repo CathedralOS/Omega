@@ -138,10 +138,7 @@ impl CallRequirement<'_> {
         }
         guarantees.intake(&mut site_judge);
         if !judge.has_runtime_body_values()
-            && let Some(state) = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == self.state)
+            && let Some(state) = program.state_in_machine(machine, self.state)
         {
             intake_state_induction(
                 program,
@@ -152,10 +149,7 @@ impl CallRequirement<'_> {
                 &mut site_judge,
             );
         }
-        let caller_state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == self.state);
+        let caller_state = program.state_in_machine(machine, self.state);
         let parameters = program.state_parameters(self.callee);
         let substitution = parameters
             .iter()

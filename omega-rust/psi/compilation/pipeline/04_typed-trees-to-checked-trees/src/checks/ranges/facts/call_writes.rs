@@ -80,7 +80,7 @@ impl<'program> RangeCallContext<'program> {
                     && call.authored_expression == *expression,
                 CallSite::Statement(statement_call) => call.call_ordinal == 0
                     && !call.authored_expression.is_valid()
-                    && matches!(program.statement_table.statements(state.statement_nodes).get(statement_index),
+                    && matches!(program.statement_table.statement_at(state, statement_index),
                         Some(typed_trees::statement::StatementNode::Call(candidate))
                             if std::ptr::eq(*statement_call, candidate)),
                 // The named target call is the one occurrence in a transition

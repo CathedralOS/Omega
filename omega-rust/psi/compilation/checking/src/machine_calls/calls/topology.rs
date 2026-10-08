@@ -8,10 +8,7 @@ pub fn find_state_in_machine(
     state_symbol: SymbolHandle,
 ) -> Option<&typed_trees::state::State> {
     let machine = program.machine_by_symbol(machine_symbol)?;
-    program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)
+    program.state_in_machine(machine, state_symbol)
 }
 
 /// The actual storage owner and state, resolved by the typed program's owner query.

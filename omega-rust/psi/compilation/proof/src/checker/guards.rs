@@ -189,9 +189,7 @@ pub(crate) fn apply_source_condition(
         .and_then(|machine| {
             proof_plan
                 .program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == source_state)
+                .state_in_machine(machine, source_state)
                 .map(|state| dehoisted_condition(proof_plan.program, state, condition))
         })
         .unwrap_or(condition);
@@ -254,9 +252,7 @@ pub(crate) fn apply_source_condition(
             .machine(machine_symbol)
             .and_then(|machine| {
                 program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == source_state)
+                    .state_in_machine(machine, source_state)
                     .map(|state| dehoisted_operand(program, state, handle))
             })
             .unwrap_or(handle)

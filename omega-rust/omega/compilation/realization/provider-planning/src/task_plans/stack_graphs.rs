@@ -367,16 +367,12 @@ fn frame_state_closure<'program>(
             continue;
         }
         seen.push(symbol);
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "task WCSU frame `{}` transition reaches a state outside its machine",
-                    machine.name
-                ))]
-            })?;
+        let state = program.state_in_machine(machine, symbol).ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "task WCSU frame `{}` transition reaches a state outside its machine",
+                machine.name
+            ))]
+        })?;
         for statement in program.statement_table.statements(state.statement_nodes) {
             let typed_trees::statement::StatementNode::Transition(transition) = statement else {
                 continue;

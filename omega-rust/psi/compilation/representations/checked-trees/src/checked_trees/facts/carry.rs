@@ -159,11 +159,7 @@ fn symbol_identity(
                 machine.name.as_str(),
             ));
         }
-        if let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
-        {
+        if let Some(state) = program.state_in_machine(machine, symbol) {
             return Some(crossing_declaration_name(
                 program,
                 symbol,

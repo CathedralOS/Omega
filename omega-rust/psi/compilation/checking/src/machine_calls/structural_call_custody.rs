@@ -1017,9 +1017,7 @@ pub fn structural_call_custody(
         .machine(caller_machine)
         .ok_or("structural call has no exact caller")?;
     let source_state = program
-        .machine_states(caller)
-        .iter()
-        .find(|state| state.symbol == caller_state)
+        .state_in_machine(caller, caller_state)
         .ok_or("structural call has no exact caller state")?;
     let target = program
         .machines()
@@ -1175,8 +1173,7 @@ pub fn structural_call_custody(
         ) {
             let local_destination = program
                 .statement_table
-                .statements(source_state.statement_nodes)
-                .get(call.statement_index)
+                .statement_at(source_state, call.statement_index)
                 .and_then(|statement| match statement {
                     typed_trees::statement::StatementNode::LocalData(local)
                         if local.initial_value == call.authored_expression =>
@@ -1425,8 +1422,7 @@ fn received_result_claims<'facts>(
 ) -> Result<Vec<(&'facts [facts::PlaceSegment], PermissionClaimIdentity)>, &'static str> {
     let receiving_root = match program
         .statement_table
-        .statements(source_state.statement_nodes)
-        .get(call.statement_index)
+        .statement_at(source_state, call.statement_index)
     {
         Some(StatementNode::LocalData(local))
             if local.initial_value == call.authored_expression =>

@@ -19,9 +19,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
 ) -> Option<Vec<CheckedNormalExitCleanupPlan>> {
     let (machine, state) = program.machines().iter().find_map(|machine| {
         program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_plan.state)
+            .state_in_machine(machine, state_plan.state)
             .map(|state| (machine, state))
     })?;
     let flow_state = facts
@@ -42,8 +40,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         } else {
             let StatementNode::Transition(transition) = program
                 .statement_table
-                .statements(state.statement_nodes)
-                .get(outgoing.statement_index)?
+                .statement_at(state, outgoing.statement_index)?
             else {
                 return None;
             };

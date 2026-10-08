@@ -735,11 +735,7 @@ fn value_declared_type_carries_domain(
     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
         return false;
     };
     let Some(type_reference) =

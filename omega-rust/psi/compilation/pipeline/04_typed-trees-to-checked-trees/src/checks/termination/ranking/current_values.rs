@@ -167,8 +167,7 @@ fn prove_edge(
 ) -> Option<bool> {
     let StatementNode::Transition(transition) = program
         .statement_table
-        .statements(source.statement_nodes)
-        .get(edge.statement_ordinal)?
+        .statement_at(source, edge.statement_ordinal)?
     else {
         return None;
     };

@@ -320,11 +320,7 @@ impl GuardContext<'_> {
             return None;
         }
         let (state_symbol, before_statement) = self.eval_site;
-        let state = self
-            .program
-            .machine_states(self.machine)
-            .iter()
-            .find(|state| state.symbol == state_symbol)?;
+        let state = self.program.state_in_machine(self.machine, state_symbol)?;
         if let Some((_, local)) = self
             .program
             .state_local_declaration(state, symbol)

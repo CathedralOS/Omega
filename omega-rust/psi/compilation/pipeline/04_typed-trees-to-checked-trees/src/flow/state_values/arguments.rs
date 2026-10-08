@@ -61,10 +61,8 @@ pub(in crate::flow) fn capture_argument(
     else {
         return ScalarValue::Unknown;
     };
-    let Some(StatementNode::Transition(transition)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
+    let Some(StatementNode::Transition(transition)) =
+        program.statement_table.statement_at(state, statement_index)
     else {
         return ScalarValue::Unknown;
     };

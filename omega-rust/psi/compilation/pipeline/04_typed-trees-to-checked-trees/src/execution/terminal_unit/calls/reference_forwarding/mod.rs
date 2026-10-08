@@ -139,8 +139,7 @@ fn exact_mutable_referent(
     // admits its release shape. Every other live loan is.
     let result_owner = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(call.statement_index)
+        .statement_at(state, call.statement_index)
         .and_then(|statement| match statement {
             StatementNode::LocalData(local) => Some(local.symbol),
             _ => None,

@@ -281,12 +281,7 @@ impl Builder<'_, '_> {
             let state = self
                 .program
                 .machine_by_symbol(self.machine)
-                .and_then(|machine| {
-                    self.program
-                        .machine_states(machine)
-                        .iter()
-                        .find(|state| state.symbol == self.state)
-                })?;
+                .and_then(|machine| self.program.state_in_machine(machine, self.state))?;
             CheckedStructuralValueKind::Reference {
                 source: crate::values::reference_sources::plan(
                     self.program,
@@ -445,11 +440,7 @@ impl Builder<'_, '_> {
                 return None;
             };
             let machine = self.program.machine_by_symbol(self.machine)?;
-            let state = self
-                .program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == self.state)?;
+            let state = self.program.state_in_machine(machine, self.state)?;
             let subject_type = validation::expression_result_type_reference(
                 self.program,
                 machine,

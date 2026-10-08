@@ -865,14 +865,8 @@ fn caller_prefix_site<'program>(
             state: state_symbol,
             index,
         } => {
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)?;
-            let statement = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(index)?;
+            let state = program.state_in_machine(machine, state_symbol)?;
+            let statement = program.statement_table.statement_at(state, index)?;
             CallerPrefixSite::Tracked {
                 state,
                 statement,
@@ -1011,14 +1005,8 @@ pub(super) fn caller_statement_at_site<'program>(
                 .map(|(state, _statement, index)| (state.symbol, index))
         },
     )?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
-    let statement = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(index)?;
+    let state = program.state_in_machine(machine, state_symbol)?;
+    let statement = program.statement_table.statement_at(state, index)?;
     Some((state, statement, index))
 }
 

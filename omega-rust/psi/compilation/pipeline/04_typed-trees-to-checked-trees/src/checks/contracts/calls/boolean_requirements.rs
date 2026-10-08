@@ -23,11 +23,7 @@ fn standing_domain_fact_proves_requirement(
     let Some(caller) = program.machine_by_symbol(state_flow.machine_symbol) else {
         return false;
     };
-    let Some(caller_state) = program
-        .machine_states(caller)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
+    let Some(caller_state) = program.state_in_machine(caller, state_flow.state_symbol) else {
         return false;
     };
     let Some(call_site) = validation::find_call_site(

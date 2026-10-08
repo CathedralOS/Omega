@@ -1011,8 +1011,7 @@ pub(crate) fn receiving_value(
     let state = program.state_by_symbol(event.state_symbol)?;
     let statement = program
         .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)?;
+        .statement_at(state, statement_index)?;
     let expression = match statement {
         StatementNode::LocalData(local) => local.initial_value,
         StatementNode::Assignment(assignment) => assignment.value,

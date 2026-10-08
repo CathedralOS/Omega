@@ -281,12 +281,7 @@ fn resultless_machine_state(
 ) -> bool {
     program
         .machine_by_symbol(machine_symbol)
-        .and_then(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)
-        })
+        .and_then(|machine| program.state_in_machine(machine, state_symbol))
         .is_some_and(|state| type_reference_is_unit(program, state.return_type))
 }
 

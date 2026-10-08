@@ -327,12 +327,10 @@ fn inherited_contract_scope_parts<'program>(
     let ContractProofFactOwner::MachineState { state_symbol, .. } = contract.owner else {
         return None;
     };
-    let satisfier_state = program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_symbol)
-    })?;
+    let satisfier_state = program
+        .machines()
+        .iter()
+        .find_map(|machine| program.state_in_machine(machine, state_symbol))?;
     Some((trait_definition, requirement, satisfier_state, scope))
 }
 

@@ -55,10 +55,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         if arrival.slots.is_empty() {
             continue;
         }
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == arrival.state)?;
+        let state = program.state_in_machine(machine, arrival.state)?;
         let (last, prefixes) =
             stored_reference_transfer(program, machine, state, symbols, &mut inference)?;
         let mut has_transition = false;

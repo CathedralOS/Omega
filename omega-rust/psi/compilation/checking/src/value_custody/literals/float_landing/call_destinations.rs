@@ -35,11 +35,7 @@ fn parameters<'program>(
         return Some(program.state_signature_parameters(signature));
     }
     for candidate in program.machines() {
-        if let Some(state) = program
-            .machine_states(candidate)
-            .iter()
-            .find(|state| state.symbol == call.target_symbol)
-        {
+        if let Some(state) = program.state_in_machine(candidate, call.target_symbol) {
             return Some(program.state_parameters(state));
         }
     }
@@ -52,7 +48,8 @@ fn parameters<'program>(
             return Some(program.state_signature_parameters(signature));
         }
     }
-    program.all_operators()
+    program
+        .all_operators()
         .find(|operator| operator.symbol == call.target_symbol)
         .map(|operator| program.operator_parameters(operator))
 }

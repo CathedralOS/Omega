@@ -153,11 +153,7 @@ pub(crate) fn owned_call_operand_places(
     let Some(machine) = program.machine_by_symbol(caller_machine_symbol) else {
         return Vec::new();
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == caller_state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, caller_state_symbol) else {
         return Vec::new();
     };
     // Constructor values have no caller storage root. Reuse the same typed

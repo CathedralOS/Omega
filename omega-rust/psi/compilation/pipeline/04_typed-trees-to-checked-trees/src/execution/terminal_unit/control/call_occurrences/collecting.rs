@@ -149,8 +149,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         .find(|source| source.symbol == state)?;
     if let Some(StatementNode::Transition(transition)) = program
         .statement_table
-        .statements(source_state.statement_nodes)
-        .get(call.statement_index)
+        .statement_at(source_state, call.statement_index)
         && let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard
     {
         let plans = &facts.values.scalar_computations;
@@ -198,8 +197,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
     }
     let statement = program
         .statement_table
-        .statements(source_state.statement_nodes)
-        .get(call.statement_index)?;
+        .statement_at(source_state, call.statement_index)?;
     collect_constructor_calls(
         program,
         facts,

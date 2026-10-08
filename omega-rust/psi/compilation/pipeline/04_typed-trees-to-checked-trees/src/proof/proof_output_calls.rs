@@ -284,8 +284,7 @@ pub(crate) fn bind_proof_output_call_facts(
             };
             let runtime_statement = program
                 .statement_table
-                .statements(caller_state.statement_nodes)
-                .get(statement_index);
+                .statement_at(caller_state, statement_index);
             let exact_runtime_statement =
                 match (runtime_value_type, value_binding, runtime_statement) {
                     (

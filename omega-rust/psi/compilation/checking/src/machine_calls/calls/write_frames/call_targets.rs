@@ -99,9 +99,7 @@ pub(crate) fn machine_state_by_symbol(
     let machine_symbol = program.symbols.get(symbol).parent;
     let machine = program.machine_by_symbol(machine_symbol)?;
     program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == symbol)
+        .state_in_machine(machine, symbol)
         .map(|state| (machine, state))
 }
 

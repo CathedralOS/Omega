@@ -449,9 +449,7 @@ fn resolve_direct_block_float_parameter(
     }
     let source_state = checked
         .typed
-        .machine_states(source_machine)
-        .iter()
-        .find(|state| state.symbol == parameter.owner_state)
+        .state_in_machine(source_machine, parameter.owner_state)
         .ok_or_else(invalid_source)?;
     let authored_position = checked
         .typed

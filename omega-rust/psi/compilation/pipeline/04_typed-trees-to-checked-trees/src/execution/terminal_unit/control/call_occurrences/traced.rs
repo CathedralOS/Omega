@@ -424,8 +424,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         trace.statement(u32::try_from(call.statement_index).ok());
         let statement = program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(call.statement_index)?;
+            .statement_at(state, call.statement_index)?;
         if matches!(statement, StatementNode::Expression(_)) {
             let (expression, authored) =
                 ordered_statement_call(program, owner, state, call.statement_index)?;

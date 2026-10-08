@@ -131,8 +131,7 @@ pub(crate) fn bind_checked_body_call_source_spans(
             checked_call.authored_result = match (
                 program
                     .statement_table
-                    .statements(state.statement_nodes)
-                    .get(checked_call.statement_index),
+                    .statement_at(state, checked_call.statement_index),
                 &call_site,
             ) {
                 (Some(StatementNode::Call(call)), _)

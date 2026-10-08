@@ -69,8 +69,7 @@ pub(super) fn check_statement_borrows<'p>(
         let stated_premises = available_premises.as_slice();
         let Some(statement_node) = program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(statement.statement_index)
+            .statement_at(state, statement.statement_index)
         else {
             continue;
         };

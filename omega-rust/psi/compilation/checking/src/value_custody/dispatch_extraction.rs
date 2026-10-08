@@ -34,10 +34,8 @@ impl DispatchExtraction {
         statement_index: usize,
     ) -> Self {
         let mut extraction = Self::default();
-        let Some(StatementNode::Transition(transition)) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index)
+        let Some(StatementNode::Transition(transition)) =
+            program.statement_table.statement_at(state, statement_index)
         else {
             return extraction;
         };

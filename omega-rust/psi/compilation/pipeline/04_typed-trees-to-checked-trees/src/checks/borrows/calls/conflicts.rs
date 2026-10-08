@@ -169,10 +169,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                     let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
                         return false;
                     };
-                    let Some(source) = program
-                        .machine_states(machine)
-                        .iter()
-                        .find(|state| state.symbol == state_flow.state_symbol)
+                    let Some(source) = program.state_in_machine(machine, state_flow.state_symbol)
                     else {
                         return false;
                     };

@@ -74,10 +74,7 @@ impl<'a> CaseObservation<'a> {
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Option<Self> {
         let machine = program.machine(exit.machine_symbol)?;
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == exit.state_symbol)?;
+        let state = program.state_in_machine(machine, exit.state_symbol)?;
         let returned = exit_return_expression(program, exit);
         let mut returned_nodes = Vec::new();
         validation::expression_traversal::collect_expression_tree(

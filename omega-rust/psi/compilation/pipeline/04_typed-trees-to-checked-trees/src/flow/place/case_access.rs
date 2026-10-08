@@ -124,11 +124,7 @@ pub(crate) fn place_case_has_value(
     let Some(machine) = program.machine_by_symbol(machine_symbol) else {
         return false;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, state_symbol) else {
         return false;
     };
     let query = CaseAccess {

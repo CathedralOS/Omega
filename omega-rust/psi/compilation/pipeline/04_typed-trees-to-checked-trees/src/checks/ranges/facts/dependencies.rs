@@ -346,8 +346,7 @@ impl<'field> RangeFacts<'field> {
         use typed_trees::{statement::StatementNode, types::PrimitiveType};
         let Some(StatementNode::LocalData(local)) = program
             .statement_table
-            .statements(state.statement_nodes)
-            .get(self.statement_index)
+            .statement_at(state, self.statement_index)
         else {
             return;
         };

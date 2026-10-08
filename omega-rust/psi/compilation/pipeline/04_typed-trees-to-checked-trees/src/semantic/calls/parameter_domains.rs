@@ -23,18 +23,10 @@ pub(crate) fn call_parameter_domains(
     let Some(callee) = program.machine_by_symbol(target_machine) else {
         return Vec::new();
     };
-    let Some(state) = program
-        .machine_states(caller)
-        .iter()
-        .find(|state| state.symbol == caller_state)
-    else {
+    let Some(state) = program.state_in_machine(caller, caller_state) else {
         return Vec::new();
     };
-    let Some(entry) = program
-        .machine_states(callee)
-        .iter()
-        .find(|state| state.symbol == target_state)
-    else {
+    let Some(entry) = program.state_in_machine(callee, target_state) else {
         return Vec::new();
     };
     let selected = match site {

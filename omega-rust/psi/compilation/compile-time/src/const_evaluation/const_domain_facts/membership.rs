@@ -78,9 +78,7 @@ fn resolve_fact_machine<'program>(
         .iter()
         .find_map(|machine| {
             typed
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == call.target_symbol)
+                .state_in_machine(machine, call.target_symbol)
                 .map(|state| (machine, state))
         })
         .or_else(|| {

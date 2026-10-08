@@ -707,8 +707,7 @@ pub(crate) fn exact_structural_argument_access(
         .and_then(|source_state| {
             let StatementNode::LocalData(local) = program
                 .statement_table
-                .statements(source_state.statement_nodes)
-                .get(call.statement_index)?
+                .statement_at(source_state, call.statement_index)?
             else {
                 return None;
             };
