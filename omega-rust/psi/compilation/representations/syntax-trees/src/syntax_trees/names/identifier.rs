@@ -62,6 +62,16 @@ impl Identifier {
         self.source_span
     }
 
+    /// This identifier's span narrowed to its trailing `length` source bytes —
+    /// the span a final path segment occupies when the path is dotted.
+    pub fn trailing_span(&self, length: usize) -> SourceSpan {
+        let mut span = self.source_span();
+        if span.span.end >= length {
+            span.span.start = span.span.end - length;
+        }
+        span
+    }
+
     /// Whether this identifier spells the `self` receiver binding of an
     /// attached machine or state; see `language_core::receiver_binding`.
     pub fn is_self_receiver(&self) -> bool {

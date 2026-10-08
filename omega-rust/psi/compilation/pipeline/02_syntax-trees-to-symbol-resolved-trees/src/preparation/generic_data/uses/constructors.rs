@@ -60,11 +60,7 @@ pub(in crate::preparation::generic_data) fn selected_constructor(
         .then(|| {
             // The syntax-only entry selects the same declaration as the header
             // route, but the case receipt still names only the final token.
-            let mut span = name.source_span();
-            if span.span.end >= case.len() {
-                span.span.start = span.span.end - case.len();
-            }
-            (owner, Some(Identifier::new(case, span)))
+            (owner, Some(Identifier::new(case, name.trailing_span(case.len()))))
         })
 }
 

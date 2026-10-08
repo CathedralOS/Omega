@@ -597,13 +597,8 @@ impl<'base> ConstantSelection<'base> {
                     format!("`{name}` does not select one declared constructor carrier")
                 })?;
         let definition = self.data_declaration(syntax, name, selected)?;
-        let case = case.map(|case| {
-            let mut span = name.source_span();
-            if span.span.end >= case.len() {
-                span.span.start = span.span.end - case.len();
-            }
-            Identifier::new(case, span)
-        });
+        let case =
+            case.map(|case| Identifier::new(case, name.trailing_span(case.len())));
         Ok((definition, case))
     }
 
@@ -685,11 +680,10 @@ impl<'base> ConstantSelection<'base> {
             return Ok(None);
         };
         let definition = self.data_declaration(syntax, name, owner)?;
-        let mut span = name.source_span();
-        if span.span.end >= case.len() {
-            span.span.start = span.span.end - case.len();
-        }
-        Ok(Some((definition, Identifier::new(case, span))))
+        Ok(Some((
+            definition,
+            Identifier::new(case, name.trailing_span(case.len())),
+        )))
     }
 
     fn data_declaration<'syntax>(
