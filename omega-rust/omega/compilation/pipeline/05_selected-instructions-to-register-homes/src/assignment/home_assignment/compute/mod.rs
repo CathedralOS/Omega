@@ -12,6 +12,8 @@ use register_model::{
     ValidatedRegisterReservationProfile, infrastructure_environment_agrees,
 };
 
+use std::sync::Arc;
+
 use crate::{RegisterHomeError, RegisterHomePlan};
 use register_homes::{FunctionAllocationLegality, FunctionRegisterHomes};
 use selected_instructions::FunctionLiveRanges;
@@ -29,7 +31,9 @@ pub(crate) use placement::compute_function;
 /// yield equal homes. Runtime-spill recovery rewrites one function per step
 /// and reassigns the whole program after each; without reuse, every step
 /// recomputed every function before the one still failing. The reused rows
-/// are proposals: a successful plan is validated whole, as any other.
+/// are proposals: a successful plan is validated whole, as any other. The
+/// rows are kept as the analyses' shared handles, so an unchanged function is
+/// recognized by its storage before any content comparison.
 #[derive(Default)]
 pub(crate) struct FunctionHomeReuse {
     register_environment: Option<TargetRegisterEnvironmentIdentity>,
@@ -37,8 +41,8 @@ pub(crate) struct FunctionHomeReuse {
 }
 
 struct ReusableFunctionHomes {
-    legality: FunctionAllocationLegality,
-    ranges: FunctionLiveRanges,
+    legality: Arc<FunctionAllocationLegality>,
+    ranges: Arc<FunctionLiveRanges>,
     homes: FunctionRegisterHomes,
 }
 
@@ -47,8 +51,8 @@ impl FunctionHomeReuse {
         &mut self,
         register_environment: TargetRegisterEnvironmentIdentity,
         index: usize,
-        legality: &FunctionAllocationLegality,
-        ranges: &FunctionLiveRanges,
+        legality: &Arc<FunctionAllocationLegality>,
+        ranges: &Arc<FunctionLiveRanges>,
         physical: &ValidatedPhysicalRegisterModel,
     ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
         if self.register_environment != Some(register_environment) {
@@ -67,8 +71,8 @@ impl FunctionHomeReuse {
             self.functions.resize_with(index + 1, || None);
         }
         self.functions[index] = Some(ReusableFunctionHomes {
-            legality: legality.clone(),
-            ranges: ranges.clone(),
+            legality: Arc::clone(legality),
+            ranges: Arc::clone(ranges),
             homes: homes.clone(),
         });
         Ok(homes)

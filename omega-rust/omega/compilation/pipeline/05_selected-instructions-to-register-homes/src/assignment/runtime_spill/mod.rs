@@ -26,14 +26,16 @@ use selected_instructions_to_selected_instructions::{
     ValidatedRuntimeSplit,
 };
 
-/// A completed recovery: its source custody, the recorded steps and the final
+/// A completed recovery: its source custody, the final step and the final
 /// facts, homes and manifest. Every recovery caller transfers it directly to
 /// `RetainedAllocation::try_from`, which publishes the final step's program
-/// and facts.
+/// and facts. Earlier steps survive only as the manifest's transformation
+/// records: each step's program replaces the one before it, so keeping every
+/// intermediate program held one copy of the rewritten function per step.
 #[derive(Debug)]
 pub(crate) struct RuntimeSpillAllocation {
     pub(crate) source: RuntimeSpillSource,
-    pub(crate) steps: Vec<RuntimeSpillStep>,
+    pub(crate) last: RuntimeSpillStep,
     pub(crate) facts: RuntimeSpillFacts,
     pub(crate) homes: ValidatedRegisterHomes,
     pub(crate) manifest: ValidatedPostAllocationOptimizationManifest,
@@ -321,6 +323,23 @@ pub(crate) enum RuntimeSpillStepRewrite {
 }
 
 impl RuntimeSpillStepRewrite {
+    /// The manifest record of this step: its family and transformed program.
+    pub(crate) fn transformation(&self) -> PostAllocationSelectedTransformation {
+        match self {
+            Self::Split(rewrite) => PostAllocationSelectedTransformation::RuntimeSplit(
+                rewrite.receipt().transformed_selected(),
+            ),
+            Self::Spill(rewrite) => PostAllocationSelectedTransformation::RuntimeSpill(
+                rewrite.receipt().transformed_selected(),
+            ),
+            Self::Rematerialization(rewrite) => {
+                PostAllocationSelectedTransformation::RuntimeRematerialization(
+                    rewrite.receipt().transformed_selected(),
+                )
+            }
+        }
+    }
+
     pub(crate) fn transformed(&self) -> &SelectedInstructionPlan {
         match self {
             Self::Split(rewrite) => rewrite.transformed(),

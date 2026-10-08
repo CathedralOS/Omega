@@ -14,7 +14,7 @@ pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     let digests = plan
         .functions
         .iter()
-        .map(live_range_function_digest)
+        .map(|function| live_range_function_digest(function))
         .collect::<Vec<_>>();
     live_range_identity_from_digests(plan, &digests)
 }
@@ -211,6 +211,8 @@ fn encode_len(bytes: &mut Vec<u8>, length: usize) {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::{
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
     };
@@ -346,7 +348,10 @@ mod tests {
                     }],
                     interference: Vec::new(),
                 },
-            ],
+            ]
+            .into_iter()
+            .map(Arc::new)
+            .collect(),
         }
     }
 
@@ -359,10 +364,10 @@ mod tests {
         changed.functions.pop();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[1].machine = MachineId::new(3).unwrap();
+        Arc::make_mut(&mut changed.functions[1]).machine = MachineId::new(3).unwrap();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[1].architectural_units[0].actions[0].kind =
+        Arc::make_mut(&mut changed.functions[1]).architectural_units[0].actions[0].kind =
             ArchitecturalUnitActionKind::Def;
         mutations.push(changed);
 
@@ -382,25 +387,36 @@ mod tests {
         changed.target = NativeTarget::linux_arm64();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].machine = MachineId::new(2).unwrap();
+        Arc::make_mut(&mut changed.functions[0]).machine = MachineId::new(2).unwrap();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].block_domains[0].block.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).block_domains[0]
+            .block
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].block_domains[0].source_block = BlockId::new(2).unwrap();
+        Arc::make_mut(&mut changed.functions[0]).block_domains[0].source_block =
+            BlockId::new(2).unwrap();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].block_domains[0].start.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).block_domains[0]
+            .start
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].block_domains[0].end.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).block_domains[0]
+            .end
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].virtual_register.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0]
+            .virtual_register
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].class.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0]
+            .class
+            .0 += 1;
         mutations.push(changed);
         let tie_mutations: Vec<fn(&mut DistinctUseDefTie)> = vec![
             |tie| tie.block.0 += 1,
@@ -416,7 +432,7 @@ mod tests {
         ];
         for mutate in tie_mutations {
             let mut changed = original.clone();
-            mutate(&mut changed.functions[0].tied_pairs[0]);
+            mutate(&mut Arc::make_mut(&mut changed.functions[0]).tied_pairs[0]);
             mutations.push(changed);
         }
         let early_mutations: Vec<fn(&mut EarlyClobberConstraint)> = vec![
@@ -435,33 +451,33 @@ mod tests {
         ];
         for mutate in early_mutations {
             let mut changed = original.clone();
-            mutate(&mut changed.functions[0].early_clobbers[0]);
+            mutate(&mut Arc::make_mut(&mut changed.functions[0]).early_clobbers[0]);
             mutations.push(changed);
         }
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].occurrences[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].occurrences[0]
             .position
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].occurrences[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].occurrences[0]
             .point
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].occurrences[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].occurrences[0]
             .instruction
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].occurrences[0].operand += 1;
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].occurrences[0].operand += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].occurrences[0].access =
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].occurrences[0].access =
             RegisterOperandAccess::Def;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].fixed_constraints[0].site =
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].fixed_constraints[0].site =
             VirtualFixedConstraintSite::Operand {
                 position: LivenessPosition(0),
                 point: LiveRangePoint(0),
@@ -471,72 +487,81 @@ mod tests {
             };
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].fixed_constraints[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].fixed_constraints[0]
             .view
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].fragments[0].end.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].fragments[0]
+            .end
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].edge_connectors[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].edge_connectors[0]
             .target
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].edge_connectors[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].edge_connectors[0]
             .source
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].edge_connectors[0]
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].edge_connectors[0]
             .terminator
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].virtual_registers[0].edge_connectors[0].psi_edge =
+        Arc::make_mut(&mut changed.functions[0]).virtual_registers[0].edge_connectors[0].psi_edge =
             EdgeId::new(2).unwrap();
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].unit.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0]
+            .unit
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].actions[0].kind =
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].actions[0].kind =
             ArchitecturalUnitActionKind::Def;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].actions[0]
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].actions[0]
             .block
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].actions[0]
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].actions[0]
             .position
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].actions[0]
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].actions[0]
             .point
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].actions[0]
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].actions[0]
             .instruction
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].fragments[0]
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].fragments[0]
             .start
             .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].architectural_units[0].edge_connectors[0].polarity_ordinal = 1;
+        Arc::make_mut(&mut changed.functions[0]).architectural_units[0].edge_connectors[0]
+            .polarity_ordinal = 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].interference[0].higher.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).interference[0]
+            .higher
+            .0 += 1;
         mutations.push(changed);
         let mut changed = original.clone();
-        changed.functions[0].interference[0].lower.0 += 1;
+        Arc::make_mut(&mut changed.functions[0]).interference[0]
+            .lower
+            .0 += 1;
         mutations.push(changed);
 
         for mutation in mutations {

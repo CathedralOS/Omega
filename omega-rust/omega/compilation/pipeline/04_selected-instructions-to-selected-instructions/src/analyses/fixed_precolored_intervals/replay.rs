@@ -45,8 +45,8 @@ pub(super) fn replay(
 }
 
 fn replay_family(
-    ranges: &[FunctionLiveRanges],
-    legality: &[FunctionAllocationLegality],
+    ranges: &[std::sync::Arc<FunctionLiveRanges>],
+    legality: &[std::sync::Arc<FunctionAllocationLegality>],
     usage: &mut OptimizationWorkUsage,
 ) -> Result<Vec<FunctionFixedPrecoloredIntervals>, FixedPrecoloredIntervalError> {
     if ranges.len() != legality.len() {

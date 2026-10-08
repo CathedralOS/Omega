@@ -12,7 +12,7 @@ use super::{conflicts, placement};
 
 pub(super) fn derive(
     requirements: &[FunctionFixedPrecoloredSplitRequirements],
-    ranges: &[FunctionLiveRanges],
+    ranges: &[std::sync::Arc<FunctionLiveRanges>],
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut Work,
 ) -> Result<Vec<FunctionFixedPrecoloredSegmentHomes>, FixedPrecoloredSegmentHomeError> {

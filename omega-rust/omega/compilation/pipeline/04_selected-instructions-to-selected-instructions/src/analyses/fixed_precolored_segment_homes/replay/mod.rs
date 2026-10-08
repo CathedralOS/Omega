@@ -42,7 +42,7 @@ pub(super) fn replay(
 }
 
 fn family(
-    ranges: &[FunctionLiveRanges],
+    ranges: &[std::sync::Arc<FunctionLiveRanges>],
     requirements: &[FunctionFixedPrecoloredSplitRequirements],
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut super::work::Work,

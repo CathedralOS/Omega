@@ -186,7 +186,7 @@ pub(crate) fn fixture() -> (
         optimization_unit: OptimizationUnitIdentity::from_bytes([4; 32]),
         fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
         target: selected.target,
-        functions: vec![FunctionLiveRanges {
+        functions: vec![std::sync::Arc::new(FunctionLiveRanges {
             machine,
             block_domains: vec![BlockPointDomain {
                 block: SelectedBlockId(0),
@@ -227,7 +227,7 @@ pub(crate) fn fixture() -> (
             early_clobbers: Vec::new(),
             architectural_units: Vec::new(),
             interference: Vec::new(),
-        }],
+        })],
     };
     let original = &selected.functions[0].blocks[0].instructions[0];
     let recovery = RecoveryClassificationPlan {
@@ -331,7 +331,7 @@ pub(crate) fn multiple_future_fixture() -> (
             ..Default::default()
         },
     });
-    let function_ranges = &mut ranges.functions[0];
+    let function_ranges = std::sync::Arc::make_mut(&mut ranges.functions[0]);
     function_ranges.block_domains[0].end = LiveRangePoint(10);
     let victim = &mut function_ranges.virtual_registers[0];
     victim.occurrences[1] = VirtualOccurrence {

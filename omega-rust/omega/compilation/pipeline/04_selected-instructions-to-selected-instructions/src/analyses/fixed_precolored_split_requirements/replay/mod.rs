@@ -46,8 +46,8 @@ pub(super) fn replay(
 }
 
 fn family(
-    ranges: &[FunctionLiveRanges],
-    legality: &[FunctionAllocationLegality],
+    ranges: &[std::sync::Arc<FunctionLiveRanges>],
+    legality: &[std::sync::Arc<FunctionAllocationLegality>],
     fixed: &[FunctionFixedPrecoloredIntervals],
     work: &mut work::Work,
 ) -> Result<Vec<FunctionFixedPrecoloredSplitRequirements>, FixedPrecoloredSplitRequirementError> {

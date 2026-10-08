@@ -6,12 +6,17 @@ use crate::FixedPrecoloredSplitRequirementError;
 use register_homes::{FunctionAllocationLegality, FunctionFixedPrecoloredIntervals};
 
 pub(super) fn legality(
-    functions: &[FunctionAllocationLegality],
+    functions: &[std::sync::Arc<FunctionAllocationLegality>],
 ) -> Result<
     BTreeMap<semantic_vocabulary::MachineId, &FunctionAllocationLegality>,
     FixedPrecoloredSplitRequirementError,
 > {
-    keyed_by_machine(functions, |row| row.machine)
+    keyed_by_machine(functions, |row| row.machine).map(|keyed| {
+        keyed
+            .into_iter()
+            .map(|(machine, row)| (machine, &**row))
+            .collect()
+    })
 }
 
 pub(super) fn fixed(

@@ -38,7 +38,9 @@ pub(crate) fn compute_terminal_live_ranges(
         .iter()
         .zip(&liveness.plan().functions)
         .enumerate()
-        .map(|(index, (selected, live))| compute_function(index, selected, live))
+        .map(|(index, (selected, live))| {
+            compute_function(index, selected, live).map(std::sync::Arc::new)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(LiveRangePlan {
         selected: selected.selected_identity(),
@@ -88,7 +90,7 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
                 carried[function_index] = true;
                 return Ok(facts.clone());
             }
-            compute_function(function_index, function, live)
+            compute_function(function_index, function, live).map(std::sync::Arc::new)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((

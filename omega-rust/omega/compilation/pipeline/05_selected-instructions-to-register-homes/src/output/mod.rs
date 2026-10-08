@@ -138,8 +138,6 @@ pub enum AllocationAdmissionError {
     /// The exercised recovery does not match the declared allocation-recovery
     /// selection: a declared rule did not run, or an undeclared one did.
     SelectionMismatch,
-    /// A runtime-spill recovery recorded no rewrite step to publish.
-    EmptyRuntimeSpillRecovery,
 }
 
 impl std::fmt::Display for AllocationAdmissionError {

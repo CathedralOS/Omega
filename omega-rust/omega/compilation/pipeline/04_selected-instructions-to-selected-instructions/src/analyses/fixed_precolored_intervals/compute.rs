@@ -58,8 +58,8 @@ fn roots(
 }
 
 fn family(
-    ranges: &[FunctionLiveRanges],
-    legality: &[FunctionAllocationLegality],
+    ranges: &[std::sync::Arc<FunctionLiveRanges>],
+    legality: &[std::sync::Arc<FunctionAllocationLegality>],
     usage: &mut OptimizationWorkUsage,
 ) -> Result<Vec<FunctionFixedPrecoloredIntervals>, FixedPrecoloredIntervalError> {
     ranges

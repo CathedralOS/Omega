@@ -36,7 +36,11 @@ pub struct LivenessPlan {
     pub optimization_unit: OptimizationUnitIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
-    pub functions: Vec<FunctionLiveness>,
+    /// One row per selected function, in plan order. Rows are shared between
+    /// the successive plans runtime-spill recovery analyzes: a step that
+    /// rewrites one function recomputes that function's row and shares every
+    /// other row instead of copying it.
+    pub functions: Vec<std::sync::Arc<FunctionLiveness>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

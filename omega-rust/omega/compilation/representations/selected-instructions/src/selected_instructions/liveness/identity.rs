@@ -12,7 +12,7 @@ pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     let digests = plan
         .functions
         .iter()
-        .map(liveness_function_digest)
+        .map(|function| liveness_function_digest(function))
         .collect::<Vec<_>>();
     liveness_identity_from_digests(plan, &digests)
 }
@@ -154,6 +154,8 @@ fn encode_len(bytes: &mut Vec<u8>, length: usize) {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{LivenessPlan, liveness_identity};
     use crate::{BlockLiveness, FunctionLiveness, InstructionLiveness, LivenessPosition};
     use crate::{SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity};
@@ -197,7 +199,7 @@ mod tests {
             optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
             target: target::NativeTarget::linux_x64(),
-            functions: vec![function(1, 1), function(2, 2)],
+            functions: vec![function(1, 1).into(), function(2, 2).into()],
         }
     }
 
@@ -216,15 +218,17 @@ mod tests {
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].machine = MachineId::new(3).unwrap();
+        Arc::make_mut(&mut corrupted.functions[0]).machine = MachineId::new(3).unwrap();
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[0].instructions[0].instruction = SelectedInstructionId(1);
+        Arc::make_mut(&mut corrupted.functions[0]).blocks[0].instructions[0].instruction =
+            SelectedInstructionId(1);
         assert_ne!(identity, liveness_identity(&corrupted));
 
         let mut corrupted = plan.clone();
-        corrupted.functions[0].blocks[0].instructions[0].unit_uses[0] = RegisterUnitId(3);
+        Arc::make_mut(&mut corrupted.functions[0]).blocks[0].instructions[0].unit_uses[0] =
+            RegisterUnitId(3);
         assert_ne!(identity, liveness_identity(&corrupted));
     }
 }

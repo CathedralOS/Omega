@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use crate::analyses::liveness::LivenessError;
 use register_model::RegisterOperandAccess;
@@ -21,7 +22,7 @@ pub(crate) fn compute_terminal_liveness(
         .functions
         .iter()
         .enumerate()
-        .map(|(index, function)| compute_function(index, function))
+        .map(|(index, function)| compute_function(index, function).map(Arc::new))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(LivenessPlan {
         selected: selected.selected_identity(),
@@ -66,7 +67,7 @@ pub(crate) fn compute_terminal_liveness_reusing(
                 carried[function_index] = true;
                 return Ok(facts.clone());
             }
-            compute_function(function_index, function)
+            compute_function(function_index, function).map(Arc::new)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((

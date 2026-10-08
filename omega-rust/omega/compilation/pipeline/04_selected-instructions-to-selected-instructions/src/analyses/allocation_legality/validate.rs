@@ -142,12 +142,10 @@ pub(crate) fn admit(
     carried: &[bool],
     previous_digests: &[[u8; 32]],
 ) -> ValidatedAllocationLegality {
-    let function_digests = crate::analyses::carried_digests(
-        &plan.functions,
-        carried,
-        previous_digests,
-        allocation_legality_function_digest,
-    );
+    let function_digests =
+        crate::analyses::carried_digests(&plan.functions, carried, previous_digests, |function| {
+            allocation_legality_function_digest(function)
+        });
     let identity = allocation_legality_identity_from_digests(&plan, &function_digests);
     let receipt = AllocationLegalityValidationReceipt {
         identity,

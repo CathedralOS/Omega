@@ -33,7 +33,11 @@ pub struct AllocationLegalityPlan {
     pub ranges: LiveRangeIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
-    pub functions: Vec<FunctionAllocationLegality>,
+    /// One row per selected function, in plan order. Rows are shared between
+    /// the successive plans runtime-spill recovery analyzes: a step that
+    /// rewrites one function recomputes that function's row and shares every
+    /// other row instead of copying it.
+    pub functions: Vec<std::sync::Arc<FunctionAllocationLegality>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

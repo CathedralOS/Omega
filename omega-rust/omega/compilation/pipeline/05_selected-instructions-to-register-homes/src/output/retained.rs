@@ -107,7 +107,7 @@ impl TryFrom<crate::assignment::runtime_spill::RuntimeSpillAllocation> for Retai
         source: crate::assignment::runtime_spill::RuntimeSpillAllocation,
     ) -> Result<Self, Self::Error> {
         Self::capture(
-            &source.project_allocation()?,
+            &source.project_allocation(),
             source.recovery_prefix_selection(),
         )
     }

@@ -12,12 +12,10 @@ pub(crate) fn admit(
     carried: &[bool],
     previous_digests: &[[u8; 32]],
 ) -> ValidatedLiveRanges {
-    let function_digests = crate::analyses::carried_digests(
-        &plan.functions,
-        carried,
-        previous_digests,
-        selected_instructions::live_range_function_digest,
-    );
+    let function_digests =
+        crate::analyses::carried_digests(&plan.functions, carried, previous_digests, |function| {
+            selected_instructions::live_range_function_digest(function)
+        });
     let receipt = build_receipt(&plan, &function_digests);
     ValidatedLiveRanges {
         plan: plan.into(),

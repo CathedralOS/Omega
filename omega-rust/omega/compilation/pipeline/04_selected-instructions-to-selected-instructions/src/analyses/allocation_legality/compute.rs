@@ -83,6 +83,7 @@ pub(crate) fn compute_terminal_allocation_legality(
                 physical,
                 reservations,
             )
+            .map(std::sync::Arc::new)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((

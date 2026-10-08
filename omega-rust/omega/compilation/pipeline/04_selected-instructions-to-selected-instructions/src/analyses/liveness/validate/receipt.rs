@@ -11,12 +11,10 @@ pub(crate) fn admit_validated_liveness(
     carried: &[bool],
     previous_digests: &[[u8; 32]],
 ) -> ValidatedLiveness {
-    let function_digests = crate::analyses::carried_digests(
-        &plan.functions,
-        carried,
-        previous_digests,
-        liveness_function_digest,
-    );
+    let function_digests =
+        crate::analyses::carried_digests(&plan.functions, carried, previous_digests, |function| {
+            liveness_function_digest(function)
+        });
     let block_count = plan
         .functions
         .iter()

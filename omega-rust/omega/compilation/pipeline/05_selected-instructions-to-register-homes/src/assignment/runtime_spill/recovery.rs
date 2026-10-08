@@ -147,12 +147,18 @@ impl SpillPressureProbe {
 // by address-producing instructions. A committed rewrite can mint registers
 // — a split's fresh register keeps any pinned use over its own span — so the
 // pool re-derives against each step's plan. Reloads from either recovery form
-// restate the victim's own origin, so `retire_minted` keeps them out.
-pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualRegisterId)> {
+// restate the victim's own origin, so `retire_minted` keeps them out. Only the
+// failed function's registers can relieve its pressure and every step rewrites
+// only that function, so the roster reads that one function's registers rather
+// than every register of the program at each step.
+pub(super) fn candidates(
+    plan: &SelectedInstructionPlan,
+    function: usize,
+) -> Vec<(usize, VirtualRegisterId)> {
     plan.functions
-        .iter()
-        .enumerate()
-        .flat_map(|(function, body)| {
+        .get(function)
+        .into_iter()
+        .flat_map(|body| {
             body.virtual_registers
                 .iter()
                 .filter(|register| {
@@ -175,14 +181,17 @@ pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualR
 /// each spill would mint the next victim: one pressured value then chains
 /// through a fresh reload per step, each step a whole-function analysis.
 /// A split's fresh register is the only minted register that joins the pool.
+/// The step rewrote `function` alone, so only its registers can be new.
 pub(super) fn retire_minted(
     retired: &mut std::collections::BTreeSet<(usize, VirtualRegisterId)>,
+    function: usize,
     before: &SelectedInstructionPlan,
     after: &SelectedInstructionPlan,
 ) {
-    let existing: std::collections::BTreeSet<_> = candidates(before).into_iter().collect();
+    let existing: std::collections::BTreeSet<_> =
+        candidates(before, function).into_iter().collect();
     retired.extend(
-        candidates(after)
+        candidates(after, function)
             .into_iter()
             .filter(|entry| !existing.contains(entry)),
     );
@@ -192,29 +201,9 @@ pub(super) fn retire_minted(
 /// source's own prefix: a fixed-view entry keeps its copy transformation first.
 pub(super) fn transformations(
     prefix: &[PostAllocationSelectedTransformation],
-    steps: &[RuntimeSpillStep],
+    recorded: &[PostAllocationSelectedTransformation],
 ) -> Vec<PostAllocationSelectedTransformation> {
-    prefix
-        .iter()
-        .cloned()
-        .chain(steps.iter().map(|step| match &step.rewrite {
-            RuntimeSpillStepRewrite::Split(rewrite) => {
-                PostAllocationSelectedTransformation::RuntimeSplit(
-                    rewrite.receipt().transformed_selected(),
-                )
-            }
-            RuntimeSpillStepRewrite::Spill(rewrite) => {
-                PostAllocationSelectedTransformation::RuntimeSpill(
-                    rewrite.receipt().transformed_selected(),
-                )
-            }
-            RuntimeSpillStepRewrite::Rematerialization(rewrite) => {
-                PostAllocationSelectedTransformation::RuntimeRematerialization(
-                    rewrite.receipt().transformed_selected(),
-                )
-            }
-        }))
-        .collect()
+    prefix.iter().chain(recorded).cloned().collect()
 }
 
 /// The pressure domain one recovery step must relieve: the function and
@@ -466,7 +455,7 @@ pub(crate) fn recover_after_pre_allocation(
 /// Both exit points declare the manifest over the same retained prefix.
 fn project_recovery_manifest(
     base: &RuntimeSpillManifestBase,
-    steps: &[RuntimeSpillStep],
+    recorded: &[PostAllocationSelectedTransformation],
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     homes: &crate::ValidatedRegisterHomes,
@@ -475,7 +464,7 @@ fn project_recovery_manifest(
         base.pre_physical,
         base.selected_lowering_completion,
         base.pre_allocation_completion,
-        &transformations(&base.prefix, steps),
+        &transformations(&base.prefix, recorded),
         ranges,
         legality,
         homes,
@@ -502,16 +491,20 @@ fn recover_over(
         Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
     };
     let budget = source.budget_per_pass();
-    let mut steps: Vec<RuntimeSpillStep> = Vec::new();
+    // Each committed step's manifest record, and the latest committed step.
+    // A step's program replaces the one before it, so earlier programs are
+    // released as soon as the next step commits.
+    let mut recorded: Vec<PostAllocationSelectedTransformation> = Vec::new();
+    let mut current: Option<RuntimeSpillStepRewrite> = None;
     let mut tried: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
         std::collections::BTreeSet::new();
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
     let mut current_legality = source.legality().clone();
     loop {
-        let selected = steps
-            .last()
-            .map_or_else(|| source.base(), |step| step.rewrite.selected());
+        let selected = current
+            .as_ref()
+            .map_or_else(|| source.base(), RuntimeSpillStepRewrite::selected);
         // Committed rewrites mint registers the original plan never had: a
         // split's fresh register inherits every later reference, fixed views
         // included, so it can hold the surviving pin the failed domain
@@ -523,14 +516,12 @@ fn recover_over(
         // Only the failed function's registers can relieve its pressure, so
         // the roster and every score below stay within that function.
         let domain = FailedDomain::of(&failure, &current_ranges);
-        let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan())
+        let Some(pressured) = domain.as_ref().map(FailedDomain::function) else {
+            break;
+        };
+        let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan(), pressured)
             .into_iter()
-            .filter(|entry| {
-                !tried.contains(entry)
-                    && domain
-                        .as_ref()
-                        .is_some_and(|domain| entry.0 == domain.function())
-            })
+            .filter(|entry| !tried.contains(entry))
             .collect();
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
@@ -615,19 +606,18 @@ fn recover_over(
                             Some(&mut home_reuse),
                         ) {
                             Ok(homes) => {
-                                steps.push(RuntimeSpillStep {
-                                    rewrite: RuntimeSpillStepRewrite::Spill(crossing),
-                                });
+                                let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
+                                recorded.push(rewrite.transformation());
                                 let manifest = project_recovery_manifest(
                                     &base,
-                                    &steps,
+                                    &recorded,
                                     &probe.ranges,
                                     &probe.legality,
                                     &homes,
                                 )?;
                                 let result = RuntimeSpillAllocation {
                                     source,
-                                    steps,
+                                    last: RuntimeSpillStep { rewrite },
                                     facts: probe,
                                     homes,
                                     manifest,
@@ -688,21 +678,26 @@ fn recover_over(
             (facts, homes)
         };
         if !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
-            retire_minted(&mut tried, selected.plan(), rewrite.selected().plan());
+            retire_minted(
+                &mut tried,
+                pressured,
+                selected.plan(),
+                rewrite.selected().plan(),
+            );
         }
-        steps.push(RuntimeSpillStep { rewrite });
+        recorded.push(rewrite.transformation());
         match homes {
             Ok(homes) => {
                 let manifest = project_recovery_manifest(
                     &base,
-                    &steps,
+                    &recorded,
                     &facts.ranges,
                     &facts.legality,
                     &homes,
                 )?;
                 let result = RuntimeSpillAllocation {
                     source,
-                    steps,
+                    last: RuntimeSpillStep { rewrite },
                     facts,
                     homes,
                     manifest,
@@ -714,6 +709,7 @@ fn recover_over(
                 current_ranges = facts.ranges;
                 current_legality = facts.legality;
                 current_liveness = facts.liveness;
+                current = Some(rewrite);
             }
             Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         }
