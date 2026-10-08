@@ -340,6 +340,7 @@ pub use proof_contracts::default_domains::{
 };
 pub use proof_contracts::float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
+    float_static_call_resolution,
 };
 pub use proof_contracts::immutable_integer_bounds::{
     ImmutableBoundLookup, immutable_integer_bound_sum, immutable_integer_bound_symbol_offset,

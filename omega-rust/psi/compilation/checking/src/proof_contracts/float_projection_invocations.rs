@@ -72,29 +72,40 @@ fn resolve_projection_call<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
-    resolve_named_expression_call(program, call).or_else(|| {
-        let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
-            return None;
-        };
-        let [namespace] = program.expression_table.name_path_members(path.members) else {
-            return None;
-        };
-        if namespace.as_str() != "Float" {
-            return None;
-        }
-        let static_receiver = [namespace.as_str()];
-        resolve_named_call(
-            program,
-            call.target_symbol,
-            Some(&static_receiver),
-            call.target.as_str(),
-            program
-                .expression_table
-                .expression_handles(call.arguments)
-                .len(),
-            false,
-        )
-    })
+    resolve_named_expression_call(program, call)
+        .or_else(|| float_static_call_resolution(program, call))
+}
+
+/// The `Float` static-namespace spelling of one expression call: calls like
+/// `Float::sqrt(x)` retain no receiver expression resolution, so selection
+/// falls back to the ambiguity-checked named path under the literal Float
+/// namespace. Shared with checked-tree replay so both stages resolve the
+/// identical operator.
+pub fn float_static_call_resolution<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: &TableCallExpression,
+) -> Option<&'program typed_trees::operator::OperatorDefinition> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
+        return None;
+    };
+    let [namespace] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if namespace.as_str() != "Float" {
+        return None;
+    }
+    let static_receiver = [namespace.as_str()];
+    resolve_named_call(
+        program,
+        call.target_symbol,
+        Some(&static_receiver),
+        call.target.as_str(),
+        program
+            .expression_table
+            .expression_handles(call.arguments)
+            .len(),
+        false,
+    )
 }
 
 fn walk_expression(
