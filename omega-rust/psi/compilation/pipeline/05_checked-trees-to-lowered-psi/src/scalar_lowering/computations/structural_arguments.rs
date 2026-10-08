@@ -80,15 +80,11 @@ pub(super) fn lower(
             // lends; any other referent binds a structural place.
             let Some(primitive) = parameter.primitive_referent else {
                 if let Some(range) = subslices::range(argument) {
-                    let access = match argument.access {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                            StructuralAccess::SharedBorrow
-                        }
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                            StructuralAccess::MutableBorrow
-                        }
-                        _ => return unsupported("computed range requires readable borrowed access"),
-                    };
+                    let access = readable_borrowed_access(argument.access).ok_or(
+                        LoweringError::Unsupported(
+                            "computed range requires readable borrowed access",
+                        ),
+                    )?;
                     let slot = subslices
                         .iter()
                         .find(|slot| slot.expression == range.expression)
@@ -139,23 +135,29 @@ pub(super) fn lower(
                     selector_positions: Vec::new(),
                     place: source.place,
                     path,
-                    access: match argument.access {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                            StructuralAccess::SharedBorrow
-                        }
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                            StructuralAccess::MutableBorrow
-                        }
-                        _ => {
-                            return unsupported(
-                                "computed argument requires readable borrowed access",
-                            );
-                        }
-                    },
+                    access: readable_borrowed_access(argument.access).ok_or(
+                        LoweringError::Unsupported(
+                            "computed argument requires readable borrowed access",
+                        ),
+                    )?,
                 });
             };
             bindings
                 .prepared_primitive_borrow(argument, terminal_scalar_type(primitive)?, structural_types)
         })
         .collect()
+}
+
+fn readable_borrowed_access(
+    access: checked_trees::CheckedStructuralAccess,
+) -> Option<StructuralAccess> {
+    match access {
+        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+            Some(StructuralAccess::SharedBorrow)
+        }
+        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+            Some(StructuralAccess::MutableBorrow)
+        }
+        _ => None,
+    }
 }
