@@ -1440,12 +1440,7 @@ fn validate_expression(
         ExpressionNode::Unary(unary) => {
             validate_expression(program, machine, state, unary.operand, roots, diagnostics)
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 
@@ -1606,11 +1601,6 @@ fn expression_mentions_root(
             .iter()
             .any(|field| expression_mentions_root(program, field.value, root)),
         ExpressionNode::Unary(unary) => expression_mentions_root(program, unary.operand, root),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        typed_trees::spelled_literal_expression_pattern!() => false,
     }
 }

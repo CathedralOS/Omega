@@ -506,13 +506,7 @@ fn collect_expression_elision_calls(
             unary.operand,
             calls,
         ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::literal_expression_pattern!() => {}
     }
 }
 

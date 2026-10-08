@@ -99,12 +99,6 @@ fn reaches(
             .iter()
             .any(|field| reaches(program, field.value, target, visited)),
         ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        typed_trees::literal_expression_pattern!() => false,
     }
 }

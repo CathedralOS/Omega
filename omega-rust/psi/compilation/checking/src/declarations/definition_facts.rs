@@ -240,12 +240,7 @@ fn append_expression_dependency_places<D>(
         ExpressionNode::Unary(unary) => {
             append_expression_dependency_places(program, facts, unary.operand, dependencies, leaf)
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
 

@@ -68,13 +68,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => false,
+        typed_trees::literal_expression_pattern!() => false,
     }
 }
 
