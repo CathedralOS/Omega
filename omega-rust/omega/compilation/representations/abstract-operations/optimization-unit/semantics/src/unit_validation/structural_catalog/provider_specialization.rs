@@ -91,12 +91,7 @@ pub(crate) fn validate_provider_attachment_specialization(
     }
 
     let mut called_boundaries = BTreeSet::new();
-    for operation in function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .map(|node| &node.operation)
-    {
+    for operation in function.block_nodes().map(|node| &node.operation) {
         match operation {
             O::BoundaryCall {
                 boundary,

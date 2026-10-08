@@ -62,12 +62,7 @@ pub(super) fn parameter(
         .parameters
         .iter()
         .map(|row| &row.semantic)
-        .chain(
-            source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(source.block_structural_parameters())
         .filter(|parameter| parameter.place == place);
     let parameter = parameters.next()?;
     if parameters.next().is_some() {

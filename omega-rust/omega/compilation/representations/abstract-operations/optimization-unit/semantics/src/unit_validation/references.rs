@@ -698,7 +698,7 @@ pub(crate) fn validate_function_references(
             )
         })
     };
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in function.block_nodes() {
         let Some(result) = operation_structural_result(&node.operation) else {
             continue;
         };
@@ -763,9 +763,7 @@ pub(crate) fn validate_function_references(
     // re-home onto the bound place at each edge, so edge custody, not the
     // parameter shape, carries the loan's exact evidence.
     for parameter in function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
+        .block_structural_parameters()
         .filter(|parameter| contains_reference(types, parameter.structural_type))
     {
         if parameter.access != terminal_psi::StructuralAccess::Owned
@@ -784,9 +782,7 @@ pub(crate) fn validate_function_references(
     // while the root keeps its siblings' loans. A borrow lane would alias the
     // stored loans instead of moving them.
     if function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .flat_map(|node| &node.successors)
         .flat_map(|edge| &edge.structural_bindings)
         .any(|binding| {
@@ -950,7 +946,7 @@ fn validate_alternative_result_dependencies(
         }
         pending.push((current, true));
         let current = functions.get(&current).ok_or_else(invalid)?;
-        for node in current.blocks.iter().flat_map(|block| &block.nodes) {
+        for node in current.block_nodes() {
             if let O::CallStructural {
                 callee,
                 result: AbstractStructuralCallResult::Structural { result, .. },

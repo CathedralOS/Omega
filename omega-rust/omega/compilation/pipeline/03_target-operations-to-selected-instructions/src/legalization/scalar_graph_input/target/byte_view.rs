@@ -103,32 +103,27 @@ impl Checker<'_> {
                 obligation,
             } => {
                 *place == source
-                    && self
-                        .optimized
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
-                        .any(|node| {
-                            let AbstractOperation::ByteSequenceSubslice {
-                                psi_operation: operation,
-                                result,
-                                source: expected_source,
-                                start: expected_start,
-                                end: expected_end,
-                                length: expected_length,
-                                obligation: expected_obligation,
-                            } = &node.operation
-                            else {
-                                return false;
-                            };
-                            operation == psi_operation
-                                && result.place == source
-                                && length == expected_length
-                                && obligation == expected_obligation
-                                && self.byte_view(original, *expected_source, aliases)
-                                && self.integer_source(start, *expected_start, aliases)
-                                && self.integer_source(end, *expected_end, aliases)
-                        })
+                    && self.optimized.block_nodes().any(|node| {
+                        let AbstractOperation::ByteSequenceSubslice {
+                            psi_operation: operation,
+                            result,
+                            source: expected_source,
+                            start: expected_start,
+                            end: expected_end,
+                            length: expected_length,
+                            obligation: expected_obligation,
+                        } = &node.operation
+                        else {
+                            return false;
+                        };
+                        operation == psi_operation
+                            && result.place == source
+                            && length == expected_length
+                            && obligation == expected_obligation
+                            && self.byte_view(original, *expected_source, aliases)
+                            && self.integer_source(start, *expected_start, aliases)
+                            && self.integer_source(end, *expected_end, aliases)
+                    })
             }
         }
     }
@@ -150,56 +145,52 @@ impl Checker<'_> {
         source: PlaceId,
         structural_type: semantic_vocabulary::StructuralTypeId,
     ) -> bool {
-        self.optimized
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                let AbstractOperation::EstablishElementView {
-                    psi_operation: operation,
-                    result,
-                    destination,
-                    element,
-                    ..
-                } = &node.operation
-                else {
-                    return false;
-                };
-                operation == &psi_operation
-                    && *destination == source
-                    && result.structural_type == structural_type
-                    && optimization_unit_semantics::structural_place_access(self.optimized, source)
-                        .is_some_and(|access| {
-                            matches!(
-                                access,
-                                terminal_psi::StructuralAccess::SharedBorrow
-                                    | terminal_psi::StructuralAccess::MutableBorrow
-                            )
-                        })
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-                    && self
-                        .types
-                        .iter()
-                        .find(|declaration| declaration.id == structural_type)
-                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
-                    && self
-                        .types
-                        .iter()
-                        .find(|declaration| declaration.id == *element)
-                        .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                                    semantic_vocabulary::ScalarType::Integer(integer)
-                                ) if Ok(integer)
-                                    == semantic_vocabulary::IntegerType::new(
-                                        semantic_vocabulary::IntegerSign::Unsigned,
-                                        8,
-                                    )
-                            )
-                        })
-            })
+        self.optimized.block_nodes().any(|node| {
+            let AbstractOperation::EstablishElementView {
+                psi_operation: operation,
+                result,
+                destination,
+                element,
+                ..
+            } = &node.operation
+            else {
+                return false;
+            };
+            operation == &psi_operation
+                && *destination == source
+                && result.structural_type == structural_type
+                && optimization_unit_semantics::structural_place_access(self.optimized, source)
+                    .is_some_and(|access| {
+                        matches!(
+                            access,
+                            terminal_psi::StructuralAccess::SharedBorrow
+                                | terminal_psi::StructuralAccess::MutableBorrow
+                        )
+                    })
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && self
+                    .types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+                && self
+                    .types
+                    .iter()
+                    .find(|declaration| declaration.id == *element)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                                semantic_vocabulary::ScalarType::Integer(integer)
+                            ) if Ok(integer)
+                                == semantic_vocabulary::IntegerType::new(
+                                    semantic_vocabulary::IntegerSign::Unsigned,
+                                    8,
+                                )
+                        )
+                    })
+        })
     }
 }

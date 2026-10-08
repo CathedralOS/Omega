@@ -257,9 +257,7 @@ impl DescriptorLoans {
                     &mut retain,
                 );
                 for edge in &node.successors {
-                    if let Some(target) =
-                        function.block(edge.target)
-                    {
+                    if let Some(target) = function.block(edge.target) {
                         result.conflicted_edge_replaying(
                             borrowed_regions,
                             block.id,

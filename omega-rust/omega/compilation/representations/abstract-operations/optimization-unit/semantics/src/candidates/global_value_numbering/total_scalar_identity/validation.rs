@@ -98,9 +98,7 @@ pub fn validate_total_scalar_identity_candidate(
         || !node.ownership.is_empty()
         || block.nodes.get(node_index + 1).is_none()
         || !function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .flat_map(|node| &node.uses)
             .any(|use_site| use_site.value == patch.result)
         || scalar_value_definition(function, shape.replacement).is_none_or(|definition| {

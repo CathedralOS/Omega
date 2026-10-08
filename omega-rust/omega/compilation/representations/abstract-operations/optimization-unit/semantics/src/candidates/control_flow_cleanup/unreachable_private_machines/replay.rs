@@ -145,11 +145,7 @@ pub(crate) fn validator_machine_references(
     function: &PsiOptimizationFunction,
 ) -> BTreeSet<MachineId> {
     let mut references = BTreeSet::new();
-    for operation in function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
-    {
+    for operation in function.block_nodes().map(|node| &node.operation) {
         references.extend(
             operation
                 .cleanup_rosters()

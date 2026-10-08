@@ -42,9 +42,7 @@ pub(super) fn validate(
     };
     let local = |place| {
         function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .find_map(|node| match &node.operation {
                 O::EstablishPrimitiveLocal { result, .. } if result.place == place => Some(result),
                 _ => None,
@@ -89,12 +87,7 @@ pub(super) fn validate(
                 || function
                     .structural_parameters
                     .iter()
-                    .chain(
-                        function
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters),
-                    )
+                    .chain(function.block_structural_parameters())
                     // Reads depend on the declared referent and access, not
                     // whether native transport uses an address or descriptor.
                     // The ownership walk independently checks availability.
@@ -142,22 +135,18 @@ fn projected_local(
         .iter()
         .find(|place| place.id == source)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| {
-            let (operation, result) = node.operation.structural_result()?;
-            (operation == producer
-                && result.place == source
-                && result.structural_type == structural_type
-                && matches!(
-                    result.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                )
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty())
-            .then_some(result)
-        })
+    function.block_nodes().find_map(|node| {
+        let (operation, result) = node.operation.structural_result()?;
+        (operation == producer
+            && result.place == source
+            && result.structural_type == structural_type
+            && matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty())
+        .then_some(result)
+    })
 }

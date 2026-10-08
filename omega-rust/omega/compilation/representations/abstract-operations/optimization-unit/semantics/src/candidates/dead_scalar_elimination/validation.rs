@@ -59,9 +59,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if live.live_out.contains(&result)
         || function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .flat_map(|node| &node.uses)
             .any(|use_site| use_site.value == result)
     {

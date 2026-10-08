@@ -570,10 +570,7 @@ fn source_contract(
     {
         return Some(parameter.structural_type);
     }
-    if let Some(parameter) = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
+    if let Some(parameter) = function.block_structural_parameters()
         .find(|parameter| parameter.place == place)
     {
         return Some(parameter.structural_type);
@@ -2009,10 +2006,7 @@ fn borrowed_sources(
     use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
     use terminal_semantics::descriptor_results::DescriptorAnalysis;
     let mut sources = BTreeMap::new();
-    for parameter in function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
+    for parameter in function.block_structural_parameters()
     {
         if parameter.access != StructuralAccess::Owned
             && !terminal_semantics::descriptor_results::is_shared_descriptor(

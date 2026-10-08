@@ -38,9 +38,7 @@ fn call_argument_changes(
         }
         if !visited.insert(place)
             || function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters)
+                .block_structural_parameters()
                 .any(|parameter| parameter.place == place || parameter.place == root)
         {
             return true;
@@ -60,9 +58,7 @@ fn call_argument_changes(
             return false;
         };
         let Some(operation) = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .map(|node| &node.operation)
             .find(|operation| operation.psi_operation() == Some(producer))
         else {

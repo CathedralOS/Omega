@@ -372,23 +372,22 @@ fn root_type(
         super::primitive_locals::producer(function, place)
     {
         (operation, result.clone())
-    } else if let Some((operation, result)) = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                ..
-            }
-            | AbstractOperation::ElementViewSubslice {
-                psi_operation,
-                result,
-                ..
-            } if result.place == place => Some((*psi_operation, result.clone())),
-            _ => None,
-        })
+    } else if let Some((operation, result)) =
+        function
+            .block_nodes()
+            .find_map(|node| match &node.operation {
+                AbstractOperation::EstablishElementView {
+                    psi_operation,
+                    result,
+                    ..
+                }
+                | AbstractOperation::ElementViewSubslice {
+                    psi_operation,
+                    result,
+                    ..
+                } if result.place == place => Some((*psi_operation, result.clone())),
+                _ => None,
+            })
     {
         // An element view's descriptor root is a readable non-linear source:
         // the edge lends an element's address through its live extent.

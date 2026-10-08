@@ -16,14 +16,10 @@ pub(in crate::legalization) fn source_result(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Result<(OperationId, &StructuralOperationResult), LegalizationError> {
-    let mut matching = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| {
-            let (producer, result) = node.operation.structural_result()?;
-            (result.place == source).then_some((producer, result))
-        });
+    let mut matching = function.block_nodes().filter_map(|node| {
+        let (producer, result) = node.operation.structural_result()?;
+        (result.place == source).then_some((producer, result))
+    });
     let result = matching.next().ok_or(LegalizationError::custody())?;
     if matching.next().is_some() {
         return Err(LegalizationError::custody());
@@ -150,12 +146,7 @@ fn source_identity(
     let parameter = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == source)
         .ok_or(LegalizationError::custody())?;
     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow

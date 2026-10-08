@@ -22,11 +22,7 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
     use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 
     let mut expected = Vec::new();
-    for operation in function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
-    {
+    for operation in function.block_nodes().map(|node| &node.operation) {
         match operation {
             O::StructuralScalarFieldStore {
                 psi_operation,

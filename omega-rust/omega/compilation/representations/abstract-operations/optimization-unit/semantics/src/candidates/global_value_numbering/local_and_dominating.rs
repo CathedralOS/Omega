@@ -339,9 +339,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
             });
         if canonical_leader != Some(patch.leader)
             || function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+                .block_nodes()
                 .flat_map(|node| &node.uses)
                 .filter(|use_site| use_site.value == redundant_result)
                 .any(|use_site| {

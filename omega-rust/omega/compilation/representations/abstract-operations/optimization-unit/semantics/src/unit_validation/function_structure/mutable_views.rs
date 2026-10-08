@@ -58,9 +58,7 @@ fn prepare_transfers(
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
     let block_names = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
+        .block_structural_parameters()
         .map(|parameter| parameter.place)
         .collect::<BTreeSet<_>>();
     let mut transfers = Vec::new();
@@ -156,12 +154,7 @@ pub(crate) fn current_mutable_borrows(
     let mutable = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .filter(|parameter| {
             exclusive_access(parameter.access)
                 && types
@@ -202,12 +195,7 @@ pub(crate) fn current_mutable_borrows(
     let descriptor_views = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .filter(|parameter| {
             mutable.contains(&parameter.place)
                 && types

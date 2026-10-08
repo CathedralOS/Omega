@@ -1,6 +1,5 @@
 use abstract_operations::{
-    AbstractCallTarget, AbstractOperation, AbstractStructuralCallResult,
-    CompletionClaimSource,
+    AbstractCallTarget, AbstractOperation, AbstractStructuralCallResult, CompletionClaimSource,
 };
 use terminal_psi::{Operation, OperationKind, TerminalMachine};
 

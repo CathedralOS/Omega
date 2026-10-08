@@ -316,34 +316,30 @@ fn element_view_producer(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
 )> {
-    caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishElementView {
-                psi_operation,
-                result,
-                destination,
-                ..
-            } if *destination == place
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-            {
-                Some((*psi_operation, result.structural_type))
-            }
-            AbstractOperation::ElementViewSubslice {
-                psi_operation,
-                result,
-                ..
-            } if result.place == place
-                && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && result.claims.is_empty() =>
-            {
-                Some((*psi_operation, result.structural_type))
-            }
-            _ => None,
-        })
+    caller.block_nodes().find_map(|node| match &node.operation {
+        AbstractOperation::EstablishElementView {
+            psi_operation,
+            result,
+            destination,
+            ..
+        } if *destination == place
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty() =>
+        {
+            Some((*psi_operation, result.structural_type))
+        }
+        AbstractOperation::ElementViewSubslice {
+            psi_operation,
+            result,
+            ..
+        } if result.place == place
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty() =>
+        {
+            Some((*psi_operation, result.structural_type))
+        }
+        _ => None,
+    })
 }

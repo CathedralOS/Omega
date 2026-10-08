@@ -200,12 +200,7 @@ pub(in crate::selection) fn view_access(
                     .parameters
                     .iter()
                     .map(|parameter| &parameter.semantic)
-                    .chain(
-                        function
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters),
-                    )
+                    .chain(function.block_structural_parameters())
                     .find(|parameter| parameter.place == source.place)
                     .map(|parameter| parameter.access)
                     .or_else(|| {

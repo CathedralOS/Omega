@@ -187,12 +187,7 @@ pub(crate) fn derive_root_service_reach(
         // even when the body is inert or the service also bounds an
         // installation dependency.
         concrete.extend(function.declared_service_reach.iter().copied());
-        for operation in function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .map(|node| &node.operation)
-        {
+        for operation in function.block_nodes().map(|node| &node.operation) {
             pending.extend(
                 operation
                     .cleanup_rosters()

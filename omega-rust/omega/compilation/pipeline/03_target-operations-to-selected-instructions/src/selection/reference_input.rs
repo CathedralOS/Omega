@@ -42,9 +42,7 @@ pub(in crate::selection) fn borrowed_scalar_source(
         .map(|parameter| &parameter.semantic)
         .or_else(|| {
             function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters)
+                .block_structural_parameters()
                 .find(|parameter| parameter.place == place)
         })?;
     (parameter.access != StructuralAccess::Owned).then_some(())?;

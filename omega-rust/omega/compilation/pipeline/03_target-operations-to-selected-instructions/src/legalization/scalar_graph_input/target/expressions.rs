@@ -100,7 +100,7 @@ impl Checker<'_> {
             Expression::ByteSequenceRead { psi_operation, source_value, source, view, index, length, obligation } => {
                 *source_value == resolved
                     && self.byte_view(view, *source, aliases)
-                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation }
                         if operation == psi_operation && result.value == resolved && expected == source
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
@@ -108,14 +108,14 @@ impl Checker<'_> {
             Expression::ByteSequenceLength { psi_operation, source_value, source, view, length_byte_offset } => {
                 *length_byte_offset == if super::super::byte_views::reads_owner_layout(self.optimized, *source, self.types) { 0 } else { 8 } && *source_value == resolved
                     && (self.byte_view(view, *source, aliases) || self.mutable_byte_view(view, *source))
-                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))
             }
             Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation, path, element_byte_offset } => {
                 *source_value == resolved
                     && self.element_view(view, *source, aliases)
-                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                         if operation == psi_operation && result.value == resolved && expected == source
                         && path == expected_path
@@ -128,13 +128,13 @@ impl Checker<'_> {
             Expression::ElementViewLength { psi_operation, source_value, source, view, length_byte_offset } => {
                 *length_byte_offset == 8 && *source_value == resolved
                     && self.element_view(view, *source, aliases)
-                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                         AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))
             }
             // A bounded view's length observation lowers to its static
             // capacity, so its immediate stands for that exact observation.
-            Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.blocks.iter().flat_map(|block|&block.nodes).any(|node|
+            Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.block_nodes().any(|node|
                 match &node.operation {
                     AbstractOperation::IntegerConstant {result,value:actual,..} => *result == resolved && actual == literal,
                     AbstractOperation::ByteSequenceLength {result,source,..} => result.value == resolved
@@ -147,27 +147,27 @@ impl Checker<'_> {
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)
             }
             Expression::BitwiseAnd { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerBitwiseAnd { psi_operation: operation, result, left: source_left, right: source_right, .. }
                     if operation == psi_operation && *result == resolved
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
             Expression::BitwiseOr { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerBitwiseOr { psi_operation: operation, result, left: source_left, right: source_right, .. }
                     if operation == psi_operation && *result == resolved
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
             Expression::BitwiseNot { psi_operation, operand } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerBitwiseNot { psi_operation: operation, result, operand: source, .. }
                     if operation == psi_operation && *result == resolved
                         && self.integer_source(operand, *source, aliases)))
             }
             Expression::BitwiseXor { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerBitwiseXor { psi_operation: operation, result, left: source_left, right: source_right, .. }
                     if operation == psi_operation && *result == resolved
                         && self.integer_source(left, *source_left, aliases)
@@ -178,13 +178,13 @@ impl Checker<'_> {
             // one node with its exact pair, obligation and admitted carrier.
             Expression::Arithmetic { psi_operation, arithmetic, left, right } => {
                 if arithmetic.policy() == IntegerOverflowPolicy::Exact {
-                    let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
+                    let Some(node) = self.optimized.block_nodes().find(|node| matches!(&node.operation,
                         AbstractOperation::IntegerArithmetic {psi_operation:operation,arithmetic:source,..} if operation == psi_operation && source.policy() == IntegerOverflowPolicy::Exact)) else {return false;};
                     let AbstractOperation::IntegerArithmetic {result,arithmetic:source,left:source_left,right:source_right,..} = &node.operation else {return false;};
                     return source.operator() == arithmetic.operator() && *result == resolved && source.obligation() == arithmetic.obligation()
                         && self.integer_source(left,*source_left,aliases) && self.integer_source(right,*source_right,aliases);
                 }
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerArithmetic { psi_operation: operation, result, scalar_type, arithmetic: source, left: source_left, right: source_right }
                     if operation == psi_operation && source == arithmetic && *result == resolved
                         && arithmetic_carrier_admitted(*arithmetic, *scalar_type)
@@ -192,7 +192,7 @@ impl Checker<'_> {
                         && self.integer_source(right, *source_right, aliases)))
             }
             Expression::Shift { psi_operation, policy, direction, count_type, value, count } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerShift { psi_operation: operation, result, count_type: expected_count_type, policy: source_policy, direction: source_direction, value: source_value, count: source_count, .. }
                     if operation == psi_operation && *result == resolved
                         && source_policy == policy && source_direction == direction
@@ -204,7 +204,7 @@ impl Checker<'_> {
             // carrier axes and every operand in evaluation order; a
             // conversion alone has no second operand.
             Expression::Trapping { psi_operation, primitive, operand_type, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::TrappingInteger { psi_operation: operation, result, scalar_type, operand_type: expected_operand_type, operation: source }
                     if operation == psi_operation && *result == resolved
                         && source.primitive() == *primitive
@@ -220,12 +220,12 @@ impl Checker<'_> {
                         }))
             }
             Expression::IntegerWiden { psi_operation, source_type, operand } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerWiden { psi_operation: operation, result, source_type: actual_type, operand: source, .. }
                     if operation == psi_operation && *result == resolved && actual_type == source_type && self.integer_source(operand, *source, aliases)))
             }
             Expression::IntegerExactCast { psi_operation, obligation, source_type, operand } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::IntegerExactCast { psi_operation: operation, obligation: expected_obligation, result, source_type: actual_type, operand: source, .. }
                     if operation == psi_operation && expected_obligation == obligation && *result == resolved && actual_type == source_type && self.integer_source(operand, *source, aliases)))
             }
@@ -253,7 +253,7 @@ impl Checker<'_> {
             let resolved = resolve(value, aliases);
             return *source_value == resolved
                 && self.element_view(view, *source, aliases)
-                && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                     AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation, path: expected_path }
                     if operation == psi_operation && result.value == resolved && expected == source
                     && result.scalar_type == ScalarType::Boolean
@@ -275,7 +275,7 @@ impl Checker<'_> {
             right,
         } = expression
         {
-            return self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+            return self.optimized.block_nodes().any(|node| {
                 matches!(&node.operation,
                     AbstractOperation::BooleanEqual { psi_operation: operation, result, left: source_left, right: source_right }
                     if operation == psi_operation && *result == resolve(value, aliases)
@@ -294,7 +294,7 @@ impl Checker<'_> {
         } = expression
         {
             return *source_value == value
-                && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node|
+                && self.optimized.block_nodes().any(|node|
                     matches!(&node.operation, AbstractOperation::BooleanConstant { result, value: actual, .. }
                         if *result == resolve(value, aliases) && actual == literal))
                 && self.available.is_none_or(|sources| sources.iter().any(|(source, definition)|
@@ -322,7 +322,7 @@ impl Checker<'_> {
             operand,
         } = expression
         {
-            return self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+            return self.optimized.block_nodes().any(|node| matches!(&node.operation,
                 AbstractOperation::BooleanNot { psi_operation: operation, result, operand: source }
                 if operation == psi_operation && *result == resolve(value, aliases) && self.boolean_source(operand, *source, aliases)));
         }
@@ -334,26 +334,21 @@ impl Checker<'_> {
         } = expression
         {
             return *source_value == resolve(value, aliases)
-                && self
-                    .optimized
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .any(|node| {
-                        let AbstractOperation::ByteSequencePredicate {
-                            psi_operation: operation,
-                            result,
-                            operand: expected_operand,
-                            predicate: expected_predicate,
-                        } = &node.operation
-                        else {
-                            return false;
-                        };
-                        operation == psi_operation
-                            && result.value == resolve(value, aliases)
-                            && expected_predicate == predicate
-                            && operands_agree(operand, expected_operand, aliases)
-                    });
+                && self.optimized.block_nodes().any(|node| {
+                    let AbstractOperation::ByteSequencePredicate {
+                        psi_operation: operation,
+                        result,
+                        operand: expected_operand,
+                        predicate: expected_predicate,
+                    } = &node.operation
+                    else {
+                        return false;
+                    };
+                    operation == psi_operation
+                        && result.value == resolve(value, aliases)
+                        && expected_predicate == predicate
+                        && operands_agree(operand, expected_operand, aliases)
+                });
         }
         if let Boolean::ByteSequenceEqual {
             psi_operation,
@@ -363,38 +358,27 @@ impl Checker<'_> {
         } = expression
         {
             return *source_value == resolve(value, aliases)
-                && self
-                    .optimized
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .any(|node| {
-                        let AbstractOperation::ByteSequenceEqual {
-                            psi_operation: operation,
-                            result,
-                            left: expected_left,
-                            right: expected_right,
-                        } = &node.operation
-                        else {
-                            return false;
-                        };
-                        operation == psi_operation
-                            && result.value == resolve(value, aliases)
-                            && operands_agree(left, expected_left, aliases)
-                            && operands_agree(right, expected_right, aliases)
-                    });
+                && self.optimized.block_nodes().any(|node| {
+                    let AbstractOperation::ByteSequenceEqual {
+                        psi_operation: operation,
+                        result,
+                        left: expected_left,
+                        right: expected_right,
+                    } = &node.operation
+                    else {
+                        return false;
+                    };
+                    operation == psi_operation
+                        && result.value == resolve(value, aliases)
+                        && operands_agree(left, expected_left, aliases)
+                        && operands_agree(right, expected_right, aliases)
+                });
         }
-        let Some(node) = self
-            .optimized
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .find(|node| {
-                node.definitions
-                    .iter()
-                    .any(|definition| definition.value == value)
-            })
-        else {
+        let Some(node) = self.optimized.block_nodes().find(|node| {
+            node.definitions
+                .iter()
+                .any(|definition| definition.value == value)
+        }) else {
             return false;
         };
         let (

@@ -160,9 +160,7 @@ pub(super) fn cleanup(
     // each return. This predicate restricts the supported no-code action kind;
     // it must not reconstruct a frontier from all definitions in the function.
     let results = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             AbstractOperation::BoundaryCall {
                 psi_operation,

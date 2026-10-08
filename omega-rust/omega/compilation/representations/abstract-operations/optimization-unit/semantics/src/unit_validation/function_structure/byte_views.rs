@@ -149,9 +149,7 @@ pub fn declared_descriptor_home(
     place: semantic_vocabulary::PlaceId,
 ) -> Option<&terminal_psi::StructuralOperationResult> {
     function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             AbstractOperation::EstablishStructuralLocal { result, .. }
                 if result.place == place
@@ -339,9 +337,9 @@ pub(super) fn validate_source(
             producer,
             structural_type,
         }) => owned_byte_result(function, source_kind, source, |identity| {
-            structural_types.get(&identity).is_some_and(|declaration| {
-                declaration.shape.is_bounded_owned_byte_sequence()
-            })
+            structural_types
+                .get(&identity)
+                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
         })
         .or_else(|| {
             let contract =
@@ -364,9 +362,7 @@ pub(super) fn validate_source(
                 .is_some()
                 && !contract.has_result_evidence()
                 && function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
+                    .block_nodes()
                     .any(|node| node.operation.structural_result() == Some((*producer, result))))
             .then_some(result.structural_type)
         }),
@@ -381,13 +377,14 @@ pub(super) fn validate_source(
                     ByteSequenceCarrier::BorrowedView { .. }
                         | ByteSequenceCarrier::BoundedView { .. }
                 )
-            ) || (declaration.shape.is_bounded_owned_byte_sequence() && (owned_byte_result(function, source_kind, source, |identity| {
-                structural_types.get(&identity).is_some_and(|declaration| {
-                    declaration.shape.is_bounded_owned_byte_sequence()
+            ) || (declaration.shape.is_bounded_owned_byte_sequence()
+                && (owned_byte_result(function, source_kind, source, |identity| {
+                    structural_types.get(&identity).is_some_and(|declaration| {
+                        declaration.shape.is_bounded_owned_byte_sequence()
+                    })
                 })
-            })
-            .is_some()
-                || arrival.is_some()))
+                .is_some()
+                    || arrival.is_some()))
         })
         && function
             .entry_claim_declarations
@@ -398,15 +395,11 @@ pub(super) fn validate_source(
             .iter()
             .all(|claim| claim.input.root != source);
     let exact_length = length.is_none_or(|length| {
-        function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                matches!(&node.operation, AbstractOperation::ByteSequenceLength {
+        function.block_nodes().any(|node| {
+            matches!(&node.operation, AbstractOperation::ByteSequenceLength {
                 source: measured, result, ..
             } if *measured == source && result.value == length)
-            })
+        })
     });
     let valid_result = match operation {
         AbstractOperation::ByteSequenceSubslice {
@@ -512,34 +505,30 @@ pub(super) fn owned_byte_result(
     else {
         return None;
     };
-    let mut matching = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| {
-            let (operation, result) = match &node.operation {
-                AbstractOperation::EstablishByteSequenceConcatenation {
-                    psi_operation,
-                    result,
-                    ..
-                }
-                | AbstractOperation::CallStructural {
-                    psi_operation,
-                    result: AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                } => (psi_operation, result),
-                _ => return None,
-            };
-            (*operation == *producer
-                && result.place == source
-                && result.structural_type == *structural_type
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
-                && result.projected_qualifications.is_empty()
-                && result.qualification_establishments.is_empty()
-                && result.claims.is_empty()
-                && bounded_owned_type(*structural_type))
-            .then_some(*structural_type)
-        });
+    let mut matching = function.block_nodes().filter_map(|node| {
+        let (operation, result) = match &node.operation {
+            AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            }
+            | AbstractOperation::CallStructural {
+                psi_operation,
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => (psi_operation, result),
+            _ => return None,
+        };
+        (*operation == *producer
+            && result.place == source
+            && result.structural_type == *structural_type
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.projected_qualifications.is_empty()
+            && result.qualification_establishments.is_empty()
+            && result.claims.is_empty()
+            && bounded_owned_type(*structural_type))
+        .then_some(*structural_type)
+    });
     let structural_type = matching.next()?;
     matching.next().is_none().then_some(structural_type)
 }

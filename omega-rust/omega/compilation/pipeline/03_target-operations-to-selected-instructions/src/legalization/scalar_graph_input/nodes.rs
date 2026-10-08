@@ -602,10 +602,7 @@ pub(super) fn validate(
             // element's own scalar type stays authored on the value operand.
             let mutable_view =
                 super::byte_views::mutable_parameter(optimized, *destination).is_some()
-                    || optimized
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
+                    || optimized.block_nodes()
                         .any(|node| {
                             matches!(&node.operation,
                                 AbstractOperation::EstablishElementView {

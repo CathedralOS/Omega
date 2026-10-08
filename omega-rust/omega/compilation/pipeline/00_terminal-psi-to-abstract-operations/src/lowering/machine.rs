@@ -40,12 +40,7 @@ pub(super) fn lower_machine(
         .parameters
         .iter()
         .chain(result.iter())
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| block.parameters.iter()),
-        )
+        .chain(machine.block_parameters())
         .chain(machine.blocks.iter().flat_map(|block| {
             block
                 .operations

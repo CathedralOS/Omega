@@ -209,9 +209,7 @@ pub(super) fn matches(
             // untouched: the dispatch replays it against the exact join
             // declaration, with the referent's sum layout derived by type.
             let Some(declaration) = optimized
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters)
+                .block_structural_parameters()
                 .find(|declaration| declaration.place == expected_source)
             else {
                 return false;

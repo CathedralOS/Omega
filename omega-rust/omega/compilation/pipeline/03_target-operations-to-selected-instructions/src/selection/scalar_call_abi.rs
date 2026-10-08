@@ -584,9 +584,7 @@ fn scalar_value_type(source: &LegalizedScalarFunction, value: ValueId) -> Option
         .map(|parameter| parameter.scalar_type)
         .or_else(|| {
             source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.parameters)
+                .block_parameters()
                 .find(|parameter| parameter.value == value)
                 .map(|parameter| parameter.scalar_type)
         })

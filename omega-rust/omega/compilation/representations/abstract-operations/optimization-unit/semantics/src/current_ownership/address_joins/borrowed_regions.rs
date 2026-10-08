@@ -118,11 +118,7 @@ impl BorrowedRegions {
             &declarations,
         );
         let mut reference_sources = BorrowedReferenceSources::new();
-        for parameter in function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.structural_parameters)
-        {
+        for parameter in function.block_structural_parameters() {
             if parameter.access != StructuralAccess::Owned
                 && !terminal_semantics::descriptor_results::is_shared_descriptor(
                     declarations.iter(),

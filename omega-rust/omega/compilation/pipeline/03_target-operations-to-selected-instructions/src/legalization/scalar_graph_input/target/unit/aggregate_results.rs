@@ -344,12 +344,7 @@ fn owned_field_source(
     let parameters = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .filter(|parameter| parameter.place == place)
         .map(|parameter| {
             (

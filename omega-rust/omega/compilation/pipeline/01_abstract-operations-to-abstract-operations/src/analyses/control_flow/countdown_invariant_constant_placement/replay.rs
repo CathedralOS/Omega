@@ -377,9 +377,8 @@ fn reconstruct_consumer(
         operation,
     )?;
     let value_uses = function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().flat_map(|node| &node.uses))
+        .block_nodes()
+        .flat_map(|node| &node.uses)
         .filter(|value_use| value_use.value == constant.result)
         .copied()
         .collect::<Vec<_>>();

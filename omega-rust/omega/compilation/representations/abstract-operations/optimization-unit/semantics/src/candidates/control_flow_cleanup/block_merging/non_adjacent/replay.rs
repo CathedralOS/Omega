@@ -75,9 +75,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let incoming = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .flat_map(|node| &node.successors)
         .filter(|edge| edge.target == patch.target)
         .collect::<Vec<_>>();

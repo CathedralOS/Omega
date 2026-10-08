@@ -141,9 +141,7 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                 if !cleanup_actions.is_empty()
                     || *jump_target != target.id
                     || function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
+                        .block_nodes()
                         .flat_map(|node| &node.successors)
                         .filter(|edge| edge.target == target.id)
                         .count()

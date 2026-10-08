@@ -339,31 +339,27 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
             .content_entry_claims
             .iter()
             .any(|claim| claim.input.root == place)
-        || function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                let result = match &node.operation {
-                    O::EstablishScalarArray { result, .. }
-                    | O::EstablishStructuralArray { result, .. }
-                    | O::EstablishCase { result, .. }
-                    | O::EstablishRecord { result, .. }
-                    | O::EstablishZeroedStructural { result, .. }
-                    | O::EstablishReference { result, .. }
-                    | O::MoveStructuralField { result, .. }
-                    | O::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { result, .. },
-                        ..
-                    }
-                    | O::BoundaryCall {
-                        result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                        ..
-                    } => result,
-                    _ => return false,
-                };
-                result.place == place && !result.claims.is_empty()
-            })
+        || function.block_nodes().any(|node| {
+            let result = match &node.operation {
+                O::EstablishScalarArray { result, .. }
+                | O::EstablishStructuralArray { result, .. }
+                | O::EstablishCase { result, .. }
+                | O::EstablishRecord { result, .. }
+                | O::EstablishZeroedStructural { result, .. }
+                | O::EstablishReference { result, .. }
+                | O::MoveStructuralField { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
+                | O::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => result,
+                _ => return false,
+            };
+            result.place == place && !result.claims.is_empty()
+        })
 }
 
 fn plain_record(

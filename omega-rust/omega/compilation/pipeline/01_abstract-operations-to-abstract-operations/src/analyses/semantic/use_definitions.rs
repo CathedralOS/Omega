@@ -62,9 +62,8 @@ pub(in crate::analyses) fn use_definitions(unit: &PsiOptimizationUnit) -> UseDef
         );
         uses.extend(
             function
-                .blocks
-                .iter()
-                .flat_map(|block| block.nodes.iter().flat_map(|node| &node.uses))
+                .block_nodes()
+                .flat_map(|node| &node.uses)
                 .copied()
                 .map(|use_site| (function.machine, use_site)),
         );

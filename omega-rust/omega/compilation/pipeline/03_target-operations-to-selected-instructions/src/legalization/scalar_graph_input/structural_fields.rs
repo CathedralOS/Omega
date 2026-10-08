@@ -461,12 +461,7 @@ pub(in crate::legalization) fn read(
     let (structural_type, access) = if let Some(parameter) = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == place)
     {
         if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {

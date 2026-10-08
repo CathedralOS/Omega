@@ -30,9 +30,7 @@ pub(super) fn matches_producers(function: &PsiOptimizationFunction) -> bool {
             } = place.kind
             {
                 return function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
+                    .block_nodes()
                     .filter(|node| {
                         matches!(&node.operation,
                             AbstractOperation::EstablishTrivialAffineLocal {

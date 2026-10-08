@@ -133,9 +133,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                     || !non_adjacent_merge_target_is_nonempty(target)
                     || !block_dominates(machine_dominators, predecessor.id, target.id)
                     || function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
+                        .block_nodes()
                         .flat_map(|node| &node.successors)
                         .filter(|edge| edge.target == target.id)
                         .count()

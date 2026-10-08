@@ -325,9 +325,7 @@ fn call_result_constant(
 ) -> Option<ScalarConstantValue> {
     let callee = evidence
         .function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             O::Call { result, callee, .. } if *result == argument => Some(*callee),
             _ => None,
@@ -338,9 +336,7 @@ fn call_result_constant(
         .iter()
         .find(|function| function.machine == callee)?;
     let mut returned = callee_function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             O::Return { value, .. } => Some(*value),
             _ => None,

@@ -189,9 +189,7 @@ pub(crate) fn owned_byte_predicates(
         .find(|row| row.id == place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let result = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             Operation::EstablishByteSequenceConcatenation {
                 psi_operation,
@@ -347,9 +345,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         .find(|place| place.id == source)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
     let node = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find(|node| node.operation.psi_operation() == Some(producer))?;
     let Operation::StructuralLeafCopy {
         source: backing,
@@ -381,12 +377,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
     let parameter = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == *backing)?;
     if !matches!(
         parameter.access,
@@ -422,9 +413,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
         return None;
     }
     let consuming = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find(|node| node.operation.psi_operation() == Some(consumer))?;
     // Whole constructors and ordinary calls consume the same completed value.
     // The source occurrence, not the destination's requested predicates,
@@ -454,7 +443,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
             .iter()
             .any(|binding| binding.argument.place == source)
     };
-    if function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+    if function.block_nodes().any(|node| {
         let operation = &node.operation;
         // An edge can rename the snapshot; a place-only clobber scan must not
         // infer that such an alias stays pristine. Backing-field writes are
@@ -587,9 +576,7 @@ where
         }
         StructuralPlaceKind::ByteSequenceLiteral { .. } => {
             let mut producers = function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+                .block_nodes()
                 .filter_map(|node| match &node.operation {
                     Operation::EstablishByteSequenceLiteral { place, bytes, .. }
                         if place.id == source =>
@@ -609,9 +596,7 @@ where
             structural_type,
         } => {
             let node = function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+                .block_nodes()
                 .find(|node| node.operation.psi_operation() == Some(producer))?;
             if let Operation::ByteSequenceSubslice {
                 source: backing,
@@ -694,9 +679,7 @@ where
                 _ => None,
             };
             if function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+                .block_nodes()
                 .any(|node| may_change_owned_source(&node.operation, source))
             {
                 return Some(declared);

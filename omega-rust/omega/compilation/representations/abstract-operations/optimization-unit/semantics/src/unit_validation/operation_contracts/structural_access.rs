@@ -136,11 +136,8 @@ where
         {
             return false;
         }
-        if let Some((carrier, qualifications, bytes)) = caller
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .find_map(|node| match &node.operation {
+        if let Some((carrier, qualifications, bytes)) =
+            caller.block_nodes().find_map(|node| match &node.operation {
                 O::EstablishByteSequenceLiteral {
                     place,
                     structural_type,
@@ -408,11 +405,9 @@ where
             terminal_psi::StructuralAccess::SharedBorrow
                 | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) && types.get(&parameter.structural_type).is_some_and(
-            |declaration| {
-                declaration.shape.is_bounded_owned_byte_sequence()
-            },
-        );
+        ) && types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence());
         let bounded_owner_presentation = borrowed_owner_expected
             && projection != StructuralProjectionPolicy::Boundary
             && (caller
@@ -778,9 +773,7 @@ pub(crate) fn owned_bounded_owner_loan(
         })
         || !types
             .get(&source.structural_type)
-            .is_some_and(|declaration| {
-                declaration.shape.is_bounded_owned_byte_sequence()
-            })
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
         || source.structural_type != parameter.structural_type
     {
         return false;
@@ -826,9 +819,7 @@ pub(crate) fn structural_source_contract(
         })
         .or_else(|| {
             caller
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+                .block_nodes()
                 .filter_map(|node| structural_operation_result_contract(caller, &node.operation))
                 .find(|source| {
                     source
@@ -838,29 +829,25 @@ pub(crate) fn structural_source_contract(
         })
         .or_else(|| trivial_affine_local_contract(caller, place))
         .or_else(|| {
-            caller
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .find_map(|node| {
-                    let O::EstablishByteSequenceLiteral {
-                        place: declaration,
-                        structural_type,
-                        qualifications,
-                        ..
-                    } = &node.operation
-                    else {
-                        return None;
-                    };
-                    (declaration.id == place).then_some(StructuralSourceContract {
-                        structural_type: structural_type.id,
-                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                        access: terminal_psi::StructuralAccess::SharedBorrow,
-                        qualifications: qualifications.as_slice(),
-                        projected_qualifications: &[],
-                        operation_result: None,
-                    })
+            caller.block_nodes().find_map(|node| {
+                let O::EstablishByteSequenceLiteral {
+                    place: declaration,
+                    structural_type,
+                    qualifications,
+                    ..
+                } = &node.operation
+                else {
+                    return None;
+                };
+                (declaration.id == place).then_some(StructuralSourceContract {
+                    structural_type: structural_type.id,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                    qualifications: qualifications.as_slice(),
+                    projected_qualifications: &[],
+                    operation_result: None,
                 })
+            })
         })
 }
 
@@ -872,25 +859,21 @@ fn trivial_affine_local_contract(
     caller: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<StructuralSourceContract<'_>> {
-    caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishTrivialAffineLocal {
-                place: declaration,
-                structural_type,
-                ..
-            } if declaration.id == place => Some(StructuralSourceContract {
-                structural_type: structural_type.id,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                access: terminal_psi::StructuralAccess::Owned,
-                qualifications: &[],
-                projected_qualifications: &[],
-                operation_result: None,
-            }),
-            _ => None,
-        })
+    caller.block_nodes().find_map(|node| match &node.operation {
+        O::EstablishTrivialAffineLocal {
+            place: declaration,
+            structural_type,
+            ..
+        } if declaration.id == place => Some(StructuralSourceContract {
+            structural_type: structural_type.id,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: &[],
+            projected_qualifications: &[],
+            operation_result: None,
+        }),
+        _ => None,
+    })
 }
 
 /// The exact result and its storage access share one operation classification.
@@ -998,9 +981,7 @@ fn view_access(
             _ => return None,
         };
         let recorded = caller
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .find(|node| node.operation.psi_operation() == Some(producer))?;
         let operation = current.take().unwrap_or(&recorded.operation);
         if operation != &recorded.operation {

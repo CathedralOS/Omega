@@ -332,12 +332,7 @@ fn readable_source_type(
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(machine.block_structural_parameters())
         .find(|parameter| parameter.place == source)
     {
         return (parameter.access != StructuralAccess::WriteOnlyBorrow
@@ -444,12 +439,7 @@ pub(super) fn has_unqualified_storage(machine: &TerminalMachine, place: PlaceId)
     machine
         .structural_parameters
         .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(machine.block_structural_parameters())
         .find(|parameter| parameter.place == place)
         .is_some_and(|parameter| {
             parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()

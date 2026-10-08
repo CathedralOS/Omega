@@ -108,8 +108,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 else {
                     continue;
                 };
-                let Some(target) = function.block(*target_id)
-                else {
+                let Some(target) = function.block(*target_id) else {
                     continue;
                 };
                 if !function_post_dominators
@@ -137,9 +136,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     continue;
                 }
                 let incoming_count = function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
+                    .block_nodes()
                     .flat_map(|node| &node.successors)
                     .filter(|edge| edge.target == target.id)
                     .count();

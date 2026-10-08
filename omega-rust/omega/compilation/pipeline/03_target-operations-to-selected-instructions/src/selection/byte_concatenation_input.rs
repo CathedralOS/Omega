@@ -58,12 +58,7 @@ pub(super) fn owner_layout_type(
             .parameters
             .iter()
             .map(|parameter| &parameter.semantic)
-            .chain(
-                function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(function.block_structural_parameters())
             .filter(|parameter| parameter.place == place);
         let parameter = parameters.next()?;
         (parameters.next().is_none()

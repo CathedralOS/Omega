@@ -6,8 +6,7 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(super) fn place_structural_type(
@@ -17,12 +16,7 @@ pub(super) fn place_structural_type(
     function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find_map(|parameter| (parameter.place == place).then_some(parameter.structural_type))
         .or_else(|| {
             function
@@ -77,8 +71,7 @@ pub(crate) fn partial_affine_root_type(
         return None;
     }
     if let Some(parameter) = function.arrival_parameter(place) {
-        return (parameter.is_unqualified_owned_affine())
-        .then_some(parameter.structural_type);
+        return (parameter.is_unqualified_owned_affine()).then_some(parameter.structural_type);
     }
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {
         producer,
@@ -92,9 +85,7 @@ pub(crate) fn partial_affine_root_type(
         return None;
     };
     function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             O::CallStructural {
                 psi_operation,

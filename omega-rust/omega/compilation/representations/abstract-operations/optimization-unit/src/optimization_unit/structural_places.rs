@@ -87,7 +87,7 @@ pub fn root_producer(
     let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
         return RootProducer::None;
     };
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in function.block_nodes() {
         match &node.operation {
             O::EstablishRecord {
                 psi_operation,
@@ -139,9 +139,7 @@ pub fn declared_structural_type(
             .find(|parameter| parameter.place == declaration.id)
             .map(|parameter| parameter.structural_type),
         StructuralPlaceKind::BlockParameter { .. } => function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.structural_parameters)
+            .block_structural_parameters()
             .find(|parameter| parameter.place == declaration.id)
             .map(|parameter| parameter.structural_type),
         StructuralPlaceKind::Result => function
@@ -159,9 +157,7 @@ pub fn establishment_fields(
     place: PlaceId,
 ) -> Option<&[terminal_psi::RecordFieldInitializer]> {
     function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             O::EstablishRecord {
                 psi_operation,
@@ -602,16 +598,11 @@ pub fn constant_definition(
         if !visiting.insert(current) {
             return None;
         }
-        if let Some(node) = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .find(|node| {
-                node.definitions
-                    .iter()
-                    .any(|definition| definition.value == current)
-            })
-        {
+        if let Some(node) = function.block_nodes().find(|node| {
+            node.definitions
+                .iter()
+                .any(|definition| definition.value == current)
+        }) {
             return match &node.operation {
                 O::BooleanConstant {
                     value: constant, ..
@@ -630,9 +621,8 @@ pub fn constant_definition(
         })?;
         let mut argument = None;
         for edge in function
-            .blocks
-            .iter()
-            .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+            .block_nodes()
+            .flat_map(|node| node.successors.iter())
             .filter(|edge| edge.target == owner.id)
         {
             let binding = edge
@@ -960,14 +950,8 @@ pub fn scalar_value_definition(
     function
         .parameters
         .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .flat_map(|node| &node.definitions),
-        )
+        .chain(function.block_parameters())
+        .chain(function.block_nodes().flat_map(|node| &node.definitions))
         .copied()
         .find(|definition| definition.value == value)
 }
@@ -1095,9 +1079,7 @@ pub fn leaf_copy_source<'a>(
         return None;
     };
     function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             O::StructuralLeafCopy {
                 psi_operation,

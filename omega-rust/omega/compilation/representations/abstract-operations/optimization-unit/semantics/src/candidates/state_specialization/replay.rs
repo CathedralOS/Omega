@@ -8,6 +8,7 @@
 
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
+use crate::candidates::{candidate_block, candidate_function};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
@@ -20,7 +21,6 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use crate::candidates::{candidate_block, candidate_function};
 
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block
@@ -329,9 +329,7 @@ fn call_result_constant(
     argument: ValueId,
 ) -> Option<ScalarConstantValue> {
     let callee = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             O::Call { result, callee, .. } if *result == argument => Some(*callee),
             _ => None,
@@ -341,9 +339,7 @@ fn call_result_constant(
         .iter()
         .find(|function| function.machine == callee)?;
     let mut returned = callee_function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             O::Return { value, .. } => Some(*value),
             _ => None,
@@ -627,9 +623,7 @@ fn accepted_provenance(
 ) -> Result<Vec<ProvenanceRewrite>, OptimizationUnitValidationError> {
     let find_edge = |edge: EdgeId| {
         function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .flat_map(|node| &node.successors)
             .find(|candidate| candidate.psi_edge == edge)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)

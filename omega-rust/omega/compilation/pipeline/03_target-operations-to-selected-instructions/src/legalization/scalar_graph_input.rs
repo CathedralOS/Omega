@@ -293,10 +293,7 @@ pub(super) fn match_input(
         .iter()
         .zip(&call_plan.parameters)
         .any(|(parameter, placement)| {
-            optimized
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+            optimized.block_nodes()
                 .any(|node| node.uses.iter().any(|used| used.value == parameter.value))
                 && !(Some(placement.shape) == scalar_shape(parameter.scalar_type)
                     && (matches!(placement.locations.as_slice(), [ValueLocation::Register {value_byte_offset:0,byte_size,..}] if *byte_size == placement.shape.byte_size)
@@ -307,7 +304,7 @@ pub(super) fn match_input(
     }
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
-    for node in optimized.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in optimized.block_nodes() {
         if let AbstractOperation::EstablishByteSequenceLiteral {
             structural_type, ..
         }

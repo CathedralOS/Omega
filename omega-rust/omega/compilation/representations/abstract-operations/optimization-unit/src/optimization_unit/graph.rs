@@ -210,6 +210,25 @@ impl PsiOptimizationFunction {
         self.blocks.iter().find(|row| row.id == block)
     }
 
+    /// Every block's nodes, in block order.
+    pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
+        self.blocks.iter().flat_map(|block| &block.nodes)
+    }
+
+    /// Every block's value parameters, in block order.
+    pub fn block_parameters(&self) -> impl Iterator<Item = &ValueDefinition> + '_ {
+        self.blocks.iter().flat_map(|block| &block.parameters)
+    }
+
+    /// Every block's structural parameters, in block order.
+    pub fn block_structural_parameters(
+        &self,
+    ) -> impl Iterator<Item = &StructuralParameterDeclaration> + '_ {
+        self.blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+    }
+
     /// The parameter declaration a structural place arrives as: this unit's
     /// own parameter at its declared position, or a block parameter in the
     /// block that declares it. Both are storage an operation addresses in
@@ -232,11 +251,7 @@ impl PsiOptimizationFunction {
         let mut parameters = self
             .structural_parameters
             .iter()
-            .chain(
-                self.blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
+            .chain(self.block_structural_parameters())
             .filter(|parameter| parameter.place == place);
         let parameter = parameters.next()?;
         if parameters.next().is_some() {

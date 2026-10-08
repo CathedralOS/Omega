@@ -29,7 +29,11 @@ impl ExactIntegerCastConstantsRule {
     }
 }
 
-psi_optimization_rule_delegate!(ExactIntegerCastConstantsRule, propose = propose, contract = Self::contract());
+psi_optimization_rule_delegate!(
+    ExactIntegerCastConstantsRule,
+    propose = propose,
+    contract = Self::contract()
+);
 
 fn propose(
     unit: &PsiOptimizationUnit,

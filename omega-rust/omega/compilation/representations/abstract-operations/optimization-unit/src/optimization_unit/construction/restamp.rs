@@ -29,12 +29,7 @@ pub fn restamp_psi_function_derived_metadata(
     let mut declared_places = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| block.structural_parameters.iter()),
-        )
+        .chain(function.block_structural_parameters())
         .map(|parameter| parameter.place)
         .chain(
             function

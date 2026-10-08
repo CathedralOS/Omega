@@ -56,9 +56,7 @@ pub(super) fn validate_operation(
 ) -> Result<(), LegalizationError> {
     if matches!(abstracted, AbstractOperation::BoundaryCall { .. }) {
         let node = optimized
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .find(|node| &node.operation == abstracted)
             .ok_or(LegalizationError::custody())?;
         if let Some((operation, _)) =

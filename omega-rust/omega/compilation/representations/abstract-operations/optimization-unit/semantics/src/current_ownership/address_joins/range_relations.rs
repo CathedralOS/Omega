@@ -148,7 +148,7 @@ impl RangeRelations {
         let scalar_types = function
             .parameters
             .iter()
-            .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+            .chain(function.block_parameters())
             .map(|parameter| (parameter.value, parameter.scalar_type))
             .chain(
                 steps

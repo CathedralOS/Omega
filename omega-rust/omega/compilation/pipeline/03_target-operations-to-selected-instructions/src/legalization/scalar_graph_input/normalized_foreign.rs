@@ -286,12 +286,7 @@ pub(in crate::legalization) fn structural_argument_at(
             let semantic_parameter = optimized
                 .structural_parameters
                 .iter()
-                .chain(
-                    optimized
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
+                .chain(optimized.block_structural_parameters())
                 .find(|parameter| parameter.place == semantic.place)
                 .ok_or(LegalizationError::custody())?;
             if caller_parameter.structural_type != semantic_parameter.structural_type

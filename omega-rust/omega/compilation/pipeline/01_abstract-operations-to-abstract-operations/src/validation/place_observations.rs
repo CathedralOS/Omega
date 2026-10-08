@@ -383,9 +383,8 @@ fn borrowed_roots_exclusive(
     loop {
         let mut progressed = false;
         for edge in function
-            .blocks
-            .iter()
-            .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+            .block_nodes()
+            .flat_map(|node| node.successors.iter())
             .filter(|edge| members.contains(&edge.target))
         {
             for binding in &edge.structural_bindings {
@@ -729,12 +728,7 @@ pub(super) fn copyable_owned_argument_root(
     function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| block.structural_parameters.iter()),
-        )
+        .chain(function.block_structural_parameters())
         .any(|parameter| {
             parameter.place == root
                 && parameter.access == terminal_psi::StructuralAccess::Owned
@@ -742,28 +736,24 @@ pub(super) fn copyable_owned_argument_root(
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
-        || function
-            .blocks
-            .iter()
-            .flat_map(|block| block.nodes.iter())
-            .any(|node| {
-                let result = match &node.operation {
-                    O::EstablishRecord { result, .. }
-                    | O::EstablishCase { result, .. }
-                    | O::EstablishScalarArray { result, .. }
-                    | O::EstablishStructuralArray { result, .. }
-                    | O::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { result, .. },
-                        ..
-                    } => result,
-                    _ => return false,
-                };
-                result.place == root
-                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
-            })
+        || function.block_nodes().any(|node| {
+            let result = match &node.operation {
+                O::EstablishRecord { result, .. }
+                | O::EstablishCase { result, .. }
+                | O::EstablishScalarArray { result, .. }
+                | O::EstablishStructuralArray { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } => result,
+                _ => return false,
+            };
+            result.place == root
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+        })
 }
 
 /// Whether `root` is a member-produced restricted place whose member spellings
@@ -1197,9 +1187,8 @@ pub(crate) fn invariant_member_place_parameters(
             let mut anchor = None;
             let mut loop_carried = false;
             for edge in function
-                .blocks
-                .iter()
-                .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+                .block_nodes()
+                .flat_map(|node| node.successors.iter())
                 .filter(|edge| edge.target == *block)
             {
                 let Some(binding) = edge

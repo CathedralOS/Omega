@@ -108,12 +108,7 @@ fn declared_view_type(
         .parameters
         .iter()
         .map(|parameter| &parameter.semantic)
-        .chain(
-            source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(source.block_structural_parameters())
         .find(|parameter| parameter.place == place);
     if let Some(parameter) = parameter {
         // A declared-domain shared view (`&[u8] in Utf8`) carries the same

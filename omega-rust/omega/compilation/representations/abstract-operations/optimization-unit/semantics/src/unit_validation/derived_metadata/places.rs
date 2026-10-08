@@ -18,9 +18,7 @@ pub(crate) fn function_has_claim(function: &PsiOptimizationFunction, claim: Clai
             .iter()
             .any(|candidate| candidate.claim == claim)
         || function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .filter_map(|node| node.operation.structural_result())
             .any(|(_, result)| result.claims.iter().any(|binding| binding.claim == claim))
 }
@@ -31,12 +29,7 @@ pub(crate) fn reconstruct_declared_places(
     let mut known_places = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .map(|parameter| parameter.place)
         .chain(
             function

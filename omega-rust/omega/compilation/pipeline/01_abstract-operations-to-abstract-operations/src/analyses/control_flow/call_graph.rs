@@ -14,11 +14,7 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
         .collect::<BTreeMap<_, _>>();
     for function in &unit.functions {
         let callees = graph.get_mut(&function.machine).unwrap();
-        for operation in function
-            .blocks
-            .iter()
-            .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
-        {
+        for operation in function.block_nodes().map(|node| &node.operation) {
             callees.extend(
                 operation
                     .cleanup_rosters()

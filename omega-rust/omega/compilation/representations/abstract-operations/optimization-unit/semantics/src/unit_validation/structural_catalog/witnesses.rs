@@ -16,7 +16,7 @@ pub(crate) fn validate_byte_sequence_literal_witnesses(
         .map(|(place, structural_type)| (place.id, (*place, structural_type)))
         .collect::<BTreeMap<_, _>>();
     let mut actual = 0_usize;
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in function.block_nodes() {
         let O::EstablishByteSequenceLiteral {
             place,
             structural_type,
@@ -57,9 +57,7 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
     )],
 ) -> Result<(), OptimizationUnitValidationError> {
     let explicit = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             O::EstablishTrivialAffineLocal {
                 psi_operation,
@@ -70,9 +68,7 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
         })
         .collect::<Vec<_>>();
     let structural_returns = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             O::ReturnStructural {
                 trivial_affine_locals,
@@ -116,9 +112,7 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
     }
 
     let executable_operations = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter(|node| !matches!(node.operation, O::ReturnStructural { .. }))
         .flat_map(|node| expected_provenance(&node.operation))
         .filter_map(|site| match site {

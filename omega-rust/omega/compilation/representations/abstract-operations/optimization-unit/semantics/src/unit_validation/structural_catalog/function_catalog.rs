@@ -133,10 +133,7 @@ pub(crate) fn validate_function_structural_catalog(
                 structural_type,
             } => {
                 types.contains_key(&structural_type)
-                    && function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
+                    && function.block_nodes()
                         .any(|node| {
                             matches!(
                                 &node.operation,
@@ -250,7 +247,7 @@ pub(crate) fn validate_function_structural_catalog(
     {
         return Err(mismatch());
     }
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in function.block_nodes() {
         let structural_result = match &node.operation {
             O::EstablishByteSequenceConcatenation { result, .. }
             | O::EstablishPrimitiveLocal { result, .. }

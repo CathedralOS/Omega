@@ -29,9 +29,7 @@ pub(super) fn producer(
     abstract_operations::AbstractResult,
 )> {
     let mut matches = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             AbstractOperation::EstablishPrimitiveLocal {
                 psi_operation,
@@ -82,12 +80,7 @@ pub(in crate::legalization) fn read_parameter(
     function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == place)
 }
 
@@ -107,7 +100,7 @@ pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in function.block_nodes() {
         match &node.operation {
             AbstractOperation::EstablishPrimitiveLocal {
                 psi_operation,

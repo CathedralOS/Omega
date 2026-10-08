@@ -134,9 +134,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
         || !redundant.successors.is_empty()
         || !redundant.ownership.is_empty()
         || !function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .flat_map(|node| &node.uses)
             .any(|use_site| use_site.value == redundant_result)
     {

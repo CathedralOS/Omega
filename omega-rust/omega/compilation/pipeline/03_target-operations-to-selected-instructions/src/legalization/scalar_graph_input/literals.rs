@@ -7,7 +7,7 @@ pub(super) fn producer(
     call: OperationId,
     source: PlaceId,
 ) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
-    function.blocks.iter().flat_map(|block| &block.nodes).find(|node| {
+    function.block_nodes().find(|node| {
         matches!(&node.operation, AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
             | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == source))
@@ -38,9 +38,7 @@ pub(super) fn declaration_producer(
         return None;
     };
     let mut producers = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| match &node.operation {
             AbstractOperation::EstablishByteSequenceLiteral {
                 psi_operation,

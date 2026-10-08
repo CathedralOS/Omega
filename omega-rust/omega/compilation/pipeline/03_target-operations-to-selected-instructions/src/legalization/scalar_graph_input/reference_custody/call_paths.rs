@@ -29,12 +29,7 @@ pub(super) fn call_reference_custody(
     let source_access = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| block.structural_parameters.iter()),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == argument.place)
         .map(|parameter| parameter.access)
         .unwrap_or(StructuralAccess::Owned);

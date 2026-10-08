@@ -91,22 +91,17 @@ pub(super) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    if optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
-        .any(|parameter| {
-            // State arrivals choose their own storage from declared access and
-            // layout, independently of the entry's borrowed ABI. Exact incoming
-            // bindings and ownership are replayed by target control flow; owned
-            // arrivals use the ordinary structural block-parameter homes.
-            crate::structural_inputs::structural_reference_input::parameter_shape(
-                parameter,
-                &plan.structural_types,
-            )
-            .is_none()
-        })
-    {
+    if optimized.block_structural_parameters().any(|parameter| {
+        // State arrivals choose their own storage from declared access and
+        // layout, independently of the entry's borrowed ABI. Exact incoming
+        // bindings and ownership are replayed by target control flow; owned
+        // arrivals use the ordinary structural block-parameter homes.
+        crate::structural_inputs::structural_reference_input::parameter_shape(
+            parameter,
+            &plan.structural_types,
+        )
+        .is_none()
+    }) {
         return Err(LegalizationError::custody());
     }
     Ok(call_plan.clone())
@@ -122,12 +117,7 @@ pub(super) fn mutable_parameter(
     function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| {
             parameter.place == place
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -325,7 +315,7 @@ pub(in crate::legalization) fn descriptor_result(
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && terminal_semantics::descriptor_results::is_shared_descriptor(types.iter(), result.structural_type)
-        && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+        && function.block_nodes().any(|node| matches!(&node.operation,
             AbstractOperation::CallStructural { psi_operation, result: abstract_operations::AbstractStructuralCallResult::Structural { result: actual, .. }, .. }
             // A declared descriptor local's home holds the descriptor its
             // whole-slot stores install.

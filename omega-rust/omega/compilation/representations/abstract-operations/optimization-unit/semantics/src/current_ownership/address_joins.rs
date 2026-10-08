@@ -94,12 +94,7 @@ impl AddressJoinPins {
             })
             .collect::<BTreeMap<PlaceId, BlockId>>();
         let mut origins = BTreeMap::<PlaceId, BTreeSet<PlaceId>>::new();
-        for edge in function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .flat_map(|node| &node.successors)
-        {
+        for edge in function.block_nodes().flat_map(|node| &node.successors) {
             for binding in &edge.structural_bindings {
                 if joins.contains_key(&binding.parameter) {
                     origins
@@ -114,9 +109,7 @@ impl AddressJoinPins {
         // Shared reborrows must still freeze every intermediate mutable name,
         // not merely the entrance pointer it ultimately carries.
         let address_joins = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.structural_parameters)
+            .block_structural_parameters()
             .filter(|parameter| {
                 abstract_operations::control_flow::address_joins::is_address_join(
                     parameter,
@@ -132,12 +125,7 @@ impl AddressJoinPins {
                 ..Self::default()
             };
         }
-        for edge in function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .flat_map(|node| &node.successors)
-        {
+        for edge in function.block_nodes().flat_map(|node| &node.successors) {
             for binding in &edge.structural_bindings {
                 if address_joins.contains(&binding.parameter) {
                     origins
@@ -239,7 +227,7 @@ impl AddressJoinPins {
         // Their reads must not bypass suspension merely by naming a view ID.
         let mut aliases = BTreeMap::<PlaceId, BTreeSet<PlaceId>>::new();
         let mut descriptors = BTreeSet::new();
-        for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+        for node in function.block_nodes() {
             if let Some((_, result)) = node.operation.structural_result()
                 && let Some(sources) = borrowed_regions.direct_aliases(result.place)
             {

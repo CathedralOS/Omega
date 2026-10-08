@@ -357,9 +357,7 @@ fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
             let mut memo = BTreeMap::new();
             let mut visiting = BTreeSet::new();
             function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
+                .block_nodes()
                 .flat_map(|node| &node.successors)
                 .map(|edge| depth(function, edge.target, &mut memo, &mut visiting))
                 .sum::<u64>()

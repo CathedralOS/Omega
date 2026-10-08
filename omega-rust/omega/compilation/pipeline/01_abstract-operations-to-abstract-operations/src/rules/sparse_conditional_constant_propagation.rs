@@ -190,14 +190,8 @@ pub(super) fn integer_value_type(
     function
         .parameters
         .iter()
-        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .flat_map(|node| &node.definitions),
-        )
+        .chain(function.block_parameters())
+        .chain(function.block_nodes().flat_map(|node| &node.definitions))
         .find_map(|definition| {
             (definition.value == value)
                 .then_some(definition.scalar_type)

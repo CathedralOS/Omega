@@ -161,16 +161,12 @@ pub(crate) fn exact_payloadless_case_return_exits(
     if !signature.qualifications.is_empty()
         || !signature.projected_qualifications.is_empty()
         || signature.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || callee
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                matches!(
-                    node.operation,
-                    O::Call { .. } | O::CallStructural { .. } | O::BoundaryCall { .. }
-                )
-            })
+        || callee.block_nodes().any(|node| {
+            matches!(
+                node.operation,
+                O::Call { .. } | O::CallStructural { .. } | O::BoundaryCall { .. }
+            )
+        })
     {
         return false;
     }
@@ -204,9 +200,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
             return false;
         };
         let Some(producer) = callee
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+            .block_nodes()
             .map(|node| &node.operation)
             .find(|operation| {
                 matches!(

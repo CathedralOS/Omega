@@ -110,9 +110,8 @@ pub(crate) fn independently_replacement_dominates_uses(
         return false;
     }
     function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().flat_map(|node| &node.uses))
+        .block_nodes()
+        .flat_map(|node| &node.uses)
         .filter(|use_site| use_site.value == parameter)
         .all(|use_site| match definition.site {
             ValueDefinitionSite::FunctionParameter(_) => true,

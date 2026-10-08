@@ -225,12 +225,7 @@ pub(super) fn membership_layout(
         .parameters
         .iter()
         .map(|parameter| &parameter.semantic)
-        .chain(
-            source
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(source.block_structural_parameters())
         .find(|parameter| parameter.place == place);
     let identity = if let Some(parameter) = parameter {
         if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow

@@ -126,17 +126,13 @@ pub(crate) fn validate_structural_root_operations(
                     })
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
-                    && function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
-                        .any(|node| {
-                            node.operation
-                                .structural_result()
-                                .is_some_and(|(operation, actual)| {
-                                    operation == *producer && actual == result
-                                })
-                        })
+                    && function.block_nodes().any(|node| {
+                        node.operation
+                            .structural_result()
+                            .is_some_and(|(operation, actual)| {
+                                operation == *producer && actual == result
+                            })
+                    })
             }
             // An owned arrival's home is established by its own block entry:
             // the exact non-entry block declaration at that place, owned and
@@ -886,10 +882,7 @@ pub(crate) fn validate_structural_root_operations(
                                 else {
                                     return None;
                                 };
-                                function
-                                .blocks
-                                .iter()
-                                .flat_map(|block| &block.nodes)
+                                function.block_nodes()
                                 .find_map(|node| {
                                     let (actual_producer, result) = node.operation.structural_result()?;
                                     if actual_producer != producer
@@ -1084,31 +1077,27 @@ fn readable_field_type(
             .entry_claim_declarations
             .iter()
             .any(|claim| claim.input == place)
-        || function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                let result = match &node.operation {
-                    O::EstablishRecord { result, .. }
-                    | O::EstablishZeroedStructural { result, .. }
-                    | O::EstablishScalarArray { result, .. }
-                    | O::EstablishStructuralArray { result, .. }
-                    | O::EstablishCase { result, .. }
-                    | O::EstablishReference { result, .. }
-                    | O::MoveStructuralField { result, .. }
-                    | O::CallStructural {
-                        result: AbstractStructuralCallResult::Structural { result, .. },
-                        ..
-                    }
-                    | O::BoundaryCall {
-                        result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                        ..
-                    } => result,
-                    _ => return false,
-                };
-                result.place == place && !result.claims.is_empty()
-            })
+        || function.block_nodes().any(|node| {
+            let result = match &node.operation {
+                O::EstablishRecord { result, .. }
+                | O::EstablishZeroedStructural { result, .. }
+                | O::EstablishScalarArray { result, .. }
+                | O::EstablishStructuralArray { result, .. }
+                | O::EstablishCase { result, .. }
+                | O::EstablishReference { result, .. }
+                | O::MoveStructuralField { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
+                | O::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => result,
+                _ => return false,
+            };
+            result.place == place && !result.claims.is_empty()
+        })
     {
         return None;
     }
@@ -1130,12 +1119,7 @@ fn borrowed_window_root(
             function
                 .structural_parameters
                 .iter()
-                .chain(
-                    function
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
+                .chain(function.block_structural_parameters())
                 .find(|candidate| candidate.place == parameter.place)
                 == Some(parameter)
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -1174,10 +1158,7 @@ fn borrowed_window_root(
             // A structural result may expose a loan instead of owning its
             // storage, so result identity alone does not establish authority.
             let producer_admits =
-                function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
+                function.block_nodes()
                     .any(|node| {
                         node.operation.psi_operation() == Some(*producer)
                             && crate::unit_validation::operation_contracts::structural_operation_result_contract(

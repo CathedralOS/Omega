@@ -43,6 +43,22 @@ impl LegalizedScalarFunction {
                 || block.terminator.references_value(value)
         })
     }
+
+    /// Every block's value parameters, in block order.
+    pub fn block_parameters(
+        &self,
+    ) -> impl Iterator<Item = &optimization_unit::ValueDefinition> + '_ {
+        self.blocks.iter().flat_map(|block| &block.parameters)
+    }
+
+    /// Every block's structural parameters, in block order.
+    pub fn block_structural_parameters(
+        &self,
+    ) -> impl Iterator<Item = &terminal_psi::StructuralParameterDeclaration> + '_ {
+        self.blocks
+            .iter()
+            .flat_map(|block| &block.structural_parameters)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

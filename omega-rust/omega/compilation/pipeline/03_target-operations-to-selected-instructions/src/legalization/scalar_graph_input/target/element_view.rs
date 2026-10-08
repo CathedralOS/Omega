@@ -59,10 +59,17 @@ impl Checker<'_> {
         }
         let access = |access| access == actual;
         match view {
-            TargetElementView::Result { psi_operation, place, structural_type } => {
+            TargetElementView::Result {
+                psi_operation,
+                place,
+                structural_type,
+            } => {
                 *place == source
-                    && super::super::byte_views::descriptor_result(self.optimized, source, self.types)
-                        == Some((*psi_operation, *structural_type))
+                    && super::super::byte_views::descriptor_result(
+                        self.optimized,
+                        source,
+                        self.types,
+                    ) == Some((*psi_operation, *structural_type))
             }
             TargetElementView::BlockParameter {
                 block,
@@ -109,12 +116,8 @@ impl Checker<'_> {
                 element_stride,
                 source: established_source,
             } => {
-                let Some((argument, expected_region)) = self
-                    .optimized
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .find_map(|node| {
+                let Some((argument, expected_region)) =
+                    self.optimized.block_nodes().find_map(|node| {
                         let AbstractOperation::EstablishElementView {
                             psi_operation: operation,
                             result,
@@ -140,7 +143,7 @@ impl Checker<'_> {
                             && result.claims.is_empty()
                             && *destination == *place
                             && *expected_element == *element)
-                            .then_some((argument,*expected_region))
+                            .then_some((argument, *expected_region))
                     })
                 else {
                     return false;
@@ -189,10 +192,28 @@ impl Checker<'_> {
                 *place == source
                     && access(argument.access)
                     && backing
-                    && match (region,expected_region) {
-                        (target_operations::TargetElementViewRegion::WholeCollection,terminal_psi::ElementViewRegion::WholeCollection)=>true,
-                        (target_operations::TargetElementViewRegion::RepresentationBytes {start,end,obligation},terminal_psi::ElementViewRegion::RepresentationBytes {start:expected_start,end:expected_end,obligation:expected_obligation})=>*obligation==expected_obligation && self.integer_source(start,expected_start,aliases) && self.integer_source(end,expected_end,aliases),
-                        _=>false,
+                    && match (region, expected_region) {
+                        (
+                            target_operations::TargetElementViewRegion::WholeCollection,
+                            terminal_psi::ElementViewRegion::WholeCollection,
+                        ) => true,
+                        (
+                            target_operations::TargetElementViewRegion::RepresentationBytes {
+                                start,
+                                end,
+                                obligation,
+                            },
+                            terminal_psi::ElementViewRegion::RepresentationBytes {
+                                start: expected_start,
+                                end: expected_end,
+                                obligation: expected_obligation,
+                            },
+                        ) => {
+                            *obligation == expected_obligation
+                                && self.integer_source(start, expected_start, aliases)
+                                && self.integer_source(end, expected_end, aliases)
+                        }
+                        _ => false,
                     }
                     && self.established_element_window(
                         *root_structural_type,
@@ -216,53 +237,50 @@ impl Checker<'_> {
                 obligation,
             } => {
                 *place == source
-                    && self
-                        .optimized
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.nodes)
-                        .any(|node| {
-                            let AbstractOperation::ElementViewSubslice {
-                                psi_operation: operation,
-                                result,
-                                source: expected_source,
-                                start: expected_start,
-                                end: expected_end,
-                                length: expected_length,
-                                obligation: expected_obligation,
-                            } = &node.operation
-                            else {
-                                return false;
-                            };
-                            operation == psi_operation
-                                && result.place == source
+                    && self.optimized.block_nodes().any(|node| {
+                        let AbstractOperation::ElementViewSubslice {
+                            psi_operation: operation,
+                            result,
+                            source: expected_source,
+                            start: expected_start,
+                            end: expected_end,
+                            length: expected_length,
+                            obligation: expected_obligation,
+                        } = &node.operation
+                        else {
+                            return false;
+                        };
+                        operation == psi_operation
+                        && result.place == source
+                        && matches!(
+                            (actual, result.multiplicity),
+                            (
+                                Access::SharedBorrow,
+                                terminal_psi::StructuralMultiplicity::Unrestricted
+                            ) | (
+                                Access::MutableBorrow,
+                                terminal_psi::StructuralMultiplicity::Affine
+                            )
+                        )
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                        && self.types.iter().any(|declaration| {
+                            declaration.id == result.structural_type
                                 && matches!(
-                                    (actual, result.multiplicity),
-                                    (Access::SharedBorrow, terminal_psi::StructuralMultiplicity::Unrestricted)
-                                        | (Access::MutableBorrow, terminal_psi::StructuralMultiplicity::Affine)
+                                    declaration.shape,
+                                    StructuralTypeShape::ElementView { .. }
+                                        | StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                        )
                                 )
-                                && result.qualifications.is_empty()
-                                && result.projected_qualifications.is_empty()
-                                && result.claims.is_empty()
-                                && self.types.iter().any(|declaration| {
-                                    declaration.id == result.structural_type
-                                        && matches!(declaration.shape,
-                                            StructuralTypeShape::ElementView { .. }
-                                                | StructuralTypeShape::ByteSequence(
-                                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                                                ))
-                                })
-                                && length == expected_length
-                                && obligation == expected_obligation
-                                && self.element_view_access(
-                                    original,
-                                    *expected_source,
-                                    aliases,
-                                    actual,
-                                )
-                                && self.integer_source(start, *expected_start, aliases)
-                                && self.integer_source(end, *expected_end, aliases)
                         })
+                        && length == expected_length
+                        && obligation == expected_obligation
+                        && self.element_view_access(original, *expected_source, aliases, actual)
+                        && self.integer_source(start, *expected_start, aliases)
+                        && self.integer_source(end, *expected_end, aliases)
+                    })
             }
         }
     }

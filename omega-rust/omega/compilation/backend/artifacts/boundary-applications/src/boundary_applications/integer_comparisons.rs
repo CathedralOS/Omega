@@ -121,13 +121,7 @@ impl TerminalIntegerComparisonOccurrenceProposal {
                     .parameters
                     .iter()
                     .copied()
-                    .chain(
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.parameters)
-                            .copied(),
-                    )
+                    .chain(machine.block_parameters().copied())
                     .chain(
                         machine
                             .operations()

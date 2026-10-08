@@ -8,11 +8,11 @@ use crate::unit_validation::services::{
 };
 use crate::unit_validation::structural_catalog::index_structural_catalogs;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
-use terminal_psi::find_structural_case;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::find_structural_case;
 
 pub(super) struct UnitIndexes<'a> {
     pub(super) machines: BTreeMap<MachineId, &'a PsiOptimizationFunction>,
@@ -239,7 +239,7 @@ fn validate_structural_field_range_authority(
 ) -> Result<(), OptimizationUnitValidationError> {
     use abstract_operations::AbstractOperation as O;
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
-    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+    for node in function.block_nodes() {
         match &node.operation {
             O::EstablishElementView {
                 psi_operation,

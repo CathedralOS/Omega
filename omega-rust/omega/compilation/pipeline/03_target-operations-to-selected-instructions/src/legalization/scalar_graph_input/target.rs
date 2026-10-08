@@ -29,15 +29,11 @@ pub(super) fn validate_target(
 ) -> Result<super::BlockEntryCustody, LegalizationError> {
     super::hosted_scalar::validate_normal_call_completions(native, optimized, plan)?;
     let operations = optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .filter_map(|node| instruction(node).map(|row| row.0))
         .collect::<Vec<_>>();
     let mut edges = optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .flat_map(|node| match &node.operation {
             AbstractOperation::Return { psi_edge, .. }
             | AbstractOperation::ReturnStructural { psi_edge, .. }

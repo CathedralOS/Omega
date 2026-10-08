@@ -119,9 +119,8 @@ fn consumer(
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {
     let operation = expected_consumer(certificate, constant.role);
     let uses = function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().flat_map(|node| &node.uses))
+        .block_nodes()
+        .flat_map(|node| &node.uses)
         .filter(|value_use| value_use.value == constant.result)
         .copied()
         .collect::<Vec<_>>();

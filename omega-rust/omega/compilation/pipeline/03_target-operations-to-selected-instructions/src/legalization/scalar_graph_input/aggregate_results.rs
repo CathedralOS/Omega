@@ -20,12 +20,9 @@ pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
     // per-place layout distinction in selection.
     function.result.structural().is_some()
         || function.structural_parameters.iter()
-            .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
+            .chain(function.block_structural_parameters())
             .any(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
-        || function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
+        || function.block_nodes()
             .any(|node| {
                 matches!(
                     node.operation,
@@ -399,16 +396,11 @@ pub(super) fn header(
             return Err(LegalizationError::custody());
         }
     }
-    if optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.structural_parameters)
-        .any(|parameter| {
-            !borrowed_view_parameter(parameter, plan)
-                && super::address_joins::parameter(optimized, parameter.place, plan).is_none()
-                && block_home_layout(parameter, plan).is_err()
-        })
-    {
+    if optimized.block_structural_parameters().any(|parameter| {
+        !borrowed_view_parameter(parameter, plan)
+            && super::address_joins::parameter(optimized, parameter.place, plan).is_none()
+            && block_home_layout(parameter, plan).is_err()
+    }) {
         return Err(LegalizationError::custody());
     }
     Ok(expected)

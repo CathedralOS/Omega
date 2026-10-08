@@ -109,12 +109,7 @@ pub(super) fn validate(
                         && function
                             .structural_parameters
                             .iter()
-                            .chain(
-                                function
-                                    .blocks
-                                    .iter()
-                                    .flat_map(|block| &block.structural_parameters),
-                            )
+                            .chain(function.block_structural_parameters())
                             .any(|source| {
                                 source.place == binding.argument.place
                                     && source.structural_type == parameter.structural_type
@@ -125,38 +120,31 @@ pub(super) fn validate(
                             });
                     let copied = binding.argument.path.is_empty()
                         && binding.argument.access == StructuralAccess::Owned
-                        && function
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.nodes)
-                            .any(|node| match &node.operation {
-                                O::StructuralLeafCopy {
-                                    source: backing,
-                                    path: abstract_operations::StructuralCopyPath::Ordinary(path),
-                                    result,
-                                    ..
-                                } => {
-                                    result.place == binding.argument.place
-                                        && result.structural_type == parameter.structural_type
-                                        && result.multiplicity
-                                            == StructuralMultiplicity::Unrestricted
-                                        && result.qualifications.is_empty()
-                                        && result.projected_qualifications.is_empty()
-                                        && result.claims.is_empty()
-                                        && function.arrival_parameter(*backing).is_some_and(
-                                            |root| {
-                                                byte_leaf_predicates(
-                                                    types,
-                                                    domains,
-                                                    root.structural_type,
-                                                    path,
-                                                    parameter,
-                                                )
-                                            },
+                        && function.block_nodes().any(|node| match &node.operation {
+                            O::StructuralLeafCopy {
+                                source: backing,
+                                path: abstract_operations::StructuralCopyPath::Ordinary(path),
+                                result,
+                                ..
+                            } => {
+                                result.place == binding.argument.place
+                                    && result.structural_type == parameter.structural_type
+                                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                                    && result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty()
+                                    && result.claims.is_empty()
+                                    && function.arrival_parameter(*backing).is_some_and(|root| {
+                                        byte_leaf_predicates(
+                                            types,
+                                            domains,
+                                            root.structural_type,
+                                            path,
+                                            parameter,
                                         )
-                                }
-                                _ => false,
-                            });
+                                    })
+                            }
+                            _ => false,
+                        });
                     let projected = !binding.argument.path.is_empty()
                         && function
                             .arrival_parameter(binding.argument.place)
@@ -419,12 +407,7 @@ fn qualified_shared_view_source(
     let forwarded = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .any(|source| {
             source.place == argument.place
                 && source.structural_type == parameter.structural_type
@@ -434,26 +417,22 @@ fn qualified_shared_view_source(
                 && source.projected_qualifications.is_empty()
         });
     let literal = || {
-        function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| match &node.operation {
-                O::EstablishByteSequenceLiteral {
-                    place: declaration,
-                    qualifications,
-                    ..
-                } => {
-                    declaration.id == argument.place
-                        && *qualifications == parameter.qualifications
-                        && matches!(
-                            declaration.kind,
-                            StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. }
-                                if structural_type == parameter.structural_type
-                        )
-                }
-                _ => false,
-            })
+        function.block_nodes().any(|node| match &node.operation {
+            O::EstablishByteSequenceLiteral {
+                place: declaration,
+                qualifications,
+                ..
+            } => {
+                declaration.id == argument.place
+                    && *qualifications == parameter.qualifications
+                    && matches!(
+                        declaration.kind,
+                        StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. }
+                            if structural_type == parameter.structural_type
+                    )
+            }
+            _ => false,
+        })
     };
     forwarded || literal()
 }
@@ -485,12 +464,7 @@ fn source_contract(
     if let Some(parameter) = function
         .structural_parameters
         .iter()
-        .chain(
-            function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
+        .chain(function.block_structural_parameters())
         .find(|parameter| parameter.place == place)
     {
         return plain(parameter).then_some((
@@ -500,9 +474,7 @@ fn source_contract(
         ));
     }
     function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .find_map(|node| match &node.operation {
             O::EstablishByteSequenceLiteral {
                 place: declaration, ..

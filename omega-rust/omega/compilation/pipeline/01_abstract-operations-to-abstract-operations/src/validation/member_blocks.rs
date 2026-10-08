@@ -197,9 +197,8 @@ pub(crate) fn invariant_member_parameters(
             let mut anchor = None;
             let mut loop_carried = false;
             for edge in function
-                .blocks
-                .iter()
-                .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+                .block_nodes()
+                .flat_map(|node| node.successors.iter())
                 .filter(|edge| edge.target == *block)
             {
                 let Some(binding) = edge
@@ -379,9 +378,8 @@ fn member_parameter_run_result(
     let mut result = None;
     let mut bound = false;
     for edge in function
-        .blocks
-        .iter()
-        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .block_nodes()
+        .flat_map(|node| node.successors.iter())
         .filter(|edge| edge.target == parameter_block)
     {
         let binding = edge

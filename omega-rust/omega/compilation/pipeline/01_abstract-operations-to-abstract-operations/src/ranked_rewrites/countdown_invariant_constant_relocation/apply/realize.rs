@@ -157,9 +157,7 @@ fn refresh_coordinates_effects_and_facts(
         }
     }
     let operation_order = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
+        .block_nodes()
         .enumerate()
         .filter_map(|(position, node)| match node.provenance.first() {
             Some(optimization_unit::PsiProvenance::Operation(operation)) => {
