@@ -4,6 +4,7 @@
 //! selected program and pre-layout rows directly; they do not manufacture
 //! selection authority.
 
+use crate::resolved_selected_form_layout::order_suite::{branch, instruction, successor};
 use isa_aarch64::{
     aarch64_physical_register_model, encode_aarch64_selected_jump_form,
     encode_aarch64_selected_nonzero_branch_form,
@@ -15,12 +16,11 @@ use machine_code::{
 use physical_instructions::{
     PostAllocationMachineBlock, PostAllocationMachineFunction, PostAllocationMachineInstruction,
 };
-use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
+
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineLatencyKnowledge, MachineSizeKnowledge, SelectedBlock,
-    SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
+    SelectedBlockId, SelectedFunction, SelectedInstruction,     SelectedInstructionKind, SelectedTerminator,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use target::Architecture;
@@ -33,42 +33,8 @@ use crate::resolved_selected_form_layout::{ResolvedBranchEvidence, SelectedFunct
 /// four-byte padding rows put the taken edge just past that bound.
 const PAD_BEYOND_IMM19: usize = (1 << 18) + 4;
 
-fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction {
-    SelectedInstruction {
-        id: SelectedInstructionId(block),
-        kind,
-        constraint: RegisterConstraintKey {
-            family: RegisterConstraintFamily::Instruction,
-            variant: 0,
-        },
-        operands: Vec::new(),
-        implicit_uses: Vec::new(),
-        implicit_defs: Vec::new(),
-        clobbers: Vec::new(),
-        provenance: Default::default(),
-    }
-}
 
-fn successor(target: u32) -> SelectedSuccessor {
-    SelectedSuccessor {
-        structural_case: None,
-        role: selected_instructions::SelectedSuccessorRole::Semantic,
-        structural_bindings: Vec::new(),
-        psi_edge: EdgeId::new(u64::from(target) + 1).unwrap(),
-        block: SelectedBlockId(target),
-        source_target: BlockId::new(u64::from(target) + 1).unwrap(),
-        bindings: Vec::new(),
-        fuel: Vec::new(),
-    }
-}
 
-fn branch(source: u32, taken: u32, otherwise: u32) -> SelectedTerminator {
-    SelectedTerminator::ConditionalBranch {
-        instruction: instruction(source, SelectedInstructionKind::ConditionalBranchNonZero),
-        when_nonzero: successor(taken),
-        when_zero: successor(otherwise),
-    }
-}
 
 fn jump(source: u32, destination: u32) -> SelectedTerminator {
     SelectedTerminator::Jump {

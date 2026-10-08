@@ -20,7 +20,7 @@ pub(super) type Derive =
         SelectedFunctionLayoutPolicy,
     ) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError>;
 
-fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction {
+pub(crate) fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction {
     SelectedInstruction {
         id: SelectedInstructionId(block),
         kind,
@@ -35,7 +35,7 @@ fn instruction(block: u32, kind: SelectedInstructionKind) -> SelectedInstruction
         provenance: Default::default(),
     }
 }
-fn successor(target: u32) -> SelectedSuccessor {
+pub(crate) fn successor(target: u32) -> SelectedSuccessor {
     SelectedSuccessor {
         structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
@@ -53,7 +53,7 @@ fn jump(source: u32, destination: u32) -> SelectedTerminator {
         successor: successor(destination),
     }
 }
-fn branch(source: u32, taken: u32, otherwise: u32) -> SelectedTerminator {
+pub(crate) fn branch(source: u32, taken: u32, otherwise: u32) -> SelectedTerminator {
     SelectedTerminator::ConditionalBranch {
         instruction: instruction(source, SelectedInstructionKind::ConditionalBranchNonZero),
         when_nonzero: successor(taken),
