@@ -85,8 +85,7 @@ fn propose_proof_certified_remainder_by_constant(
     signed_only: bool,
     expected_constant: impl Fn(IntegerType, IntegerValue) -> bool,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    let mut candidates: Vec<PsiRewriteCandidate> = Vec::new();
-        let Some(AnalysisProduct::ScalarConstants(constants)) =
+    let Some(AnalysisProduct::ScalarConstants(constants)) =
             analyses.get(AnalysisKind::ScalarConstants)
         else {
             return Err(RuleProposalError::MissingAnalysis(

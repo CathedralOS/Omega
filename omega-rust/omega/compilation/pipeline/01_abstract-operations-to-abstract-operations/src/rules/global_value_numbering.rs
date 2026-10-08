@@ -14,7 +14,9 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate};
+
+use expression_keys::ScalarExpressionRow;
 use semantic_vocabulary::{BlockId, MachineId, ScalarType, ValueId};
 
 use crate::EffectSummaryAnalysis;
@@ -163,4 +165,124 @@ fn function_value_types(function: &PsiOptimizationFunction) -> BTreeMap<ValueId,
             })
         }))
         .collect()
+}
+
+
+/// One located same-block leader/redundant pair, resolved through the
+/// accounting the rule's own candidate constructor consumes.
+pub(super) struct SameBlockScalarCseMatch {
+    pub affected_blocks: Vec<BlockId>,
+    pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
+    pub obligation_fact: Option<optimization_core::AcceptedObligationFactIdentity>,
+    pub patch: optimization_unit::LocalScalarCommonSubexpressionRewrite,
+}
+
+/// The shared same-block scalar CSE proposal: per block the first
+/// eligible node per expression key becomes the leader, and each later
+/// live, provably-pure duplicate whose next node carries none of its
+/// provenance is the redundant the rule rewrites onto it. `context`
+/// builds the rule's per-function lookup (`function_value_types` for the
+/// obligation-free rule, unit for the proof-certified ones); `expression`
+/// is the rule's key extractor; `emit` is its candidate constructor.
+pub(super) fn propose_same_block_scalar_cse<K, C>(
+    unit: &PsiOptimizationUnit,
+    analyses: crate::RuleAnalysisView<'_>,
+    needs_obligation: bool,
+    context: impl Fn(&PsiOptimizationFunction) -> C,
+    expression: impl Fn(&C, &abstract_operations::AbstractOperation) -> Option<ScalarExpressionRow<K>>,
+    emit: impl Fn(SameBlockScalarCseMatch) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+where
+    K: Ord,
+{
+    use crate::rules::accepted_obligations::accepted_obligation_fact;
+    use crate::rules::node_elision::node_elision_accounting;
+
+    let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        let context = context(function);
+        for block in &function.blocks {
+            let mut leaders = BTreeMap::new();
+            for (index, node) in block.nodes.iter().enumerate() {
+                let Some((key, operation, result, scalar_type)) =
+                    expression(&context, &node.operation)
+                else {
+                    continue;
+                };
+                let obligation_fact = if needs_obligation {
+                    match accepted_obligation_fact(unit, function.machine, operation) {
+                        Ok(fact) => Some(fact),
+                        Err(_) => continue,
+                    }
+                } else {
+                    None
+                };
+                let node_index =
+                    u32::try_from(index).expect("optimization node index fits u32");
+                if !exact_pure_scalar_effect(
+                    unit,
+                    effects,
+                    function.machine,
+                    block.id,
+                    node_index,
+                ) {
+                    continue;
+                }
+                let Some((leader, leader_operation, leader_result, leader_type)) =
+                    leaders.get(&key).copied()
+                else {
+                    leaders.insert(key, (node_index, operation, result, scalar_type));
+                    continue;
+                };
+                if leader_type != scalar_type
+                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == result
+                    })
+                {
+                    continue;
+                }
+                let Some(receiver) = block.nodes.get(index + 1) else {
+                    continue;
+                };
+                if receiver
+                    .provenance
+                    .iter()
+                    .any(|source| node.provenance.contains(source))
+                {
+                    continue;
+                }
+                let leader_location = optimization_unit::NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: leader,
+                };
+                let redundant_location = optimization_unit::NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                let Some((affected_blocks, provenance)) =
+                    node_elision_accounting(function, redundant_location, result)
+                else {
+                    continue;
+                };
+                candidates.push(emit(SameBlockScalarCseMatch {
+                    affected_blocks,
+                    provenance,
+                    obligation_fact,
+                    patch: optimization_unit::LocalScalarCommonSubexpressionRewrite {
+                        leader: leader_location,
+                        redundant: redundant_location,
+                        leader_operation,
+                        redundant_operation: operation,
+                        leader_result,
+                        redundant_result: result,
+                        scalar_type,
+                    },
+                })?);
+            }
+        }
+    }
+    Ok(candidates)
 }

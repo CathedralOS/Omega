@@ -19,7 +19,7 @@ use semantic_vocabulary::{IntegerType, IntegerValue};
 use std::collections::{BTreeMap, BTreeSet};
 pub(super) use total::total_scalar_expression;
 
-type ScalarExpressionRow<K> = (K, OperationId, ValueId, ScalarType);
+pub(in crate::rules) type ScalarExpressionRow<K> = (K, OperationId, ValueId, ScalarType);
 
 fn canonical_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
     if left <= right {
