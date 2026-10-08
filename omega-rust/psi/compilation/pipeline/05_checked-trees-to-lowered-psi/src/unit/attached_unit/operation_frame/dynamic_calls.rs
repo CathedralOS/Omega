@@ -7,7 +7,7 @@
 //! exactly as an ordinary call's do: every selectable implementation is a
 //! checked body that receives them under checked-body custody.
 
-use super::super::parameters::{emitted_claim_transfers, lower_structural_arguments};
+use super::super::parameters::emitted_claim_transfers;
 use super::OperationFrame;
 use super::calls::CallInputs;
 use crate::unit::{
@@ -77,34 +77,15 @@ impl OperationFrame<'_, '_> {
                 "selector call names a requirement absent from its interface",
             ))?;
         let structural_arguments = &call.structural_arguments;
-        let earlier =
-            self.results
-                .earlier(structural_arguments, self.operations, self.evaluation)?;
-        let mut selector_values = super::super::parameters::mint_runtime_index_selectors(
+        let earlier = self
+            .results
+            .earlier(structural_arguments, self.operations, self.evaluation)?
+            .into_owned();
+        let structural_arguments = self.lower_runtime_structural_arguments(
             structural_arguments,
-            &self.evaluation.structural_fields,
-            self.values,
-            self.next_value,
-            self.operations,
-        )?
-        .into_iter();
-        let structural_arguments = lower_structural_arguments(
-            structural_arguments,
-            self.structural_types.declarations(),
-            self.parameters,
-            &[],
             &earlier,
-            &self.operations.structural_values.clone(),
             inputs.byte_places,
-            self.primitive_locals,
-            &self.evaluation.structural_locals,
-            Some(&self.evaluation.scalar_bindings),
-            Some(self.values),
-            &mut selector_values,
-            Some(&mut *self.calls),
-            Some((self.next_value, self.operations)),
         )?;
-        drop(earlier);
         let claim_transfers =
             emitted_claim_transfers(call.claim_transfers(), self.calls.claims.bindings())?;
         let result = match call.result() {

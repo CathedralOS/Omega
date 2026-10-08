@@ -534,6 +534,41 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
+    /// Mint runtime index selectors for `arguments`, then lower the
+    /// structural argument roster against the caller's completed and
+    /// declared places.
+    pub(super) fn lower_runtime_structural_arguments(
+        &mut self,
+        arguments: &[CheckedUnitStructuralArgumentPlan],
+        earlier: &[(Option<StructuralPlaceDeclaration>, bool)],
+        byte_places: &[PlaceId],
+    ) -> Result<Vec<StructuralArgument>, LoweringError> {
+        let mut selector_values = parameters::mint_runtime_index_selectors(
+            arguments,
+            &self.evaluation.structural_fields,
+            self.values,
+            self.next_value,
+            self.operations,
+        )?
+        .into_iter();
+        parameters::lower_structural_arguments(
+            arguments,
+            self.structural_types.declarations(),
+            self.parameters,
+            &[],
+            earlier,
+            &self.operations.structural_values.clone(),
+            byte_places,
+            self.primitive_locals,
+            &self.evaluation.structural_locals,
+            Some(&self.evaluation.scalar_bindings),
+            Some(self.values),
+            &mut selector_values,
+            Some(&mut *self.calls),
+            Some((self.next_value, self.operations)),
+        )
+    }
+
     /// Append one Unit-result operation at the next identity.
     fn push_unit(&mut self, kind: OperationKind) {
         let id = self.operations.allocate();

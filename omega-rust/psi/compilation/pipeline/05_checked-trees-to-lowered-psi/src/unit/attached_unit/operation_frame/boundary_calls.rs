@@ -7,7 +7,7 @@
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
 use super::super::lower_structural_path;
-use super::super::parameters::lower_structural_arguments;
+
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
 use crate::emission::operation_emission::boundary_calls::result_policy::{
@@ -249,9 +249,10 @@ impl OperationFrame<'_, '_> {
         let structural_arguments = &call.structural_arguments;
         // A boundary call's claim transfers are its completion receipts.
         let completion_receipts = call.claim_transfers();
-        let earlier =
-            self.results
-                .earlier(structural_arguments, self.operations, self.evaluation)?;
+        let earlier = self
+            .results
+            .earlier(structural_arguments, self.operations, self.evaluation)?
+            .into_owned();
 
         let BoundaryParameters {
             id: boundary,
@@ -281,29 +282,10 @@ impl OperationFrame<'_, '_> {
         .iter()
         .map(|value| value.id)
         .collect();
-        let mut selector_values = super::super::parameters::mint_runtime_index_selectors(
+        let structural_arguments = self.lower_runtime_structural_arguments(
             structural_arguments,
-            &self.evaluation.structural_fields,
-            self.values,
-            self.next_value,
-            self.operations,
-        )?
-        .into_iter();
-        let structural_arguments = lower_structural_arguments(
-            structural_arguments,
-            self.structural_types.declarations(),
-            self.parameters,
-            &[],
             &earlier,
-            &self.operations.structural_values.clone(),
             inputs.byte_places,
-            self.primitive_locals,
-            &self.evaluation.structural_locals,
-            Some(&self.evaluation.scalar_bindings),
-            Some(self.values),
-            &mut selector_values,
-            Some(&mut *self.calls),
-            Some((self.next_value, self.operations)),
         )?;
         let completion_receipts = completion_receipts
             .iter()
