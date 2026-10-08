@@ -7,7 +7,8 @@
 
 use layout_plans::test_support::{
     constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context, record_layout,
-    recursive_record_array_report, repeated_layout, split_layout, sum_layout, symbolic_path,
+    recursive_record_array_report, repeated_layout, split_layout, stored_integer_layout,
+    sum_layout, symbolic_path,
 };
 
 use crate::post_handoff_writer::{
@@ -402,21 +403,7 @@ fn writer_application_stages_late_failure_and_retry_atomically() {
 
 #[test]
 fn writer_execution_replays_stored_integer_fit_before_writes() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "address".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
-                offset: 0,
-                stored_width: 32,
-                interpretation: IntegerInterpretation::Unsigned,
-            },
-        }],
-        offsets: None,
-        size: Some(4),
-        align: 4,
-    };
+    let layout = stored_integer_layout();
     let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
     let plan = derive_symbolic_materialization(
         &layout,

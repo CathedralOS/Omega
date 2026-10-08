@@ -1,8 +1,7 @@
-use super::{entry, post_handoff_context, split_layout};
+use super::{entry, post_handoff_context, split_layout, stored_integer_layout};
 use crate::test_support::constrained_post_handoff_plan;
 use crate::{
-    ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
-    LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
+    ByteOrder, ConsumptionInstant, MaterializationAction, MaterializationContext,
     PlacementConstraints, PlacementPhase, PlacementSite, SymbolicFieldValue,
     derive_symbolic_materialization,
 };
@@ -32,21 +31,7 @@ fn fixed_entry_constant_folds_split_little_endian_bytes() {
 
 #[test]
 fn symbolic_stored_integer_fit_is_enforced_before_each_consumption_phase() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "address".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
-                offset: 0,
-                stored_width: 32,
-                interpretation: IntegerInterpretation::Unsigned,
-            },
-        }],
-        offsets: None,
-        size: Some(4),
-        align: 4,
-    };
+    let layout = stored_integer_layout();
     let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
     let context = MaterializationContext {
         consumption: ConsumptionInstant::BeforeOmegaEntry,

@@ -1,11 +1,11 @@
-use layout_plans::test_support::split_layout;
+use layout_plans::test_support::{split_layout, stored_integer_layout};
 
 use super::{
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
     PostHandoffWriterStep, derive_post_handoff_writer, post_handoff_writer_context_byte_len,
 };
 use layout_plans::{
-    ByteOrder, ConsumptionInstant, EntryStubId, IntegerInterpretation, LayoutFieldEntryReport,
+    ByteOrder, ConsumptionInstant, EntryStubId, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
     MaterializationWrite, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
     SymbolicFieldValue, SymbolicMaterializationPlan, derive_symbolic_materialization,
@@ -349,21 +349,7 @@ fn numbered_symbolic_materialization_rejoins_renamed_fields_by_identity() {
 
 #[test]
 fn stored_integer_fit_binds_post_handoff_fragment_evidence() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "address".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
-                offset: 0,
-                stored_width: 32,
-                interpretation: IntegerInterpretation::Unsigned,
-            },
-        }],
-        offsets: None,
-        size: Some(4),
-        align: 4,
-    };
+    let layout = stored_integer_layout();
     let symbolic = SymbolicFieldValue::new("address", 64, entry()).expect("symbolic field");
     let plan = derive_symbolic_materialization(
         &layout,

@@ -5,9 +5,10 @@ use crate::{
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, DataSymbolId,
-    EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MachineRegimeId,
-    MaterializationContext, PlacementAddressRange, PlacementConstraints, PlacementPhase,
-    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
+    EntryStubId, IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport,
+    LayoutPlanReport, MachineRegimeId, MaterializationContext, PlacementAddressRange,
+    PlacementConstraints, PlacementPhase, RelocationTarget, SymbolicFieldInnerLayout,
+    SymbolicFieldPathSegment, SymbolicFieldValue,
 };
 
 /// A nested symbolic path: `symbolic_path(&["a", "b"])` is `a` containing `b`.
@@ -243,6 +244,25 @@ pub fn sum_layout() -> ConventionalSumLayoutReport {
 /// every index the field spells, so `middle.neighbors[1].choice.Run.<p>`
 /// composes the element hop and the record boundary inside it under the same
 /// bounded traversal the standalone record carrier walks.
+/// A single `address` field stored as a 32-bit unsigned integer.
+pub fn stored_integer_layout() -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries: vec![LayoutFieldEntryReport {
+            field: "address".into(),
+            member_identity: None,
+            placement: LayoutPlacementReport::IntegerAt {
+                offset: 0,
+                stored_width: 32,
+                interpretation: IntegerInterpretation::Unsigned,
+            },
+        }],
+        offsets: None,
+        size: Some(4),
+        align: 4,
+    }
+}
+
 /// A flat record layout: `record_layout(1, &[("a", 0), ("b", 8)], 16)` places
 /// each field at its offset in declaration order.
 pub fn record_layout(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
