@@ -3,9 +3,8 @@
 //! declared structural return exactly.
 
 use crate::installation_record::{
-    CallSignature, CallingPolicy, InstallationError, InstallationRecord, InstalledFunction,
-    MachineId, SemanticCodeSite, StructuralMultiplicity, ValueClass, ValueShape,
-    direct_structural_return_placement, evaluate_call_plan,
+    InstallationError, InstallationRecord, InstalledFunction, MachineId, SemanticCodeSite,
+    StructuralMultiplicity, ValueClass, direct_structural_return_placement,
 };
 
 pub(super) fn validate_structural_returns(
@@ -18,41 +17,11 @@ pub(super) fn validate_structural_returns(
             InstallationError::StructuralReturnMachineMissing(installed.machine),
         )?;
         let returned = &installed.returned;
-        let scalar_shapes = returned
-            .scalar_parameters
-            .iter()
-            .map(|parameter| {
-                let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type
-                else {
-                    return None;
-                };
-                if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
-                    return None;
-                }
-                let bytes = integer.bits() / 8;
-                Some(ValueShape::integer(u32::from(bytes), bytes))
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or(InstallationError::InvalidStructuralReturn(
-                installed.machine,
-            ))?;
-        let expected_plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(record.target),
-            &CallSignature {
-                parameters: scalar_shapes
-                    .iter()
-                    .copied()
-                    .chain(
-                        returned
-                            .parameter_placements
-                            .iter()
-                            .map(|placement| placement.shape),
-                    )
-                    .collect(),
-                result: Some(returned.shape),
-            },
+        let expected_plan = crate::object_artifact::replay::structural::return_record::structural_return_call_plan(
+            record.target,
+            returned,
         )
-        .map_err(|_| InstallationError::InvalidStructuralReturn(installed.machine))?;
+        .ok_or(InstallationError::InvalidStructuralReturn(installed.machine))?;
         let expected_result = expected_plan.result.as_ref();
         let structural_attribution = record
             .semantic_code_attribution

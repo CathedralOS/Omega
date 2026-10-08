@@ -43,20 +43,19 @@ pub(crate) fn has_claim_free_affine_identity_custody(returned: &StructuralReturn
         && returned.trivial_affine_discards.is_empty()
 }
 
-pub(crate) fn validate_structural_return_record(
+/// The scalar-parameter shapes and expected call plan one structural return
+/// evidence record must reproduce, or `None` when a parameter is not an
+/// ordinary scalar.
+pub(crate) fn structural_return_call_plan(
     target: NativeTarget,
-    machine: MachineId,
-    provenance: &TerminalPsiProvenance,
-    bytes: &[u8],
-    semantic_code_attribution: &[SemanticCodeAttribution],
     returned: &StructuralReturnRecord,
-) -> Result<(), ObjectError> {
-    let architecture = target.architecture;
+) -> Option<calling_conventions::CallPlan> {
     let scalar_shapes = returned
         .scalar_parameters
         .iter()
         .map(|parameter| {
-            let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type else {
+            let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type
+            else {
                 return None;
             };
             if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
@@ -68,11 +67,8 @@ pub(crate) fn validate_structural_return_record(
                 bytes,
             ))
         })
-        .collect::<Option<Vec<_>>>();
-    let Some(scalar_shapes) = scalar_shapes else {
-        return Err(ObjectError::InvalidStructuralReturnEvidence(machine));
-    };
-    let expected_call_plan = calling_conventions::evaluate_call_plan(
+        .collect::<Option<Vec<_>>>()?;
+    calling_conventions::evaluate_call_plan(
         calling_conventions::CallingPolicy::native_for_target(target),
         &calling_conventions::CallSignature {
             parameters: scalar_shapes
@@ -88,7 +84,20 @@ pub(crate) fn validate_structural_return_record(
             result: Some(returned.shape),
         },
     )
-    .map_err(|_| ObjectError::InvalidStructuralReturnEvidence(machine))?;
+    .ok()
+}
+
+pub(crate) fn validate_structural_return_record(
+    target: NativeTarget,
+    machine: MachineId,
+    provenance: &TerminalPsiProvenance,
+    bytes: &[u8],
+    semantic_code_attribution: &[SemanticCodeAttribution],
+    returned: &StructuralReturnRecord,
+) -> Result<(), ObjectError> {
+    let architecture = target.architecture;
+    let expected_call_plan = structural_return_call_plan(target, returned)
+        .ok_or(ObjectError::InvalidStructuralReturnEvidence(machine))?;
     let source_index = returned.parameters.first().map(|_| 0);
     let end = returned
         .code_offset
