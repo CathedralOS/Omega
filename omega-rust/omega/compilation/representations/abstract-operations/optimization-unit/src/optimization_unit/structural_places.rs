@@ -17,9 +17,9 @@ use terminal_psi::{
 };
 
 use super::{
-    FieldValueResolution, FoldedFieldValue, ForwardedFieldValue, OptimizationBlock,
-    OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, ScalarConstantValue,
-    ValueDefinition,
+    FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue, NodeLocation,
+    OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
+    ScalarConstantValue, ValueDefinition,
 };
 
 /// The establishing operation the place's operation-result producer resolves
@@ -1750,5 +1750,78 @@ pub fn proven_field_value(
     .map(|forwarded| ProvenFieldValue {
         producer: Some(producer),
         resolution: FieldValueResolution::Forward(forwarded),
+    })
+}
+
+/// The admissibility of one node under `evidence`: a Boolean or integer
+/// `StructuralScalarFieldRead` observing the evidence's place whose stored
+/// value the unit proves. `None` for every other node. The bound-place and
+/// forward-resolution policies are the caller's own: the admission and
+/// replay sides each supply theirs, and the node gate itself is the shared
+/// derivation.
+pub fn admit_field_node(
+    unit: &PsiOptimizationUnit,
+    evidence: &FieldEvidence<'_>,
+    function: &PsiOptimizationFunction,
+    analysis: &FunctionAnalysis,
+    block: &OptimizationBlock,
+    node_index: usize,
+    node: &OptimizationNode,
+    bound_place: &dyn Fn(&PsiOptimizationFunction, PlaceId) -> Option<PlaceId>,
+    forwarded_resolution: &dyn Fn(
+        &PsiOptimizationFunction,
+        &FunctionAnalysis,
+        &OptimizationBlock,
+        usize,
+        &OptimizationNode,
+        ValueId,
+        ScalarType,
+        ValueId,
+    ) -> Option<ForwardedFieldValue>,
+) -> Option<FieldValueRow> {
+    let O::StructuralScalarFieldRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        field,
+    } = &node.operation
+    else {
+        return None;
+    };
+    let kind = ObservedFieldKind::of(result.scalar_type)?;
+    let (result, scalar_type) = (result.value, result.scalar_type);
+    if *source != evidence.declaration.id {
+        return None;
+    }
+    let proven = proven_field_value(
+        unit,
+        evidence,
+        function,
+        analysis,
+        block,
+        node_index,
+        node,
+        result,
+        scalar_type,
+        path,
+        *field,
+        kind,
+        bound_place,
+        forwarded_resolution,
+    )?;
+    Some(FieldValueRow {
+        site: NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: u32::try_from(node_index).ok()?,
+        },
+        psi_operation: *psi_operation,
+        result,
+        source: evidence.declaration.id,
+        path: path.clone(),
+        field: *field,
+        producer: proven.producer,
+        resolution: proven.resolution,
     })
 }

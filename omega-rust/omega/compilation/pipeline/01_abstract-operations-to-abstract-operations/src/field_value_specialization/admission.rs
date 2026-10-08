@@ -2,17 +2,14 @@
 //!
 //! The plan is built from two predicates only: the place's
 //! declaration/type/proof evidence and the per-node admissibility that
-//! resolves one field observation's proven stored value. The independent
-//! validator in `optimization-unit-semantics` re-derives the same predicates
-//! from the candidate's rows rather than trusting this enumeration — a
-//! matcher cannot attest to itself.
+//! resolves one field observation's proven stored value — the shared node
+//! gate lives in `optimization_unit` so the independent validator derives
+//! the same roster rather than trusting this enumeration.
 
-use super::{
-    FieldValueRow, NodeLocation, O, PsiOptimizationFunction, PsiOptimizationUnit, ScalarType,
-};
+use super::{FieldValueRow, O, PsiOptimizationFunction, PsiOptimizationUnit, ScalarType};
 use crate::representation_specialization::admission::bound_place;
 use optimization_unit::{
-    FieldEvidence, ForwardedFieldValue, FunctionAnalysis, ObservedFieldKind, OptimizationBlock,
+    FieldEvidence, ForwardedFieldValue, FunctionAnalysis, NodeLocation, OptimizationBlock,
     OptimizationNode, ValueDefinition, ValueDefinitionSite,
 };
 use semantic_vocabulary::ValueId;
@@ -30,22 +27,7 @@ pub(super) fn admit_field_node(
     node_index: usize,
     node: &OptimizationNode,
 ) -> Option<FieldValueRow> {
-    let O::StructuralScalarFieldRead {
-        psi_operation,
-        result,
-        source,
-        path,
-        field,
-    } = &node.operation
-    else {
-        return None;
-    };
-    let kind = ObservedFieldKind::of(result.scalar_type)?;
-    let (result, scalar_type) = (result.value, result.scalar_type);
-    if *source != evidence.declaration.id {
-        return None;
-    }
-    let proven = optimization_unit::proven_field_value(
+    optimization_unit::admit_field_node(
         unit,
         evidence,
         function,
@@ -53,42 +35,10 @@ pub(super) fn admit_field_node(
         block,
         node_index,
         node,
-        result,
-        scalar_type,
-        path,
-        *field,
-        kind,
         &bound_place,
         &forwarded_resolution,
-    )?;
-    Some(FieldValueRow {
-        site: NodeLocation {
-            machine: function.machine,
-            block: block.id,
-            node: u32::try_from(node_index).ok()?,
-        },
-        psi_operation: *psi_operation,
-        result,
-        source: evidence.declaration.id,
-        path: path.clone(),
-        field: *field,
-        producer: proven.producer,
-        resolution: proven.resolution,
-    })
+    )
 }
-
-/// The stored value the unit proves for `field` at `path` under `place`'s
-/// evidence, or `None` when no basis applies. An establishment basis — an
-/// `EstablishRecord` producer at an empty path, an `EstablishCase`
-/// producer whose `result_case` matches a lone `Case` path, or the same two
-/// reached through `Field` descents across owned, complete structural
-/// children — proves the field's initializer scalar directly: a
-/// same-function constant folds the read to a literal, while a nonconstant
-/// initializer forwards to the read's uses when the substitution lane
-/// covers every use site and the initializer dominates them all. A declared
-/// `BoundedInteger` singleton bound proves a literal at any resolvable path
-/// independently of producer and outranks a nonconstant initializer — the
-/// literal is strictly more resolved.
 
 /// The `Forward` resolution for one nonconstant-initialized read, or `None`
 /// when the substitution cannot retire the observation exactly: the

@@ -20,8 +20,8 @@ use optimization_core::{
 };
 use semantic_vocabulary::{
     AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, FuelScheduleIdentity,
-    IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    IntegerCarrier, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
@@ -74,10 +74,11 @@ pub use optimization_unit::{
     StateArgumentSpecializationRewrite, TotalScalarIdentityKind, TotalScalarIdentityRewrite,
     UnreachablePrivateMachinesRewrite, ValueDefinition, ValueDefinitionSite, ValueRangeFact,
     ValueRangeRegion, ValueRangeScope, ValueRangeSupport, ValueUse,
-    accepted_obligation_fact_identity, argument_rewrites_place, attach_accepted_obligation_facts,
-    attach_ownership_frontier_facts, attach_proof_questions, attach_verified_module_context,
-    bound_place, bound_value, canonical_ownership_frontier_snapshot, canonicalize_ordinary_path,
-    case_field_initializer, comparison_operands, constant_definition, declared_structural_type,
+    accepted_obligation_fact_identity, admit_field_node, argument_rewrites_place,
+    attach_accepted_obligation_facts, attach_ownership_frontier_facts, attach_proof_questions,
+    attach_verified_module_context, bound_place, bound_value,
+    canonical_ownership_frontier_snapshot, canonicalize_ordinary_path, case_field_initializer,
+    comparison_operands, constant_definition, declared_structural_type,
     derived_sccp_scalar_constant_fact_identity, descended_field, descended_field_child,
     descended_field_id, descended_field_matching, descended_type, dominators, encode_location,
     encode_value_definition_site_identity, established_case_at, establishment_fields,

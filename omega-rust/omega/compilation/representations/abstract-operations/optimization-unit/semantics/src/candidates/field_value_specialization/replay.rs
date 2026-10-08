@@ -37,10 +37,10 @@ use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
-    FunctionAnalysis, ObservedFieldKind, OptimizationNode, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
-    field_evidence, function_analysis, recompute_psi_optimization_unit_identity,
+    FunctionAnalysis, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite, field_evidence,
+    function_analysis, recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -57,22 +57,7 @@ fn admit_field_node(
     node_index: usize,
     node: &OptimizationNode,
 ) -> Option<FieldValueRow> {
-    let O::StructuralScalarFieldRead {
-        psi_operation,
-        result,
-        source,
-        path,
-        field,
-    } = &node.operation
-    else {
-        return None;
-    };
-    let kind = ObservedFieldKind::of(result.scalar_type)?;
-    let (result, scalar_type) = (result.value, result.scalar_type);
-    if *source != evidence.declaration.id {
-        return None;
-    }
-    let proven = optimization_unit::proven_field_value(
+    optimization_unit::admit_field_node(
         unit,
         evidence,
         function,
@@ -80,28 +65,9 @@ fn admit_field_node(
         block,
         node_index,
         node,
-        result,
-        scalar_type,
-        path,
-        *field,
-        kind,
         &bound_place,
         &forwarded_resolution,
-    )?;
-    Some(FieldValueRow {
-        site: optimization_unit::NodeLocation {
-            machine: function.machine,
-            block: block.id,
-            node: u32::try_from(node_index).ok()?,
-        },
-        psi_operation: *psi_operation,
-        result,
-        source: evidence.declaration.id,
-        path: path.clone(),
-        field: *field,
-        producer: proven.producer,
-        resolution: proven.resolution,
-    })
+    )
 }
 
 /// The `Forward` resolution for one nonconstant-initialized read, or `None`
