@@ -352,6 +352,43 @@ pub fn weak_head_normalize(
 /// `shared_type` under `context`?
 ///
 /// Precondition: the caller has already checked both sides at `shared_type`.
+/// Pi and Sigma convertibility share one binder judgment: the domains must
+/// convert at their own sort, then the codomains convert under the context
+/// extended by the left domain.
+fn convertible_binders(
+    arena: &mut TermArena,
+    context: &Context,
+    left_domain: TermHandle,
+    right_domain: TermHandle,
+    left_codomain: TermHandle,
+    right_codomain: TermHandle,
+    budget: &mut Budget,
+) -> Result<bool, CoreError> {
+    let domain_sort = infer_sort(arena, context, left_domain, budget)?;
+    let shared_domain = arena.insert(Term::Sort(domain_sort));
+    if !convertible(
+        arena,
+        context,
+        left_domain,
+        right_domain,
+        shared_domain,
+        budget,
+    )? {
+        return Ok(false);
+    }
+    let extended = context.extend(left_domain);
+    let codomain_sort = infer_sort(arena, &extended, left_codomain, budget)?;
+    let shared_codomain = arena.insert(Term::Sort(codomain_sort));
+    convertible(
+        arena,
+        &extended,
+        left_codomain,
+        right_codomain,
+        shared_codomain,
+        budget,
+    )
+}
+
 /// When the shared type's sort is `Strict(_)`, definitional proof irrelevance
 /// makes every pair of inhabitants convertible and this returns `Ok(true)`
 /// without inspecting the terms. That collapse is what makes the judgment
@@ -414,31 +451,15 @@ pub fn convertible(
                 domain: right_domain,
                 codomain: right_codomain,
             },
-        ) => {
-            let domain_sort = infer_sort(arena, context, left_domain, budget)?;
-            let shared_domain = arena.insert(Term::Sort(domain_sort));
-            if !convertible(
-                arena,
-                context,
-                left_domain,
-                right_domain,
-                shared_domain,
-                budget,
-            )? {
-                return Ok(false);
-            }
-            let extended = context.extend(left_domain);
-            let codomain_sort = infer_sort(arena, &extended, left_codomain, budget)?;
-            let shared_codomain = arena.insert(Term::Sort(codomain_sort));
-            convertible(
-                arena,
-                &extended,
-                left_codomain,
-                right_codomain,
-                shared_codomain,
-                budget,
-            )
-        }
+        ) => convertible_binders(
+            arena,
+            context,
+            left_domain,
+            right_domain,
+            left_codomain,
+            right_codomain,
+            budget,
+        ),
         (
             Term::Lambda {
                 body: left_body, ..
@@ -465,31 +486,15 @@ pub fn convertible(
                 domain: right_domain,
                 codomain: right_codomain,
             },
-        ) => {
-            let domain_sort = infer_sort(arena, context, left_domain, budget)?;
-            let shared_domain = arena.insert(Term::Sort(domain_sort));
-            if !convertible(
-                arena,
-                context,
-                left_domain,
-                right_domain,
-                shared_domain,
-                budget,
-            )? {
-                return Ok(false);
-            }
-            let extended = context.extend(left_domain);
-            let codomain_sort = infer_sort(arena, &extended, left_codomain, budget)?;
-            let shared_codomain = arena.insert(Term::Sort(codomain_sort));
-            convertible(
-                arena,
-                &extended,
-                left_codomain,
-                right_codomain,
-                shared_codomain,
-                budget,
-            )
-        }
+        ) => convertible_binders(
+            arena,
+            context,
+            left_domain,
+            right_domain,
+            left_codomain,
+            right_codomain,
+            budget,
+        ),
         (
             Term::Pair {
                 first: left_first,
