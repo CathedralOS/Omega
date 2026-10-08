@@ -165,9 +165,15 @@ helper that passes does not close an item.
     exit 0), `pass/build/uefi_entry_schema_same_leaf` (UEFI artifact with
     authored image/storage roots), and `pass/control_flow/nonreturning_callee_exit`
     (exit 0, no invented return or frame epilogue). UEFI publication is not
-    UEFI execution. The separate `pass/build/uefi_os_handoff_invocation`
-    customer now reaches native-catalog rejection for `firmware_return` and
-    `transfer`; **UEFI-OS-HANDOFF** owns that gap, not this selection repair.
+    UEFI execution. Through the public route, `omega update --target
+    uefi_x86_64` on both std-depending UEFI fixtures stops at std candidate
+    checking with 15 inert-sibling diagnostics
+    (`provider-planning/src/target_machines.rs::reject_inert_sibling_callers`):
+    portable `ConsoleNativeProvider::read_line`, `console_write_bytes` and
+    `Filesystem::{create,open,read_all,try_exists,...}` call bodies declared
+    only for hosted targets. The separate `pass/build/uefi_os_handoff_invocation`
+    customer's native-catalog gap for `firmware_return` and `transfer` belongs
+    to **UEFI-OS-HANDOFF**, not this selection repair.
   - `fail/build/uefi_entry_schema_wrong_owner` rejects an unaccepted supplier
     despite matching the contract's path/name. The old local-shadowing
     construction in `fail/build/uefi_program_entry_wrong_calling_policy` is
@@ -550,8 +556,7 @@ defines the complete product bar.
     requires an owned activation home and rejects reference-bearing, linear,
     claimed or qualified replacement values; complete those cases, including
     values arriving as owned parameters/block arguments, without double
-    disposal or a fabricated move window. Verify empty-record locals both
-    forwarded and discarded. Unbounded `UInt`/`Int` fields have no runtime
+    disposal or a fabricated move window. Unbounded `UInt`/`Int` fields have no runtime
     representation and stay rejected. `pass/filesystem/windows_canonicalize_exit`
     is recorded rejected ("performed write has unknown destination origins")
     and needs its stored UnitResult; coordinate **FILESYSTEM-RELEASE-CONTRACT**,
@@ -936,6 +941,9 @@ defines the complete product bar.
     file and is rejected natively on all three hosts; on macOS ARM64 it must
     store and dispatch the write result (nonexistent parent -> Error, `/tmp` ->
     Ok, stdout PASS and no FAIL). Distinct from **FILESYSTEM-RELEASE-CONTRACT**.
+    On macOS ARM64 package review first stops at "selected ProgramEntry
+    Binding field `Main::fs::host` requires a selected Fused provider for
+    boundary `FilesystemHost`" (**FILESYSTEM-PLATFORM-SERVICES**).
   - Separate proof/declaration fixtures from executable customers:
     `pass/terminal_psi/content_custody_exit` invokes `Root::enter` but has no
     `build.omg` or oracle; `pass/core/content_{conservation_contract,retained_custody_round_trip}`
@@ -958,7 +966,7 @@ defines the complete product bar.
 
   Shared failures, by owner (rerun the unchanged fixture after each repair):
   - **OPERATOR-BOUNDARY-CALLS**: `pass/float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`,
-    `pass/expressions/match_float_{interpretation,patterns,subjects}`;
+    `pass/expressions/match_float_{interpretation,subjects}`;
     `pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps}`
     need their authored policies (`as f32` erases the subject).
   - **ENTRY-CONTENT-ROOTS**: `pass/control_flow/guarded_leaf_branch_expansion`,
