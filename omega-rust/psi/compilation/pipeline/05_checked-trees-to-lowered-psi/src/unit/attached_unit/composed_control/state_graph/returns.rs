@@ -2,123 +2,17 @@
 //! primitive scalar results. A scalar-result state completes with the
 //! ordinary single-state completion: the binding its final expression's
 //! operation produced, or its value-only exit roster (`validate_scalar`).
-use super::super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, StructuralResultDeclaration,
-};
+use super::super::super::super::StructuralResultDeclaration;
 use super::super::super::{
-    CheckedUnitEffectOperationPlan, StructuralPlaceDeclaration, StructuralPlaceKind,
-    TerminalMachineResult, ValueDeclaration, allocate_dense, lookup_type_id, place_id,
-    terminal_scalar_type, unsupported, value_id,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachineResult, ValueDeclaration,
+    allocate_dense, lookup_type_id, place_id, terminal_scalar_type, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
-use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedControlResultPlan;
 
 pub(super) mod projected;
-
-pub(super) fn validate_structural(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    ordinal: usize,
-) -> Result<(), LoweringError> {
-    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
-    let (
-        CheckedControlResultPlan::Structural(_),
-        CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result },
-    ) = (&plan.result, &state.terminator)
-    else {
-        return unsupported("structural return has no result signature");
-    };
-    match result.source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            let (operation, binding) = state
-                .operations
-                .iter()
-                .find_map(|operation| {
-                    let result = match operation {
-                        // A `&mut` view tail return's producer is the reference
-                        // establishment minted at the transition.
-                        CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
-                            result, ..
-                        }
-                        | CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                            result, ..
-                        } => Some(result),
-                        _ => super::result_custody::result(operation),
-                    }?;
-                    (result.binding_ordinal == binding_ordinal).then_some((operation, result))
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "structural return producer absent",
-                ))?;
-            if binding.statement_index as usize == ordinal {
-                // A call carries the custody checking recorded for it, and a
-                // structural value carries its own construction.
-                if operation
-                    .call()
-                    .is_some_and(|call| call.structural_result().is_some())
-                    || matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
-                    )
-                {
-                } else if matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
-                ) {
-                    super::super::super::byte_locals::validate(checked, state.state, operation)?;
-                } else if matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-                ) {
-                    super::super::super::view_ranges::binding_site(
-                        checked,
-                        state.state,
-                        operation,
-                    )?;
-                } else {
-                    return unsupported(
-                        "structural return tail producer requires exact value custody",
-                    );
-                }
-            } else {
-                let Some(checked_trees::statement::StatementNode::LocalData(_)) = checked
-                    .statement_table
-                    .statements(source.statement_nodes)
-                    .get(binding.statement_index as usize)
-                else {
-                    return unsupported("structural return does not name its produced local");
-                };
-            }
-        }
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let parameter = state
-                .structural_parameters
-                .get(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "structural return parameter absent",
-                ))?;
-            if checked
-                .state_parameters(source)
-                .get(parameter.position as usize)
-                .is_none()
-            {
-                return unsupported("structural return source parameter absent");
-            }
-        }
-        // A literal-backed `&[u8]` return carries its bytes as the whole
-        // ingress.
-        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => {}
-        _ => return unsupported("structural return requires whole established custody"),
-    }
-    Ok(())
-}
 
 pub(super) fn result(
     checked: &CheckedTrees,

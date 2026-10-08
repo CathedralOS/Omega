@@ -349,7 +349,7 @@ pub(super) fn validate(
     // consumption. Edge cleanup evidence names the parameter among those
     // dying on each case edge, and the edge rejoin takes that row as the
     // dispatch rather than as a no-code discard.
-    let dispatched_parameter = match subject.source {
+    let _dispatched_parameter = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             state
                 .structural_parameters
@@ -541,18 +541,14 @@ pub(super) fn validate(
                     "Unit case payload source missing",
                 ))?;
         }
-        edges::validate_bindings(
-            checked,
-            plan,
-            source,
-            state,
-            transition,
-            successor,
-            successor.statement_ordinal as usize,
-            &case.payloads,
-            dispatched_parameter,
-        )?;
-        super::result_custody::local_discards(checked, owner, source, state, Some(successor))?;
+        let target = plan
+            .states
+            .iter()
+            .find(|candidate| candidate.state == successor.target_state)
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph successor target is missing",
+            ))?;
+        edges::admit_transfers(state, successor, target)?;
     }
     // Only a final `_` after complete case coverage selects no case.
     let declared_cases = declared

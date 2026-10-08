@@ -13,59 +13,6 @@ use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
-/// One selected structural completion retains the same exact value and ingress
-/// regardless of whether sibling arms invoke a machine or return other values.
-/// Selection topology owns only which producer executes, not its value custody.
-pub(super) fn validate_structural_return(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    state: &CheckedComposedUnitControlStatePlan,
-    expression: checked_trees::expression::ExpressionHandle,
-    statement_ordinal: u32,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    let checked_trees::CheckedControlResultPlan::Structural(_) = &plan.result else {
-        return unsupported("structural return has no structural result signature");
-    };
-    let reference_result = !plan.result_reference_sources.is_empty();
-    match operation {
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            discard_result_on_return: false,
-            ..
-        } => {}
-        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } if !reference_result => {}
-        CheckedUnitEffectOperationPlan::Call(call)
-            if !reference_result && call.discard_result_on_return() == Some(false) =>
-        {
-            if call.structural_result().is_none() {
-                return unsupported("ordered return call has no structural result");
-            }
-        }
-        CheckedUnitEffectOperationPlan::EstablishReference { .. } if reference_result => {
-            validate_reference_return(checked, plan, state, operation)?;
-        }
-        _ => return unsupported("ordered return lost its structural producer"),
-    }
-    match operation {
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-            if checked
-                .facts
-                .values
-                .structural_values
-                .root_for_expression(state.state, statement_ordinal, expression)
-                .is_none()
-            {
-                return unsupported("ordered return lost its exact value root");
-            }
-        }
-        CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
-            super::super::super::byte_locals::validate(checked, state.state, operation)?;
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
 /// A selected reference producer names an ingress parameter its own state
 /// plan declares.
 pub(super) fn validate_reference_return(
@@ -136,15 +83,16 @@ pub(super) fn emit(
     else {
         return Ok(None);
     };
-    let guards = checked
-        .facts
-        .flow
-        .guarded_exits
-        .exits
-        .span(*arms)
-        .ok_or(LoweringError::Unsupported(
-            "guarded structural guards are stale",
-        ))?;
+    let guards =
+        checked
+            .facts
+            .flow
+            .guarded_exits
+            .exits
+            .span(*arms)
+            .ok_or(LoweringError::Unsupported(
+                "guarded structural guards are stale",
+            ))?;
     for (position, guard) in guards.iter().enumerate() {
         let mut calls = catalogs.scalar_calls.emission_context();
         let condition = evaluation.guard_value(
