@@ -927,20 +927,17 @@ impl Evaluation {
             terminator,
         });
         let states = expansion.finish();
-        let completed = self.complete_expansion(
+        self.single_completed_expansion(
             &states,
             entry,
-            &[result_type],
+            result_type,
             values,
             next_value,
             next_block,
             next_edge,
             operations,
             calls,
-        )?;
-        match completed.as_slice() {
-            [result] => Ok(*result),
-            _ => unsupported("ordered scalar control has no unique completed value"),
-        }
+            "ordered scalar control has no unique completed value",
+        )
     }
 }

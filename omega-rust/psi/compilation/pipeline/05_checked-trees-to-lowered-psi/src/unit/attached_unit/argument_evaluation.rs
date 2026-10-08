@@ -1170,21 +1170,18 @@ impl Evaluation {
             .enter_proof_scope(&self.erased_proof_formals);
             let entry = expansion.direct_value(&source_types, 0, expression)?;
             let states = expansion.finish();
-            let result = self.complete_expansion(
+            return self.single_completed_expansion(
                 &states,
                 entry,
-                &[scalar_type.into()],
+                scalar_type.into(),
                 values,
                 next_value,
                 next_block,
                 next_edge,
                 operations,
                 calls,
-            )?;
-            return match result.as_slice() {
-                [value] => Ok(*value),
-                _ => unsupported("field assignment has no single completed RHS"),
-            };
+                "field assignment has no single completed RHS",
+            );
         }
         let mut expansion = self.scalar_computation_expansion(checked, qualifications, machine);
         let entry = expansion.retained_value(
@@ -1197,10 +1194,40 @@ impl Evaluation {
             0,
         )?;
         let states = expansion.finish();
-        let result = self.complete_expansion(
+        self.single_completed_expansion(
             &states,
             entry,
-            &[scalar_type.into()],
+            scalar_type.into(),
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            calls,
+            "field assignment has no single completed RHS",
+        )
+    }
+
+    /// `complete_expansion` for a single declared result type, unwrapped to
+    /// its one completed value; `message` names the caller's shape failure.
+    #[allow(clippy::too_many_arguments)]
+    fn single_completed_expansion(
+        &mut self,
+        states: &[LoweredScalarBranchState],
+        entry: usize,
+        result_type: QualifiedScalarType,
+        values: &mut Vec<ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+        calls: &mut CallEmissionContext<'_>,
+        message: &'static str,
+    ) -> Result<ValueDeclaration, LoweringError> {
+        let result = self.complete_expansion(
+            states,
+            entry,
+            &[result_type],
             values,
             next_value,
             next_block,
@@ -1210,7 +1237,7 @@ impl Evaluation {
         )?;
         match result.as_slice() {
             [value] => Ok(*value),
-            _ => unsupported("field assignment has no single completed RHS"),
+            _ => unsupported(message),
         }
     }
 

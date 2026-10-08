@@ -268,21 +268,18 @@ impl Evaluation {
             )?,
         };
         let states = expansion.finish();
-        let completed = self.complete_expansion(
+        self.single_completed_expansion(
             &states,
             entry,
-            &[result_type],
+            result_type,
             values,
             next_value,
             next_block,
             next_edge,
             operations,
             calls,
-        )?;
-        match completed.as_slice() {
-            [value] => Ok(*value),
-            _ => unsupported("scalar source has no single completed value"),
-        }
+            "scalar source has no single completed value",
+        )
     }
 }
 
