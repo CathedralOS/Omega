@@ -1,0 +1,33 @@
+// The raw Windows filesystem service: the Windows family of the
+// platform-services filesystem split (TASKS.md FILESYSTEM-PLATFORM-SERVICES,
+// wiki/spec/build/platform_services.md). Where PosixFilesystemHost speaks in
+// descriptors and negated errno, this family speaks in HANDLEs and negated
+// Win32 error codes (`GetLastError`). The trait is deliberately small and
+// complete — the first slice covers create/write/close/last_error — and must
+// never grow POSIX-shaped rows: operations that only exist on POSIX stay on
+// PosixFilesystemHost.
+//
+// Conventions:
+// - Paths are NUL-free bytes (`Path`, shared with the POSIX family); the
+//   provider decodes UTF-8 to NUL-terminated UTF-16 for the `W` imports.
+// - `create_file` returns the HANDLE; 0 means failure (the provider maps the
+//   sentinel INVALID_HANDLE_VALUE to 0, so 0 is the only failure value).
+// - `write_file` returns the byte count, or the negated Win32 error.
+// - `close_handle` returns 0, or the negated Win32 error.
+// - `last_error` reads the thread's `GetLastError` for callers that need the
+//   code behind a failed `create_file`.
+use filesystem_host;
+use targets::windows_x86_64::windows_filesystem_impl;
+
+pub boundary trait WindowsFilesystemHost {
+    machine create_file(
+        path: &[u8] in Path,
+        desired_access: u32,
+        share_mode: u32,
+        creation_disposition: u32,
+        flags_and_attributes: u32
+    ) -> u64 reaches WindowsFilesystemHost;
+    machine write_file(handle: u64, bytes: &[u8]) -> i64 reaches WindowsFilesystemHost;
+    machine close_handle(handle: u64) -> i32 reaches WindowsFilesystemHost;
+    machine last_error() -> u32 reaches WindowsFilesystemHost;
+}

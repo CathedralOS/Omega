@@ -1,0 +1,444 @@
+// Complete windows_x86_64 `WindowsFilesystemHost` provider over kernel32.
+// Windows has no stable syscall ABI, so every leaf realizes through DLL
+// linkage exactly like the console and process-exit providers:
+//   `HANDLE CreateFileW(LPCWSTR path, DWORD access, DWORD share,
+//                       LPSECURITY_ATTRIBUTES, DWORD disposition,
+//                       DWORD flags, HANDLE template)`
+//   `BOOL WriteFile(HANDLE, LPCVOID bytes, DWORD count, LPDWORD written,
+//                   LPOVERLAPPED)`
+//   `BOOL CloseHandle(HANDLE)`
+//   `DWORD GetLastError(void)`
+// CreateFileW failure returns INVALID_HANDLE_VALUE, which the adapter maps
+// to 0 so the trait keeps exactly one failure value; WriteFile and
+// CloseHandle return BOOL, and a 0 reads back as the negated GetLastError —
+// the same never-stateful convention as the POSIX family's negated errno.
+//
+// Paths arrive as NUL-free UTF-8 (`Path`) and are transcoded to
+// NUL-terminated UTF-16LE in a local buffer by `windows_wide_path`: the
+// decoder is a real UTF-8 walk — 1-4 byte sequences, continuation checks,
+// overlong and surrogate-range rejection, and a surrogate pair for 4-byte
+// sequences — so malformed input and oversized output both fail instead of
+// writing a wrong name. Proof shape follows the dir-walk helpers in this
+// directory's `filesystem_impl.omg`: one fact per transition guard so each
+// landed state is dominated, and the output cursor `o` is range-bounded so
+// `o + k` is representable without a dominating conjunct.
+use omega::language::core::external_binding;
+use omega::language::core::numeric_conversion;
+
+data WindowsFilesystemIo { }
+data WindowsFilesystemImports { }
+data WindowsFilesystemNativeProvider { }
+
+boundary requirement WindowsFilesystemIo::c_create_file(path: &u8, desired_access: u32, share_mode: u32, security_attributes: u64, creation_disposition: u32, flags_and_attributes: u32, template: u64) -> i64
+reaches WindowsFilesystemHost;
+boundary requirement WindowsFilesystemIo::c_write_file(handle: i64, bytes: &u8, count: u32, written: &mut u32, overlapped: u64) -> i32
+reaches WindowsFilesystemHost;
+boundary requirement WindowsFilesystemIo::c_close_handle(handle: i64) -> i32
+reaches WindowsFilesystemHost;
+boundary requirement WindowsFilesystemIo::c_get_last_error() -> u32
+reaches WindowsFilesystemHost;
+
+windows_x86_64 machine windows_create_file_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "CreateFileW",
+        },
+    }
+}
+windows_x86_64 machine windows_write_file_binding() -> ForeignBinding<12, 9, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "WriteFile",
+        },
+    }
+}
+windows_x86_64 machine windows_close_handle_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "CloseHandle",
+        },
+    }
+}
+windows_x86_64 machine windows_get_last_error_binding() -> ForeignBinding<12, 12, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "GetLastError",
+        },
+    }
+}
+
+windows_x86_64 machine WindowsFilesystemImports::c_create_file(path: &u8, desired_access: u32, share_mode: u32, security_attributes: u64, creation_disposition: u32, flags_and_attributes: u32, template: u64) -> i64
+    satisfies WindowsFilesystemIo::c_create_file
+    via windows_create_file_binding();
+windows_x86_64 machine WindowsFilesystemImports::c_write_file(handle: i64, bytes: &u8, count: u32, written: &mut u32, overlapped: u64) -> i32
+    satisfies WindowsFilesystemIo::c_write_file
+    via windows_write_file_binding();
+windows_x86_64 machine WindowsFilesystemImports::c_close_handle(handle: i64) -> i32
+    satisfies WindowsFilesystemIo::c_close_handle
+    via windows_close_handle_binding();
+windows_x86_64 machine WindowsFilesystemImports::c_get_last_error() -> u32
+    satisfies WindowsFilesystemIo::c_get_last_error
+    via windows_get_last_error_binding();
+
+// The negated Win32 error of the call that just failed. The u32 code widens
+// to i64 exactly; the i32 form saturates the wrap so the negation cannot
+// reach i32::MIN.
+windows_x86_64 machine WindowsFilesystemNativeProvider::failure_i32() -> i32
+reaches WindowsFilesystemHost
+{
+    let code: u32 = WindowsFilesystemIo::c_get_last_error();
+    narrow_i64_to_i32_wrapping(0 - widen_u32_to_i64(code))
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::failure_i64() -> i64
+reaches WindowsFilesystemHost
+{
+    let code: u32 = WindowsFilesystemIo::c_get_last_error();
+    0 - widen_u32_to_i64(code)
+}
+
+// Transcode a NUL-free UTF-8 path into `out` (the provider's 8192-byte wide
+// buffer) as little-endian UTF-16 with a terminating NUL unit, returning the
+// written byte count including the terminator, or -1 when the input is
+// malformed or the output cannot hold the expansion plus the terminator.
+// Proof shape follows the dir-walk helpers in this directory's
+// `filesystem_impl.omg`: facts do not travel across hops, so every guard
+// restates the plain comparisons the landed state's indexing needs; index
+// locals chain one `+ 1` at a time so each stays dominated, and the loop is
+// a measured drain — `windows_wide_step` decodes and writes ONE sequence per
+// call while `windows_wide_copy`'s entry transition owns the `fuel - 1`
+// self-call, the same shape `rda_drain`/`w_scan_drain` use.
+data WindowsWideStep {
+    rc: i64;
+    next_i: u64;
+    next_o: u64;
+}
+
+windows_x86_64 machine windows_wide_path(path: &[u8], out: &mut [u8]) -> i64 {
+    windows_wide_copy(path, out, 0, 0, path.len)
+}
+
+windows_x86_64 machine windows_wide_copy(path: &[u8], out: &mut [u8], i: u64, o: u64, fuel: u64)
+terminates by fuel;
+-> i64
+{
+    let step: WindowsWideStep = windows_wide_step(path, out, i, o);
+    transition step.rc == 0 && fuel > 0 {
+        true -> windows_wide_copy(path, out, step.next_i, step.next_o, fuel - 1)
+        _ -> settle(path, out, o, step.rc)
+    }
+
+    state settle(path: &[u8], out: &mut [u8], o: u64, rc: i64) -> i64 {
+        transition rc == 1 {
+            true -> term0(out, o)
+            _ -> bad_path(out)
+        }
+    }
+    state bad_path(out: &mut [u8]) -> i64 {
+        // Failure still owes a NUL-terminated empty name so the caller's
+        // unconditional import never reads an unterminated buffer.
+        transition out.len >= 2 {
+            true -> bad_term(out)
+            _ -> (-1)
+        }
+    }
+    state bad_term(out: &mut [u8]) -> i64 {
+        out[0] = 0;
+        out[1] = 0;
+        transition { _ -> (-1) }
+    }
+    state term0(out: &mut [u8], o: u64) -> i64 {
+        transition o < out.len {
+            true -> term1(out, o)
+            _ -> (-1)
+        }
+    }
+    state term1(out: &mut [u8], o: u64) -> i64 {
+        out[o] = 0;
+        let o1: u64 = o + 1;
+        transition o1 < out.len {
+            true -> term2(out, o1)
+            _ -> (-1)
+        }
+    }
+    state term2(out: &mut [u8], o1: u64) -> i64 {
+        out[o1] = 0;
+        let count: i64 = narrow_u64_to_i64_wrapping(o1 + 1);
+        transition { _ -> (count) }
+    }
+}
+
+// One UTF-8 sequence: decode at `i`, store the little-endian UTF-16 unit(s)
+// at `o`, and report the advanced cursors. `rc` is 0 when a sequence was
+// written, 1 when `i` reached the path end, -1 on malformed input or missing
+// output room.
+windows_x86_64 machine windows_wide_step(path: &[u8], out: &mut [u8], i: u64, o: u64) -> WindowsWideStep
+{
+    transition i < path.len {
+        true -> lead(path, out, i, o)
+        _ -> done(i, o)
+    }
+
+    state done(i: u64, o: u64) -> WindowsWideStep {
+        transition { _ -> (WindowsWideStep { rc: 1, next_i: i, next_o: o }) }
+    }
+    state bad(i: u64, o: u64) -> WindowsWideStep {
+        transition { _ -> (WindowsWideStep { rc: 0 - 1, next_i: i, next_o: o }) }
+    }
+
+    state lead(path: &[u8], out: &mut [u8], i: u64, o: u64) -> WindowsWideStep {
+        let b0: u8 = path[i];
+        transition b0 < 128 {
+            true -> w10(path, out, i, o, widen_u8_to_u32(b0))
+            _ -> lead2(path, out, i, o, b0)
+        }
+    }
+    state lead2(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8) -> WindowsWideStep {
+        let i1: u64 = i + 1;
+        transition b0 >= 192 && b0 < 224 && i1 < path.len {
+            true -> take2(path, out, i, o, b0, i1)
+            _ -> lead3(path, out, i, o, b0)
+        }
+    }
+    state lead3(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8) -> WindowsWideStep {
+        let i1: u64 = i + 1;
+        transition b0 >= 224 && b0 < 240 && i1 < path.len {
+            true -> take3a(path, out, i, o, b0, i1)
+            _ -> lead4(path, out, i, o, b0)
+        }
+    }
+    state lead4(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8) -> WindowsWideStep {
+        let i1: u64 = i + 1;
+        transition b0 >= 240 && b0 < 248 && i1 < path.len {
+            true -> take4a(path, out, i, o, b0, i1)
+            _ -> bad(i, o)
+        }
+    }
+
+    // ASCII write: one UTF-16 unit, then done.
+    state w10(path: &[u8], out: &mut [u8], i: u64, o: u64, unit: u32) -> WindowsWideStep {
+        let i1: u64 = i + 1;
+        transition o < out.len {
+            true -> w11(path, out, i1, o, unit)
+            _ -> bad(i, o)
+        }
+    }
+    state w11(path: &[u8], out: &mut [u8], i1: u64, o: u64, unit: u32) -> WindowsWideStep {
+        out[o] = narrow_u32_to_u8_wrapping(unit);
+        let o1: u64 = o + 1;
+        transition o1 < out.len {
+            true -> w12(out, i1, o1, unit)
+            _ -> bad(i1, o)
+        }
+    }
+    state w12(out: &mut [u8], i1: u64, o1: u64, unit: u32) -> WindowsWideStep {
+        out[o1] = narrow_u32_to_u8_wrapping(unit / 256);
+        let o2: u64 = o1 + 1;
+        transition { _ -> (WindowsWideStep { rc: 0, next_i: i1, next_o: o2 }) }
+    }
+
+    state take2(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8, i1: u64) -> WindowsWideStep {
+        let b1: u8 = path[i1];
+        let unit: u32 = (widen_u8_to_u32(b0 & 31) << 6) | widen_u8_to_u32(b1 & 63);
+        transition b1 >= 128 && b1 < 192 && unit >= 128 && o < out.len {
+            true -> w21(out, i1, o, unit)
+            _ -> bad(i, o)
+        }
+    }
+    state w21(out: &mut [u8], i1: u64, o: u64, unit: u32) -> WindowsWideStep {
+        out[o] = narrow_u32_to_u8_wrapping(unit);
+        let i2: u64 = i1 + 1;
+        let o1: u64 = o + 1;
+        transition o1 < out.len {
+            true -> w22(out, i2, o1, unit)
+            _ -> bad(i2, o)
+        }
+    }
+    state w22(out: &mut [u8], i2: u64, o1: u64, unit: u32) -> WindowsWideStep {
+        out[o1] = narrow_u32_to_u8_wrapping(unit / 256);
+        let o2: u64 = o1 + 1;
+        transition { _ -> (WindowsWideStep { rc: 0, next_i: i2, next_o: o2 }) }
+    }
+
+    state take3a(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8, i1: u64) -> WindowsWideStep {
+        let b1: u8 = path[i1];
+        let i2: u64 = i1 + 1;
+        transition i2 < path.len {
+            true -> take3b(path, out, i, o, b0, b1, i2)
+            _ -> bad(i, o)
+        }
+    }
+    state take3b(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8, b1: u8, i2: u64) -> WindowsWideStep {
+        let b2: u8 = path[i2];
+        let unit: u32 = (widen_u8_to_u32(b0 & 15) << 12) | (widen_u8_to_u32(b1 & 63) << 6) | widen_u8_to_u32(b2 & 63);
+        transition b1 >= 128 && b1 < 192 && b2 >= 128 && b2 < 192 && unit >= 2048 && (unit < 55296 || unit > 57343) && o < out.len {
+            true -> w31(out, i2, o, unit)
+            _ -> bad(i, o)
+        }
+    }
+    state w31(out: &mut [u8], i2: u64, o: u64, unit: u32) -> WindowsWideStep {
+        out[o] = narrow_u32_to_u8_wrapping(unit);
+        let i3: u64 = i2 + 1;
+        let o1: u64 = o + 1;
+        transition o1 < out.len {
+            true -> w32(out, i3, o1, unit)
+            _ -> bad(i3, o)
+        }
+    }
+    state w32(out: &mut [u8], i3: u64, o1: u64, unit: u32) -> WindowsWideStep {
+        out[o1] = narrow_u32_to_u8_wrapping(unit / 256);
+        let o2: u64 = o1 + 1;
+        transition { _ -> (WindowsWideStep { rc: 0, next_i: i3, next_o: o2 }) }
+    }
+
+    state take4a(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8, i1: u64) -> WindowsWideStep {
+        let b1: u8 = path[i1];
+        let i2: u64 = i1 + 1;
+        transition i2 < path.len {
+            true -> take4b(path, out, i, o, b0, b1, i2)
+            _ -> bad(i, o)
+        }
+    }
+    state take4b(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8, b1: u8, i2: u64) -> WindowsWideStep {
+        let b2: u8 = path[i2];
+        let i3: u64 = i2 + 1;
+        transition i3 < path.len {
+            true -> take4c(path, out, i, o, b0, b1, b2, i3)
+            _ -> bad(i, o)
+        }
+    }
+    state take4c(path: &[u8], out: &mut [u8], i: u64, o: u64, b0: u8, b1: u8, b2: u8, i3: u64) -> WindowsWideStep {
+        let b3: u8 = path[i3];
+        let point: u32 = (widen_u8_to_u32(b0 & 7) << 18) | (widen_u8_to_u32(b1 & 63) << 12) | (widen_u8_to_u32(b2 & 63) << 6) | widen_u8_to_u32(b3 & 63);
+        transition b1 >= 128 && b1 < 192 && b2 >= 128 && b2 < 192 && b3 >= 128 && b3 < 192 && point >= 65536 && point <= 1114111 && o < out.len {
+            true -> p41(out, i3, o, point)
+            _ -> bad(i, o)
+        }
+    }
+    state p41(out: &mut [u8], i4: u64, o: u64, point: u32) -> WindowsWideStep {
+        let above: u32 = point - 65536;
+        let high: u32 = 55296 + (above / 1024);
+        out[o] = narrow_u32_to_u8_wrapping(high);
+        let i5: u64 = i4 + 1;
+        let o1: u64 = o + 1;
+        transition o1 < out.len {
+            true -> p42(out, i5, o1, point)
+            _ -> bad(i5, o)
+        }
+    }
+    state p42(out: &mut [u8], i5: u64, o1: u64, point: u32) -> WindowsWideStep {
+        let above: u32 = point - 65536;
+        let high: u32 = 55296 + (above / 1024);
+        out[o1] = narrow_u32_to_u8_wrapping(high / 256);
+        let o2: u64 = o1 + 1;
+        transition o2 < out.len {
+            true -> p43(out, i5, o2, point)
+            _ -> bad(i5, o1)
+        }
+    }
+    state p43(out: &mut [u8], i5: u64, o2: u64, point: u32) -> WindowsWideStep {
+        let above: u32 = point - 65536;
+        let low: u32 = 56320 + (above % 1024);
+        out[o2] = narrow_u32_to_u8_wrapping(low);
+        let o3: u64 = o2 + 1;
+        transition o3 < out.len {
+            true -> p44(out, i5, o3, point)
+            _ -> bad(i5, o2)
+        }
+    }
+    state p44(out: &mut [u8], i5: u64, o3: u64, point: u32) -> WindowsWideStep {
+        let above: u32 = point - 65536;
+        let low: u32 = 56320 + (above % 1024);
+        out[o3] = narrow_u32_to_u8_wrapping(low / 256);
+        let o4: u64 = o3 + 1;
+        transition { _ -> (WindowsWideStep { rc: 0, next_i: i5, next_o: o4 }) }
+    }
+}
+windows_x86_64 machine WindowsFilesystemNativeProvider::create_file(path: &[u8] in Path, desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64
+    satisfies WindowsFilesystemHost::create_file
+reaches WindowsFilesystemHost
+{
+    transition { _ -> create(path, desired_access, share_mode, creation_disposition, flags_and_attributes) }
+
+    state create(path: &[u8], desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64 {
+        let mut wide: [u8; 8192];
+        let count: i64 = windows_wide_path(path, &mut wide);
+        let handle: i64 = WindowsFilesystemIo::c_create_file(&wide[0], desired_access, share_mode, 0, creation_disposition, flags_and_attributes, 0);
+        transition count > 0 && handle > 0 {
+            true -> (narrow_i64_to_u64_wrapping(handle))
+            _ -> (0)
+        }
+    }
+}
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::write_file(handle: u64, bytes: &[u8]) -> i64
+    satisfies WindowsFilesystemHost::write_file
+reaches WindowsFilesystemHost
+{
+    transition bytes.len > 0 {
+        true -> nonempty(handle, bytes)
+        _ -> empty(handle)
+    }
+
+    state nonempty(handle: u64, bytes: &[u8]) -> i64 {
+        let mut written: u32 = 0;
+        let count: u32 = narrow_u64_to_u32_wrapping(bytes.len);
+        let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+        let ok: i32 = WindowsFilesystemIo::c_write_file(raw_handle, &bytes[0], count, &mut written, 0);
+        transition ok == 0 {
+            true -> failed()
+            _ -> wrote(written)
+        }
+    }
+    state empty(handle: u64) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut written: u32 = 0;
+        let mut dummy: [u8; 1];
+        let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+        let ok: i32 = WindowsFilesystemIo::c_write_file(raw_handle, &dummy[0], 0, &mut written, 0);
+        transition ok == 0 {
+            true -> failed()
+            _ -> wrote(written)
+        }
+    }
+    state wrote(written: u32) -> i64 {
+        transition { _ -> (widen_u32_to_i64(written)) }
+    }
+    state failed() -> i64 {
+        transition { _ -> (WindowsFilesystemNativeProvider::failure_i64()) }
+    }
+}
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::close_handle(handle: u64) -> i32
+    satisfies WindowsFilesystemHost::close_handle
+reaches WindowsFilesystemHost
+{
+    let raw_handle: i64 = narrow_u64_to_i64_wrapping(handle);
+    let ok: i32 = WindowsFilesystemIo::c_close_handle(raw_handle);
+    transition ok == 0 {
+        true -> failed()
+        _ -> (0)
+    }
+
+    state failed() -> i32 {
+        transition { _ -> (WindowsFilesystemNativeProvider::failure_i32()) }
+    }
+}
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::last_error() -> u32
+    satisfies WindowsFilesystemHost::last_error
+reaches WindowsFilesystemHost
+{
+    WindowsFilesystemIo::c_get_last_error()
+}
+
+windows_x86_64 machine WindowsFilesystemNativeProvider::provider_defaults(defaults: &mut WindowsFilesystemNativeProvider) {
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemHost, WindowsFilesystemNativeProvider>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_create_file, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_write_file, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_close_handle, WindowsFilesystemImports>(defaults);
+    WindowsFilesystemNativeProvider::select_provider<WindowsFilesystemIo::c_get_last_error, WindowsFilesystemImports>(defaults);
+}

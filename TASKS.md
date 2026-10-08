@@ -4927,8 +4927,20 @@ wait for Cathedral's instruction coverage. The interpreter is
   on macOS. `pass/filesystem/native_{crud,errno,filetype,fs_workflow,metadata_blocks,metadata_ctime_dev,metadata_nlink,read_dir_iter}`
   match their stdout oracles, and `runtime_local_host_result_dispatch_exit`
   exits 70. Still open on the raw side:
-  - `WindowsFilesystemHost` and its provider for
-    `pass/filesystem/windows_{raw_breadth,set_file_time}_exit`.
+  - `WindowsFilesystemHost` (`source/library/std/windows_filesystem_host.omg`)
+    exists with its kernel32 provider for the first slice —
+    `create_file`/`write_file`/`close_handle`/`last_error` over
+    CreateFileW/WriteFile/CloseHandle/GetLastError, UTF-8 to UTF-16 path
+    transcoding, INVALID_HANDLE_VALUE mapped to 0, negated Win32 errors;
+    `pass/filesystem/windows_native_create_write_close_exit` exits 70 on
+    Windows x86-64 and `fail/providers/windows_filesystem_host_unprovided_on_linux`
+    pins the refusal. Still owed: read/seek/sync/duplicate/rename/mkdir/
+    rmdir/remove/set-file-time rows so
+    `pass/filesystem/windows_{raw_breadth,set_file_time}_exit` can hold the
+    Windows family instead of the mixed trait. Passing a local `[u8; N]`
+    by value or as a slice across a state transition inside the provider
+    hit `UnknownStructuralArgumentPlace` at target lowering; the adapter
+    converts inside the calling state. That lowering gap has no fixture yet.
   - `native_canonicalize`: `canonicalize` is a libc routine on Darwin and
     has no Linux system call, so it belongs to the target implementations of
     the portable service, not the raw POSIX trait.
@@ -4940,7 +4952,14 @@ wait for Cathedral's instruction coverage. The interpreter is
     structure-valued calls. Keep NUL-terminated path construction separate.
   The portable wrapper's carrier depends on
   `portable-service-per-family-binding-carrier` in `OWNER_QUESTIONS.md`;
-  independent family/provider work can proceed.
+  independent family/provider work can proceed. Evidence for that question:
+  `samples/cli/audio/wav_output` is Q1's option 1 in miniature — an
+  application holds one `Binding<WavOutput>`, and target-scoped named
+  implementations satisfy it, each reaching its own raw family — and it
+  runs natively on Windows x86-64 and linux_x86_64 today. Its cost: the
+  trait's `invokes PosixFilesystemHost; invokes WindowsFilesystemHost;`
+  makes every application `reaches` both families and import both host
+  modules, so the family names leak into the portable caller's reach set.
   Update `source/library/std/targets/<target>/filesystem_impl.omg`:
   POSIX stores descriptor + 1, Windows stores HANDLE, zero OpenOptions means
   defaults, failures are closed and unsupported operations return

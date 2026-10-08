@@ -1,0 +1,15 @@
+// A linux_x86_64 program must not select WindowsFilesystemHost: the family
+// trait declares the kernel32 HANDLE seam and only the windows_x86_64 target
+// supplies a provider for it. Provider admission must refuse the binding.
+use omega_language_std::windows_filesystem_host;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    fs: Binding<WindowsFilesystemHost>;
+}
+
+machine Main::main(main: &mut Main) reaches Console + WindowsFilesystemHost {
+    main.console.exit_process(0);
+}

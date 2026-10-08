@@ -1754,6 +1754,8 @@ fail/providers/via_signature_mismatch_rejected rejected 252ms expected @2d8ed253
 	machine `exit_leaf` state `entry` does not satisfy trait `Process` machine `exit` parameter `code`: expected `i32`, got `u32`
 fail/providers/via_with_body_rejected rejected 250ms expected @2d8ed253669f
 	machine `exit_composite` carries a `via` binding but is not an external leaf: `satisfies Requirement via <Binding>;` belongs on a BODYLESS non-boundary machine (a composite lowering is an ordinary checked body; an accepted axiom carries no realization)
+fail/providers/windows_filesystem_host_unprovided_on_linux rejected 7882ms expected @74ea6e99e73d+wt
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `WindowsFilesystemHost`
 fail/range/element_view_field_domain_occurrence rejected 187ms expected @27c2f2bab4ff+wt
 	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/funnel_guard_one_edge_unguarded rejected 303ms expected @c08960bee2b1+wt
@@ -3104,6 +3106,7 @@ pass/filesystem/runtime_local_host_result_dispatch_exit checked 3625ms check-tar
 pass/filesystem/runtime_posix_borrowed_view_io_exit checked 3029ms check-target:macos_arm64 @d1ebe54629b8
 pass/filesystem/windows_canonicalize_exit rejected 17804ms check-target:windows_x86_64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/windows_native_create_write_close_exit checked 8332ms check-target:windows_x86_64 @74ea6e99e73d+wt
 pass/filesystem/windows_raw_breadth_exit rejected 1516ms check-target:windows_x86_64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 1792ms check-target:windows_x86_64 @e01f73c689de+wt
