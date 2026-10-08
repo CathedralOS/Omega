@@ -5807,8 +5807,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  456 parser cases, `tests/psi/resolver/test-resolver.sh` all 241 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 65 typing cases; run
+  456 parser cases, `tests/psi/resolver/test-resolver.sh` all 246 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 69 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5872,8 +5872,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   without parameters); a trait named through a module path rejects. A
   `terminates by` witness binds in the body's parameter scope. `let`
   definitions and trait refinements reject as unsupported declarations, and
-  an operator token, `where machine` or `where proposition` contract and
-  proposition or evidence binder reject at the form, on any declaration.
+  a `where machine` or `where proposition` contract, a proposition or
+  evidence binder and an operator token other than an owned machine's
+  arithmetic or order token reject at the form, on any declaration; an owned
+  machine's token binds at the data its owner names, in its own package.
   Typing interns
   every written type, gives every expression and
   pattern binder a type, selects each call's machine among its visible
@@ -5884,17 +5886,18 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   element through a policy-qualified collection under that policy, and
   checks constructions, case patterns, transition targets and terminal
   results, types constants as their declared types with each value
-  landed there, types every bound fact as a Boolean, and requires a
+  landed there, types every bound fact as a Boolean, requires a
   `satisfies` machine's signature to be its requirement's under the clause's
-  trait arguments. Anonymous floats land once at `f32` or `f64` and formats never
+  trait arguments, and selects an arithmetic or order operator over data
+  among the machines binding its token at an operand's data. Anonymous floats land once at `f32` or `f64` and formats never
   mix; a generic machine call binds its parameters from explicit static
   arguments and by unifying parameter and argument types, and a generic
   construction infers its data's arguments from its fields; value-position
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared domains and equality needing a
   declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 42 units, as one source set (47,559 expressions,
-  236 interned types). The parser harness reads all 42 product source files whole and 65
+  whole psi package, its 44 units, as one source set (48,454 expressions,
+  237 interned types). The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
   declarations awaiting library migration, 9 retired range suffixes awaiting
@@ -5907,12 +5910,16 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   AtMost<8>`) do not parse yet. Of the 50 std and core
   files outside target and test directories, 33 parse whole; with the
   transitive closure of their imports (std as package
-  `omega_language_std`, core as the toolchain package), 14 resolve. The
-  others stop first at 9 operator tokens (each at `core/nat.omg`'s `<=`), 6
-  at an import that does not parse, 2 at `where machine` contracts,
-  `std/process_exit.omg` at a provider type its target implementations
-  declare, and `core/option.omg` at `zero_value<Optional<T>>()`, a
-  proof-only observation the Rust parser recognizes contextually and no
+  `omega_language_std`, core as the toolchain package), 17 resolve. The
+  others stop first at 6 imports that do not parse, 3 at
+  `core/device.omg`'s predicate-free `pub domain
+  DeviceOrderingEvent::Completion;`, which resolution does not bind, 2 at
+  `where machine` contracts, 2 at `core/int.omg`'s intentional discard
+  `_ = call();` (effects.md), which the product parser reads as an
+  assignment to a name, `core/float_meaning.omg` at a `Nat` it does not
+  import, `std/process_exit.omg` at a provider type its target
+  implementations declare, and `core/option.omg` at `zero_value<Optional<T>>()`,
+  a proof-only observation the Rust parser recognizes contextually and no
   spec page defines (the product parser reads it as a call to an unknown
   machine). The 65 std and core files that parse whole, targets included,
   overflow the 1,024-row clause table together with 1,285 clauses, and
@@ -5920,7 +5927,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   closure (its 3 units, std's `console` with its 5 target implementations,
   core's `binding` and `external_binding`) stops parsing at `console.omg`'s
   retired range suffix and the Windows console's retired `boundary
-  requirement`. The resolver gate resolves the whole psi package, its 42
+  requirement`. The resolver gate resolves the whole psi package, its 44
   units, as one package `psi`; the shared syntax tables hold
   4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
   single name stores none, its expression row holding it), 32,768 type references
@@ -5928,14 +5935,15 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   parameters and statements, 8,192 states and transition arms and 131,072
   expressions, over a 65,536-token unit; edges one unit cannot reach run in
   the resolver gate's source sets.
-  Next: `where machine` contracts and operator tokens, which the library's
-  remaining files stop at; typing's declared equality, which needs
+  Next: `where machine` contracts, intentional discards and predicate-free
+  domains, which the library's remaining files stop at; typing's declared
+  equality, which needs
   `Equatable` named conformances
   ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));
   then checking. Publish the parser's capacity refusals as the
   request contract's scalar-resource provisions, whose rows (roots and states
   4,096; path members, data members, type nodes, statements and expressions
-  16,384) the psi package's own 47,559 expressions exceed, so they must count
+  16,384) the psi package's own 48,454 expressions exceed, so they must count
   per source unit, or grow, before D can compile C. Run the
   three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven

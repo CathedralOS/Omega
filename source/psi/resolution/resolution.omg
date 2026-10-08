@@ -163,7 +163,8 @@ pub data ResolveDiagnosticCode [copy] {
     // at its root rather than resolving as if absent.
     case UnsupportedDeclaration;
     // A form whose bindings resolution does not record yet rejects at that
-    // form: an operator token, a `where machine` or `where proposition`
+    // form: an operator token outside an ordinary owned machine (or `==`,
+    // `!=`, `[]`, `[..]`), a `where machine` or `where proposition`
     // contract, a `satisfies` clause naming its trait through a module path,
     // or a proposition or evidence binder.
     case UnsupportedOperatorToken;
@@ -183,6 +184,9 @@ pub data ResolveDiagnosticCode [copy] {
     // A reference row's left side, or a `satisfies` clause, names no
     // requirement of its trait.
     case NotARequirement;
+    // A token-bound machine whose owner is not a data declaration of its own
+    // package: only a closed family's semantic home publishes its tokens.
+    case ForeignOperatorHome;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -213,6 +217,10 @@ where
     // nothing (`NotAName`).
     requirements: [ValueBinding; 1024];
     requirement_count: u64;
+    // Each machine's operator home, by machine handle: the data declaration
+    // a token-bound machine's owner names; `Unresolved` for a machine
+    // binding no token.
+    operator_homes: [TypeBinding; 2048];
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -272,6 +280,25 @@ crashes Trap
     }
 
     state invalid() -> ValueBinding {
+        crash Trap;
+    }
+}
+
+// The data a token-bound machine `handle` is homed at, or `Unresolved`;
+// `handle` must be below the machine count.
+pub machine NameResolution::operator_home(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding
+crashes Trap
+{
+    transition handle < resolution.machine_owner_count {
+        true -> read(resolution, handle)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, handle: u64 in Trapping) -> TypeBinding {
+        resolution.operator_homes[handle]
+    }
+
+    state invalid() -> TypeBinding {
         crash Trap;
     }
 }

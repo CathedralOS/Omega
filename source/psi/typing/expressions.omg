@@ -7,6 +7,7 @@ use psi::typing::admission;
 use psi::typing::calls;
 use psi::typing::generics;
 use psi::typing::literals;
+use psi::typing::operators;
 use psi::typing::references;
 use psi::typing::typer;
 
@@ -73,7 +74,7 @@ crashes Trap
         ExpressionKind::Field -> field(typer, sources, syntax, index, expression)
         ExpressionKind::Index -> indexed(typer, syntax, index, expression)
         ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression)
-        ExpressionKind::Binary -> binary(typer, syntax, index, expression)
+        ExpressionKind::Binary -> binary(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Cast -> cast(typer, index, expression)
         ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
@@ -169,8 +170,8 @@ crashes Trap
         Typer::type_unary(typer, syntax, resolution, index, expression);
     }
 
-    state binary(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        Typer::type_binary(typer, syntax, index, expression);
+    state binary(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_binary(typer, sources, syntax, resolution, index, expression);
     }
 
     state cast(typer: &mut Typer, index: u64 in Trapping, expression: Expression) {
@@ -679,17 +680,49 @@ crashes Trap
 // one type. Arithmetic and bitwise operators take one fixed-integer type;
 // shifts keep the left operand's. A typed operand lands an anonymous one at
 // its carrier; two anonymous operands fold exactly.
-machine Typer::type_binary(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+machine Typer::type_binary(
+    typer: &mut Typer,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    index: u64 in Trapping,
+    expression: Expression
+)
 crashes Trap
 {
     let left: u64 in Trapping = Typing::expression_type(&typer.output, expression.left);
     let right: u64 in Trapping = Typing::expression_type(&typer.output, expression.right);
     transition left > 0 && right > 0 {
-        true -> typed(typer, syntax, index, expression, left, right)
+        true -> typed(typer, sources, syntax, resolution, index, expression, left, right)
         _ -> not_a_value(typer, expression)
     }
 
-    state typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+    // An arithmetic or order operator with a data operand selects a machine
+    // binding its token (operators.omg); every other operator is builtin.
+    state typed(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        left: u64 in Trapping,
+        right: u64 in Trapping
+    ) {
+        let token: OperatorToken = Typer::operator_token(expression.operator);
+        let left_data: bool = Typer::data_type(typer, left);
+        let right_data: bool = Typer::data_type(typer, right);
+        transition token != OperatorToken::None && (left_data || right_data) {
+            true -> declared(typer, sources, syntax, resolution, index, expression)
+            _ -> builtin(typer, syntax, index, expression, left, right)
+        }
+    }
+
+    state declared(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
+        Typer::type_operator_call(typer, sources, syntax, resolution, index, expression);
+    }
+
+    state builtin(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition expression.operator {
             OperatorKind::Or -> logical(typer, index, expression, left, right)
             OperatorKind::And -> logical(typer, index, expression, left, right)

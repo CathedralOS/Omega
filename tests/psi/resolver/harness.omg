@@ -482,6 +482,7 @@ crashes Trap
             ResolveDiagnosticCode::NotAType -> diagnostic_tag(resolver_harness, output, 25)
             ResolveDiagnosticCode::NotATrait -> diagnostic_tag(resolver_harness, output, 26)
             ResolveDiagnosticCode::NotARequirement -> diagnostic_tag(resolver_harness, output, 27)
+            ResolveDiagnosticCode::ForeignOperatorHome -> diagnostic_tag(resolver_harness, output, 29)
         }
     }
 

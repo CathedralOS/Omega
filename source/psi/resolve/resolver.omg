@@ -7,6 +7,7 @@ use psi::resolve::identities;
 use psi::resolve::facts;
 use psi::resolve::imports;
 use psi::resolve::names;
+use psi::resolve::operators;
 use psi::source::source;
 use psi::syntax::syntax;
 
@@ -154,6 +155,14 @@ crashes Trap
 
     state machines(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
         Resolver::check_machines(resolver, sources, syntax);
+        transition resolver.output.accepted {
+            true -> operators(resolver, sources, syntax)
+            _ -> done()
+        }
+    }
+
+    state operators(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+        Resolver::bind_operator_homes(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> paths(resolver, sources, syntax)
             _ -> done()
@@ -1781,11 +1790,8 @@ crashes Trap
 }
 
 // Whether two machines declare the same overload body: the same path (owner,
-// or none, and name), the same generic parameter kinds and the same
-// parameter types, position by position, and no two distinct targets. A
-// generic parameter in a parameter type matches the one at the same position
-// of the other machine's scope, so `f<T>(value: T)` and `f<U>(other: U)` are
-// one overload.
+// or none, and name), the same parameters (same_parameters) and no two
+// distinct targets.
 machine Resolver::same_machine_signature(
     resolver: &Resolver,
     sources: &SourceSet,
@@ -1805,8 +1811,61 @@ crashes Trap
     let same_owner: bool = SourceSet::spans_equal(sources, left_owner.owner.source_span,
         right_owner.owner.source_span
     );
-    transition same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner)
-        && left.parameter_count == right.parameter_count && left.generic_parameter_count == right.generic_parameter_count {
+    transition same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
+        true -> parameters(resolver, sources, syntax, left_handle, right_handle, left, right)
+        _ -> different()
+    }
+
+    state parameters(
+        resolver: &Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        left_handle: u64 in Trapping,
+        right_handle: u64 in Trapping,
+        left: MachineItem,
+        right: MachineItem
+    ) -> bool {
+        let same: bool = Resolver::same_parameters(resolver, sources, syntax, left_handle, right_handle);
+        transition same {
+            true -> targets(sources, left, right)
+            _ -> different()
+        }
+    }
+
+    // Bodies for two different targets are members of one family.
+    state targets(sources: &SourceSet, left: MachineItem, right: MachineItem) -> bool {
+        let same_target: bool = SourceSet::spans_equal(sources, left.target.source_span, right.target.source_span);
+        transition left.has_target && right.has_target && !same_target {
+            true -> different()
+            _ -> same()
+        }
+    }
+
+    state same() -> bool {
+        true
+    }
+
+    state different() -> bool {
+        false
+    }
+}
+
+// Whether two machines take the same parameters: the same generic parameter
+// kinds and the same parameter types, position by position. A generic
+// parameter in a parameter type matches the one at the same position of the
+// other machine's scope, so `f<T>(value: T)` and `f<U>(other: U)` match.
+pub machine Resolver::same_parameters(
+    resolver: &Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    left_handle: u64 in Trapping,
+    right_handle: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let left: MachineItem = SyntaxTrees::machine_item(syntax, left_handle);
+    let right: MachineItem = SyntaxTrees::machine_item(syntax, right_handle);
+    transition left.parameter_count == right.parameter_count && left.generic_parameter_count == right.generic_parameter_count {
         true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, 0)
         _ -> different()
     }
@@ -1820,7 +1879,7 @@ crashes Trap
         left: MachineItem,
         right: MachineItem,
         offset: u64 in Trapping
-    ) {
+    ) -> bool {
         transition offset < left.generic_parameter_count {
             true -> generic_kind(resolver, sources, syntax, left_handle, right_handle, left, right, offset)
             _ -> parameter(resolver, sources, syntax, left_handle, right_handle, left, right, 0)
@@ -1836,7 +1895,7 @@ crashes Trap
         left: MachineItem,
         right: MachineItem,
         offset: u64 in Trapping
-    ) {
+    ) -> bool {
         let left_parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, left.first_generic_parameter + offset);
         let right_parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, right.first_generic_parameter + offset);
         transition left_parameter.kind == right_parameter.kind {
@@ -1854,10 +1913,10 @@ crashes Trap
         left: MachineItem,
         right: MachineItem,
         offset: u64 in Trapping
-    ) {
+    ) -> bool {
         transition offset < left.parameter_count {
             true -> compare(resolver, sources, syntax, left_handle, right_handle, left, right, offset)
-            _ -> targets(sources, left, right)
+            _ -> same()
         }
     }
 
@@ -1870,7 +1929,7 @@ crashes Trap
         left: MachineItem,
         right: MachineItem,
         offset: u64 in Trapping
-    ) {
+    ) -> bool {
         let left_parameter: Parameter = SyntaxTrees::parameter(syntax, left.first_parameter + offset);
         let right_parameter: Parameter = SyntaxTrees::parameter(syntax, right.first_parameter + offset);
         let left_scope: TypeScope = Resolver::machine_scope(&resolver.output, syntax, left_handle);
@@ -1884,20 +1943,11 @@ crashes Trap
         }
     }
 
-    // Bodies for two different targets are members of one family.
-    state targets(sources: &SourceSet, left: MachineItem, right: MachineItem) {
-        let same_target: bool = SourceSet::spans_equal(sources, left.target.source_span, right.target.source_span);
-        transition left.has_target && right.has_target && !same_target {
-            true -> different()
-            _ -> same()
-        }
-    }
-
-    state same() {
+    state same() -> bool {
         true
     }
 
-    state different() {
+    state different() -> bool {
         false
     }
 }

@@ -139,9 +139,15 @@ ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
-([`resolve/forms.omg`](resolve/forms.omg)), at that form: an operator token, a
-`where machine` or `where proposition` contract, or a proposition or
-evidence binder, on any machine or declaration. A `satisfies` clause binds
+([`resolve/forms.omg`](resolve/forms.omg)), at that form: a `where machine`
+or `where proposition` contract, a proposition or evidence binder, or an
+operator token anywhere but on an ordinary owned machine binding an
+arithmetic or order token (a trait requirement's token, an unqualified
+machine's, `==`, `!=`, `[]` and `[..]`), on any machine or declaration. An
+ordinary owned machine's token binds at its semantic home, the data
+declaration its owner names, which must belong to the machine's own
+package; one token with the same parameters twice at one home rejects
+([`resolve/operators.omg`](resolve/operators.omg)). A `satisfies` clause binds
 its trait (a trait position), the trait's static arguments in the machine's
 generic scope and the trait's member it names, recorded per clause in
 `NameResolution::requirements`, and its `via` payload in the machine's
@@ -290,7 +296,11 @@ requirement must have the requirement's signature with the trait's type
 parameters replaced by the clause's arguments, and its `via` payload and a
 `terminates by` witness type like expressions
 ([`typing/clauses.omg`](typing/clauses.omg)); a requirement with generic
-parameters of its own rejects as unsupported. Exact integer values and
+parameters of its own rejects as unsupported. An arithmetic or order
+operator with a data operand selects, by its operands, the one visible
+non-generic machine binding its token at an operand's data, admitting both
+operands as a call admits arguments, and records the selection
+([`typing/operators.omg`](typing/operators.omg)). Exact integer values and
 their arithmetic, which literal folding uses, live in
 [`integers/integers.omg`](integers/integers.omg).
 

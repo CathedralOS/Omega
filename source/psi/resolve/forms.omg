@@ -6,12 +6,17 @@ use psi::syntax::syntax;
 // Forms whose bindings resolution does not record yet. A mathematical
 // definition (`let` root) or a transparent trait refinement rejects at its
 // root; a trait's `where proposition` contract at that contract. A machine,
-// whatever contains it, that binds an operator token, gives a static
-// machine binder a `where machine` contract, or declares a proposition or
-// conformance-evidence binder rejects at that form rather than resolving as
-// if it were absent: a token's operator family, a contract's binder and an
-// evidence binder's trait each need a binding table this resolver does not
-// keep yet. `satisfies` and `terminates` clauses bind in clauses.omg.
+// whatever contains it, that gives a static machine binder a `where machine`
+// contract, or declares a proposition or conformance-evidence binder,
+// rejects at that form rather than resolving as if it were absent: a
+// contract's binder and an evidence binder's trait each need a binding table
+// this resolver does not keep yet. An operator token binds (operators.omg)
+// only on an ordinary owned machine (`machine + Vector::add`) and for an
+// arithmetic or order token; a trait requirement's token (selected through
+// a proof-static binder), an unqualified machine's (homed through a declared
+// domain), equality's (the sealed `Equatable` route) and the collection
+// tokens `[]` and `[..]` reject at the token. `satisfies` and `terminates`
+// clauses bind in clauses.omg.
 pub machine Resolver::check_declaration_forms(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -139,7 +144,8 @@ crashes Trap
 pub machine Resolver::check_machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem)
 crashes Trap
 {
-    transition item.operator == OperatorToken::None {
+    let bindable: bool = Resolver::bindable_token(item.operator);
+    transition item.operator == OperatorToken::None || (bindable && item.container == MachineContainer::Root && item.has_owner) {
         true -> contracts(resolver, syntax, item)
         _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedOperatorToken, item.token.source_span)
     }
@@ -177,4 +183,29 @@ crashes Trap
     }
 
     state done() {}
+}
+
+// Whether resolution binds a direct machine's `token`: the arithmetic and
+// order tokens.
+pub machine Resolver::bindable_token(token: OperatorToken) -> bool {
+    transition token {
+        OperatorToken::Add -> yes()
+        OperatorToken::Subtract -> yes()
+        OperatorToken::Multiply -> yes()
+        OperatorToken::Divide -> yes()
+        OperatorToken::Modulo -> yes()
+        OperatorToken::Less -> yes()
+        OperatorToken::LessEqual -> yes()
+        OperatorToken::Greater -> yes()
+        OperatorToken::GreaterEqual -> yes()
+        _ -> no()
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
 }

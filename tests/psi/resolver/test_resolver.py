@@ -38,6 +38,7 @@ NOT_A_TYPE = 25
 NOT_A_TRAIT = 26
 NOT_A_REQUIREMENT = 27
 UNDECLARED_DEPENDENCY = 28
+FOREIGN_OPERATOR_HOME = 29
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -1152,6 +1153,48 @@ def main() -> None:
         rejected(program, name, source, diagnostic, spelling)
     source = b"data A { x: Q; }\nmachine + f(a: u8) -> u8 { a }"
     rejected(program, "unsupported-form-before-binding", source, UNSUPPORTED_OPERATOR_TOKEN, b"+")
+
+    # An arithmetic or order token binds on an ordinary owned machine whose
+    # owner is a data declaration of its own package: the token's semantic
+    # home. A builtin or foreign home, equality's token and one token/shape
+    # twice at one home reject.
+    accepted(
+        program,
+        "operator-homed-at-its-data",
+        b"data V { x: u64; }\nmachine + V::add(a: V, b: V) -> V { a }\nmachine + V::shift(a: V, b: u64) -> V { a }",
+        (builtin("u64"), data(0), data(0), data(0), data(0), builtin("u64"), data(0)),
+    )
+    rejected(
+        program,
+        "operator-home-is-a-builtin",
+        b"machine + u8::wrap(left: u8, right: u8) -> u8 { left }",
+        FOREIGN_OPERATOR_HOME,
+        b"u8",
+    )
+    rejected_units(
+        program,
+        "operator-home-in-another-package",
+        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine + D::add(a: D, b: D) -> D { a }")),
+        FOREIGN_OPERATOR_HOME,
+        1,
+        b"D",
+        packages=((b"app", False), (b"geometry", False)),
+        dependencies=((0, PRODUCT, b"geo", 1),),
+    )
+    rejected(
+        program,
+        "duplicate-operator-shape",
+        b"data V { x: u64; }\nmachine + V::add(a: V, b: V) -> V { a }\nmachine + V::plus(a: V, b: V) -> V { b }",
+        DUPLICATE_MACHINE,
+        b"plus",
+    )
+    rejected(
+        program,
+        "equality-token-is-unsupported",
+        b"data V { x: u64; }\nmachine == V::same(a: V, b: V) -> bool { true }",
+        UNSUPPORTED_OPERATOR_TOKEN,
+        b"==",
+    )
 
     # A `satisfies` clause binds its trait, the trait's static arguments and
     # the named requirement; its `via` payload sees the machine's static

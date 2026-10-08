@@ -752,6 +752,38 @@ def main() -> None:
         "UnsupportedDomain",
         b"u64 in Small",
     )
+    # An arithmetic or order operator over data selects, by its operands,
+    # the machine binding its token at an operand's data.
+    vector = b"data V { x: u64; }\nmachine + V::add(a: V, b: V) -> V { a }\nmachine + V::shift(a: V, b: u64) -> V { a }\n"
+    accepted(
+        program,
+        "operator-selects-its-home-machine",
+        vector + b"machine f(a: V, b: V) -> V { a + b }",
+        ((b"a + b", "D0"),),
+        selections=((b"a + b", "machine", 0),),
+    )
+    accepted(
+        program,
+        "operator-selects-by-operand",
+        vector + b"machine f(a: V) -> V { a + 3 }",
+        ((b"a + 3", "D0"), (b"3", "u64")),
+        selections=((b"a + 3", "machine", 1),),
+    )
+    accepted(
+        program,
+        "order-operator-over-data",
+        b"data V { x: u64; }\nmachine < V::before(a: V, b: V) -> bool { true }\nmachine f(a: V, b: V) -> bool { a < b }",
+        ((b"a < b", "bool"),),
+        selections=((b"a < b", "machine", 0),),
+    )
+    rejected(
+        program,
+        "operator-without-a-machine",
+        b"data V { x: u64; }\nmachine f(a: V, b: V) -> V { a * b }",
+        "OperandMismatch",
+        b"a * b",
+    )
+
     # A `satisfies` machine's signature is its requirement's under the
     # clause's trait arguments.
     order = b"trait Order<T> { machine before(left: T, right: T) -> bool; }\n"
