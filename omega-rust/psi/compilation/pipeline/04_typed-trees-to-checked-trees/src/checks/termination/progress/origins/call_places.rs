@@ -308,7 +308,7 @@ pub(super) fn call_route_place(
         result_relative,
         depth,
     )?;
-    let PlaceRoot::Symbol(mut root) = returned.root else {
+    let Some(mut root) = returned.root.as_symbol() else {
         return None;
     };
     let parameters = program.state_parameters(callee_state);

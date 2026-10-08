@@ -4,7 +4,7 @@
 //! in the selected evaluation path does so; Terminal independently checks that
 //! this producer dominates each use. No array payload crosses a block parameter.
 use super::super::{
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralPlaceDeclaration,
+    Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
     ValueDeclaration, emit_direct_expression,
 };
@@ -84,7 +84,7 @@ pub(crate) fn declarations(
         if !matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
             return None;
         }
-        let OperationResult::Structural(result) = &operation.result else {
+        let Some(result) = operation.result.as_structural() else {
             return None;
         };
         Some(StructuralPlaceDeclaration {

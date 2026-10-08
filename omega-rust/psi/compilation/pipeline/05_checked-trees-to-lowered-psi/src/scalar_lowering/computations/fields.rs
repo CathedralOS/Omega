@@ -932,7 +932,7 @@ pub(crate) fn prepare(
             // Follow declared readable crossings at the endpoint just as the
             // preceding path does; moving/replacing the descriptor is a
             // different operation and must not be inferred from this read.
-            if let StructuralFieldType::Structural(mut selected) = retained.field_type {
+            if let Some(mut selected) = retained.field_type.as_structural() {
                 let mut crossings = 0;
                 loop {
                     let selected_type = terminal_psi::find_structural_type(types, selected).ok_or(

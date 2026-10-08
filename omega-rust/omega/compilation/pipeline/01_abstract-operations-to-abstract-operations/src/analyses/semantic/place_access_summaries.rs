@@ -33,8 +33,8 @@ use semantic_vocabulary::{
     StructuralPlaceKind,
 };
 use terminal_psi::{
-    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralPathSegment,
-    TerminalAffineCleanupAction, control_flow::ByteSequenceOperand,
+    StructuralAccess, StructuralArgument, StructuralPathSegment, TerminalAffineCleanupAction,
+    control_flow::ByteSequenceOperand,
 };
 
 use super::semantically_reachable_blocks;
@@ -774,7 +774,7 @@ fn scan_operation(
         }
         O::EstablishRecord { fields, .. } | O::EstablishCase { fields, .. } => {
             for field in fields {
-                if let RecordFieldValue::Structural(argument) = &field.value {
+                if let Some(argument) = field.value.as_structural() {
                     let (reads, writes) = declared_access(argument.access);
                     pending.attribute_argument(context, argument, reads, writes);
                 }

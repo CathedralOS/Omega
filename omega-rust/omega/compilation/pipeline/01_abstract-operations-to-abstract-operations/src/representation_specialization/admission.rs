@@ -13,7 +13,7 @@ use super::{
 };
 use optimization_unit::{argument_rewrites_place, declared_structural_type, resolved_sole_case};
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
-use terminal_psi::{RecordFieldValue, StructuralArgument, StructuralPlaceDeclaration};
+use terminal_psi::{StructuralArgument, StructuralPlaceDeclaration};
 
 /// The evidence every membership observing `place` resolves against: the
 /// place's rostered declaration, its declared structural type (when the place
@@ -149,7 +149,7 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
     match operation {
         O::EstablishCase { fields, .. } | O::EstablishRecord { fields, .. } => {
             for initializer in fields {
-                if let RecordFieldValue::Structural(argument) = &initializer.value {
+                if let Some(argument) = initializer.value.as_structural() {
                     operands.push(argument);
                 }
             }

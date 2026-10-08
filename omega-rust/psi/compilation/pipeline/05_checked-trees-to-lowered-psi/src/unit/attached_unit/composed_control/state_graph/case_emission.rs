@@ -4,8 +4,8 @@ use super::super::super::super::{
     StructuralParameterDeclaration,
 };
 use super::super::super::{
-    OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration,
-    terminal_scalar_type, unsupported,
+    PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration, terminal_scalar_type,
+    unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlStatePlan, scalars};
@@ -281,7 +281,7 @@ pub(in crate::unit::attached_unit) fn result<'a>(
         .ok_or(LoweringError::Unsupported(
             "Unit graph result operation missing",
         ))?;
-    let OperationResult::Structural(produced) = &operation.result else {
+    let Some(produced) = operation.result.as_structural() else {
         return unsupported("Unit graph call lost structural result");
     };
     Ok(std::borrow::Cow::Owned(produced.clone().into()))

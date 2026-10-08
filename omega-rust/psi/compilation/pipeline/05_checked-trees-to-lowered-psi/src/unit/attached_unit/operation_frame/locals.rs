@@ -203,7 +203,7 @@ impl OperationFrame<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "array establishment emitted no operation",
                 ))?;
-            let OperationResult::Structural(produced) = &producer.result else {
+            let Some(produced) = producer.result.as_structural() else {
                 return unsupported("array establishment produced no structural value");
             };
             let produced = produced.clone();
@@ -339,7 +339,7 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "borrowed-window move emitted no operation",
             ))?;
-        let OperationResult::Structural(produced) = &producer.result else {
+        let Some(produced) = producer.result.as_structural() else {
             return unsupported("borrowed-window move established no structural value");
         };
         let declaration = StructuralPlaceDeclaration {

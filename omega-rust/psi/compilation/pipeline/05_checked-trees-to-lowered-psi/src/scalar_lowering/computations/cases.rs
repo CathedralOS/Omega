@@ -542,7 +542,7 @@ pub(crate) fn declarations(
         ) {
             return None;
         }
-        let OperationResult::Structural(result) = &operation.result else {
+        let Some(result) = operation.result.as_structural() else {
             return None;
         };
         Some(StructuralPlaceDeclaration {

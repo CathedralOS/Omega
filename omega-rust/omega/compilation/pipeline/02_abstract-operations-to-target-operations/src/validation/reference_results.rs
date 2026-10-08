@@ -24,10 +24,10 @@ use abstract_operations::{
 use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use target_operations::TargetReferenceResult;
 use terminal_psi::{
-    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-    find_structural_case, find_structural_type, structural_children,
+    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, find_structural_case, find_structural_type,
+    structural_children,
 };
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the
@@ -1113,7 +1113,7 @@ fn establish_constructor(
         if field.field != declaration.id || declaration.relevance.is_erased() {
             return None;
         }
-        if let RecordFieldValue::Structural(argument) = &field.value {
+        if let Some(argument) = field.value.as_structural() {
             operands.push((
                 &declaration.field_type,
                 StructuralPathSegment::Field(declaration.identity.clone()),
