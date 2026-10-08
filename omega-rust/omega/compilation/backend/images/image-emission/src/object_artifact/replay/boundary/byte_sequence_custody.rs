@@ -5,7 +5,7 @@ use machine_code::BoundarySettlementRecord;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use target_operations::BoundaryRealization;
 
-pub(crate) fn linux_write_line_custody_is_exact(
+pub fn linux_write_line_custody_is_exact(
     target: NativeTarget,
     settlement: &BoundarySettlementRecord,
     function_bytes: Option<&[u8]>,

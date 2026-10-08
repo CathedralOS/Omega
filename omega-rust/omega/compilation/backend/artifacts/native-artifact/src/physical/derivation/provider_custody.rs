@@ -10,10 +10,9 @@ use machine_code::PortEffectRecord;
 use object_file::SectionKind;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use std::collections::BTreeSet;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{Architecture, NativeTarget};
 use target_operations::{
-    BoundaryRealization, CompletionClaimSource, ProviderExecutionBinding,
-    ProviderPlanReportIdentity,
+    CompletionClaimSource, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 use terminal_psi::OperationKind;
 
@@ -278,52 +277,11 @@ pub(crate) fn linux_write_line_custody_is_exact(
     settlement: &machine_code::BoundarySettlementRecord,
     function_bytes: &[u8],
 ) -> bool {
-    let BoundaryRealization::LinuxWriteLine(_) = settlement.realization else {
-        return false;
-    };
-    let [custody] = settlement.byte_sequence_arguments.as_slice() else {
-        return false;
-    };
-    if target.object_format != ObjectFormat::Elf
-        || !matches!(
-            target.architecture,
-            Architecture::X86_64 | Architecture::Aarch64
-        )
-        || !settlement.scalar_arguments.is_empty()
-        || !settlement.runtime_scalar_arguments.is_empty()
-        || settlement.arguments.as_slice() != [custody.argument.clone()]
-        || !custody.argument.path.is_empty()
-        || !custody
-            .structural_type
-            .shape
-            .is_borrowed_view_byte_sequence()
-        || !settlement.native_result.is_unit()
-    {
-        return false;
-    }
-    let encoded = match target.architecture {
-        Architecture::X86_64 => isa_x86_64::encode_linux_write_line_literal(&custody.bytes),
-        Architecture::Aarch64 => isa_aarch64::encode_linux_write_line_literal(&custody.bytes),
-    };
-    let Ok((encoded, data)) = encoded else {
-        return false;
-    };
-    settlement.byte_count == encoded.len()
-        && settlement.byte_count != 0
-        && custody.code_offset == settlement.code_offset
-        && custody.code_byte_count == data.start
-        && custody.code_byte_count != 0
-        && custody.data_offset == settlement.code_offset.saturating_add(data.start)
-        && custody.data_byte_count == data.len()
-        && custody.data_byte_count == custody.bytes.len().saturating_add(1)
-        && encoded
-            .get(data.clone())
-            .is_some_and(|payload| payload.strip_suffix(b"\n") == Some(custody.bytes.as_slice()))
-        && settlement
-            .code_offset
-            .checked_add(settlement.byte_count)
-            .and_then(|end| function_bytes.get(settlement.code_offset..end))
-            == Some(encoded.as_slice())
+    image_emission::linux_write_line_custody_is_exact(
+        target,
+        settlement,
+        Some(function_bytes),
+    )
 }
 
 /// Replay the object validator's completion-custody responsibility after the

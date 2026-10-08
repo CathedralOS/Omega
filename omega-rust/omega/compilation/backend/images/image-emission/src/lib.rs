@@ -41,6 +41,7 @@ mod installation_record;
 mod installed_artifact;
 mod object_artifact;
 
+pub use object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
 pub use object_artifact::replay::scalar::control_flow::reconstruct_scalar_control_flow;
 pub use object_artifact::stack_demand::{StackDemand, derive_stack_demand};
 pub use object_artifact::{
