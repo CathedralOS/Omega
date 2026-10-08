@@ -9,39 +9,26 @@ use super::{
     read_u32, validate_candidate, validate_contents,
 };
 use crate::{
-    plan_elf_dynamic_link_inputs, plan_elf_dynamic_sections, serialize_elf_dynamic_sections,
+    plan_elf_dynamic_sections, serialize_elf_dynamic_sections,
 };
-use arena::Handle;
 use crate::dynamic_executable::interpreter_path;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
-};
-use object_file::{RelocationKind, SymbolKind};
-use target::{
-    ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_elf_interpreter_plan,
-    normalize_foreign_locator,
-};
+use target::TargetProfile;
+use crate::test_support::SingleSiteImportFixture;
 
-#[derive(Clone, Copy)]
-struct ImportFixture {
-    object: &'static [u8],
-    symbol: &'static [u8],
-    version: &'static [u8],
-}
 
-const IMPORTS: [ImportFixture; 3] = [
-    ImportFixture {
+
+const IMPORTS: [SingleSiteImportFixture; 3] = [
+    SingleSiteImportFixture {
         object: b"liba\xff.so",
         symbol: b"alpha\xfe",
         version: b"V1\xfd",
     },
-    ImportFixture {
+    SingleSiteImportFixture {
         object: b"liba\xff.so",
         symbol: b"beta",
         version: b"V2",
     },
-    ImportFixture {
+    SingleSiteImportFixture {
         object: b"libb.so",
         symbol: b"gamma",
         version: b"V1\xfd",
@@ -51,62 +38,17 @@ const IMPORTS: [ImportFixture; 3] = [
 
 fn payloads(
     target: TargetProfile,
-    imports: &[ImportFixture],
+    imports: &[SingleSiteImportFixture],
 ) -> ValidatedElfDynamicSectionPayloads {
-    let native_target = target.native_target();
-    let mut image = FinalImage::with_capacity(
-        native_target,
-        FinalImageMemory {
-            text: vec![0; 32],
-            ..FinalImageMemory::default()
-        },
-        Handle::invalid(),
-        imports.len(),
-        imports.len(),
-        imports.len(),
+    let inputs = crate::test_support::single_site_import_inputs(
+        target,
+        imports,
+        "__omega_descriptor_import_",
+        32,
+        interpreter_path(target),
+        "valid descriptor fixture locator",
+        "valid descriptor fixture interpreter",
     );
-    for (index, fixture) in imports.iter().enumerate() {
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("__omega_descriptor_import_{index}"),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: fixture.object.to_vec(),
-                        symbol: fixture.symbol.to_vec(),
-                        version: fixture.version.to_vec(),
-                    },
-                    target,
-                )
-                .expect("valid descriptor fixture locator"),
-            ),
-        });
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Text,
-                offset: index * 8,
-                byte_width: 4,
-                symbol_handle,
-                addend: 0,
-                kind: if native_target == NativeTarget::linux_arm64() {
-                    RelocationKind::Aarch64Branch26
-                } else {
-                    RelocationKind::X86_64Relative32
-                },
-            });
-    }
-    let interpreter = normalize_elf_interpreter_plan(interpreter_path(target).to_vec(), target)
-        .expect("valid descriptor fixture interpreter");
-    let inputs =
-        plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link preflight");
     let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
     serialize_elf_dynamic_sections(sections).expect("valid serialized payloads")
 }

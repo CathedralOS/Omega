@@ -348,6 +348,90 @@ pub(crate) mod test_support {
         plan_elf_dynamic_tags(descriptors).expect("valid semantic dynamic tags")
     }
 
+    /// An import entry whose only call site lands at `index * 8` in `.text`
+    /// — the convention the import-section fixtures use.
+    #[derive(Clone, Copy)]
+    pub(crate) struct SingleSiteImportFixture {
+        pub(crate) object: &'static [u8],
+        pub(crate) symbol: &'static [u8],
+        pub(crate) version: &'static [u8],
+    }
+
+    /// The dynamic-link preflight over `imports` where each fixture gets one
+    /// relocation at `index * 8` — the shared image-build prelude for the
+    /// import-section tests.
+    pub(crate) fn single_site_import_inputs(
+        target: TargetProfile,
+        imports: &[SingleSiteImportFixture],
+        symbol_prefix: &str,
+        text_size: usize,
+        interpreter_path: &[u8],
+        locator_expect: &str,
+        interpreter_expect: &str,
+    ) -> crate::PlannedElfDynamicLinkInputs {
+        use arena::Handle;
+        use image::{
+            FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory,
+            FinalImageRelocation, FinalImageSection, FinalImageSymbol,
+        };
+        use object_file::{RelocationKind, SymbolKind};
+        use target::{ForeignLocatorCandidate, NativeTarget, normalize_foreign_locator};
+
+        let native_target = target.native_target();
+        let mut image = FinalImage::with_capacity(
+            native_target,
+            FinalImageMemory {
+                text: vec![0; text_size],
+                ..FinalImageMemory::default()
+            },
+            Handle::invalid(),
+            imports.len(),
+            imports.len(),
+            imports.len(),
+        );
+        for (index, fixture) in imports.iter().enumerate() {
+            let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: format!("{symbol_prefix}{index}"),
+                section: FinalImageSection::None,
+                offset: 0,
+                size: 0,
+                kind: SymbolKind::Import,
+            });
+            image.symbol_table.imports.insert(FinalImageImport {
+                symbol_handle,
+                import: FinalImageImportPlan::Normalized(
+                    normalize_foreign_locator(
+                        ForeignLocatorCandidate::ElfVersioned {
+                            object: fixture.object.to_vec(),
+                            symbol: fixture.symbol.to_vec(),
+                            version: fixture.version.to_vec(),
+                        },
+                        target,
+                    )
+                    .expect(locator_expect),
+                ),
+            });
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Text,
+                    offset: index * 8,
+                    byte_width: 4,
+                    symbol_handle,
+                    addend: 0,
+                    kind: if native_target == NativeTarget::linux_arm64() {
+                        RelocationKind::Aarch64Branch26
+                    } else {
+                        RelocationKind::X86_64Relative32
+                    },
+                });
+        }
+        let interpreter = normalize_elf_interpreter_plan(interpreter_path.to_vec(), target)
+            .expect(interpreter_expect);
+        plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link preflight")
+    }
+
     /// The procedure-linkage section descriptor plan — the staging
     /// point the dynamic-tag fixtures build on.
     pub(crate) fn linkage_descriptors(
@@ -383,6 +467,27 @@ pub(crate) mod test_support {
     ) -> crate::ValidatedElfSectionHeaderTableTemplate {
         let names = dynamic_section_names(inputs);
         let roster = crate::plan_elf_dynamic_section_roster(names).expect("valid section roster");
+        crate::serialize_elf_section_header_table(roster).expect("valid section headers")
+    }
+
+    /// The serialized section-header table staged one rung deeper than
+    /// `resolved_linkage` — file-assembly fixtures run the eight-stage
+    /// dynamic tail from a resolved procedure linkage.
+    pub(crate) fn section_header_table_from_linkage(
+        linkage: crate::ValidatedElfProcedureLinkageRelocationPlan,
+    ) -> crate::ValidatedElfSectionHeaderTableTemplate {
+        let templates = crate::plan_elf_procedure_linkage_templates(linkage)
+            .expect("valid linkage templates");
+        let descriptors = crate::plan_elf_procedure_linkage_section_descriptors(templates)
+            .expect("valid linkage descriptors");
+        let tags = crate::plan_elf_dynamic_tags(descriptors).expect("valid dynamic tags");
+        let dynamic = crate::serialize_elf_dynamic_table(tags).expect("valid dynamic table");
+        let descriptor = crate::plan_elf_dynamic_table_section_descriptor(dynamic)
+            .expect("valid dynamic descriptor");
+        let names = crate::plan_elf_section_name_table(descriptor)
+            .expect("valid section-name table");
+        let roster =
+            crate::plan_elf_dynamic_section_roster(names).expect("valid section roster");
         crate::serialize_elf_section_header_table(roster).expect("valid section headers")
     }
 

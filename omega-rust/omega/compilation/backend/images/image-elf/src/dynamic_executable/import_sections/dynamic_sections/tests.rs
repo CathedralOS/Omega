@@ -6,42 +6,26 @@ use super::{
     derive_contents, elf_hash, gnu_hash, plan_elf_dynamic_sections, validate_candidate,
     validate_contents, validate_gnu_hash_reachability, validate_hash_reachability,
 };
-use crate::plan_elf_dynamic_link_inputs;
-use arena::Handle;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
-};
-use object_file::{RelocationKind, SymbolKind};
-use target::{
-    ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_elf_interpreter_plan,
-    normalize_foreign_locator,
-};
+use target::TargetProfile;
+use crate::test_support::SingleSiteImportFixture;
 
-#[derive(Clone, Copy)]
-struct ImportFixture {
-    object: &'static [u8],
-    symbol: &'static [u8],
-    version: &'static [u8],
-}
-
-const IMPORTS: [ImportFixture; 4] = [
-    ImportFixture {
+const IMPORTS: [SingleSiteImportFixture; 4] = [
+    SingleSiteImportFixture {
         object: b"libalpha\xff.so.1",
         symbol: b"alpha\xfe",
         version: b"OMEGA_1\xfd",
     },
-    ImportFixture {
+    SingleSiteImportFixture {
         object: b"libalpha\xff.so.1",
         symbol: b"beta",
         version: b"OMEGA_1\xfd",
     },
-    ImportFixture {
+    SingleSiteImportFixture {
         object: b"libalpha\xff.so.1",
         symbol: b"alpha\xfe",
         version: b"OMEGA_2",
     },
-    ImportFixture {
+    SingleSiteImportFixture {
         object: b"libbeta.so.2",
         symbol: b"gamma",
         version: b"OMEGA_1\xfd",
@@ -49,76 +33,27 @@ const IMPORTS: [ImportFixture; 4] = [
 ];
 
 fn interpreter_path(target: TargetProfile) -> &'static [u8] {
-    match target {
-        TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
-        TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
-        _ => unreachable!("dynamic section fixture uses a Linux target"),
-    }
+    crate::test_support::import_fixture_interpreter_path(target)
 }
 
-fn input(target: TargetProfile, imports: &[ImportFixture]) -> PlannedElfDynamicLinkInputs {
+fn input(target: TargetProfile, imports: &[SingleSiteImportFixture]) -> PlannedElfDynamicLinkInputs {
     input_with_interpreter(target, imports, interpreter_path(target))
 }
 
 fn input_with_interpreter(
     target: TargetProfile,
-    imports: &[ImportFixture],
+    imports: &[SingleSiteImportFixture],
     interpreter_path: &[u8],
 ) -> PlannedElfDynamicLinkInputs {
-    let native_target = target.native_target();
-    let mut image = FinalImage::with_capacity(
-        native_target,
-        FinalImageMemory {
-            text: vec![0; 64],
-            ..FinalImageMemory::default()
-        },
-        Handle::invalid(),
-        imports.len(),
-        imports.len(),
-        imports.len(),
-    );
-    for (index, fixture) in imports.iter().enumerate() {
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("__omega_dynamic_import_{index}"),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: fixture.object.to_vec(),
-                        symbol: fixture.symbol.to_vec(),
-                        version: fixture.version.to_vec(),
-                    },
-                    target,
-                )
-                .expect("valid ELF fixture locator"),
-            ),
-        });
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Text,
-                offset: index * 8,
-                byte_width: 4,
-                symbol_handle,
-                addend: 0,
-                kind: match native_target {
-                    target if target == NativeTarget::linux_arm64() => {
-                        RelocationKind::Aarch64Branch26
-                    }
-                    _ => RelocationKind::X86_64Relative32,
-                },
-            });
-    }
-    let interpreter = normalize_elf_interpreter_plan(interpreter_path.to_vec(), target)
-        .expect("valid ELF fixture interpreter");
-    plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link preflight")
+    crate::test_support::single_site_import_inputs(
+        target,
+        imports,
+        "__omega_dynamic_import_",
+        64,
+        interpreter_path,
+        "valid ELF fixture locator",
+        "valid ELF fixture interpreter",
+    )
 }
 
 fn candidate(target: TargetProfile) -> Candidate {
@@ -248,7 +183,7 @@ fn content_identity_binds_profile_interpreter_and_exact_table_coordinates() {
         .expect("changed-profile plan")
         .non_authoritative_content_compatibility_fingerprint();
     let mut changed_imports = IMPORTS;
-    changed_imports[0] = ImportFixture {
+    changed_imports[0] = SingleSiteImportFixture {
         object: b"libalpha\xff.so.1",
         symbol: b"alpha_changed\xfe",
         version: b"OMEGA_1\xfd",
