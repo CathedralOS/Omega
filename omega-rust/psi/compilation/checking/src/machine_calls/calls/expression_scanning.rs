@@ -695,13 +695,12 @@ fn validate_expression_call_bounds(
         && callee_machine.attached_data_symbol.is_valid()
     {
         let receiver_symbol = receiver_type_reference
-            .map(
-                |receiver| match program.type_reference_table.type_reference(receiver) {
-                    TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                    _ => symbols::SymbolHandle::invalid(),
-                },
-            )
+            .map(|receiver| {
+                program
+                    .type_reference_table
+                    .type_head_symbol(receiver)
+                    .unwrap_or_else(symbols::SymbolHandle::invalid)
+            })
             .or_else(|| {
                 // A static attached call names its carrier, rather than a
                 // runtime receiver place. Retain that selected Data symbol;

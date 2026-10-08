@@ -699,11 +699,7 @@ impl ReturnReader<'_, '_> {
                     self.program,
                     self.place_type(member.receiver, before, depth + 1)?,
                 )?;
-                let owner = match self.program.type_reference_table.type_reference(receiver) {
-                    TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                    _ => return None,
-                };
+                let owner = self.program.type_reference_table.type_head_symbol(receiver)?;
                 let data = crate::declarations::data_queries::data_definition_by_symbol(
                     self.program,
                     owner,

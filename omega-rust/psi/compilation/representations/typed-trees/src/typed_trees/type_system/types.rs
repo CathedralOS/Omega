@@ -328,6 +328,16 @@ impl TypeReferenceTable {
         handle
     }
 
+    /// The declared head symbol behind a `Named` or `Generic` reference —
+    /// the base nominal, whether or not arguments are supplied.
+    pub fn type_head_symbol(&self, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
+        match self.type_reference(handle) {
+            TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+            TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+            _ => None,
+        }
+    }
+
     /// The declared symbol behind a `Named` reference or a `Generic` with no
     /// supplied arguments — the head symbol when no instantiation happens.
     pub fn unparameterized_type_symbol(

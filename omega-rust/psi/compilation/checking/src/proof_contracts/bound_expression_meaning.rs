@@ -831,11 +831,7 @@ fn operand_place_projection_type(
                 program,
                 operand_type_at_depth(program, machine, state, member.receiver, depth + 1)?,
             )?;
-            let owner = match program.type_reference_table.type_reference(receiver) {
-                TypeReferenceNode::Named { symbol, .. } => *symbol,
-                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                _ => return None,
-            };
+            let owner = program.type_reference_table.type_head_symbol(receiver)?;
             let data =
                 crate::declarations::data_queries::data_definition_by_symbol(program, owner)?;
             crate::value_custody::places::exact_data_member_field(

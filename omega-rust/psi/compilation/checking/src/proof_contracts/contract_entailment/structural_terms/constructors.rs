@@ -282,14 +282,12 @@ fn zero_term(
             _ => None,
         };
     }
-    let symbol = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        // A generic first case may be independent of its arguments (None).
-        // An actually stored open parameter still fails below: no declaration
-        // or established zero value exists for that field type.
-        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-        _ => return None,
-    };
+    // A generic first case may be independent of its arguments (None). An
+    // actually stored open parameter still fails below: no declaration or
+    // established zero value exists for that field type.
+    let symbol = program
+        .type_reference_table
+        .type_head_symbol(type_reference)?;
     if !symbol.is_valid() || active.contains(&symbol) {
         return None;
     }

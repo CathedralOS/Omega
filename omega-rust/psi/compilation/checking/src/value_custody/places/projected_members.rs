@@ -5,7 +5,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn contains_case_projection(
     program: &dyn crate::CheckingInput,
@@ -60,11 +60,7 @@ pub(crate) fn declared_case_projection_field<'program>(
         _ => {
             let receiver_type = declared_place_type_raw(program, machine, state, member.receiver)?;
             let receiver_type = unwrapped_type_reference(program, receiver_type)?;
-            match program.type_reference_table.type_reference(receiver_type) {
-                TypeReferenceNode::Named { symbol, .. } => *symbol,
-                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                _ => return None,
-            }
+            program.type_reference_table.type_head_symbol(receiver_type)?
         }
     };
     let data = program

@@ -144,10 +144,8 @@ fn record_children(
     let Some(reference) = program.unwrapped_type_reference(reference) else {
         return Vec::new();
     };
-    let symbol = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-        _ => return Vec::new(),
+    let Some(symbol) = program.type_reference_table.type_head_symbol(reference) else {
+        return Vec::new();
     };
     let Some(definition) = program.data_definition_by_symbol(symbol) else {
         return Vec::new();
