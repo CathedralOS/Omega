@@ -210,7 +210,7 @@ fn owned_or_shared_view_fields(
         matches!(
             program
                 .type_reference_table
-                .type_reference(peeled_referee(program, *referee)),
+                .type_reference(crate::peel_declared_constraints(program, *referee)),
             TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
         )
     };
@@ -410,7 +410,7 @@ fn resolve(
         ) && matches!(
             program
                 .type_reference_table
-                .type_reference(peeled_referee(program, *referee,)),
+                .type_reference(crate::peel_declared_constraints(program, *referee)),
             TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
         ) =>
         {
@@ -555,17 +555,6 @@ fn resolve(
 /// `owned_or_shared_view_fields` peels them one record deep: constraint
 /// wrappers ride the loan's declared type and change neither the viewed
 /// shape nor which owner keeps the backing.
-fn peeled_referee(
-    program: &dyn crate::CheckingInput,
-    mut referee: TypeReferenceHandle,
-) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(referee)
-    {
-        referee = *base_type;
-    }
-    referee
-}
 
 pub(crate) fn is_plain_value_domain(
     program: &dyn crate::CheckingInput,
