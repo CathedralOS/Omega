@@ -2051,7 +2051,6 @@ dependencies = [
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
- "optimization-core",
  "psi-terminal-production",
  "source",
  "terminal-codec",
