@@ -24,7 +24,8 @@ pub(super) fn validate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input.function(patch.predecessor.machine)
+    let function = input
+        .function(patch.predecessor.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     // These rewrites substitute scalar bindings only.
     if function

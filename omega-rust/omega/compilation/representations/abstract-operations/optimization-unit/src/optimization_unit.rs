@@ -146,7 +146,13 @@ impl PsiOptimizationUnit {
         self.functions
             .iter()
             .find(|function| function.machine == machine)
-    
+    }
+
+    /// The optimization function keyed `machine`, mutably, when the unit carries it.
+    pub fn function_mut(&mut self, machine: MachineId) -> Option<&mut PsiOptimizationFunction> {
+        self.functions
+            .iter_mut()
+            .find(|function| function.machine == machine)
     }
 
     /// The optimization function for `machine` for replay mutation, when the

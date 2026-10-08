@@ -22,7 +22,8 @@ pub(super) fn validate(
     if candidate.node_decision_point() != Some(patch.empty) || patch.empty.node != 0 {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input.function(patch.empty.machine)
+    let function = input
+        .function(patch.empty.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     // These rewrites substitute scalar bindings only.
     if function

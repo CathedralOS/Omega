@@ -305,7 +305,8 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     if output.accepted_obligation_facts != input.accepted_obligation_facts {
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
     }
-    let output_function = output.function(function.machine)
+    let output_function = output
+        .function(function.machine)
         .expect("output function exists");
 
     validate_outside_region(&function.blocks, output_function, &expected_blocks)?;

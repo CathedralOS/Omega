@@ -110,7 +110,8 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
         let known_type = match place.kind {
-            StructuralPlaceKind::BlockParameter { block, position } => function.block(block)
+            StructuralPlaceKind::BlockParameter { block, position } => function
+                .block(block)
                 .and_then(|candidate| candidate.structural_parameters.get(position as usize))
                 .is_some_and(|parameter| {
                     parameter.place == place.id && parameter.position == position
@@ -372,8 +373,7 @@ pub(crate) fn validate_function_structural_catalog(
                 .ok_or_else(mismatch)?,
         )
         .ok_or_else(mismatch)?;
-        let Some(parameter) = function.structural_parameter(claim.input)
-        else {
+        let Some(parameter) = function.structural_parameter(claim.input) else {
             return Err(mismatch());
         };
         if claim.claim != expected

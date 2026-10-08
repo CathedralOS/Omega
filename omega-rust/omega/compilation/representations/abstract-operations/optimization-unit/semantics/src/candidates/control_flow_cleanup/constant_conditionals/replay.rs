@@ -178,7 +178,8 @@ pub(super) fn validate(
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
 
-    let output_function = output.function(patch.location.machine)
+    let output_function = output
+        .function(patch.location.machine)
         .expect("output function exists");
     validate_outside_region(
         function

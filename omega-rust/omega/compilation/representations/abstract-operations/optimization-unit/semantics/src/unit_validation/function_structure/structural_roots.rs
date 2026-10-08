@@ -151,13 +151,12 @@ pub(crate) fn validate_structural_root_operations(
                     && parameter.access == terminal_psi::StructuralAccess::Owned
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
-                    && function.block(*block)
-                        .is_some_and(|candidate| {
-                            candidate
-                                .structural_parameters
-                                .get(parameter.position as usize)
-                                == Some(parameter)
-                        })
+                    && function.block(*block).is_some_and(|candidate| {
+                        candidate
+                            .structural_parameters
+                            .get(parameter.position as usize)
+                            == Some(parameter)
+                    })
             }
         };
     for block in &function.blocks {

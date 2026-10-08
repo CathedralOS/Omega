@@ -23,9 +23,7 @@ pub(crate) fn realize(
     let mut output = unit.clone();
     let machine = component.id.machine;
     let function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == machine)
+        .function_mut(machine)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     // Remove in descending node order inside each block so earlier removals do
     // not shift later coordinates, then reassemble the run in plan order.
@@ -118,7 +116,8 @@ pub(crate) fn realize(
                 _ => None,
             };
             if let Some(callee) = crash_custody {
-                let callee_function = unit.function(callee)
+                let callee_function = unit
+                    .function(callee)
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
                 let (arguments, crash_continuations) = match &mut node.operation {
                     O::Call {
@@ -216,7 +215,8 @@ pub(crate) fn realize(
     // The consumed scan runs against the seed unit: the consumers have
     // already left the member roster in `output`.
     let consumed: BTreeSet<PlaceId> = {
-        let seed_function = unit.function(machine)
+        let seed_function = unit
+            .function(machine)
             .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
         relocated_affine
             .iter()

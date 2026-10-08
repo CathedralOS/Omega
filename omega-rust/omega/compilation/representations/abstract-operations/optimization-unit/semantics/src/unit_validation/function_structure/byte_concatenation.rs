@@ -38,9 +38,7 @@ pub(super) fn validate(
                 || !result.claims.is_empty()
                 || !types
                     .get(&result.structural_type)
-                    .is_some_and(|declaration| {
-                        declaration.shape.is_bounded_owned_byte_sequence()
-                    })
+                    .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
                 || !function.structural_places.iter().any(|place| {
                     place.id == result.place
                         && place.kind
@@ -67,8 +65,7 @@ pub(super) fn validate(
                 }
                 match operand {
                     ByteSequenceOperand::Whole { source, length } => {
-                        let kind = function.structural_place(*source)
-                            .map(|place| &place.kind);
+                        let kind = function.structural_place(*source).map(|place| &place.kind);
                         super::byte_views::validate_source(
                             function,
                             block.id,

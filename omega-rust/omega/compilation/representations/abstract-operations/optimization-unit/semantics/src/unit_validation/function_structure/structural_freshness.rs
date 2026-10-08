@@ -43,8 +43,7 @@ fn call_argument_changes(
         {
             return true;
         }
-        let Some(declaration) = function.structural_place(place)
-        else {
+        let Some(declaration) = function.structural_place(place) else {
             return true;
         };
         let StructuralPlaceKind::OperationResult {

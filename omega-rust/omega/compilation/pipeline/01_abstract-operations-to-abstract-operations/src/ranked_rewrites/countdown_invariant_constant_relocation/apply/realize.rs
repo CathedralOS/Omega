@@ -15,9 +15,7 @@ pub(crate) fn realize(
     let mut output = unit.clone();
     let machine = placement.component.machine;
     let function = output
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == machine)
+        .function_mut(machine)
         .ok_or(CountdownInvariantConstantRelocationError::UnknownComponent)?;
     let mut requests = placement
         .placements

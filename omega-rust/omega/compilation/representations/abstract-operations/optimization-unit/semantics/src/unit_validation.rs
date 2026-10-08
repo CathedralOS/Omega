@@ -60,8 +60,7 @@ pub(crate) fn revalidate_rewrite_output(
         derived_metadata::reconstruct_declared_places(output_function)?;
     output.identity = recompute_psi_optimization_unit_identity(output);
     validate_psi_optimization_unit(output)?;
-    Ok(output.function(machine)
-        .expect("output function exists"))
+    Ok(output.function(machine).expect("output function exists"))
 }
 
 /// Check unit structure after a caller has independently admitted the named

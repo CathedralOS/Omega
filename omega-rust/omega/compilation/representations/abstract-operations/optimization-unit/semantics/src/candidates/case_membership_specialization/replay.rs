@@ -197,7 +197,8 @@ fn folded_node(
         // position, or an `EstablishCase` payload child's producer at a
         // `Case` then `Field` position.
         Some(producer) => {
-            let resolved = function.structural_place(row.source)
+            let resolved = function
+                .structural_place(row.source)
                 .and_then(|declaration| {
                     optimization_unit::established_case_at(
                         unit,
@@ -343,7 +344,8 @@ pub(super) fn validate(
     if cyclic_machines(input).contains(&patch.machine) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input.function(patch.machine)
+    let function = input
+        .function(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let Some(evidence) = membership_evidence(input, function, patch.place) else {
         return Err(OptimizationUnitValidationError::CandidateLocationMissing);
@@ -393,7 +395,8 @@ pub(super) fn validate(
     refresh_facts(output_function, &patch.memberships)?;
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
-    let output_function = output.function(patch.machine)
+    let output_function = output
+        .function(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {

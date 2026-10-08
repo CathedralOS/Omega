@@ -59,9 +59,11 @@ pub(super) fn independently_apply_total_scalar_identity(
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
     }
 
-    let input_function = input.function(patch.location.machine)
+    let input_function = input
+        .function(patch.location.machine)
         .expect("validated input function exists");
-    let output_function = output.function(patch.location.machine)
+    let output_function = output
+        .function(patch.location.machine)
         .expect("validated output function exists");
     for input_block in &input_function.blocks {
         if !affected_blocks.contains(&input_block.id)
