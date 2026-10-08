@@ -10,6 +10,13 @@ pub(super) fn reject_v1_unsupported(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<(), LivenessError> {
+    let early_clobber = |instruction: u32, operand: u16| {
+        LivenessError::UnsupportedEarlyClobber {
+            function: function_index,
+            instruction,
+            operand,
+        }
+    };
     let mut tied_edges = Vec::new();
     let mut early_rows = Vec::new();
     for instruction in function.blocks.iter().flat_map(ordered_instructions) {
@@ -41,11 +48,7 @@ pub(super) fn reject_v1_unsupported(
                         RegisterOperandAccess::UseDef => true,
                     }
                 {
-                    return Err(LivenessError::UnsupportedEarlyClobber {
-                        function: function_index,
-                        instruction: instruction.id.0,
-                        operand: operand.operand,
-                    });
+                    return Err(early_clobber(instruction.id.0, operand.operand));
                 }
                 values.push(operand.virtual_register);
                 positions.push(operand.operand);
@@ -54,11 +57,7 @@ pub(super) fn reject_v1_unsupported(
                 }
             }
             if uses.is_empty() {
-                return Err(LivenessError::UnsupportedEarlyClobber {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: early[0].operand,
-                });
+                return Err(early_clobber(instruction.id.0, early[0].operand));
             }
             for definition in early {
                 early_rows.push((
@@ -73,11 +72,7 @@ pub(super) fn reject_v1_unsupported(
             let mut values = Vec::new();
             for operand in &instruction.operands {
                 if values.contains(&operand.virtual_register) {
-                    return Err(LivenessError::UnsupportedEarlyClobber {
-                        function: function_index,
-                        instruction: instruction.id.0,
-                        operand: operand.operand,
-                    });
+                    return Err(early_clobber(instruction.id.0, operand.operand));
                 }
                 values.push(operand.virtual_register);
             }
@@ -116,11 +111,7 @@ pub(super) fn reject_v1_unsupported(
                             || operand.tied_to.is_some())
                 })
             {
-                return Err(LivenessError::UnsupportedEarlyClobber {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: early.get(1).copied().unwrap_or(definition).operand,
-                });
+                return Err(early_clobber(instruction.id.0, early.get(1).copied().unwrap_or(definition).operand));
             }
             early_rows.push((
                 instruction.id.0,
@@ -178,11 +169,7 @@ pub(super) fn reject_v1_unsupported(
                     .iter()
                     .find(|component| component.contains(source) && component.contains(definition))
                 else {
-                    return Err(LivenessError::UnsupportedEarlyClobber {
-                        function: function_index,
-                        instruction: *instruction,
-                        operand: *def_operand,
-                    });
+                    return Err(early_clobber(*instruction, *def_operand));
                 };
                 tied_edges.contains(&(*source, *definition))
                     && early_rows
@@ -200,11 +187,10 @@ pub(super) fn reject_v1_unsupported(
                 .any(|(left, right)| left == register || right == register)
         });
         if !source_and_definition_share_one_early_component || related_unrelated_operand.is_some() {
-            return Err(LivenessError::UnsupportedEarlyClobber {
-                function: function_index,
-                instruction: *instruction,
-                operand: related_unrelated_operand.map_or(*def_operand, |(_, operand)| *operand),
-            });
+            return Err(early_clobber(
+                *instruction,
+                related_unrelated_operand.map_or(*def_operand, |(_, operand)| *operand),
+            ));
         }
     }
     Ok(())
