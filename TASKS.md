@@ -643,8 +643,10 @@ defines the complete product bar.
     suspends it; native realization rejects in
     `02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs`.
     Preserve that access authority alongside canonical restoration debt,
-    rather than exempting a suspended parent. Qualify remaining referent and
-    nominal-cleanup windows.
+    rather than exempting a suspended parent. Qualify remaining referent
+    windows and complete nominal old-value replacement in the checked-tree
+    interpreter: `runtime_borrowed_nominal_replacement_exit` currently declines
+    there, while its native and Terminal executions produce the authored 0.
     Keep evaluation order, disjoint
     siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
