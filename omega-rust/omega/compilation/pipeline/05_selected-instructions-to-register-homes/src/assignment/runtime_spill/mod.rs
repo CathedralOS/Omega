@@ -61,6 +61,28 @@ impl RuntimeSpillAllocation {
 /// the same way: a selected-lowering or pre-allocation run whose final facts
 /// still report pressure keeps its committed ledger and suite completion
 /// identity as the recorded prefix.
+macro_rules! spill_source_accessors {
+    ($( $name:ident : $accessor:ident -> $ret:ty ; )+) => {
+        $(
+            /// Facts forwarded through each source variant to the same
+            /// accessor on the underlying stage.
+            pub(crate) fn $name(&self) -> $ret {
+                match self {
+                    Self::Legality(source) => source.$accessor(),
+                    Self::DeclinedFixedView { legality, .. } => legality.$accessor(),
+                    Self::FixedViewCopies(reanalysis) => reanalysis.$accessor(),
+                    Self::ActiveResidentRematerialization(pressure) => pressure.$accessor(),
+                    Self::SelectedLowering(run) => match run.steps().last() {
+                        Some(step) => step.$accessor(),
+                        None => run.source_legality_stage().$accessor(),
+                    },
+                    Self::PreAllocation(run) => run.$accessor(),
+                }
+            }
+        )+
+    };
+}
+
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillSource {
     Legality(StagedOptimizedAllocationLegality),
@@ -86,6 +108,12 @@ pub(crate) struct RuntimeSpillManifestBase {
 }
 
 impl RuntimeSpillSource {
+    spill_source_accessors! {
+        liveness : liveness -> &ValidatedLiveness;
+        ranges : ranges -> &ValidatedLiveRanges;
+        legality : legality -> &ValidatedAllocationLegality;
+    }
+
     /// Every arm shares one underlying legality stage: the fixed-view entries
     /// reach it through the copy transformation's source custody or carry it
     /// directly when the sequence was declined before committing, the
@@ -202,53 +230,6 @@ impl RuntimeSpillSource {
                 None => SelectedProgramRef::new(run.source_legality_stage().selected()),
             },
             Self::PreAllocation(run) => run.current(),
-        }
-    }
-
-    /// Facts valid when recovery begins: the original legality facts on the
-    /// direct and pre-copy declined paths, the completely reanalyzed facts
-    /// after fixed-view copies, the rebuilt facts after the
-    /// rematerialization sweep, or the completed run's final facts. No
-    /// analysis result is carried across the rewrite boundary.
-    pub(crate) fn liveness(&self) -> &ValidatedLiveness {
-        match self {
-            Self::Legality(source) => source.liveness(),
-            Self::DeclinedFixedView { legality, .. } => legality.liveness(),
-            Self::FixedViewCopies(reanalysis) => reanalysis.liveness(),
-            Self::ActiveResidentRematerialization(pressure) => pressure.liveness(),
-            Self::SelectedLowering(run) => match run.steps().last() {
-                Some(step) => step.liveness(),
-                None => run.source_legality_stage().liveness(),
-            },
-            Self::PreAllocation(run) => run.liveness(),
-        }
-    }
-
-    pub(crate) fn ranges(&self) -> &ValidatedLiveRanges {
-        match self {
-            Self::Legality(source) => source.ranges(),
-            Self::DeclinedFixedView { legality, .. } => legality.ranges(),
-            Self::FixedViewCopies(reanalysis) => reanalysis.ranges(),
-            Self::ActiveResidentRematerialization(pressure) => pressure.ranges(),
-            Self::SelectedLowering(run) => match run.steps().last() {
-                Some(step) => step.ranges(),
-                None => run.source_legality_stage().ranges(),
-            },
-            Self::PreAllocation(run) => run.ranges(),
-        }
-    }
-
-    pub(crate) fn legality(&self) -> &ValidatedAllocationLegality {
-        match self {
-            Self::Legality(source) => source.legality(),
-            Self::DeclinedFixedView { legality, .. } => legality.legality(),
-            Self::FixedViewCopies(reanalysis) => reanalysis.legality(),
-            Self::ActiveResidentRematerialization(pressure) => pressure.legality(),
-            Self::SelectedLowering(run) => match run.steps().last() {
-                Some(step) => step.legality(),
-                None => run.source_legality_stage().legality(),
-            },
-            Self::PreAllocation(run) => run.legality(),
         }
     }
 
