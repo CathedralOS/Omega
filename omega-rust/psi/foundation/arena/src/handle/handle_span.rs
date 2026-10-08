@@ -68,6 +68,14 @@ impl<T> HandleSpan<T> {
         (0..self.count).map(move |offset| self.handle_at(offset))
     }
 
+    /// Whether `handle` is the contiguous next handle after this span: same
+    /// generation, arena index exactly `start + count`.
+    pub fn is_followed_by(self, handle: Handle<T>) -> bool {
+        !self.is_empty()
+            && handle.generation() == self.start.generation()
+            && handle.arena_index() == self.start.arena_index() + self.count
+    }
+
     pub fn push_contiguous(&mut self, handle: Handle<T>) {
         if self.is_empty() {
             *self = Self::from_parts(handle, 1);

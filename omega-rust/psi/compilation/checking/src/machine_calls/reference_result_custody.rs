@@ -1477,10 +1477,7 @@ fn record_leaf_loan_groups(
             if loan.owner_symbol != owner
                 || loan.kind != access
                 || formation.is_some_and(|statement| statement != loan.statement_index)
-                || (!group.is_empty()
-                    && (handle.generation() != group.start().generation()
-                        || handle.arena_index()
-                            != group.start().arena_index().checked_add(group.count())?))
+                || (!group.is_empty() && !group.is_followed_by(handle))
             {
                 return None;
             }

@@ -629,9 +629,7 @@ impl BorrowFacts {
             sources
                 .iter()
                 .enumerate()
-                .map(move |(loan_ordinal, source)| {
-                    (loans.handle_at(loan_ordinal as u32), source)
-                }),
+                .map(move |(loan_ordinal, source)| (loans.handle_at(loan_ordinal as u32), source)),
         )
     }
 
@@ -649,11 +647,7 @@ impl BorrowFacts {
             if loan.owner_symbol != owner || loan.statement_index != statement_index {
                 continue;
             }
-            if !group.is_empty()
-                && (handle.generation() != group.start().generation()
-                    || handle.arena_index()
-                        != group.start().arena_index().checked_add(group.count())?)
-            {
+            if !group.is_empty() && !group.is_followed_by(handle) {
                 return None;
             }
             let start = if group.is_empty() {
