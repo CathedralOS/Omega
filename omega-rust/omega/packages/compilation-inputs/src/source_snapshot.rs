@@ -46,6 +46,7 @@ impl source::SourceSnapshotStorage for BuildSourceSnapshotStorage {
     }
 }
 
+use crate::canonical_fs::{os_str_bytes, require_canonical_mode};
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
 use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use filesystem_authority::{
@@ -953,38 +954,6 @@ fn hash_framed_bytes(digest: &mut Sha256, bytes: &[u8]) -> Result<(), String> {
     );
     digest.update(bytes);
     Ok(())
-}
-
-#[cfg(unix)]
-fn require_canonical_mode(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-    expected: u32,
-) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-    let mode = metadata.permissions().mode() & 0o777;
-    if mode == expected {
-        Ok(())
-    } else {
-        Err(format!(
-            "physical Source directory {} has noncanonical mode {mode:#o}; expected {expected:#o}",
-            path.display()
-        ))
-    }
-}
-
-#[cfg(unix)]
-fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
-    use std::os::unix::ffi::OsStrExt;
-    Ok(value.as_bytes().to_vec())
-}
-
-#[cfg(not(unix))]
-fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
-    value
-        .to_str()
-        .map(|value| value.as_bytes().to_vec())
-        .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
 }
 
 #[cfg(unix)]

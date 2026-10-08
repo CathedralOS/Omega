@@ -23,6 +23,7 @@
 //! commands, not a dependency on either application's orchestration.
 
 pub mod build_execution;
+mod canonical_fs;
 mod checked_source_cache;
 mod compilation_reuse;
 pub mod source_assembly;

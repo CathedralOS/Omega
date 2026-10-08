@@ -45,6 +45,7 @@
 //! the store, fingerprint, and capture protocol; that choice of lane and
 //! the caller opt-in live with the resolving consumers.
 
+use crate::canonical_fs::{os_str_bytes, require_canonical_mode};
 use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
     CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
@@ -507,24 +508,6 @@ fn charge_content(total: &mut u64, amount: u64) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-fn require_canonical_mode(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-    expected: u32,
-) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-    let mode = metadata.permissions().mode() & 0o777;
-    if mode == expected {
-        Ok(())
-    } else {
-        Err(format!(
-            "physical Source directory {} has noncanonical mode {mode:#o}; expected {expected:#o}",
-            path.display()
-        ))
-    }
-}
-
-#[cfg(unix)]
 fn host_mode(metadata: &std::fs::Metadata) -> u32 {
     use std::os::unix::fs::MetadataExt;
     metadata.mode()
@@ -843,18 +826,4 @@ fn hex(bytes: &[u8]) -> String {
         text.push(DIGITS[(byte & 0xf) as usize] as char);
     }
     text
-}
-
-#[cfg(unix)]
-fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
-    use std::os::unix::ffi::OsStrExt;
-    Ok(value.as_bytes().to_vec())
-}
-
-#[cfg(not(unix))]
-fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
-    value
-        .to_str()
-        .map(|value| value.as_bytes().to_vec())
-        .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
 }
