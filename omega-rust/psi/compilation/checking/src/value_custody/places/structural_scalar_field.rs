@@ -510,7 +510,7 @@ fn dispatch_case_subject(
     };
     let table = &program.expression_table;
     for _ in 0..table.expression_count() {
-        let ExpressionNode::Binary(binary) = table.expression(guard) else {
+        let Some(binary) = table.binary_node(guard) else {
             return None;
         };
         if !matches!(

@@ -169,7 +169,7 @@ fn apply_condition(
     condition: ExpressionHandle,
 ) -> IntegerRange {
     let table = &proof_plan.program.expression_table;
-    let ExpressionNode::Binary(binary) = table.expression(condition) else {
+    let Some(binary) = table.binary_node(condition) else {
         return range;
     };
     if binary.operator == BinaryOperator::And {
