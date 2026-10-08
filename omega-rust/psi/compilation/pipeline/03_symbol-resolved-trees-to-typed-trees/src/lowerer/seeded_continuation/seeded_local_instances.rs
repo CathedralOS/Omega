@@ -397,9 +397,7 @@ pub(super) fn template_argument_is_supported(
                 argument,
             )
         }
-        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-        | symbol_resolved_trees::data::TypeParameterKind::Implementation
-        | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+        super::argument_defers_substitution_pattern!() => false,
     }
 }
 
@@ -442,9 +440,7 @@ fn instance_argument_is_supported(
         | symbol_resolved_trees::data::TypeParameterKind::Value { .. } => {
             const_arguments::closed_argument_is_supported(source, parameter, argument)
         }
-        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-        | symbol_resolved_trees::data::TypeParameterKind::Implementation
-        | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+        super::argument_defers_substitution_pattern!() => false,
     }
 }
 

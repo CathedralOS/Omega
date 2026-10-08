@@ -109,11 +109,7 @@ pub(super) fn is_supported(
                                 argument,
                             )
                         }
-                        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
-                        | symbol_resolved_trees::data::TypeParameterKind::Implementation
-                        | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => {
-                            false
-                        }
+                        super::argument_defers_substitution_pattern!() => false,
                     }
             })
 }

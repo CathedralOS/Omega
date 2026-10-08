@@ -1557,3 +1557,15 @@ fn plain_type_is_supported(
         | TypeReference::DynamicTrait { .. } => false,
     }
 }
+
+/// The type-parameter kinds whose argument is bound by machine or nominal
+/// machinery rather than template substitution — the shared rejection arm of
+/// the seeded-argument support matches.
+macro_rules! argument_defers_substitution_pattern {
+    () => {
+        symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+            | symbol_resolved_trees::data::TypeParameterKind::Implementation
+            | symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+    };
+}
+pub(super) use argument_defers_substitution_pattern;
