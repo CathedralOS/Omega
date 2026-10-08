@@ -1,7 +1,7 @@
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile, target_register_environment_identity,
+    ValidatedRegisterReservationProfile, infrastructure_environment_agrees,
 };
 
 use crate::{
@@ -37,16 +37,14 @@ pub(super) fn validate(
         || fixed.receipt().policy()
             != FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1
         || legality.receipt().ranges() != ranges.receipt().identity()
-        || constraints.physical_identity() != physical.identity()
-        || reservations.physical_identity() != physical.identity()
-        || reservations.target() != ranges.plan().target
-        || target_register_environment_identity(
+        || !infrastructure_environment_agrees(
             ranges.plan().target,
             physical,
             constraints,
             reservations,
             selected_keys,
-        ) != register_environment
+            register_environment,
+        )
     {
         return Err(FixedPrecoloredSegmentHomeError::RootMismatch);
     }

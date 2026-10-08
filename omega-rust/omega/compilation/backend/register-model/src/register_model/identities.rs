@@ -142,6 +142,28 @@ pub(crate) fn register_reservation_profile_identity(
     RegisterReservationProfileIdentity::from_canonical_bytes(&bytes)
 }
 
+/// Whether the physical model, constraint catalog, reservation profile, and
+/// selected keys all describe `target` and re-derive `register_environment`.
+pub fn infrastructure_environment_agrees(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: &crate::TargetRegisterEnvironmentConstraintKeys,
+    register_environment: TargetRegisterEnvironmentIdentity,
+) -> bool {
+    constraints.physical_identity() == physical.identity()
+        && reservations.physical_identity() == physical.identity()
+        && reservations.target() == target
+        && target_register_environment_identity(
+            target,
+            physical,
+            constraints,
+            reservations,
+            selected_keys,
+        ) == register_environment
+}
+
 pub fn target_register_environment_identity(
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,

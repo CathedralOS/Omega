@@ -9,7 +9,7 @@ mod prepared_conflicts;
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile, target_register_environment_identity,
+    ValidatedRegisterReservationProfile, infrastructure_environment_agrees,
 };
 
 use crate::{RegisterHomeError, RegisterHomePlan};
@@ -88,16 +88,14 @@ pub(crate) fn compute_terminal_register_homes(
     if legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment
         || ranges.plan().target.architecture != physical.model().architecture
-        || constraints.physical_identity() != physical.identity()
-        || reservations.physical_identity() != physical.identity()
-        || reservations.target() != ranges.plan().target
-        || target_register_environment_identity(
+        || !infrastructure_environment_agrees(
             ranges.plan().target,
             physical,
             constraints,
             reservations,
             selected_keys,
-        ) != register_environment
+            register_environment,
+        )
         || legality.plan().functions.len() != ranges.plan().functions.len()
     {
         return Err(RegisterHomeError::RootMismatch);
