@@ -6,9 +6,8 @@ use calling_conventions::{
 };
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
-    structural_case_position,
-find_structural_type,
-StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_type, structural_case_position,
 };
 
 pub(crate) fn scalar_storage_type(
@@ -149,13 +148,7 @@ pub(crate) fn reference_source_geometry(
         }
         let (reference, byte_offset, region_elements) =
             runtime_projection(root, &path[segment_start..position], declarations)?;
-        let StructuralTypeShape::Reference { referent, .. } = declarations
-            .iter()
-            .find(|declaration| declaration.id == reference)?
-            .shape
-        else {
-            return None;
-        };
+        let referent = declared_referent(declarations, reference)?;
         let first_index = elements.len();
         elements.extend(region_elements);
         pointer_slots.push(PointerSlot {
@@ -260,13 +253,7 @@ fn primitive_access_geometry(
         }
         let (reference, byte_offset, region_elements) =
             runtime_projection(root, &path[segment_start..position], declarations)?;
-        let StructuralTypeShape::Reference { referent, .. } = declarations
-            .iter()
-            .find(|declaration| declaration.id == reference)?
-            .shape
-        else {
-            return None;
-        };
+        let referent = declared_referent(declarations, reference)?;
         // Bound the pointer word in its carrier region, not in its referent.
         // After the load, all following offsets and bounds start afresh.
         let scalar_descriptor = scalar_storage_type(referent, declarations).is_some();
@@ -1415,13 +1402,7 @@ fn referent_projection<'path>(
         .position(|segment| *segment == StructuralPathSegment::Referent)
     {
         let (reference, _, _) = runtime_projection(root, &path[..crossing], declarations)?;
-        let StructuralTypeShape::Reference { referent, .. } = declarations
-            .iter()
-            .find(|declaration| declaration.id == reference)?
-            .shape
-        else {
-            return None;
-        };
+        let referent = declared_referent(declarations, reference)?;
         root = referent;
         path = &path[crossing + 1..];
     }
@@ -1967,6 +1948,20 @@ pub(crate) fn runtime_projection(
         declarations,
         StructuralFieldType::canonical_leaf_shape,
     )
+}
+
+/// The referent a declared `Reference` shape names, when `reference` resolves
+/// to a reference declaration.
+fn declared_referent(
+    declarations: &[StructuralTypeDeclaration],
+    reference: StructuralTypeId,
+) -> Option<StructuralTypeId> {
+    let StructuralTypeShape::Reference { referent, .. } =
+        find_structural_type(declarations, reference)?.shape
+    else {
+        return None;
+    };
+    Some(referent)
 }
 
 /// Copy snapshots expose the declaration's byte payload and live length, not
