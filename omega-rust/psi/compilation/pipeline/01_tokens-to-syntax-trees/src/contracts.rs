@@ -122,3 +122,20 @@ pub(crate) fn take_operational_reaches_clause<'tokens, 'source>(
     }
     Ok(input)
 }
+
+/// Append one capability contract and advance the caller's clause span
+/// bookkeeping: the first appended handle anchors the span start, every
+/// append bumps the count under the caller's span-count ceiling message.
+pub(crate) fn record_capability_contract(
+    syntax_trees: &mut syntax_trees::SyntaxTrees,
+    contract: syntax_trees::item::CapabilityContract,
+    contract_start: &mut arena::Handle<syntax_trees::item::CapabilityContract>,
+    contract_count: &mut u32,
+    overflow_message: &'static str,
+) {
+    let handle = syntax_trees.items.append_capability_contract(contract);
+    if *contract_count == 0 {
+        *contract_start = handle;
+    }
+    *contract_count = contract_count.checked_add(1).expect(overflow_message);
+}

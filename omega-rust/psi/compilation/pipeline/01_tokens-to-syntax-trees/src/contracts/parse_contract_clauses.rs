@@ -196,9 +196,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     },
                     true,
                 )?;
-            let handle = syntax_trees
-                .items
-                .append_capability_contract(CapabilityContract {
+            super::record_capability_contract(
+                syntax_trees,
+                CapabilityContract {
                     kind: CapabilityContractKind::Crashes { cause },
                     keyword_source_span,
                     binding: None,
@@ -206,13 +206,11 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     token_count: fact_token_count
                         .checked_add(header_token_count)
                         .expect("crash contract token count overflow"),
-                });
-            if contract_count == 0 {
-                contract_start = handle;
-            }
-            contract_count = contract_count
-                .checked_add(1)
-                .expect("machine contract span count overflow");
+                },
+                &mut contract_start,
+                &mut contract_count,
+                "machine contract span count overflow",
+            );
             input = rest;
             continue;
         }
@@ -258,13 +256,13 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                         }
                         public_selectors.push(binding.as_str().to_owned());
                     }
-                    let handle = syntax_trees.items.append_capability_contract(contract);
-                    if contract_count == 0 {
-                        contract_start = handle;
-                    }
-                    contract_count = contract_count
-                        .checked_add(1)
-                        .expect("machine contract span count overflow");
+                    super::record_capability_contract(
+                        syntax_trees,
+                        contract,
+                        &mut contract_start,
+                        &mut contract_count,
+                        "machine contract span count overflow",
+                    );
                 }
                 input = rest;
                 continue;
@@ -311,21 +309,19 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 }
                 public_selectors.push(binding.as_str().to_owned());
             }
-            let handle = syntax_trees
-                .items
-                .append_capability_contract(CapabilityContract {
+            super::record_capability_contract(
+                syntax_trees,
+                CapabilityContract {
                     kind,
                     keyword_source_span,
                     binding,
                     facts,
                     token_count,
-                });
-            if contract_count == 0 {
-                contract_start = handle;
-            }
-            contract_count = contract_count
-                .checked_add(1)
-                .expect("machine contract span count overflow");
+                },
+                &mut contract_start,
+                &mut contract_count,
+                "machine contract span count overflow",
+            );
             input = rest;
             continue;
         }
