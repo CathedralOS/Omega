@@ -4,7 +4,7 @@ use optimization_unit::encode_value_definition_site_identity;
 use register_model::RegisterConstraintFamily;
 use selected_instructions::{FixedViewCopyIdentity, selected_instruction_plan_identity};
 
-use crate::{FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence};
+use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
