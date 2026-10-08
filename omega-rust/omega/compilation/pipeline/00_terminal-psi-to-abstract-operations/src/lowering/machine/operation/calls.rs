@@ -1,5 +1,5 @@
 use abstract_operations::{
-    AbstractCallTarget, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
+    AbstractCallTarget, AbstractOperation, AbstractStructuralCallResult,
     CompletionClaimSource,
 };
 use terminal_psi::{Operation, OperationKind, TerminalMachine};
@@ -18,10 +18,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::UnsupportedDynamicDispatch(operation.id))?;
             AbstractOperation::SelectImplementation {
                 psi_operation: operation.id,
-                result: AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 table,
             }
         }
@@ -50,10 +47,7 @@ pub(super) fn lower(
             result: match &operation.result {
                 terminal_psi::OperationResult::Unit => AbstractStructuralCallResult::Unit,
                 terminal_psi::OperationResult::Scalar(result) => {
-                    AbstractStructuralCallResult::Scalar(AbstractResult {
-                        value: result.id,
-                        scalar_type: result.scalar_type,
-                    })
+                    AbstractStructuralCallResult::Scalar((*result).into())
                 }
                 terminal_psi::OperationResult::Structural(result) => {
                     AbstractStructuralCallResult::Structural {
@@ -95,10 +89,7 @@ pub(super) fn lower(
             let result = operation.result.expect_scalar();
             AbstractOperation::CallStructural {
                 psi_operation: operation.id,
-                result: AbstractStructuralCallResult::Scalar(AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                }),
+                result: AbstractStructuralCallResult::Scalar(result.into()),
                 callee: callee.into(),
                 arguments,
                 structural_arguments,
@@ -198,10 +189,7 @@ pub(super) fn lower(
                         abstract_operations::AbstractBoundaryResult::Unit
                     }
                     terminal_psi::OperationResult::Scalar(result) => {
-                        abstract_operations::AbstractBoundaryResult::Scalar(AbstractResult {
-                            value: result.id,
-                            scalar_type: result.scalar_type,
-                        })
+                        abstract_operations::AbstractBoundaryResult::Scalar((*result).into())
                     }
                     terminal_psi::OperationResult::Structural(result) => {
                         abstract_operations::AbstractBoundaryResult::Structural(result.clone())

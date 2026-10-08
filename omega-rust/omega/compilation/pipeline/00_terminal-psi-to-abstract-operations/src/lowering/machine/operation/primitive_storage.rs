@@ -267,10 +267,7 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 source,
                 path: path.clone(),
-                result: AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
             })
         }
         _ => Err(LoweringError::InvalidPrimitiveLocalEstablishment(

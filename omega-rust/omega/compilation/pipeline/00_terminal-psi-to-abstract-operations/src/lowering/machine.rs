@@ -4,7 +4,7 @@ use semantic_vocabulary::OperationId;
 mod operation;
 mod terminator;
 use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractParameter, AbstractResult,
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractParameter,
 };
 use operation::lower_operation;
 use semantic_vocabulary::StructuralPlaceKind;
@@ -126,10 +126,7 @@ pub(super) fn lower_machine(
         result: match &machine.result {
             terminal_psi::TerminalMachineResult::Unit => AbstractFunctionResult::Unit,
             terminal_psi::TerminalMachineResult::Scalar(result) => {
-                AbstractFunctionResult::Scalar(AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                })
+                AbstractFunctionResult::Scalar((*result).into())
             }
             terminal_psi::TerminalMachineResult::Structural(result) => {
                 AbstractFunctionResult::Structural(result.clone())

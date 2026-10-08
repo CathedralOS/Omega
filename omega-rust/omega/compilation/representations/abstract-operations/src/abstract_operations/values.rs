@@ -53,6 +53,15 @@ pub struct AbstractResult {
     pub scalar_type: ScalarType,
 }
 
+impl From<terminal_psi::ValueDeclaration> for AbstractResult {
+    fn from(declaration: terminal_psi::ValueDeclaration) -> Self {
+        Self {
+            value: declaration.id,
+            scalar_type: declaration.scalar_type,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractFunctionResult {
     Unit,

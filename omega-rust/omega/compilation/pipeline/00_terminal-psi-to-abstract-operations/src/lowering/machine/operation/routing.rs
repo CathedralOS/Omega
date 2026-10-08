@@ -54,10 +54,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::InvalidStructuralCaseMembership(operation.id))?;
             Ok(AbstractOperation::StructuralCaseMembership {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
                 path: path.clone(),
                 case: *case,
@@ -86,10 +83,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::StructuralByteSequenceFieldLength {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
                 path: path.clone(),
                 field: *field,
@@ -115,10 +109,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::StructuralByteSequenceFieldRead {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
                 path: path.clone(),
                 field: *field,
@@ -135,10 +126,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::InvalidByteSequencePredicate(operation.id))?;
             Ok(AbstractOperation::ByteSequencePredicate {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 operand: operand.clone(),
                 predicate: *predicate,
             })
@@ -151,10 +139,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::InvalidByteSequenceEqual(operation.id))?;
             Ok(AbstractOperation::ByteSequenceEqual {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 left: left.clone(),
                 right: right.clone(),
             })
@@ -283,10 +268,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::ByteSequenceRead {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
                 index: *index,
                 length: *length,
@@ -325,10 +307,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::ByteSequenceLength {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
             })
         }
@@ -366,10 +345,7 @@ pub(super) fn lower(
             }
             Ok(AbstractOperation::ElementViewLength {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
             })
         }
@@ -386,10 +362,7 @@ pub(super) fn lower(
                 .ok_or(LoweringError::InvalidElementViewRead(operation.id))?;
             Ok(AbstractOperation::ElementViewRead {
                 psi_operation: operation.id,
-                result: abstract_operations::AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+                result: result.into(),
                 source: *source,
                 index: *index,
                 length: *length,

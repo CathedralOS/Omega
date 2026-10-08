@@ -304,10 +304,7 @@ fn lower_integer_read(
     }
     Ok(AbstractOperation::StructuralScalarFieldRead {
         psi_operation: operation.id,
-        result: AbstractResult {
-            value: result.id,
-            scalar_type: result.scalar_type,
-        },
+        result: result.into(),
         source,
         path: path.to_vec(),
         field,

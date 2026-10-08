@@ -27,7 +27,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
-    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AbstractResult,
+    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation,
     AtomicModificationAfter, AtomicReadsFrom,
 };
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
@@ -67,10 +67,7 @@ pub(super) fn lower(
             .result
             .scalar()
             .filter(|result| result.scalar_type == leaf)
-            .map(|result| AbstractResult {
-                value: result.id,
-                scalar_type: result.scalar_type,
-            })
+            .map(|result| result.into()            )
             .ok_or_else(malformed)
     };
     let lowered = match *event {
