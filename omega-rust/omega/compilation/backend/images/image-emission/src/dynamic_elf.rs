@@ -47,10 +47,6 @@ impl RequestedDynamicElfImage {
     pub const fn output(&self) -> &EmittedImageOutput {
         self.emission.output()
     }
-
-    pub fn into_emission(self) -> DynamicElfImageEmission {
-        self.emission
-    }
 }
 
 /// Replay the dynamic branch of the request router without manufacturing an
@@ -107,10 +103,6 @@ impl DynamicElfImageEmission {
 
     pub const fn output(&self) -> &EmittedImageOutput {
         &self.output
-    }
-
-    pub fn into_admitted(self) -> ValidatedElfDynamicExecutable {
-        self.admitted
     }
 }
 

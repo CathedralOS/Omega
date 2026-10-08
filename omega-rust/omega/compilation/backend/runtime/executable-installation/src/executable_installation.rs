@@ -70,7 +70,7 @@ use crate::placement::{
     MaterializationReceipt, ValidatedPlacement, ValidatedPlacementEvidence,
 };
 use crate::retirement::quarantine::{
-    MappingQuarantineCause, MappingQuarantineReceipt, QuarantinedInstallation, quarantine_installed,
+    MappingQuarantineCause, MappingQuarantineReceipt,
 };
 use crate::retirement::replacement::{
     ReplacementAuthority, ReplacementOutcome, ReplacementReceipt, replace_installed,
@@ -368,43 +368,6 @@ impl OwnedImageProvider {
             }
         }
     }
-
-    /// Drive one installed realization through this provider's quarantine
-    /// transition and the lifecycle's quarantine gate: the provider parks the
-    /// mapping as an unserved reserved range, and the gate returns the
-    /// attributed quarantine custody. The range stays reserved; no release
-    /// can free it.
-    pub fn quarantine_code(
-        &mut self,
-        installed: InstalledCode,
-        cause: MappingQuarantineCause,
-    ) -> Result<QuarantinedInstallation, QuarantineCodeError> {
-        let receipt = match self.quarantine(&installed, cause.clone()) {
-            Ok(receipt) => receipt,
-            Err(diagnostic) => {
-                return Err(QuarantineCodeError {
-                    installed,
-                    cause,
-                    receipt: None,
-                    diagnostic,
-                });
-            }
-        };
-        match quarantine_installed(installed, receipt) {
-            Ok(quarantined) => Ok(quarantined),
-            Err(error) => {
-                let diagnostic = error.diagnostic().clone();
-                let (installed, receipt) = error.into_parts();
-                Err(QuarantineCodeError {
-                    installed,
-                    cause,
-                    receipt: Some(receipt),
-                    diagnostic,
-                })
-            }
-        }
-    }
-
     /// Drive one installed realization through the uninstall join: with no
     /// `residual` cause the provider performs the retirement drain and the
     /// join retires the custody outright; with an attributed residual holder

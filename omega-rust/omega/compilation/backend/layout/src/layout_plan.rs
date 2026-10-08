@@ -76,19 +76,6 @@ pub enum TypeLayoutDescriptor {
 }
 
 impl TypeLayoutDescriptor {
-    pub fn storage_symbol(&self) -> SymbolHandle {
-        match self {
-            Self::Reference { referee, .. } => referee.storage_symbol(),
-            Self::Constrained { base_type, .. } => base_type.storage_symbol(),
-            Self::FixedArray { element_type, .. } => element_type.storage_symbol(),
-            Self::BoundedByteBuffer { element_type, .. } => element_type.storage_symbol(),
-            Self::Slice { element_type } => element_type.storage_symbol(),
-            Self::DynamicTrait { symbol, .. } => *symbol,
-            Self::Named { symbol, .. } => *symbol,
-            Self::Unit => SymbolHandle::invalid(),
-        }
-    }
-
     pub fn fixed_array(&self) -> Option<(&Self, usize)> {
         match self {
             Self::Constrained { base_type, .. } => base_type.fixed_array(),
@@ -100,15 +87,6 @@ impl TypeLayoutDescriptor {
             _ => None,
         }
     }
-
-    pub fn reference_referee(&self) -> Option<&Self> {
-        match self {
-            Self::Constrained { base_type, .. } => base_type.reference_referee(),
-            Self::Reference { referee, .. } => Some(referee),
-            _ => None,
-        }
-    }
-
     pub fn element_type(&self) -> Option<&Self> {
         match self {
             Self::Constrained { base_type, .. } => base_type.element_type(),

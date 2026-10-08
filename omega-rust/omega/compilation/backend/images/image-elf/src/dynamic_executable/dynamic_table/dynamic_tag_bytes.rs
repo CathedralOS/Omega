@@ -50,11 +50,6 @@ impl ValidatedElfDynamicTablePayload {
     pub fn byte_count(&self) -> usize {
         self.contents.bytes.len()
     }
-
-    pub fn address_fixup_count(&self) -> usize {
-        self.contents.address_fixups.len()
-    }
-
     /// Compatibility fingerprint of the exact semantic tag identity,
     /// ELF64-LSB bytes, and typed byte-coordinate fixups. This is not final-
     /// byte, placement, loader, or publication identity.

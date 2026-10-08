@@ -174,16 +174,6 @@ impl UefiOsHandoffLegPlan {
     pub const fn status_rows(&self) -> &'static [UefiOsHandoffStatusRow] {
         self.status_rows
     }
-
-    /// The custody role a firmware status code drives on this leg, or `None`
-    /// when the code is outside the leg's closed table and must reject.
-    pub fn status_role(&self, code: u64) -> Option<UefiOsHandoffStatusRole> {
-        self.status_rows
-            .iter()
-            .find(|row| row.code == code)
-            .map(|row| row.role)
-    }
-
     /// Structural replay against the same service row of a freshly derived
     /// canonical target plan. A leg whose row is neither `GetMemoryMap` nor
     /// `ExitBootServices` has no canonical counterpart and never replays; the

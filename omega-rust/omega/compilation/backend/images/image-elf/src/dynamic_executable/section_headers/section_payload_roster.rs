@@ -44,15 +44,6 @@ impl ValidatedElfIndexedSectionPayloadPlan {
     pub fn row_count(&self) -> usize {
         self.contents.rows.len()
     }
-
-    pub fn payload_byte_count(&self) -> usize {
-        self.contents.rows.iter().map(|row| row.bytes.len()).sum()
-    }
-
-    pub fn procedure_fixup_count(&self) -> usize {
-        self.contents.procedure_fixups.len()
-    }
-
     pub fn dynamic_fixup_count(&self) -> usize {
         self.contents.dynamic_fixups.len()
     }

@@ -72,11 +72,6 @@ impl StagedFunctionFragmentFrameApplication {
     pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
         &self.application.fragments
     }
-
-    pub fn shared_application(&self) -> std::sync::Arc<FunctionFragmentFrameApplication> {
-        std::sync::Arc::clone(&self.application)
-    }
-
     pub const fn receipt(&self) -> FunctionFragmentFrameApplicationReceipt {
         self.receipt
     }

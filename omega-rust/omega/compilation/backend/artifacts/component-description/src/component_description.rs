@@ -21,7 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ServiceId};
 use sha2::{Digest, Sha256};
 use terminal_psi::{
-    OperationKind, SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker,
+    OperationKind, TerminalModule, TerminalPsiIdentity,
 };
 
 /// Wire magic for the canonical component-description encoding.
@@ -1671,18 +1671,4 @@ pub fn description_subject(
         .semantic_module()
         .map_err(DescribeError::ArtifactDecode)?;
     terminal_codec::terminal_psi_identity(module).map_err(DescribeError::ArtifactIdentity)
-}
-
-/// Convenience: vocabulary marker + fingerprint of the embedded artifact.
-pub fn description_vocabulary_marker(
-    description: &ComponentDescription,
-) -> Result<VocabularyMarker, DescribeError> {
-    Ok(description_subject(description)?.vocabulary_marker)
-}
-
-/// Convenience: semantic fingerprint of the embedded artifact.
-pub fn description_semantic_fingerprint(
-    description: &ComponentDescription,
-) -> Result<SemanticFingerprint, DescribeError> {
-    Ok(description_subject(description)?.program_fingerprint)
 }

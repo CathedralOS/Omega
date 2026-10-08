@@ -162,19 +162,6 @@ impl InstalledCode {
             installed: InstalledCodeEvidence::from_installed(self),
         })
     }
-
-    /// Test whether this exact installed realization came from one
-    /// relocation-free artifact whose canonical and frozen bytes both equal
-    /// the expected bytes. The bytes remain provider-side: callers receive
-    /// only the sealed equality result needed to bind higher-level
-    /// certificates.
-    pub fn binds_exact_unrelocated_artifact_bytes(&self, expected: &[u8]) -> bool {
-        let frozen = &self.validated.frozen;
-        frozen.artifact.artifact.0.relocations.is_empty()
-            && frozen.artifact.artifact.0.code == expected
-            && frozen.materialized.bytes() == expected
-    }
-
     /// Test both sides of a relocatable installation: the exact frozen
     /// compiler-authored bytes before relocation and the exact materialized
     /// bytes after the admitted relocation set was applied. No bytes or
@@ -232,16 +219,6 @@ impl InstalledCode {
     pub const fn placement_constraints(&self) -> PlacementConstraints {
         self.validated.frozen.placement.constraints
     }
-
-    /// Test the exact realized placement geometry retained by this installed
-    /// occurrence. Callers supply the claimed base and length; the sealed
-    /// equality result binds downstream contracts (for example a startup
-    /// vector page) without exposing or deriving an executable address.
-    pub fn binds_placement_geometry(&self, base: u64, length: u64) -> bool {
-        let extent = &self.validated.frozen.placement.extent;
-        extent.base() == base && extent.length() == length
-    }
-
     pub fn architecture(&self) -> Architecture {
         self.validated.frozen.artifact.artifact.0.architecture
     }

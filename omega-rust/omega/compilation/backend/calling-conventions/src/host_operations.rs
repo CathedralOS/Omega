@@ -16,22 +16,9 @@ impl HostOperationKey {
             operation,
         }
     }
-
-    pub fn capability_name(self) -> &'static str {
-        self.capability.name()
-    }
-
     pub fn operation_name(self) -> &'static str {
         self.operation.name()
     }
-
-    pub fn from_names(capability: &str, operation: &str) -> Self {
-        Self::new(
-            HostCapability::from_name(capability),
-            HostOperation::from_name(operation),
-        )
-    }
-
     /// Whether this host op returns a value into a caller storage place (the
     /// assignment form `self.x = self.h.op(..)`), so the lowering marshals a
     /// leading result operand and the callee's return register is stored back.
@@ -63,24 +50,6 @@ impl HostOperationKey {
             )
         )
     }
-
-    /// Whether this semantic operation may be supplied by a per-target
-    /// constant-result row. Emission treats it as a no-call operation only
-    /// when the selected target has no external binding for the key: Windows
-    /// therefore keeps QPF as a call, while Linux/Darwin use 10^9. The
-    /// lowering row remains the source of the concrete constant.
-    pub fn lowers_to_constant_result(self) -> bool {
-        matches!(
-            (self.capability, self.operation),
-            (
-                HostCapability::Clock,
-                HostOperation::MonotonicTicksPerSecond
-                    | HostOperation::WallClockUnitsPerSecond
-                    | HostOperation::WallClockEpochOffsetSeconds
-            )
-        )
-    }
-
     /// Whether this op's callee returns a POINTER whose pointee is the real
     /// result: after the `BL`, the lowering derefs the return register once
     /// (`ldr w0,[x0]`) before storing. Only `Filesystem::read_errno` (darwin
@@ -94,58 +63,6 @@ impl HostOperationKey {
         matches!(self.capability, HostCapability::Filesystem)
             && matches!(self.operation, HostOperation::ReadErrno)
     }
-
-    /// Whether the concrete host boundary returns a native status/count that
-    /// the compiler-owned adapter intentionally discards. The retained plan
-    /// still describes and validates that native result, but lowering carries
-    /// no leading Omega result place for it.
-    pub fn discards_native_result(self) -> bool {
-        matches!(
-            (self.capability, self.operation),
-            (HostCapability::Stdin, HostOperation::Read)
-                | (
-                    HostCapability::Stdout | HostCapability::Stderr,
-                    HostOperation::Write
-                )
-                | (HostCapability::Clock, HostOperation::SleepPoll)
-        )
-    }
-
-    /// Whether this op passes its LAST argument (a `mode`) on the STACK rather than
-    /// a register: darwin `open(path, flags, ...)` reads the create `mode` via
-    /// `va_arg`, and Apple arm64 places variadic args on the stack (`[sp,#0]`).
-    /// Only `Filesystem::open_create` needs this. Its aarch64 lowering brackets the
-    /// call with `sub sp,sp,#16` … `str w<mode>,[sp]` … `bl` … `add sp,sp,#16`, so
-    /// (relative to counting the mode as a register immediate) the sequence grows
-    /// by 12 bytes total (sub+str+add) — added in lockstep at the width function
-    /// (`host_call_sequence_width`) and the result-store data-address relocation
-    /// (`data_addresses.rs`, +12) — and the `BL` sits 8 bytes later (sub+str, the
-    /// add is AFTER it) so the external-call relocation adds 8. The `mode` must be
-    /// an immediate (no relocation of its own). MUST stay in lockstep across those
-    /// three sites + the encoder.
-    /// Whether a Linux syscall binding returns a semantic nanosecond clock
-    /// value through a caller-owned `timespec` rather than directly in the
-    /// syscall result register. The composite lowering owns the temporary,
-    /// traps on the impossible fixed-input syscall failure, and combines
-    /// `tv_sec * 1_000_000_000 + tv_nsec` before storing the Omega result.
-    pub fn uses_linux_timespec_result(self) -> bool {
-        matches!(self.capability, HostCapability::Clock)
-            && matches!(
-                self.operation,
-                HostOperation::MonotonicTicks | HostOperation::WallClockRaw
-            )
-    }
-
-    /// Whether a Linux syscall binding consumes the semantic millisecond
-    /// argument through a compiler-owned `timespec`. The external signature is
-    /// `nanosleep(timespec*, timespec*) -> status`; the second pointer is null.
-    pub fn uses_linux_timespec_argument(self) -> bool {
-        matches!(
-            (self.capability, self.operation),
-            (HostCapability::Clock, HostOperation::Sleep)
-        )
-    }
-
     /// Whether this op's callee returns its result in the FLOAT return register
     /// (`d0`/`s0`) rather than `x0`: libm `sqrt`/`hypot` and, later, Core Graphics
     /// `double` getters. After the `BL` the lowering moves the bits back with

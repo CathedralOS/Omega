@@ -97,9 +97,6 @@ impl StagedOptimizedFunctionFragmentEmission {
     pub fn fragments(&self) -> &FunctionFragmentEmissionPlan {
         &self.fragments
     }
-    pub fn shared_fragments(&self) -> Arc<FunctionFragmentEmissionPlan> {
-        Arc::clone(&self.fragments)
-    }
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentEmissionManifest {
         &self.manifest
     }

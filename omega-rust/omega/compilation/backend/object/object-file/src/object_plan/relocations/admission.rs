@@ -50,21 +50,6 @@ impl ValidatedRelocationPlan {
     pub fn record_count(&self) -> usize {
         self.plan.record_count()
     }
-
-    /// Records patching each section kind, in the stable ordinal order.
-    pub fn section_record_counts(&self) -> impl Iterator<Item = (SectionKind, usize)> + '_ {
-        self.section_record_counts
-            .iter()
-            .map(|(ordinal, count)| (ordinal.section_kind(), *count))
-    }
-
-    pub fn records_in_section(&self, section: SectionKind) -> usize {
-        self.section_record_counts
-            .get(&section_ordinal(section))
-            .copied()
-            .unwrap_or(0)
-    }
-
     /// Returns the admitted plan, ending the wrapper's custody.
     pub fn into_plan(self) -> RelocationPlan {
         self.plan

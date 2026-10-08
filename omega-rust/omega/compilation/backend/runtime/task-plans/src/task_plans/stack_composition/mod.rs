@@ -485,13 +485,6 @@ impl ComposedTaskStackDemand {
     pub const fn unresolved_calls(&self) -> &BTreeSet<UnresolvedCallSite> {
         &self.unresolved_calls
     }
-
-    /// Whether the bound covers every live call in the reachable graph. A
-    /// partial bound is sealed evidence of the covered subgraph plus its
-    /// unresolved roster — never the whole-call-graph WCSU.
-    pub fn is_exact(&self) -> bool {
-        self.unresolved_calls.is_empty()
-    }
 }
 
 /// Sealed projection of one composed WCSU demand into a physical fixed-stack

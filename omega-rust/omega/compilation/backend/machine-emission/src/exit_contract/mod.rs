@@ -44,12 +44,6 @@ impl ValidatedWholeFunctionExitContract {
     pub fn contract(&self) -> &WholeFunctionExitContract {
         &self.contract
     }
-
-    /// Share the original immutable record without granting admission.
-    pub fn shared_contract(&self) -> std::sync::Arc<WholeFunctionExitContract> {
-        std::sync::Arc::clone(&self.contract)
-    }
-
     pub fn identity(&self) -> WholeFunctionExitContractIdentity {
         self.contract.identity
     }

@@ -107,10 +107,6 @@ impl StagedOptimizedRelocationFreeObjectContainer {
     pub fn shared_object(&self) -> Arc<RelocationFreeObjectPlan> {
         Arc::clone(&self.object)
     }
-    pub fn shared_container(&self) -> Arc<RelocationFreeObjectContainer> {
-        Arc::clone(&self.container)
-    }
-
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentObjectContainerManifest {
         &self.manifest
     }

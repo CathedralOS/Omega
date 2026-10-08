@@ -110,15 +110,6 @@ impl UefiHandleProtocolInvocationPlan {
     pub const fn status_rows(&self) -> &[UefiHandleProtocolStatusRow; 3] {
         &self.status_rows
     }
-
-    pub fn status_code(&self, status: UefiHandleProtocolStatus) -> u64 {
-        self.status_rows
-            .iter()
-            .find(|row| row.status == status)
-            .expect("closed status catalog")
-            .code
-    }
-
     /// Structural replay against a freshly derived closed target plan.
     pub fn matches_exact_uefi_x64_plan(&self) -> bool {
         plan_uefi_handle_protocol_invocation(TargetProfile::UefiX64)

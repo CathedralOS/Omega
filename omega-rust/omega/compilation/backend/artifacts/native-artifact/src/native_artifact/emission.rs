@@ -134,20 +134,4 @@ impl RequestedNativeArtifact {
             }
         }
     }
-
-    /// Borrow a direct artifact without treating dynamic custody as executable authority.
-    pub fn as_direct(&self) -> Option<&NativeArtifact> {
-        match self {
-            Self::Direct(artifact) => Some(artifact),
-            Self::DynamicElf(_) => None,
-        }
-    }
-
-    /// Extract a direct artifact without discarding a different image's custody.
-    pub fn into_direct(self) -> Result<NativeArtifact, Self> {
-        match self {
-            Self::Direct(artifact) => Ok(artifact),
-            other => Err(other),
-        }
-    }
 }
