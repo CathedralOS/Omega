@@ -96,7 +96,7 @@ pub use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
     CheckedScalarDispatchArm, CheckedScalarDispatchPattern, CheckedScalarExpression,
     CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
-    CheckedScalarGraphPlans, CheckedScalarGuardedExit, CheckedScalarGuardedTail,
+    CheckedScalarGraphPlans, CheckedGuardedExitPlans, CheckedScalarGuardedExit, CheckedScalarGuardedTail,
     CheckedScalarMachineGraph, CheckedScalarParameterStorage, CheckedScalarPrimitiveLocalPlan,
     CheckedScalarReadProjection, CheckedScalarReturnPlan, CheckedScalarSelector,
     CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,

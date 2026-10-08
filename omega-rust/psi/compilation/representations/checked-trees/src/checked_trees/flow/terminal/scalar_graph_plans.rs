@@ -3,8 +3,7 @@
 
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralControlTransferPlan, CheckedStructuralRankedSccPlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::{CheckedErasedProofParameterPlan, CheckedProofTerm};
@@ -22,10 +21,6 @@ pub struct CheckedScalarGraphPlans {
     /// Proof-only erased actuals for `erased_proof_arguments` spans.
     pub erased_proof_arguments: arena::Arena<CheckedProofTerm>,
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
-    /// Ordered exits survive graph-body admission so ordinary Unit bodies use
-    /// the same guard and selected-destination correspondence.
-    pub guarded_exits: arena::Arena<CheckedScalarGuardedExit>,
-    pub guarded_tails: Vec<CheckedScalarGuardedTail>,
     /// Machines whose graph admission declined, paired with the diagnostic
     /// naming the refusing stage — lowering surfaces it instead of a bare
     /// admission absence.
@@ -41,6 +36,15 @@ impl CheckedScalarGraphPlans {
             .find(|(symbol, _)| *symbol == machine)
             .map(|(_, reason)| *reason)
     }
+}
+
+/// Every state's ordered guarded exits, independent of graph admission:
+/// `tails` holds one row per state whose authored transition guards an exit,
+/// and its `arms` span `exits`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedGuardedExitPlans {
+    pub exits: arena::Arena<CheckedScalarGuardedExit>,
+    pub tails: Vec<CheckedScalarGuardedTail>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,8 +127,6 @@ pub struct CheckedScalarStateGraph {
     /// Authored mutable locals borrowed by retained statements or computations.
     pub primitive_locals: Vec<CheckedScalarPrimitiveLocalPlan>,
     pub bindings: Vec<CheckedScalarBinding>,
-    /// Ordered Unit effects retain authored coordinates independently of scalar slots.
-    pub unit_operations: Vec<CheckedUnitEffectOperationPlan>,
     /// The state's scalar result type, or `None` when the authored return is
     /// structural — the value then belongs to the Unit/structural path and
     /// this graph still owns the state's scalar guards, locals, and calls.

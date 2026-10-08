@@ -286,8 +286,8 @@ pub(super) fn guarded(
     }
     let mut tails = facts
         .flow
-        .terminal_scalar_graphs
-        .guarded_tails
+        .guarded_exits
+        .tails
         .iter()
         .filter(|tail| tail.state == state.symbol);
     let tail = tails.next()?;
@@ -296,8 +296,8 @@ pub(super) fn guarded(
     }
     let arms = facts
         .flow
-        .terminal_scalar_graphs
         .guarded_exits
+        .exits
         .span(tail.arms)?;
     if arms.first()?.guard_statement_ordinal as usize != start {
         return None;

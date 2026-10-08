@@ -48,18 +48,12 @@ pub(super) fn store(
         facts,
         machine,
         state,
-        &|position| match roots {
-            StoreRoots::Parameters { structural, .. } => structural
+        &|position| {
+            roots
+                .structural
                 .iter()
                 .position(|parameter| parameter.position as usize == position)
-                .and_then(|dense| u32::try_from(dense).ok()),
-            StoreRoots::RecordLocals => {
-                crate::execution::terminal_unit::types::dense_structural_parameter_index(
-                    program,
-                    program.state_parameters(state),
-                    position,
-                )
-            }
+                .and_then(|dense| u32::try_from(dense).ok())
         },
         destination.root.destination(),
         slot,

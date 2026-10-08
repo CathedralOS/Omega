@@ -523,31 +523,17 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
 }
 
 /// The erased-proof roster the caller machine's given state exposes to its
-/// lowered terms: the scalar-graph state's own roster when the caller is a
-/// scalar machine, otherwise the unit machine's published roster.
+/// lowered terms: that state's row in the caller's published Unit body.
 pub(crate) fn caller_erased_proof_roster(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
 ) -> Result<&[CheckedErasedProofParameterPlan], LoweringError> {
-    if let Some(roster) = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .machines
-        .iter()
-        .find(|graph| graph.machine == machine)
-        .and_then(|graph| graph.states.iter().find(|entry| entry.state == state))
-        .map(|entry| entry.erased_proof_parameters.as_slice())
-    {
-        return Ok(roster);
-    }
-    Ok(crate::unit::attached_unit::bodies::UnitBody::find(
+    crate::unit::attached_unit::bodies::UnitBody::find(
         crate::unit::attached_unit::bodies::UnitPlans::published(
             &checked.facts.flow.terminal_unit_effects,
         ),
         machine,
     )?
-    .entry()?
-    .erased_proof_parameters)
+    .state_erased_proof_parameters(state)
 }

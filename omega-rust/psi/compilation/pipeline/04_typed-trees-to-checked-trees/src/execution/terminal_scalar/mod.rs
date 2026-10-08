@@ -6,10 +6,11 @@
 //! Four entries, called at two points:
 //!
 //! 1. While checked facts are built, `facts::build_check_facts` calls
-//!    `build_checked_scalar_graph_plans_with_call_frames`, then
-//!    `build_checked_terminal_machine_selections`. The graph builder collects
-//!    the guarded exits and tails of every state (`guarded_exits`), then
-//!    builds each machine's graph with `build_machine_graph`, which adds the
+//!    `build_checked_guarded_exit_plans`, which collects the guarded exits
+//!    and tails of every state (`guarded_exits`) for every machine, then
+//!    `build_checked_scalar_graph_plans_with_call_frames` and
+//!    `build_checked_terminal_machine_selections`. The graph builder builds
+//!    each machine's graph with `build_machine_graph`, which adds the
 //!    states of any machine whose entry an edge names and builds each state
 //!    with `checked_state_graph` (structural shapes and record locals from
 //!    `constructions`, local referents from `primitive_locals`). A machine is
@@ -20,9 +21,7 @@
 //!    `finalize_checked_scalar_graph_plans`, which keeps a graph only when
 //!    `owned_parameters` admits every state's affine parameter custody
 //!    against the completed ownership facts. The graph's shape, state
-//!    contracts, ranking and edge arguments are not planned again. It then
-//!    calls `finalize_scalar_unit_operations` (`unit_operations`), which
-//!    records each state's ordered Unit operations.
+//!    contracts, ranking and edge arguments are not planned again.
 //!
 //! `checked_binding_prefix` and `checked_terminator` are also used by
 //! `execution::terminal_unit`.
@@ -117,15 +116,23 @@ use typed_trees::statement::{
 };
 
 mod computation_walk;
-mod constructions;
+pub(crate) mod constructions;
 mod guarded_exits;
 mod owned_parameters;
 pub(super) mod primitive_locals;
-mod unit_operations;
-pub(crate) use unit_operations::finalize as finalize_scalar_unit_operations;
 mod ranking;
 mod state_contracts;
 mod successors;
+
+/// Every state's ordered guarded exits and fallback, for every machine.
+pub(crate) fn build_checked_guarded_exit_plans(
+    program: &dyn ::validation::CheckingInput,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+) -> checked_trees::CheckedGuardedExitPlans {
+    let (exits, tails) = guarded_exits::build(program, expressions, computations);
+    checked_trees::CheckedGuardedExitPlans { exits, tails }
+}
 
 pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     program: &dyn ::validation::CheckingInput,
@@ -136,7 +143,6 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     operators: &checked_trees::CheckedOperatorFacts,
 ) -> CheckedScalarGraphPlans {
-    let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions, computations);
     let mut parameter_storage = arena::Arena::default();
     let mut structural_types = std::collections::BTreeMap::new();
     let mut declined = Vec::new();
@@ -203,8 +209,6 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         scalar_arguments,
         erased_proof_arguments,
         structural_types: structural_types.into_values().collect(),
-        guarded_exits,
-        guarded_tails,
         declined,
     }
 }
@@ -678,7 +682,6 @@ fn checked_state_graph(
                     parameter_storage: arena::HandleSpan::empty(),
                     primitive_locals,
                     bindings,
-                    unit_operations: Vec::new(),
                     result_type,
                     terminator,
                 },

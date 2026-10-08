@@ -40,7 +40,7 @@ use terminal_psi::{
     ContentEntryClaim, ContentIdentityReshuffle, ContentPlaceSubstitution,
     CrashCause as TerminalCrashCause, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, OperationKind, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    EvidenceTermDeclaration, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
     OutcomeSpecificGuard, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderDeclaration, PropositionBinderKind, PropositionDeclaration,

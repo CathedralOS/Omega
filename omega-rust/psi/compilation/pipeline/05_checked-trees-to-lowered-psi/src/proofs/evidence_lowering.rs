@@ -53,6 +53,7 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         machine,
         lowered.semantic_module.entry,
         &lowered.semantic_module,
+        &lowered.source_call_occurrences,
         &evidence_terms.term_ids,
         &declarations,
         &applications,

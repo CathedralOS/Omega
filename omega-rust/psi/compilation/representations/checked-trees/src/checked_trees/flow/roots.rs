@@ -240,16 +240,14 @@ pub struct FlowFacts {
     /// compiler-selected cleanup dependencies derived from checked value flow.
     /// These rows affect artifact/API identity but grant no source authority.
     pub semantic_dependencies: super::CheckedSemanticDependencies,
-    /// Source-handle-free control topology for the live terminal-Psi scalar
-    /// producer: `machines`, per-state bindings, parameter storage, and the
-    /// successor argument/transfer arenas cover scalar-signature machines
-    /// only — that topology is the bootstrap carrier general terminal
-    /// control replaces. The `guarded_exits`/`guarded_tails` lanes are
-    /// already produced for every machine's guarded tails and consumed by
-    /// composed-Unit, argument-evaluation, and custody lowering, so the
-    /// general carrier inherits those shared lanes rather than discarding
-    /// this record whole.
+    /// Source-handle-free scalar control graphs of scalar-signature
+    /// machines. No stage lowers a body through them; stage 04 Unit planning
+    /// and machine selection still read them (SCALAR-GRAPH-ROUTE-RETIRED).
     pub terminal_scalar_graphs: super::CheckedScalarGraphPlans,
+    /// Every state's ordered guarded exits and fallback, planned for every
+    /// machine. Unit and composed bodies name their arms by span into this
+    /// arena, so guard order and destinations have one owner.
+    pub guarded_exits: super::CheckedGuardedExitPlans,
     /// Stable machine selection and signature-eligibility rows for terminal
     /// production.
     pub terminal_machines: super::CheckedTerminalMachineSelections,
@@ -290,6 +288,7 @@ impl FlowFacts {
             control,
             semantic_dependencies: super::CheckedSemanticDependencies::default(),
             terminal_scalar_graphs: super::CheckedScalarGraphPlans::default(),
+            guarded_exits: super::CheckedGuardedExitPlans::default(),
             terminal_machines: super::CheckedTerminalMachineSelections::default(),
             terminal_debug: super::CheckedTerminalDebugPlans::default(),
             terminal_unit_effects: super::CheckedUnitEffectPlans::default(),

@@ -139,8 +139,8 @@ pub(super) fn emit(
     let guards = checked
         .facts
         .flow
-        .terminal_scalar_graphs
         .guarded_exits
+        .exits
         .span(*arms)
         .ok_or(LoweringError::Unsupported(
             "guarded structural guards are stale",

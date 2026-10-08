@@ -764,8 +764,8 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
         .count();
     let mut guarded = facts
         .flow
-        .terminal_scalar_graphs
-        .guarded_tails
+        .guarded_exits
+        .tails
         .iter()
         .filter(|tail| tail.state == state.symbol);
     // Keep the existing scalar binary route when it already describes this
@@ -788,8 +788,8 @@ pub(in crate::execution::terminal_unit) fn returning_terminator(
             }
             let arms = facts
                 .flow
-                .terminal_scalar_graphs
                 .guarded_exits
+                .exits
                 .span(tail.arms)?;
             if arms.first()?.guard_statement_ordinal as usize != prefix_count
                 || !arms.iter().all(|arm| {

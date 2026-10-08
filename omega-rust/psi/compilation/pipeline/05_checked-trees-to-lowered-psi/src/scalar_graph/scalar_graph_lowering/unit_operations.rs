@@ -28,39 +28,14 @@ impl<'a> Caller<'a> {
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
     ) -> Result<Self, LoweringError> {
-        if let Some(plan) = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .machines
-            .iter()
-            .find(|plan| plan.machine == machine)
-            .and_then(|plan| plan.states.iter().find(|plan| plan.state == state))
-        {
-            return Ok(Self {
-                state,
-                erased_proof_parameters: &plan.erased_proof_parameters,
-            });
-        }
-        match UnitBody::find(
-            UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-            machine,
-        )? {
-            UnitBody::Ordinary(plan) if plan.state == state => Ok(Self {
-                state,
-                erased_proof_parameters: &plan.erased_proof_parameters,
-            }),
-            UnitBody::Composed(plan) => {
-                let plan = plan.states.iter().find(|plan| plan.state == state).ok_or(
-                    LoweringError::Unsupported("effect caller has no published state"),
-                )?;
-                Ok(Self {
-                    state,
-                    erased_proof_parameters: &plan.erased_proof_parameters,
-                })
-            }
-            _ => unsupported("effect caller has no published state"),
-        }
+        Ok(Self {
+            state,
+            erased_proof_parameters: UnitBody::find(
+                UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+                machine,
+            )?
+            .state_erased_proof_parameters(state)?,
+        })
     }
 }
 

@@ -16,8 +16,8 @@ pub(crate) fn returning_exits<'checked>(
     let arms = checked
         .facts
         .flow
-        .terminal_scalar_graphs
         .guarded_exits
+        .exits
         .span(arms)
         .ok_or(LoweringError::Unsupported(
             "ordered scalar guard roster is stale",

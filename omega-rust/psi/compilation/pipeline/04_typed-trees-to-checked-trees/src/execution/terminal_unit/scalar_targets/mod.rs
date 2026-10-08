@@ -1,85 +1,22 @@
-//! Ordinary scalar calls retain an existing body plan, never a fabricated graph:
-//! the callee's scalar graph, its scalar-result state graph, or its ordinary
-//! scalar-result body. Availability closes dependencies, while the receiving
-//! lowerer independently replays every retained operation and its authored
-//! source custody.
+//! Ordinary scalar calls retain an existing body plan, never a fabricated one:
+//! the callee's scalar-result state graph or its ordinary scalar-result body.
+//! Availability closes dependencies, while the receiving lowerer independently
+//! replays every retained operation and its authored source custody.
 use super::{
     CarryPolicy, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    MachineSupplyMode, PrimitiveType, SignatureContractKind, SymbolHandle,
+    MachineSupplyMode, SignatureContractKind, SymbolHandle,
 };
-use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
 use crate::execution::terminal_unit::calls::{
     call_claim_transfers, entry_claims, free_structural_scalar_signature,
 };
 
-use crate::execution::terminal_unit::structural_scalar_graph_signature;
-
-/// Rejoin owned and borrowed graph signatures before ordinary Unit calls use them.
-pub(super) fn registered_structural_graph_target<'facts>(
-    program: &dyn ::validation::CheckingInput,
-    facts: &'facts CheckFacts,
-    scalar_callees: Option<ScalarCalleeClosure>,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    result: PrimitiveType,
-) -> Option<&'facts checked_trees::CheckedScalarStateGraph> {
-    scalar_callees?;
-    let mut graphs = facts
-        .flow
-        .terminal_scalar_graphs
-        .machines
-        .iter()
-        .filter(|graph| graph.machine == machine_symbol);
-    let graph = graphs.next()?;
-    // The call binds the graph's entry signature. Later state rosters belong
-    // to their incoming edges and must not constrain the caller's arity.
-    let retained = graph.states.first()?;
-    if graphs.next().is_some()
-        || retained.state != state_symbol
-        || retained.result_type != Some(result)
-        || retained.structural_parameters.is_empty()
-        || !retained.parameter_storage.is_empty()
-    {
-        return None;
-    }
-    let machine = program.machine_by_symbol(machine_symbol)?;
-    let state = program.machine_states(machine).first()?;
-    if state.symbol != state_symbol
-        || program.primitive_type_reference(state.return_type) != Some(result)
-    {
-        return None;
-    }
-    let (structural, scalar, shapes) = structural_scalar_graph_signature(program, state)?;
-    if structural != retained.structural_parameters
-        || scalar != retained.scalar_parameters
-        || retained.parameter_types
-            != scalar
-                .iter()
-                .map(|parameter| parameter.primitive_type)
-                .collect::<Vec<_>>()
-        || shapes.iter().any(|shape| {
-            let mut matching = facts
-                .flow
-                .terminal_scalar_graphs
-                .structural_types
-                .iter()
-                .filter(|candidate| candidate.identity == shape.identity);
-            matching.next() != Some(shape) || matching.next().is_some()
-        })
-    {
-        return None;
-    }
-    Some(retained)
-}
-
-/// A registered scalar producer survives ordinary candidate pruning. Only the
-/// body fallbacks carry an edge into that changing roster: an ordinary
-/// single-state body by its index among the ordinary candidates, and a
-/// multi-state state graph by its index among the composed candidates.
+/// The body a scalar call depends on, as an edge into the changing candidate
+/// roster: an ordinary single-state body by its index among the ordinary
+/// candidates, and a multi-state state graph by its index among the composed
+/// candidates. A caller survives pruning only while its callee's body does.
 pub(super) enum AvailableScalarTarget {
-    Registered,
     OrdinaryBody(usize),
     ComposedBody(usize),
 }
@@ -171,7 +108,6 @@ impl ScalarCallSite<'_> {
 pub(super) fn available_target(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleeClosure,
     candidates: &[CheckedUnitEffectMachinePlan],
     composed_candidates: &[checked_trees::CheckedComposedUnitControlMachinePlan],
     caller: &ScalarCallSite<'_>,
@@ -188,18 +124,6 @@ pub(super) fn available_target(
     let structural_arguments = &planned.structural_arguments;
     let claim_transfers = planned.claim_transfers();
     let coordinate = &planned.coordinate;
-    if let Some(graph) = facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(*target_machine)
-        && graph
-            .states
-            .first()
-            .is_some_and(|state| state.structural_parameters.is_empty())
-    {
-        return (structural_arguments.is_empty() && claim_transfers.is_empty())
-            .then_some(AvailableScalarTarget::Registered);
-    }
     let machine = program.machine_by_symbol(*target_machine)?;
     // A scalar-result state graph is entered at its first authored state; every
     // other body owner describes exactly one state.
@@ -211,13 +135,7 @@ pub(super) fn available_target(
             )
     });
     let authored_states = program.machine_states(machine);
-    let state = if composed.is_some()
-        || facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(*target_machine)
-            .is_some()
-    {
+    let state = if composed.is_some() {
         authored_states.first()?
     } else {
         let [state] = authored_states else {
@@ -226,30 +144,8 @@ pub(super) fn available_target(
         state
     };
     let contract = facts.contract_plans.for_machine(*target_machine)?;
-    let mut availability = AvailableScalarTarget::Registered;
-    let (structural, scalar, claims, result_type) = if facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(*target_machine)
-        .is_some()
-    {
-        let plan = registered_structural_graph_target(
-            program,
-            facts,
-            Some(scalar_callees),
-            *target_machine,
-            *target_state,
-            result.primitive_type,
-        )?;
-        (
-            &plan.structural_parameters,
-            &plan.scalar_parameters,
-            &[][..],
-            // A registered scalar-graph callee must return a scalar; a
-            // structural result is never callable in scalar position.
-            plan.result_type?,
-        )
-    } else if let Some((composed_index, plan)) = composed {
+    let availability;
+    let (structural, scalar, claims, result_type) = if let Some((composed_index, plan)) = composed {
         // A state graph reaches callers through its entry state's signature,
         // exactly as its internal Unit calls do. Rebuild that signature so a
         // drifted plan cannot select this body.

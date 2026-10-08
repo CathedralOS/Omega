@@ -4,7 +4,6 @@ use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, SymbolHandle,
 };
-use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
 use crate::execution::terminal_unit::scalar_targets;
 use checked_trees::{
@@ -144,7 +143,6 @@ fn apply_scalar_target_verdict(
     site: GapSite,
 ) {
     match verdict {
-        Some(scalar_targets::AvailableScalarTarget::Registered) => {}
         Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target_index)) => {
             closure.depend(target_index, caller_index, site);
         }
@@ -220,7 +218,6 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 pub(super) fn retain_available(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
-    scalar_callees: ScalarCalleeClosure,
     boundary_symbols: &[SymbolHandle],
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
@@ -266,7 +263,6 @@ pub(super) fn retain_available(
                         scalar_targets::available_target(
                             program,
                             facts,
-                            scalar_callees,
                             candidates,
                             composed_machines,
                             &scalar_targets::ScalarCallSite::of_plan(plan),
@@ -396,7 +392,6 @@ pub(super) fn retain_available(
                                 scalar_targets::available_target(
                                     program,
                                     facts,
-                                    scalar_callees,
                                     candidates,
                                     composed_machines,
                                     &site,

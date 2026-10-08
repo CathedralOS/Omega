@@ -21,8 +21,6 @@ pub(crate) fn finalize_execution(
         &mut facts.flow.terminal_scalar_graphs,
     );
 
-    crate::execution::terminal_scalar::finalize_scalar_unit_operations(program, &mut facts);
-
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.
@@ -66,6 +64,34 @@ pub(crate) fn finalize_execution(
     {
         cleanup_diagnostics.push(Diagnostic::error(format!(
             "Unit cleanup plans register structural type `{identity}` with a shape the ordinary Unit roster does not carry"
+        )));
+    }
+    // A scalar computation that constructs a record (`Pair { .. }.first`)
+    // names that record's shape though no signature or local declares it.
+    // Each Unit body's computations carry those shapes into the one roster.
+    let mut construction_shapes = Vec::new();
+    for state in terminal_unit_effects
+        .machines
+        .iter()
+        .map(|plan| plan.state)
+        .chain(
+            terminal_unit_effects
+                .composed_machines
+                .iter()
+                .flat_map(|plan| plan.states.iter().map(|state| state.state)),
+        )
+    {
+        crate::execution::terminal_scalar::constructions::retain_shapes(
+            program,
+            &facts.values.scalar_computations,
+            &facts.values.structural_values,
+            state,
+            &mut construction_shapes,
+        );
+    }
+    if let Err(identity) = terminal_unit_effects.adopt_structural_types(construction_shapes) {
+        cleanup_diagnostics.push(Diagnostic::error(format!(
+            "scalar computations construct structural type `{identity}` with a shape the ordinary Unit roster does not carry"
         )));
     }
     if !cleanup_diagnostics.is_empty() {

@@ -7,7 +7,7 @@ use crate::proofs::evidence_lowering::{
 };
 use crate::proofs::{
     CheckedTrees, EvidenceProjectionIdentity, EvidenceTermId, LoweringError, MachineId,
-    OperationKind, PrimitiveType, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
+    PrimitiveType, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity, PropositionDeclaration,
     PropositionId, StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
 };
@@ -18,6 +18,7 @@ pub(crate) fn lower_proof_output_calls(
     selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
+    occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     term_ids: &[Option<EvidenceTermId>],
     declarations: &[PropositionDeclaration],
     applications: &[PropositionApplicationIdentity],
@@ -34,9 +35,9 @@ pub(crate) fn lower_proof_output_calls(
         .map(|(ordinal, invocation)| {
             let (runtime_result, runtime_call) = lower_proof_output_runtime_call(
                 checked,
-                selected_machine,
                 terminal_machine,
                 semantic_module,
+                occurrences,
                 invocation,
             )?;
             let static_requirement_dispatch = lower_static_requirement_dispatch(
@@ -500,11 +501,16 @@ fn terminal_proposition_application_id(
         ))
 }
 
+/// Rejoin a proof-output call's runtime invocation to the operation emission
+/// recorded for its source coordinate. The emitter records every direct call
+/// it lowers (`LoweredSourceCallOccurrence`), so the operation is found by
+/// the call's exact state, statement and call ordinal, whatever its result
+/// role or the operation form that role took.
 fn lower_proof_output_runtime_call(
     checked: &CheckedTrees,
-    selected_machine: symbols::SymbolHandle,
     terminal_machine: MachineId,
     semantic_module: &TerminalModule,
+    occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     invocation: &checked_trees::ProofOutputCallFact,
 ) -> Result<
     (
@@ -525,182 +531,70 @@ fn lower_proof_output_runtime_call(
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output target state is absent",
         ))?;
-    if !target_state.return_type.is_valid() {
-        return lower_unit_proof_output_runtime_call(
-            checked,
-            selected_machine,
-            terminal_machine,
-            semantic_module,
-            runtime_call,
-        );
-    }
-    let runtime_value = checked
-        .typed
-        .primitive_type_reference(target_state.return_type)
-        .map(terminal_scalar_type)
-        .transpose()?
-        .ok_or(LoweringError::Unsupported(
-            "runtime proof-output target is not scalar-result",
-        ))?;
-    let graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(selected_machine)
-        .ok_or(LoweringError::Unsupported(
-            "runtime proof-output caller has no checked scalar graph",
-        ))?;
-    let mut direct_call_position = None;
-    let mut next_position = 0usize;
-    for state in &graph.states {
-        for binding in &state.bindings {
-            let checked_trees::CheckedScalarBindingValue::DirectCall {
-                target_machine,
-                target_state,
-                call_ordinal,
-                ..
-            } = &binding.value
-            else {
-                continue;
-            };
-            if state.state == invocation.caller_state_symbol
-                && usize::try_from(binding.statement_ordinal).ok()
-                    == Some(runtime_call.statement_index)
-                && usize::try_from(*call_ordinal).ok() == Some(runtime_call.call_ordinal)
-            {
-                if *target_machine != invocation.target_machine_symbol
-                    || *target_state != invocation.target_state_symbol
-                {
-                    return unsupported(
-                        "runtime proof-output target disagrees with its scalar call plan",
-                    );
-                }
-                if direct_call_position.replace(next_position).is_some() {
-                    return unsupported(
-                        "runtime proof-output scalar call coordinate is not unique",
-                    );
-                }
-            }
-            next_position = next_position
-                .checked_add(1)
-                .expect("checked scalar direct-call count advances");
-        }
-    }
-    let direct_call_position = direct_call_position.ok_or(LoweringError::Unsupported(
-        "runtime proof-output scalar call coordinate is absent",
+    let expected = if target_state.return_type.is_valid() {
+        Some(
+            checked
+                .typed
+                .primitive_type_reference(target_state.return_type)
+                .map(terminal_scalar_type)
+                .transpose()?
+                .ok_or(LoweringError::Unsupported(
+                    "runtime proof-output target is not scalar-result",
+                ))?,
+        )
+    } else {
+        None
+    };
+    let mut matching = occurrences.iter().filter(|occurrence| {
+        occurrence.source_state == invocation.caller_state_symbol
+            && occurrence.statement_index == runtime_call.statement_index
+            && occurrence.call_ordinal == runtime_call.call_ordinal
+    });
+    let occurrence = matching.next().ok_or(LoweringError::Unsupported(
+        "runtime proof-output call has no emitted terminal operation",
     ))?;
-    let caller = semantic_module
+    if matching.next().is_some() {
+        return unsupported("runtime proof-output call coordinate is not unique");
+    }
+    if occurrence.source_target != invocation.target_state_symbol {
+        return unsupported("runtime proof-output target disagrees with its emitted call");
+    }
+    let semantic_vocabulary::BoundaryInvocationSite::Operation(operation_id) =
+        occurrence.terminal_site
+    else {
+        return unsupported("runtime proof-output call completes the machine");
+    };
+    let operation = semantic_module
         .machines
         .iter()
         .find(|machine| machine.id == terminal_machine)
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output caller is absent from terminal Psi",
-        ))?;
-    let mut calls = caller
+        ))?
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
-        .collect::<Vec<_>>();
-    calls.sort_unstable_by_key(|operation| operation.id);
-    let operation = calls
-        .get(direct_call_position)
-        .copied()
+        .find(|operation| operation.id == operation_id)
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output call has no emitted terminal operation",
         ))?;
-    let (Some(result), OperationKind::Call { callee, .. }) =
-        (operation.result.scalar(), &operation.kind)
-    else {
-        return unsupported("runtime proof-output operation is not an ordinary scalar call");
-    };
-    if result.scalar_type != runtime_value {
-        return unsupported("runtime proof-output operation result type disagrees");
-    }
-    Ok((
-        Some(ProofOutputRuntimeResult::Scalar(runtime_value)),
-        Some(ProofOutputRuntimeCall {
-            operation: operation.id,
-            callee: *callee,
-        }),
-    ))
-}
-
-fn lower_unit_proof_output_runtime_call(
-    checked: &CheckedTrees,
-    selected_machine: symbols::SymbolHandle,
-    terminal_machine: MachineId,
-    semantic_module: &TerminalModule,
-    runtime_call: checked_trees::ProofOutputRuntimeCallFact,
-) -> Result<
-    (
-        Option<ProofOutputRuntimeResult>,
-        Option<ProofOutputRuntimeCall>,
-    ),
-    LoweringError,
-> {
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(selected_machine)
-        .ok_or(LoweringError::Unsupported(
-            "runtime Unit proof-output caller has no checked Unit plan",
-        ))?;
-    let mut call_position = 0usize;
-    let mut matching_position = None;
-    for operation in &plan.operations {
-        // Only ordinary Unit calls carry runtime proof outputs.
-        let Some(call) = operation.call().filter(|call| {
-            call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-        }) else {
-            continue;
-        };
-        let coordinate = &call.coordinate;
-        if usize::try_from(coordinate.statement_index).ok() == Some(runtime_call.statement_index)
-            && usize::try_from(coordinate.call_ordinal).ok() == Some(runtime_call.call_ordinal)
+    let parts = crate::direct_calls::direct_call_parts(&operation.kind).ok_or(
+        LoweringError::Unsupported("runtime proof-output operation is not a direct call"),
+    )?;
+    let result = match (parts.role, expected, operation.result.scalar()) {
+        (crate::direct_calls::DirectCallRole::Unit, None, None) => ProofOutputRuntimeResult::Unit,
+        (crate::direct_calls::DirectCallRole::Scalar, Some(expected), Some(result))
+            if result.scalar_type == expected =>
         {
-            if matching_position.replace(call_position).is_some() {
-                return unsupported("runtime Unit proof-output call coordinate is not unique");
-            }
+            ProofOutputRuntimeResult::Scalar(expected)
         }
-        call_position = call_position
-            .checked_add(1)
-            .expect("checked Unit call count advances");
-    }
-    let matching_position = matching_position.ok_or(LoweringError::Unsupported(
-        "runtime Unit proof-output call coordinate is absent",
-    ))?;
-    let caller = semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == terminal_machine)
-        .ok_or(LoweringError::Unsupported(
-            "runtime Unit proof-output caller is absent from terminal Psi",
-        ))?;
-    let mut calls = caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|operation| matches!(operation.kind, OperationKind::CallUnit { .. }))
-        .collect::<Vec<_>>();
-    calls.sort_unstable_by_key(|operation| operation.id);
-    let operation = calls
-        .get(matching_position)
-        .copied()
-        .ok_or(LoweringError::Unsupported(
-            "runtime Unit proof-output call has no emitted terminal operation",
-        ))?;
-    let (terminal_psi::OperationResult::Unit, OperationKind::CallUnit { callee, .. }) =
-        (&operation.result, &operation.kind)
-    else {
-        return unsupported("runtime Unit proof-output operation is not an ordinary Unit call");
+        _ => return unsupported("runtime proof-output operation disagrees with its target result"),
     };
     Ok((
-        Some(ProofOutputRuntimeResult::Unit),
+        Some(result),
         Some(ProofOutputRuntimeCall {
             operation: operation.id,
-            callee: *callee,
+            callee: parts.callee,
         }),
     ))
 }

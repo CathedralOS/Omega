@@ -13,21 +13,14 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 
-/// The storage roots one planner lane can write through.
-///
-/// An attached Unit body writes through its exclusive borrowed parameters.
-/// The scalar-graph lane writes through its own established record locals;
-/// that lane's lowering evaluates the value in its own scalar namespace, so
-/// its value and leaf policies (`Root::Local`) are narrower.
+/// The storage roots an attached Unit body writes through: its exclusive
+/// borrowed parameters, its established locals, and the `mut` scalar formals
+/// it owns storage for.
 #[derive(Clone, Copy)]
-pub(super) enum StoreRoots<'a> {
-    Parameters {
-        structural: &'a [CheckedUnitStructuralParameterPlan],
-        scalar: &'a [CheckedStructuralScalarParameterPlan],
-        /// The `mut` scalar formals the body owns storage for.
-        storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
-    },
-    RecordLocals,
+pub(super) struct StoreRoots<'a> {
+    pub(super) structural: &'a [CheckedUnitStructuralParameterPlan],
+    pub(super) scalar: &'a [CheckedStructuralScalarParameterPlan],
+    pub(super) storage: &'a [checked_trees::CheckedUnitParameterStoragePlan],
 }
 
 /// The resolved root of one destination place.
@@ -175,12 +168,11 @@ pub(super) fn resolve<'a>(
         assignment.target,
     );
     trace.phase("structural field store: destination parameter");
-    match roots {
-        StoreRoots::Parameters {
-            structural,
-            storage,
-            ..
-        } => {
+    let StoreRoots {
+        structural,
+        storage,
+        ..
+    } = roots;
             let source_parameters = program.state_parameters(state);
             // The assignment selects its destination; unrelated borrowed
             // inputs do not change that root's authority or require it to
@@ -264,34 +256,6 @@ pub(super) fn resolve<'a>(
                 root_owner,
                 operators: &facts.operators,
             })
-        }
-        StoreRoots::RecordLocals => {
-            // A local root is a unique owned record established earlier in
-            // this state, with the scalar-graph lane's record shape and a
-            // checked disposition.
-            let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
-            if local_ordinal >= ordinal || dynamic_index.is_some() {
-                return None;
-            }
-            super::super::scalar_graph_record_shapes(program, local.type_reference)?;
-            validation::record_local_disposition(
-                program,
-                facts,
-                machine.symbol,
-                state.symbol,
-                u32::try_from(local_ordinal).ok()?,
-            )?;
-            Some(local_destination(
-                program,
-                &facts.operators,
-                root_symbol,
-                local.type_reference,
-                place,
-                dynamic_index,
-                selectors,
-            ))
-        }
-    }
 }
 
 /// A store rooted at a declared local: the unique `LocalData` symbol names
@@ -434,12 +398,9 @@ impl<'a> Destination<'a> {
         let Root::Parameter { plan, parameter } = self.root else {
             return Some(());
         };
-        let StoreRoots::Parameters {
+        let StoreRoots {
             structural, scalar, ..
-        } = roots
-        else {
-            return None;
-        };
+        } = roots;
         if plan.multiplicity == Multiplicity::Linear
             || !matches!(
                 plan.access,

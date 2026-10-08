@@ -228,16 +228,7 @@ fn caller_operations(
     {
         return Some(&mut plans.composed_machines[owner].states[index].operations);
     }
-    facts
-        .flow
-        .terminal_scalar_graphs
-        .machines
-        .iter_mut()
-        .find(|plan| plan.machine == machine)?
-        .states
-        .iter_mut()
-        .find(|plan| plan.state == state)
-        .map(|plan| &mut plan.unit_operations)
+    None
 }
 
 fn schedule(
@@ -261,11 +252,6 @@ fn schedule(
         .filter(|plan| plan.machine == machine.symbol)
         .flat_map(|plan| &plan.states)
         .find(|plan| plan.state == state.symbol);
-    let scalar = facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(machine.symbol)
-        .and_then(|graph| graph.states.iter().find(|plan| plan.state == state.symbol));
     let (parameters, entry_claims, operations) = if let Some(plan) = ordinary {
         (
             &plan.structural_parameters,
@@ -278,8 +264,6 @@ fn schedule(
             plan.entry_claims.as_slice(),
             &plan.operations,
         )
-    } else if let Some(plan) = scalar {
-        (&plan.structural_parameters, &[][..], &plan.unit_operations)
     } else {
         return None;
     };

@@ -62,7 +62,7 @@ pub use result_binding_plans::{
 };
 pub use scalar_graph_plans::{
     CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
-    CheckedScalarBranchDestination, CheckedScalarGraphPlans, CheckedScalarGuardedExit,
+    CheckedScalarBranchDestination, CheckedScalarGraphPlans, CheckedGuardedExitPlans, CheckedScalarGuardedExit,
     CheckedScalarGuardedTail, CheckedScalarMachineGraph, CheckedScalarParameterStorage,
     CheckedScalarPrimitiveLocalPlan, CheckedScalarStateGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor,

@@ -111,7 +111,7 @@ pub use flow::{
     CheckedReferenceResultSourcePlan, CheckedReferenceStorage, CheckedRepresentationViewStorePlan,
     CheckedRuntimeIndex, CheckedScalarBinding, CheckedScalarBindingDestination,
     CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarCaseFieldPlan,
-    CheckedScalarGraphPlans, CheckedScalarGuardedExit, CheckedScalarGuardedTail,
+    CheckedScalarGraphPlans, CheckedGuardedExitPlans, CheckedScalarGuardedExit, CheckedScalarGuardedTail,
     CheckedScalarMachineGraph, CheckedScalarParameterStorage, CheckedScalarPrimitiveLocalPlan,
     CheckedScalarReturnPlan, CheckedScalarStateGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedSemanticDependencies, CheckedSemanticDependency,

@@ -2587,22 +2587,19 @@ code and preserve check/native behavior for the named customer slices.
 
 
 
-- **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
-  parameter transfer are lowered by two stage 05 routes:
-  - the composed route, `unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`,
-    after `state_graph/edges.rs` re-checks each edge against source;
-  - the scalar route, `scalar_graph/scalar_graph_lowering/call_lowering.rs`
-    and `scalar_graph/scalar_graph_module/state_emission.rs`.
-
-  Stage 04 builds `CheckedStructuralControlSuccessorPlan` in
+- **ONE-TRANSITION-LOWERING.** (new-scope) Stage 05 lowers successor
+  transitions with parameter transfer only through the composed route,
+  `unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`,
+  after `state_graph/edges.rs` re-checks each edge against source; the
+  scalar graph route is deleted. Stage 04 still builds two successor plans:
+  `CheckedStructuralControlSuccessorPlan` in
   `execution/terminal_unit/state_graph/successors.rs` (also for
-  `state_graph/closed_sum.rs`) and `CheckedScalarSuccessor` in
-  `execution/terminal_scalar/successors.rs`; argument-to-formal resolution,
-  erased arguments and the computation-root check are duplicated between
-  them. Only the scalar route carries continuation arguments, and only the
-  composed route carries edge-local custody sources and closed-sum payloads.
-  Make one successor-plan builder in stage 04 and one lowering in stage 05,
-  used by every route. Acceptance:
+  `state_graph/closed_sum.rs`), and `CheckedScalarSuccessor` in
+  `execution/terminal_scalar/successors.rs` for the scalar graph plans,
+  which go with **SCALAR-GRAPH-ROUTE-RETIRED**. Only the scalar successor
+  carried continuation arguments; if a continuation still needs them, carry
+  them on `CheckedStructuralControlSuccessorPlan` rather than in a second
+  plan. Acceptance:
   a source-scanning guard finds a single constructor and a single lowering
   of successor transfers; corpus `--filter control_flow/,transitions,termination/,calls/`
   is unchanged in check and native.
@@ -2655,30 +2652,18 @@ code and preserve check/native behavior for the named customer slices.
   `05_.../src/scalar_graph/`, whose 10k remaining lines (computation
   expansion, contracts, effects, scalar call lowering) all serve Unit
   bodies. Remaining readers (paths under `04_.../src` and `05_.../src`):
-  - stage 04 Unit planning: `state_graph/{guards,returns,terminator}.rs` and
-    `control/statement_sequence.rs::returning_terminator` read the
-    `guarded_exits`/`guarded_tails` lanes; stage 05
-    `composed_control/state_graph/{guarded,admission}.rs` and
-    `scalar_completion/control.rs` read the same arena. `guarded_exits::build`
-    runs for every machine apart from graph admission, so the lanes can
-    become their own flow fact;
-  - `terminal_unit/scalar_targets/mod.rs` treats a graph callee as
-    `Registered` and takes its signature from graph `states[0]`; without the
-    graph it needs the `OrdinaryBody`/`ComposedBody` dependency edges;
-  - `scalar_contracts.rs::caller_erased_proof_roster` and
-    `unit_operations.rs::Caller::published` prefer the graph's erased-proof
-    roster over the Unit entry's identical one;
-  - `proofs/float_meaning_projection.rs` maps graph state positions to
-    Terminal blocks, and the scalar-result branch of
-    `proofs/evidence_lowering/proof_output_calls.rs` counts graph
-    `DirectCall` bindings; the Unit branch handles only `CallUnit`;
+  - `proofs/float_meaning_projection.rs` maps a nested state's parameter to
+    a Terminal block by its position in the graph states plus the machine's
+    lowest block; the composed emitter allocates state blocks densely in
+    plan order but first allocates an invocation block when the entry is
+    re-entered, so the rule needs the emitter's state-to-block mapping;
   - `terminal_scalar/mod.rs::build_checked_terminal_machine_selections`
     exempts a machine with `graph.ranked_scc` from the older rank checks,
     before Unit plans exist; ranked loops should use the general rank plans
     and retire `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne`,
-    with a fixture for resumable (fuel-suspended) ranked execution;
-  - fallbacks to graph data in `structural_value_calls.rs` and
-    `attached_unit/catalog.rs::selected_declaration`.
+    with a fixture for resumable (fuel-suspended) ranked execution. Making
+    more machines eligible changes which stage reports their failure, so
+    gate the fail fixtures' expected fragments.
 
   Also account for continuation-arm custody
   (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),
@@ -2731,8 +2716,7 @@ code and preserve check/native behavior for the named customer slices.
   scalar-array and structural-value forms. Stage 05 handles them at about
   eight sites (`operation_frame::establish_scalar_local` and
   `establish_structural_local`, `primitive_locals`, `ordinary_machine/locals`,
-  `structural_values/locals`, `byte_locals`, `scalar_graph_lowering/bindings.rs`,
-  `emission::emit_scalar_binding`). Replace them with one local-binding
+  `structural_values/locals`, `byte_locals`, `emission::emit_scalar_binding`). Replace them with one local-binding
   operation keyed by the value's representation. Acceptance: one binding
   variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
   is unchanged.
@@ -4670,11 +4654,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   Existing calls reaching native execution come first; broader algebra and
   retiring the `operator` introducer follow.
 
-  - Call-containing scalar requirements: `covered_requires` in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs`
-    and `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_graph_lowering/graph_preparation.rs`
-    refuses a clause such as `requires observe(left) == observe(right)` on a
-    call `restricted(saved, value)`. Lower it with interpreter/native agreement
+  - Call-containing scalar requirements: the scalar graph route that refused
+    a clause such as `requires observe(left) == observe(right)` on a call
+    `restricted(saved, value)` (`covered_requires`, `graph_preparation.rs`)
+    is deleted; re-probe where the Unit route now refuses it. Lower it with interpreter/native agreement
     against a clause-free control. Do not drop premises or execute the callee in
     place of admission.
   - Formation checks in

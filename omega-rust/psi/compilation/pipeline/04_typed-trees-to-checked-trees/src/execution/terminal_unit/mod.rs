@@ -170,7 +170,6 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
-pub(super) use structural_scalar_store::build_local_scalar_field_store;
 pub(crate) use types::{is_reference, strips_erased_parameter};
 
 /// Present when the planning pass ends in the candidate closure, which
@@ -420,7 +419,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     let closure_gaps = candidate_closure::retain_available(
         program,
         facts,
-        scalar_callees,
         &boundary_symbols,
         &mut candidates,
         &mut composed_machines,

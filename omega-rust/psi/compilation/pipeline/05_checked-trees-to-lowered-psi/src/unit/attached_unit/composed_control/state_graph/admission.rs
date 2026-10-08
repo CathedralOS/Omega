@@ -729,8 +729,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 let retained = checked
                     .facts
                     .flow
-                    .terminal_scalar_graphs
-                    .guarded_tails
+                    .guarded_exits
+                    .tails
                     .iter()
                     .filter(|tail| tail.state == state.state)
                     .collect::<Vec<_>>();
@@ -740,8 +740,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 let exits = checked
                     .facts
                     .flow
-                    .terminal_scalar_graphs
                     .guarded_exits
+                    .exits
                     .span(retained.arms)
                     .ok_or(LoweringError::Unsupported(
                         "guarded jump successors have a stale roster",

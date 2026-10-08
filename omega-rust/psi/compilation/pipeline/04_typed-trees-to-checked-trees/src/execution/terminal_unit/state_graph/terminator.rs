@@ -446,8 +446,8 @@ pub(super) fn build(
                 );
                 let retained = facts
                     .flow
-                    .terminal_scalar_graphs
-                    .guarded_tails
+                    .guarded_exits
+                    .tails
                     .iter()
                     .filter(|tail| tail.state == state.symbol)
                     .collect::<Vec<_>>();
@@ -456,8 +456,8 @@ pub(super) fn build(
                 };
                 let exits = facts
                     .flow
-                    .terminal_scalar_graphs
                     .guarded_exits
+                    .exits
                     .span(retained.arms)?;
                 // The shared scalar roster owns this tail's guard order,
                 // coverage and selected destinations; the composed edges
@@ -819,8 +819,8 @@ fn guarded_return_arm(
 fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32) -> Option<()> {
     let retained = facts
         .flow
-        .terminal_scalar_graphs
-        .guarded_tails
+        .guarded_exits
+        .tails
         .iter()
         .filter(|tail| tail.state == state)
         .collect::<Vec<_>>();
@@ -829,8 +829,8 @@ fn covering_pair(facts: &CheckFacts, state: symbols::SymbolHandle, ordinal: u32)
     };
     let exits = facts
         .flow
-        .terminal_scalar_graphs
         .guarded_exits
+        .exits
         .span(retained.arms)?;
     (retained.fallback.is_none()
         && exits.len() == 2

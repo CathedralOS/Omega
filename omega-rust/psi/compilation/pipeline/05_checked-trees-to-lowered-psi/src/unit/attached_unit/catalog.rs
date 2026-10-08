@@ -184,7 +184,7 @@ fn establishes_byte_element_view(
         return Ok(false);
     }
     Ok(matches!(
-        selected_declaration(checked, plans, result_identity)?.shape,
+        selected_declaration(plans, result_identity)?.shape,
         CheckedUnitStructuralTypeShape::ByteSequence(
             checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
         )
@@ -501,10 +501,8 @@ fn select_from<'a>(
     Ok(())
 }
 
-/// The one checked declaration of `identity` that every roster able to own
-/// it agrees on.
+/// The one checked declaration of `identity` in the Unit roster.
 fn selected_declaration<'a>(
-    checked: &'a CheckedTrees,
     plans: UnitPlans<'a>,
     identity: &str,
 ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
@@ -512,16 +510,6 @@ fn selected_declaration<'a>(
         return unsupported("Unit closure contains a duplicate or empty structural type identity");
     }
     let mut selected = None;
-    select_from(
-        checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .structural_types
-            .iter(),
-        identity,
-        &mut selected,
-    )?;
     select_from(plans.structural_types(), identity, &mut selected)?;
     selected.ok_or_else(|| {
         LoweringError::Unsupported("Unit closure references a missing structural type")
@@ -555,7 +543,7 @@ pub(crate) fn lower_unit_structural_type_roots(
         {
             return Ok(());
         }
-        let plan = selected_declaration(checked, plans, identity)?;
+        let plan = selected_declaration(plans, identity)?;
         active.push(identity.to_owned());
         match &plan.shape {
             CheckedUnitStructuralTypeShape::Reference {

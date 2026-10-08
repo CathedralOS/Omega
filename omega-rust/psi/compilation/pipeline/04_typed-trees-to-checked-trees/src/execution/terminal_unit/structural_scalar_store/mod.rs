@@ -58,34 +58,6 @@ mod value;
 pub(in crate::execution::terminal_unit) use descriptor_store::{DescriptorSlot, descriptor_store};
 mod view_stores;
 
-/// The scalar-graph lane's field store into one of its own record locals.
-pub(in crate::execution) fn build_local_scalar_field_store(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-) -> Option<CheckedStructuralScalarFieldStorePlan> {
-    let stores = plan_assignment(
-        program,
-        facts,
-        machine,
-        state,
-        StoreRoots::RecordLocals,
-        statement_index,
-        assignment,
-        AssignmentSource::Authored,
-        &LocalConstructionTrace::default(),
-    )?;
-    let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] =
-        <[_; 1]>::try_from(stores).ok()?
-    else {
-        return None;
-    };
-    Some(store)
-}
-
 /// The ordered stores of one attached Unit body, from `statement_start` on.
 /// The state's complete write frame is replayed once here; each assignment
 /// then composes its destination and value.
@@ -121,7 +93,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
     if !frame::matches(program, machine, state, frame, call_frames) {
         return None;
     }
-    let roots = StoreRoots::Parameters {
+    let roots = StoreRoots {
         structural: structural_parameters,
         scalar: scalar_parameters,
         storage: parameter_storage,
@@ -715,16 +687,10 @@ fn case_field_store(
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let (
-        AssignmentSource::Authored,
-        StoreRoots::Parameters {
-            structural: structural_parameters,
-            ..
-        },
-    ) = (source, roots)
-    else {
+    let AssignmentSource::Authored = source else {
         return None;
     };
+    let structural_parameters = roots.structural;
     if !unrestricted_sum(field_data, program) {
         return None;
     }
@@ -1048,7 +1014,7 @@ fn single_parameter_store(
         facts,
         machine,
         state,
-        StoreRoots::Parameters {
+        StoreRoots {
             structural: structural_parameters,
             scalar: scalar_parameters,
             storage: parameter_storage,

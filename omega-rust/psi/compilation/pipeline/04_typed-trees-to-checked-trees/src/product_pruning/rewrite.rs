@@ -297,8 +297,8 @@ fn apply_fact_pruning(
         .retain(|row| retained.contains(&row.machine));
     facts
         .flow
-        .terminal_scalar_graphs
-        .guarded_tails
+        .guarded_exits
+        .tails
         .retain(|row| {
             index
                 .state_machine

@@ -33,8 +33,8 @@ pub(in crate::execution::terminal_unit) fn retire_guarded_reference_completion(
     };
     let mut tails = facts
         .flow
-        .terminal_scalar_graphs
-        .guarded_tails
+        .guarded_exits
+        .tails
         .iter()
         .filter(|tail| tail.state == state.symbol);
     let Some(tail) = tails.next() else {
@@ -45,8 +45,8 @@ pub(in crate::execution::terminal_unit) fn retire_guarded_reference_completion(
     }
     let arms = facts
         .flow
-        .terminal_scalar_graphs
         .guarded_exits
+        .exits
         .span(tail.arms)?;
     // Each value-return arm owns its own completion. A sibling invocation
     // or state edge does not produce this sequence's reference binding and

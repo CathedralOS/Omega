@@ -187,7 +187,7 @@ fn retain_case_subject_fields(
     Some(())
 }
 
-pub(super) fn retain_shapes(
+pub(crate) fn retain_shapes(
     program: &dyn ::validation::CheckingInput,
     plans: &CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
