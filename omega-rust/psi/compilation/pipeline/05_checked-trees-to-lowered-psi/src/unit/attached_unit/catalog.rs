@@ -549,10 +549,10 @@ pub(crate) fn lower_unit_structural_type_roots(
                 collect(checked, plans, element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Record { fields, .. } => {
-                for field in fields {
-                    if let Some(type_identity) = field.field_type.structural_type_identity() {
-                        collect(checked, plans, type_identity, active, selected)?;
-                    }
+                for type_identity in fields.iter().flat_map(
+                    checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
+                ) {
+                    collect(checked, plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::FixedArray {
@@ -562,20 +562,21 @@ pub(crate) fn lower_unit_structural_type_roots(
                 collect(checked, plans, element_type_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
-                for field in cases.iter().flat_map(|case| &case.fields) {
-                    if let Some(type_identity) = field.field_type.structural_type_identity() {
-                        collect(checked, plans, type_identity, active, selected)?;
-                    }
+                for type_identity in cases.iter().flat_map(|case| &case.fields).flat_map(
+                    checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
+                ) {
+                    collect(checked, plans, type_identity, active, selected)?;
                 }
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
-                for field in fields
+                for type_identity in fields
                     .iter()
                     .chain(cases.iter().flat_map(|case| &case.fields))
+                    .flat_map(
+                        checked_trees::CheckedUnitStructuralFieldPlan::retained_type_identities,
+                    )
                 {
-                    if let Some(type_identity) = field.field_type.structural_type_identity() {
-                        collect(checked, plans, type_identity, active, selected)?;
-                    }
+                    collect(checked, plans, type_identity, active, selected)?;
                 }
             }
         }

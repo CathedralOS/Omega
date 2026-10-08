@@ -344,9 +344,37 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
 pub(in crate::execution::terminal_unit) fn parameter_qualifications(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<Vec<SemanticDomainId>> {
+    let mut output = qualification_carriers(program, shapes, type_reference, binders)?
+        .into_iter()
+        .map(|(domain, _)| domain)
+        .collect::<Vec<_>>();
+    output.sort_by_key(|domain| domain.0);
+    output.dedup();
+    Some(output)
+}
+
+/// Register each domain qualification on `type_reference` and pair it with
+/// the type identity of the carrier it was registered against, in authored
+/// order.
+pub(in crate::execution::terminal_unit) fn qualification_carriers(
+    program: &dyn ::validation::CheckingInput,
+    shapes: &mut ShapeCollector<'_>,
+    mut type_reference: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<Vec<(SemanticDomainId, String)>> {
+    // A borrowed byte view is its own storage: its identity looks through the
+    // loan and qualification shells to `slice(u8)`, but only the whole view
+    // registers that byte carrier. A qualification beneath the view therefore
+    // names the view, so registration does not depend on some earlier
+    // signature having registered the same carrier first.
+    let borrowed_view = matches!(
+        byte_sequence_carrier(program, type_reference, &[]),
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+    )
+    .then_some(type_reference);
     let mut output = Vec::new();
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -373,10 +401,18 @@ pub(in crate::execution::terminal_unit) fn parameter_qualifications(
                     ) {
                         type_reference
                     } else {
-                        *base_type
+                        borrowed_view.unwrap_or(*base_type)
                     };
-                    shapes.add_domain(domain.semantic_id, carrier, binders)?;
-                    output.push(domain.semantic_id);
+                    // The carrier is already peeled of this constraint, so
+                    // name the declaration typing selected rather than let
+                    // registration fall back to the family's first one.
+                    let carrier_identity = shapes.add_selected_domain(
+                        domain.semantic_id,
+                        domain.symbol,
+                        carrier,
+                        binders,
+                    )?;
+                    output.push((domain.semantic_id, carrier_identity));
                 }
                 type_reference = *base_type;
             }
@@ -384,8 +420,6 @@ pub(in crate::execution::terminal_unit) fn parameter_qualifications(
             _ => break,
         }
     }
-    output.sort_by_key(|domain| domain.0);
-    output.dedup();
     Some(output)
 }
 

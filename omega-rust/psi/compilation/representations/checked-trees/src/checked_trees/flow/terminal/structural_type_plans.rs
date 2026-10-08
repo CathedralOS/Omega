@@ -114,6 +114,23 @@ pub struct CheckedUnitStructuralFieldPlan {
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
+    /// The carrier types this field's domain qualifications are registered
+    /// against when the field type itself names no structural type (a
+    /// qualified byte view such as `&[u8] in Utf8`). A value constructed into
+    /// the field carries those memberships, so a catalog that keeps the
+    /// owner keeps these carriers and their domain theories with it.
+    pub qualification_carriers: Vec<String>,
+}
+
+impl CheckedUnitStructuralFieldPlan {
+    /// Every structural type a catalog must keep alongside this field's
+    /// owner: the field's own structural type and its qualification carriers.
+    pub fn retained_type_identities(&self) -> impl Iterator<Item = &String> {
+        self.field_type
+            .structural_type_identity()
+            .into_iter()
+            .chain(&self.qualification_carriers)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

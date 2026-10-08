@@ -35,7 +35,7 @@ impl<'program> ShapeCollector<'program> {
         domain: SemanticDomainId,
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<()> {
+    ) -> Option<String> {
         let mut reference = carrier;
         let mut has_domain_constraints = false;
         let mut selected_symbol = None;
@@ -92,7 +92,7 @@ impl<'program> ShapeCollector<'program> {
         selected_symbol: SymbolHandle,
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<()> {
+    ) -> Option<String> {
         let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
         if definition.semantic_id != domain {
             return None;
@@ -106,7 +106,7 @@ impl<'program> ShapeCollector<'program> {
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         definition: Option<&typed_trees::domain::DomainDefinition>,
-    ) -> Option<()> {
+    ) -> Option<String> {
         let carrier_type_identity = self.add_type(carrier, binders, &[])?;
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
         let establishment_routes = definition
@@ -119,20 +119,20 @@ impl<'program> ShapeCollector<'program> {
             byte_predicate,
             domain,
             identity,
-            carrier_type_identity,
+            carrier_type_identity: carrier_type_identity.clone(),
             establishment_routes,
         };
         if let Some(existing) = self.domains.iter().find(|existing| {
             existing.domain == domain
                 && existing.carrier_type_identity == plan.carrier_type_identity
         }) {
-            return (existing == &plan).then_some(());
+            return (existing == &plan).then_some(carrier_type_identity);
         }
         // A semantic domain names a family, not one storage carrier. Separate
         // bounded capacities retain that family under distinct exact carriers;
         // conflicting descriptions of the same pair still reject above.
         self.domains.push(plan);
-        Some(())
+        Some(carrier_type_identity)
     }
 
     /// A machine attached to generic data retains the exact owner application
@@ -990,24 +990,41 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
         };
+        // A qualified field's domain theories join the roster with its shape,
+        // so a value constructed into the field (`Tag { label: "amulet" }`)
+        // carries the membership checking decided for it even when no
+        // signature or local spells the qualified carrier.
+        let mut qualification_carriers = Vec::new();
         if !field.relevance.is_erased()
             && matches!(
                 field_type,
                 CheckedUnitStructuralFieldType::Structural { .. }
+                    | CheckedUnitStructuralFieldType::ByteSequence(_)
+                    | CheckedUnitStructuralFieldType::PredicateByteSequence { .. }
             )
         {
-            super::signature_contracts::parameter_qualifications(
+            let carriers = super::signature_contracts::qualification_carriers(
                 self.program,
                 self,
                 field_type_reference,
                 binders,
             )?;
+            // A structural field's carrier is its own retained type; a byte
+            // field names none, so its plan carries the carriers instead.
+            if field_type.byte_sequence_carrier().is_some() {
+                for (_, carrier) in carriers {
+                    if !qualification_carriers.contains(&carrier) {
+                        qualification_carriers.push(carrier);
+                    }
+                }
+            }
         }
         Some(CheckedUnitStructuralFieldPlan {
             identity: field.path_identity(),
             relevance: field.relevance,
             field_type,
             storage: None,
+            qualification_carriers,
         })
     }
 
@@ -1115,12 +1132,12 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::FusedServiceBinding
                     | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, .. } => {
-                        for field in fields {
-                            if let Some(type_identity) = field.field_type.structural_type_identity()
-                            {
-                                retained.insert(type_identity.clone());
-                            }
-                        }
+                        retained.extend(
+                            fields
+                                .iter()
+                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities)
+                                .cloned(),
+                        );
                     }
                     CheckedUnitStructuralTypeShape::FixedArray {
                         element_type_identity,
@@ -1132,23 +1149,22 @@ impl<'program> ShapeCollector<'program> {
                         retained.insert(element_type_identity.clone());
                     }
                     CheckedUnitStructuralTypeShape::Sum { cases } => {
-                        for field in cases.iter().flat_map(|case| &case.fields) {
-                            if let Some(type_identity) = field.field_type.structural_type_identity()
-                            {
-                                retained.insert(type_identity.clone());
-                            }
-                        }
+                        retained.extend(
+                            cases
+                                .iter()
+                                .flat_map(|case| &case.fields)
+                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities)
+                                .cloned(),
+                        );
                     }
                     CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
-                        for field in fields
-                            .iter()
-                            .chain(cases.iter().flat_map(|case| &case.fields))
-                        {
-                            if let Some(type_identity) = field.field_type.structural_type_identity()
-                            {
-                                retained.insert(type_identity.clone());
-                            }
-                        }
+                        retained.extend(
+                            fields
+                                .iter()
+                                .chain(cases.iter().flat_map(|case| &case.fields))
+                                .flat_map(CheckedUnitStructuralFieldPlan::retained_type_identities)
+                                .cloned(),
+                        );
                     }
                 }
             }
