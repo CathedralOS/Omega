@@ -13,6 +13,21 @@ use checked_trees::CheckedUnitStructuralReturnPlan;
 /// A materialized carrier owns the same captured loan group whether formed
 /// locally or returned by a call. Statement and exit scheduling must retire
 /// that exact holder, not restrict retirement to one producer family.
+/// The latest release boundary any loan in the group reaches: a descriptor
+/// retires after every alternative source and every descendant can end.
+fn latest_loan_release_boundary(
+    facts: &CheckFacts,
+    loans: arena::HandleSpan<checked_trees::BorrowLoanFact>,
+    release: impl Fn(arena::Handle<checked_trees::BorrowLoanFact>) -> Option<u32>,
+) -> Option<u32> {
+    facts
+        .borrow
+        .loan_group(loans)?
+        .try_fold(0u32, |boundary, (loan, _)| {
+            Some(boundary.max(release(loan)?))
+        })
+}
+
 fn captured_reference_result<'operation>(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -76,17 +91,11 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             // A descriptor retires once, after every alternative source and
             // every descendant can end. Never release an arbitrary candidate
             // early or emit one destructive operation per possible referent.
-            let boundary =
-                facts
-                    .borrow
-                    .loan_group(loans)?
-                    .try_fold(0u32, |boundary, (loan, _)| {
-                        Some(boundary.max(
-                            super::super::super::reference_results::release_boundary(
-                                program, facts, machine, state, loan,
-                            )?,
-                        ))
-                    })?;
+            let boundary = latest_loan_release_boundary(facts, loans, |loan| {
+                super::super::super::reference_results::release_boundary(
+                    program, facts, machine, state, loan,
+                )
+            })?;
             let retirement = super::reference_retirement::Retirement {
                 program,
                 facts,
@@ -335,17 +344,11 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 continue;
             }
-            let boundary =
-                facts
-                    .borrow
-                    .loan_group(loans)?
-                    .try_fold(0u32, |boundary, (loan, _)| {
-                        Some(boundary.max(
-                            super::super::super::reference_results::release_statement(
-                                facts, machine, state, loan,
-                            )?,
-                        ))
-                    })?;
+            let boundary = latest_loan_release_boundary(facts, loans, |loan| {
+                super::super::super::reference_results::release_statement(
+                    facts, machine, state, loan,
+                )
+            })?;
             if !operations.iter().any(|operation| {
                 matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loans: released, .. } if *released == loans)
             }) && !pending.iter().any(|operation: &(u32, CheckedUnitEffectOperationPlan)| {
