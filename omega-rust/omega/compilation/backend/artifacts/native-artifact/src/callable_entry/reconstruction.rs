@@ -22,7 +22,8 @@ pub(super) fn reconstruct(
     let fragment = object_stage.source().source().source();
     let route = fragment.source();
     let module = route.verified_input().context().module();
-    let machine = module.machine(module.entry)
+    let machine = module
+        .machine(module.entry)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingEntry)?;
     if machine.attachment.is_some()
         || !machine.structural_parameters.is_empty()
@@ -47,14 +48,13 @@ pub(super) fn reconstruct(
     let call = evaluate_call_plan(calling_policy, &signature)
         .map_err(|_| OptimizedOrdinaryCallableEntryError::AbiPlan)?;
     let selected = route.selected_plan();
-    let selected_function = selected.function(machine.id)
+    let selected_function = selected
+        .function(machine.id)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingEntry)?;
     let homes = route.register_homes();
     let home_function = homes
         .plan()
-        .functions
-        .iter()
-        .find(|function| function.machine == machine.id)
+        .function(machine.id)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingEntry)?;
     let environment = route.register_environment();
     let physical = environment.physical();
@@ -145,9 +145,7 @@ pub(super) fn reconstruct(
         ))?;
     let exit = route.exit_contract().contract();
     let exit_function = exit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine.id)
+        .function(machine.id)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingEntry)?;
     if exit.result_view != result_view || exit.physical_register_model != physical.identity() {
         return Err(OptimizedOrdinaryCallableEntryError::RootMismatch);
@@ -172,7 +170,8 @@ pub(super) fn reconstruct(
             .operands
             .first()
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
-        let vreg = selected_function.virtual_register(operand.virtual_register)
+        let vreg = selected_function
+            .virtual_register(operand.virtual_register)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingReturn(edge))?;
         if origin_value(vreg.origin) != Some(value) {
             return Err(OptimizedOrdinaryCallableEntryError::RootMismatch);
