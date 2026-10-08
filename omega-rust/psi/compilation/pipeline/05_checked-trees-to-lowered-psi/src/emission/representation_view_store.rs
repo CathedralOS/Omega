@@ -25,6 +25,7 @@ use super::{
     allocate_dense, emit_direct_expression, obligation_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::structural_types::unique_declaration;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::{LoweredDirectExpression, emit_scalar_leaf};
@@ -98,7 +99,7 @@ pub(crate) fn emit(
             let Walked::Type(owner) = walked else {
                 return unsupported("representation view store leaf owner is not structural");
             };
-            let declaration = declaration_at(structural_types, owner)?;
+            let declaration = unique_declaration(structural_types, owner, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?;
             let (StructuralTypeShape::Record { fields, .. }
             | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
             else {
@@ -493,12 +494,12 @@ fn byte_capacity(
         Walked::Carrier(ByteSequenceCarrier::BoundedOwned { capacity, .. }) => Ok(*capacity),
         Walked::Type(array) => {
             let StructuralTypeShape::FixedArray { element, length } =
-                &declaration_at(types, array)?.shape
+                &unique_declaration(types, array, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?.shape
             else {
                 return unsupported("byte representation store carrier is not a fixed array");
             };
             let StructuralTypeShape::PrimitiveScalar(scalar) =
-                &declaration_at(types, *element)?.shape
+                &unique_declaration(types, *element, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?.shape
             else {
                 return unsupported("byte representation store carrier element is not scalar");
             };
@@ -536,7 +537,7 @@ fn walk_carrier_prefix<'a>(
         let Walked::Type(owner) = walked else {
             return unsupported("representation view store carrier path is incompatible");
         };
-        let declaration = declaration_at(types, owner)?;
+        let declaration = unique_declaration(types, owner, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?;
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 let (StructuralTypeShape::Record { fields, .. }
@@ -706,21 +707,6 @@ fn leaf_scalar_type(field_type: &StructuralFieldType) -> Result<ScalarType, Lowe
 }
 
 /// One structural type declaration by identity.
-fn declaration_at(
-    types: &[StructuralTypeDeclaration],
-    identity: StructuralTypeId,
-) -> Result<&StructuralTypeDeclaration, LoweringError> {
-    let mut matching = types
-        .iter()
-        .filter(|declaration| declaration.id == identity);
-    let declaration = matching.next().ok_or(LoweringError::Unsupported(
-        "representation view store carrier type is absent",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("representation view store carrier type is ambiguous");
-    }
-    Ok(declaration)
-}
 
 /// Lower the store's checked value to the view carrier: a bound
 /// `AssignmentValue` expression, or the statement's own scalar result read

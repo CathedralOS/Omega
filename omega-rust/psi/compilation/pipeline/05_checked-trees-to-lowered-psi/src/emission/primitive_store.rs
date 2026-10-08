@@ -8,6 +8,7 @@ use super::{
     StructuralTypeId, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::structural_types::unique_declaration;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
 
@@ -110,7 +111,7 @@ pub(crate) fn lower_destination_path(
     let scalar_type = match walked {
         Walked::Declared(structural_type) => {
             let StructuralTypeShape::PrimitiveScalar(scalar_type) =
-                unique_type(types, structural_type)?.shape
+                unique_declaration(types, structural_type, "primitive projection type is absent", "primitive projection type is ambiguous")?.shape
             else {
                 return unsupported("primitive projection does not end at a primitive scalar");
             };
@@ -168,7 +169,7 @@ pub(crate) fn indexed_element_scalar_type(
         let Walked::Declared(record) = walked else {
             return unsupported("indexed field carrier is not a record");
         };
-        let StructuralTypeShape::Record { fields, .. } = &unique_type(types, record)?.shape else {
+        let StructuralTypeShape::Record { fields, .. } = &unique_declaration(types, record, "primitive projection type is absent", "primitive projection type is ambiguous")?.shape else {
             return unsupported("indexed field carrier is not a record");
         };
         let mut matching = fields.iter().filter(|field| field.identity == *identity);
@@ -201,7 +202,7 @@ pub(crate) fn indexed_element_scalar_type(
     let (_, walked) = walk_path(element, element_path, types)?;
     let scalar_type = match walked {
         Walked::ScalarField(scalar_type) => scalar_type,
-        Walked::Declared(identity) => match unique_type(types, identity)?.shape {
+        Walked::Declared(identity) => match unique_declaration(types, identity, "primitive projection type is absent", "primitive projection type is ambiguous")?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => scalar_type,
             _ => return unsupported("indexed element path does not end at a scalar"),
         },
@@ -240,7 +241,7 @@ fn walk_path(
         let Walked::Declared(structural_type) = walked else {
             return unsupported("primitive projection descends below a byte element");
         };
-        let declaration = unique_type(types, structural_type)?;
+        let declaration = unique_declaration(types, structural_type, "primitive projection type is absent", "primitive projection type is ambiguous")?;
         walked = match (segment, &declaration.shape) {
             (
                 CheckedUnitStructuralPathSegment::Referent,
@@ -339,18 +340,3 @@ fn walk_path(
     Ok((result, walked))
 }
 
-fn unique_type(
-    types: &[StructuralTypeDeclaration],
-    identity: StructuralTypeId,
-) -> Result<&StructuralTypeDeclaration, LoweringError> {
-    let mut matching = types
-        .iter()
-        .filter(|declaration| declaration.id == identity);
-    let declaration = matching.next().ok_or(LoweringError::Unsupported(
-        "primitive projection type is absent",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("primitive projection type is ambiguous");
-    }
-    Ok(declaration)
-}

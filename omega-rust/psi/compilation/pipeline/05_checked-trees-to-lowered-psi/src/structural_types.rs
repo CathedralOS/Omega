@@ -8,6 +8,7 @@ use checked_trees::types::PrimitiveType;
 use semantic_vocabulary::{IeeeFloatFormat, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralTypeDeclaration,
 };
 
 use crate::emission::scalar_types::terminal_scalar_type;
@@ -139,4 +140,22 @@ pub(crate) fn lower_mixed_cases(
             })
         })
         .collect()
+}
+
+/// The single declaration carrying `identity`, or an error describing the
+/// caller's carrier when it is absent or declared twice.
+pub(crate) fn unique_declaration<'a>(
+    types: &'a [StructuralTypeDeclaration],
+    identity: StructuralTypeId,
+    absent: &'static str,
+    ambiguous: &'static str,
+) -> Result<&'a StructuralTypeDeclaration, LoweringError> {
+    let mut matching = types
+        .iter()
+        .filter(|declaration| declaration.id == identity);
+    let declaration = matching.next().ok_or(LoweringError::Unsupported(absent))?;
+    if matching.next().is_some() {
+        return unsupported(ambiguous);
+    }
+    Ok(declaration)
 }
