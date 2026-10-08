@@ -2776,8 +2776,7 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  still repeats `bind_selected_operator_calls` (3 + N runs) and
-  `resolve_projected_receiver_calls` (2).
+  still repeats `resolve_projected_receiver_calls` (2).
   Pending constant evaluation also stamps float destinations in the Build
   and product coordinators; move that work into private typed preparation.
   The loop must specialize and bind only; run each remaining pass once at its
@@ -2968,11 +2967,11 @@ of a check the same flow already performed, not the check itself.
   independent validation/proof owners; no checking-time mutation or typed
   commitment fallback is permitted.
 
-  Remaining: coordinate the repeated specialization/rebinding passes with
-  **SPECIALIZATION-LOOP-ONCE** in the preparation stage;
-  run each pass once at its required point without losing authored requirement
-  identity or call-contract diagnostics. Preserve exact erased applications,
-  clone correspondence and lexical owners through folding and substitution;
+  Remaining: retire repeated receiver elaboration and coordinator float
+  destination stamping with **SPECIALIZATION-LOOP-ONCE**, preserving authored
+  requirement identity and call-contract diagnostics. Preserve exact erased
+  applications, clone correspondence and lexical owners through folding and
+  substitution;
   in `pass/generics/open_computed_quantity_result`, changing the forwarder's
   result to `Indexed<RightIndex + LeftIndex>` still rejects the concrete
   `Indexed<3>` use after establishing `1 + 2 == 3` (macOS arm64).

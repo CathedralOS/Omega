@@ -168,7 +168,10 @@ pub fn prepare_typed_trees(
     // Token syntax must expose its ordinary call before specialization sees
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
-    crate::operators::bind_selected_operator_calls(&mut program)?;
+    crate::operators::bind_selected_operator_calls(
+        &mut program,
+        &typed_trees::references::DeclarationSelection::all(),
+    )?;
     let provider_candidates =
         crate::monomorphization::OperatorCandidateTemplates::candidate_requests(&program);
     let provider_templates = crate::monomorphization::OperatorCandidateTemplates::prepare(
@@ -179,7 +182,9 @@ pub fn prepare_typed_trees(
         // Close ordinary calls before discovering boundary demands. A bound
         // token or generated candidate can expose another ordinary application,
         // so all rounds return through this same specialization entrypoint.
-        specialize_machine_calls(&mut program, true)?;
+        // Specialization retains authored machines and only appends instances.
+        let first_new_machine = program.machines().len();
+        let mut changed_roots = specialize_machine_calls(&mut program, true)?;
         let mut materialized = match &provider_templates {
             Some(templates) => crate::monomorphization::specialize_operator_candidates(
                 templates,
@@ -190,9 +195,15 @@ pub fn prepare_typed_trees(
         };
         materialized +=
             crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
-        // Generated bodies can introduce new token uses. Feed them back into
-        // the same specialization loop, with unchanged call/contract checks.
-        materialized += crate::operators::bind_selected_operator_calls(&mut program)?;
+        // Bind only complete producer outputs: newly cloned bodies and callers
+        // whose calls or inferred results changed. The ordinary fixed point
+        // settles targets and dependent temporaries before binding reads them;
+        // keep that boundary without sweeping every unchanged body.
+        for machine in &program.machines()[first_new_machine..] {
+            changed_roots.include(machine.symbol);
+        }
+        materialized +=
+            crate::operators::bind_selected_operator_calls(&mut program, &changed_roots)?;
         if materialized == 0 {
             break;
         }
@@ -216,11 +227,8 @@ pub fn prepare_typed_trees(
     // Bind after named rebinding above, which would otherwise reselect the
     // unqualified overload for a call whose context expects no result domain.
     validation::bind_float_conversion_casts(&mut program)?;
-    // A spelled use that selects a token-bearing machine is supplied by that
-    // declaration's own body: bind it to an ordinary call now, after every
-    // specialization and call-identity rebinding above, so validation and
-    // every executing consumer see the same call edge a named call would make.
-    crate::operators::bind_selected_operator_calls(&mut program)?;
+    // Overload rebinding changes existing call targets, and cast elaboration
+    // produces exact ordinary calls. Neither introduces token syntax to bind.
     // Land anonymous float values once, against final destinations. Provisional
     // named targets are not authority to round an argument: overload rebinding
     // and conversion elaboration above settle the exact formal types first.
@@ -289,7 +297,7 @@ pub fn specialize_static_machine_calls(
 fn specialize_machine_calls(
     program: &mut typed_trees::TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<typed_trees::references::DeclarationSelection, Vec<diagnostics::Diagnostic>> {
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;

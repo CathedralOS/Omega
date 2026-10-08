@@ -18,12 +18,13 @@
 //! requirement supply: Psi emits its requirement call and Omega installs the
 //! selected provider. Its operator view never creates a second executable slot.
 //!
-//! It runs at the checked stage rather than at typing because operand types
-//! are only settled by the checked value facts; typing rewrites `==` to a
-//! written `equals` from declared data alone, which is not enough to choose
-//! between overloaded token bindings. It participates in specialization's
-//! fixed point so generic token calls expose the same closed demands as named
-//! calls, including calls introduced by newly specialized bodies. It runs before
+//! Private typed preparation binds its initial roots once. Each elaboration
+//! round then binds only the new bodies and inferred-result owners it produced,
+//! after ordinary specialization settles their dependent temporaries. Unchanged
+//! graphs need no fixed-point-wide sweep. Selection reads static operand types
+//! and authored origins, not checking conclusions or flow facts. A new call
+//! contributes to the same fixed point, including when its operands become known
+//! through a generic result. Binding precedes
 //! program validation so
 //! ownership, effects, termination, contracts, and every executing consumer
 //! (interpreter, lowering, Terminal, native) see a plain call edge to the
@@ -38,10 +39,8 @@
 //! (and `[..]` under the spec's range normalization -- an omitted start means
 //! zero, and an inclusive end `..=end` means `end + 1` -- so `a[..b]` and
 //! `a[c..=d]` bind exactly like `a[0..b]` and `a[c..d+1]`) supplies the
-//! collection place as the call receiver when the entry state's first
-//! parameter is `self`, matching the loan a named `collection.at(index)`
-//! forms; a token binding whose first operand is an ordinary parameter keeps
-//! the operands as ordinary arguments. Canonical floating comparisons already
+//! collection place as the first explicit argument, just as the named static
+//! call does. Canonical floating comparisons already
 //! have a selected-comparison route, including arm-local match equality. A
 //! bodyless requirement keeps its exact occurrence and operands on that route:
 //! rewriting it to a bodyless call would erase the comparison computation,
@@ -71,6 +70,7 @@ use validation::expression_type_reference_for_origin;
 /// canonical bodyless float comparisons on their selected-comparison route.
 pub(crate) fn bind_selected_operator_calls(
     program: &mut TypedTrees,
+    roots: &typed_trees::references::DeclarationSelection,
 ) -> Result<usize, Vec<Diagnostic>> {
     if program.machine_token_bindings().is_empty()
         && program.operators().is_empty()
@@ -81,7 +81,7 @@ pub(crate) fn bind_selected_operator_calls(
         return Ok(0);
     }
     // Binding reads the operator uses and their candidates only.
-    let values = validation::collect_executable_value_origins(program);
+    let values = validation::collect_executable_value_origins(program, roots);
     let mut facts = validation::build_operator_uses(program, &values);
     let named = validation::collect_named_requirement_uses(program, &values);
     let shorthand_count = super::float_shorthand_calls::bind(program, &facts, &named)?;
@@ -98,9 +98,7 @@ pub(crate) fn bind_selected_operator_calls(
         operator_use.status == CheckedOperatorResolutionStatus::Resolved
     }) {
         let selected = operator_use.selected_operator_symbol;
-        if !program
-            .machine_token_binding_by_symbol(selected).is_some()
-        {
+        if !program.machine_token_binding_by_symbol(selected).is_some() {
             continue;
         }
         // This classifier rejoins the exact selected declaration, signature,
@@ -152,9 +150,7 @@ pub(crate) fn bind_selected_operator_calls(
                 .map(|(_, fact)| (fact.expression, fact.requirement_symbol)),
         )
     {
-        let Some(binding) = program
-            .machine_token_binding_by_symbol(requirement)
-        else {
+        let Some(binding) = program.machine_token_binding_by_symbol(requirement) else {
             continue;
         };
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
@@ -163,8 +159,7 @@ pub(crate) fn bind_selected_operator_calls(
         if !call.receiver.is_valid() {
             continue;
         }
-        let Some(receiver) = program.expression_table.name_path_node(call.receiver)
-        else {
+        let Some(receiver) = program.expression_table.name_path_node(call.receiver) else {
             continue;
         };
         if receiver.symbol.is_valid()

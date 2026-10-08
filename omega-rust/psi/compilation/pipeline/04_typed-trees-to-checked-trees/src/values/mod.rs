@@ -77,6 +77,7 @@ pub(crate) fn build_value_facts(
     let mut facts = CheckedValueFacts::default();
     validation::visit_executable_value_occurrences(
         program,
+        &typed_trees::references::DeclarationSelection::all(),
         &mut |expression, origin, expected_primitive| {
             let type_reference =
                 validation::expression_type_reference_for_origin(program, expression, origin)

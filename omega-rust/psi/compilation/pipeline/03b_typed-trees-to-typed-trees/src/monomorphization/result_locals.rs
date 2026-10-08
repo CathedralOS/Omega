@@ -17,7 +17,7 @@ pub(super) fn refresh_generic_call_results(
     program: &mut TypedTrees,
     candidates: &[super::Candidate],
     selections: &[super::CallSelection],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
+) -> Result<Vec<SymbolHandle>, Vec<diagnostics::Diagnostic>> {
     let mut updates = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -155,16 +155,16 @@ pub(super) fn refresh_generic_call_results(
     if !changed_owners.is_empty() {
         // Open result substitution is also a graph producer. Settle its owned
         // constraints before another selection reads the newly inferred type.
-        super::finalize_domain_instance_identities(
-            program,
-            &typed_trees::references::DeclarationSelection::from_symbols(changed_owners),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        let roots = typed_trees::references::DeclarationSelection::from_symbols(
+            changed_owners.iter().copied(),
+        );
+        super::finalize_domain_instance_identities(program, &roots)
+            .map_err(|diagnostic| vec![diagnostic])?;
     }
-    Ok(())
+    Ok(changed_owners)
 }
 
-pub(super) fn refresh(program: &mut TypedTrees) {
+pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
     let selected_returns = program
         .machines()
         .iter()
@@ -175,11 +175,15 @@ pub(super) fn refresh(program: &mut TypedTrees) {
     let bodies = program
         .machines()
         .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .map(|state| state.statement_nodes)
+        .flat_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .map(move |state| (machine.symbol, state.statement_nodes))
+        })
         .collect::<Vec<_>>();
     let mut updates = Vec::new();
-    for body in bodies {
+    for (owner, body) in bodies {
         for (offset, statement) in program.statement_table.indexed_statements(body) {
             let StatementNode::LocalData(local) = statement else {
                 continue;
@@ -201,6 +205,7 @@ pub(super) fn refresh(program: &mut TypedTrees) {
                 // Retain the initializer occurrence and its evaluation point.
                 // Only its inferred destination follows the selected instance.
                 updates.push((
+                    owner,
                     body,
                     offset,
                     call.target_symbol,
@@ -213,15 +218,19 @@ pub(super) fn refresh(program: &mut TypedTrees) {
             }
         }
     }
-    for (body, offset, target, arguments, return_type) in updates {
+    let mut changed_owners = Vec::new();
+    for (owner, body, offset, target, arguments, return_type) in updates {
         let return_type =
             substitute_runtime_bound_result_bounds(program, target, &arguments, return_type);
         if let StatementNode::LocalData(local) =
             &mut program.statement_table.statements_mut(body)[offset]
+            && local.type_reference != return_type
         {
             local.type_reference = return_type;
+            changed_owners.push(owner);
         }
     }
+    changed_owners
 }
 
 /// A specialized callee's result range can name the realized trailing

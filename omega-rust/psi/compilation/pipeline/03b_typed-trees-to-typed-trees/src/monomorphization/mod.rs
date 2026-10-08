@@ -166,6 +166,10 @@ struct SpecializationKey {
     evidence_arguments: Vec<u64>,
 }
 
+/// Return the lexical roots whose calls or inferred results changed. The
+/// enclosing elaboration round binds those outputs only after this fixed point
+/// settles, alongside every newly cloned body; unchanged callers stay untouched.
+///
 /// `enforce_complete_concrete_selections` distinguishes the authoritative
 /// checking pass from speculative specialization runs. Build-program
 /// preparation and `build.omg` interpretation specialize a private typed copy
@@ -176,16 +180,19 @@ struct SpecializationKey {
 pub(crate) fn monomorphize_generic_machine_value_calls(
     program: &mut TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<typed_trees::references::DeclarationSelection, Vec<Diagnostic>> {
+    let mut changed_owners = Vec::new();
     loop {
         // Provider clones may restore old inferred types even when this round
         // discovers no further ordinary specialization.
-        result_locals::refresh(program);
+        changed_owners.extend(result_locals::refresh(program));
         materialize_static_argument_types(program);
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
-            return Ok(());
+            return Ok(typed_trees::references::DeclarationSelection::from_symbols(
+                changed_owners,
+            ));
         }
         let contract_expressions = contract_expression_handles(program);
         let mut selections = selection::collect_call_selections(
@@ -210,7 +217,11 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 candidate_for_selection(&candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
         }
-        result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
+        changed_owners.extend(result_locals::refresh_generic_call_results(
+            program,
+            &candidates,
+            &selections,
+        )?);
         let mut diagnostics = Vec::new();
         let mut applied_any = false;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
@@ -241,7 +252,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 )));
                 continue;
             }
-            match apply_call_specializations(program, candidate, &selections, candidate_index) {
+            match apply_call_specializations(
+                program,
+                candidate,
+                &selections,
+                candidate_index,
+                &mut changed_owners,
+            ) {
                 Ok(changed) => applied_any |= changed,
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
@@ -286,7 +303,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                     return Err(diagnostics);
                 }
             }
-            return Ok(());
+            return Ok(typed_trees::references::DeclarationSelection::from_symbols(
+                changed_owners,
+            ));
         }
     }
 }
@@ -452,6 +471,7 @@ fn apply_call_specializations(
     template: &Candidate,
     selections: &[CallSelection],
     candidate_index: usize,
+    changed_owners: &mut Vec<SymbolHandle>,
 ) -> Result<bool, Vec<Diagnostic>> {
     let groups = unique_complete_selections(program, selections, candidate_index);
     if groups.is_empty() {
@@ -531,12 +551,21 @@ fn apply_call_specializations(
                 .flatten()
                 .filter_map(|argument| Some((argument.path.first()?.clone(), argument.symbol)))
                 .collect::<Vec<_>>();
-            selected_call_rewrites.push((selection.site, *concrete_state, subjects));
+            selected_call_rewrites.push((
+                selection.site,
+                selection.lexical_owner,
+                *concrete_state,
+                subjects,
+            ));
         }
     }
     // Delay call rewrites until every tuple has copied its authored body.
-    for (site, concrete_state, subjects) in selected_call_rewrites {
+    for (site, owner, concrete_state, subjects) in selected_call_rewrites {
         rewrite_selected_call(program, site, concrete_state, &subjects);
+        // A call can be an operator operand without an inferred local between
+        // them. Its new result type invalidates this lexical owner's selection
+        // inputs even when result-local elaboration reports no change.
+        changed_owners.push(owner);
     }
     Ok(true)
 }

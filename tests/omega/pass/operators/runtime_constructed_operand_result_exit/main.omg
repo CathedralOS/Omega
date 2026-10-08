@@ -15,6 +15,8 @@ machine + Other::combine(left: Other, right: Other) -> f64 {
     (left.value as f64) - (right.value as f64)
 }
 
+machine forward<Value>(value: Value) -> Value { value }
+
 machine tick(count: &mut u64) -> u64 {
     count = ((count as u64 in Wrapping) + 1) as u64;
     count
@@ -50,6 +52,9 @@ machine main() crashes Trap {
     let widened: bool = (Input { value: 16777216.0f32 } + Input { value: 1.0f32 }) == 16777217.0;
     let other: bool = (Other { value: 0.25f32 } + Other { value: 0.25f32 }) == 0.0;
     let named: bool = Input::combine(Input { value: 0.25f32 }, Input { value: 0.25f32 }) == 0.5;
+    // Inferred generic results must expose the same nominal operator meaning.
+    let forwarded: bool = (forward<Input>(Input { value: 0.25f32 })
+        + forward<Input>(Input { value: 0.25f32 })) == 0.5;
     let mut count: u64 = 0;
     let skipped: bool = select(false, &mut count);
     let selected: bool = select(true, &mut count);
@@ -57,7 +62,7 @@ machine main() crashes Trap {
     let choice: bool = case_value(Choice::Present { value: tick(&mut count) }) == 7;
     let transferred: bool = transfer(true);
     let retained: bool = transfer(false);
-    transition result && widened && other && named && skipped == false && selected
+    transition result && widened && other && named && forwarded && skipped == false && selected
         && array && choice && transferred && retained == false && count == 7 {
         true -> done()
         false -> bad()

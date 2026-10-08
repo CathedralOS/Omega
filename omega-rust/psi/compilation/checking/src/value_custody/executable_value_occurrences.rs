@@ -14,17 +14,23 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::references::DeclarationSelection;
 use typed_trees::types::PrimitiveType;
 
-/// Visit executable values in machine/declaration/state order, parent before
-/// children. The optional primitive is an authored builtin argument destination,
-/// not inferred type evidence. The callback owns all produced facts.
+/// Visit the selected declaration roots in machine/state order, parent before
+/// children. Roots select work, not authority, and retain every distinct origin.
+/// The optional primitive is an authored builtin argument destination, not
+/// inferred type evidence. The callback owns all produced facts.
 pub fn visit_executable_value_occurrences(
     program: &dyn crate::CheckingInput,
+    roots: &DeclarationSelection,
     visit: &mut dyn FnMut(ExpressionHandle, CheckedValueOrigin, Option<PrimitiveType>),
 ) {
     let mut visitor = ValueOccurrenceVisitor { program, visit };
     for machine in program.machines() {
+        if !roots.contains(machine.symbol) {
+            continue;
+        }
         if let Some(subjects) =
             typed_trees::ranking::resolve_machine_witness_subjects(program, machine)
         {
@@ -52,7 +58,8 @@ pub fn visit_executable_value_occurrences(
         }
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 visitor.collect_statement(machine.symbol, state.symbol, statement_index, statement);
             }
@@ -62,9 +69,12 @@ pub fn visit_executable_value_occurrences(
 
 /// Collect only expression/origin rows for pre-check selection. Their type and
 /// range fields remain absent; this does not manufacture checking conclusions.
-pub fn collect_executable_value_origins(program: &dyn crate::CheckingInput) -> CheckedValueFacts {
+pub fn collect_executable_value_origins(
+    program: &dyn crate::CheckingInput,
+    roots: &DeclarationSelection,
+) -> CheckedValueFacts {
     let mut facts = CheckedValueFacts::default();
-    visit_executable_value_occurrences(program, &mut |expression, origin, _| {
+    visit_executable_value_occurrences(program, roots, &mut |expression, origin, _| {
         facts.values.insert(CheckedValueFact {
             expression,
             origin,
