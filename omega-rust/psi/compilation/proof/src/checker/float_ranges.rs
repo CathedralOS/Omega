@@ -113,14 +113,7 @@ fn float_range_at(
     expression: ExpressionHandle,
 ) -> Option<FloatRange> {
     let program = proof_plan.program;
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let identity = resolved_place_identity(program, expression)?;
     let place_type =
         validation::declared_place_type_raw(program, machine, Some(state), expression)?;

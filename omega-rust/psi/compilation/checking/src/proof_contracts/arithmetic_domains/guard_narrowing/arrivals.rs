@@ -30,14 +30,7 @@ pub fn arrival_integer_expression_bounds(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     if let Some(StatementNode::Transition(transition)) = statements.get(statement_index) {
         return transition_arguments::integer_bounds(
@@ -164,14 +157,7 @@ fn expression_observation(
     statement_index: Option<usize>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionObservation> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let (prefix, observed_statements) = match statement_index {
         Some(index) => (

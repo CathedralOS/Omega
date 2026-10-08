@@ -49,15 +49,7 @@ fn machine_and_state<'p>(
     &'p typed_trees::machine::Machine,
     &'p typed_trees::state::State,
 )> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
-    Some((machine, state))
+    program.machine_state(machine_symbol, state_symbol)
 }
 
 use crate::checker::bounded_checks::{
