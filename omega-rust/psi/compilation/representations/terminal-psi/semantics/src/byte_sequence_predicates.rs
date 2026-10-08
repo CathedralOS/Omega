@@ -9,6 +9,7 @@ use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     ByteSequencePredicate, ByteSequencePredicateSet, OperationKind, StructuralAccess,
     StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
+    live_field_by_id,
 };
 
 /// The current-content proof needed to install a descriptor in a qualified
@@ -183,9 +184,7 @@ fn authenticated_call_result<'machine>(
         _ => return None,
     };
     let result = operation.result.structural()?;
-    let signature = module.machine(callee)?
-        .result
-        .structural()?;
+    let signature = module.machine(callee)?.result.structural()?;
     (result.place == source
         && result.structural_type == structural_type
         && signature.structural_type == structural_type
@@ -521,9 +520,7 @@ fn concatenation_operand_predicates(
             let Some(fields) = declaration.shape.record_fields() else {
                 return None;
             };
-            let field = fields
-                .iter()
-                .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+            let field = live_field_by_id(fields, *field)?;
             field.field_type.byte_sequence_carrier()?;
             Some(field.field_type.byte_predicates())
         }

@@ -3,7 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralPathSegment, StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeShape, live_field_by_id,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -15,7 +15,6 @@ use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalScalarValue;
 
 impl TerminalExecution<'_> {
-
     /// Dispatch charges fuel first. Validate and snapshot the complete source
     /// before replacing either live bytes or length; no failure partially writes.
     pub(crate) fn execute_structural_byte_sequence_field_store(
@@ -205,8 +204,7 @@ impl TerminalExecution<'_> {
             // Admission already verified the exact producer and its declaration
             // custody. Execution must find that home's current instance; it
             // cannot recover a value from a future or retired producer.
-            let declaration = machine.structural_place(root)
-                .ok_or_else(malformed)?;
+            let declaration = machine.structural_place(root).ok_or_else(malformed)?;
             let semantic_vocabulary::StructuralPlaceKind::OperationResult {
                 structural_type, ..
             } = declaration.kind
@@ -275,14 +273,10 @@ impl TerminalExecution<'_> {
             // the descriptor and leave the caller's bytes unchanged.
             self.resolve_live_projection(root, path, requested)?
         };
-        let Some(fields) = self.program.record_fields(&parent.structural_type)
-        else {
+        let Some(fields) = self.program.record_fields(&parent.structural_type) else {
             return Err(malformed());
         };
-        let field_declaration = fields
-            .iter()
-            .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-            .ok_or_else(malformed)?;
+        let field_declaration = live_field_by_id(fields, field).ok_or_else(malformed)?;
         let carrier = field_declaration
             .field_type
             .byte_sequence_carrier()

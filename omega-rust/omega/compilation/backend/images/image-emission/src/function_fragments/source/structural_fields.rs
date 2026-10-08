@@ -436,17 +436,12 @@ fn field_carrier(
             }
         };
     }
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &terminal_psi::find_structural_type(
-        &target.graph.structural_types,
-        carrier,
-    )?
-    .shape
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } =
+        &terminal_psi::find_structural_type(&target.graph.structural_types, carrier)?.shape
     else {
         return None;
     };
-    fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+    live_field_by_id(fields, field)?
         .field_type
         .byte_sequence_carrier()
 }
@@ -1055,10 +1050,7 @@ pub(super) fn retained(
                 else {
                     return false;
                 };
-                let Some(selected) = fields
-                    .iter()
-                    .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
-                else {
+                let Some(selected) = live_field_by_id(fields, *field) else {
                     return false;
                 };
                 let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type
@@ -1426,7 +1418,7 @@ fn parameter_access(
     types: &[terminal_psi::StructuralTypeDeclaration],
     purpose: AccessPurpose,
 ) -> bool {
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity, live_field_by_id};
     if (parameter.multiplicity == StructuralMultiplicity::Linear
         && (parameter.access != StructuralAccess::Owned
             || purpose == AccessPurpose::ByteOwnerReplacement

@@ -4,8 +4,8 @@
 use super::StructuralEffectObservation;
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, StructuralTypeId};
 use terminal_psi::{
+    StructuralTypeDeclaration, StructuralTypeShape, control_flow::ByteSequenceOperand,
     find_structural_type,
-StructuralTypeDeclaration, StructuralTypeShape, control_flow::ByteSequenceOperand,
 };
 
 /// Reconstruct the Boolean denotation after independently validating the

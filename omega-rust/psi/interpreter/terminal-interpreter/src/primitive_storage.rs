@@ -16,6 +16,7 @@ use semantic_vocabulary::{
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    live_field_by_id,
 };
 
 use crate::custody::resolve_structural_path_type;
@@ -714,10 +715,7 @@ impl TerminalExecution<'_> {
                         // a mixed shape's common member, never payload storage.
                         declaration.shape.direct_fields().ok_or_else(malformed)?
                     };
-                    let field = fields
-                        .iter()
-                        .find(|field| field.id == *identity && !field.relevance.is_erased())
-                        .ok_or_else(malformed)?;
+                    let field = live_field_by_id(fields, *identity).ok_or_else(malformed)?;
                     if position + 1 == path.len()
                         && (!matches!(
                             field.field_type,

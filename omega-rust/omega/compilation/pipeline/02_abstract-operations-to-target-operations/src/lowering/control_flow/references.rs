@@ -17,7 +17,7 @@ use target_operations::{
 };
 use terminal_psi::{
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape, structural_children,
+    StructuralTypeShape, live_field_by_id, structural_children,
 };
 use terminal_psi::{StructuralArgument, StructuralOperationResult};
 
@@ -307,7 +307,8 @@ pub(super) fn reference_call_argument(
         let source = home.argument_source();
         (home.structural_type(), source)
     } else {
-        let parameter = prepared.parameter(argument.place)
+        let parameter = prepared
+            .parameter(argument.place)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if parameter.access == StructuralAccess::WriteOnlyBorrow {
             return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1167,11 +1168,7 @@ pub(super) fn check_projected_shared_access(
             let selected = leaf_type(types, root, path)
                 .and_then(|parent| types.get(&parent))
                 .and_then(|declaration| declaration.shape.record_fields())
-                .and_then(|fields| {
-                    fields
-                        .iter()
-                        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-                });
+                .and_then(|fields| live_field_by_id(fields, field));
             let Some(selected) = selected else {
                 return true;
             };

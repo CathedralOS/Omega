@@ -15,8 +15,7 @@ pub(crate) fn validate_compatibility(
         return Ok(());
     }
     let error = |machine, position: terminal_semantics::borrowed_storage::Position| {
-        let function = unit.function(machine)
-            .expect("validated function");
+        let function = unit.function(machine).expect("validated function");
         let place = requirements
             .get(&machine)
             .and_then(|rows| {

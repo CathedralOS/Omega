@@ -24,7 +24,7 @@ use terminal_semantics::descriptor_results::{
 };
 mod compatibility;
 pub(crate) use compatibility::validate_compatibility;
-use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
+use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, live_field_by_id};
 use terminal_semantics::descriptor_lifetimes::{
     DescriptorFlowEdge, DescriptorFlowStep, DescriptorLocation,
 };
@@ -129,7 +129,7 @@ impl DescriptorLoans {
                             function, &node.operation,
                         ).map_or(StructuralAccess::MutableBorrow, |source| source.access),
                     )),
-                    _ => None,
+                    _ => None
                 };
                 if let Some((_, result)) = node.operation.structural_result() {
                     if let Some(origins) = borrowed_regions.call_origins(result.place) {
@@ -586,9 +586,9 @@ fn operation_observations(
         })
         .and_then(|declaration| match &declaration.shape {
             terminal_psi::StructuralTypeShape::Record { fields, .. }
-            | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields
-                .iter()
-                .find(|row| row.id == field && !row.relevance.is_erased()),
+            | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => {
+                live_field_by_id(fields, field)
+            }
             _ => None,
         })
         .and_then(|field| field.field_type.byte_sequence_carrier())

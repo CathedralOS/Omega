@@ -11,7 +11,7 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralDomainDeclaration, StructuralMultiplicity,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralTypeDeclaration, StructuralTypeShape, live_field_by_id,
 };
 
 use crate::OptimizationUnitValidationError;
@@ -209,9 +209,7 @@ fn writable_byte_field_carrier(
     let StructuralTypeShape::Record { fields, .. } = &structural_types.get(&parent)?.shape else {
         return None;
     };
-    fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+    live_field_by_id(fields, field)?
         .field_type
         .byte_sequence_carrier()
 }

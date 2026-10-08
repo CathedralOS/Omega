@@ -7,7 +7,7 @@ use calling_conventions::{
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    find_structural_type, structural_case_position,
+    find_structural_type, live_field_by_id, structural_case_position,
 };
 
 pub(crate) fn scalar_storage_type(
@@ -1441,9 +1441,7 @@ fn scalar_field_declaration<'declarations>(
         }
         _ => return None,
     };
-    fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+    live_field_by_id(fields, field)
 }
 
 pub(crate) fn field_shape(

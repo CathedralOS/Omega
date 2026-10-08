@@ -9,6 +9,7 @@ use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    live_field_by_id,
 };
 
 pub(super) fn validate(
@@ -128,9 +129,7 @@ pub(super) fn field_path(
     let StructuralTypeShape::Record { fields, .. } = &types.get(&carrier)?.shape else {
         return None;
     };
-    let selected = fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?;
+    let selected = live_field_by_id(fields, field)?;
     let mut exact = path.to_vec();
     exact.push(StructuralPathSegment::Field(selected.identity.clone()));
     Some(exact)

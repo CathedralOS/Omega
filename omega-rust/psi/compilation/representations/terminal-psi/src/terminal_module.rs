@@ -37,12 +37,12 @@ pub use control_flow::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion,
     FloatResultPolicy, FloatSaturationRule, MemoryOrdering, Operation, OperationKind,
     OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
-    ScalarCaseField, structural_parameter_position, StructuralCaseSuccessorEdge,
-    StructuralOperationResult,
+    ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, SuccessorEdge, TargetMachineCallable, TargetMachineFamily,
     TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank, TerminalMachine,
     TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
     TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
+    structural_parameter_position,
 };
 pub use identity::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 pub use observation::{
@@ -99,8 +99,8 @@ pub use types::{
     StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape,
-    find_structural_case, find_structural_type, live_field, structural_case_position,
-    structural_children, unique_structural_declaration,
+    find_structural_case, find_structural_type, live_field, live_field_by_id,
+    structural_case_position, structural_children, unique_structural_declaration,
 };
 pub use values::{
     ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,

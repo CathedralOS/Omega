@@ -1,6 +1,7 @@
 use super::{AbstractOperation, PsiOptimizationFunction, ScalarType};
 use optimization_unit_semantics::byte_field_root;
 use terminal_psi::find_structural_type;
+use terminal_psi::live_field_by_id;
 
 pub(in crate::legalization) fn scalar_store_destination(
     function: &PsiOptimizationFunction,
@@ -576,9 +577,7 @@ fn runtime_path(
                 else {
                     return None;
                 };
-                let selected = fields
-                    .iter()
-                    .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+                let selected = live_field_by_id(fields, *field)?;
                 let child = match &selected.field_type {
                     terminal_psi::StructuralFieldType::Structural(child) => *child,
                     leaf => {

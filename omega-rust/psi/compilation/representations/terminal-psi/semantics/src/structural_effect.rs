@@ -4,7 +4,7 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType,
     ServiceId, StructuralCaseId, StructuralCaseSubject, StructuralFieldId, ValueId,
 };
-use terminal_psi::{Operation, OperationKind, OperationResult};
+use terminal_psi::{Operation, OperationKind, OperationResult, live_field_by_id};
 
 mod byte_equal;
 mod byte_extent;
@@ -50,9 +50,7 @@ pub(crate) fn byte_sequence_field_path(
         | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
         _ => return None,
     };
-    let selected = fields
-        .iter()
-        .find(|row| row.id == *field && !row.relevance.is_erased())?;
+    let selected = live_field_by_id(fields, *field)?;
     selected.field_type.byte_sequence_carrier()?;
     path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
         *field,
@@ -810,7 +808,7 @@ fn validate_structural_effect_result(
             .scalar_ref()
             .is_some_and(|result| matches!(result.scalar_type, ScalarType::Integer(_))),
         StructuralEffectResultShape::Structural => operation.result.structural().is_some(),
-        StructuralEffectResultShape::Unit => matches!(operation.result, OperationResult::Unit),
+        StructuralEffectResultShape::Unit => matches!(operation.result, OperationResult::Unit)
     };
     valid
         .then_some(())

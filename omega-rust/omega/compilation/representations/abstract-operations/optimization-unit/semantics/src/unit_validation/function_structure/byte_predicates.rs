@@ -12,7 +12,7 @@ use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeI
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ByteSequencePredicate, ByteSequencePredicateSet, StructuralAccess, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralTypeShape, live_field_by_id,
 };
 
 /// Indexed writes preserve the same declared invariants through a caller loan
@@ -446,7 +446,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
             Operation::Jump { structural_bindings, .. } => carries(structural_bindings),
             Operation::Conditional { when_true, when_false, .. } => carries(&when_true.structural_bindings) || carries(&when_false.structural_bindings),
             Operation::ReturnStructural { source: returned, .. } => *returned == source,
-            _ => false,
+            _ => false
         };
         escapes || (operation.psi_operation() != Some(consumer)
             && (may_change_owned_source(operation, source)
@@ -502,9 +502,7 @@ fn byte_field_predicates_in<'t>(
     let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?;
+    let field = live_field_by_id(fields, field)?;
     field.field_type.byte_sequence_carrier()?;
     Some(field.field_type.byte_predicates())
 }

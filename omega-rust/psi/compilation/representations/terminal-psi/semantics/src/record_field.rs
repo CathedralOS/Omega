@@ -1,8 +1,7 @@
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
-    find_structural_case,
-StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, find_structural_case, live_field_by_id,
 };
 
 /// The original record carrier reached by exact declaration-local field IDs.
@@ -108,9 +107,7 @@ pub fn observed_field_declaration<'types>(
         };
         fields
     };
-    fields
-        .iter()
-        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+    live_field_by_id(fields, field)
 }
 
 /// Resolve one static field access without interpreting its operation. Common
@@ -243,9 +240,7 @@ fn walk_record_fields<'types>(
             Some(fields) => fields,
             None => declaration.shape.direct_fields()?,
         };
-        let field = fields
-            .iter()
-            .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+        let field = live_field_by_id(fields, *field)?;
         let StructuralFieldType::Structural(child) = field.field_type else {
             return None;
         };

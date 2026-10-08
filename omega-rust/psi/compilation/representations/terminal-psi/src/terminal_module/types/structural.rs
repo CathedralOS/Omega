@@ -454,6 +454,16 @@ pub fn find_structural_type<'types>(
     types.iter().find(|declaration| declaration.id == id)
 }
 
+/// The field keyed `id` on a declaration roster, when it is not erased.
+pub fn live_field_by_id<'fields>(
+    fields: &'fields [StructuralFieldDeclaration],
+    id: StructuralFieldId,
+) -> Option<&'fields StructuralFieldDeclaration> {
+    fields
+        .iter()
+        .find(|field| field.id == id && !field.relevance.is_erased())
+}
+
 /// The structural case declaration keyed `id` in a case roster.
 pub fn find_structural_case<'cases>(
     cases: &'cases [StructuralCaseDeclaration],
