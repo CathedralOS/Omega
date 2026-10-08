@@ -281,36 +281,28 @@ impl Builder<'_, '_> {
                 continue;
             }
             let declared = member_type(field);
-            let reference = validation::unwrapped_type_reference(self.program, declared)?;
             // A stored reference owns its descriptor, not the primitive
-            // referent's value. Classify the complete loan family before
-            // referent-oriented normalization can turn it into a scalar.
-            let value =
-                if validation::reference_result_custody::stored_loan_parts(self.program, declared)
-                    .is_some()
-                {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(initializer.value, declared)?,
-                    )
-                } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
-                    let root = self.expression(initializer.value, primitive)?;
-                    self.plans.nodes.get_mut(root).authored_root = initializer.value;
-                    self.plans.roots.append(CheckedScalarComputationRoot {
-                        machine: self.machine,
-                        state: self.state,
-                        statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                        role: CheckedScalarExpressionRole::RecordField {
-                            expression,
-                            field_ordinal: u32::try_from(ordinal).ok()?,
-                        },
-                        root,
-                    });
-                    checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
-                } else {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(initializer.value, declared)?,
-                    )
-                };
+            // referent's value. The declared-storage query retains reference
+            // shells; referent normalization is not a field-value classifier.
+            let value = if let Some(primitive) = self.program.primitive_type_reference(declared) {
+                let root = self.expression(initializer.value, primitive)?;
+                self.plans.nodes.get_mut(root).authored_root = initializer.value;
+                self.plans.roots.append(CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    role: CheckedScalarExpressionRole::RecordField {
+                        expression,
+                        field_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    root,
+                });
+                checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+            } else {
+                checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                    self.structural_value(initializer.value, declared)?,
+                )
+            };
             fields.push(checked_trees::CheckedStructuralRecordField {
                 field: field.symbol,
                 expression: initializer.value,
@@ -395,31 +387,27 @@ impl Builder<'_, '_> {
         for (ordinal, (symbol, value_expression, declared)) in
             constructor.fields.into_iter().enumerate()
         {
-            let reference = validation::unwrapped_type_reference(self.program, declared)?;
-            let value =
-                if validation::reference_result_custody::parts(self.program, declared).is_some() {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(value_expression, declared)?,
-                    )
-                } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
-                    let root = self.expression(value_expression, primitive)?;
-                    self.plans.nodes.get_mut(root).authored_root = value_expression;
-                    self.plans.roots.append(CheckedScalarComputationRoot {
-                        machine: self.machine,
-                        state: self.state,
-                        statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                        role: CheckedScalarExpressionRole::StructuralValueField {
-                            expression,
-                            field_ordinal: u32::try_from(ordinal).ok()?,
-                        },
-                        root,
-                    });
-                    checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
-                } else {
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.structural_value(value_expression, declared)?,
-                    )
-                };
+            // Case payloads keep the same declared storage distinction as
+            // record fields: references remain structural descriptors.
+            let value = if let Some(primitive) = self.program.primitive_type_reference(declared) {
+                let root = self.expression(value_expression, primitive)?;
+                self.plans.nodes.get_mut(root).authored_root = value_expression;
+                self.plans.roots.append(CheckedScalarComputationRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                    role: CheckedScalarExpressionRole::StructuralValueField {
+                        expression,
+                        field_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    root,
+                });
+                checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+            } else {
+                checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                    self.structural_value(value_expression, declared)?,
+                )
+            };
             fields.push(checked_trees::CheckedStructuralRecordField {
                 field: symbol,
                 expression: value_expression,
