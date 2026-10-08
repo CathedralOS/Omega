@@ -5830,7 +5830,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  456 parser cases, `tests/psi/resolver/test-resolver.sh` all 211 resolver
+  456 parser cases, `tests/psi/resolver/test-resolver.sh` all 229 resolver
   cases, and `tests/psi/typing/test-typing.sh` all 61 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
@@ -5858,11 +5858,17 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `proposition` and evidence binders; traits take `where proposition`
   contracts and transparent refinements; expressions take memberships and
   value-position matches; case patterns take `as` renames; type qualifiers
-  take domain paths. Resolution runs over a
-  source set: each unit belongs to the module its path names, a `use` must
-  name a supplied module, and a reference sees its own module and the modules
-  its unit imports, not transitively, with two visible declarations of one
-  spelling ambiguous. Data, traits and conformances share one type
+  take domain paths. Resolution runs over a source set of packages and their
+  requester-local dependency edges, framed like the request's package and edge
+  rows: each unit belongs to a package and the module its path names there. A
+  `use` path's first member selects one of the requester's product dependency
+  aliases, its own package by name, or, under the toolchain mount
+  `omega::language::core`, the core package; any other path is a module of the
+  requester's own package. Another package's name or a build-scope alias
+  rejects as an undeclared dependency. A reference sees its own module and the
+  modules its unit imports, not transitively, across packages only `pub`
+  declarations (members by their container's), with two visible declarations
+  of one spelling ambiguous. Data, traits and conformances share one type
   namespace per module, constants and propositions their own; trait
   requirements and defaults and conformance members are machines named
   through their container (`Trait::requirement`, `Conformance::member`), the
@@ -5900,7 +5906,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared domains and equality needing a
   declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 37 units, as one source set (44,653 expressions, 228
+  whole psi package, its 37 units, as one source set (45,527 expressions, 235
   interned types). The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
@@ -5911,30 +5917,31 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`), range expressions and indexed membership domains (`in
-  AtMost<8>`) do not parse yet. Of the 65 library files that parse whole, 13 resolve with the
-  modules they import under their own module paths (`omega::language::core::*`;
-  std package-relative, as std's own `use` rows spell them); all 65 at once
-  overflow the 1,024-row clause table with 1,285 clauses. The others stop
-  first at 23 `satisfies` or `terminates` clauses, 2 `where machine`
-  contracts and one operator token, forms resolution rejects until it
-  records their bindings, 19 at an import of a module that does not
-  parse yet, 6 at an import that rejects, and `std/build.omg` names the build
-  context's `Build`. The resolver gate resolves the whole psi
-  package, its 37 units, as one source set; the shared syntax tables hold
-  4,096 roots, 1,024 uses, 32,000 path members (8,479 used by psi; a single
-  name stores none, its expression row holding it), 32,768 type references
+  AtMost<8>`) do not parse yet. Of the 65 library files that parse whole, 13
+  resolve with the modules they import, std as package `omega_language_std`
+  and core as the toolchain package; all 65 at once overflow the 1,024-row
+  clause table with 1,285 clauses. The others stop first at 24 `satisfies` and
+  2 `terminates` clauses, 4 at `core/nat.omg`'s operator token and 2 at `where
+  machine` contracts, forms resolution rejects until it records their
+  bindings, 19 at an import of a module that does not parse yet, and
+  `std/build.omg` names the build context's `Build`. The product entry's
+  closure (its 3 units, std's `console` with its 5 target implementations,
+  core's `binding` and `external_binding`) stops parsing at `console.omg`'s
+  retired range suffix and the Windows console's retired `boundary
+  requirement`. The resolver gate resolves the whole psi package, its 37
+  units, as one package `psi`; the shared syntax tables hold
+  4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
+  single name stores none, its expression row holding it), 32,768 type references
   and call arguments, 1,536 data members, 768 cases, 2,048 machines, 16,384
   parameters and statements, 8,192 states and transition arms and 131,072
   expressions, over a 65,536-token unit; edges one unit cannot reach run in
   the resolver gate's source sets.
-  Next: package aliases, with `pub` narrowing imports across
-  packages, so the product entry and its library imports resolve; `satisfies` requirement
-  edges, `terminates` clauses and `where machine` contracts, which the
-  library's remaining files stop at; names in facts; and typing's declared
-  equality; then checking. Publish the parser's capacity refusals as the
+  Next: `satisfies` requirement edges, `terminates` clauses and `where
+  machine` contracts, which the library's remaining files stop at; names in
+  facts; and typing's declared equality; then checking. Publish the parser's capacity refusals as the
   request contract's scalar-resource provisions, whose rows (roots and states
   4,096; path members, data members, type nodes, statements and expressions
-  16,384) the psi package's own 44,653 expressions exceed, so they must count
+  16,384) the psi package's own 45,527 expressions exceed, so they must count
   per source unit, or grow, before D can compile C. Run the
   three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven

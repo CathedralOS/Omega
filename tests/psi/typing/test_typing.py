@@ -153,18 +153,33 @@ def decode(payload: bytes) -> Observation:
 CASE_SOURCES: set[bytes] = set()
 
 
-def frame(units: tuple[tuple[bytes, bytes], ...]) -> bytes:
-    """The harness input: a unit count, then each unit's module path and
-    source, `u32`-framed. A unit's position is its source id."""
-    payload = struct.pack("<I", len(units))
+# The source set's packages, as (name, toolchain) rows. The typing cases
+# run one ordinary package that every unit belongs to, and no dependency
+# edges; the resolver gate owns package selection.
+GATE_PACKAGES = ((b"gate", False),)
+
+
+def frame(units: tuple[tuple[bytes, bytes], ...], packages: tuple[tuple[bytes, bool], ...] = GATE_PACKAGES) -> bytes:
+    """The harness input, framed like the request's subject tables: the
+    packages (a toolchain flag and a `u32`-framed name), no dependency
+    edges, then the units, each in package 0 with its framed module path and
+    source. A unit's position is its source id."""
+    payload = struct.pack("<I", len(packages))
+    for name, toolchain in packages:
+        payload += struct.pack("<II", 1 if toolchain else 0, len(name)) + name
+    payload += struct.pack("<II", 0, len(units))
     for module_path, source in units:
-        payload += struct.pack("<I", len(module_path)) + module_path
+        payload += struct.pack("<II", 0, len(module_path)) + module_path
         payload += struct.pack("<I", len(source)) + source
     return payload
 
 
-def run_units(program: str, units: tuple[tuple[bytes, bytes], ...]) -> tuple[int, bytes]:
-    payload = frame(units)
+def run_units(
+    program: str,
+    units: tuple[tuple[bytes, bytes], ...],
+    packages: tuple[tuple[bytes, bool], ...] = GATE_PACKAGES,
+) -> tuple[int, bytes]:
+    payload = frame(units, packages)
     CASE_SOURCES.add(payload)
     completed = subprocess.run([program], input=payload, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
@@ -746,14 +761,14 @@ def main() -> None:
     )
 
     # The product's own psi package types as one source set: each module
-    # under source/psi as `psi::<directory>::<file>`.
+    # under source/psi as `<directory>::<file>` of package `psi`.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"
     psi_units = tuple(
-        (("psi::" + "::".join(path.relative_to(psi_root).with_suffix("").parts)).encode(), path.read_bytes())
+        ("::".join(path.relative_to(psi_root).with_suffix("").parts).encode(), path.read_bytes())
         for path in sorted(psi_root.rglob("*.omg"))
         if path.parent != psi_root
     )
-    status, payload = run_units(program, psi_units)
+    status, payload = run_units(program, psi_units, ((b"psi", False),))
     package = decode(payload)
     assert status == 0, f"psi-package: status {status}: {package.diagnostic} at {package.diagnostic_span}"
     assert package.accepted and len(package.expressions) > 0, "psi-package"

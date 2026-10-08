@@ -81,8 +81,10 @@ machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
     }
 }
 
-// A module's logical path as the compilation names it, `a::b::c`. A source
-// unit belongs to its module by this path; `use` selects modules by it.
+// A logical name path as the compilation names it, `a::b::c`: the path of a
+// module within its package, by which a source unit belongs to its module
+// and `use` selects modules, or a one-segment package name or dependency
+// alias.
 pub data ModulePath
 where
     length <= 256,
@@ -118,15 +120,48 @@ pub data SourceRange [copy] {
     length: u64 in Trapping;
 }
 
-// Every source unit of one compilation, with the module each belongs to. A
-// unit's `SourceId` is its position, so a `SourceSpan` names its bytes
-// wherever the span is stored, and spans of different units compare through
-// the set. Units and module paths share bounded arenas.
+// A package of one compilation (wiki/spec/build/compiler_request.md): its
+// declared name, a range of the path arena, or the toolchain's core package,
+// which carries no name and which every package selects through the
+// language's mount `omega::language::core` rather than by a dependency
+// alias (wiki/spec/packages/toolchain.md).
+pub data PackageRow [copy] {
+    name: SourceRange;
+    toolchain: bool;
+}
+
+// Which checked context a dependency edge authorizes: ordinary product
+// imports, or the build entry's and its local helpers' imports. An alias of
+// one scope never stands in for the other.
+pub data DependencyScope [copy] {
+    case Product;
+    case Build;
+}
+
+// A requester-local dependency edge, as the request's edge rows give it:
+// within package `requester`'s `scope` imports, `alias` (a range of the path
+// arena) names package `target`.
+pub data DependencyRow [copy] {
+    requester: u64 in Trapping;
+    scope: DependencyScope;
+    alias: SourceRange;
+    target: u64 in Trapping;
+}
+
+// Every source unit of one compilation, with the package and the module
+// within it each belongs to, and the packages' requester-local dependency
+// edges. A unit's `SourceId` is its position, so a `SourceSpan` names its
+// bytes wherever the span is stored, and spans of different units compare
+// through the set. Units, module paths, package names and aliases share
+// bounded arenas; the request's graph validation, not this set, rejects
+// duplicate aliases of one requester and scope.
 pub data SourceSet
 where
     unit_count <= 128,
     byte_count <= 2097152,
     path_byte_count <= 16384,
+    package_count <= 64,
+    dependency_count <= 256,
 {
     bytes: [u8; 2097152] in Trapping;
     byte_count: u64;
@@ -134,65 +169,58 @@ where
     path_byte_count: u64;
     units: [SourceRange; 128] in Trapping;
     paths: [SourceRange; 128] in Trapping;
+    unit_packages: [u64; 128] in Trapping;
     unit_count: u64;
+    packages: [PackageRow; 64] in Trapping;
+    package_count: u64;
+    dependencies: [DependencyRow; 256] in Trapping;
+    dependency_count: u64;
 }
 
 pub machine SourceSet::clear(sources: &mut SourceSet) {
     sources.byte_count = 0;
     sources.path_byte_count = 0;
     sources.unit_count = 0;
+    sources.package_count = 0;
+    sources.dependency_count = 0;
 }
 
-// Add a unit as the next `SourceId`, or report false when the set's
-// provisions cannot hold it.
-pub machine SourceSet::add(sources: &mut SourceSet, unit: &SourceUnit, module_path: &ModulePath) -> bool
+// Add a unit of package `package` as the next `SourceId`, or report false
+// when the package is not in the set or the set's provisions cannot hold
+// the unit.
+pub machine SourceSet::add(
+    sources: &mut SourceSet,
+    unit: &SourceUnit,
+    package: u64 in Trapping,
+    module_path: &ModulePath
+) -> bool
 crashes Trap
 {
     transition sources.unit_count < 128
+        && package < sources.package_count
         && unit.length <= 2097152 - sources.byte_count
         && module_path.length <= 16384 - sources.path_byte_count {
-        true -> paths(sources, unit, module_path, 0)
+        true -> path(sources, unit, package, module_path)
         _ -> full()
     }
 
-    state paths(sources: &mut SourceSet, unit: &SourceUnit, module_path: &ModulePath, index: u64 in Trapping) -> bool {
-        transition index < module_path.length {
-            true -> path_byte(sources, unit, module_path, index)
-            _ -> bytes(sources, unit, module_path, 0)
-        }
+    state path(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, module_path: &ModulePath) -> bool {
+        let path: SourceRange = SourceSet::store_name(sources, module_path);
+        transition { _ -> bytes(sources, unit, package, path, 0) }
     }
 
-    state path_byte(sources: &mut SourceSet, unit: &SourceUnit, module_path: &ModulePath, index: u64 in Trapping) -> bool {
-        let at: u64 in Trapping = (sources.path_byte_count as u64 in Trapping) + index;
-        transition index < 256 && at < 16384 {
-            true -> store_path_byte(sources, unit, module_path, index, at)
-            _ -> invalid()
-        }
-    }
-
-    state store_path_byte(
-        sources: &mut SourceSet,
-        unit: &SourceUnit,
-        module_path: &ModulePath,
-        index: u64 in Trapping,
-        at: u64 in Trapping
-    ) -> bool {
-        sources.path_bytes[at] = module_path.bytes[index] as u8;
-        transition { _ -> paths(sources, unit, module_path, index + 1) }
-    }
-
-    state bytes(sources: &mut SourceSet, unit: &SourceUnit, module_path: &ModulePath, index: u64 in Trapping) -> bool {
+    state bytes(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         transition index < unit.length {
-            true -> unit_byte(sources, unit, module_path, index)
-            _ -> record(sources, unit, module_path)
+            true -> unit_byte(sources, unit, package, path, index)
+            _ -> record(sources, unit, package, path)
         }
     }
 
-    state unit_byte(sources: &mut SourceSet, unit: &SourceUnit, module_path: &ModulePath, index: u64 in Trapping) -> bool {
+    state unit_byte(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange, index: u64 in Trapping) -> bool {
         let at: u64 in Trapping = (sources.byte_count as u64 in Trapping) + index;
         let byte: u8 = SourceUnit::byte_or_nul(unit, index);
         transition at < 2097152 {
-            true -> store_unit_byte(sources, unit, module_path, index, at, byte)
+            true -> store_unit_byte(sources, unit, package, path, index, at, byte)
             _ -> invalid()
         }
     }
@@ -200,26 +228,24 @@ crashes Trap
     state store_unit_byte(
         sources: &mut SourceSet,
         unit: &SourceUnit,
-        module_path: &ModulePath,
+        package: u64 in Trapping,
+        path: SourceRange,
         index: u64 in Trapping,
         at: u64 in Trapping,
         byte: u8
     ) -> bool {
         sources.bytes[at] = byte;
-        transition { _ -> bytes(sources, unit, module_path, index + 1) }
+        transition { _ -> bytes(sources, unit, package, path, index + 1) }
     }
 
-    // The unit's ranges begin where the arenas ended before it.
-    state record(sources: &mut SourceSet, unit: &SourceUnit, module_path: &ModulePath) -> bool {
+    // The unit's bytes begin where the arena ended before it.
+    state record(sources: &mut SourceSet, unit: &SourceUnit, package: u64 in Trapping, path: SourceRange) -> bool {
         let unit_count: u64 in Trapping = sources.unit_count as u64 in Trapping;
         let unit_start: u64 in Trapping = sources.byte_count as u64 in Trapping;
-        let path_start: u64 in Trapping = sources.path_byte_count as u64 in Trapping;
         let unit_length: u64 in Trapping = unit.length as u64 in Trapping;
-        let path_length: u64 in Trapping = module_path.length as u64 in Trapping;
         let unit_end: u64 in Trapping = unit_start + unit_length;
-        let path_end: u64 in Trapping = path_start + path_length;
-        transition unit_count < 128 && unit_end <= 2097152 && path_end <= 16384 {
-            true -> store_ranges(sources, unit_count, unit_start, unit_length, unit_end, path_start, path_length, path_end)
+        transition unit_count < 128 && unit_end <= 2097152 {
+            true -> store_ranges(sources, unit_count, unit_start, unit_length, unit_end, package, path)
             _ -> invalid()
         }
     }
@@ -230,16 +256,15 @@ crashes Trap
         unit_start: u64 in Trapping,
         unit_length: u64 in Trapping,
         unit_end: u64 in Trapping,
-        path_start: u64 in Trapping,
-        path_length: u64 in Trapping,
-        path_end: u64 in Trapping
+        package: u64 in Trapping,
+        path: SourceRange
     ) -> bool
-    requires unit_count < 128, unit_end <= 2097152, path_end <= 16384
+    requires unit_count < 128, unit_end <= 2097152
     {
         sources.units[unit_count] = SourceRange { start: unit_start, length: unit_length };
-        sources.paths[unit_count] = SourceRange { start: path_start, length: path_length };
+        sources.paths[unit_count] = path;
+        sources.unit_packages[unit_count] = package as u64;
         sources.byte_count = unit_end as u64;
-        sources.path_byte_count = path_end as u64;
         sources.unit_count = (unit_count + 1) as u64;
         true
     }
@@ -249,6 +274,143 @@ crashes Trap
     }
 
     state invalid() -> bool {
+        crash Trap;
+    }
+}
+
+// Add a package named `name`, or the toolchain package (whose name is
+// empty), as the next package index, or report false when the set's
+// provisions cannot hold it.
+pub machine SourceSet::add_package(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool
+crashes Trap
+{
+    transition sources.package_count < 64 && name.length <= 16384 - sources.path_byte_count {
+        true -> store(sources, name, toolchain)
+        _ -> full()
+    }
+
+    state store(sources: &mut SourceSet, name: &ModulePath, toolchain: bool) -> bool {
+        let range: SourceRange = SourceSet::store_name(sources, name);
+        let index: u64 in Trapping = sources.package_count as u64 in Trapping;
+        transition index < 64 {
+            true -> record(sources, index, range, toolchain)
+            _ -> full()
+        }
+    }
+
+    state record(sources: &mut SourceSet, index: u64 in Trapping, range: SourceRange, toolchain: bool) -> bool
+    requires index < 64
+    {
+        sources.packages[index] = PackageRow { name: range, toolchain: toolchain };
+        sources.package_count = (index + 1) as u64;
+        true
+    }
+
+    state full() -> bool {
+        false
+    }
+}
+
+// Add the edge by which `alias` names package `target` within package
+// `requester`'s `scope` imports, or report false when either package is not
+// in the set or the set's provisions cannot hold the edge.
+pub machine SourceSet::add_dependency(
+    sources: &mut SourceSet,
+    requester: u64 in Trapping,
+    scope: DependencyScope,
+    alias: &ModulePath,
+    target: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    transition sources.dependency_count < 256
+        && requester < sources.package_count
+        && target < sources.package_count
+        && alias.length <= 16384 - sources.path_byte_count {
+        true -> store(sources, requester, scope, alias, target)
+        _ -> refused()
+    }
+
+    state store(
+        sources: &mut SourceSet,
+        requester: u64 in Trapping,
+        scope: DependencyScope,
+        alias: &ModulePath,
+        target: u64 in Trapping
+    ) -> bool {
+        let range: SourceRange = SourceSet::store_name(sources, alias);
+        let index: u64 in Trapping = sources.dependency_count as u64 in Trapping;
+        transition index < 256 {
+            true -> record(sources, index, requester, scope, range, target)
+            _ -> refused()
+        }
+    }
+
+    state record(
+        sources: &mut SourceSet,
+        index: u64 in Trapping,
+        requester: u64 in Trapping,
+        scope: DependencyScope,
+        range: SourceRange,
+        target: u64 in Trapping
+    ) -> bool
+    requires index < 256
+    {
+        sources.dependencies[index] = DependencyRow { requester: requester, scope: scope, alias: range, target: target };
+        sources.dependency_count = (index + 1) as u64;
+        true
+    }
+
+    state refused() -> bool {
+        false
+    }
+}
+
+// Append `name` to the path arena and give its range. Callers check the
+// arena's provision first, so running out of it is an internal fault.
+machine SourceSet::store_name(sources: &mut SourceSet, name: &ModulePath) -> SourceRange
+crashes Trap
+{
+    transition { _ -> next(sources, name, 0) }
+
+    state next(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping) -> SourceRange {
+        transition index < name.length {
+            true -> byte(sources, name, index)
+            _ -> stored(sources, name)
+        }
+    }
+
+    state byte(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping) -> SourceRange {
+        let at: u64 in Trapping = (sources.path_byte_count as u64 in Trapping) + index;
+        transition index < 256 && at < 16384 {
+            true -> store(sources, name, index, at)
+            _ -> invalid()
+        }
+    }
+
+    state store(sources: &mut SourceSet, name: &ModulePath, index: u64 in Trapping, at: u64 in Trapping) -> SourceRange {
+        sources.path_bytes[at] = name.bytes[index] as u8;
+        transition { _ -> next(sources, name, index + 1) }
+    }
+
+    state stored(sources: &mut SourceSet, name: &ModulePath) -> SourceRange {
+        let start: u64 in Trapping = sources.path_byte_count as u64 in Trapping;
+        let length: u64 in Trapping = name.length as u64 in Trapping;
+        let end: u64 in Trapping = start + length;
+        transition end <= 16384 {
+            true -> advance(sources, start, length, end)
+            _ -> invalid()
+        }
+    }
+
+    state advance(sources: &mut SourceSet, start: u64 in Trapping, length: u64 in Trapping, end: u64 in Trapping) -> SourceRange
+    requires end <= 16384
+    {
+        sources.path_byte_count = end as u64;
+        SourceRange { start: start, length: length }
+    }
+
+    state invalid() -> SourceRange {
         crash Trap;
     }
 }
@@ -416,6 +578,111 @@ pub machine SourceSet::path_length(sources: &SourceSet, unit: u64 in Trapping) -
     }
 
     state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// The package unit `unit` belongs to; zero for no unit.
+pub machine SourceSet::unit_package(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
+    transition unit < sources.unit_count && unit < 128 {
+        true -> read(sources, unit)
+        _ -> none()
+    }
+
+    state read(sources: &SourceSet, unit: u64 in Trapping) -> u64 in Trapping {
+        sources.unit_packages[unit]
+    }
+
+    state none() -> u64 in Trapping {
+        0
+    }
+}
+
+// Package `package`'s row; an unnamed ordinary package for no package.
+pub machine SourceSet::package_row(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
+    transition package < sources.package_count && package < 64 {
+        true -> read(sources, package)
+        _ -> none()
+    }
+
+    state read(sources: &SourceSet, package: u64 in Trapping) -> PackageRow {
+        sources.packages[package]
+    }
+
+    state none() -> PackageRow {
+        PackageRow { name: SourceRange { start: 0, length: 0 }, toolchain: false }
+    }
+}
+
+// Dependency edge `index`; for no edge, a build edge of no requester (64 is
+// past every package index).
+pub machine SourceSet::dependency_row(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
+    transition index < sources.dependency_count && index < 256 {
+        true -> read(sources, index)
+        _ -> none()
+    }
+
+    state read(sources: &SourceSet, index: u64 in Trapping) -> DependencyRow {
+        sources.dependencies[index]
+    }
+
+    state none() -> DependencyRow {
+        DependencyRow {
+            requester: 64,
+            scope: DependencyScope::Build,
+            alias: SourceRange { start: 0, length: 0 },
+            target: 0
+        }
+    }
+}
+
+// Whether a span spells exactly the path-arena bytes of `name`, a package
+// name or dependency alias.
+pub machine SourceSet::span_names(sources: &SourceSet, span: SourceSpan, name: SourceRange) -> bool
+crashes Trap
+{
+    transition span.span.end - span.span.start == name.length {
+        true -> scan(sources, span, name, 0)
+        _ -> different()
+    }
+
+    state scan(sources: &SourceSet, span: SourceSpan, name: SourceRange, index: u64 in Trapping) -> bool {
+        transition index < name.length {
+            true -> compare(sources, span, name, index)
+            _ -> same()
+        }
+    }
+
+    state compare(sources: &SourceSet, span: SourceSpan, name: SourceRange, index: u64 in Trapping) -> bool {
+        let source_byte: u8 = SourceSet::byte_or_nul(sources, span.source, span.span.start + index);
+        let name_byte: u8 = SourceSet::name_byte_or_nul(sources, name.start + index);
+        transition source_byte == name_byte {
+            true -> scan(sources, span, name, index + 1)
+            _ -> different()
+        }
+    }
+
+    state same() -> bool {
+        true
+    }
+
+    state different() -> bool {
+        false
+    }
+}
+
+// The path-arena byte at `at`, or NUL past the arena's end.
+machine SourceSet::name_byte_or_nul(sources: &SourceSet, at: u64 in Trapping) -> u8 {
+    transition at < sources.path_byte_count && at < 16384 {
+        true -> read(sources, at)
+        _ -> absent()
+    }
+
+    state read(sources: &SourceSet, at: u64 in Trapping) -> u8 {
+        sources.path_bytes[at] as u8
+    }
+
+    state absent() -> u8 {
         0
     }
 }

@@ -113,19 +113,29 @@ and the `if`, `loop`, `while` and `return` statements reject instead of
 becoming a private bridge tree.
 
 Name resolution follows parsing over the compilation's source set
-([`source/source.omg`](source/source.omg)): each unit belongs to the module
-its path names (`a::b`), is parsed into the shared syntax tables, and has its
-position as its source id. Those tables are whole-program, sized at about
-twice what the psi package fills: 4,096 roots, 1,024 uses, 2,048 machines,
-16,384 parameters and statements, 8,192 states and transition arms, 32,768
-type references and call arguments, and 131,072 expressions; resolution's and
+([`source/source.omg`](source/source.omg)): up to 64 packages, 256
+requester-local dependency edges and 128 units, each unit belonging to a
+package and to the module its path names there (`a::b`), parsed into the
+shared syntax tables, with its position as its source id. Those tables are
+whole-program, sized at about twice what the psi package fills: 4,096
+roots, 1,024 uses, 2,048 machines, 16,384 parameters and statements, 8,192
+states and transition arms, 32,768 type references and call arguments, and
+131,072 expressions; resolution's and
 typing's rows indexed by machine, type-reference and expression handles share
-those bounds. A `use` must name a supplied module
-([`resolve/imports.omg`](resolve/imports.omg)). A reference sees its own
-module, whichever of the module's units declares, and each module its unit
-imports; an import is not transitive, and two visible declarations of one
-spelling reject as ambiguous. Every unit belongs to one package here, so `pub`
-does not yet narrow an import. Every root kind the parser accepts binds but
+those bounds. A `use` path's first member selects a package
+([`resolve/imports.omg`](resolve/imports.omg)): the toolchain mount
+`omega::language::core` the toolchain's core package, one of the
+requester's product dependency aliases that dependency, and the
+requester's own name its own package; any other path is a module path of
+the requester's own package. The rest must name a supplied module of the
+selected package, and a first member spelling another package's name or a
+build-scope alias, where the requester holds no such module, rejects as an
+undeclared dependency. A reference sees its own module, whichever of the
+module's units declares, and each module its unit imports, across packages
+only `pub` declarations (a trait's or conformance's member by its
+container's `pub`); an import is not transitive, one path in two packages
+names two modules, and two visible declarations of one spelling reject as
+ambiguous. Every root kind the parser accepts binds but
 mathematical definitions (`let` roots) and transparent trait refinements,
 which reject at their root as unsupported declarations before any binding,
 as does a form whose bindings resolution does not record yet
@@ -303,16 +313,18 @@ without an observation when resolution rejects. It types the whole psi
 package as one source set, and a source set filling the expression table.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
-does the same for name resolution. Its input is a source set: a unit count,
-then each unit's module path and source, `u32`-framed; the decoder frames a
-single source as the root module. Its harness lexes and parses each unit,
-resolves the set, and observes the diagnostic and every type, domain and value
-binding. Lexical or parse rejection exits without an observation. Capacity
+does the same for name resolution. Its input is a source set framed like
+the request's subject tables: the packages (a toolchain flag and a name),
+the dependency edges (requester, scope, alias and target), then each unit's
+package, module path and source, `u32`-framed; the decoder frames a single
+source as the root module of one package. Its harness lexes and parses each
+unit, resolves the set, and observes the diagnostic and every type, domain
+and value binding. Lexical or parse rejection exits without an observation. Capacity
 edges one unit's 65,536 tokens cannot reach (expressions, parameters, type
 references and call arguments) run here as multi-unit source sets.
 
 On macOS ARM64 the three gates build their harnesses natively from a fresh
-CLI: all 456 parser cases, all 211 resolver cases and all 61 typing cases
+CLI: all 456 parser cases, all 229 resolver cases and all 61 typing cases
 pass. Each gate counts each distinct source it runs as one case. No cached
 executable may stand in for that run. Linux and Windows hosts have run none of
 them.

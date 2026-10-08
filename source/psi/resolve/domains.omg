@@ -210,7 +210,7 @@ crashes Trap
 {
     let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
     let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-    let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+    let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
     transition visible {
         true -> carried(resolver, sources, syntax, item, row)
         _ -> no()
@@ -558,7 +558,7 @@ crashes Trap
 {
     let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
     let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-    let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+    let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
     transition visible {
         true -> head(resolver, sources, syntax, item, scope, carrier)
         _ -> answer(false)
@@ -617,7 +617,7 @@ crashes Trap
     state candidate(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
         let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
         transition visible {
             true -> rival(sources, syntax, name, index, index + 1)
             _ -> next(sources, syntax, name, index + 1)
@@ -634,7 +634,7 @@ crashes Trap
     state rival_candidate(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
         let item: DomainItem = SyntaxTrees::domain_item(syntax, index);
         let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
         transition visible {
             true -> ambiguous()
             _ -> rival(sources, syntax, name, found, index + 1)

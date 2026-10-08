@@ -37,6 +37,7 @@ DUPLICATE_DECLARATION = 24
 NOT_A_TYPE = 25
 NOT_A_TRAIT = 26
 NOT_A_REQUIREMENT = 27
+UNDECLARED_DEPENDENCY = 28
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -208,18 +209,49 @@ def decode(payload: bytes) -> Observation:
 CASE_SOURCES: set[bytes] = set()
 
 
-def frame(units: tuple[tuple[bytes, bytes], ...]) -> bytes:
-    """The harness input: a unit count, then each unit's module path and
-    source, `u32`-framed. A unit's position is its source id."""
-    payload = struct.pack("<I", len(units))
-    for module_path, source in units:
-        payload += struct.pack("<I", len(module_path)) + module_path
+# A source set's packages, as (name, toolchain) rows, and dependency edges,
+# as (requester, scope, alias, target) rows of package indices. Most cases
+# run one ordinary package, which every unit given as (module path, source)
+# belongs to; a unit given as (package, module path, source) names its own.
+GATE_PACKAGES = ((b"gate", False),)
+PRODUCT = 1
+BUILD = 2
+
+Package = tuple[bytes, bool]
+Dependency = tuple[int, int, bytes, int]
+
+
+def frame(
+    units: tuple[tuple, ...],
+    packages: tuple[Package, ...] = GATE_PACKAGES,
+    dependencies: tuple[Dependency, ...] = (),
+) -> bytes:
+    """The harness input, framed like the request's subject tables: the
+    packages (a toolchain flag and a `u32`-framed name), the dependency edges
+    (requester, scope tag, framed alias, target), then the units (package
+    index, framed module path, framed source). A unit's position is its
+    source id."""
+    payload = struct.pack("<I", len(packages))
+    for name, toolchain in packages:
+        payload += struct.pack("<II", 1 if toolchain else 0, len(name)) + name
+    payload += struct.pack("<I", len(dependencies))
+    for requester, scope, alias, target in dependencies:
+        payload += struct.pack("<III", requester, scope, len(alias)) + alias + struct.pack("<I", target)
+    payload += struct.pack("<I", len(units))
+    for unit in units:
+        package, module_path, source = unit if len(unit) == 3 else (0, *unit)
+        payload += struct.pack("<II", package, len(module_path)) + module_path
         payload += struct.pack("<I", len(source)) + source
     return payload
 
 
-def run_units(program: str, units: tuple[tuple[bytes, bytes], ...]) -> tuple[int, bytes]:
-    payload = frame(units)
+def run_units(
+    program: str,
+    units: tuple[tuple, ...],
+    packages: tuple[Package, ...] = GATE_PACKAGES,
+    dependencies: tuple[Dependency, ...] = (),
+) -> tuple[int, bytes]:
+    payload = frame(units, packages, dependencies)
     CASE_SOURCES.add(payload)
     completed = subprocess.run([program], input=payload, capture_output=True, check=False)
     assert completed.stderr == b"", completed.stderr.decode(errors="replace")
@@ -287,12 +319,14 @@ def rejected(
 def accepted_units(
     program: str,
     name: str,
-    units: tuple[tuple[bytes, bytes], ...],
+    units: tuple[tuple, ...],
     bindings: tuple[TypeRow, ...],
     value_bindings: tuple[tuple[int, int, int], ...] | None = None,
     path_bindings: tuple[tuple[int, int], ...] | None = None,
+    packages: tuple[Package, ...] = GATE_PACKAGES,
+    dependencies: tuple[Dependency, ...] = (),
 ) -> None:
-    status, payload = run_units(program, units)
+    status, payload = run_units(program, units, packages, dependencies)
     assert status == 0, f"{name}: status {status}"
     actual, expected = expected_observation(decode(payload), bindings, value_bindings, path_bindings)
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
@@ -301,18 +335,20 @@ def accepted_units(
 def rejected_units(
     program: str,
     name: str,
-    units: tuple[tuple[bytes, bytes], ...],
+    units: tuple[tuple, ...],
     diagnostic: int,
     unit: int,
     spelling: bytes,
     occurrence: int = 1,
+    packages: tuple[Package, ...] = GATE_PACKAGES,
+    dependencies: tuple[Dependency, ...] = (),
 ) -> None:
     """The diagnostic names the `occurrence`-th `spelling` of unit `unit`."""
-    source = units[unit][1]
+    source = units[unit][-1]
     start = -1
     for _ in range(occurrence):
         start = source.index(spelling, start + 1)
-    status, payload = run_units(program, units)
+    status, payload = run_units(program, units, packages, dependencies)
     assert status == 249, f"{name}: status {status}"
     actual = decode(payload)
     expected = Observation(False, diagnostic, (unit, start, start + len(spelling)), (), ())
@@ -323,7 +359,7 @@ def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
     phase_rejected_units(program, name, ((b"", source),), status)
 
 
-def phase_rejected_units(program: str, name: str, units: tuple[tuple[bytes, bytes], ...], status: int) -> None:
+def phase_rejected_units(program: str, name: str, units: tuple[tuple, ...], status: int) -> None:
     actual_status, payload = run_units(program, units)
     assert actual_status == status, f"{name}: status {actual_status}"
     assert payload == b"", name
@@ -1488,16 +1524,201 @@ def main() -> None:
     rejected(program, "duplicate-proposition-parameter", b"proposition P(a: u8, a: u8);", DUPLICATE_PARAMETER, b"a", 2)
     rejected(program, "unknown-evidence-type", b"proposition P evidence Q;", UNKNOWN_DATA_TYPE, b"Q")
 
+    # Packages: a `use` path's first member selects a requester-local product
+    # dependency alias's package, or the requester's own by its name, and the
+    # toolchain mount `omega::language::core` the toolchain package; any
+    # other path is a module of the requester's own package. Across packages
+    # only `pub` declarations are visible, a member by its container's `pub`.
+    app_geometry = ((b"app", False), (b"geometry", False))
+    geo = ((0, PRODUCT, b"geo", 1),)
+    accepted_units(
+        program,
+        "aliased-import-resolves",
+        ((1, b"shapes", b"pub data D { x: u8; }\npub machine g(d: D) {}"),
+         (0, b"", b"use geo::shapes;\nmachine f(d: D) { g(d); }")),
+        (builtin("u8"), data(0), data(0)),
+        (machine(0), parameter(1), NOT_A_NAME),
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    accepted_units(
+        program,
+        "own-package-name-selects-its-module",
+        ((b"shapes", b"data D { x: u8; }"), (b"", b"use gate::shapes;\nmachine f(d: D) {}")),
+        (builtin("u8"), data(0)),
+    )
+    rejected_units(
+        program,
+        "package-name-without-alias-rejects",
+        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geometry::shapes;\nmachine f() {}")),
+        UNDECLARED_DEPENDENCY,
+        1,
+        b"use geometry::shapes;",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "build-alias-authorizes-no-product-import",
+        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine f() {}")),
+        UNDECLARED_DEPENDENCY,
+        1,
+        b"use geo::shapes;",
+        packages=app_geometry,
+        dependencies=((0, BUILD, b"geo", 1),),
+    )
+    rejected_units(
+        program,
+        "another-requesters-alias-authorizes-nothing",
+        ((2, b"m", b"pub data D { x: u8; }"), (0, b"", b"use lib::m;\nmachine f() {}")),
+        UNRESOLVED_IMPORT,
+        1,
+        b"use lib::m;",
+        packages=app_geometry + ((b"base", False),),
+        dependencies=((1, PRODUCT, b"lib", 2),),
+    )
+    rejected_units(
+        program,
+        "dependency-lacks-the-module",
+        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo::circles;\nmachine f() {}")),
+        UNRESOLVED_IMPORT,
+        1,
+        b"use geo::circles;",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "alias-alone-names-no-module",
+        ((1, b"shapes", b"pub data D { x: u8; }"), (0, b"", b"use geo;\nmachine f() {}")),
+        UNRESOLVED_IMPORT,
+        1,
+        b"use geo;",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "private-data-across-packages",
+        ((1, b"shapes", b"data D { x: u8; }"), (0, b"", b"use geo::shapes;\nmachine f(d: D) {}")),
+        UNKNOWN_DATA_TYPE,
+        1,
+        b"D",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "private-machine-across-packages",
+        ((1, b"shapes", b"pub data D { x: u8; }\nmachine g(d: D) {}"),
+         (0, b"", b"use geo::shapes;\nmachine f(d: D) { g(d); }")),
+        UNKNOWN_NAME,
+        1,
+        b"g",
+        occurrence=2,
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    accepted_units(
+        program,
+        "public-trait-requirement-across-packages",
+        ((1, b"shapes", b"pub trait Shape { machine area(x: u8) -> u8; }"),
+         (0, b"", b"use geo::shapes;\nmachine f() { Shape::area(1); }")),
+        (builtin("u8"), builtin("u8")),
+        (machine(0), NOT_A_NAME, NOT_A_NAME),
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "private-trait-requirement-across-packages",
+        ((1, b"shapes", b"trait Shape { machine area(x: u8) -> u8; }"),
+         (0, b"", b"use geo::shapes;\nmachine f() { Shape::area(1); }")),
+        UNKNOWN_NAME,
+        1,
+        b"Shape::area",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    accepted_units(
+        program,
+        "public-domain-across-packages",
+        ((1, b"limits", b"pub domain u64::Small(value) requires value < 4;"),
+         (0, b"", b"use geo::limits;\nmachine f(x: u64 in Small) {}")),
+        (builtin("u64"), in_domain(builtin("u64"), 0)),
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "private-domain-across-packages",
+        ((1, b"limits", b"domain u64::Small(value) requires value < 4;"),
+         (0, b"", b"use geo::limits;\nmachine f(x: u64 in Small) {}")),
+        UNKNOWN_DOMAIN,
+        1,
+        b"Small",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    same_spelled = ((0, b"shapes", b"data D { x: u8; }"), (1, b"shapes", b"pub data D { y: u16; }"))
+    accepted_units(
+        program,
+        "same-spelled-modules-of-two-packages",
+        same_spelled + ((0, b"", b"use geo::shapes;\nmachine f(d: D) {}"), (0, b"local", b"use shapes;\nmachine g(d: D) {}")),
+        (builtin("u8"), builtin("u16"), data(1), data(0)),
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    rejected_units(
+        program,
+        "same-spelled-modules-imported-together",
+        same_spelled + ((0, b"", b"use shapes;\nuse geo::shapes;\nmachine f(d: D) {}"),),
+        AMBIGUOUS_NAME,
+        2,
+        b"D",
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    accepted_units(
+        program,
+        "alias-precedes-a-local-module",
+        ((0, b"geo::shapes", b"data D { x: u8; }"), (1, b"shapes", b"pub data D { y: u16; }"),
+         (0, b"", b"use geo::shapes;\nmachine f(d: D) {}")),
+        (builtin("u8"), builtin("u16"), data(1)),
+        packages=app_geometry,
+        dependencies=geo,
+    )
+    toolchain = ((b"app", False), (b"", True))
+    accepted_units(
+        program,
+        "toolchain-mount",
+        ((1, b"nat", b"pub data Nat { x: u8; }"),
+         (1, b"rat", b"use omega::language::core::nat;\npub data Rat { n: Nat; }"),
+         (0, b"", b"use omega::language::core::rat;\nmachine f(r: Rat) {}")),
+        (builtin("u8"), data(0), data(1)),
+        packages=toolchain,
+    )
+    rejected_units(
+        program,
+        "toolchain-mount-claims-its-paths",
+        ((b"omega::language::core::nat", b"data Nat { x: u8; }"),
+         (b"", b"use omega::language::core::nat;\nmachine f(n: Nat) {}")),
+        UNRESOLVED_IMPORT,
+        1,
+        b"use omega::language::core::nat;",
+    )
+
     # The product's own psi package resolves as one source set: each module
-    # under source/psi as `psi::<directory>::<file>`. Its build file belongs
-    # to the build context, not the package's product sources.
+    # under source/psi as `<directory>::<file>` of package `psi`, whose own
+    # `use psi::...` rows select its modules by its name. Its build file
+    # belongs to the build context, not the package's product sources.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"
     psi_units = tuple(
-        (("psi::" + "::".join(path.relative_to(psi_root).with_suffix("").parts)).encode(), path.read_bytes())
+        ("::".join(path.relative_to(psi_root).with_suffix("").parts).encode(), path.read_bytes())
         for path in sorted(psi_root.rglob("*.omg"))
         if path.parent != psi_root
     )
-    status, payload = run_units(program, psi_units)
+    status, payload = run_units(program, psi_units, ((b"psi", False),))
     package = decode(payload) if status in (0, 249) else None
     assert status == 0, f"psi-package: status {status}" + (
         f": {package.diagnostic} at {package.diagnostic_span} in {psi_units[package.diagnostic_span[0]][0]!r}"

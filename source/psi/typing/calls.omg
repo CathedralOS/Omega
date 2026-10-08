@@ -262,12 +262,21 @@ crashes Trap
         representative.name.source_span);
     let unsupplied: bool = Typer::unsupplied_callee(syntax, resolution, candidate);
     transition spelled && !unsupplied && item.parameter_count == expression.count {
-        true -> visible(typer, sources, syntax, expression, statics, item)
+        true -> visible(typer, sources, syntax, resolution, expression, statics, item, candidate)
         _ -> no()
     }
 
-    state visible(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, expression: Expression, statics: StaticArguments, item: MachineItem) -> bool {
-        let seen: bool = Resolver::visible(sources, syntax, expression.source_span.source, item.name.source_span.source);
+    state visible(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        expression: Expression,
+        statics: StaticArguments,
+        item: MachineItem,
+        candidate: u64 in Trapping
+    ) -> bool {
+        let seen: bool = Resolver::machine_visible_if(resolution, sources, syntax, true, expression.source_span.source, item, candidate);
         transition seen {
             true -> shape(typer, syntax, expression, statics, item)
             _ -> no()
