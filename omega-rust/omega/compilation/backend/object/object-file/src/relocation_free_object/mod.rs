@@ -729,27 +729,7 @@ fn encode_normalized_foreign_resolution(
 }
 
 fn encode_machine_register(output: &mut Vec<u8>, register: MachineRegister) {
-    let (family, index) = match register {
-        MachineRegister::X86Rax => (1, 0),
-        MachineRegister::X86Rcx => (1, 1),
-        MachineRegister::X86Rdx => (1, 2),
-        MachineRegister::X86Rbx => (1, 3),
-        MachineRegister::X86Rsp => (1, 4),
-        MachineRegister::X86Rbp => (1, 5),
-        MachineRegister::X86Rsi => (1, 6),
-        MachineRegister::X86Rdi => (1, 7),
-        MachineRegister::X86R8 => (1, 8),
-        MachineRegister::X86R9 => (1, 9),
-        MachineRegister::X86R10 => (1, 10),
-        MachineRegister::X86R11 => (1, 11),
-        MachineRegister::X86R12 => (1, 12),
-        MachineRegister::X86R13 => (1, 13),
-        MachineRegister::X86R14 => (1, 14),
-        MachineRegister::X86R15 => (1, 15),
-        MachineRegister::X86Xmm(index) => (2, index),
-        MachineRegister::Aarch64X(index) => (3, index),
-        MachineRegister::Aarch64V(index) => (4, index),
-    };
+    let (family, index) = register.wire_class_index();
     output.push(family);
     output.push(index);
 }

@@ -2,7 +2,7 @@
 //! that has to reproduce that placement byte for byte.
 
 use crate::{FinalImage, FinalImageLayout};
-use calling_conventions::{MachineRegister, StateFootprintEvidence};
+use calling_conventions::StateFootprintEvidence;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 
@@ -569,27 +569,7 @@ pub(crate) fn state_footprint_evidence_digest(
     digest.update(b"omega.state-footprint-evidence.sha256.v1\0");
     digest.update((footprint.registers().as_slice().len() as u64).to_le_bytes());
     for register in footprint.registers().as_slice() {
-        let (class, index) = match register {
-            MachineRegister::X86Rax => (1, 0),
-            MachineRegister::X86Rcx => (1, 1),
-            MachineRegister::X86Rdx => (1, 2),
-            MachineRegister::X86Rbx => (1, 3),
-            MachineRegister::X86Rsp => (1, 4),
-            MachineRegister::X86Rbp => (1, 5),
-            MachineRegister::X86Rsi => (1, 6),
-            MachineRegister::X86Rdi => (1, 7),
-            MachineRegister::X86R8 => (1, 8),
-            MachineRegister::X86R9 => (1, 9),
-            MachineRegister::X86R10 => (1, 10),
-            MachineRegister::X86R11 => (1, 11),
-            MachineRegister::X86R12 => (1, 12),
-            MachineRegister::X86R13 => (1, 13),
-            MachineRegister::X86R14 => (1, 14),
-            MachineRegister::X86R15 => (1, 15),
-            MachineRegister::X86Xmm(index) => (2, u16::from(*index)),
-            MachineRegister::Aarch64X(index) => (3, u16::from(*index)),
-            MachineRegister::Aarch64V(index) => (4, u16::from(*index)),
-        };
+        let (class, index) = register.wire_class_index();
         digest.update([class]);
         digest.update(index.to_le_bytes());
     }

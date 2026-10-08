@@ -56,6 +56,33 @@ impl MachineRegister {
         }
     }
 
+    /// The wire class/index pair serialized register fields and digests use:
+    /// x86-64 general registers are class 1, XMM lanes class 2, AArch64
+    /// general registers class 3, and vector lanes class 4.
+    pub const fn wire_class_index(self) -> (u8, u8) {
+        match self {
+            Self::X86Rax => (1, 0),
+            Self::X86Rcx => (1, 1),
+            Self::X86Rdx => (1, 2),
+            Self::X86Rbx => (1, 3),
+            Self::X86Rsp => (1, 4),
+            Self::X86Rbp => (1, 5),
+            Self::X86Rsi => (1, 6),
+            Self::X86Rdi => (1, 7),
+            Self::X86R8 => (1, 8),
+            Self::X86R9 => (1, 9),
+            Self::X86R10 => (1, 10),
+            Self::X86R11 => (1, 11),
+            Self::X86R12 => (1, 12),
+            Self::X86R13 => (1, 13),
+            Self::X86R14 => (1, 14),
+            Self::X86R15 => (1, 15),
+            Self::X86Xmm(index) => (2, index),
+            Self::Aarch64X(index) => (3, index),
+            Self::Aarch64V(index) => (4, index),
+        }
+    }
+
     pub fn architecture(self) -> Architecture {
         match self {
             Self::X86Rax
