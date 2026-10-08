@@ -16,7 +16,7 @@ mod signed_remainder_by_negative_one;
 mod zero_dividend;
 mod zero_value_shift;
 
-pub(super) use identity_rewrite::integer_zero;
+pub(super) use identity_rewrite::{integer_one, integer_zero};
 
 pub use divide_by_one::LiveProofCertifiedIntegerDivideByOneEliminationRule;
 pub use multiply_by_zero::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;

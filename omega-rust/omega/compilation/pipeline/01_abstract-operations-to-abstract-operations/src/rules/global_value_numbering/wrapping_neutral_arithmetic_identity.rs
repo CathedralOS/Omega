@@ -6,12 +6,12 @@ use abstract_operations::{
 };
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 use crate::rules::global_value_numbering::total_scalar_identities::{
     TotalScalarIdentityShape, exact_total_scalar_identity, propose_total_scalar_identities,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::rules::proof_check_elision::{integer_one, integer_zero};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct WrappingNeutralArithmeticIdentityRule;
@@ -43,8 +43,8 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     if arithmetic.policy() != IntegerOverflowPolicy::Wrapping {
         return Vec::new();
     }
-    let zero = integer_value(*scalar_type, 0);
-    let one = integer_value(*scalar_type, 1);
+    let zero = integer_zero(*scalar_type);
+    let one = integer_one(*scalar_type);
     // (replacement, law operand, identity, expected law value)
     let laws = match arithmetic.operator() {
         IntegerArithmeticOperator::Add => vec![
@@ -76,9 +76,3 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
         .collect()
 }
 
-const fn integer_value(scalar_type: IntegerType, value: u128) -> IntegerValue {
-    match scalar_type.sign() {
-        IntegerSign::Signed => IntegerValue::Signed(value as i128),
-        IntegerSign::Unsigned => IntegerValue::Unsigned(value),
-    }
-}
