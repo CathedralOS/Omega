@@ -679,6 +679,72 @@ def main() -> None:
         ((b"w!2", "u8"),),
     )
 
+    # Constants are values of their declared types, and each constant's
+    # value types against that type like a `let` initializer.
+    accepted(
+        program,
+        "constants",
+        b"data Pair { x: u8; }\nconst LIMIT: u64 = 4096;\nconst Pair::ZERO: Pair = Pair { x: 0 };\n"
+        b"machine f() -> u64 { LIMIT + 1 }\nmachine g() -> u8 { let zero: Pair = Pair::ZERO; zero.x }",
+        ((b"4096", "u64"), (b"LIMIT!2", "u64"), (b"LIMIT + 1", "u64"), (b"Pair::ZERO!2", "D0"), (b"0!2", "u8")),
+        adaptations=((b"4096", "landed"), (b"0!2", "landed")),
+    )
+    rejected(program, "constant-value-mismatch", b"const SMALL: u8 = true;", "MismatchedTypes", b"true")
+    rejected(program, "constant-value-out-of-range", b"const SMALL: u8 = 256;", "LiteralOutOfRange", b"256")
+
+    # A conformance member of a non-generic conformance is an ordinary
+    # machine; a trait requirement needs a selected conformance, a generic
+    # conformance's member its arguments, a target-scoped family a
+    # realization, and a declared domain's theory checking: each rejects as
+    # unsupported rather than typing partially.
+    accepted(
+        program,
+        "conformance-member-call",
+        b"trait Ranked<T> { machine rank(value: T) -> u64; }\n"
+        b"ByValue satisfies Ranked<u64> { machine rank(value: u64) -> u64 { value } }\n"
+        b"machine f() -> u64 { ByValue::rank(7) }",
+        ((b"ByValue::rank(7)", "u64"), (b"7", "u64")),
+        selections=((b"ByValue::rank(7)", "machine", 1),),
+    )
+    rejected(
+        program,
+        "trait-requirement-call",
+        b"trait Order<T> { machine before(left: T, right: T) -> bool; }\nmachine f() -> bool { Order::before(1, 2) }",
+        "UnsupportedExpression",
+        b"Order::before(1, 2)",
+    )
+    rejected(
+        program,
+        "generic-conformance-member-call",
+        b"trait Wrap<T> { machine wrap(value: T) -> T; }\n"
+        b"Same<T> satisfies Wrap<T> { machine wrap(value: T) -> T { value } }\nmachine f() -> u8 { Same::wrap(7) }",
+        "UnsupportedExpression",
+        b"Same::wrap(7)",
+    )
+    rejected(
+        program,
+        "target-scoped-family-call",
+        b"linux_arm64 machine Clock::now() -> u64 { 1 }\nmacos_arm64 machine Clock::now() -> u64 { 2 }\n"
+        b"machine read() -> u64 { Clock::now() }",
+        "UnsupportedExpression",
+        b"Clock::now()!3",
+    )
+    rejected(
+        program,
+        "declared-domain",
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) {}",
+        "UnsupportedDomain",
+        b"u64 in Small",
+    )
+    rejected(
+        program,
+        "conformance-argument",
+        b"trait Order<T> { machine before(left: T, right: T) -> bool; }\nAscending satisfies Order<u8> { }\n"
+        b"machine sort<T, O>(value: T) {}\nmachine f() { sort<u8, Ascending>(1); }",
+        "UnsupportedTypeForm",
+        b"Ascending!2",
+    )
+
     # The product's own psi package types as one source set: each module
     # under source/psi as `psi::<directory>::<file>`.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

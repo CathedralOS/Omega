@@ -1,4 +1,5 @@
 use psi::resolution::resolution;
+use psi::resolve::containers;
 use psi::resolve::imports;
 use psi::resolve::resolver;
 use psi::source::source;
@@ -12,11 +13,15 @@ use psi::typing::typer;
 
 // Calls and constructions (wiki/spec/language/expressions.md#calls-places-and-temporaries).
 // Resolution bound a callee to the first machine of its overload family:
-// every machine the call's unit can see with the same owner and name.
-// Typing selects the one family member whose parameters admit the authored
-// arguments; none or several reject. A transition target supplies its
-// state's parameters. A shared-reference parameter may lend its argument
-// implicitly; every other loan is explicit.
+// every machine the call's unit can see with the same path, a member's
+// owner being its trait or conformance. Typing selects the one family
+// member whose parameters admit the authored arguments; none or several
+// reject. A transition target supplies its state's parameters. A
+// shared-reference parameter may lend its argument implicitly; every other
+// loan is explicit. A trait requirement or default runs only through a
+// selected conformance, a member of a generic conformance needs that
+// conformance's arguments, and a target-scoped family's body is chosen by
+// realization: each rejects as unsupported here.
 // The explicit static arguments of a call `path<arguments>(...)`: a run of
 // `SyntaxTrees::type_arguments`. A plain call has none.
 pub data StaticArguments [copy] {
@@ -37,7 +42,7 @@ crashes Trap
         let binding: ValueBinding = NameResolution::value_binding(resolution, expression.left);
         let statics: StaticArguments = StaticArguments { first: 0, count: 0 };
         transition binding {
-            ValueBinding::Machine { handle } -> family(typer, sources, syntax, index, expression, handle, statics)
+            ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
             ValueBinding::State { handle } -> state_target(typer, syntax, index, expression, handle)
             _ -> not_callable(typer, syntax, expression)
         }
@@ -49,16 +54,41 @@ crashes Trap
         let binding: ValueBinding = NameResolution::value_binding(resolution, callee.left);
         let statics: StaticArguments = StaticArguments { first: callee.first, count: callee.count };
         transition binding {
-            ValueBinding::Machine { handle } -> family(typer, sources, syntax, index, expression, handle, statics)
+            ValueBinding::Machine { handle } -> supplied(typer, sources, syntax, resolution, index, expression, handle, statics)
             _ -> not_callable(typer, syntax, expression)
         }
     }
 
-    state family(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, handle: u64 in Trapping, statics: StaticArguments) {
-        let named: MachineItem = SyntaxTrees::machine_item(syntax, handle);
-        let matches: u64 in Trapping = Typer::matching_machines(typer, sources, syntax, expression, named, statics, 0, 0);
+    state supplied(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        handle: u64 in Trapping,
+        statics: StaticArguments
+    ) {
+        let unsupplied: bool = Typer::unsupplied_callee(syntax, resolution, handle);
+        transition unsupplied {
+            true -> reject(typer, expression, TypeDiagnosticCode::UnsupportedExpression)
+            _ -> family(typer, sources, syntax, resolution, index, expression, handle, statics)
+        }
+    }
+
+    state family(
+        typer: &mut Typer,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        expression: Expression,
+        handle: u64 in Trapping,
+        statics: StaticArguments
+    ) {
+        let matches: u64 in Trapping = Typer::matching_machines(typer, sources, syntax, resolution, expression, handle, statics, 0, 0);
         transition matches == 1 {
-            true -> select(typer, sources, syntax, index, expression, named, statics, 0)
+            true -> select(typer, sources, syntax, resolution, index, expression, handle, statics, 0)
             _ -> unmatched(typer, expression, matches)
         }
     }
@@ -69,16 +99,17 @@ crashes Trap
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        resolution: &NameResolution,
         index: u64 in Trapping,
         expression: Expression,
-        named: MachineItem,
+        named: u64 in Trapping,
         statics: StaticArguments,
         candidate: u64 in Trapping
     ) {
-        let member: bool = Typer::family_admits(typer, sources, syntax, expression, named, statics, candidate);
+        let member: bool = Typer::family_admits(typer, sources, syntax, resolution, expression, named, statics, candidate);
         transition member {
             true -> selected(typer, syntax, index, expression, statics, candidate)
-            _ -> select(typer, sources, syntax, index, expression, named, statics, candidate + 1)
+            _ -> select(typer, sources, syntax, resolution, index, expression, named, statics, candidate + 1)
         }
     }
 
@@ -151,8 +182,9 @@ machine Typer::matching_machines(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
+    resolution: &NameResolution,
     expression: Expression,
-    named: MachineItem,
+    named: u64 in Trapping,
     statics: StaticArguments,
     candidate: u64 in Trapping,
     count: u64 in Trapping
@@ -160,7 +192,7 @@ machine Typer::matching_machines(
 crashes Trap
 {
     transition candidate < syntax.machine_count {
-        true -> test(typer, sources, syntax, expression, named, statics, candidate, count)
+        true -> test(typer, sources, syntax, resolution, expression, named, statics, candidate, count)
         _ -> result(count)
     }
 
@@ -168,16 +200,17 @@ crashes Trap
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        resolution: &NameResolution,
         expression: Expression,
-        named: MachineItem,
+        named: u64 in Trapping,
         statics: StaticArguments,
         candidate: u64 in Trapping,
         count: u64 in Trapping
     ) -> u64 in Trapping {
-        let member: bool = Typer::family_admits(typer, sources, syntax, expression, named, statics, candidate);
+        let member: bool = Typer::family_admits(typer, sources, syntax, resolution, expression, named, statics, candidate);
         transition member {
-            true -> next(typer, sources, syntax, expression, named, statics, candidate + 1, count + 1)
-            _ -> next(typer, sources, syntax, expression, named, statics, candidate + 1, count)
+            true -> next(typer, sources, syntax, resolution, expression, named, statics, candidate + 1, count + 1)
+            _ -> next(typer, sources, syntax, resolution, expression, named, statics, candidate + 1, count)
         }
     }
 
@@ -185,14 +218,15 @@ crashes Trap
         typer: &mut Typer,
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        resolution: &NameResolution,
         expression: Expression,
-        named: MachineItem,
+        named: u64 in Trapping,
         statics: StaticArguments,
         candidate: u64 in Trapping,
         count: u64 in Trapping
     ) -> u64 in Trapping {
         transition candidate < syntax.machine_count {
-            true -> test(typer, sources, syntax, expression, named, statics, candidate, count)
+            true -> test(typer, sources, syntax, resolution, expression, named, statics, candidate, count)
             _ -> result(count)
         }
     }
@@ -202,8 +236,9 @@ crashes Trap
     }
 }
 
-// Whether machine `candidate` belongs to the family of `named` as the call's
-// unit sees it and its parameters admit the call's arguments. A generic
+// Whether machine `candidate` belongs to the family of machine `named` (the
+// same path) as the call's unit sees it, needs nothing typing does not
+// supply, and has parameters admitting the call's arguments. A generic
 // candidate first binds its parameters from the static arguments and by
 // unifying each parameter with its argument (generics.omg); every parameter
 // must be bound, and each argument is then admitted at the substituted
@@ -212,18 +247,21 @@ machine Typer::family_admits(
     typer: &mut Typer,
     sources: &SourceSet,
     syntax: &SyntaxTrees,
+    resolution: &NameResolution,
     expression: Expression,
-    named: MachineItem,
+    named: u64 in Trapping,
     statics: StaticArguments,
     candidate: u64 in Trapping
 ) -> bool
 crashes Trap
 {
+    let representative: MachineItem = SyntaxTrees::machine_item(syntax, named);
+    let path: MachineOwner = NameResolution::machine_owner(resolution, named);
     let item: MachineItem = SyntaxTrees::machine_item(syntax, candidate);
-    let same_name: bool = SourceSet::spans_equal(sources, item.name.source_span, named.name.source_span);
-    let same_owner: bool = SourceSet::spans_equal(sources, item.owner.source_span, named.owner.source_span);
-    transition same_name && item.has_owner == named.has_owner && (!item.has_owner || same_owner)
-        && item.parameter_count == expression.count {
+    let spelled: bool = Resolver::machine_spells(resolution, sources, item, candidate, path.has_owner, path.owner.source_span,
+        representative.name.source_span);
+    let unsupplied: bool = Typer::unsupplied_callee(syntax, resolution, candidate);
+    transition spelled && !unsupplied && item.parameter_count == expression.count {
         true -> visible(typer, sources, syntax, expression, statics, item)
         _ -> no()
     }
@@ -309,6 +347,20 @@ crashes Trap
     state no() -> bool {
         false
     }
+}
+
+// Whether a call of machine `handle` needs what typing does not supply: its
+// container's generic arguments (a generic conformance's member), a selected
+// conformance (a trait requirement or default), or a realization's choice
+// among target-scoped bodies.
+machine Typer::unsupplied_callee(syntax: &SyntaxTrees, resolution: &NameResolution, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+    let owner: MachineOwner = NameResolution::machine_owner(resolution, handle);
+    let container: TypeScope = Resolver::container_scope(syntax, owner);
+    container.generic_parameter_count > 0 || owner.container == MachineContainer::Trait
+        || owner.container == MachineContainer::Refinement || item.has_target
 }
 
 // Bind `item`'s generic parameters, lifetimes aside, to the call's static

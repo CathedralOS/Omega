@@ -185,6 +185,9 @@ where
     declaration_name_start: u64 in Trapping;
     declaration_name_end: u64 in Trapping;
     declaration_first_generic: u64 in Trapping;
+    // A trait's or conformance's own generic parameters, counted where its
+    // header ends: its member machines append their own after them.
+    declaration_generic_count: u64 in Trapping;
     declaration_first_parent: u64 in Trapping;
     declaration_first_machine: u64 in Trapping;
     declaration_first_row: u64 in Trapping;

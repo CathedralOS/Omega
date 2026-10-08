@@ -500,6 +500,8 @@ pub data NamePath [copy] {
 // at a crossing. A transparent refinement `trait Name = Base { ... }` names a
 // structural bound on a `Base` conformance, the type reference `base`: it
 // has no parents or contracts, and its members' container is `Refinement`.
+// Its generic parameters are the header's own; each member machine's follow
+// them in its own range.
 pub data TraitItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
@@ -521,6 +523,7 @@ pub data TraitItem [copy] {
 // The satisfied trait application is one type reference. Checked members are
 // a contiguous range of `SyntaxTrees::machines` whose container is
 // `Conformance`; reference rows bind a requirement to an existing machine.
+// Its generic parameters are the header's own, as for a trait.
 pub data ConformanceItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;

@@ -5844,16 +5844,16 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   proof and Terminal Psi; Omega consumes Terminal Psi for provider selection,
   realization, ABI and emission. The product entry answers one OCREQ V1
   request with one OCOUT V1 outcome; Psi lexes, parses and name-resolves
-  supported `use`/`data`/`machine` roots, machine bodies included, under the
-  parser and resolver gates. Extend that one
+  every root kind the parser accepts, machine bodies and constant values
+  included, under the parser and resolver gates. Extend that one
   pipeline through the full language in compositional slices; no private
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  453 parser cases, `tests/psi/resolver/test-resolver.sh` all 144 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 51 typing cases; run
+  453 parser cases, `tests/psi/resolver/test-resolver.sh` all 203 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 60 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5884,19 +5884,29 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   source set: each unit belongs to the module its path names, a `use` must
   name a supplied module, and a reference sees its own module and the modules
   its unit imports, not transitively, with two visible declarations of one
-  spelling ambiguous. It binds data, signature and body types and `in`
-  domains, each in its declaration's generic scope, checks all-or-nothing,
-  distinct stable identities, rejects duplicate generic parameters,
-  parameters, states, and data and overloads within a module, and binds every
-  expression name by the language's resolution order (locals, arm binders, the
-  body's own parameters, value and machine binders, then states, machines,
-  data and cases by position), binds a membership in `Type::Case` to that
-  case, and binds renamed pattern binders. Every other root kind (traits,
-  conformances, domains, constants, propositions, definitions, target-scoped
-  and boundary machines) rejects as an unsupported declaration before
-  binding, and a machine's operator token, `where machine` contract,
-  `satisfies` or `terminates` clause and proposition or evidence binder
-  reject at the form; `boundary data` binds as data. Typing interns every written type, gives every expression and
+  spelling ambiguous. Data, traits and conformances share one type
+  namespace per module, constants and propositions their own; trait
+  requirements and defaults and conformance members are machines named
+  through their container (`Trait::requirement`, `Conformance::member`), the
+  container's generic parameters covering them. It binds every type
+  reference in its declaration's generic scope (trait parents and satisfied
+  traits must name traits; a conformance binds only as a static argument),
+  `in` domains by name and carrier (declared domains with generic carriers
+  included), checks all-or-nothing, distinct stable identities, rejects
+  duplicate generic parameters, parameters, states, declarations and
+  overloads within a module (target-scoped bodies for distinct targets form
+  one family), binds reference rows, establishment routes and alias
+  constituents, and binds every expression name, in bodies and constant
+  values, by the language's resolution order (locals, arm binders, the body's
+  own parameters, value and machine binders, constants, then states,
+  machines, data and cases by position; `Conformance::member` falls back to
+  the conformance's row or trait), binds a membership to its `Type::Case`
+  case or its declared domain, and binds renamed pattern binders. Facts bind
+  no names yet. `let` definitions and trait refinements reject as unsupported
+  declarations, and an operator token, `where machine` or `where
+  proposition` contract, `satisfies` or `terminates` clause and proposition
+  or evidence binder reject at the form, on any declaration. Typing interns
+  every written type, gives every expression and
   pattern binder a type, selects each call's machine among its visible
   overload family by argument admission (equal types, anonymous integer
   landing, `Never`, implicit shared lending, shared reborrow of an exclusive
@@ -5904,14 +5914,16 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   exactly and lands it once, keeps arithmetic policies from mixing, reads an
   element through a policy-qualified collection under that policy, and
   checks constructions, case patterns, transition targets and terminal
-  results. Anonymous floats land once at `f32` or `f64` and formats never
+  results, and types constants as their declared types with each value
+  landed there. Anonymous floats land once at `f32` or `f64` and formats never
   mix; a generic machine call binds its parameters from explicit static
   arguments and by unifying parameter and argument types, and a generic
   construction infers its data's arguments from its fields; value-position
-  matches, memberships and equality needing a declared conformance reject as
-  unsupported. The typing gate types the whole psi package, its 35 units, as
-  one source set (39,550 expressions, 217 interned
-  types). The parser harness reads all 40 product source files whole and 65
+  matches, memberships, trait requirement calls, generic conformance members,
+  target-scoped family calls, declared domains and equality needing a
+  declared conformance reject as unsupported. The typing gate types the
+  whole psi package, its 37 units, as one source set (44,658 expressions, 227
+  interned types). The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
   declarations awaiting library migration, 9 retired range suffixes awaiting
@@ -5921,23 +5933,35 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Quantity<Units::METER>`), an installation reach row `reaches <= Bound`, and
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`), range expressions and indexed membership domains (`in
-  AtMost<8>`) do not parse yet. The resolver gate resolves the whole psi
-  package, its 35 units, as one source set; the shared syntax tables hold
-  1,024 roots, 32,000 path members (26,385 used by psi at 34 units),
+  AtMost<8>`) do not parse yet. Of the 65 library files that parse whole, 13 resolve with the
+  modules they import under their own module paths (`omega::language::core::*`;
+  std package-relative, as std's own `use` rows spell them); all 65 at once
+  overflow the 512-row machine table (the library declares about 2,000
+  machines). The others stop first at 23 `satisfies` or `terminates` clauses,
+  2 `where machine` contracts and one operator token, forms resolution rejects
+  until it records their bindings, 19 at an import of a module that does not
+  parse yet, 6 at an import that rejects, and `std/build.omg` names the build
+  context's `Build`. The resolver gate resolves the whole psi
+  package, its 37 units, as one source set; the shared syntax tables hold
+  1,024 roots, 32,000 path members (31,576 used by psi),
   16,384 type references, 1,536 data members, 768 cases, 8,192 parameters and
   statements, 4,096 states and 65,536 expressions, over a 65,536-token unit.
-  Next: package aliases, with `pub` narrowing imports across packages, so the
-  product entry and its library imports resolve, and typing's declared
+  Next: the psi package's 31,576 path members leave 424 of the 32,000-row
+  table, so before the next resolver or typing slice count rows per source
+  unit, or stop storing a single-name expression's member (its `name` already
+  holds it); then package aliases, with `pub` narrowing imports across
+  packages, so the product entry and its library imports resolve; `satisfies` requirement
+  edges, `terminates` clauses and `where machine` contracts, which the
+  library's remaining files stop at; names in facts; and typing's declared
   equality; then checking. Size the parser tables to the request contract's scalar-resource
   rows (roots and states 4,096; path members, data members, type nodes,
   statements and expressions 16,384) and publish their refusals as those
   provisions; aarch64 frames past 16 MiB now realize. The psi package's own
-  35 sources hold 39,550 expressions (and held 26,385 path members at
-  34 sources), so those rows
+  37 sources hold 44,658 expressions and 31,576 path members, so those rows
   must count per source unit, or grow, before D can compile C; the path
-  member table cannot grow past one unit's token bound while its capacity
-  edge stays single-unit testable. Run the three gates on Linux and Windows
-  hosts. Keep the acceptance/rejection, lexical handoff,
+  member table is close to the most one unit's 65,536 tokens can fill and
+  overflow (two tokens per member), so it can barely grow further. Run the
+  three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven
   narrowing casts.
 

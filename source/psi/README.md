@@ -118,53 +118,84 @@ position as its source id. A `use` must name a supplied module
 module, whichever of the module's units declares, and each module its unit
 imports; an import is not transitive, and two visible declarations of one
 spelling reject as ambiguous. Every unit belongs to one package here, so `pub`
-does not yet narrow an import. It then rejects builtin-shadowing names and
-duplicate data names within a module, duplicate generic parameter names of any
-kind within a declaration, and duplicate members: fields and cases share one
-namespace; each case's payload fields share another with the common fields.
-Stable identities ([`resolve/identities.omg`](resolve/identities.omg)) number
-all or none of a declaration's direct fields, of its cases, and of each case's
-payload fields, with distinct `u64` values compared by value. It
-binds every type reference, data declarations' first, machine signatures'
-second and body types (`let` types, cast targets and static arguments) third,
-each in its declaration's scope (a machine's generic parameters cover its
-states and bodies): an enclosing generic parameter by spelling (never a
-lifetime), then a builtin type, then a visible data declaration. It also
-binds every `in` qualifier to a
-compiler-known domain (`Wrapping`, `Saturating`, `Trapping`, `Finite`). A type
-binds row by row over its run: reference, array, slice and integer rows bind
-by form, and named rows carry the names. Last, it rejects duplicate parameter
-names within a signature, duplicate state names within a machine, and a
-machine that repeats an earlier one of its module's owner, name, generic
-parameter kinds and parameter types, compared run by run with generic
-parameters by position (machines may otherwise overload). A bodyless machine
-binds only its signature; whether it has a supply is checking's question.
-The binding tables are indexed by the syntax table's type-reference handles.
-Then every name and path in a machine body binds
-([`resolve/names.omg`](resolve/names.omg)) in the language's resolution order:
-an earlier `let` of the same body, the enclosing arm's pattern binders, the
-body's own parameters (a state never sees the entry's), then the machine's
-value binders (`Count: u32`, `const N: u64`). A callee names a machine binder
-(`machine F`) or a machine, a call-shaped transition target a state of its
-machine before either, a construction or case pattern a data declaration or
-`Type::Case`, and a value path a case or an owned machine; a terminal value
-target binds as any value, as do a value-position match's subject, value
-patterns and values, and an unknown name rejects. A pattern field renamed
-`field as name` binds as `name`, and a waived `field as _` binds nothing. A
-membership `value in Type::Case` binds the case whose implied domain it
-names; another domain rejects as unknown, and several domains at once as an
-unsupported expression. These value bindings are indexed by expression
-handle. Resolution binds `use`, `data` (a `boundary data` declaration names
-an opaque type like any other) and untargeted, non-boundary machine roots;
-every other root kind (a trait, conformance, domain, constant, proposition
-or mathematical definition, or a target-scoped or boundary machine) rejects
-at its root as an unsupported declaration before any binding, rather than
-resolving as if its names were absent. A machine root rejects in the same
-pass, at the form, when it binds an operator token, gives a binder a `where
-machine` contract, carries a `satisfies` or `terminates` clause, or declares
-a proposition or evidence binder ([`resolve/forms.omg`](resolve/forms.omg)):
-each names declarations (traits, conformances, propositions) resolution
-does not bind yet.
+does not yet narrow an import. Every root kind the parser accepts binds but
+mathematical definitions (`let` roots) and transparent trait refinements,
+which reject at their root as unsupported declarations before any binding,
+as does a form whose bindings resolution does not record yet
+([`resolve/forms.omg`](resolve/forms.omg)), at that form: an operator token, a
+`where machine` or `where proposition` contract, a `satisfies` or
+`terminates` clause, or a proposition or evidence binder, on any machine or
+declaration. Data
+declarations, traits and named conformances share one type namespace per
+module, constants (by owner and name) and propositions their own; a later root
+repeating an earlier one's path in its module rejects (as duplicate data when
+both are data), and a type name spelling a builtin type, or a domain name a
+compiler-known domain, rejects. It then rejects duplicate generic parameter
+names of any kind within a declaration, duplicate proposition parameters, and
+duplicate members: fields and cases share one namespace; each case's payload
+fields share another with the common fields. Stable identities
+([`resolve/identities.omg`](resolve/identities.omg)) number all or none of a
+declaration's direct fields, of its cases, and of each case's payload fields,
+with distinct `u64` values compared by value. Trait requirements and defaults
+and conformance members are machines named through their container
+(`Trait::requirement`, `Conformance::member`; [`resolve/containers.omg`](resolve/containers.omg)),
+a `MachineOwner` per machine, and the container's generic parameters cover
+the member's signature and body, the member's own shadowing them. Domains
+([`resolve/domains.omg`](resolve/domains.omg)) bind their carriers and index
+arguments in their own scope first, and a module declares one domain name over
+one carrier type once. Every type reference then binds, each in its
+declaration's scope: data declarations', then trait parents and satisfied
+traits (which must name traits), constant types, proposition parameter and
+evidence types, machine signatures (members included), then body types (`let`
+types, cast targets and static arguments; a cast in a domain's, proposition's
+or data declaration's fact takes that declaration's scope). A name binds an
+enclosing generic parameter by spelling (never a lifetime), then a builtin
+type, then the one visible data, trait or conformance declaration; a trait
+binds only at the root of a trait position, a conformance only as a static
+argument's root or an applied name's argument, and anything else there
+rejects (`NotAType`, `NotATrait`). A type binds row by row over its run:
+reference, array, slice and integer rows bind by form, and named rows carry
+the names. An `in` qualifier binds a compiler-known domain (`Wrapping`,
+`Saturating`, `Trapping`, `Finite`) by spelling, else the one visible domain of
+that name whose carrier is the qualified type, a domain's own generic
+parameters standing for any type; two such domains reject as ambiguous. Last,
+it rejects duplicate parameter names within a signature, duplicate state names
+within a machine, and a machine that repeats an earlier one of its module's
+path (owner and name, a member's owner being its container), generic parameter
+kinds and parameter types, compared run by run with generic parameters by
+position (machines may otherwise overload); target-scoped bodies for distinct
+targets form one family under one path, while a second body for one target or
+an untargeted body beside them repeats it. A bodyless machine binds only its
+signature; whether it has a supply is checking's question. The binding tables
+are indexed by the syntax table's type-reference handles. Name paths bind
+next: a reference row's left side to a trait requirement (`NotARequirement`
+otherwise) and its right side to a machine, a domain's establishment routes to
+a requirement or machine, and an alias's constituents to domains, bare ones
+over the alias's own carrier. Then every name and path in a machine body or a
+constant's value binds ([`resolve/names.omg`](resolve/names.omg)) in the
+language's resolution order: an earlier `let` of the same body, the enclosing
+arm's pattern binders, the body's own parameters (a state never sees the
+entry's), then the machine's value binders (`Count: u32`, `const N: u64`), a
+member's own before its container's, then a constant. A callee names a machine
+binder (`machine F`), then a fellow member of the enclosing trait or
+conformance, then a machine; a callee path `Owner::name` names the machine of
+that path, so `Trait::requirement` and `Conformance::member`, or, for a
+conformance declaring no such member, the machine its reference row or its
+trait supplies for that requirement. A call-shaped transition target names a
+state of its machine before any callee, a construction or case pattern a data
+declaration or `Type::Case`, and a value path a case, an owned constant or an
+owned machine; a terminal value target binds as any value, as do a
+value-position match's subject, value patterns and values, and an unknown name
+rejects. A pattern field renamed `field as name` binds as `name`, and a waived
+`field as _` binds nothing. A membership `value in Type::Case` binds the case
+whose implied domain it names; `value in Carrier::Name` binds the domain the
+carrier type selects, and a bare `value in Name` the one visible domain of
+that name, in the path bindings (a case and a domain of one path, or several
+bare candidates, or several domains at once reject). These value bindings are
+indexed by expression handle. Facts
+(`requires`, `ensures`, `where`, domain predicates and proposition bodies) bind
+no names here; which requirement a member or row fills, row completeness and a
+domain's establishment obligations are checking's.
 
 Typing follows resolution ([`typing/typer.omg`](typing/typer.omg)) and
 records its results in [`types/types.omg`](types/types.omg): an interned
@@ -215,8 +246,14 @@ every parameter must be bound, each argument is admitted at its substituted
 parameter type, and the result is substituted the same way. A construction
 of generic data infers its arguments from its fields' values. Value-position
 matches, memberships and equality needing a declared conformance reject as
-unsupported rather than typing partially. Carrier facts beyond the qualifier (unbounded `UInt`/`Int`
-storage, ranges) belong to checking.
+unsupported rather than typing partially. Carrier facts beyond the qualifier
+(unbounded `UInt`/`Int` storage, ranges) belong to checking. A constant is a
+value of its declared type, and each constant's value types against that type
+like a `let` initializer. A trait application's row takes no type. A call
+selects among the callee's family by machine path; a trait requirement (which
+runs only through a selected conformance), a generic conformance's member, a
+target-scoped family's body (a realization's choice), a conformance named as
+a static argument and a declared domain qualifier reject as unsupported.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -266,7 +303,7 @@ resolves the set, and observes the diagnostic and every type, domain and value
 binding. Lexical or parse rejection exits without an observation.
 
 On macOS ARM64 the three gates build their harnesses natively from a fresh
-CLI: all 453 parser cases, all 144 resolver cases and all 51 typing cases
+CLI: all 453 parser cases, all 203 resolver cases and all 60 typing cases
 pass. Each gate counts each distinct source it runs as one case. No cached
 executable may stand in for that run. Linux and Windows hosts have run none of
 them.

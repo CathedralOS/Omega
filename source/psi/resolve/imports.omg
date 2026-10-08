@@ -279,99 +279,151 @@ pub data Lookup [copy] {
     case Ambiguous;
 }
 
-// The data declaration `name` denotes from its own unit. A second visible
-// declaration of the spelling belongs to another module (a module's
-// duplicates reject earlier), so it makes the name ambiguous.
-pub machine Resolver::data_named(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> Lookup
-crashes Trap
-{
-    transition { _ -> next(sources, syntax, name, 0) }
+// The declaration tables a name or `Owner::name` path selects by spelling.
+// Data, traits and conformances are type names, constants values and
+// propositions logical declarations. Domains select by carrier as well
+// (domains.omg) and machines by overload family (`machine_named`).
+pub data DeclarationKind [copy] {
+    case Data;
+    case Trait;
+    case Conformance;
+    case Constant;
+    case Proposition;
+}
 
-    state next(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
-        transition index < syntax.data_count {
-            true -> candidate(sources, syntax, name, index)
-            _ -> absent()
-        }
+// The path a declaration's name spells: its owner when it has one, then its
+// name. Only a constant takes an owner (`const Owner::NAME`).
+pub data DeclarationPath [copy] {
+    has_owner: bool;
+    owner: IdentifierSpan;
+    name: IdentifierSpan;
+}
+
+pub machine Resolver::declaration_count(syntax: &SyntaxTrees, kind: DeclarationKind) -> u64 in Trapping {
+    transition kind {
+        DeclarationKind::Data -> count(syntax.data_count as u64 in Trapping)
+        DeclarationKind::Trait -> count(syntax.trait_count as u64 in Trapping)
+        DeclarationKind::Conformance -> count(syntax.conformance_count as u64 in Trapping)
+        DeclarationKind::Constant -> count(syntax.constant_count as u64 in Trapping)
+        DeclarationKind::Proposition -> count(syntax.proposition_count as u64 in Trapping)
     }
 
-    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
-        let item: DataItem = SyntaxTrees::data_item(syntax, index);
-        let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
-        transition visible {
-            true -> rival(sources, syntax, name, index, index + 1)
-            _ -> next(sources, syntax, name, index + 1)
-        }
-    }
-
-    state rival(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
-        transition index < syntax.data_count {
-            true -> rival_candidate(sources, syntax, name, found, index)
-            _ -> unique(found)
-        }
-    }
-
-    state rival_candidate(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
-        let item: DataItem = SyntaxTrees::data_item(syntax, index);
-        let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
-        transition visible {
-            true -> ambiguous()
-            _ -> rival(sources, syntax, name, found, index + 1)
-        }
-    }
-
-    state unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
-    }
-
-    state absent() -> Lookup {
-        Lookup::Absent
-    }
-
-    state ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    state count(value: u64 in Trapping) -> u64 in Trapping {
+        value
     }
 }
 
-// The first visible machine named `name` (and owned by `owner` when
-// `owned`): its overload family's representative, since typing selects
-// among a module's overloads. A visible machine of the same spelling in
-// another module makes the name ambiguous.
-pub machine Resolver::machine_named(sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> Lookup
+pub machine Resolver::declaration_path(syntax: &SyntaxTrees, kind: DeclarationKind, index: u64 in Trapping) -> DeclarationPath
 crashes Trap
 {
-    transition { _ -> next(sources, syntax, owned, owner, name, 0) }
+    transition kind {
+        DeclarationKind::Data -> data(syntax, index)
+        DeclarationKind::Trait -> trait_name(syntax, index)
+        DeclarationKind::Conformance -> conformance(syntax, index)
+        DeclarationKind::Constant -> constant(syntax, index)
+        DeclarationKind::Proposition -> proposition(syntax, index)
+    }
 
-    state next(sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
-        transition index < syntax.machine_count {
-            true -> candidate(sources, syntax, owned, owner, name, index)
+    state data(syntax: &SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: DataItem = SyntaxTrees::data_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name }
+    }
+
+    state trait_name(syntax: &SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: TraitItem = SyntaxTrees::trait_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name }
+    }
+
+    state conformance(syntax: &SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: ConformanceItem = SyntaxTrees::conformance_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name }
+    }
+
+    state constant(syntax: &SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: ConstantItem = SyntaxTrees::constant_item(syntax, index);
+        DeclarationPath { has_owner: item.has_owner, owner: item.owner, name: item.name }
+    }
+
+    state proposition(syntax: &SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
+        let item: PropositionItem = SyntaxTrees::proposition_item(syntax, index);
+        DeclarationPath { has_owner: false, owner: item.name, name: item.name }
+    }
+}
+
+// Whether a declaration's path is `name` (owned by `owner` when `owned`).
+pub machine Resolver::path_spells(sources: &SourceSet, path: DeclarationPath, owned: bool, owner: SourceSpan, name: SourceSpan) -> bool
+crashes Trap
+{
+    let named: bool = SourceSet::spans_equal(sources, path.name.source_span, name);
+    let owner_named: bool = SourceSet::spans_equal(sources, path.owner.source_span, owner);
+    named && path.has_owner == owned && (!owned || owner_named)
+}
+
+// The declaration of `kind` that `name` (owned by `owner` when `owned`)
+// denotes from its own unit. A second visible declaration of the path
+// belongs to another module (a module's duplicates reject earlier), so it
+// makes the name ambiguous.
+pub machine Resolver::declared_named(
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    kind: DeclarationKind,
+    owned: bool,
+    owner: SourceSpan,
+    name: SourceSpan
+) -> Lookup
+crashes Trap
+{
+    let count: u64 in Trapping = Resolver::declaration_count(syntax, kind);
+    transition { _ -> next(sources, syntax, kind, owned, owner, name, count, 0) }
+
+    state next(
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        kind: DeclarationKind,
+        owned: bool,
+        owner: SourceSpan,
+        name: SourceSpan,
+        count: u64 in Trapping,
+        index: u64 in Trapping
+    ) -> Lookup {
+        transition index < count {
+            true -> candidate(sources, syntax, kind, owned, owner, name, count, index)
             _ -> absent()
         }
     }
 
-    state candidate(sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
-        let named: bool = Resolver::machine_spells(sources, item, owned, owner, name);
-        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+    state candidate(
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        kind: DeclarationKind,
+        owned: bool,
+        owner: SourceSpan,
+        name: SourceSpan,
+        count: u64 in Trapping,
+        index: u64 in Trapping
+    ) -> Lookup {
+        let path: DeclarationPath = Resolver::declaration_path(syntax, kind, index);
+        let named: bool = Resolver::path_spells(sources, path, owned, owner, name);
+        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, path.name.source_span.source);
         transition visible {
-            true -> rival(sources, syntax, owned, owner, name, index, item.name.source_span.source, index + 1)
-            _ -> next(sources, syntax, owned, owner, name, index + 1)
+            true -> rival(sources, syntax, kind, owned, owner, name, count, index, index + 1)
+            _ -> next(sources, syntax, kind, owned, owner, name, count, index + 1)
         }
     }
 
     state rival(
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        kind: DeclarationKind,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
+        count: u64 in Trapping,
         found: u64 in Trapping,
-        family: SourceId,
         index: u64 in Trapping
     ) -> Lookup {
-        transition index < syntax.machine_count {
-            true -> rival_candidate(sources, syntax, owned, owner, name, found, family, index)
+        transition index < count {
+            true -> rival_candidate(sources, syntax, kind, owned, owner, name, count, found, index)
             _ -> unique(found)
         }
     }
@@ -379,21 +431,20 @@ crashes Trap
     state rival_candidate(
         sources: &SourceSet,
         syntax: &SyntaxTrees,
+        kind: DeclarationKind,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
+        count: u64 in Trapping,
         found: u64 in Trapping,
-        family: SourceId,
         index: u64 in Trapping
     ) -> Lookup {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
-        let named: bool = Resolver::machine_spells(sources, item, owned, owner, name);
-        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
-        let overload: bool = Resolver::same_module(sources, family.value as u64 in Trapping,
-            item.name.source_span.source.value as u64 in Trapping);
-        transition visible && !overload {
+        let path: DeclarationPath = Resolver::declaration_path(syntax, kind, index);
+        let named: bool = Resolver::path_spells(sources, path, owned, owner, name);
+        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, path.name.source_span.source);
+        transition visible {
             true -> ambiguous()
-            _ -> rival(sources, syntax, owned, owner, name, found, family, index + 1)
+            _ -> rival(sources, syntax, kind, owned, owner, name, count, found, index + 1)
         }
     }
 
@@ -410,17 +461,121 @@ crashes Trap
     }
 }
 
-// Whether `item` is named `name` (and owned by `owner` when `owned`).
-machine Resolver::machine_spells(sources: &SourceSet, item: MachineItem, owned: bool, owner: SourceSpan, name: SourceSpan) -> bool
+// The data declaration `name` denotes from its own unit.
+pub machine Resolver::data_named(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> Lookup
 crashes Trap
 {
+    Resolver::declared_named(sources, syntax, DeclarationKind::Data, false, name, name)
+}
+
+// The first visible machine whose path is `name` (owned by `owner` when
+// `owned`): its overload family's representative, since typing selects
+// among a module's overloads. A machine's path is its `MachineOwner`'s, so
+// `Trait::requirement` and `Conformance::member` name container members. A
+// visible machine of the same path in another module makes the name
+// ambiguous.
+pub machine Resolver::machine_named(
+    resolution: &NameResolution,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    owned: bool,
+    owner: SourceSpan,
+    name: SourceSpan
+) -> Lookup
+crashes Trap
+{
+    transition { _ -> next(resolution, sources, syntax, owned, owner, name, 0) }
+
+    state next(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+        transition index < syntax.machine_count {
+            true -> candidate(resolution, sources, syntax, owned, owner, name, index)
+            _ -> absent()
+        }
+    }
+
+    state candidate(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let named: bool = Resolver::machine_spells(resolution, sources, item, index, owned, owner, name);
+        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+        transition visible {
+            true -> rival(resolution, sources, syntax, owned, owner, name, index, item.name.source_span.source, index + 1)
+            _ -> next(resolution, sources, syntax, owned, owner, name, index + 1)
+        }
+    }
+
+    state rival(
+        resolution: &NameResolution,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        owned: bool,
+        owner: SourceSpan,
+        name: SourceSpan,
+        found: u64 in Trapping,
+        family: SourceId,
+        index: u64 in Trapping
+    ) -> Lookup {
+        transition index < syntax.machine_count {
+            true -> rival_candidate(resolution, sources, syntax, owned, owner, name, found, family, index)
+            _ -> unique(found)
+        }
+    }
+
+    state rival_candidate(
+        resolution: &NameResolution,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        owned: bool,
+        owner: SourceSpan,
+        name: SourceSpan,
+        found: u64 in Trapping,
+        family: SourceId,
+        index: u64 in Trapping
+    ) -> Lookup {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        let named: bool = Resolver::machine_spells(resolution, sources, item, index, owned, owner, name);
+        let visible: bool = Resolver::visible_if(sources, syntax, named, name.source, item.name.source_span.source);
+        let overload: bool = Resolver::same_module(sources, family.value as u64 in Trapping,
+            item.name.source_span.source.value as u64 in Trapping);
+        transition visible && !overload {
+            true -> ambiguous()
+            _ -> rival(resolution, sources, syntax, owned, owner, name, found, family, index + 1)
+        }
+    }
+
+    state unique(found: u64 in Trapping) -> Lookup {
+        Lookup::Found { handle: found }
+    }
+
+    state absent() -> Lookup {
+        Lookup::Absent
+    }
+
+    state ambiguous() -> Lookup {
+        Lookup::Ambiguous
+    }
+}
+
+// Whether machine `handle` (row `item`) has the path `name` (owned by
+// `owner` when `owned`), through its `MachineOwner`.
+pub machine Resolver::machine_spells(
+    resolution: &NameResolution,
+    sources: &SourceSet,
+    item: MachineItem,
+    handle: u64 in Trapping,
+    owned: bool,
+    owner: SourceSpan,
+    name: SourceSpan
+) -> bool
+crashes Trap
+{
+    let path: MachineOwner = NameResolution::machine_owner(resolution, handle);
     let named: bool = SourceSet::spans_equal(sources, item.name.source_span, name);
-    let owner_named: bool = SourceSet::spans_equal(sources, item.owner.source_span, owner);
-    named && item.has_owner == owned && (!owned || owner_named)
+    let owner_named: bool = SourceSet::spans_equal(sources, path.owner.source_span, owner);
+    named && path.has_owner == owned && (!owned || owner_named)
 }
 
 // Visibility, tested only for a declaration whose spelling matched.
-machine Resolver::visible_if(sources: &SourceSet, syntax: &SyntaxTrees, named: bool, from: SourceId, declared: SourceId) -> bool
+pub machine Resolver::visible_if(sources: &SourceSet, syntax: &SyntaxTrees, named: bool, from: SourceId, declared: SourceId) -> bool
 crashes Trap
 {
     transition named {

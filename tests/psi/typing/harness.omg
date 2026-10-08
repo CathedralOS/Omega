@@ -558,6 +558,7 @@ machine TypingHarness::domain_tag(value: DomainBinding) -> u8 {
         DomainBinding::Saturating -> tag(2)
         DomainBinding::Trapping -> tag(3)
         DomainBinding::Finite -> tag(4)
+        DomainBinding::Declared -> tag(5)
     }
 
     state tag(number: u8) -> u8 {

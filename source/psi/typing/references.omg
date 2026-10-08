@@ -35,8 +35,17 @@ crashes Trap
             TypeBinding::Array -> array(typer, sources, syntax, resolution, index, reference, domain)
             TypeBinding::Slice -> slice(typer, sources, syntax, resolution, index, reference, domain)
             TypeBinding::Literal -> literal(typer, sources, syntax, resolution, index, reference)
+            TypeBinding::Trait { item } -> application(typer, sources, syntax, resolution, index)
             _ -> unsupported(typer, reference)
         }
+    }
+
+    // A trait application (a trait's parent, a conformance's satisfied
+    // trait) is not a type: its row takes none, and its arguments' rows
+    // intern as ever.
+    state application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        Typing::set_reference_type(&mut typer.output, index, 0);
+        transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
     state builtin(
@@ -300,12 +309,19 @@ crashes Trap
 
 // Whether `domain` may qualify `builtin`: an arithmetic policy qualifies a
 // fixed integer, `Finite` a float, and anything may stay unqualified
-// (wiki/spec/language/numeric_values.md#overflow-policies).
+// (wiki/spec/language/numeric_values.md#overflow-policies). A declared
+// domain's theory belongs to checking, which this slice does not reach, so
+// it qualifies nothing yet.
 machine Typer::domain_admitted(builtin: BuiltinType, domain: DomainBinding) -> bool {
     transition domain {
         DomainBinding::Unqualified -> yes()
         DomainBinding::Finite -> float(builtin)
+        DomainBinding::Declared -> no()
         _ -> integer(builtin)
+    }
+
+    state no() -> bool {
+        false
     }
 
     state float(builtin: BuiltinType) -> bool {

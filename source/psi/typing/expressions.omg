@@ -308,8 +308,8 @@ crashes Trap
 }
 
 // The declared type a name's binding carries: a local's, a parameter's, a
-// pattern binder's, or a payload-free case's data type. Every other binding
-// denotes no value and is absent.
+// pattern binder's, a constant's, or a payload-free case's data type. Every
+// other binding denotes no value and is absent.
 machine Typer::binding_type(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
@@ -320,7 +320,15 @@ crashes Trap
         ValueBinding::PatternBinder { field } -> binder(typer, field)
         ValueBinding::DataCase { item, data_case } -> data_case(typer, syntax, index, item, data_case)
         ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter)
+        ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant)
         _ -> absent()
+    }
+
+    // A constant is a value of its declared type; its initializer types
+    // against that type (`Typer::type_constants`).
+    state constant_value(typer: &mut Typer, syntax: &SyntaxTrees, constant: u64 in Trapping) -> u64 in Trapping {
+        let declaration: ConstantItem = SyntaxTrees::constant_item(syntax, constant);
+        Typing::reference_type(&typer.output, declaration.type_reference)
     }
 
     // A value binder (`Count: u32`, `const N: u64`) has its annotation's

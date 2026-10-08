@@ -70,6 +70,7 @@ crashes Trap
     }
 
     state parents(parser: &mut Parser, input: &TokenStream) {
+        parser.declaration_generic_count = (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic;
         let listed: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
         let refines: bool = Parser::at_punctuation(parser, input, PunctuationKind::Equal);
         transition listed {
@@ -304,7 +305,7 @@ crashes Trap
         parser.output.traits[parser.output.trait_count] = TraitItem {
             name: Parser::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
-            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic,
+            generic_parameter_count: parser.declaration_generic_count,
             first_parent: parser.declaration_first_parent,
             parent_count: (parser.output.trait_parent_count as u64 in Trapping) - parser.declaration_first_parent,
             first_machine: parser.declaration_first_machine,

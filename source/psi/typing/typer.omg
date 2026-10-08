@@ -2,6 +2,7 @@ use psi::resolution::resolution;
 use psi::source::source;
 use psi::syntax::syntax;
 use psi::types::types;
+use psi::typing::admission;
 use psi::typing::expressions;
 use psi::typing::generics;
 use psi::typing::literals;
@@ -10,6 +11,7 @@ use psi::typing::statements;
 
 // Typing over a name-resolved source set. The pass runs in fail-closed
 // steps: every written type reference interns (references.omg), then each
+// constant's value types against its declared type, then each
 // machine body's statements type in authored order (statements.omg), each
 // statement's expression trees in table order, children before parents
 // (expressions.omg). An anonymous integer tree lands where its destination
@@ -40,8 +42,16 @@ crashes Trap
     Typer::clear(typer, syntax);
     Typer::type_references(typer, sources, syntax, resolution);
     transition typer.output.accepted {
-        true -> bodies(typer, sources, syntax, resolution)
+        true -> constants(typer, sources, syntax, resolution)
         _ -> done()
+    }
+
+    state constants(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+        Typer::type_constants(typer, sources, syntax, resolution);
+        transition typer.output.accepted {
+            true -> bodies(typer, sources, syntax, resolution)
+            _ -> done()
+        }
     }
 
     state bodies(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
@@ -106,6 +116,38 @@ crashes Trap
     state clear_binder(typer: &mut Typer, index: u64 in Trapping) {
         Typing::set_binder_type(&mut typer.output, index, 0);
         transition { _ -> binder(typer, index + 1) }
+    }
+
+    state done() {}
+}
+
+// Each constant's value, landed at its declared type like a `let`
+// initializer (wiki/spec/language/constants.md).
+machine Typer::type_constants(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+crashes Trap
+{
+    transition { _ -> next(typer, sources, syntax, resolution, 0) }
+
+    state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        transition index < syntax.constant_count && typer.output.accepted {
+            true -> value(typer, sources, syntax, resolution, index)
+            _ -> done()
+        }
+    }
+
+    state value(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        let item: ConstantItem = SyntaxTrees::constant_item(syntax, index);
+        Typer::type_tree(typer, sources, syntax, resolution, item.value);
+        let declared: u64 in Trapping = Typing::reference_type(&typer.output, item.type_reference);
+        transition typer.output.accepted {
+            true -> admit(typer, sources, syntax, resolution, index, declared, item.value)
+            _ -> done()
+        }
+    }
+
+    state admit(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, declared: u64 in Trapping, value: u64 in Trapping) {
+        let admitted: bool = Typer::admit(typer, syntax, declared, value, false);
+        transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
     state done() {}

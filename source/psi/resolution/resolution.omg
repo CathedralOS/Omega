@@ -1,9 +1,12 @@
 use psi::source::source;
+use psi::syntax::syntax;
 
-// Name bindings for the parsed `use`/`data` roots of one source unit. The
-// binding tables are indexed like `SyntaxTrees::type_references`, so each
-// syntax handle keeps its identity; no table repeats a spelling. The zero
-// binding is the unresolved state, and an accepted resolution leaves none.
+// Name bindings for the parsed roots of a compilation's source set. Each
+// binding table is indexed by the syntax table whose names it binds
+// (`SyntaxTrees::type_references`, `expressions`, `name_paths`, `machines`),
+// so each syntax handle keeps its identity; no table repeats a spelling. The
+// zero binding is the unresolved state, and an accepted resolution leaves
+// none.
 
 // Compiler-installed type names, in the reference compiler's builtin order.
 pub data BuiltinType [copy] {
@@ -32,11 +35,13 @@ pub data BuiltinType [copy] {
 }
 
 // What a type reference's name denotes: a compiler-installed type, a data
-// declaration of this unit (its `SyntaxTrees::data_items` handle), or a
-// generic parameter of the enclosing declaration (its
-// `SyntaxTrees::generic_parameters` handle).
-// Reference, array, slice and integer rows name no declaration: each binds
-// by its form, and the rows of its run carry the names' bindings.
+// declaration (its `SyntaxTrees::data_items` handle), or a generic parameter
+// of the enclosing declaration (its `SyntaxTrees::generic_parameters`
+// handle). A trait (`SyntaxTrees::traits`) is named only where a trait
+// application stands: a trait's parents and a conformance's satisfied trait.
+// A named conformance (`SyntaxTrees::conformances`) is named only as a static
+// argument. Reference, array, slice and integer rows name no declaration:
+// each binds by its form, and the rows of its run carry the names' bindings.
 pub data TypeBinding [copy] {
     case Unresolved;
     // Two visible declarations spell the name; the reference rejects.
@@ -48,6 +53,8 @@ pub data TypeBinding [copy] {
     case Array;
     case Slice;
     case Literal;
+    case Trait(item: u64 in Trapping);
+    case Conformance(item: u64 in Trapping);
 }
 
 // What a name or path in an expression denotes, indexed like
@@ -55,9 +62,11 @@ pub data TypeBinding [copy] {
 // case whose implied domain it names; other expressions that are not names
 // stay `NotAName`; an accepted resolution leaves no `Unresolved` name. A machine
 // binding names the first declaration of its overload family; typing selects
-// among the family. A generic parameter binding names a value or machine
-// binder of the enclosing machine by its `SyntaxTrees::generic_parameters`
-// handle.
+// among the family. A trait requirement or a conformance member is a machine
+// like any other, named through its container. A generic parameter binding
+// names a value or machine binder of the enclosing machine (or of the trait
+// or conformance containing it) by its `SyntaxTrees::generic_parameters`
+// handle. A constant binding names a `SyntaxTrees::constants` handle.
 pub data ValueBinding [copy] {
     case NotAName;
     case Unresolved;
@@ -71,31 +80,60 @@ pub data ValueBinding [copy] {
     case Data(item: u64 in Trapping);
     case DataCase(item: u64 in Trapping, data_case: u64 in Trapping);
     case GenericParameter(parameter: u64 in Trapping);
+    case Constant(constant: u64 in Trapping);
+}
+
+// What a `::` name path denotes, indexed like `SyntaxTrees::name_paths`: a
+// machine (both sides of a conformance's reference row, a domain's
+// establishment route; a trait requirement is a machine) or a domain (an
+// alias constituent).
+pub data PathBinding [copy] {
+    case Unresolved;
+    case Machine(handle: u64 in Trapping);
+    case Domain(item: u64 in Trapping);
 }
 
 // The generic parameters a type name may bind: the enclosing declaration's
-// contiguous range of `SyntaxTrees::generic_parameters`.
+// contiguous range of `SyntaxTrees::generic_parameters`, then, for a trait or
+// conformance member, its container's range, which the member's own shadow.
 pub data TypeScope [copy] {
     first_generic_parameter: u64 in Trapping;
     generic_parameter_count: u64 in Trapping;
+    first_outer_parameter: u64 in Trapping;
+    outer_parameter_count: u64 in Trapping;
 }
 
 // What the `in Domain` qualifier of a type reference denotes. A bare
 // reference stays `Unqualified`. The arithmetic policies and `Finite` are
-// compiler-known; every other domain needs a `domain` declaration, which the
-// current grammar cannot supply.
+// compiler-known; `Declared` is a `domain` declaration whose handle is the
+// row's `NameResolution::domain_items` entry.
 pub data DomainBinding [copy] {
     case Unqualified;
     case Wrapping;
     case Saturating;
     case Trapping;
     case Finite;
+    case Declared;
+}
+
+// Where a machine declaration stands and the owner its path spells. A root
+// machine's owner is its authored `Owner::`; a trait requirement or default
+// and a conformance member are named through their container (`Trait::name`,
+// `Conformance::name`), whose `SyntaxTrees::traits` or `conformances` handle
+// is `item`. Overload families, duplicates and callees compare these paths.
+pub data MachineOwner [copy] {
+    container: MachineContainer;
+    item: u64 in Trapping;
+    has_owner: bool;
+    owner: IdentifierSpan;
 }
 
 pub data ResolveDiagnosticCode [copy] {
     case None;
     case UnresolvedImport;
-    case DataShadowsBuiltinType;
+    // A data, trait or conformance name spells a builtin type, or a domain
+    // name a compiler-known domain.
+    case ShadowsBuiltin;
     case DuplicateData;
     case DuplicateDataMember;
     case DuplicateCasePayloadField;
@@ -111,15 +149,14 @@ pub data ResolveDiagnosticCode [copy] {
     case PartialStableIdentities;
     case DuplicateStableIdentity;
     case InvalidStableIdentity;
-    // A declaration kind resolution does not bind yet: a trait, conformance,
-    // domain, constant, proposition or mathematical definition, or a
-    // target-scoped or boundary machine. It rejects at its root rather than
-    // resolving as if absent.
+    // A declaration kind resolution does not bind yet: a mathematical
+    // definition (`let` root) or a transparent trait refinement. It rejects
+    // at its root rather than resolving as if absent.
     case UnsupportedDeclaration;
-    // A machine form that names declarations resolution does not bind yet
-    // rejects at that form: an operator token, a `where machine` contract, a
-    // `satisfies` or `terminates` clause, or a proposition or evidence
-    // binder.
+    // A form whose bindings resolution does not record yet rejects at that
+    // form: an operator token, a `where machine` or `where proposition`
+    // contract, a `satisfies` or `terminates` clause, or a proposition or
+    // evidence binder.
     case UnsupportedOperatorToken;
     case UnsupportedMachineContract;
     case UnsupportedClause;
@@ -127,6 +164,16 @@ pub data ResolveDiagnosticCode [copy] {
     // An expression form resolution does not bind yet: a membership in
     // several domains at once.
     case UnsupportedExpression;
+    // A trait, conformance, domain, constant or proposition repeats an
+    // earlier declaration of its namespace in one module.
+    case DuplicateDeclaration;
+    // A trait or conformance named where a type stands.
+    case NotAType;
+    // A trait position names something other than a trait.
+    case NotATrait;
+    // A reference row's left side names a machine that is no trait
+    // requirement.
+    case NotARequirement;
 }
 
 pub data ResolveDiagnostic [copy] {
@@ -138,12 +185,19 @@ pub data NameResolution
 where
     binding_count <= 16384,
     value_binding_count <= 65536,
+    path_binding_count <= 2048,
+    machine_owner_count <= 512,
 {
     type_bindings: [TypeBinding; 16384];
     domain_bindings: [DomainBinding; 16384];
+    domain_items: [u64; 16384];
     binding_count: u64;
     value_bindings: [ValueBinding; 65536];
     value_binding_count: u64;
+    path_bindings: [PathBinding; 2048];
+    path_binding_count: u64;
+    machine_owners: [MachineOwner; 512];
+    machine_owner_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;
 }
@@ -151,6 +205,8 @@ where
 pub machine NameResolution::clear(resolution: &mut NameResolution, source: SourceId) {
     resolution.binding_count = 0;
     resolution.value_binding_count = 0;
+    resolution.path_binding_count = 0;
+    resolution.machine_owner_count = 0;
     resolution.accepted = true;
     resolution.diagnostic.code = ResolveDiagnosticCode::None;
     resolution.diagnostic.source_span.source = source;
@@ -182,6 +238,97 @@ crashes Trap
     }
 
     state invalid() -> ValueBinding {
+        crash Trap;
+    }
+}
+
+// Where machine `handle` stands, which must be below the bound count.
+pub machine NameResolution::machine_owner(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner
+crashes Trap
+{
+    transition handle < resolution.machine_owner_count {
+        true -> read(resolution, handle)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, handle: u64 in Trapping) -> MachineOwner {
+        resolution.machine_owners[handle]
+    }
+
+    state invalid() -> MachineOwner {
+        crash Trap;
+    }
+}
+
+// The declared domain of type reference `row`, below the bound count.
+pub machine NameResolution::domain_item(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition row < resolution.binding_count {
+        true -> read(resolution, row)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, row: u64 in Trapping) -> u64 in Trapping {
+        resolution.domain_items[row] as u64 in Trapping
+    }
+
+    state invalid() -> u64 in Trapping {
+        crash Trap;
+    }
+}
+
+// The binding of name path `handle`, below the bound count.
+pub machine NameResolution::path_binding(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
+crashes Trap
+{
+    transition handle < resolution.path_binding_count {
+        true -> read(resolution, handle)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
+        resolution.path_bindings[handle]
+    }
+
+    state invalid() -> PathBinding {
+        crash Trap;
+    }
+}
+
+// The binding of type reference `row` while resolution runs: every row
+// below the syntax table's count, bound or not yet.
+pub machine NameResolution::type_binding_at(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding
+crashes Trap
+{
+    transition row < 16384 {
+        true -> read(resolution, row)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding {
+        resolution.type_bindings[row]
+    }
+
+    state invalid() -> TypeBinding {
+        crash Trap;
+    }
+}
+
+// The binding of name path `handle` while resolution runs.
+pub machine NameResolution::path_binding_at(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding
+crashes Trap
+{
+    transition handle < 2048 {
+        true -> read(resolution, handle)
+        _ -> invalid()
+    }
+
+    state read(resolution: &NameResolution, handle: u64 in Trapping) -> PathBinding {
+        resolution.path_bindings[handle]
+    }
+
+    state invalid() -> PathBinding {
         crash Trap;
     }
 }

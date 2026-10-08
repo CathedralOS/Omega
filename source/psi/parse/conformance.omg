@@ -52,6 +52,7 @@ crashes Trap
     }
 
     state satisfies_word(parser: &mut Parser, input: &TokenStream) {
+        parser.declaration_generic_count = (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic;
         let relation: bool = Parser::at_word(parser, input, "satisfies");
         transition relation {
             true -> trait_application(parser, input)
@@ -212,7 +213,7 @@ crashes Trap
         parser.output.conformances[parser.output.conformance_count] = ConformanceItem {
             name: Parser::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
-            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic,
+            generic_parameter_count: parser.declaration_generic_count,
             trait_type: parser.declaration_type,
             first_machine: parser.declaration_first_machine,
             machine_count: (parser.output.machine_count as u64 in Trapping) - parser.declaration_first_machine,

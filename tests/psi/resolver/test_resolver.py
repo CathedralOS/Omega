@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Observation tags, mirrored from the harness's serialization tables.
 UNRESOLVED_IMPORT = 1
-DATA_SHADOWS_BUILTIN_TYPE = 2
+SHADOWS_BUILTIN = 2
 DUPLICATE_DATA = 3
 DUPLICATE_DATA_MEMBER = 4
 DUPLICATE_CASE_PAYLOAD_FIELD = 5
@@ -33,6 +33,10 @@ UNSUPPORTED_MACHINE_CONTRACT = 20
 UNSUPPORTED_CLAUSE = 21
 UNSUPPORTED_GENERIC_PARAMETER = 22
 UNSUPPORTED_EXPRESSION = 23
+DUPLICATE_DECLARATION = 24
+NOT_A_TYPE = 25
+NOT_A_TRAIT = 26
+NOT_A_REQUIREMENT = 27
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -71,6 +75,20 @@ def binder_name(handle: int) -> tuple[int, int, int]:
     """A value or machine generic parameter of the enclosing machine."""
     return (10, handle, 0)
 
+
+def constant(handle: int) -> tuple[int, int, int]:
+    return (11, handle, 0)
+
+
+# Path bindings: (tag, handle).
+def path_machine(handle: int) -> tuple[int, int]:
+    return (1, handle)
+
+
+def path_domain(handle: int) -> tuple[int, int]:
+    return (2, handle)
+
+# Type bindings: (tag, handle, domain tag, declared domain handle).
 BUILTIN = 1
 DATA = 2
 GENERIC = 3
@@ -78,12 +96,15 @@ REFERENCE = 4
 ARRAY = 5
 SLICE = 6
 LITERAL = 7
+TRAIT = 9
+CONFORMANCE = 10
 
 UNQUALIFIED = 0
 WRAPPING = 1
 SATURATING = 2
 TRAPPING = 3
 FINITE = 4
+DECLARED = 5
 
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
@@ -92,25 +113,41 @@ BUILTIN_SPELLINGS = (
 )
 
 
-def builtin(spelling: str, domain: int = UNQUALIFIED) -> tuple[int, int, int]:
-    return (BUILTIN, BUILTIN_SPELLINGS.index(spelling), domain)
+TypeRow = tuple[int, int, int, int]
 
 
-def data(handle: int, domain: int = UNQUALIFIED) -> tuple[int, int, int]:
-    return (DATA, handle, domain)
+def builtin(spelling: str, domain: int = UNQUALIFIED) -> TypeRow:
+    return (BUILTIN, BUILTIN_SPELLINGS.index(spelling), domain, 0)
 
 
-def generic(handle: int, domain: int = UNQUALIFIED) -> tuple[int, int, int]:
-    return (GENERIC, handle, domain)
+def data(handle: int, domain: int = UNQUALIFIED) -> TypeRow:
+    return (DATA, handle, domain, 0)
 
 
-REFERENCE_ROW = (REFERENCE, 0, UNQUALIFIED)
-SLICE_ROW = (SLICE, 0, UNQUALIFIED)
-LITERAL_ROW = (LITERAL, 0, UNQUALIFIED)
+def generic(handle: int, domain: int = UNQUALIFIED) -> TypeRow:
+    return (GENERIC, handle, domain, 0)
 
 
-def array(domain: int = UNQUALIFIED) -> tuple[int, int, int]:
-    return (ARRAY, 0, domain)
+def trait(handle: int) -> TypeRow:
+    return (TRAIT, handle, UNQUALIFIED, 0)
+
+
+def conformance(handle: int) -> TypeRow:
+    return (CONFORMANCE, handle, UNQUALIFIED, 0)
+
+
+def in_domain(row: TypeRow, domain: int) -> TypeRow:
+    """`row` qualified by declared domain `domain`."""
+    return (row[0], row[1], DECLARED, domain)
+
+
+REFERENCE_ROW = (REFERENCE, 0, UNQUALIFIED, 0)
+SLICE_ROW = (SLICE, 0, UNQUALIFIED, 0)
+LITERAL_ROW = (LITERAL, 0, UNQUALIFIED, 0)
+
+
+def array(domain: int = UNQUALIFIED) -> TypeRow:
+    return (ARRAY, 0, domain, 0)
 
 
 @dataclass(frozen=True)
@@ -118,8 +155,9 @@ class Observation:
     accepted: bool
     diagnostic: int
     diagnostic_span: tuple[int, int, int]
-    bindings: tuple[tuple[int, int, int], ...]
+    bindings: tuple[TypeRow, ...]
     value_bindings: tuple[tuple[int, int, int], ...] = ()
+    path_bindings: tuple[tuple[int, int], ...] = ()
 
 
 class Reader:
@@ -145,20 +183,24 @@ class Reader:
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
     assert reader.bytes(8) == b"OMGRES1\0"
-    assert reader.u64() == 1
+    assert reader.u64() == 2
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
     bindings = tuple(
-        (reader.byte(), reader.u64(), reader.byte())
+        (reader.byte(), reader.u64(), reader.byte(), reader.u64())
         for _ in range(reader.u64())
     )
     value_bindings = tuple(
         (reader.byte(), reader.u64(), reader.u64())
         for _ in range(reader.u64())
     )
+    path_bindings = tuple(
+        (reader.byte(), reader.u64())
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing resolution observation bytes"
-    return Observation(accepted, diagnostic, diagnostic_span, bindings, value_bindings)
+    return Observation(accepted, diagnostic, diagnostic_span, bindings, value_bindings, path_bindings)
 
 
 # Every distinct input the gate runs is one case; the determinism check runs
@@ -189,20 +231,34 @@ def run(program: str, source: bytes) -> tuple[int, bytes]:
     return run_units(program, ((b"", source),))
 
 
+def expected_observation(
+    actual: Observation,
+    bindings: tuple[TypeRow, ...],
+    value_bindings: tuple[tuple[int, int, int], ...] | None,
+    path_bindings: tuple[tuple[int, int], ...] | None,
+) -> tuple[Observation, Observation]:
+    """Value and path bindings are compared only when the case names them."""
+    if value_bindings is None:
+        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings,
+                             (), actual.path_bindings)
+    if path_bindings is None:
+        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings,
+                             actual.value_bindings, ())
+    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or (), path_bindings or ())
+    return actual, expected
+
+
 def accepted(
     program: str,
     name: str,
     source: bytes,
-    bindings: tuple[tuple[int, int, int], ...],
+    bindings: tuple[TypeRow, ...],
     value_bindings: tuple[tuple[int, int, int], ...] | None = None,
+    path_bindings: tuple[tuple[int, int], ...] | None = None,
 ) -> None:
-    """Value bindings are compared only when the case names them."""
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
-    actual = decode(payload)
-    if value_bindings is None:
-        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings)
-    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or ())
+    actual, expected = expected_observation(decode(payload), bindings, value_bindings, path_bindings)
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -232,15 +288,13 @@ def accepted_units(
     program: str,
     name: str,
     units: tuple[tuple[bytes, bytes], ...],
-    bindings: tuple[tuple[int, int, int], ...],
+    bindings: tuple[TypeRow, ...],
     value_bindings: tuple[tuple[int, int, int], ...] | None = None,
+    path_bindings: tuple[tuple[int, int], ...] | None = None,
 ) -> None:
     status, payload = run_units(program, units)
     assert status == 0, f"{name}: status {status}"
-    actual = decode(payload)
-    if value_bindings is None:
-        actual = Observation(actual.accepted, actual.diagnostic, actual.diagnostic_span, actual.bindings)
-    expected = Observation(True, 0, (0, 0, 0), bindings, value_bindings or ())
+    actual, expected = expected_observation(decode(payload), bindings, value_bindings, path_bindings)
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
 
@@ -366,12 +420,12 @@ def main() -> None:
         UNRESOLVED_IMPORT,
         b"use a::b;",
     )
-    rejected(program, "data-shadows-u8", b"data u8 { x: bool; }", DATA_SHADOWS_BUILTIN_TYPE, b"u8")
+    rejected(program, "data-shadows-u8", b"data u8 { x: bool; }", SHADOWS_BUILTIN, b"u8")
     rejected(
         program,
         "data-shadows-last-builtin",
         b"data AtomicU64 { x: bool; }",
-        DATA_SHADOWS_BUILTIN_TYPE,
+        SHADOWS_BUILTIN,
         b"AtomicU64",
     )
     rejected(
@@ -950,25 +1004,34 @@ def main() -> None:
         b"g",
     )
 
-    # Declaration kinds resolution does not bind yet reject at their whole
-    # root, in source order and before any binding, instead of resolving as
-    # if their names were absent. `boundary data` declares an opaque type
-    # name and binds like any other data declaration.
-    for name, source in (
-        ("unsupported-trait", b"trait Order<T> { machine before(left: T, right: T) -> bool {} }"),
-        ("unsupported-conformance", b"pub Ascending satisfies Order<u8> { Order::before = less; }"),
-        ("unsupported-domain", b"pub domain i32::Positive(value) requires value > 0;"),
-        ("unsupported-constant", b"const Limits::MAX: u64 = 4096;"),
-        ("unsupported-proposition", b"proposition Even(value: u64) = value % 2 == 0;"),
-        ("unsupported-target-machine", b"linux_arm64 machine Clock::now() -> u64 {}"),
-        ("unsupported-boundary-machine", b"boundary machine entry() {}"),
-        ("unsupported-definition", b"let zero: u8 = 0;"),
-        ("unsupported-assumption", b"boundary let choose(witness: u8): u8;"),
+    # Mathematical definitions and assumptions (`let` roots) are declaration
+    # kinds resolution does not bind yet: they reject at their whole root, in
+    # source order and before any binding, instead of resolving as if their
+    # names were absent.
+    refinement = b"trait Local = Logger { machine * reaches; }"
+    for name, source, spelling in (
+        ("unsupported-definition", b"let zero: u8 = 0;", b"let zero: u8 = 0;"),
+        ("unsupported-assumption", b"boundary let choose(witness: u8): u8;", b"boundary let choose(witness: u8): u8;"),
+        ("unsupported-refinement", b"trait Logger { machine log(); }\n" + refinement, refinement),
     ):
-        rejected(program, name, source, UNSUPPORTED_DECLARATION, source)
+        rejected(program, name, source, UNSUPPORTED_DECLARATION, spelling)
+    rejected(
+        program,
+        "unsupported-trait-contract",
+        b"trait Ordered<C> where proposition R(left: C, right: C); { }",
+        UNSUPPORTED_MACHINE_CONTRACT,
+        b"where proposition R(left: C, right: C);",
+    )
+    rejected(
+        program,
+        "unsupported-trait-evidence-binder",
+        b"trait Calling<Policy satisfies CallingPolicy> {}",
+        UNSUPPORTED_GENERIC_PARAMETER,
+        b"Policy satisfies CallingPolicy",
+    )
 
-    # Machine forms that name declarations resolution does not bind yet
-    # reject at the form, before any binding.
+    # Machine forms whose bindings resolution does not record yet reject at
+    # the form, before any binding, whatever contains the machine.
     for name, source, diagnostic, spelling in (
         ("unsupported-operator-token", b"machine + add(a: u8, b: u8) -> u8 { a }",
          UNSUPPORTED_OPERATOR_TOKEN, b"+"),
@@ -984,13 +1047,19 @@ def main() -> None:
          UNSUPPORTED_GENERIC_PARAMETER, b"O satisfies Order<T>"),
         ("unsupported-proposition-binder", b"machine m<proposition R>() {}",
          UNSUPPORTED_GENERIC_PARAMETER, b"proposition R"),
+        ("unsupported-requirement-token", b"trait Ranked { machine < compare(left: u8, right: u8) -> bool; }",
+         UNSUPPORTED_OPERATOR_TOKEN, b"<"),
+        ("unsupported-target-satisfies-clause", b"linux_arm64 machine C::now() satisfies Clock::now via binding();",
+         UNSUPPORTED_CLAUSE, b"satisfies Clock::now via binding()"),
     ):
         rejected(program, name, source, diagnostic, spelling)
     source = b"data A { x: Q; }\nmachine f() satisfies Order::before {}"
     rejected(program, "unsupported-form-before-binding", source, UNSUPPORTED_CLAUSE, b"satisfies Order::before")
 
     # A membership in `Type::Case` binds the case whose implied domain it
-    # names; any other domain, and several at once, reject. A value-position
+    # names; a `Carrier::Name` path or a bare name binds a declared domain;
+    # several domains at once, or a bare name several domains declare, need
+    # what resolution does not bind yet. A value-position
     # match binds its subject, value patterns and values as values, and a
     # renamed pattern field binds under its rename while a waived one binds
     # nothing.
@@ -1036,8 +1105,43 @@ def main() -> None:
         b"ok",
         occurrence=3,
     )
-    source = b"data A { x: u8; }\nconst N: u64 = 1;\ndata B { y: Q; }"
-    rejected(program, "unsupported-declaration-before-binding", source, UNSUPPORTED_DECLARATION, b"const N: u64 = 1;")
+    accepted(
+        program,
+        "membership-in-a-declared-domain-binds",
+        b"domain u8::Small(v) requires v < 4;\nmachine f(o: u8) -> bool { o in Small }",
+        (builtin("u8"), builtin("u8"), builtin("bool")),
+        None,
+        (path_domain(0),),
+    )
+    small = b"domain u8::Small;\ndomain u16::Small;\n"
+    accepted(
+        program,
+        "membership-selects-by-carrier-path",
+        small + b"machine f(o: u16) -> bool { o in u16::Small }",
+        (builtin("u8"), builtin("u16"), builtin("u16"), builtin("bool")),
+        None,
+        (path_domain(1),),
+    )
+    rejected(
+        program,
+        "bare-membership-needs-its-carrier",
+        small + b"machine f(o: u16) -> bool { o in Small }",
+        UNSUPPORTED_EXPRESSION,
+        b"Small",
+        3,
+    )
+    rejected(
+        program,
+        "case-and-domain-compete",
+        b"data K { case A; }\ndomain K::A;\nmachine f(k: K) -> bool { k in K::A }",
+        AMBIGUOUS_NAME,
+        b"K::A",
+        2,
+    )
+    source = b"data A { x: u8; }\nlet zero: u8 = 0;\ndata B { y: Q; }"
+    rejected(program, "unsupported-declaration-before-binding", source, UNSUPPORTED_DECLARATION, b"let zero: u8 = 0;")
+    # `boundary data` declares an opaque type name and binds like any other
+    # data declaration.
     accepted(program, "boundary-data-binds", b"boundary data Handle;\ndata A { h: Handle; }", (data(0),))
     accepted(
         program,
@@ -1045,6 +1149,340 @@ def main() -> None:
         b"pub boundary data Ptr<T> [linear];\ndata A { p: Ptr<u8>; }",
         (builtin("u8"), data(0)),
     )
+
+    # Traits: requirements and defaults are machines named through their
+    # trait; the trait's generic parameters cover its members, whose own
+    # shadow them. A callee `Trait::requirement`, or a bare fellow member
+    # inside the trait, names the requirement.
+    accepted(
+        program,
+        "trait-requirements-and-defaults",
+        b"trait Order<T> { machine before(left: T, right: T) -> bool; "
+        b"machine after(left: T, right: T) -> bool { Order::before(right, left) } "
+        b"machine within(left: T, right: T) -> bool { before(left, right) } }",
+        (generic(0), generic(0), builtin("bool"), generic(0), generic(0), builtin("bool"),
+         generic(0), generic(0), builtin("bool")),
+        (machine(0), parameter(3), parameter(2), NOT_A_NAME, machine(0), parameter(4), parameter(5), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "member-generics-shadow-the-container",
+        b"trait Map<T> { machine map<T>(value: T) -> T; machine keep(value: T) -> T; }",
+        (generic(1), generic(1), generic(0), generic(0)),
+    )
+    accepted(
+        program,
+        "container-value-binder",
+        b"trait Sized<const N: u64> { machine size() -> u64 { N } }",
+        (builtin("u64"), builtin("u64")),
+        (binder_name(0),),
+    )
+    accepted(
+        program,
+        "trait-parents",
+        b"trait Base<T> { }\ntrait Order<T>: Base<T> { requires Base<T>; }",
+        (generic(1), trait(0), generic(1), trait(0)),
+    )
+    rejected(program, "parent-is-not-a-trait", b"data D { }\ntrait T: D { }", NOT_A_TRAIT, b"D", 2)
+    rejected(program, "generic-parent-is-not-a-trait", b"trait T<P>: P { }", NOT_A_TRAIT, b"P", 2)
+    rejected(program, "unknown-parent", b"trait T: Missing { }", UNKNOWN_DATA_TYPE, b"Missing")
+    rejected(program, "trait-is-not-a-type", b"trait T { }\ndata D { x: T; }", NOT_A_TYPE, b"T", 2)
+    rejected(
+        program,
+        "duplicate-requirement",
+        b"trait T { machine f(x: u8); machine f(y: u8); }",
+        DUPLICATE_MACHINE,
+        b"f",
+        2,
+    )
+    rejected(
+        program,
+        "requirement-and-owned-machine-share-a-path",
+        b"trait T { machine f(x: u8); }\nmachine T::f(y: u8) {}",
+        DUPLICATE_MACHINE,
+        b"f",
+        2,
+    )
+
+    # Named conformances: the satisfied trait binds as a trait application,
+    # members bind like machines in the conformance's scope, and a reference
+    # row binds its requirement and its machine. `Conformance::member` names
+    # the member, else the machine its row or its trait supplies.
+    counter = b"data Counter<T> { value: T; }\ntrait Increment<C> { machine increment(counter: &mut C); machine reset(counter: &mut C); }\n"
+    accepted(
+        program,
+        "conformance-members-and-rows",
+        counter
+        + b"machine Counter::clear<T>(counter: &mut Counter<T>) {}\n"
+        b"Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} "
+        b"Increment::reset = Counter::clear; }\n"
+        b"machine use_it(c: &mut Counter<u8>) { Saturating::increment(c); Saturating::reset(c); }",
+        (
+            generic(0),
+            generic(1), REFERENCE_ROW, generic(1), REFERENCE_ROW,
+            generic(2), data(0), REFERENCE_ROW,
+            generic(3), data(0), trait(0),
+            generic(3), data(0), REFERENCE_ROW,
+            builtin("u8"), data(0), REFERENCE_ROW,
+        ),
+        (machine(3), parameter(4), NOT_A_NAME, machine(2), parameter(4), NOT_A_NAME),
+        (path_machine(1), path_machine(2)),
+    )
+    ranked = b"trait Ranked<T> { machine rank(value: T) -> u64; machine twice(value: T) -> u64 { 2 } }\n"
+    accepted(
+        program,
+        "conformance-default-callee",
+        ranked + b"ByValue satisfies Ranked<u64> { machine rank(value: u64) -> u64 { value } }\n"
+        b"machine f() -> u64 { ByValue::twice(1) }",
+        (generic(0), builtin("u64"), generic(0), builtin("u64"), builtin("u64"), trait(0), builtin("u64"),
+         builtin("u64"), builtin("u64")),
+        (NOT_A_NAME, parameter(2), machine(1), NOT_A_NAME, NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "row-names-no-requirement",
+        b"machine D::helper() {}\ntrait T { machine f(); }\nC satisfies T { D::helper = D::helper; }",
+        NOT_A_REQUIREMENT,
+        b"D::helper",
+        2,
+    )
+    rejected(
+        program,
+        "row-names-unknown-requirement",
+        b"trait T { machine f(); }\nmachine g() {}\nC satisfies T { T::missing = g; }",
+        UNKNOWN_NAME,
+        b"T::missing",
+    )
+    rejected(
+        program,
+        "row-names-unknown-machine",
+        b"trait T { machine f(); }\nC satisfies T { T::f = missing; }",
+        UNKNOWN_NAME,
+        b"missing",
+    )
+    rejected(program, "satisfied-data-is-not-a-trait", b"data D { }\nC satisfies D { }", NOT_A_TRAIT, b"D", 2)
+    order = b"trait Order<T> { machine before(left: T, right: T) -> bool; }\n"
+    accepted(
+        program,
+        "conformance-as-static-argument",
+        order + b"Ascending satisfies Order<u8> { machine before(left: u8, right: u8) -> bool { left < right } }\n"
+        b"machine sort<T, O>(value: T) {}\nmachine f() { sort<u8, Ascending>(1); }",
+        (generic(0), generic(0), builtin("bool"), builtin("u8"), trait(0), builtin("u8"), builtin("u8"),
+         builtin("bool"), generic(1), builtin("u8"), conformance(0)),
+    )
+    rejected(
+        program,
+        "conformance-is-not-a-type",
+        order + b"Ascending satisfies Order<u8> { }\nmachine f(x: Ascending) {}",
+        NOT_A_TYPE,
+        b"Ascending",
+        2,
+    )
+    rejected(
+        program,
+        "conformance-is-not-a-referent",
+        order + b"Ascending satisfies Order<u8> { }\nmachine f(x: &Ascending) {}",
+        NOT_A_TYPE,
+        b"Ascending",
+        2,
+    )
+    accepted_units(
+        program,
+        "imported-trait-requirement-callee",
+        ((b"shapes", b"pub trait Shape { machine area() -> u64; }"), (b"", b"use shapes;\nmachine f() -> u64 { Shape::area() }")),
+        (builtin("u64"), builtin("u64")),
+        (machine(0), NOT_A_NAME),
+    )
+
+    # Type names share one namespace per module across data, traits and
+    # conformances; constants and propositions have their own.
+    for name, source, spelling, occurrence in (
+        ("trait-after-data", b"data T { }\ntrait T { }", b"T", 2),
+        ("data-after-trait", b"trait T { }\ndata T { }", b"T", 2),
+        ("duplicate-conformance", b"trait R { }\nC satisfies R { }\nC satisfies R { }", b"C", 2),
+        ("duplicate-constant", b"const N: u64 = 1;\nconst N: u64 = 2;", b"N", 2),
+        ("duplicate-owned-constant", b"const A::N: u64 = 1;\nconst A::N: u64 = 2;", b"N", 2),
+        ("duplicate-proposition", b"proposition P;\nproposition P;", b"P", 2),
+        ("duplicate-domain", b"domain u64::Small(v) requires v < 4;\ndomain u64::Small;", b"Small", 2),
+    ):
+        rejected(program, name, source, DUPLICATE_DECLARATION, spelling, occurrence)
+    rejected_units(
+        program,
+        "duplicate-trait-across-sibling-units",
+        ((b"m", b"trait T { }"), (b"m", b"trait T { }")),
+        DUPLICATE_DECLARATION,
+        1,
+        b"T",
+    )
+    rejected(program, "trait-shadows-builtin", b"trait u8 { }", SHADOWS_BUILTIN, b"u8")
+    rejected(program, "domain-shadows-policy", b"domain u64::Wrapping;", SHADOWS_BUILTIN, b"Wrapping")
+    accepted(
+        program,
+        "same-names-in-other-namespaces",
+        b"const A::N: u64 = 1;\nconst B::N: u64 = 1;\nconst T: u64 = 1;\ndata T { }\nproposition T;\n"
+        b"domain u32::Small;\ndomain u64::Small;",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u32"), builtin("u64")),
+    )
+
+    # Target-scoped machines: bodies for distinct targets form one family
+    # under one path; a second body for one target, or an untargeted body
+    # beside them, repeats the family's declaration.
+    accepted(
+        program,
+        "target-scoped-family",
+        b"linux_arm64 machine Clock::now() -> u64 { 1 }\nmacos_arm64 machine Clock::now() -> u64 { 2 }\n"
+        b"machine read() -> u64 { Clock::now() }\nboundary machine entry(code: u8);",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u8")),
+        (NOT_A_NAME, NOT_A_NAME, machine(0), NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "second-body-for-one-target",
+        b"linux_arm64 machine Clock::now() -> u64 { 1 }\nlinux_arm64 machine Clock::now() -> u64 { 2 }",
+        DUPLICATE_MACHINE,
+        b"now",
+        2,
+    )
+    rejected(
+        program,
+        "untargeted-body-beside-a-family",
+        b"machine Clock::now() -> u64 { 1 }\nlinux_arm64 machine Clock::now() -> u64 { 2 }",
+        DUPLICATE_MACHINE,
+        b"now",
+        2,
+    )
+
+    # Domains: an `in Name` qualifier selects the visible domain of that name
+    # whose carrier is the qualified type, a domain's own generic parameters
+    # standing for any type; carriers and index arguments bind in the
+    # domain's scope; alias constituents name domains and routes machines.
+    accepted(
+        program,
+        "declared-domain-qualifier",
+        b"domain u64::Small(value) requires value < 4;\nmachine f(x: u64 in Small) {}",
+        (builtin("u64"), in_domain(builtin("u64"), 0)),
+    )
+    accepted(
+        program,
+        "generic-carrier-domain",
+        b"domain<T> T::NonZero;\nmachine f<T>(x: u32 in NonZero, y: T in NonZero) {}",
+        (generic(0), in_domain(builtin("u32"), 0), in_domain(generic(1), 0)),
+    )
+    accepted(
+        program,
+        "slice-carrier-domain",
+        b"domain [u8]::Path(path);\nmachine open(path: &[u8] in Path) {}",
+        (builtin("u8"), SLICE_ROW, builtin("u8"), in_domain(SLICE_ROW, 0), REFERENCE_ROW),
+    )
+    accepted(
+        program,
+        "domain-selected-by-carrier",
+        b"domain u32::Small;\ndomain u64::Small;\nmachine f(x: u64 in Small, y: u32 in Small) {}",
+        (builtin("u32"), builtin("u64"), in_domain(builtin("u64"), 1), in_domain(builtin("u32"), 0)),
+    )
+    accepted(
+        program,
+        "indexed-domain",
+        b"domain<const Capacity: u64> u64::AtMost<Capacity>(value) requires value <= Capacity;\n"
+        b"data Buffer { length: u64 in AtMost; }",
+        (builtin("u64"), builtin("u64"), generic(0), in_domain(builtin("u64"), 0)),
+    )
+    rejected(
+        program,
+        "carrier-mismatch",
+        b"domain u64::Small;\nmachine f(x: u32 in Small) {}",
+        UNKNOWN_DOMAIN,
+        b"Small",
+        2,
+    )
+    rejected(
+        program,
+        "ambiguous-domain",
+        b"domain u32::Small;\ndomain<T> T::Small;\nmachine f(x: u32 in Small) {}",
+        AMBIGUOUS_NAME,
+        b"Small",
+        3,
+    )
+    rejected(program, "unknown-carrier", b"domain Missing::Small;", UNKNOWN_DATA_TYPE, b"Missing")
+    accepted(
+        program,
+        "alias-constituents-and-routes",
+        b"domain i32::Positive(v) requires v > 0;\ndomain i32::Small(v) requires v < 10;\n"
+        b"domain i32::Both = Positive & i32::Small;\n"
+        b"trait Issues { machine issue() -> u64; }\nmachine mint() -> u64 { 1 }\n"
+        b"domain u64::Issued established by Issues::issue, mint;",
+        (builtin("i32"), builtin("i32"), builtin("i32"), builtin("u64"), builtin("u64"), builtin("u64")),
+        None,
+        (path_domain(0), path_domain(1), path_machine(0), path_machine(1)),
+    )
+    rejected(
+        program,
+        "unknown-constituent",
+        b"domain i32::Positive;\ndomain i32::Both = Positive & Missing;",
+        UNKNOWN_DOMAIN,
+        b"Missing",
+    )
+    rejected(
+        program,
+        "constituent-of-another-carrier",
+        b"domain u64::Positive;\ndomain i32::Both = Positive;",
+        UNKNOWN_DOMAIN,
+        b"Positive",
+        2,
+    )
+    rejected(program, "unknown-route", b"domain u64::Issued established by missing;", UNKNOWN_NAME, b"missing")
+
+    # Constants: a constant is a value, after locals, parameters and value
+    # binders; `Owner::NAME` names an owned constant; a constant's value
+    # binds with no locals or parameters in scope.
+    accepted(
+        program,
+        "constants-are-values",
+        b"const LIMIT: u64 = 4096;\nconst TWICE: u64 = LIMIT;\nmachine f() -> u64 { LIMIT }\n"
+        b"machine g(LIMIT: u64) -> u64 { LIMIT }",
+        (builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64"), builtin("u64")),
+        (NOT_A_NAME, constant(0), constant(0), parameter(0)),
+    )
+    accepted(
+        program,
+        "owned-constant",
+        b"data Duration { seconds: u64; }\nconst Duration::ZERO: Duration = Duration { seconds: 0 };\n"
+        b"machine f() -> Duration { Duration::ZERO }",
+        (builtin("u64"), data(0), data(0)),
+        (data_value(0), NOT_A_NAME, NOT_A_NAME, constant(0)),
+    )
+    rejected(
+        program,
+        "constant-and-case-share-a-path",
+        b"data E { case A; }\nconst E::A: E = E::A;",
+        DUPLICATE_DECLARATION,
+        b"A",
+        2,
+    )
+    rejected(program, "constant-and-machine-share-a-path", b"machine N() {}\nconst N: u64 = 1;", DUPLICATE_DECLARATION, b"N", 2)
+    rejected_units(
+        program,
+        "case-and-constant-compete-across-modules",
+        ((b"left", b"pub data E { case A; }"), (b"right", b"pub const E::A: u64 = 1;"),
+         (b"", b"use left;\nuse right;\nmachine f() { let x: u64 = E::A; }")),
+        AMBIGUOUS_NAME,
+        2,
+        b"E::A",
+    )
+    rejected(program, "unknown-name-in-constant", b"const A: u64 = missing;", UNKNOWN_NAME, b"missing")
+    rejected(program, "unknown-constant-type", b"const A: Q = 1;", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "constant-is-not-a-callee", b"const A: u64 = 1;\nmachine f() { A(); }", UNKNOWN_NAME, b"A", 2)
+
+    # Propositions: generic annotations, parameter and evidence types bind
+    # in the proposition's scope; its fact is checking's.
+    accepted(
+        program,
+        "propositions",
+        b"proposition Even(value: u64) = value % 2 == 0;\nproposition Witness<T>(value: T) evidence T;",
+        (builtin("u64"), generic(0), generic(0)),
+    )
+    rejected(program, "duplicate-proposition-parameter", b"proposition P(a: u8, a: u8);", DUPLICATE_PARAMETER, b"a", 2)
+    rejected(program, "unknown-evidence-type", b"proposition P evidence Q;", UNKNOWN_DATA_TYPE, b"Q")
 
     # The product's own psi package resolves as one source set: each module
     # under source/psi as `psi::<directory>::<file>`. Its build file belongs
