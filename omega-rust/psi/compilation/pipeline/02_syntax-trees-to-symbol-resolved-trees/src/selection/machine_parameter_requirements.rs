@@ -83,9 +83,7 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
 
     for conformance in &program.conformances {
         let Some(trait_definition) = program
-            .traits
-            .iter()
-            .find(|candidate| candidate.symbol == conformance.trait_symbol)
+            .trait_definition(conformance.trait_symbol)
         else {
             continue;
         };

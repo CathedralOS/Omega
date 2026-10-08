@@ -221,9 +221,7 @@ pub(crate) fn validate_signature_free_requirement_compatibility(
             continue;
         }
         let trait_definition = program
-            .traits
-            .iter()
-            .find(|definition| definition.symbol == use_site.trait_symbol)
+            .trait_definition(use_site.trait_symbol)
             .expect("ambiguous signature-free family retains its declaring trait");
         families.push((
             use_site.trait_symbol,

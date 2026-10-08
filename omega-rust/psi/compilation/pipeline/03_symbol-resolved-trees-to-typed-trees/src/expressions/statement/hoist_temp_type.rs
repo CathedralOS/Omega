@@ -534,9 +534,7 @@ fn static_conformance_requirement_return(
     let trait_definition = lowerer
         .source_trees
         .roots
-        .traits
-        .iter()
-        .find(|definition| definition.symbol == bound.trait_symbol)?;
+        .trait_definition(bound.trait_symbol)?;
     // Requirements declared on a `requires` parent remain call requirements of
     // the bound trait, so the name lookup covers the transitive parent closure.
     let mut requirements = Vec::new();
@@ -563,9 +561,7 @@ fn static_conformance_requirement_return(
                     lowerer
                         .source_trees
                         .roots
-                        .traits
-                        .iter()
-                        .find(|candidate| candidate.symbol == required.symbol)
+                        .trait_definition(required.symbol)
                 }),
         );
     }

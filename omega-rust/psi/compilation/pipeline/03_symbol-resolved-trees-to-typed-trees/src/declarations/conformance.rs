@@ -10,9 +10,7 @@ pub(crate) fn lower_conformance(
     let conformance_exposure = declaration_exposure(conformance.is_public);
     if symbol_resolved_trees
         .roots
-        .traits
-        .iter()
-        .find(|definition| definition.symbol == conformance.trait_symbol)
+        .trait_definition(conformance.trait_symbol)
         .is_some_and(|definition| definition.refines.is_some())
     {
         return Err(Diagnostic::error(format!(

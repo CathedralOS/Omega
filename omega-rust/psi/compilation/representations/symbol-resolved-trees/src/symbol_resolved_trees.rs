@@ -123,6 +123,16 @@ pub struct SymbolResolvedRoots {
 }
 
 impl SymbolResolvedRoots {
+    /// The trait definition keyed `symbol`.
+    pub fn trait_definition(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::trait_definition::TraitDefinition> {
+        self.traits
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+    }
+
     /// The const declaration keyed `symbol`.
     pub fn const_declaration(
         &self,
@@ -695,9 +705,7 @@ impl SymbolResolvedTrees {
                 ..
             } => {
                 let trait_definition = self
-                    .traits
-                    .iter()
-                    .find(|candidate| candidate.symbol == *trait_definition)?;
+                    .trait_definition(*trait_definition)?;
                 let requirement = self
                     .trait_machine_signatures(trait_definition.machines)
                     .iter()
@@ -758,6 +766,14 @@ impl SymbolResolvedTrees {
     }
 
     /// The machine declaration keyed `symbol`.
+    /// The trait definition keyed `symbol`.
+    pub fn trait_definition(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::trait_definition::TraitDefinition> {
+        self.roots.trait_definition(symbol)
+    }
+
     /// The const declaration keyed `symbol`.
     pub fn const_declaration(
         &self,

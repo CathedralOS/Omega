@@ -138,9 +138,7 @@ fn collect_trait_requirements(
     }
     visited.push(trait_symbol);
     let Some(trait_definition) = program
-        .traits
-        .iter()
-        .find(|candidate| candidate.symbol == trait_symbol)
+        .trait_definition(trait_symbol)
     else {
         return;
     };
