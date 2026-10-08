@@ -219,6 +219,29 @@ impl Terminator {
             | Self::Crash { .. } => {}
         }
     }
+    /// Structural-argument rosters this terminator binds into successor
+    /// blocks: the jump's roster or each conditional successor's roster, in
+    /// edge order. External completions feed a boundary rather than a block,
+    /// and case successors bind payloads positionally — neither contributes a
+    /// roster.
+    pub fn successor_block_arguments(&self) -> Vec<&[StructuralArgument]> {
+        match self {
+            Self::Jump {
+                structural_arguments,
+                ..
+            } => vec![structural_arguments.as_slice()],
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![
+                when_true.structural_arguments.as_slice(),
+                when_false.structural_arguments.as_slice(),
+            ],
+            _ => Vec::new(),
+        }
+    }
+
     /// Edge-and-target pairs of every successor branch.
     pub fn successor_edges(&self) -> Vec<(EdgeId, BlockId)> {
         match self {

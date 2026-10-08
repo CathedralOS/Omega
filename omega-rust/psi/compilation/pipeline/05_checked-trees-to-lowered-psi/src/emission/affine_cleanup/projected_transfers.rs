@@ -36,24 +36,15 @@ pub(super) fn complete(
                 || operands(&operation.kind).iter().any(|argument| {
                 argument.access == StructuralAccess::Owned && !argument.path.is_empty()
             })
-        }) || match &block.terminator {
-            Terminator::Jump {
-                structural_arguments,
-                ..
-            } => structural_arguments.iter().any(|argument| {
-                argument.access == StructuralAccess::Owned && !argument.path.is_empty()
-            }),
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => [when_true, when_false].iter().any(|edge| {
-                edge.structural_arguments.iter().any(|argument| {
+        }) || block
+            .terminator
+            .successor_block_arguments()
+            .iter()
+            .any(|arguments| {
+                arguments.iter().any(|argument| {
                     argument.access == StructuralAccess::Owned && !argument.path.is_empty()
                 })
-            }),
-            _ => false,
-        }
+            })
     }) {
         return Ok(());
     }

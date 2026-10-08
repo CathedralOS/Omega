@@ -303,23 +303,12 @@ fn mapped(names: &[(PlaceId, PlaceId, StructuralAccess)], place: PlaceId) -> Pla
 }
 
 fn has_explicit_transfer(blocks: &[Block], place: PlaceId) -> bool {
-    blocks.iter().any(|block| match &block.terminator {
-        Terminator::Jump {
-            structural_arguments,
-            ..
-        } => structural_arguments
+    blocks.iter().any(|block| {
+        block
+            .terminator
+            .successor_block_arguments()
             .iter()
-            .any(|argument| argument.place == place),
-        Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => [when_true, when_false].iter().any(|edge| {
-            edge.structural_arguments
-                .iter()
-                .any(|argument| argument.place == place)
-        }),
-        _ => false,
+            .any(|arguments| arguments.iter().any(|argument| argument.place == place))
     })
 }
 
