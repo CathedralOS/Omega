@@ -470,115 +470,119 @@ fn encode_units<Sink: MachineIdentityBytes + ?Sized>(
     }
 }
 
-pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
-    match kind {
-        MachineSemanticKind::CopyBytes => 59,
-        MachineSemanticKind::ScanByteSequence => 233,
-        MachineSemanticKind::LoadEncodedScalar => 236,
-        MachineSemanticKind::StoreEncodedScalar => 237,
-        MachineSemanticKind::CompareByteSequences => 234,
-        MachineSemanticKind::ZeroBytes => 235,
-        MachineSemanticKind::CallAggregate => 35,
-        MachineSemanticKind::ReturnAggregate => 36,
-        MachineSemanticKind::CompareI64Zero => 0,
-        MachineSemanticKind::MaterializeI64 => 1,
-        MachineSemanticKind::CopyI64 => 2,
-        MachineSemanticKind::Float32ToBits => 26,
-        MachineSemanticKind::Float64ToBits => 27,
-        MachineSemanticKind::BitsToFloat32 => 28,
-        MachineSemanticKind::BitsToFloat64 => 29,
-        MachineSemanticKind::ZeroExtendU8 => 15,
-        MachineSemanticKind::ZeroExtendU32 => 20,
-        MachineSemanticKind::ZeroExtendU16 => 37,
-        MachineSemanticKind::SignExtendI8 => 38,
-        MachineSemanticKind::SignExtendI16 => 39,
-        MachineSemanticKind::SignExtendI32 => 40,
-        MachineSemanticKind::MaterializeBooleanEqual => 41,
-        MachineSemanticKind::MaterializeBooleanU64LessThan => 42,
-        MachineSemanticKind::MaterializeBooleanI64LessThan => 43,
-        MachineSemanticKind::MaterializeBooleanU64LessOrEqual => 44,
-        MachineSemanticKind::MaterializeBooleanI64LessOrEqual => 45,
-        MachineSemanticKind::Load64 => 16,
-        MachineSemanticKind::LoadPacked3 => 46,
-        MachineSemanticKind::LoadPacked5 => 47,
-        MachineSemanticKind::LoadPacked6 => 48,
-        MachineSemanticKind::LoadPacked7 => 49,
-        MachineSemanticKind::StorePacked => 50,
-        MachineSemanticKind::Load8 => 33,
-        MachineSemanticKind::Load16 => 34,
-        MachineSemanticKind::Load32 => 30,
-        MachineSemanticKind::Crash => 111,
-        MachineSemanticKind::HostedExitProcessI32 => 31,
-        MachineSemanticKind::HostedReadByte => 32,
-        MachineSemanticKind::HostedWriteByteI32 => 23,
-        MachineSemanticKind::Store => 24,
-        MachineSemanticKind::AddressOffset => 25,
-        MachineSemanticKind::ByteViewAddress => 22,
-        MachineSemanticKind::Load8Indexed => 21,
-        MachineSemanticKind::Store64 => 17,
-        MachineSemanticKind::FrameAddress => 18,
-        MachineSemanticKind::ImmutableImageAddress => 232,
-        MachineSemanticKind::CallUnit => 19,
-        MachineSemanticKind::ExactAddI64 => 3,
-        MachineSemanticKind::BitwiseAndI64 => 51,
-        MachineSemanticKind::BitwiseXorI64 => 52,
-        MachineSemanticKind::ExactDivideU64 => 56,
-        MachineSemanticKind::WrappingRemainderI64 => 57,
-        MachineSemanticKind::WrappingAddI64 => 58,
-        MachineSemanticKind::SaturatingAdd(carrier) => {
-            saturating_family_tag(SaturatingOperation::Add, carrier)
+macro_rules! effect_tag_arms {
+    ($enum:ident, $value:expr) => {
+        match $value {
+            $enum::CopyBytes => 59,
+            $enum::ScanByteSequence => 233,
+            $enum::LoadEncodedScalar => 236,
+            $enum::StoreEncodedScalar => 237,
+            $enum::CompareByteSequences => 234,
+            $enum::ZeroBytes => 235,
+            $enum::CallAggregate => 35,
+            $enum::ReturnAggregate => 36,
+            $enum::CompareI64Zero => 0,
+            $enum::MaterializeI64 => 1,
+            $enum::CopyI64 => 2,
+            $enum::Float32ToBits => 26,
+            $enum::Float64ToBits => 27,
+            $enum::BitsToFloat32 => 28,
+            $enum::BitsToFloat64 => 29,
+            $enum::ZeroExtendU8 => 15,
+            $enum::ZeroExtendU32 => 20,
+            $enum::ZeroExtendU16 => 37,
+            $enum::SignExtendI8 => 38,
+            $enum::SignExtendI16 => 39,
+            $enum::SignExtendI32 => 40,
+            $enum::MaterializeBooleanEqual => 41,
+            $enum::MaterializeBooleanU64LessThan => 42,
+            $enum::MaterializeBooleanI64LessThan => 43,
+            $enum::MaterializeBooleanU64LessOrEqual => 44,
+            $enum::MaterializeBooleanI64LessOrEqual => 45,
+            $enum::Load64 => 16,
+            $enum::LoadPacked3 => 46,
+            $enum::LoadPacked5 => 47,
+            $enum::LoadPacked6 => 48,
+            $enum::LoadPacked7 => 49,
+            $enum::StorePacked => 50,
+            $enum::Load8 => 33,
+            $enum::Load16 => 34,
+            $enum::Load32 => 30,
+            $enum::Crash => 111,
+            $enum::HostedExitProcessI32 => 31,
+            $enum::HostedReadByte => 32,
+            $enum::HostedWriteByteI32 => 23,
+            $enum::Store => 24,
+            $enum::AddressOffset => 25,
+            $enum::ByteViewAddress => 22,
+            $enum::Load8Indexed => 21,
+            $enum::Store64 => 17,
+            $enum::FrameAddress => 18,
+            $enum::ImmutableImageAddress => 232,
+            $enum::CallUnit => 19,
+            $enum::ExactAddI64 => 3,
+            $enum::BitwiseAndI64 => 51,
+            $enum::BitwiseXorI64 => 52,
+            $enum::ExactDivideU64 => 56,
+            $enum::WrappingRemainderI64 => 57,
+            $enum::WrappingAddI64 => 58,
+            $enum::SaturatingAdd(carrier) => {
+                saturating_family_tag(SaturatingOperation::Add, carrier)
+            }
+            $enum::SaturatingSubtract(carrier) => {
+                saturating_family_tag(SaturatingOperation::Subtract, carrier)
+            }
+            $enum::SaturatingDivide(carrier) => {
+                saturating_family_tag(SaturatingOperation::Divide, carrier)
+            }
+            $enum::SaturatingRemainder(carrier) => {
+                saturating_family_tag(SaturatingOperation::Remainder, carrier)
+            }
+            $enum::ExactAddI64Immediate => 4,
+            $enum::ExactSubtractI64 => 5,
+            $enum::ConditionalBranchNonZero => 6,
+            $enum::ReturnScalar => 7,
+            $enum::ExactSubtractI64Immediate => 8,
+            $enum::ReturnUnit => 9,
+            $enum::CompareI64 => 10,
+            $enum::CompareI64Immediate => 53,
+            $enum::ConditionalBranchU64LessThan => 11,
+            $enum::ConditionalBranchI64LessThan => 12,
+            $enum::CallScalar => 13,
+            $enum::Jump => 14,
+            $enum::NormalizedForeignCall => 87,
+            $enum::ExactMultiplyI64 => 88,
+            $enum::ExactRemainderU64 => 89,
+            $enum::WrappingSubtractI64 => 90,
+            $enum::WrappingMultiplyI64 => 91,
+            $enum::WrappingDivideI64 => 92,
+            $enum::BitwiseOrI64 => 93,
+            $enum::BitwiseNotI64 => 94,
+            $enum::SaveFloatingControl => 103,
+            $enum::RestoreFloatingControl => 104,
+            $enum::WrappingShiftLeftI64 => 105,
+            $enum::WrappingShiftRightI64 => 106,
+            $enum::WrappingShiftRightU64 => 107,
+            $enum::ExactShiftLeftI64 => 108,
+            $enum::ExactShiftRightI64 => 109,
+            $enum::ExactShiftRightU64 => 110,
+            $enum::ExactDivideI64 => 112,
+            $enum::ExactRemainderI64 => 113,
+            $enum::SaturatingMultiply(carrier) => {
+                saturating_family_tag(SaturatingOperation::Multiply, carrier)
+            }
+            $enum::TrappingInteger(form) => trapping_family_tag(form),
+            $enum::AtomicAccess(form) => form.machine_tag(),
+            $enum::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
+            $enum::FloatResultPolicy(form) => form.machine_tag(),
         }
-        MachineSemanticKind::SaturatingSubtract(carrier) => {
-            saturating_family_tag(SaturatingOperation::Subtract, carrier)
-        }
-        MachineSemanticKind::SaturatingDivide(carrier) => {
-            saturating_family_tag(SaturatingOperation::Divide, carrier)
-        }
-        MachineSemanticKind::SaturatingRemainder(carrier) => {
-            saturating_family_tag(SaturatingOperation::Remainder, carrier)
-        }
-        MachineSemanticKind::ExactAddI64Immediate => 4,
-        MachineSemanticKind::ExactSubtractI64 => 5,
-        MachineSemanticKind::ConditionalBranchNonZero => 6,
-        MachineSemanticKind::ReturnScalar => 7,
-        MachineSemanticKind::ExactSubtractI64Immediate => 8,
-        MachineSemanticKind::ReturnUnit => 9,
-        MachineSemanticKind::CompareI64 => 10,
-        MachineSemanticKind::CompareI64Immediate => 53,
-        MachineSemanticKind::ConditionalBranchU64LessThan => 11,
-        MachineSemanticKind::ConditionalBranchI64LessThan => 12,
-        MachineSemanticKind::CallScalar => 13,
-        MachineSemanticKind::Jump => 14,
-        MachineSemanticKind::NormalizedForeignCall => 87,
-        MachineSemanticKind::ExactMultiplyI64 => 88,
-        MachineSemanticKind::ExactRemainderU64 => 89,
-        MachineSemanticKind::WrappingSubtractI64 => 90,
-        MachineSemanticKind::WrappingMultiplyI64 => 91,
-        MachineSemanticKind::WrappingDivideI64 => 92,
-        MachineSemanticKind::BitwiseOrI64 => 93,
-        MachineSemanticKind::BitwiseNotI64 => 94,
-        MachineSemanticKind::SaveFloatingControl => 103,
-        MachineSemanticKind::RestoreFloatingControl => 104,
-        MachineSemanticKind::WrappingShiftLeftI64 => 105,
-        MachineSemanticKind::WrappingShiftRightI64 => 106,
-        MachineSemanticKind::WrappingShiftRightU64 => 107,
-        MachineSemanticKind::ExactShiftLeftI64 => 108,
-        MachineSemanticKind::ExactShiftRightI64 => 109,
-        MachineSemanticKind::ExactShiftRightU64 => 110,
-        MachineSemanticKind::ExactDivideI64 => 112,
-        MachineSemanticKind::ExactRemainderI64 => 113,
-        MachineSemanticKind::SaturatingMultiply(carrier) => {
-            saturating_family_tag(SaturatingOperation::Multiply, carrier)
-        }
-        MachineSemanticKind::TrappingInteger(form) => trapping_family_tag(form),
-        MachineSemanticKind::AtomicAccess(form) => form.machine_tag(),
-        MachineSemanticKind::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
-        MachineSemanticKind::FloatResultPolicy(form) => form.machine_tag(),
-    }
+    };
 }
 
-/// The payload byte written directly after [`semantic_kind_tag`] for a
-/// family whose forms share one tag: the IEEE float forms.
+pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
+    effect_tag_arms!(MachineSemanticKind, kind)
+}
+
 pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u8> {
     match kind {
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
@@ -587,133 +591,15 @@ pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u
     }
 }
 
-/// The payload byte written directly after [`alternative_family_tag`] for a
-/// family whose forms share one tag: the IEEE float forms.
+pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
+    effect_tag_arms!(MachineAlternativeFamily, family)
+}
+
 pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily) -> Option<u8> {
     match family {
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
         MachineAlternativeFamily::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,
-    }
-}
-
-/// The canonical identity tag of a [`MachineAlternativeFamily`].
-///
-/// This table *is* the identity: the machine-effect catalog identity, the
-/// selected-effect program identity, the in-memory physical-instruction
-/// identity and the machine-code fragment, layout, text-section, relaxation and
-/// encoding identities all write exactly this byte for an alternative family.
-/// The values are deliberately not the declaration order — they were assigned
-/// as families were added and renumbering any of them would invalidate every
-/// artifact already keyed by it.
-///
-/// Consumers must call this function rather than repeat the table. A second
-/// copy of eighty-one arms is how two stages that must agree drift apart
-/// silently: adding a family to one copy and not the other still compiles.
-pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
-    match family {
-        MachineAlternativeFamily::CopyBytes => 59,
-        MachineAlternativeFamily::ScanByteSequence => 233,
-        MachineAlternativeFamily::LoadEncodedScalar => 236,
-        MachineAlternativeFamily::StoreEncodedScalar => 237,
-        MachineAlternativeFamily::CompareByteSequences => 234,
-        MachineAlternativeFamily::ZeroBytes => 235,
-        MachineAlternativeFamily::CallAggregate => 35,
-        MachineAlternativeFamily::ReturnAggregate => 36,
-        MachineAlternativeFamily::CompareI64Zero => 0,
-        MachineAlternativeFamily::MaterializeI64 => 1,
-        MachineAlternativeFamily::CopyI64 => 2,
-        MachineAlternativeFamily::Float32ToBits => 26,
-        MachineAlternativeFamily::Float64ToBits => 27,
-        MachineAlternativeFamily::BitsToFloat32 => 28,
-        MachineAlternativeFamily::BitsToFloat64 => 29,
-        MachineAlternativeFamily::ZeroExtendU8 => 15,
-        MachineAlternativeFamily::ZeroExtendU32 => 20,
-        MachineAlternativeFamily::ZeroExtendU16 => 37,
-        MachineAlternativeFamily::SignExtendI8 => 38,
-        MachineAlternativeFamily::SignExtendI16 => 39,
-        MachineAlternativeFamily::SignExtendI32 => 40,
-        MachineAlternativeFamily::MaterializeBooleanEqual => 41,
-        MachineAlternativeFamily::MaterializeBooleanU64LessThan => 42,
-        MachineAlternativeFamily::MaterializeBooleanI64LessThan => 43,
-        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44,
-        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
-        MachineAlternativeFamily::Load64 => 16,
-        MachineAlternativeFamily::LoadPacked3 => 46,
-        MachineAlternativeFamily::LoadPacked5 => 47,
-        MachineAlternativeFamily::LoadPacked6 => 48,
-        MachineAlternativeFamily::LoadPacked7 => 49,
-        MachineAlternativeFamily::StorePacked => 50,
-        MachineAlternativeFamily::Load8 => 33,
-        MachineAlternativeFamily::Load16 => 34,
-        MachineAlternativeFamily::Load32 => 30,
-        MachineAlternativeFamily::Crash => 111,
-        MachineAlternativeFamily::HostedExitProcessI32 => 31,
-        MachineAlternativeFamily::HostedReadByte => 32,
-        MachineAlternativeFamily::HostedWriteByteI32 => 23,
-        MachineAlternativeFamily::Store => 24,
-        MachineAlternativeFamily::AddressOffset => 25,
-        MachineAlternativeFamily::ByteViewAddress => 22,
-        MachineAlternativeFamily::Load8Indexed => 21,
-        MachineAlternativeFamily::Store64 => 17,
-        MachineAlternativeFamily::FrameAddress => 18,
-        MachineAlternativeFamily::ImmutableImageAddress => 232,
-        MachineAlternativeFamily::CallUnit => 19,
-        MachineAlternativeFamily::ExactAddI64 => 3,
-        MachineAlternativeFamily::BitwiseAndI64 => 51,
-        MachineAlternativeFamily::BitwiseXorI64 => 52,
-        MachineAlternativeFamily::ExactDivideU64 => 56,
-        MachineAlternativeFamily::WrappingRemainderI64 => 57,
-        MachineAlternativeFamily::WrappingAddI64 => 58,
-        MachineAlternativeFamily::SaturatingAdd(carrier) => {
-            saturating_family_tag(SaturatingOperation::Add, carrier)
-        }
-        MachineAlternativeFamily::SaturatingSubtract(carrier) => {
-            saturating_family_tag(SaturatingOperation::Subtract, carrier)
-        }
-        MachineAlternativeFamily::SaturatingDivide(carrier) => {
-            saturating_family_tag(SaturatingOperation::Divide, carrier)
-        }
-        MachineAlternativeFamily::SaturatingRemainder(carrier) => {
-            saturating_family_tag(SaturatingOperation::Remainder, carrier)
-        }
-        MachineAlternativeFamily::ExactAddI64Immediate => 4,
-        MachineAlternativeFamily::ExactSubtractI64 => 5,
-        MachineAlternativeFamily::ConditionalBranchNonZero => 6,
-        MachineAlternativeFamily::ReturnScalar => 7,
-        MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
-        MachineAlternativeFamily::ReturnUnit => 9,
-        MachineAlternativeFamily::CompareI64 => 10,
-        MachineAlternativeFamily::CompareI64Immediate => 53,
-        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
-        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
-        MachineAlternativeFamily::CallScalar => 13,
-        MachineAlternativeFamily::Jump => 14,
-        MachineAlternativeFamily::NormalizedForeignCall => 87,
-        MachineAlternativeFamily::ExactMultiplyI64 => 88,
-        MachineAlternativeFamily::ExactRemainderU64 => 89,
-        MachineAlternativeFamily::WrappingSubtractI64 => 90,
-        MachineAlternativeFamily::WrappingMultiplyI64 => 91,
-        MachineAlternativeFamily::WrappingDivideI64 => 92,
-        MachineAlternativeFamily::BitwiseOrI64 => 93,
-        MachineAlternativeFamily::BitwiseNotI64 => 94,
-        MachineAlternativeFamily::SaveFloatingControl => 103,
-        MachineAlternativeFamily::RestoreFloatingControl => 104,
-        MachineAlternativeFamily::WrappingShiftLeftI64 => 105,
-        MachineAlternativeFamily::WrappingShiftRightI64 => 106,
-        MachineAlternativeFamily::WrappingShiftRightU64 => 107,
-        MachineAlternativeFamily::ExactShiftLeftI64 => 108,
-        MachineAlternativeFamily::ExactShiftRightI64 => 109,
-        MachineAlternativeFamily::ExactShiftRightU64 => 110,
-        MachineAlternativeFamily::ExactDivideI64 => 112,
-        MachineAlternativeFamily::ExactRemainderI64 => 113,
-        MachineAlternativeFamily::SaturatingMultiply(carrier) => {
-            saturating_family_tag(SaturatingOperation::Multiply, carrier)
-        }
-        MachineAlternativeFamily::TrappingInteger(form) => trapping_family_tag(form),
-        MachineAlternativeFamily::AtomicAccess(form) => form.machine_tag(),
-        MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
-        MachineAlternativeFamily::FloatResultPolicy(form) => form.machine_tag(),
     }
 }
 
