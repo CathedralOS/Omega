@@ -467,22 +467,16 @@ pub(super) fn validate_bindings(
             ..
         } = &transfer.source
         {
-            // Rejoin the argument's declared reference correspondence, not
-            // its spelling: a shared field loan needs no explicit `&` token.
-            // Its access matches the loan's and the target's, the projected
-            // identity is the target's, the path carries only the segments
-            // the admit side admits, and the subject roots at a parameter or
-            // a rejoinable result binding.
-            let argument_position = target.position as usize;
-            let expression = arguments
-                .get(argument_position)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph loan argument missing",
-                ))?;
-            if target_formals.get(target.position as usize).is_none() {
-                return unsupported("Unit graph loan target declaration missing");
+            // The edge emitter lends an existing place: a parameter or a
+            // retained result binding. The plan's subject carries the path
+            // and access stage 04 resolved from the authored argument.
+            if !matches!(
+                subject.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+            ) {
+                return unsupported("Unit graph projected loan has no existing source place");
             }
-            validate_projected_loan_source(checked, source, state, *expression, subject)?;
             continue;
         }
         // A case payload transfer names its subject, case and field in the
@@ -809,64 +803,6 @@ pub(super) fn return_discards(
     }
     drops.retain(|index| !consumed.contains(index));
     Ok(drops)
-}
-
-/// A projected loan must name the authored occurrence, not merely another
-/// place with the same leaf type. Existing locals also rejoin their producer.
-fn validate_projected_loan_source(
-    checked: &CheckedTrees,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    expression: checked_trees::expression::ExpressionHandle,
-    subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
-) -> Result<(), LoweringError> {
-    let (machine, _) = crate::declarations::state_declaration(checked, source.symbol)?;
-    let root_type = match subject.source {
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let parameter = state
-                .structural_parameters
-                .get(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph projected loan parameter missing",
-                ))?;
-            checked
-                .state_parameters(source)
-                .get(parameter.position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph projected loan source position missing",
-                ))?
-                .type_reference
-        }
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal,
-        } => {
-            // A loan needs the local's original home, not a producer with an
-            // affine-disposal flag. Rejoin every structural result family;
-            // exclude call-owned temporaries and automatic return discards.
-            let result = transferred_result(
-                &state.operations,
-                binding_ordinal,
-                "Unit graph projected loan result missing",
-            )?;
-            let Some(StatementNode::LocalData(local)) = checked
-                .statement_table
-                .statements(source.statement_nodes)
-                .get(result.statement_index as usize)
-            else {
-                return unsupported("Unit graph projected loan source local missing");
-            };
-            local.type_reference
-        }
-        _ => return unsupported("Unit graph projected loan has no existing source place"),
-    };
-    crate::unit::attached_unit::parameters::source_path(
-        checked,
-        machine,
-        Some(source),
-        root_type,
-        expression,
-    )?;
-    Ok(())
 }
 
 /// Only a `Parameter` transfer source carries a usable index; every other

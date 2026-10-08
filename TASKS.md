@@ -2595,8 +2595,8 @@ code and preserve check/native behavior for the named customer slices.
   affine operands); those refusals stay until the route items admit the
   shapes. Then add a source-scanning guard in stage 05 that lists the few
   files allowed to read `statement_table`, `expression_table`,
-  `StatementNode::` or `ExpressionNode::`; today there are 337 such
-  references across 45 files. The same guard refuses any stage 05 reference to
+  `StatementNode::` or `ExpressionNode::`; today there are 297 such
+  references across 43 files. The same guard refuses any stage 05 reference to
   `validation::reference_result_custody`, which no longer has one: the last 5
   were deleted rather than recorded, because classifying every site by what
   stage 05 did with the answer found 4 pure refusal guards and 1 computation

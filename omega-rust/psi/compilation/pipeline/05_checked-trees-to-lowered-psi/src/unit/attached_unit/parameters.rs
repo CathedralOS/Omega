@@ -26,10 +26,6 @@ use semantic_vocabulary::ValueId;
 mod reference_sources;
 pub(crate) use reference_sources::ReferenceSourceEvaluation;
 pub(crate) use reference_sources::{lower_reference_result_sources, lower_reference_source};
-mod service_forward;
-pub(in crate::unit::attached_unit) use service_forward::validate_parameter as validate_service_parameter;
-mod source_path;
-pub(crate) use source_path::{expression_producer, source_path};
 
 /// The carrier beneath a type's qualification shells, for contents
 /// classification and shape inspection. Qualifications have their own
@@ -243,7 +239,19 @@ pub(crate) fn validate_body_parameter_custody(checked: &CheckedTrees) -> Result<
             qualifications.dedup();
         }
     }
-    service_forward::validate(checked)?;
+    Ok(())
+}
+
+/// A routed Service parameter keeps its Fused receipt and a multiplicity its
+/// access can carry.
+pub(in crate::unit::attached_unit) fn validate_service_parameter(
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    carrier: &checked_trees::CheckedServiceParameterCarrier,
+) -> Result<(), LoweringError> {
+    if parameter.fused_service_erasure.is_none() {
+        return unsupported("service parameter lost its Fused receipt");
+    }
+    service_parameter_multiplicity(carrier.access)?;
     Ok(())
 }
 

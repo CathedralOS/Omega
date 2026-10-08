@@ -8,7 +8,6 @@ mod producers;
 pub(crate) use inventory::with_expression_consumers as result_use_operations;
 
 use super::super::admission::CallerView;
-use super::super::parameters::expression_producer;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ExpressionNode,
     LoweringError, Multiplicity, StatementNode, unsupported,
@@ -906,14 +905,6 @@ pub(crate) fn validate_consumer(
             {
                 return unsupported("primitive array parameter requires exact whole owned transport");
             }
-        }
-        if binding_ordinal.is_none()
-            && expression
-                .is_some_and(|expression| expression_producer(checked, expression).is_some())
-        {
-            return unsupported(
-                "nested structural argument has no expression-owned producer binding",
-            );
         }
         // Source admission already bound this operand to its current storage
         // and exact access. Replaying every initializer here mistakes a

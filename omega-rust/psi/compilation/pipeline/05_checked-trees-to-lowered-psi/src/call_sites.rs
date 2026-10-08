@@ -23,14 +23,7 @@ pub(crate) struct AuthoredCall {
     pub target_state: SymbolHandle,
 }
 
-impl AuthoredCall {
-    /// The explicit authored expression passed at formal `position`.
-    pub(crate) fn structural_argument(&self, position: u32) -> Option<ExpressionHandle> {
-        self.structural_arguments
-            .iter()
-            .find_map(|(formal, expression)| (*formal == position).then_some(*expression))
-    }
-}
+impl AuthoredCall {}
 
 /// The invocation stage 04 bound at `coordinate`. Its row names the callee as
 /// spelled, the explicit arguments and the syntax that spells the call, so

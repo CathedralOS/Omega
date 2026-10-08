@@ -7,7 +7,7 @@
 
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
-    byte_subslices, parameters, unsupported,
+    byte_subslices, unsupported,
 };
 use checked_trees::{
     CheckedArrayConstructionSource, CheckedUnitCallCoordinate,
@@ -325,13 +325,6 @@ fn append(
         }
         let argument_ordinal = structural_ordinal;
         structural_ordinal += 1;
-        let expression = authored
-            .structural_arguments
-            .iter()
-            .find_map(|(formal, expression)| (*formal as usize == position).then_some(*expression))
-            .ok_or(LoweringError::Unsupported(
-                "nested structural argument has no authored position",
-            ))?;
         let mut constructors = group.clone().filter_map(|producer| {
             let (source, formal, result) = argument_construction(&operations[producer])?;
             (source == coordinate && formal as usize == position).then_some((producer, result))
@@ -372,25 +365,23 @@ fn append(
             });
             continue;
         }
-        let Some(expression) = parameters::expression_producer(checked, expression) else {
+        // The plan names the call result this argument consumes; a producer
+        // in this group is scheduled first, and a result bound earlier in the
+        // body needs no scheduling.
+        let joined = structural_arguments
+            .get(argument_ordinal)
+            .and_then(|argument| argument.source_structural_result_binding_ordinal())
+            .and_then(|binding| {
+                group.clone().find(|producer| {
+                    operations[*producer]
+                        .call()
+                        .and_then(|call| call.structural_result())
+                        .is_some_and(|result| result.binding_ordinal == binding)
+                })
+            });
+        let Some(producer) = joined else {
             continue;
         };
-        // A call with a structural result, ordinary or boundary, retains its site.
-        let mut producers = group.clone().filter(|producer| {
-            operations[*producer].call().is_some_and(|call| {
-                call.structural_result().is_some()
-                    && call.source_site()
-                        == Some(Some(checked_trees::NominalMachineUseSite::Expression(
-                            expression,
-                        )))
-            })
-        });
-        let producer = producers.next().ok_or(LoweringError::Unsupported(
-            "nested structural argument has no retained producer",
-        ))?;
-        if producers.next().is_some() {
-            return unsupported("nested structural argument has duplicate retained producers");
-        }
         append(
             checked,
             machine,
