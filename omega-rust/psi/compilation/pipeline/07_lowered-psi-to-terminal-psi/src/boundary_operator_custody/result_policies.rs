@@ -10,7 +10,7 @@ use checked_trees::{CheckedArithmeticPolicyAdapter, CheckedTrees, NominalMachine
 use language_core::operator_spelling::OperatorSpelling;
 use lowered_psi::LoweredSourceCustody;
 use numerics::float_semantics::FloatFormat;
-use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
+use semantic_vocabulary::IeeeFloatFormat;
 use terminal_psi::{FloatResultPolicy, FloatSaturationRule, OperationKind};
 
 pub(super) fn replay(
@@ -59,7 +59,7 @@ pub(super) fn replay(
                 let Some(raw) = operation.result.scalar() else {
                     continue;
                 };
-                let ScalarType::IeeeFloat(raw_format) = raw.scalar_type else {
+                let Some(raw_format) = raw.scalar_type.as_ieee_float() else {
                     continue;
                 };
                 let mut sources = source_custody
@@ -114,7 +114,8 @@ pub(super) fn replay(
                 if calls != 1 {
                     return Err("float result policy changed its source call coordinate");
                 }
-                let declaration = module.boundary_machine(*boundary)
+                let declaration = module
+                    .boundary_machine(*boundary)
                     .ok_or("float result policy lost its boundary declaration")?;
                 if declaration.identity != requirement_identity(checked, target)? {
                     return Err("float result policy changed its original boundary target");

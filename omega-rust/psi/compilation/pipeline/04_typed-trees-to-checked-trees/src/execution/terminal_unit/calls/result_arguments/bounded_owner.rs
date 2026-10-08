@@ -37,9 +37,7 @@ pub(super) fn loan(
     parameter: &StateParameter,
     target_identity: &str,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     if !place.segments.is_empty() {
         return None;
     }

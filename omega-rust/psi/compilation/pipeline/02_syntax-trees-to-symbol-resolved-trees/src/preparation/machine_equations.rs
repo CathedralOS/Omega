@@ -51,7 +51,7 @@ pub(crate) fn required(syntax: &SyntaxTrees, base: Option<&SymbolResolvedTrees>)
 
 pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
+        let Some(machine) = item.as_machine() else {
             continue;
         };
         if machine.where_facts.is_empty() {
@@ -502,8 +502,7 @@ fn complete_arguments(
         match parameter.kind {
             TypeParameterKind::Type => argument.type_reference = reference,
             TypeParameterKind::Const { .. } => {
-                let TypeReferenceNode::Named(value) =
-                    syntax.type_references.type_reference(reference)
+                let Some(value) = syntax.type_references.type_reference(reference).as_named()
                 else {
                     return Err(Diagnostic::error(
                         "machine equation did not produce a closed const argument",
@@ -549,8 +548,10 @@ fn application_argument_reference(
     }
     match kind {
         TypeParameterKind::Const { type_reference } => {
-            let TypeReferenceNode::Named(carrier) =
-                syntax.type_references.type_reference(*type_reference)
+            let Some(carrier) = syntax
+                .type_references
+                .type_reference(*type_reference)
+                .as_named()
             else {
                 return Err(reject("requires a builtin integer constructor parameter"));
             };

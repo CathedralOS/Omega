@@ -2,7 +2,7 @@
 //! the requirement subject a fact constrains.
 
 use checked_trees::CheckFacts;
-use facts::{FactPayload, FactPlace, PlaceRoot};
+use facts::{FactPayload, PlaceRoot};
 use symbols::SymbolHandle;
 
 /// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
@@ -65,9 +65,7 @@ pub(super) fn predicate_only_domain_labels(
     else {
         return None;
     };
-    let FactPlace::Place(place_handle) = fact.place else {
-        return None;
-    };
+    let place_handle = fact.place.as_place()?;
     let subject_label = facts.semantic.place_label(program, place_handle);
     let domain = program.domain_definition(domain_symbol)?;
     Some(
@@ -102,9 +100,7 @@ pub(super) fn predicate_only_domain_interval(
     else {
         return None;
     };
-    let FactPlace::Place(place_handle) = fact.place else {
-        return None;
-    };
+    let place_handle = fact.place.as_place()?;
     let domain = program.domain_definition(domain_symbol)?;
     if domain.alias.is_some()
         || !domain.index_arguments.is_empty()
@@ -135,9 +131,7 @@ pub(super) fn requirement_subject_expression(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
-    let FactPlace::Place(place_handle) = fact.place else {
-        return None;
-    };
+    let place_handle = fact.place.as_place()?;
     let place = facts.semantic.places.get(place_handle);
     if !facts
         .semantic

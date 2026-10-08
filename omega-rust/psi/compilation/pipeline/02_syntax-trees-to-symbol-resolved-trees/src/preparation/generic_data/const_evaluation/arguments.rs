@@ -1,7 +1,7 @@
 //! Constant evaluation: arguments.
 use super::super::{
     BinaryOperator, CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle,
-    ExpressionNode, Handle, HashMap, HashSet, Identifier, Item, SyntaxTrees, TypeParameterKind,
+    ExpressionNode, Handle, HashMap, HashSet, Identifier, SyntaxTrees, TypeParameterKind,
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
@@ -405,15 +405,19 @@ pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(
             let Some(parameter_type) = parameter_type else {
                 return true;
             };
-            let TypeReferenceNode::Named(value) =
-                syntax.tables.type_references.type_reference(*argument)
+            let Some(value) = syntax
+                .tables
+                .type_references
+                .type_reference(*argument)
+                .as_named()
             else {
                 return false;
             };
-            let TypeReferenceNode::Named(type_name) = syntax
+            let Some(type_name) = syntax
                 .tables
                 .type_references
                 .type_reference(*parameter_type)
+                .as_named()
             else {
                 return false;
             };
@@ -582,11 +586,11 @@ pub(in crate::preparation::generic_data) fn const_integer_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<LandedIntegerType> {
-    let TypeReferenceNode::Named(name) =
-        syntax.tables.type_references.type_reference(type_reference)
-    else {
-        return None;
-    };
+    let name = syntax
+        .tables
+        .type_references
+        .type_reference(type_reference)
+        .as_named()?;
     LandedIntegerType::from_name(name.as_str())
 }
 
@@ -612,9 +616,7 @@ pub(in crate::preparation::generic_data) fn generic_const_integer_types(
     syntax
         .root_items()
         .find_map(|item| {
-            let Item::Data(definition) = item else {
-                return None;
-            };
+            let definition = item.as_data()?;
             (definition.name.as_str() == generic_name).then(|| {
                 syntax
                     .tables

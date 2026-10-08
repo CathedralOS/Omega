@@ -319,7 +319,7 @@ pub(super) fn retain_guarantees(
                     else {
                         return true;
                     };
-                    let PlaceRoot::Symbol(symbol) = place.root else {
+                    let Some(symbol) = place.root.as_symbol() else {
                         return true;
                     };
                     match crate::semantic::facts::contract_parameter_position(

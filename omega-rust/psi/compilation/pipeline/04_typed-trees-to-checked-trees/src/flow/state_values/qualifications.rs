@@ -265,7 +265,7 @@ fn capture_place(
                 FactPayload::FloatPredicate { predicate } => CarriedPredicate::Float(predicate),
                 _ => continue,
             };
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 continue;
             };
             let Some(place) = crate::flow::canonical_place_from_semantic_place(

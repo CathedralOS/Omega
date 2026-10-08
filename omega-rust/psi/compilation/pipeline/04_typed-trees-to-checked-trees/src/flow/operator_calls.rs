@@ -451,7 +451,7 @@ fn append_operator_ensures_context(
                     else {
                         continue;
                     };
-                    let facts::PlaceRoot::Symbol(parameter_symbol) = relative.root else {
+                    let Some(parameter_symbol) = relative.root.as_symbol() else {
                         continue;
                     };
                     let Some(operand) = operands

@@ -132,9 +132,7 @@ pub(crate) fn reference_expression_storage_places(
     ) {
         return matches!(storage.root, PlaceRoot::Symbol(_)).then_some(vec![storage]);
     }
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let mut candidates = reference_result_candidates_before_statement(
         program,
         state,
@@ -194,9 +192,7 @@ fn call_result_sources(
             place,
             call_frames,
         )?;
-        let PlaceRoot::Symbol(root) = place.root else {
-            return None;
-        };
+        let root = place.root.as_symbol()?;
         if !place.segments.iter().all(|segment| {
             matches!(
                 segment,

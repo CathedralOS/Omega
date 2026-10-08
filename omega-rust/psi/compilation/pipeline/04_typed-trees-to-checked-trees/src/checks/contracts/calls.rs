@@ -24,7 +24,7 @@ use transition_guards::{
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
-use facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
+use facts::{FactPayload, FactPlace, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 
@@ -198,7 +198,7 @@ pub(super) fn check_call_requires(
                 let detail = match fact.payload {
                     FactPayload::ContractDomainMembership { domain_symbol, .. }
                     | FactPayload::DomainMembership { domain_symbol, .. } => {
-                        let FactPlace::Place(place) = fact.place else {
+                        let Some(place) = fact.place.as_place() else {
                             unreachable!("contract domain membership already handled above")
                         };
                         explain_domain_requirement_failure(
@@ -257,7 +257,7 @@ fn subslice_grants_domain(
     else {
         return false;
     };
-    let FactPlace::Place(place_handle) = place else {
+    let Some(place_handle) = place.as_place() else {
         return false;
     };
     if !validation::field_domains::domain_is_subslice_preserving(program, domain_symbol) {
@@ -306,7 +306,7 @@ fn subslice_grants_domain(
             {
                 return false;
             }
-            let FactPlace::Place(fact_place) = fact.place else {
+            let Some(fact_place) = fact.place.as_place() else {
                 return false;
             };
             let base = facts.semantic.places.get(fact_place);
@@ -343,7 +343,7 @@ fn parameter_domain_grants(
     else {
         return false;
     };
-    let FactPlace::Place(place_handle) = place else {
+    let Some(place_handle) = place.as_place() else {
         return false;
     };
     let resolved = *facts.semantic.places.get(place_handle);
@@ -355,7 +355,7 @@ fn parameter_domain_grants(
     {
         return false;
     }
-    let PlaceRoot::Symbol(root_symbol) = resolved.root else {
+    let Some(root_symbol) = resolved.root.as_symbol() else {
         return false;
     };
     let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
@@ -395,16 +395,12 @@ fn expression_rooted_domain_parts(
     else {
         return None;
     };
-    let FactPlace::Place(place_handle) = place else {
-        return None;
-    };
+    let place_handle = place.as_place()?;
     let resolved = semantic.places.get(place_handle);
     if !resolved.segments.is_empty() {
         return None;
     }
-    let PlaceRoot::Expression(expression) = resolved.root else {
-        return None;
-    };
+    let expression = resolved.root.as_expression()?;
     Some((domain_symbol, expression))
 }
 
@@ -792,7 +788,7 @@ fn explain_domain_requirement_failure(
         let (fact_domain, fact_place) = match fact.payload {
             FactPayload::DomainMembership { domain_symbol, .. }
             | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     continue;
                 };
                 (domain_symbol, place)

@@ -585,6 +585,16 @@ pub enum TypeReferenceNode {
     Unit,
 }
 
+impl TypeReferenceNode {
+    /// The identifier, if this reference is a plain named leaf.
+    pub fn as_named(&self) -> Option<&Identifier> {
+        let TypeReferenceNode::Named(named) = self else {
+            return None;
+        };
+        Some(named)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedArrayLength {
     Literal(usize),

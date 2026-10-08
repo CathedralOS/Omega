@@ -154,9 +154,7 @@ fn immutable_parameter_endpoint(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     let place = validation::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let parameter = program.state_parameter_by_symbol(state, root)?;
     // The general declaration reader also accepts mutable self storage. That
     // is not invocation-fixed: its where clause may be temporarily broken.

@@ -201,10 +201,7 @@ pub(crate) fn replay_structural_projection(
                 if matching_fields.next().is_some() {
                     return None;
                 }
-                let terminal_psi::StructuralFieldType::Structural(selected) = field.field_type
-                else {
-                    return None;
-                };
+                let selected = field.field_type.as_structural()?;
                 let layout =
                     replay_sum_layout(common, cases, &declarations, &mut cache, &mut active)?;
                 let field_offset = layout
@@ -237,11 +234,7 @@ pub(crate) fn replay_structural_projection(
                     )?;
                     field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
                     if field.identity == *identity {
-                        let terminal_psi::StructuralFieldType::Structural(nested) =
-                            field.field_type
-                        else {
-                            return None;
-                        };
+                        let nested = field.field_type.as_structural()?;
                         selected = Some((nested, shape, field_offset));
                         break;
                     }
@@ -364,11 +357,7 @@ pub(crate) fn replay_bounded_byte_field(
                     )?;
                     field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
                     if field.identity == *identity {
-                        let terminal_psi::StructuralFieldType::Structural(nested) =
-                            field.field_type
-                        else {
-                            return None;
-                        };
+                        let nested = field.field_type.as_structural()?;
                         selected = Some((nested, field_offset));
                         break;
                     }

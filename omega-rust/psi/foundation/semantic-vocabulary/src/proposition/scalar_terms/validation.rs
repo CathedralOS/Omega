@@ -3,10 +3,9 @@
 //! not buried under the rule bodies.
 
 use super::{
-    Step,
-    ScalarTerm, ScalarType, integer_comparison_operands_match, validate_exact_subtract_operands,
-    validate_integer_comparison_operands, validate_integer_operands,
-    validate_integer_shift_operands,
+    ScalarTerm, ScalarType, Step, integer_comparison_operands_match,
+    validate_exact_subtract_operands, validate_integer_comparison_operands,
+    validate_integer_operands, validate_integer_shift_operands,
 };
 use crate::proposition::PropositionError;
 

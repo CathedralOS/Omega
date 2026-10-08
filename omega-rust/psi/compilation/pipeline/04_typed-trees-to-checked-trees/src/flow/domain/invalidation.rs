@@ -5,7 +5,7 @@ use crate::flow::reference_spans;
 use checked_trees::{
     DomainFacts, FlowInvalidationFact, FlowInvalidationSource, FlowSemanticContextRef,
 };
-use facts::{FactPayload, FactPlace, FactPlan};
+use facts::{FactPayload, FactPlan};
 mod matching;
 
 use self::matching::matching_mutation_for_fact_place;
@@ -46,7 +46,7 @@ fn visit_context_invalidations(
         .span_or_empty(semantic.contexts.get(context).facts)
     {
         let fact = semantic.facts.get(fact_ref.fact);
-        let FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             if matches!(fact.payload, FactPayload::StorageDependency { .. }) {
                 invalidated_any = true;
             }

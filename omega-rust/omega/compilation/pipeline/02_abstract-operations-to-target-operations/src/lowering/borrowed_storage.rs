@@ -256,7 +256,7 @@ impl StorageRecipes<'_> {
                     scalar,
                     stored,
                 ));
-            } else if let StructuralFieldType::Structural(child) = member.field_type {
+            } else if let Some(child) = member.field_type.as_structural() {
                 let (_, _, displacement) = if let Some(case) = case {
                     structural_layout::case_projection(
                         root,

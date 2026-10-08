@@ -186,9 +186,7 @@ fn carried_exclusive_referents(
         statement_index,
         argument,
     )?;
-    let PlaceRoot::Symbol(owner_root) = actual.root else {
-        return None;
-    };
+    let owner_root = actual.root.as_symbol()?;
     let (_, caller_state) = borrow
         .states
         .iter()

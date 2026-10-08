@@ -83,9 +83,7 @@ fn formation(
     }
     let (place, source) =
         projection::formation_place(program, machine, state, statement_index, borrow.target)?;
-    let facts::PlaceRoot::Symbol(source_root) = place.root else {
-        return None;
-    };
+    let source_root = place.root.as_symbol()?;
     if let Some(parent_position) = aliases.iter().position(|alias| alias.owner == source_root) {
         let (projected_type, _) =
             calls::projected_argument_path(program, state.symbol, statement_index, &place)?;
@@ -379,7 +377,7 @@ pub(super) fn resolve(
         if materialized(resolved.root) {
             break;
         }
-        let facts::PlaceRoot::Symbol(owner) = resolved.root else {
+        let Some(owner) = resolved.root.as_symbol() else {
             break;
         };
         let Some(alias) = aliases.iter().find(|alias| alias.owner == owner) else {

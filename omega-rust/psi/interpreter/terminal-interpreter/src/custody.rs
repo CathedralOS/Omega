@@ -774,8 +774,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let terminal_psi::StructuralFieldType::Structural(field_type) = field.field_type
-                else {
+                let Some(field_type) = field.field_type.as_structural() else {
                     continue;
                 };
                 let segment = StructuralPathSegment::Field(field.identity.clone());
@@ -829,7 +828,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 .into_iter().chain(std::iter::once((Some(selected_case.id), selected_case.fields.as_slice())))
             {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                    let terminal_psi::StructuralFieldType::Structural(field_type) = field.field_type else {
+                    let Some(field_type) = field.field_type.as_structural() else {
                         continue;
                     };
                     let segment = StructuralPathSegment::Field(field.identity.clone());

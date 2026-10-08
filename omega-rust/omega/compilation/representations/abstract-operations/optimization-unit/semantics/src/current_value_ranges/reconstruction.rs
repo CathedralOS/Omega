@@ -29,9 +29,7 @@ pub(super) fn reconstruct_value_range_fact(
                 return None;
             }
             let definition = scalar_value_definition(function, supplied.value)?;
-            let ScalarType::Integer(scalar_type) = definition.scalar_type else {
-                return None;
-            };
+            let scalar_type = definition.scalar_type.as_integer()?;
             let (_, constant, _) = validator_scalar_constant_facts(unit.identity, function)
                 .into_iter()
                 .find(|(value, constant, candidate)| {
@@ -67,7 +65,8 @@ pub(super) fn reconstruct_value_range_fact(
             if operation != scope_operation {
                 return None;
             }
-            let anchor = function.block(block)?
+            let anchor = function
+                .block(block)?
                 .nodes
                 .get(usize::try_from(node).ok()?)?;
             let (current_operation, obligation, goal) = proof_range_goal(&anchor.operation)?;

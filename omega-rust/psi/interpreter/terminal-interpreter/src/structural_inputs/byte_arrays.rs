@@ -15,7 +15,6 @@ use std::collections::BTreeMap;
 use storage::{ArrayStorage, ArrayStorageHome};
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
-use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
@@ -72,9 +71,7 @@ pub(crate) fn array_path_type(
                 StructuralTypeShape::Record { fields, .. },
             ) => {
                 let field = terminal_psi::live_field_by_identity(fields, identity)?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
+                let next = field.field_type.as_structural()?;
                 next
             }
             (

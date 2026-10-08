@@ -322,7 +322,7 @@ where
         // field or element, which proves its own origin under the same leaf
         // rules. Only an exact peel qualifies — a dynamic index or range
         // selects several operands, so it names no single source.
-        let PlaceRoot::Expression(rooted) = source.root else {
+        let Some(rooted) = source.root.as_expression() else {
             return Some(source);
         };
         match program.expression_table.expression(rooted) {

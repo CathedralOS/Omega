@@ -240,9 +240,7 @@ pub(super) fn validate_place_read(
     statement_index: usize,
     place: &mut CanonicalPlace,
 ) -> Option<SymbolHandle> {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     if !root.is_valid()
         || place
             .segments

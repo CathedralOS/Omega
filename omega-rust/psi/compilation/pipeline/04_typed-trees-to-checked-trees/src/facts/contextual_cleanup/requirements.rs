@@ -477,7 +477,7 @@ fn has_symbolic_origin(
     statement: usize,
     place: &CanonicalPlace,
 ) -> bool {
-    let PlaceRoot::Symbol(root) = place.root else {
+    let Some(root) = place.root.as_symbol() else {
         return false;
     };
     let root = super::source_symbol(program, root, state.machine_symbol);

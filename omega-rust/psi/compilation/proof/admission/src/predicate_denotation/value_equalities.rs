@@ -134,7 +134,7 @@ impl<'input> ValueEqualities<'input> {
                 };
                 let left = self.scalar(&left, budget, depth + 1, &mut Vec::new())?;
                 let right = self.scalar(&right, budget, depth + 1, &mut Vec::new())?;
-                let ScalarType::Integer(carrier) = left.scalar_type() else {
+                let Some(carrier) = left.scalar_type().as_integer() else {
                     return Err(PredicateDenotationError::InvalidValueEquality);
                 };
                 let comparison = match original {

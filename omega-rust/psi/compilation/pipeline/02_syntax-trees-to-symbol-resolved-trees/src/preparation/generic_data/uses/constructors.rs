@@ -53,9 +53,7 @@ pub(in crate::preparation::generic_data) fn selected_constructor(
     }
     let (carrier, case) = name.as_str().rsplit_once("::")?;
     let owner = selected_data_item(syntax, None, &Identifier::new(carrier, name.source_span()))?;
-    let Item::Data(data) = syntax.root_item(owner) else {
-        return None;
-    };
+    let data = syntax.root_item(owner).as_data()?;
     syntax.items.data_members(data.members).iter().any(|member|
         matches!(member, DataMember::Variant(variant) if variant.name.as_str() == case))
         .then(|| {
@@ -193,7 +191,10 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     let expected_owner = if let Some(instance) = instance {
         instance.declaration
     } else {
-        let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(expected_type)
+        let Some(name) = syntax
+            .type_references
+            .type_reference(expected_type)
+            .as_named()
         else {
             return;
         };
@@ -202,7 +203,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
         };
         owner
     };
-    let Item::Data(definition) = syntax.root_item(expected_owner) else {
+    let Some(definition) = syntax.root_item(expected_owner).as_data() else {
         return;
     };
     let definition = definition.clone();

@@ -29,9 +29,7 @@ pub(super) fn disagreeing_call_result_subjects(
     call: &FlowCallFact,
     place: &CanonicalPlace,
 ) -> Option<Vec<ProgressSubject>> {
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     let (statement_index, local) = program
         .state_local_declaration(typed_state, root)
@@ -325,9 +323,7 @@ pub(super) fn call_route_place(
         // frames the trace cannot replay leave the path unproven rather than
         // borrowing root correspondence.
         returned = callee_demanded_origin(program, frames, body, returned, depth)?;
-        let PlaceRoot::Symbol(resolved) = returned.root else {
-            return None;
-        };
+        let resolved = returned.root.as_symbol()?;
         root = resolved;
         parameter = parameters
             .iter()

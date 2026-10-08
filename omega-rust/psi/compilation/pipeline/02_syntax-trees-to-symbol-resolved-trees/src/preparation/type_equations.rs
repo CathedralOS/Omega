@@ -142,7 +142,7 @@ pub(crate) fn validate_materialized_type_equations(
     else {
         return Ok(());
     };
-    let syntax_trees::item::Item::Data(definition) = syntax.root_item(declaration) else {
+    let Some(definition) = syntax.root_item(declaration).as_data() else {
         return Ok(());
     };
     if !template_type_equation_offsets(syntax, definition)?.is_empty() {
@@ -1528,12 +1528,11 @@ impl<'a, 's> Solver<'a, 's> {
                         ))
                         .with_source_span(span));
                 };
-                let TypeReferenceNode::Named(type_name) = self
+                let Some(type_name) = self
                     .syntax
                     .tables
                     .type_references
-                    .type_reference(parameter_type)
-                else {
+                    .type_reference(parameter_type).as_named() else {
                     return Err(self
                         .reject(format!(
                             "where equation mixes type and value kinds: const binder `{name}` is not a builtin integer"

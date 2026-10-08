@@ -93,9 +93,7 @@ fn place(
     if !validation::place_has_builtin_coordinates(program, machine, Some(state), operand) {
         return None;
     }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let source = if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), root)
     {

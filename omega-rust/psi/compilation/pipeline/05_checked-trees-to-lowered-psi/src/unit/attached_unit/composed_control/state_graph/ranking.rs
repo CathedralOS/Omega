@@ -27,7 +27,7 @@
 //! A constant bound (`Nat::IncreasingTo(8)`) is the same ceiling distance with
 //! no bound lane at all.
 use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
-use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminator, unsupported};
+use super::super::super::{OperationResult, TerminalMachine, Terminator, unsupported};
 use super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -191,7 +191,7 @@ pub(super) fn emit_scalar_rank(
             primitive_type,
         } => {
             let scalar_type = crate::emission::scalar_types::integer_scalar_type(primitive_type)?;
-            let ScalarType::Integer(integer_type) = scalar_type else {
+            let Some(integer_type) = scalar_type.as_integer() else {
                 return unsupported("Unit graph distance rank needs an integer carrier");
             };
             let ceiling = match ceiling {
@@ -334,7 +334,7 @@ fn rank_type(machine: &TerminalMachine, value: ValueId) -> Result<IntegerType, L
         }))
         .find_map(|declaration| {
             if declaration.id == value
-                && let ScalarType::Integer(integer) = declaration.scalar_type
+                && let Some(integer) = declaration.scalar_type.as_integer()
             {
                 Some(integer)
             } else {

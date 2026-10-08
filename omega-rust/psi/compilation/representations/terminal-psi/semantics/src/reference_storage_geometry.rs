@@ -4,8 +4,8 @@
 
 use semantic_vocabulary::{AuthoredFieldStorage, ScalarType, StructuralTypeId};
 use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,9 +49,7 @@ fn field_geometry<'types>(
                 .unwrap_or(scalar),
         );
     }
-    let StructuralFieldType::Structural(child) = field.field_type else {
-        return None;
-    };
+    let child = field.field_type.as_structural()?;
     geometry(types, child, active)
 }
 
@@ -203,9 +201,7 @@ fn storage_path<'types>(
                         scalar: Some((logical_scalar, selected_storage.unwrap_or(logical_scalar))),
                     });
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
+                let child = field.field_type.as_structural()?;
                 carrier = child;
             }
             (

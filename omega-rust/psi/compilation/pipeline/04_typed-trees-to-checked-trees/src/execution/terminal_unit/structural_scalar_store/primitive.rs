@@ -104,9 +104,7 @@ pub(super) fn store_at(
         statement_index as usize,
         assignment.target,
     )?;
-    let facts::PlaceRoot::Symbol(authored_symbol) = authored.root else {
-        return None;
-    };
+    let authored_symbol = authored.root.as_symbol()?;
     let value = primitive_store_value(
         program,
         facts,

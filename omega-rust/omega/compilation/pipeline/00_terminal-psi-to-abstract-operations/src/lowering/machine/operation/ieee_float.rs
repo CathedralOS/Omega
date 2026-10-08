@@ -14,7 +14,7 @@ pub(super) fn lower(
     let result = operation.result.scalar().ok_or(invalid.clone())?;
     Ok(match operation.kind.clone() {
         OperationKind::FloatResultPolicy { policy } => {
-            let ScalarType::IeeeFloat(format) = result.scalar_type else {
+            let Some(format) = result.scalar_type.as_ieee_float() else {
                 return Err(invalid);
             };
             if policy
@@ -68,7 +68,7 @@ pub(super) fn lower(
             right,
             addend,
         } => {
-            let ScalarType::IeeeFloat(format) = result.scalar_type else {
+            let Some(format) = result.scalar_type.as_ieee_float() else {
                 return Err(LoweringError::VerifiedIeeeFloatMalformed(operation.id));
             };
             AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {

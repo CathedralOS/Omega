@@ -74,6 +74,16 @@ pub enum OperationResult {
     Structural(StructuralOperationResult),
 }
 
+impl OperationResult {
+    /// The structural result, if this operation produces one.
+    pub fn as_structural(&self) -> Option<&StructuralOperationResult> {
+        let OperationResult::Structural(structural) = self else {
+            return None;
+        };
+        Some(structural)
+    }
+}
+
 /// Exact structural value and caller-local claim frontier established only by
 /// successful completion of one operation.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

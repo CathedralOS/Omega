@@ -20,7 +20,7 @@ use validation::CallSite;
 use validation::CanonicalPlace;
 
 use checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
-use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot};
+use facts::{FactPayload, FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -641,7 +641,7 @@ fn captured_place(
         ) {
             continue;
         }
-        let FactPlace::Place(destination) = fact.place else {
+        let Some(destination) = fact.place.as_place() else {
             continue;
         };
         let destination = semantic.places.get(destination);

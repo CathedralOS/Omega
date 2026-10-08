@@ -169,7 +169,7 @@ pub(super) fn append_constructed_field_values(
                 }
                 _ => continue,
             };
-            let FactPlace::Place(source_fact) = fact.place else {
+            let Some(source_fact) = fact.place.as_place() else {
                 continue;
             };
             if !semantic.places_equal(source_fact, source) {

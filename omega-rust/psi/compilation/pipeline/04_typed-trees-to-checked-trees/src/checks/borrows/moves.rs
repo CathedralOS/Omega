@@ -34,7 +34,7 @@ pub(super) fn check_storage_move<'program>(
     ) {
         return;
     }
-    let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+    let Some(root_symbol) = event.root.as_symbol() else {
         // A completed rvalue has no preexisting source storage to detach.
         return;
     };

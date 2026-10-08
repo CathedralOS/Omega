@@ -22,13 +22,13 @@ pub(super) fn left(
     operand: LoweredDirectExpression,
     count: LoweredDirectExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let ScalarType::Integer(carrier) = scalar_type else {
+    let Some(carrier) = scalar_type.as_integer() else {
         return unsupported("saturating shift requires a fixed integer carrier");
     };
     if carrier.is_address() || !matches!(carrier.bits(), 8 | 16 | 32 | 64) {
         return unsupported("saturating shift requires a supported fixed integer width");
     }
-    let ScalarType::Integer(count_carrier) = count.scalar_type() else {
+    let Some(count_carrier) = count.scalar_type().as_integer() else {
         return unsupported("saturating shift requires an integer count");
     };
     if count_carrier.is_address() || count_carrier.bits() < 8 {
@@ -48,10 +48,10 @@ pub(crate) fn expansion(
     operand: LoweredDirectExpression,
     count: LoweredDirectExpression,
 ) -> LoweredDirectExpression {
-    let ScalarType::Integer(carrier) = scalar_type else {
+    let Some(carrier) = scalar_type.as_integer() else {
         unreachable!("prepared saturating shift has an integer carrier");
     };
-    let ScalarType::Integer(count_carrier) = count.scalar_type() else {
+    let Some(count_carrier) = count.scalar_type().as_integer() else {
         unreachable!("prepared saturating shift has an integer count");
     };
     let even = binary(

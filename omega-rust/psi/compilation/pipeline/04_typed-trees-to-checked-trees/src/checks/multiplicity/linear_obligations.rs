@@ -602,7 +602,7 @@ fn nominal_drop_place_name<'program>(
     place: &validation::CanonicalPlace,
 ) -> Option<&'program str> {
     if place.segments.is_empty()
-        && let facts::PlaceRoot::Symbol(root) = place.root
+        && let Some(root) = place.root.as_symbol()
         && let Some(attached) =
             validation::find_state_with_machine(program, state_symbol).and_then(|(machine, _)| {
                 (machine.symbol == root)

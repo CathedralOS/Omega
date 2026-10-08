@@ -5,7 +5,7 @@ use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
     SelectedOperand, VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
 };
-use semantic_vocabulary::{IntegerValue, ScalarType};
+use semantic_vocabulary::IntegerValue;
 
 use crate::{LiteralFoldAction, PairLiteralPosition, PairOperandShape, PairResultDisposition};
 
@@ -145,7 +145,7 @@ fn register_admits(
     let Some(register) = function.virtual_register(victim) else {
         return false;
     };
-    let ScalarType::Integer(integer) = register.scalar_type else {
+    let Some(integer) = register.scalar_type.as_integer() else {
         return false;
     };
     !integer.is_address()

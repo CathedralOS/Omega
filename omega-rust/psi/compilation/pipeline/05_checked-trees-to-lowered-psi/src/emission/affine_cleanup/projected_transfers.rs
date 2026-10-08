@@ -340,7 +340,7 @@ fn partition_residual(
                 .rev()
                 .filter(|field| !field.relevance.is_erased())
             {
-                let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
+                let Some(child) = field.field_type.as_structural() else {
                     continue;
                 };
                 let mut path = residual.path.clone();

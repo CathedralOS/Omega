@@ -16,6 +16,32 @@ pub enum PlaceRoot {
     TypeReference(TypeReferenceHandle),
 }
 
+impl PlaceRoot {
+    /// The symbol root, if this place is rooted at one.
+    pub fn as_symbol(&self) -> Option<SymbolHandle> {
+        let PlaceRoot::Symbol(symbol) = self else {
+            return None;
+        };
+        Some(*symbol)
+    }
+
+    /// The expression root, if this place is rooted at one.
+    pub fn as_expression(&self) -> Option<ExpressionHandle> {
+        let PlaceRoot::Expression(expression) = self else {
+            return None;
+        };
+        Some(*expression)
+    }
+
+    /// The type-reference root, if this place is rooted at one.
+    pub fn as_type_reference(&self) -> Option<TypeReferenceHandle> {
+        let PlaceRoot::TypeReference(reference) = self else {
+            return None;
+        };
+        Some(*reference)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlaceSegment {
     Field {
@@ -72,4 +98,38 @@ pub enum FactPlace {
     Symbol(SymbolHandle),
     Expression(ExpressionHandle),
     TypeReference(TypeReferenceHandle),
+}
+
+impl FactPlace {
+    /// The place handle, if this fact place names one.
+    pub fn as_place(&self) -> Option<PlaceHandle> {
+        let FactPlace::Place(place) = self else {
+            return None;
+        };
+        Some(*place)
+    }
+
+    /// The symbol, if this fact place names one.
+    pub fn as_symbol(&self) -> Option<SymbolHandle> {
+        let FactPlace::Symbol(symbol) = self else {
+            return None;
+        };
+        Some(*symbol)
+    }
+
+    /// The expression handle, if this fact place names one.
+    pub fn as_expression(&self) -> Option<ExpressionHandle> {
+        let FactPlace::Expression(expression) = self else {
+            return None;
+        };
+        Some(*expression)
+    }
+
+    /// The type-reference handle, if this fact place names one.
+    pub fn as_type_reference(&self) -> Option<TypeReferenceHandle> {
+        let FactPlace::TypeReference(reference) = self else {
+            return None;
+        };
+        Some(*reference)
+    }
 }

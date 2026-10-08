@@ -3,7 +3,7 @@
 //! authorize overwriting an ASCII byte with 255. Read only the completed
 //! statement's live contexts, never a historical fact or a later restoration.
 use checked_trees::CheckFacts;
-use facts::{FactOrigin, FactPayload, FactPlace};
+use facts::{FactOrigin, FactPayload};
 
 use typed_trees::statement::StatementNode;
 
@@ -70,7 +70,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
                             .facts()
                     })
                     .any(|fact| {
-                        let FactPlace::Place(place) = fact.place else {
+                        let Some(place) = fact.place.as_place() else {
                             return false;
                         };
                         let FactPayload::BytePredicate { predicate } = fact.payload else {

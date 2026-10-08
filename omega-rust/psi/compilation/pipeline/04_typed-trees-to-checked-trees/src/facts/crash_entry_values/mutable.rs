@@ -237,7 +237,7 @@ pub(crate) fn statement_may_overwrite_place(
     statement: &StatementNode,
     place: &validation::CanonicalPlace,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let Some(symbol) = place.root.as_symbol() else {
         return true;
     };
     let read_path: Vec<PlaceSegment> = place

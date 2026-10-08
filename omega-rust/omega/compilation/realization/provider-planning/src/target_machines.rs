@@ -162,7 +162,7 @@ impl SelectedTargetMachineDeclarations {
     /// admission they need; release them before symbol resolution.
     pub fn release_provider_default_declarations(&self, syntax: &mut SyntaxTrees) {
         for handle in syntax.root_item_handles().to_vec() {
-            let Item::Machine(machine) = syntax.root_item(handle) else {
+            let Some(machine) = syntax.root_item(handle).as_machine() else {
                 continue;
             };
             let Some(target) = machine.target.as_ref() else {
@@ -247,10 +247,7 @@ impl SelectedTargetMachineDeclarations {
         typed: &mut TypedTrees,
         target: TargetProfile,
     ) -> Result<(), Vec<Diagnostic>> {
-        let machine_index = |symbol| {
-            typed
-                .machine_position_by_symbol(symbol)
-        };
+        let machine_index = |symbol| typed.machine_position_by_symbol(symbol);
         let mut diagnostics = Vec::new();
         let mut replacements = Vec::new();
         let mut swaps = Vec::new();
@@ -586,7 +583,7 @@ fn target_machine_origins(
         .collect::<Vec<_>>();
     let mut origins = Vec::new();
     for &handle in syntax.root_item_handles() {
-        let Item::Machine(machine) = syntax.root_item(handle) else {
+        let Some(machine) = syntax.root_item(handle).as_machine() else {
             continue;
         };
         let Some(target) = &machine.target else {
@@ -692,7 +689,7 @@ fn select_target_machines(
     let mut provider_default_machines = Vec::new();
     let mut selected_machine_origins = Vec::new();
     for handle in selected_declarations {
-        let Item::Machine(machine) = syntax.root_item(handle) else {
+        let Some(machine) = syntax.root_item(handle).as_machine() else {
             continue;
         };
         let Some(target) = machine.target.as_ref() else {

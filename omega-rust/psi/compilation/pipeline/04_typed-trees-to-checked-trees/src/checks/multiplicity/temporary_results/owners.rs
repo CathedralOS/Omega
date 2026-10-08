@@ -158,7 +158,7 @@ pub(crate) fn temporary_owners(
                 ) else {
                     continue;
                 };
-                let facts::PlaceRoot::Expression(expression) = place.root else {
+                let Some(expression) = place.root.as_expression() else {
                     continue;
                 };
                 let root = validation::CanonicalPlace {

@@ -29,9 +29,7 @@ fn validate_permissions_at(
     source_plan: &CheckedUnitStructuralArgumentSourcePlan,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
-    let facts::PlaceRoot::Expression(expression) = root else {
-        return None;
-    };
+    let expression = root.as_expression()?;
     let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
         candidate.machine_symbol == machine && candidate.state_symbol == state
     })?;

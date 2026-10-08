@@ -406,7 +406,7 @@ pub(crate) fn resolve_typed(
                 crosses_reference,
             );
         }
-        let StructuralFieldType::Structural(child) = field.field_type else {
+        let Some(child) = field.field_type.as_structural() else {
             return unsupported("runtime field observation requires a structural carrier field");
         };
         carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -719,9 +719,7 @@ pub(crate) fn plan_case_payload_leaf(
     if members.next().is_some() || member.relevance.is_erased() {
         return None;
     }
-    let StructuralFieldType::Structural(member_type) = member.field_type else {
-        return None;
-    };
+    let member_type = member.field_type.as_structural()?;
     let projected = StructuralScalarFieldBinding {
         source_position: position,
         source: binding.source,
@@ -978,7 +976,7 @@ fn resolve_case_primitive(
                 if field.relevance.is_erased() {
                     return unsupported("primitive observation cannot read an erased field");
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
+                let Some(child) = field.field_type.as_structural() else {
                     return unsupported("primitive observation requires a structural leaf carrier");
                 };
                 canonical.push(Canonical::Field(field.id));

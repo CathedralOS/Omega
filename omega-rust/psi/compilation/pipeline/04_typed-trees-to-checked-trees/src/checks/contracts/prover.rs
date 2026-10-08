@@ -196,7 +196,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
             semantic_domain,
             ..
         } => {
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 return false;
             };
             if indexed_membership(program, fact.payload) {
@@ -228,7 +228,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                             }
                             _ => return false,
                         };
-                        let FactPlace::Place(candidate_place) = candidate.place else {
+                        let Some(candidate_place) = candidate.place.as_place() else {
                             return false;
                         };
                         validation::field_domains::domain_membership_implies(
@@ -248,7 +248,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         }
         FactPayload::CarryPermission { permission, .. }
         | FactPayload::ContractCarryPermission { permission, .. } => {
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 return false;
             };
             entry_contexts.iter().any(|entry_context| {
@@ -259,7 +259,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
                         | FactPayload::ContractCarryPermission { permission, .. } => permission,
                         _ => return false,
                     };
-                    let FactPlace::Place(candidate_place) = candidate.place else {
+                    let Some(candidate_place) = candidate.place.as_place() else {
                         return false;
                     };
                     candidate_permission == permission
@@ -285,7 +285,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
             contexts_prove_proposition_label(semantic, program, entry_contexts, &required_label)
         }
         FactPayload::CarryOrigin { .. } => {
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 return false;
             };
             entry_contexts.iter().any(|entry_context| {
@@ -341,7 +341,7 @@ pub(super) fn contract_membership_place_is_accessible(
     else {
         return true;
     };
-    let FactPlace::Place(place) = fact.place else {
+    let Some(place) = fact.place.as_place() else {
         return false;
     };
     let Some(subject) = crate::flow::canonical_place_from_semantic_place(

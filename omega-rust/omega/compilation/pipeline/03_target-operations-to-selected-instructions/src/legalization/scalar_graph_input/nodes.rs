@@ -358,7 +358,7 @@ fn integer_arithmetic_admitted(arithmetic: IntegerArithmetic, scalar_type: Integ
 }
 
 fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
-    if let ScalarType::Integer(integer) = scalar
+    if let Some(integer) = scalar.as_integer()
         && matches!(integer.bits(), 8 | 16 | 32 | 64)
     {
         return match value {

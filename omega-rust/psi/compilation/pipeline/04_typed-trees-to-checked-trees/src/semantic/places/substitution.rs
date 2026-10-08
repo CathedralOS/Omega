@@ -16,9 +16,7 @@ pub(crate) fn call_contract_place_substitution(
     original_place_handle: facts::PlaceHandle,
 ) -> Option<ContractPlaceSubstitution> {
     let original_place = *facts.places.get(original_place_handle);
-    let facts::PlaceRoot::Symbol(parameter_symbol) = original_place.root else {
-        return None;
-    };
+    let parameter_symbol = original_place.root.as_symbol()?;
     let call_site = super::find_call_site(
         program,
         call.caller_machine_symbol,

@@ -2,8 +2,7 @@
 //! terms, extracted from `scalar_terms` so construction and traversal
 //! stay the file's headline.
 
-use super::{
-    Step,ScalarTerm, ScalarType};
+use super::{ScalarTerm, ScalarType, Step};
 use crate::proposition::{IntegerType, IntegerValue};
 
 impl ScalarTerm {

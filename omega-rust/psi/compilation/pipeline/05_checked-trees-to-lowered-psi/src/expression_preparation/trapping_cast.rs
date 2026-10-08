@@ -23,10 +23,10 @@ pub(crate) fn trapping_cast(
     operand: LoweredDirectExpression,
     target: ScalarType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let ScalarType::Integer(target_type) = target else {
+    let Some(target_type) = target.as_integer() else {
         return unsupported("trapping conversion requires a fixed integer destination");
     };
-    let ScalarType::Integer(source_type) = operand.scalar_type() else {
+    let Some(source_type) = operand.scalar_type().as_integer() else {
         return unsupported("trapping conversion requires an integer or address source");
     };
     if target_type.is_address() {

@@ -34,7 +34,7 @@ pub(crate) fn saturating_cast(
     source_type: IntegerType,
     target: ScalarType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let ScalarType::Integer(target_type) = target else {
+    let Some(target_type) = target.as_integer() else {
         return unsupported("saturating conversion requires fixed integer carriers");
     };
     if source_type == target_type {

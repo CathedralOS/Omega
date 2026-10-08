@@ -106,7 +106,7 @@ pub(crate) fn generated_wire_codec_source(
     // member can name a declaration declared after it.
     let mut data_fields: HashMap<String, HashMap<String, TypeReferenceHandle>> = HashMap::new();
     for handle in syntax_trees.roots.items.storage_slice() {
-        let Item::Data(data) = syntax_trees.tables.items.item(*handle) else {
+        let Some(data) = syntax_trees.tables.items.item(*handle).as_data() else {
             continue;
         };
         if !product_sources.contains(&data.name.source_span().source_id.0) {
@@ -118,7 +118,7 @@ pub(crate) fn generated_wire_codec_source(
     }
     let mut schemas: Vec<(String, Vec<WireMemberShape>)> = Vec::new();
     for handle in syntax_trees.roots.items.storage_slice() {
-        let Item::Data(data) = syntax_trees.tables.items.item(*handle) else {
+        let Some(data) = syntax_trees.tables.items.item(*handle).as_data() else {
             continue;
         };
         let source_id = data.name.source_span().source_id.0;
@@ -138,7 +138,7 @@ pub(crate) fn generated_wire_codec_source(
 
     let mut sites: HashMap<(String, &'static str), Vec<Vec<String>>> = HashMap::new();
     for handle in syntax_trees.roots.items.storage_slice() {
-        let Item::Machine(machine) = syntax_trees.tables.items.item(*handle) else {
+        let Some(machine) = syntax_trees.tables.items.item(*handle).as_machine() else {
             continue;
         };
         collect_call_sites(

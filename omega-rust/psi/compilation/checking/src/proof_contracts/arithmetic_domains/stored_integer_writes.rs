@@ -5,7 +5,7 @@ use super::{Interval, ValueEnvironment};
 use crate::value_custody::places;
 use checked_trees::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
 use diagnostics::Diagnostic;
-use facts::{FactPlan, PlaceRoot, PlaceSegment};
+use facts::{FactPlan, PlaceSegment};
 use semantic_vocabulary::{IntegerSign, IntegerType};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
@@ -98,7 +98,7 @@ fn destination_projections(
     let mut facts = FactPlan::default();
     let place = facts.append_place_from_expression(program, destination);
     let place = facts.places.get(place);
-    let PlaceRoot::Symbol(root) = place.root else {
+    let Some(root) = place.root.as_symbol() else {
         return Err(());
     };
     let segments = facts.place_segments.span_or_empty(place.segments);
@@ -266,8 +266,7 @@ fn typed_storage_projection(
                             _ => None,
                         })
                         .ok_or(())?;
-                    program
-                        .data_payload_field_by_symbol(variant, *symbol)
+                    program.data_payload_field_by_symbol(variant, *symbol)
                 } else {
                     program
                         .data_members(data)
@@ -351,9 +350,7 @@ pub(crate) fn stored_integer_field_type(
 ) -> Result<Option<IntegerType>, ()> {
     let carrier = places::unwrapped_type_reference(program, carrier).ok_or(())?;
     let data = places::data_definition_for_type(program, carrier).ok_or(())?;
-    let Some(plan) = program
-        .plan_laid_layout(data.symbol)
-    else {
+    let Some(plan) = program.plan_laid_layout(data.symbol) else {
         return Ok(None);
     };
     let index = plan

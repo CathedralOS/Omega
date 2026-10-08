@@ -38,8 +38,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
             let [argument] = syntax.type_references.type_reference_handles(arguments) else {
                 panic!("one boolean index");
             };
-            let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(*argument)
-            else {
+            let Some(name) = syntax.type_references.type_reference(*argument).as_named() else {
                 panic!("boolean literal retains the canonical named-atom syntax");
             };
             assert_eq!(name.as_str(), spelling);

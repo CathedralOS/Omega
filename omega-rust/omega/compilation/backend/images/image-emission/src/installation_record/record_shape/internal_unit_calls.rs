@@ -327,9 +327,7 @@ fn call_span_and_plan(
                 abi.scalar_parameters
                     .iter()
                     .map(|parameter| {
-                        let semantic_vocabulary::ScalarType::Integer(integer) =
-                            parameter.scalar_type
-                        else {
+                        let Some(integer) = parameter.scalar_type.as_integer() else {
                             return Err(InstallationError::InvalidInternalUnitCall(
                                 installed.machine,
                             ));
@@ -353,9 +351,7 @@ fn call_span_and_plan(
                     .scalar_parameters
                     .iter()
                     .map(|parameter| {
-                        let semantic_vocabulary::ScalarType::Integer(integer) =
-                            parameter.scalar_type
-                        else {
+                        let Some(integer) = parameter.scalar_type.as_integer() else {
                             return Err(InstallationError::InvalidInternalUnitCall(
                                 installed.machine,
                             ));

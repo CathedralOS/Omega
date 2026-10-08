@@ -197,9 +197,7 @@ pub(crate) fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> 
 }
 
 fn fixed_integer_abi_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShape> {
-    let semantic_vocabulary::ScalarType::Integer(integer) = scalar else {
-        return None;
-    };
+    let integer = scalar.as_integer()?;
     fixed_integer_shape(integer)
 }
 

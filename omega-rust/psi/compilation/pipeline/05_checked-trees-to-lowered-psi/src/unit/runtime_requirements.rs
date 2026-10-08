@@ -237,7 +237,7 @@ impl RuntimeRequirementTerms<'_> {
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
                 let scalar_type = integer_landing_scalar_type(literal)?;
-                let ScalarType::Integer(integer_type) = scalar_type else {
+                let Some(integer_type) = scalar_type.as_integer() else {
                     return unsupported("runtime requirement literal is not an integer");
                 };
                 ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)

@@ -10,7 +10,7 @@ use symbol_resolved_trees::expression::ExpressionHandle;
 use symbols::JoinedPath;
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{ConstDefinition, DataMember, Item};
+use syntax_trees::item::{ConstDefinition, DataMember};
 
 /// Even unused private constants owe their exact nominal destination. Check
 /// resolved constructor and field identities after specialization, without
@@ -117,9 +117,7 @@ pub(crate) fn evaluated_declaration_value(
         {
             carrier = *base_type;
         }
-        let syntax_trees::types::TypeReferenceNode::Named(name) =
-            syntax.type_references.type_reference(carrier)
-        else {
+        let Some(name) = syntax.type_references.type_reference(carrier).as_named() else {
             return Err(
                 "semantic NaN constant requires its exact declared floating carrier".into(),
             );
@@ -161,14 +159,14 @@ pub(crate) fn validate_scalar_initializer(
 ) -> Result<(), String> {
     use numerics::literals::{FloatFormat, FloatLiteral};
     use syntax_trees::expression::ExpressionNode;
-    use syntax_trees::types::TypeReferenceNode;
 
     // Unused private declarations never reach substitution or public identity
     // checks. Their numeric and Boolean landing obligations still apply.
     // Floating values need no const-index encoding to check their carrier.
-    let TypeReferenceNode::Named(carrier) = syntax
+    let Some(carrier) = syntax
         .type_references
         .type_reference(constant.type_reference)
+        .as_named()
     else {
         return Ok(());
     };
@@ -412,7 +410,7 @@ fn validate_literal_initializer(
                 return invalid_literal_initializer(syntax_trees, definition, value);
             };
             let is_payloadless_case = syntax_trees.root_items().any(|item| {
-                let Item::Data(data) = item else {
+                let Some(data) = item.as_data() else {
                     return false;
                 };
                 data.name.as_str() == type_name.as_str()

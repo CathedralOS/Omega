@@ -163,8 +163,7 @@ pub(super) fn swapped_unit_readers_equality_only(
             continue;
         }
         for successor in terminator_successors(&block.terminator) {
-            let Some(target) = function.block_index(successor.block)
-            else {
+            let Some(target) = function.block_index(successor.block) else {
                 return false;
             };
             frontier.push((target, 0));

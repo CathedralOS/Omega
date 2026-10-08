@@ -143,7 +143,7 @@ impl emission::Emission<'_, '_, '_> {
                     )?
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                    let StructuralFieldType::Structural(child_type) = target.field_type else {
+                    let Some(child_type) = target.field_type.as_structural() else {
                         return unsupported("nested case operand has a scalar destination");
                     };
                     let argument = self.child_constructor_operand(

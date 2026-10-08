@@ -185,7 +185,7 @@ pub(super) fn observed_linear_temporaries(
         let StatementStep::Observe { place, .. } = &occurrence.step else {
             continue;
         };
-        let facts::PlaceRoot::Expression(expression) = place.root else {
+        let Some(expression) = place.root.as_expression() else {
             continue;
         };
         // Saved subjects retain their producer identity without evaluating it

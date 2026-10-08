@@ -711,7 +711,7 @@ fn view_leaf_image(
                         "representation view store cannot land a runtime Boolean on an integer leaf",
                     );
                 };
-                let ScalarType::Integer(carrier) = leaf else {
+                let Some(carrier) = leaf.as_integer() else {
                     unreachable!("integer leaf checked above");
                 };
                 let value = match carrier.sign() {

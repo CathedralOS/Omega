@@ -195,7 +195,7 @@ pub(in crate::lowering) fn lower_element_observation_with_lengths(
     )?;
     let known = match operation {
         AbstractOperation::ElementViewLength { .. } => {
-            let ScalarType::Integer(scalar_type) = result.scalar_type else {
+            let Some(scalar_type) = result.scalar_type.as_integer() else {
                 return Err(invalid());
             };
             if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {

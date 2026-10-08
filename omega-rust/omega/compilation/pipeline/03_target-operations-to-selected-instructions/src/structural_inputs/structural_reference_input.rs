@@ -1501,9 +1501,7 @@ pub(crate) fn case_projection(
                     .filter(|field| !field.relevance.is_erased())
                     .enumerate()
                     .find(|(_, candidate)| candidate.id == *field)?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
+                let next = field.field_type.as_structural()?;
                 let layout = case_layout(current, declarations)?;
                 (
                     next,
@@ -1526,9 +1524,7 @@ pub(crate) fn case_projection(
                     .filter(|field| !field.relevance.is_erased())
                     .enumerate()
                     .find(|(_, field)| field.id == *identity)?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
+                let next = field.field_type.as_structural()?;
                 let displacement = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. })
                 {
                     case_layout(current, declarations)?
@@ -1758,7 +1754,7 @@ fn project_inner<'a>(
                 };
                 let (field_position, field) =
                     terminal_psi::live_field_entry(&cases[case_position].fields, identity)?;
-                let StructuralFieldType::Structural(selected) = field.field_type else {
+                let Some(selected) = field.field_type.as_structural() else {
                     return None;
                 };
                 let layout = case_layout(carrier, declarations)?;

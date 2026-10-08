@@ -9,7 +9,6 @@ use crate::checks::contracts::return_values::is_result_reference;
 use crate::values::evaluate_checked_scalar;
 use crate::values::scalar_value_at_place;
 use checked_trees::{CheckedScalarComputationKind, ContractProofFactKind, ContractProofFactOwner};
-use facts::FactPlace;
 use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
 #[derive(Clone, Copy)]
@@ -151,7 +150,7 @@ impl ExitScalars<'_, '_> {
                 ) {
                     continue;
                 }
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     continue;
                 };
                 let Some(candidate) = crate::flow::canonical_place_from_semantic_place(

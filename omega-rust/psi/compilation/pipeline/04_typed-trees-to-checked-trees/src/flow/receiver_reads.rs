@@ -397,7 +397,7 @@ impl FootprintOwner<'_> {
     /// Named roots stay distinct from the machine and from other records of
     /// the same type; instantiation supplies their exact caller-side identity.
     fn reaches(&self, program: &dyn ::validation::CheckingInput, place: &CanonicalPlace) -> bool {
-        let facts::PlaceRoot::Symbol(root) = place.root else {
+        let Some(root) = place.root.as_symbol() else {
             return false;
         };
         root == self.machine_symbol

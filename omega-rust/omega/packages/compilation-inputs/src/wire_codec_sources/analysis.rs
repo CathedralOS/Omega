@@ -9,7 +9,6 @@ use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::DataMember;
-use syntax_trees::item::Item;
 use syntax_trees::item::Machine;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::FixedArrayLength;
@@ -229,7 +228,7 @@ pub(super) fn collect_domains(
     names.dedup();
     let mut domains: HashMap<String, Vec<DomainPredicate>> = HashMap::new();
     for handle in syntax_trees.roots.items.storage_slice() {
-        let Item::Domain(domain) = syntax_trees.tables.items.item(*handle) else {
+        let Some(domain) = syntax_trees.tables.items.item(*handle).as_domain() else {
             continue;
         };
         if !product_sources.contains(&domain.name.source_span().source_id.0) {
@@ -781,13 +780,11 @@ pub(super) fn parameter_data_name(
             {
                 type_reference = *referee;
             }
-            let TypeReferenceNode::Named(named) = syntax_trees
+            let named = syntax_trees
                 .tables
                 .type_references
                 .type_reference(type_reference)
-            else {
-                return None;
-            };
+                .as_named()?;
             return Some(named.as_str().to_string());
         }
     }

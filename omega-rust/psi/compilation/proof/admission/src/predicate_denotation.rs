@@ -273,9 +273,7 @@ fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
     ) {
         return None;
     }
-    let ScalarType::Integer(integer) = left.scalar_type() else {
-        return None;
-    };
+    let integer = left.scalar_type().as_integer()?;
     if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed {
         return None;
     }

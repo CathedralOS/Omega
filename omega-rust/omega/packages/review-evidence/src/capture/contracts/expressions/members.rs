@@ -94,9 +94,7 @@ pub(crate) fn exact_checked_contract_nominal_member(
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
-    };
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
 
     let selections = compilation
         .authored_selection_occurrences(expression)
@@ -121,7 +119,10 @@ pub(crate) fn exact_checked_contract_nominal_member(
             context.subject_kind, context.subject_name
         ))]);
     }
-    let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+    let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
+        target,
+    ) = selection.target()
+    else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` nominal member does not retain one exact declaration target",
             context.subject_kind, context.subject_name
@@ -399,7 +400,7 @@ pub(crate) fn checked_contract_member_path(
     root: facts::PlaceRoot,
     source_members: &[typed_trees::name::Identifier],
 ) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
-    use facts::{FactPayload, FactPlace};
+    use facts::FactPayload;
 
     if let Some(domain_symbol) = context.domain_symbol {
         return select_checked_dependency_member(
@@ -456,7 +457,7 @@ pub(crate) fn checked_contract_member_path(
         {
             continue;
         }
-        let FactPlace::Place(place_handle) = semantic_fact.place else {
+        let Some(place_handle) = semantic_fact.place.as_place() else {
             continue;
         };
         let place = compilation.facts.semantic.places.get(place_handle);

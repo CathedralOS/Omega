@@ -106,11 +106,7 @@ pub(super) fn validate_type_shape(
                                 .field_type
                                 .scalar_type()
                                 .or_else(|| {
-                                    let StructuralFieldType::Structural(identity) =
-                                        field.field_type
-                                    else {
-                                        return None;
-                                    };
+                                    let identity = field.field_type.as_structural()?;
                                     let StructuralTypeShape::PrimitiveScalar(scalar) =
                                         terminal_psi::find_structural_type(
                                             &module.structural_types,
@@ -304,9 +300,7 @@ fn validate_authored_field_extent(
             let width = u64::from(terminal_semantics::reference_storage_byte_width(scalar)?);
             return Some((width, width));
         }
-        let StructuralFieldType::Structural(child) = field.field_type else {
-            return None;
-        };
+        let child = field.field_type.as_structural()?;
         terminal_semantics::reference_storage_layout(module.structural_types.iter(), child)
     };
     let (offset, extent) = match storage {
@@ -336,7 +330,7 @@ fn validate_authored_field_extent(
             byte_offset,
             element_stride,
         } => {
-            let StructuralFieldType::Structural(array) = field.field_type else {
+            let Some(array) = field.field_type.as_structural() else {
                 return malformed("repeated field requires a fixed array");
             };
             let Some(StructuralTypeShape::FixedArray { element, length }) =
@@ -444,11 +438,9 @@ fn authored_fragment_source_width(
         return Some(u64::from((u128::BITS - maximum.leading_zeros()).max(1)));
     }
     let scalar = field.scalar_type().or_else(|| {
-        let StructuralFieldType::Structural(identity) = field else {
-            return None;
-        };
+        let identity = field.as_structural()?;
         let StructuralTypeShape::PrimitiveScalar(scalar) =
-            terminal_psi::find_structural_type(&module.structural_types, *identity)?.shape
+            terminal_psi::find_structural_type(&module.structural_types, identity)?.shape
         else {
             return None;
         };

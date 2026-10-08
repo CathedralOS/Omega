@@ -30,7 +30,7 @@ pub(crate) fn evaluate(
         }
     }
     for item in syntax.root_items() {
-        if let syntax_trees::item::Item::Machine(machine) = item {
+        if let Some(machine) = item.as_machine() {
             for state in syntax.items.state_handles(machine.states) {
                 for statement in syntax
                     .items
@@ -111,7 +111,7 @@ pub(crate) fn evaluate(
         {
             continue;
         }
-        let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(base) else {
+        let Some(name) = syntax.type_references.type_reference(base).as_named() else {
             continue;
         };
         // The original range shell resolves its carrier as a child type. Rejoin

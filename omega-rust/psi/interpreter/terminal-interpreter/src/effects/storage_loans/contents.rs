@@ -307,7 +307,7 @@ fn collect_fields(
                         .unwrap_or(scalar),
                 },
             });
-        } else if let StructuralFieldType::Structural(child_type) = field.field_type {
+        } else if let Some(child_type) = field.field_type.as_structural() {
             let mut child = parent.clone();
             child
                 .path

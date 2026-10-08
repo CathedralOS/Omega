@@ -215,7 +215,7 @@ fn fact_has_place(
     place: FactPlace,
     expected: &CanonicalPlace,
 ) -> bool {
-    let FactPlace::Place(place) = place else {
+    let Some(place) = place.as_place() else {
         return false;
     };
     crate::flow::canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))

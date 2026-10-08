@@ -311,7 +311,7 @@ pub fn check_integer_affine_witness(
     if !matches!(witness.root, ScalarTerm::Value { .. }) {
         return Err(IntegerAffineWitnessError::RootNotValue);
     }
-    let ScalarType::Integer(integer_type) = witness.root.scalar_type() else {
+    let Some(integer_type) = witness.root.scalar_type().as_integer() else {
         return Err(IntegerAffineWitnessError::RootNotInteger);
     };
     if integer_type.carrier() != IntegerCarrier::Fixed {

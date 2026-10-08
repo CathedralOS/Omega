@@ -756,9 +756,7 @@ pub(super) fn structural_storage_place(
         authored = member.receiver;
     }
     let root = place.root;
-    let facts::PlaceRoot::Symbol(_) = root else {
-        return None;
-    };
+    let _ = root.as_symbol()?;
     // Canonical-place recovery also serves body storage and can recover a
     // root from retained path-member symbols. A parameter observation must
     // authenticate the original occurrence too: stale or foreign head/leaf

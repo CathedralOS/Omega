@@ -152,9 +152,7 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
             continue;
         }
         let summary_place = &write.place;
-        let facts::PlaceRoot::Symbol(root) = summary_place.root else {
-            return None;
-        };
+        let root = summary_place.root.as_symbol()?;
         let reached_through_receiver = root == target_machine_symbol
             || data_binding.is_some_and(|parameter| parameter.symbol == root);
         if !reached_through_receiver {
@@ -508,7 +506,7 @@ fn state_summary_exposes_place(
     state: &typed_trees::state::State,
     place: &CanonicalPlace,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let Some(root) = place.root.as_symbol() else {
         return false;
     };
     root == machine_symbol_for_state(program, state)
@@ -598,9 +596,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let facts::PlaceRoot::Symbol(parameter_symbol) = relative_place.root else {
-        return None;
-    };
+    let parameter_symbol = relative_place.root.as_symbol()?;
     let call_site = find_call_site(
         program,
         caller_machine_symbol,

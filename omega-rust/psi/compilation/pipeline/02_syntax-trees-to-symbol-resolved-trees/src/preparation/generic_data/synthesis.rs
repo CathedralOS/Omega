@@ -95,7 +95,7 @@ pub(crate) fn desugar_generic_data_instances_in(
     // not to every generic declaration with the same leaf spelling.
     let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> = HashMap::new();
     for (item_index, item) in syntax.root_items().enumerate() {
-        if let Item::Machine(machine) = item
+        if let Some(machine) = item.as_machine()
             && let Some(attached) = &machine.attached_data
             && let Some(declaration) = selected_data_item(syntax, selection, attached)
         {
@@ -108,7 +108,7 @@ pub(crate) fn desugar_generic_data_instances_in(
 
     let mut generic_data: HashMap<syntax_trees::item::ItemHandle, GenericData> = HashMap::new();
     for &declaration in syntax.root_item_handles() {
-        let Item::Data(definition) = syntax.root_item(declaration) else {
+        let Some(definition) = syntax.root_item(declaration).as_data() else {
             continue;
         };
         if definition.type_parameters.is_empty() {
@@ -270,7 +270,7 @@ pub(crate) fn desugar_generic_data_instances_in(
     // below, so they are normalized while the template is still authored.
     let mut domain_head_positions = work.type_positions(syntax, true);
     for item in syntax.root_items().filter(|_| work.is_all()) {
-        let Item::Data(definition) = item else {
+        let Some(definition) = item.as_data() else {
             continue;
         };
         if definition.type_parameters.is_empty() {
@@ -327,7 +327,7 @@ pub(crate) fn desugar_generic_data_instances_in(
     // generated for them, and never clone their attached methods twice.
     let mut synthesized = Vec::new();
     for &declaration in syntax.root_item_handles() {
-        let Item::Data(definition) = syntax.root_item(declaration) else {
+        let Some(definition) = syntax.root_item(declaration).as_data() else {
             continue;
         };
         let Some(origin) = definition.generic_instance else {
@@ -495,11 +495,11 @@ fn synthesize_instance(
         .filter_map(|(name, parameter_type)| {
             parameter_type.as_ref()?;
             let argument = substitution.get(name)?;
-            let TypeReferenceNode::Named(value) =
-                syntax.tables.type_references.type_reference(*argument)
-            else {
-                return None;
-            };
+            let value = syntax
+                .tables
+                .type_references
+                .type_reference(*argument)
+                .as_named()?;
             Some((name.clone(), value.as_str().parse().ok()?))
         })
         .collect();
@@ -509,13 +509,11 @@ fn synthesize_instance(
         .zip(&base_info.const_parameter_types)
         .filter_map(|(name, parameter_type)| {
             let parameter_type = parameter_type.as_ref()?;
-            let TypeReferenceNode::Named(type_name) = syntax
+            let type_name = syntax
                 .tables
                 .type_references
                 .type_reference(*parameter_type)
-            else {
-                return None;
-            };
+                .as_named()?;
             Some((name.clone(), type_name.as_str().to_string()))
         })
         .collect();
@@ -567,8 +565,7 @@ fn synthesize_instance(
         let Some(argument) = substitution.get(name) else {
             continue;
         };
-        let TypeReferenceNode::Named(value) = syntax.type_references.type_reference(*argument)
-        else {
+        let Some(value) = syntax.type_references.type_reference(*argument).as_named() else {
             continue;
         };
         if let Some(value) =
@@ -688,7 +685,7 @@ fn synthesize_instance(
     // binders rewrite to literal arguments, and the remaining binder
     // kinds are still refused upstream.
     let type_identities: HashMap<String, ClosedArgumentIdentity> = {
-        let Item::Data(template) = snapshot.root_item(instance.template) else {
+        let Some(template) = snapshot.root_item(instance.template).as_data() else {
             unreachable!("a discovered template is a data item");
         };
         snapshot

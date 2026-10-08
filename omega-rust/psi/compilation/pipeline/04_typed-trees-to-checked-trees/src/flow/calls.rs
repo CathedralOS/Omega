@@ -330,7 +330,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
                 },
                 _ => continue,
             };
-            let FactPlace::Place(fact_place) = fact.place else {
+            let Some(fact_place) = fact.place.as_place() else {
                 continue;
             };
             let fact_label = semantic.place_label(program, fact_place);
@@ -365,13 +365,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
         });
         semantic.append_ref(&mut refs, fact);
     }
-    reference_spans::append_semantic_context(
-            semantic,
-            build,
-            exit,
-            point,
-            refs,
-        );
+    reference_spans::append_semantic_context(semantic, build, exit, point, refs);
 }
 
 /// Publish the declared field predicates an OWNED nominal call result carries.
@@ -459,13 +453,7 @@ fn append_call_result_field_domain_facts<'plans>(
         });
         semantic.append_ref(&mut refs, fact);
     }
-    reference_spans::append_semantic_context(
-            semantic,
-            build,
-            exit,
-            point,
-            refs,
-        );
+    reference_spans::append_semantic_context(semantic, build, exit, point, refs);
 }
 
 /// Authored `ensures <parameter> in <domain>` claims the call hands back on
@@ -577,13 +565,7 @@ fn append_call_parameter_domain_facts<'plans>(
         });
         let mut refs = HandleSpan::empty();
         semantic.append_ref(&mut refs, fact);
-        reference_spans::append_semantic_context(
-            semantic,
-            build,
-            exit,
-            point,
-            refs,
-        );
+        reference_spans::append_semantic_context(semantic, build, exit, point, refs);
     }
 }
 

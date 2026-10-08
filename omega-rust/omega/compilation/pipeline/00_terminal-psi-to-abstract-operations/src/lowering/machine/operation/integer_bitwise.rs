@@ -1,5 +1,4 @@
 use abstract_operations::AbstractOperation;
-use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind};
 
 use crate::lowering::LoweringError;
@@ -7,7 +6,7 @@ use crate::lowering::LoweringError;
 pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::IntegerBitwiseNot { operand } => {
-            let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type
+            let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer()
             else {
                 return Err(LoweringError::VerifiedIntegerBitwiseMalformed(operation.id));
             };
@@ -21,7 +20,7 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
         OperationKind::IntegerBitwiseAnd { left, right }
         | OperationKind::IntegerBitwiseOr { left, right }
         | OperationKind::IntegerBitwiseXor { left, right } => {
-            let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type
+            let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer()
             else {
                 return Err(LoweringError::VerifiedIntegerBitwiseMalformed(operation.id));
             };

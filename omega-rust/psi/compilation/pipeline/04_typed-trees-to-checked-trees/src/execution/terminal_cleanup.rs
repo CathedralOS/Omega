@@ -139,7 +139,7 @@ fn build_state_plan(
                 } if source_index == statement_index && target_symbol == path.symbol
             )
         }) {
-            let facts::PlaceRoot::Symbol(root) = event.root else {
+            let Some(root) = event.root.as_symbol() else {
                 continue;
             };
             let Some((_, position)) = discard_parameters
@@ -489,9 +489,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
         {
             return None;
         }
-        let facts::PlaceRoot::Symbol(root) = event.root else {
-            return None;
-        };
+        let root = event.root.as_symbol()?;
         let position = parameters.iter().position(|parameter| {
             (parameter.symbol == root)
                 && crate::checks::type_multiplicity(program, parameter.type_reference)
@@ -535,9 +533,7 @@ pub(super) fn state_exit_result_locals(
         .ownership
         .state_exit_cleanup_roots(machine.symbol, state.symbol)?
     {
-        let facts::PlaceRoot::Symbol(symbol) = drop.root else {
-            return None;
-        };
+        let symbol = drop.root.as_symbol()?;
         // A closed-sum case dispatch consumes its subject directly — the
         // terminator build already proved the subject's exit drop, and a
         // `(expression)` arm needs no named successor to account for it.

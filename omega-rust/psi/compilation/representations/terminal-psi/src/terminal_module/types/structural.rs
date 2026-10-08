@@ -308,6 +308,24 @@ pub enum StructuralFieldType {
 }
 
 impl StructuralFieldType {
+    /// The structural type identity, if this field is structural.
+    pub fn as_structural(&self) -> Option<StructuralTypeId> {
+        let StructuralFieldType::Structural(structural) = self else {
+            return None;
+        };
+        Some(*structural)
+    }
+
+    /// The scalar type, if this field is a plain scalar.
+    pub fn as_scalar(&self) -> Option<ScalarType> {
+        let StructuralFieldType::Scalar(scalar) = self else {
+            return None;
+        };
+        Some(*scalar)
+    }
+}
+
+impl StructuralFieldType {
     /// The admitted fixed-width atomic carrier, never an ordinary scalar of
     /// the same representation. Address and floating carriers are not cells.
     pub fn atomic_scalar_type(&self) -> Option<ScalarType> {

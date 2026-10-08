@@ -542,17 +542,17 @@ fn prepare_owners(
         root, argument, ..
     } in &evaluation.structural_locals
     {
-        let facts::PlaceRoot::Symbol(symbol) = root else {
+        let Some(symbol) = root.as_symbol() else {
             continue;
         };
-        if owners.iter().any(|owner| owner.symbol == *symbol) || !available(*symbol)? {
+        if owners.iter().any(|owner| owner.symbol == symbol) || !available(symbol)? {
             continue;
         }
         let local =
             checked
                 .facts
                 .state_locals
-                .named(state, *symbol)
+                .named(state, symbol)
                 .ok_or(LoweringError::Unsupported(
                     "selection survivor has no authored local",
                 ))?;
@@ -587,7 +587,7 @@ fn prepare_owners(
             return unsupported("selection survivor requires claim-free plain-affine transport");
         }
         owners.push(argument_evaluation::StructuralValueOwner {
-            symbol: *symbol,
+            symbol: symbol,
             statement: local.statement_index,
             value: value.clone(),
         });

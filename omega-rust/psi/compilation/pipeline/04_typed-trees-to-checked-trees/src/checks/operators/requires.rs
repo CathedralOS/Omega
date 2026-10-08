@@ -1193,7 +1193,7 @@ fn contexts_prove_case_membership(
     let Some(formal) = validation::canonical_place_from_expression(program, subject) else {
         return false;
     };
-    let facts::PlaceRoot::Symbol(symbol) = formal.root else {
+    let Some(symbol) = formal.root.as_symbol() else {
         return false;
     };
     let Some(position) = typed_trees::signature::state_parameter_position(parameters, symbol)

@@ -64,7 +64,7 @@ impl Denotations<'_> {
         }
         if formal
             && let Some(mut required) = crate::flow::projected_leaf_place(self.program, right)
-            && let facts::PlaceRoot::Symbol(root) = required.root
+            && let Some(root) = required.root.as_symbol()
             && let Some(position) =
                 typed_trees::signature::state_parameter_position(self.parameters, root)
             && let Some(actual) = self.arguments.get(position)

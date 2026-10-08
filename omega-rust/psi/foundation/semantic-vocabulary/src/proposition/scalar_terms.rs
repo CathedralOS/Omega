@@ -18,6 +18,24 @@ pub enum ScalarType {
     IeeeFloat(IeeeFloatFormat),
 }
 
+impl ScalarType {
+    /// The integer descriptor, if this scalar is one.
+    pub fn as_integer(&self) -> Option<IntegerType> {
+        let ScalarType::Integer(integer) = self else {
+            return None;
+        };
+        Some(*integer)
+    }
+
+    /// The IEEE format, if this scalar is a float.
+    pub fn as_ieee_float(&self) -> Option<IeeeFloatFormat> {
+        let ScalarType::IeeeFloat(format) = self else {
+            return None;
+        };
+        Some(*format)
+    }
+}
+
 /// One canonical step below a terminal structural root in a scalar
 /// proposition. Field steps use verifier-owned structural-field identities;
 /// fixed indices retain the exact literal array element; case steps enter one

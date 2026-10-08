@@ -1193,13 +1193,11 @@ fn member_facts(
         // scalar facts at emission.
         if let MemberShape::NestedMessage { schema } = &member.shape {
             let field_handle = value_fields.get(member.name.as_str()).copied()?;
-            let TypeReferenceNode::Named(value_name) = syntax_trees
+            let value_name = syntax_trees
                 .tables
                 .type_references
                 .type_reference(field_handle)
-            else {
-                return None;
-            };
+                .as_named()?;
             let nested_fields = data_fields.get(value_name.as_str())?;
             let (_, sub_members) = schemas
                 .iter()
@@ -1260,13 +1258,11 @@ fn nested_sub_facts(
     schema: &str,
 ) -> Option<Vec<Vec<StorePredicate>>> {
     let field_handle = data_fields.get(value_type)?.get(member_name).copied()?;
-    let TypeReferenceNode::Named(value_name) = syntax_trees
+    let value_name = syntax_trees
         .tables
         .type_references
         .type_reference(field_handle)
-    else {
-        return None;
-    };
+        .as_named()?;
     let nested_fields = data_fields.get(value_name.as_str())?;
     let (_, sub_members) = schemas.iter().find(|(name, _)| name.as_str() == schema)?;
     let mut all = Vec::with_capacity(sub_members.len());

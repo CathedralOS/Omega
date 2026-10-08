@@ -184,7 +184,7 @@ pub(crate) fn apply_recorded_cleanup_events(
     }
     for event in expected {
         if event.kind == PermissionEventKind::Consume {
-            let facts::PlaceRoot::Symbol(symbol) = event.root else {
+            let Some(symbol) = event.root.as_symbol() else {
                 unreachable!()
             };
             let place = places

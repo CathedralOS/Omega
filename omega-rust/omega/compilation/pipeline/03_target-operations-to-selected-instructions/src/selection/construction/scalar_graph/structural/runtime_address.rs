@@ -18,7 +18,7 @@
 //! access's footprint rows. Validation mirrors this sequence instruction for
 //! instruction (`validation/.../runtime_address.rs`).
 use super::{
-    Builder, IntegerSign, LegalizedScalarInstruction, ScalarType, SelectedInstructionKind,
+    Builder, IntegerSign, LegalizedScalarInstruction, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
     transport_register,
 };
@@ -98,7 +98,7 @@ pub(in crate::selection) fn scale(
         let (_, index_register, _, index_type) = builder
             .resolve(index.operand.value)
             .ok_or_else(|| invalid())?;
-        let ScalarType::Integer(integer) = index.operand.scalar_type else {
+        let Some(integer) = index.operand.scalar_type.as_integer() else {
             return Err(invalid());
         };
         if integer.bits() > 64 || index_type != index.operand.scalar_type {

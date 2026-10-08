@@ -302,9 +302,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             ordinal as usize,
             argument,
         )?;
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
-            return None;
-        };
+        let symbol = place.root.as_symbol()?;
         if !place.segments.is_empty() {
             return None;
         }
@@ -633,7 +631,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         ordinal as usize,
                         expression,
                     )
-                    && let facts::PlaceRoot::Symbol(root_symbol) = place.root
+                    && let Some(root_symbol) = place.root.as_symbol()
                 {
                     // The root names either a source parameter — the authored
                     // `self.field` spelling roots at `self`'s own symbol while
@@ -953,9 +951,7 @@ fn projected_value_subject(
         ordinal as usize,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
+    let root_symbol = place.root.as_symbol()?;
     if place.segments.is_empty() {
         return None;
     }
@@ -1234,9 +1230,7 @@ fn case_payload_transfer(
     // A case test can observe either an arrival or an earlier local result.
     // Both use the same payload projection; a local must rejoin its unique
     // retained producer, not just a same-typed value in this state.
-    let facts::PlaceRoot::Symbol(root) = subject_place.root else {
-        return None;
-    };
+    let root = subject_place.root.as_symbol()?;
     let (subject_source, mut subject_type, root_identity) = if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(source), root)
     {

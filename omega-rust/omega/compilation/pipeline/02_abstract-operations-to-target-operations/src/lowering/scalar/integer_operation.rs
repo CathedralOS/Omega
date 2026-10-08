@@ -3,7 +3,7 @@ use super::{IntegerBinaryKind, KnownInteger, KnownScalar, lower_integer_binary, 
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
 use abstract_operations::AbstractOperation;
-use semantic_vocabulary::{ScalarType, ValueId};
+use semantic_vocabulary::ValueId;
 use std::collections::BTreeMap;
 use target_operations::TargetIntegerExpression;
 pub(in crate::lowering) fn try_lower_integer_operation(
@@ -18,7 +18,7 @@ pub(in crate::lowering) fn try_lower_integer_operation(
             scalar_type,
             value,
         } => {
-            let ScalarType::Integer(integer_type) = scalar_type else {
+            let Some(integer_type) = scalar_type.as_integer() else {
                 return Err(LoweringError::IntegerConstantHasNonIntegerType(*result));
             };
             if !integer_type.admits(*value) {
@@ -27,7 +27,7 @@ pub(in crate::lowering) fn try_lower_integer_operation(
             (
                 *psi_operation,
                 *result,
-                *integer_type,
+                integer_type,
                 KnownInteger::Immediate(*value),
             )
         }

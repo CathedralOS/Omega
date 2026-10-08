@@ -10,7 +10,6 @@ use super::aliases::{self, ResolvedAlias};
 use checked_trees::{
     BorrowLoanLineage, CapturedPlace, CheckFacts, FlowStateFact, FlowStatementFact,
 };
-use facts::PlaceRoot;
 use language_semantics::ReferenceAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -70,9 +69,7 @@ pub(in crate::checks::borrows) fn resolve_all(
         statement.statement_index,
         expression,
     )?;
-    let PlaceRoot::Symbol(root_symbol) = source.root else {
-        return None;
-    };
+    let root_symbol = source.root.as_symbol()?;
     let place = CapturedPlace {
         incoming_reference: Default::default(),
         root_symbol,

@@ -926,7 +926,7 @@ pub(super) fn case_projection(
                     .enumerate()
                     .find(|(_, declaration)| declaration.id == *field)
                     .ok_or_else(invalid)?;
-                let StructuralFieldType::Structural(next) = declaration.field_type else {
+                let Some(next) = declaration.field_type.as_structural() else {
                     return Err(invalid());
                 };
                 let layout = structural_sum_layout(current, declarations, cache, active)?;
@@ -947,7 +947,7 @@ pub(super) fn case_projection(
                     .enumerate()
                     .find(|(_, field)| field.id == *identity)
                     .ok_or_else(invalid)?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
+                let Some(next) = field.field_type.as_structural() else {
                     return Err(invalid());
                 };
                 let displacement = if matches!(shape, StructuralTypeShape::Mixed { .. }) {
@@ -1067,7 +1067,7 @@ fn storage_projection_path(
                 let (field_position, field) =
                     terminal_psi::live_field_entry(&cases[case_position].fields, identity)
                         .ok_or_else(invalid)?;
-                let StructuralFieldType::Structural(selected) = field.field_type else {
+                let Some(selected) = field.field_type.as_structural() else {
                     return Err(invalid());
                 };
                 repeated_stride = field

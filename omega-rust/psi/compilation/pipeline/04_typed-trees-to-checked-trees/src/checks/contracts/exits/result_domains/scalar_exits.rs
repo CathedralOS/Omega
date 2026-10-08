@@ -7,7 +7,7 @@ use super::proofs::*;
 use crate::flow::canonical_place_from_semantic_place;
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
-use facts::{FactContextHandle, FactPayload, FactPlace};
+use facts::{FactContextHandle, FactPayload};
 use typed_trees::types::TypeReferenceNode;
 
 /// Shared by the exit census and its consumer: a scalar domain annotation
@@ -302,7 +302,7 @@ pub(in crate::checks::contracts) fn exact_scalar_membership(
                     else {
                         return false;
                     };
-                    let FactPlace::Place(place) = fact.place else {
+                    let Some(place) = fact.place.as_place() else {
                         return false;
                     };
                     candidate == domain_symbol

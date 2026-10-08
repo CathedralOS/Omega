@@ -41,9 +41,8 @@
 
 use super::{
     CheckedUnitStructuralPathSegment, LoweringError, OperationKind, OperationResult, PlaceId,
-    StructuralAccess, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeId, allocate_dense, place_id,
+    StructuralAccess, StructuralFieldId, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, allocate_dense, place_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -569,7 +568,7 @@ fn resolve_window_place(
     })?;
     let (field, hole_type) = match leaf {
         WindowLeaf::Field(field) => {
-            let StructuralFieldType::Structural(hole_type) = field.field_type else {
+            let Some(hole_type) = field.field_type.as_structural() else {
                 return Err(unpinned(
                     &spelling,
                     "the field is not a structural subtree: scalar and byte fields open no \

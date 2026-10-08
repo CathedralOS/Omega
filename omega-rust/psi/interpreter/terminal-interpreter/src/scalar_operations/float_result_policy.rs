@@ -8,7 +8,7 @@ use crate::execution::{OperationFlow, TerminalExecution};
 use crate::results::TerminalExecutionStatus;
 use crate::values::TerminalScalarValue;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
-use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType, ValueId};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ValueId};
 use terminal_psi::{FloatResultPolicy, FloatSaturationRule, Operation, OperationKind};
 
 fn meaning(value: IeeeFloatValue) -> FloatMeaning {
@@ -43,7 +43,7 @@ impl TerminalExecution<'_> {
         let Some(result) = operation.result.scalar_ref() else {
             return Err(malformed());
         };
-        let ScalarType::IeeeFloat(format) = result.scalar_type else {
+        let Some(format) = result.scalar_type.as_ieee_float() else {
             return Err(malformed());
         };
         let raw_result = self.float_policy_operand(policy.raw_result(), format)?;

@@ -523,10 +523,10 @@ impl<'a> Expansion<'a> {
                 // the policy domains share the pure lane's composite casts.
                 let operand = Argument::Computation(operand);
                 let operand_type = self.argument_type(&operand, site, input_types)?;
-                let ScalarType::Integer(source_type) = operand_type.scalar_type else {
+                let Some(source_type) = operand_type.scalar_type.as_integer() else {
                     return unsupported("authored conversion requires fixed integer carriers");
                 };
-                let ScalarType::Integer(target_type) = result_type.scalar_type else {
+                let Some(target_type) = result_type.scalar_type.as_integer() else {
                     return unsupported("authored conversion requires fixed integer carriers");
                 };
                 // Conversion bindings bind the operand's bare carrier: an
@@ -662,7 +662,7 @@ impl<'a> Expansion<'a> {
                         "Boolean-to-integer conversion operand is not a scalar Boolean",
                     );
                 }
-                let ScalarType::Integer(integer_type) = result_type.scalar_type else {
+                let Some(integer_type) = result_type.scalar_type.as_integer() else {
                     return unsupported(
                         "Boolean-to-integer conversion result is not an integer carrier",
                     );

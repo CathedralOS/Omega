@@ -593,11 +593,11 @@ pub(crate) fn substitute_type_reference(
             let const_bindings: HashMap<String, i128> = substitution
                 .iter()
                 .filter_map(|(name, argument)| {
-                    let TypeReferenceNode::Named(value) =
-                        syntax.tables.type_references.type_reference(*argument)
-                    else {
-                        return None;
-                    };
+                    let value = syntax
+                        .tables
+                        .type_references
+                        .type_reference(*argument)
+                        .as_named()?;
                     Some((name.clone(), value.as_str().parse::<i128>().ok()?))
                 })
                 .collect();

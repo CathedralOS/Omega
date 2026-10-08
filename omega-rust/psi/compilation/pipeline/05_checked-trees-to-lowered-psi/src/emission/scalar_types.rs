@@ -56,7 +56,7 @@ pub(crate) fn integer_value(
     literal: &numerics::literals::IntegerLiteral,
     scalar_type: ScalarType,
 ) -> Result<IntegerValue, LoweringError> {
-    let ScalarType::Integer(integer_type) = scalar_type else {
+    let Some(integer_type) = scalar_type.as_integer() else {
         return Err(LoweringError::InvalidPsiIntegerType);
     };
     let landing = literal

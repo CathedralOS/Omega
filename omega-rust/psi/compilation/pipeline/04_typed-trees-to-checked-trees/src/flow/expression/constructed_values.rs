@@ -118,7 +118,7 @@ impl Execution<'_, '_, '_> {
                     .context_view(self.semantic.contexts.get(*context))
                     .facts()
                 {
-                    let FactPlace::Place(place) = fact.place else {
+                    let Some(place) = fact.place.as_place() else {
                         continue;
                     };
                     let Some(place) = crate::flow::canonical_place_from_semantic_place(

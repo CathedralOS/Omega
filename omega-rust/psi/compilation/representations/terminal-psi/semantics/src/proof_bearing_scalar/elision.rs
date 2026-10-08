@@ -76,11 +76,12 @@ pub fn elidable_proof_bearing_scalar_leaf(
     let Some(semantics) = proof_bearing_scalar_leaf_semantics(operation, value_types)? else {
         return Ok(None);
     };
-    let ScalarType::Integer(result_type) = operation
+    let Some(result_type) = operation
         .result
         .scalar_ref()
         .expect("proof-bearing semantics requires a scalar result")
         .scalar_type
+        .as_integer()
     else {
         unreachable!("proof-bearing scalar results are declared integers")
     };

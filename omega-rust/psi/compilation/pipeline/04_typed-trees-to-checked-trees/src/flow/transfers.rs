@@ -23,7 +23,7 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowFacts, FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, ProgramPoint,
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint,
     QualificationEvidence,
 };
 use facts::{PlaceHandle, QualificationCorrespondence, QualificationPayloadIdentity};
@@ -626,7 +626,7 @@ fn exact_structural_symbol_place(
         return false;
     }
     let place = semantic.places.get(handle);
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let Some(root) = place.root.as_symbol() else {
         return false;
     };
     if !root.is_valid() {

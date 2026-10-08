@@ -39,9 +39,7 @@ pub(crate) fn plan(
     )?;
     let mut visited = Vec::new();
     loop {
-        let facts::PlaceRoot::Symbol(root) = place.root else {
-            return None;
-        };
+        let root = place.root.as_symbol()?;
         let Some((declaration_index, local)) = program.state_local_declaration(state, root) else {
             break;
         };
@@ -80,9 +78,7 @@ pub(crate) fn plan(
             segments,
         };
     }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let source = if let Some((position, parameter)) = program
         .state_parameters(state)
         .iter()

@@ -13,7 +13,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, bounds: BoundedIntegerType) {
 pub(super) fn decode(
     cursor: &mut Cursor<'_>,
 ) -> Result<BoundedIntegerType, FixedViewCopyDecodeError> {
-    let ScalarType::Integer(integer) = decode_scalar(cursor)? else {
+    let Some(integer) = decode_scalar(cursor)?.as_integer() else {
         return Err(FixedViewCopyDecodeError::UnknownStructuralFieldType(6));
     };
     let minimum = decode_integer(cursor)?;

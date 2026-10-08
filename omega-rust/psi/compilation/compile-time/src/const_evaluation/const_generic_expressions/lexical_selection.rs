@@ -304,9 +304,7 @@ fn selected_constant(
             let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
                 continue;
             };
-            let Some(declaration) = resolved
-                .const_declaration(selected.selected_symbol())
-            else {
+            let Some(declaration) = resolved.const_declaration(selected.selected_symbol()) else {
                 continue;
             };
             let candidate = ConstArgumentOrigin {

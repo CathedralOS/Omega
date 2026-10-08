@@ -145,7 +145,7 @@ fn value_proves_predicate(
         return false;
     };
     active.iter().any(|fact| {
-        let FactPlace::Place(source) = fact.place else {
+        let Some(source) = fact.place.as_place() else {
             return false;
         };
         if !semantic.places_equal(source, place) {

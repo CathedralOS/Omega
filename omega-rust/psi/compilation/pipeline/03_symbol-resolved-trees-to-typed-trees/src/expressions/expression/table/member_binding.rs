@@ -5,7 +5,6 @@
 use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::call_results::peel;
 use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -98,13 +97,10 @@ fn declared_type<'program>(
                 if selection.source_span() != expressions.source_span(expression) {
                     continue;
                 }
-                let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target()
-                else {
+                let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
                     continue;
                 };
-                let Some(constant) = program
-                    .const_declaration(selected.selected_symbol())
-                else {
+                let Some(constant) = program.const_declaration(selected.selected_symbol()) else {
                     continue;
                 };
                 if !matches!(constant.declared_type, TypeReference::FixedArray(_))

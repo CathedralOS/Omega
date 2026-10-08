@@ -28,7 +28,7 @@ pub(in crate::preparation) fn normalize(
     let mut alias_heads = Vec::new();
     for &declaration in syntax.root_item_handles() {
         let item = syntax.root_item(declaration);
-        if let Item::Domain(domain) = item {
+        if let Some(domain) = item.as_domain() {
             let Some(alias) = &domain.alias else {
                 continue;
             };
@@ -72,7 +72,7 @@ pub(in crate::preparation) fn normalize(
             }
             continue;
         }
-        let Item::Data(definition) = item else {
+        let Some(definition) = item.as_data() else {
             continue;
         };
         let parameters = syntax.items.type_parameters(definition.type_parameters);

@@ -34,9 +34,7 @@ pub(super) fn normalization(
         terminal_semantics::ScalarRepresentationViewPair::classify(*source_type, scalar_type)?;
         return Some(register_form_normalization(scalar_type));
     }
-    let ScalarType::Integer(target) = scalar_type else {
-        return None;
-    };
+    let target = scalar_type.as_integer()?;
     let fixed = |integer: semantic_vocabulary::IntegerType| {
         integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
             && matches!(integer.bits(), 8 | 16 | 32 | 64)

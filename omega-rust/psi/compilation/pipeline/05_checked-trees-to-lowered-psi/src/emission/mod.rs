@@ -82,14 +82,14 @@ pub(crate) fn emit_u64_coordinate(
     next_obligation: &mut u64,
     operations: &mut operation_emission::buffer::OperationBuffer,
 ) -> Result<ValueId, LoweringError> {
-    let ScalarType::Integer(source_type) = source else {
+    let Some(source_type) = source.as_integer() else {
         return unsupported("byte index requires an integer carrier");
     };
     let coordinate_type = terminal_scalar_type(PrimitiveType::U64)?;
     if source == coordinate_type {
         return Ok(operand);
     }
-    let ScalarType::Integer(target_type) = coordinate_type else {
+    let Some(target_type) = coordinate_type.as_integer() else {
         return unsupported("byte coordinate requires an integer carrier");
     };
     let kind = if source_type.can_widen_to(target_type) {

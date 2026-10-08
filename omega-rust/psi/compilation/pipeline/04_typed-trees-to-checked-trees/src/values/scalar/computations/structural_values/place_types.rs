@@ -203,7 +203,7 @@ pub(in crate::values::scalar::computations) fn needs_copied_place_root(
     if !canonical_place_is_copyable(&place) {
         return false;
     }
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let Some(symbol) = place.root.as_symbol() else {
         return false;
     };
     let Some(root) = symbol_declared_type(program, symbol) else {

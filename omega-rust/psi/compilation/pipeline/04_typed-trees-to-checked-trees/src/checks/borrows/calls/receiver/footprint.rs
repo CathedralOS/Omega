@@ -183,9 +183,7 @@ fn retained_subject_access(
         &site,
         call.statement_index,
     )?;
-    let facts::PlaceRoot::Symbol(root_symbol) = parent.root else {
-        return None;
-    };
+    let root_symbol = parent.root.as_symbol()?;
     let mut matching = facts
         .borrow
         .argument_accesses

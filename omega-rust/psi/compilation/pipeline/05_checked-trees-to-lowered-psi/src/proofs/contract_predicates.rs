@@ -111,7 +111,7 @@ fn proposition_with_polarity(
             let left = terms.scalar(left)?;
             let right = terms.scalar(right)?;
             if left.scalar_type() != right.scalar_type() {
-                let ScalarType::Integer(left_type) = left.scalar_type() else {
+                let Some(left_type) = left.scalar_type().as_integer() else {
                     return unsupported("integer contract comparison has a noninteger operand");
                 };
                 // Keep each endpoint's exact carrier and structural identity.
@@ -218,7 +218,7 @@ pub(crate) fn ieee_float_proposition(
     mut left: ScalarTerm,
     mut right: ScalarTerm,
 ) -> Result<Proposition, LoweringError> {
-    let ScalarType::IeeeFloat(format) = left.scalar_type() else {
+    let Some(format) = left.scalar_type().as_ieee_float() else {
         return unsupported("IEEE contract comparison operand is not a float");
     };
     if right.scalar_type() != ScalarType::IeeeFloat(format) {

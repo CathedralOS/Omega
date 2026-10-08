@@ -116,7 +116,7 @@ pub(super) fn project_static_path(
             let (field_position, field) =
                 terminal_psi::live_field_entry(&cases[case_position].fields, identity)
                     .ok_or(InvalidStructuralShape)?;
-            let StructuralFieldType::Structural(selected) = field.field_type else {
+            let Some(selected) = field.field_type.as_structural() else {
                 return Err(InvalidStructuralShape);
             };
             let layout = conventional_sum_layout(common, cases, &indexed, &mut cache, &mut active)?;

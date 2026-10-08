@@ -351,7 +351,7 @@ pub(super) fn value_proves_domain_in_contexts(
             // fact's place label and (for a contract membership) its declared
             // `value` expression label -- the same two-pronged match the
             // statement-transfer propagation uses.
-            let facts::FactPlace::Place(fact_place) = fact.place else {
+            let Some(fact_place) = fact.place.as_place() else {
                 return false;
             };
             if value_place.as_ref().is_some_and(|value_place| {

@@ -161,9 +161,7 @@ pub(in crate::preparation::generic_data) fn selected_machine_state_handles(
         .iter()
         .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| {
-            let Item::Machine(machine) = item else {
-                return None;
-            };
+            let machine = item.as_machine()?;
             if !machine.type_parameters.is_empty()
                 || machine
                     .attached_data

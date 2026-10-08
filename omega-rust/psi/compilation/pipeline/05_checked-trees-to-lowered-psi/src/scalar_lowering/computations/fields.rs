@@ -426,7 +426,7 @@ fn captured_place_subject(
                     literal_index_tail = false;
                     break;
                 }
-                let StructuralFieldType::Structural(nested) = selected.field_type else {
+                let Some(nested) = selected.field_type.as_structural() else {
                     return unsupported("record loan's captured field is not structural");
                 };
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
@@ -894,7 +894,7 @@ pub(crate) fn prepare(
                 let selected = matching.next().ok_or(LoweringError::Unsupported(
                     "record read carrier field is absent",
                 ))?;
-                let StructuralFieldType::Structural(nested) = selected.field_type else {
+                let Some(nested) = selected.field_type.as_structural() else {
                     return unsupported("record read carrier field is not structural");
                 };
                 if matching.next().is_some() || selected.relevance.is_erased() {

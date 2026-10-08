@@ -2,8 +2,7 @@
 
 use super::super::{exact_attribution_count, zero_code_store_source_is_consistent};
 use calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
-    evaluate_call_plan,
+    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use machine_code::{
     MachineCodeFunction, SemanticCodeSite, UnitScalarParameterLocationRecord,
@@ -163,9 +162,9 @@ fn validate_store(
                         && home.source_value != source_value
                 })
                 && zero_code_store_source_is_consistent(
-                        &function.unit_write_only_primitive_stores,
-                        store.source,
-                    ),
+                    &function.unit_write_only_primitive_stores,
+                    store.source,
+                ),
             ScalarType::Boolean,
             1,
             Some(u64::from(value)),
@@ -226,9 +225,7 @@ fn validate_store(
                 .iter()
                 .filter(|home| **home == source_home)
                 .count();
-            let ScalarType::Integer(integer) = source_home.scalar_type else {
-                return None;
-            };
+            let integer = source_home.scalar_type.as_integer()?;
             let (shape, byte_size) = native_scalar_shape(source_home.scalar_type)?;
             (
                 source_count == 1 && home_count == 1 && source_home.shape == shape,
@@ -271,11 +268,10 @@ fn validate_store(
         *placement_byte_size,
         *placement_alignment,
         u32::from(byte_size),
-    )
-        || !function
-            .provenance
-            .operations
-            .contains(&store.psi_operation)
+    ) || !function
+        .provenance
+        .operations
+        .contains(&store.psi_operation)
         || exact_attribution_count(
             &function.semantic_code_attribution,
             store.psi_operation,
@@ -336,7 +332,6 @@ pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape
     }
 }
 
-
 fn exact_zero_code_definition_count(
     function: &MachineCodeFunction,
     defining_operation: semantic_vocabulary::OperationId,
@@ -354,7 +349,6 @@ fn exact_zero_code_definition_count(
         })
         .count()
 }
-
 
 /// Verify the ABI custody of one scalar source that arrived through a call
 /// parameter: the recorded parameter placement must be the plan's own entry

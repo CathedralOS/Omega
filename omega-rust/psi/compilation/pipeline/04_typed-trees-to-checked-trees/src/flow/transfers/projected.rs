@@ -145,7 +145,7 @@ pub(super) fn append_copied_field_predicates(
             | FactPayload::BytePredicate { .. } => fact.payload,
             _ => continue,
         };
-        let FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             continue;
         };
         let place = semantic.places.get(place);
@@ -279,9 +279,7 @@ pub(super) fn bound_reference_referent_place(
     if !destination.segments.is_empty() {
         return None;
     }
-    let facts::PlaceRoot::Symbol(local_symbol) = destination.root else {
-        return None;
-    };
+    let local_symbol = destination.root.as_symbol()?;
     if !local_symbol.is_valid() {
         return None;
     }

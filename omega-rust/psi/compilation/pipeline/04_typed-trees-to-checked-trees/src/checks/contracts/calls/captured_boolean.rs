@@ -180,9 +180,7 @@ fn actual_for_formal_place<'program>(
     target: symbols::SymbolHandle,
     declared: &validation::CanonicalPlace,
 ) -> Option<call_values::Actual<'program>> {
-    let PlaceRoot::Symbol(symbol) = declared.root else {
-        return None;
-    };
+    let symbol = declared.root.as_symbol()?;
     let position = crate::semantic::facts::contract_parameter_position(
         program,
         &facts.proof,
@@ -286,7 +284,7 @@ fn source_substitution_preserves_captures(
     let invocation = facts.flow.control.operands.span(call.operands)?.last();
     for occurrence in occurrences {
         let declared = validation::canonical_place_from_expression(program, occurrence)?;
-        let PlaceRoot::Symbol(symbol) = declared.root else {
+        let Some(symbol) = declared.root.as_symbol() else {
             continue;
         };
         let mut position = None;

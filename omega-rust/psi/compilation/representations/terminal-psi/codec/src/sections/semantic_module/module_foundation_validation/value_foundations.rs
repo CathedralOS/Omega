@@ -464,7 +464,7 @@ fn validate_constructor_projection(
     if argument.path.is_empty() {
         return Ok(());
     }
-    let StructuralFieldType::Structural(expected) = field_type else {
+    let Some(expected) = field_type.as_structural() else {
         return malformed("projected constructor operand requires a structural field");
     };
     if !argument.path.iter().all(|segment| {
@@ -479,7 +479,7 @@ fn validate_constructor_projection(
     let Some(root) = super::structural_place_type(machine, argument.place) else {
         return malformed("projected constructor operand has no declared root");
     };
-    if super::validate_structural_path(module, root, &argument.path)? != *expected {
+    if super::validate_structural_path(module, root, &argument.path)? != expected {
         return malformed("projected constructor operand differs from its field carrier");
     }
     Ok(())

@@ -136,7 +136,7 @@ impl RouteTerms<'_> {
             CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
                 let left = self.lower_integer_term(left)?;
                 let right = self.lower_integer_term(right)?;
-                let ScalarType::Integer(integer_type) = left.scalar_type() else {
+                let Some(integer_type) = left.scalar_type().as_integer() else {
                     return unsupported("structural crash comparison operand is not an integer");
                 };
                 match kind {
@@ -195,7 +195,7 @@ impl RouteTerms<'_> {
                     path,
                     primitive_type,
                 } => {
-                    let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                    let Some(integer_type) = integer_scalar_type(*primitive_type)?.as_integer()
                     else {
                         return unsupported(
                             "structural crash integer member has a non-integer type",
@@ -211,7 +211,7 @@ impl RouteTerms<'_> {
                 }
                 CheckedScalarExpression::IntegerLiteral { literal } => {
                     let scalar_type = integer_landing_scalar_type(literal)?;
-                    let ScalarType::Integer(integer_type) = scalar_type else {
+                    let Some(integer_type) = scalar_type.as_integer() else {
                         return unsupported(
                             "structural crash integer literal is not fixed-integer",
                         );

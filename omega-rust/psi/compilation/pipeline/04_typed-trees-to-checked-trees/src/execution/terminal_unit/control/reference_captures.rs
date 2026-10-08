@@ -54,9 +54,7 @@ pub(in crate::execution::terminal_unit) fn plan(
         statement_index,
         target,
     )?;
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let (backing_type, mut path) = calls::projected_borrowed_path(
         program,
         machine.symbol,

@@ -201,13 +201,10 @@ fn root_data_definition<'program>(
     state: &typed_trees::state::State,
     root: facts::PlaceRoot,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    let facts::PlaceRoot::Symbol(symbol) = root else {
-        return None;
-    };
+    let symbol = root.as_symbol()?;
     if symbol == machine.symbol {
         let attached = machine.attached_data.as_ref()?;
-        return program
-            .data_definition_by_name_str(attached.as_str());
+        return program.data_definition_by_name_str(attached.as_str());
     }
     let parameter = program.state_parameter_by_symbol(state, symbol)?;
     validation::field_domains::readable_nominal_definition(program, parameter.type_reference)
@@ -588,7 +585,7 @@ pub(super) fn capture(
             continue;
         };
 
-        if let facts::PlaceRoot::Symbol(_) = place.root {
+        if let Some(_) = place.root.as_symbol() {
             argument_roots.push((place.root, place.segments, parameter.symbol));
         }
     }
@@ -702,7 +699,7 @@ pub(super) fn capture(
                     }
                 }
             }
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 continue;
             };
             let Some(place) =

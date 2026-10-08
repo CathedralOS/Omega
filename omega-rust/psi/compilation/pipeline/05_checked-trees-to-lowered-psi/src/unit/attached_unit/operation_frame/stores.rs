@@ -239,10 +239,11 @@ impl OperationFrame<'_, '_> {
                     // A projected store writes through an established
                     // structural local's owned place: the declared carrier
                     // supplies the walk, the binding table supplies storage.
-                    let (source, declared) = crate::expression_preparation::bindings::structural_local_by_root(
-                        &self.evaluation.structural_locals,
-                        facts::PlaceRoot::Symbol(*symbol),
-                    )
+                    let (source, declared) =
+                        crate::expression_preparation::bindings::structural_local_by_root(
+                            &self.evaluation.structural_locals,
+                            facts::PlaceRoot::Symbol(*symbol),
+                        )
                         .map(|local| (local.argument.clone(), local.structural_type))
                         .ok_or(LoweringError::Unsupported(
                             "primitive store lost its structural local destination",
@@ -994,7 +995,7 @@ impl OperationFrame<'_, '_> {
             field_identity,
             self.structural_types.declarations(),
         )?;
-        let terminal_psi::StructuralFieldType::Structural(hole_type) = field.field_type else {
+        let Some(hole_type) = field.field_type.as_structural() else {
             return unsupported("sum field store names a non-structural field");
         };
         let (replacement, type_identity) = match &store.value {

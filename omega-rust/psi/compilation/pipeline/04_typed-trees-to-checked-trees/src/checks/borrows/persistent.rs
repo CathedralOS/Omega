@@ -573,7 +573,7 @@ fn persistent_field_and_tail(
     place: &validation::CanonicalPlace,
     persistent: &[(SymbolHandle, &str, TypeReferenceHandle)],
 ) -> Option<(SymbolHandle, usize)> {
-    if let facts::PlaceRoot::Symbol(symbol) = place.root
+    if let Some(symbol) = place.root.as_symbol()
         && persistent
             .iter()
             .any(|(candidate, _, _)| *candidate == symbol)
@@ -1116,7 +1116,7 @@ fn persistent_target_type<'program>(
     place: &validation::CanonicalPlace,
     persistent: &[(SymbolHandle, &'program str, TypeReferenceHandle)],
 ) -> Option<(&'program str, TypeReferenceHandle)> {
-    if let facts::PlaceRoot::Symbol(symbol) = place.root
+    if let Some(symbol) = place.root.as_symbol()
         && let Some((_, name, root_type)) = persistent
             .iter()
             .find(|(candidate, _, _)| *candidate == symbol)

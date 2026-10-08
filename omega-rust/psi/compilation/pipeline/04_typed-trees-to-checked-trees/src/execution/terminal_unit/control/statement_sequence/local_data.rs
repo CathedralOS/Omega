@@ -896,9 +896,7 @@ fn place_loan(
         statement,
         formation.source,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     // The loaned storage must root at a structural parameter this state
     // already writes through, or at an earlier local of this state — the
     // same named-custody family in both spellings. A computed expression

@@ -6,8 +6,8 @@
 use validation::CanonicalPlace;
 
 use super::{
-    ExpressionHandle, FactPlan, FlowBuildContext, PlaceHandle, PlaceRoot, StatementNode,
-    SymbolHandle, contextual_expression_place,
+    ExpressionHandle, FactPlan, FlowBuildContext, PlaceHandle, StatementNode, SymbolHandle,
+    contextual_expression_place,
 };
 
 /// The place one statement writes and the value it writes there.
@@ -91,7 +91,7 @@ pub(super) fn statement_write(
                     ) {
                         Some(exact) => exact,
                         None => {
-                            if let PlaceRoot::Symbol(root) = canonical.root
+                            if let Some(root) = canonical.root.as_symbol()
                                 && let Some(candidates) = build.reference_candidate_places_at(
                                     program,
                                     state_symbol,

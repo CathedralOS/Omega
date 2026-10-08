@@ -249,9 +249,7 @@ fn direct_structural_float_leaf_source(
     let entry = program.machine_states(machine).first()?;
     let parameters = program.state_parameters(entry);
     let place = validation::canonical_place_from_expression(program, fact.source)?;
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let parameter_position = parameters
         .iter()
         .position(|parameter| {

@@ -26,7 +26,7 @@ pub(super) fn append_transfer(
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let facts::PlaceRoot::Symbol(symbol) = event.root else {
+    let Some(symbol) = event.root.as_symbol() else {
         return;
     };
     let Some(statement_index) = event_statement_index(event.source) else {
@@ -195,7 +195,7 @@ pub(super) fn append_replacement(
         return;
     };
 
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let Some(symbol) = place.root.as_symbol() else {
         return;
     };
     if !place.has_only_positional_segments() {

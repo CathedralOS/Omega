@@ -26,9 +26,9 @@ use super::{
     ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
     ContentStructuralPlace, ContentTerm, LoweringError, PermissionClaimIdentity, PlaceId,
     Proposition, PropositionContext, SemanticDomainId, StructuralContentProjection,
-    StructuralFieldType, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
-    conservation_report_fingerprint, lookup_claim_id, unsupported,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeShape, conservation_report_fingerprint,
+    lookup_claim_id, unsupported,
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 
@@ -293,7 +293,7 @@ pub(crate) fn lower_whole_content_entry_claims(
                     if field.relevance != language_core::BindingRelevance::Relevant {
                         return unsupported("content claim traverses an erased field");
                     }
-                    let StructuralFieldType::Structural(child) = field.field_type else {
+                    let Some(child) = field.field_type.as_structural() else {
                         return unsupported("content claim selects a nonstructural field");
                     };
                     segments.push(ContentPlaceSegment::Field(identity.clone()));

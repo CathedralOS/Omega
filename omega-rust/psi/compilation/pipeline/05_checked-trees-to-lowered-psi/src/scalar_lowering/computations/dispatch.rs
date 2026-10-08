@@ -92,7 +92,10 @@ impl Expansion<'_> {
                     erased_formal_types: Vec::new(),
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::jump(selected, parameters(input_types)),
+                    terminator: LoweredScalarBranchTerminator::jump(
+                        selected,
+                        parameters(input_types),
+                    ),
                 }),
                 CheckedScalarDispatchPattern::Value(pattern) => {
                     let mut comparison_bindings = Vec::new();

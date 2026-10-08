@@ -219,7 +219,7 @@ fn validate_scalar_abi(target: NativeTarget, abi: &ScalarFunctionAbi) -> Result<
         .iter()
         .map(|value| scalar_home_shape(value.scalar_type).ok_or(()))
         .collect::<Result<Vec<_>, _>>()?;
-    let ScalarType::Integer(result_integer) = abi.result.scalar_type else {
+    let Some(result_integer) = abi.result.scalar_type.as_integer() else {
         return Err(());
     };
     let result_shape = integer_shape(result_integer).ok_or(())?;
@@ -1033,7 +1033,6 @@ fn expected_aarch64_normalize(words: &mut Vec<u32>, register: u8, scalar: Scalar
             | u32::from(register),
     );
 }
-
 
 fn align(value: u32, alignment: u32) -> Option<u32> {
     if alignment == 0 || !alignment.is_power_of_two() {

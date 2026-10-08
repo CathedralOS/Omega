@@ -94,9 +94,7 @@ impl Builder<'_, '_> {
             statement_index,
             subject,
         )?;
-        let facts::PlaceRoot::Symbol(root) = place.root else {
-            return None;
-        };
+        let root = place.root.as_symbol()?;
         let parameter = self.authored_parameters.iter().find(|parameter| {
             (facts::PlaceRoot::Symbol(parameter.symbol)) == facts::PlaceRoot::Symbol(root)
         });

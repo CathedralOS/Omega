@@ -135,8 +135,8 @@ pub(super) fn resolve<'a>(
         ordinal,
         target,
     )?;
-    let materialized = |root| {
-        let facts::PlaceRoot::Symbol(symbol) = root else {
+    let materialized = |root: facts::PlaceRoot| {
+        let Some(symbol) = root.as_symbol() else {
             return false;
         };
         let Some((declared, local)) = program.state_local_declaration(state, symbol) else {
@@ -156,9 +156,7 @@ pub(super) fn resolve<'a>(
     } else {
         rejoin_loan_local(program, machine, state, ordinal, place)?
     };
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
+    let root_symbol = place.root.as_symbol()?;
     let selectors = super::selectors::TargetSelectors::resolve(
         program,
         facts,
@@ -756,7 +754,7 @@ fn rejoin_loan_local(
     validation::CanonicalPlace,
     Option<typed_trees::types::PrimitiveType>,
 )> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let Some(symbol) = place.root.as_symbol() else {
         return Some((place, None));
     };
     let statements = program.statement_table.statements(state.statement_nodes);

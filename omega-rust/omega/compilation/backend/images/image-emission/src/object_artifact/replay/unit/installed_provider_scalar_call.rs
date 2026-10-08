@@ -63,7 +63,7 @@ pub(crate) fn validate_installed_provider_unit_scalar_calls(
         else {
             return Err(invalid());
         };
-        let ScalarType::Integer(integer_type) = scalar_type else {
+        let Some(integer_type) = scalar_type.as_integer() else {
             return Err(invalid());
         };
         let expected_register = match target.architecture {

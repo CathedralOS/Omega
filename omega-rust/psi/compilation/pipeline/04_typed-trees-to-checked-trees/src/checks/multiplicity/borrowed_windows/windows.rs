@@ -98,9 +98,7 @@ impl BorrowedStorageWindows {
         if program.type_multiplicity(value_type) != language_semantics::Multiplicity::Affine {
             return None;
         }
-        let facts::PlaceRoot::Symbol(symbol) = target.root else {
-            return None;
-        };
+        let symbol = target.root.as_symbol()?;
         let (root, path) = resolve_storage_place(
             program,
             machine,
@@ -148,7 +146,7 @@ impl BorrowedStorageWindows {
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) -> Option<Diagnostic> {
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let Some(root_symbol) = event.root.as_symbol() else {
             return Some(borrowed_transfer_diagnostic(
                 machine,
                 state,
@@ -247,7 +245,7 @@ impl BorrowedStorageWindows {
         if self.open.is_empty() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let Some(root_symbol) = event.root.as_symbol() else {
             return;
         };
         let (root, storage_path) = resolve_storage_place(
@@ -314,7 +312,7 @@ impl BorrowedStorageWindows {
         if self.open.is_empty() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
+        let Some(root_symbol) = use_place.root.as_symbol() else {
             return;
         };
         let (root, storage_path) = resolve_storage_place(
@@ -362,7 +360,7 @@ impl BorrowedStorageWindows {
         ) else {
             return;
         };
-        let facts::PlaceRoot::Symbol(root_symbol) = target.root else {
+        let Some(root_symbol) = target.root.as_symbol() else {
             return;
         };
         let (root, target_path) = resolve_storage_place(

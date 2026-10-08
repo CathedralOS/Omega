@@ -181,9 +181,7 @@ fn owner_source(
     plan: &CheckedComposedUnitControlStatePlan,
     root: PlaceRoot,
 ) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
-    let PlaceRoot::Symbol(symbol) = root else {
-        return None;
-    };
+    let symbol = root.as_symbol()?;
     if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     {

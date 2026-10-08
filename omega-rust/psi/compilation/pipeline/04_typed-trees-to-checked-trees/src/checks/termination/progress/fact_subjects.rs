@@ -55,9 +55,7 @@ pub(crate) fn subject_from_place(
     root: PlaceRoot,
     segments: &[PlaceSegment],
 ) -> Option<ProgressSubject> {
-    let PlaceRoot::Symbol(root) = root else {
-        return None;
-    };
+    let root = root.as_symbol()?;
     let mut projections = Vec::new();
     for segment in segments {
         match segment {

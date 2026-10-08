@@ -2,7 +2,7 @@
 //! and named crash-route discharge. Callers select contexts, polarity and
 //! incoming rows; this module only matches a retained true fact's label.
 
-use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan};
+use facts::{FactContextHandle, FactPayload, FactPlan};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::semantic_boolean_fact_label;
@@ -52,7 +52,7 @@ pub(crate) fn context_proves_boolean_label(
                 value,
                 ..
             } => {
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     return false;
                 };
                 let canonical_base = semantic.place_label(program, place);

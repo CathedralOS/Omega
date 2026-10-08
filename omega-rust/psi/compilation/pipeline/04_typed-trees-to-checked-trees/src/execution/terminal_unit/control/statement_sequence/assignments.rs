@@ -589,9 +589,7 @@ fn bound_value_source(
     if !value_place.segments.is_empty() {
         return None;
     }
-    let facts::PlaceRoot::Symbol(symbol) = value_place.root else {
-        return None;
-    };
+    let symbol = value_place.root.as_symbol()?;
     if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     {

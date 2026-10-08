@@ -9,8 +9,8 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeMap;
 use terminal_psi::{
-    Operation, StructuralAccess, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    Operation, StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 /// Initialized payloadless case contents below one structural entry argument.
@@ -104,7 +104,7 @@ impl TerminalExecution<'_> {
                         terminal_psi::field_by_identity(&case.fields, identity)
                             .ok_or_else(malformed)?
                     };
-                    let StructuralFieldType::Structural(child) = field.field_type else {
+                    let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
                     structural_type = child;
@@ -208,7 +208,7 @@ impl TerminalExecution<'_> {
                             candidate.id == *field && !candidate.relevance.is_erased()
                         })
                         .ok_or_else(malformed)?;
-                    let StructuralFieldType::Structural(child) = field.field_type else {
+                    let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
                     leaf.path

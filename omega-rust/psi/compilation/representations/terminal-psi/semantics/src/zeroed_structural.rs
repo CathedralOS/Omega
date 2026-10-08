@@ -199,7 +199,7 @@ fn zeroed_declaration_graph(
                 if field.relevance.is_erased() {
                     return false;
                 }
-                if let StructuralFieldType::Structural(member) = field.field_type {
+                if let Some(member) = field.field_type.as_structural() {
                     pending.push((member, false));
                 } else if zeroed_field_scalar(field).is_none() {
                     return false;
@@ -220,7 +220,7 @@ fn zeroed_declaration_graph(
             if field.relevance.is_erased() {
                 return false;
             }
-            if let StructuralFieldType::Structural(member) = field.field_type {
+            if let Some(member) = field.field_type.as_structural() {
                 pending.push((member, false));
             } else if zeroed_field_scalar(field).is_none() && !zeroed_byte_field(field) {
                 return false;
@@ -327,7 +327,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     consumed[index] = true;
                     continue;
                 }
-                if let StructuralFieldType::Structural(member) = field.field_type {
+                if let Some(member) = field.field_type.as_structural() {
                     let mut member_path = path.clone();
                     member_path.push(StructuralPathSegment::Field(field.identity.clone()));
                     pending.push((member, member_path));
@@ -392,7 +392,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     scalar_type: tag_type,
                 });
                 for field in &first.fields {
-                    if let StructuralFieldType::Structural(member) = field.field_type {
+                    if let Some(member) = field.field_type.as_structural() {
                         let mut member_path = path.clone();
                         member_path.push(StructuralPathSegment::Case(first.id));
                         member_path.push(StructuralPathSegment::Field(field.identity.clone()));

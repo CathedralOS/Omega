@@ -483,10 +483,7 @@ fn authorized_ensures_signature(
 ) -> bool {
     program
         .trait_definition_by_symbol(owner_symbol)
-        .and_then(|owner| {
-            program
-                .trait_machine_signature_by_symbol(owner, state_symbol)
-        })
+        .and_then(|owner| program.trait_machine_signature_by_symbol(owner, state_symbol))
         .is_some_and(|signature| {
             crate::facts::qualification_evidence::boundary_qualification_authorization(
                 program,
@@ -514,8 +511,7 @@ fn boundary_requirement_signature<'a>(
                 .iter()
                 .any(|signature| signature.symbol == target_symbol)
     })?;
-    let signature = program
-        .trait_machine_signature_by_symbol(owner, target_symbol)?;
+    let signature = program.trait_machine_signature_by_symbol(owner, target_symbol)?;
     domain
         .establishment_routes
         .iter()
@@ -609,8 +605,7 @@ fn qualified_leaf_carrier(
                             _ => None,
                         })
                         .and_then(|variant| {
-                            program
-                                .data_payload_field_by_symbol(variant, *symbol)
+                            program.data_payload_field_by_symbol(variant, *symbol)
                         })?,
                     None => program
                         .data_members(data)
@@ -741,7 +736,7 @@ fn consumes_qualified_input(
             {
                 continue;
             }
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 continue;
             };
             let place = facts.semantic.places.get(place);

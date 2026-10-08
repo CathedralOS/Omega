@@ -286,10 +286,9 @@ fn structural_field_root(
         if steps.len() >= structural_types.len() {
             return unsupported("field geometry contains a cyclic reference path");
         }
-        field_owner = terminal_psi::find_structural_type(structural_types, *referent)
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar store referent type is absent",
-            ))?;
+        field_owner = terminal_psi::find_structural_type(structural_types, *referent).ok_or(
+            LoweringError::Unsupported("structural scalar store referent type is absent"),
+        )?;
         steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
     }
     Ok((field_owner, steps))
@@ -362,7 +361,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
                 let [carrier] = carriers.as_slice() else {
                     return unsupported("structural scalar store carrier is absent or ambiguous");
                 };
-                let StructuralFieldType::Structural(nested) = carrier.field_type else {
+                let Some(nested) = carrier.field_type.as_structural() else {
                     unreachable!("carrier shape was checked above")
                 };
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
@@ -386,10 +385,10 @@ pub(crate) fn lower_structural_field_steps<'a>(
                     StructuralTypeShape::ElementView { element } => {
                         steps.push(ProjectionStep::RuntimeIndexLiteral { index: *index });
                         let selected = *element;
-                        field_owner = terminal_psi::find_structural_type(structural_types, selected)
-                            .ok_or(LoweringError::Unsupported(
-                                "view element declaration is absent",
-                            ))?;
+                        field_owner =
+                            terminal_psi::find_structural_type(structural_types, selected).ok_or(
+                                LoweringError::Unsupported("view element declaration is absent"),
+                            )?;
                         continue;
                     }
                     _ => {
@@ -515,13 +514,12 @@ pub(crate) fn lower_window_path<'a>(
                 steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
                     identity.clone(),
                 )));
-                let StructuralFieldType::Structural(nested) = carrier.field_type else {
+                let Some(nested) = carrier.field_type.as_structural() else {
                     unreachable!("carrier shape was checked above")
                 };
-                field_owner = terminal_psi::find_structural_type(structural_types, nested)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural window nested carrier type is absent",
-                    ))?;
+                field_owner = terminal_psi::find_structural_type(structural_types, nested).ok_or(
+                    LoweringError::Unsupported("structural window nested carrier type is absent"),
+                )?;
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {

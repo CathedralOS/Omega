@@ -352,7 +352,7 @@ pub(crate) fn order_antisymmetry(
             "integer order antisymmetry",
         ));
     };
-    let ScalarType::Integer(carrier) = left.scalar_type() else {
+    let Some(carrier) = left.scalar_type().as_integer() else {
         return Err(ProofError::RulePremiseMismatch(
             "integer order antisymmetry carrier",
         ));

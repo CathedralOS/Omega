@@ -1,7 +1,7 @@
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
-    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, find_structural_case, live_field_by_id,
+    StructuralAccess, StructuralFieldDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, find_structural_case, live_field_by_id,
 };
 
 /// The original record carrier reached by exact declaration-local field IDs.
@@ -241,9 +241,7 @@ fn walk_record_fields<'types>(
             None => declaration.shape.direct_fields()?,
         };
         let field = live_field_by_id(fields, *field)?;
-        let StructuralFieldType::Structural(child) = field.field_type else {
-            return None;
-        };
+        let child = field.field_type.as_structural()?;
         runtime_path.push(StructuralPathSegment::Field(field.identity.clone()));
         structural_type = child;
     }

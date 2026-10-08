@@ -666,7 +666,7 @@ pub(super) fn normalized_bound(
         program.expression_table.expression(expression),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Borrow(_)
     ) && let Some(place) = validation::canonical_place_from_expression(program, expression)
-        && let facts::PlaceRoot::Expression(root) = place.root
+        && let Some(root) = place.root.as_expression()
         && matches!(
             program.expression_table.expression(root),
             ExpressionNode::Call(_)

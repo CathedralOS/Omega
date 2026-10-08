@@ -48,9 +48,7 @@ pub(crate) fn has_claim_free_affine_identity_custody(returned: &StructuralReturn
 /// ordinary scalar.
 /// Whether the evidence's discard order is the reverse of its local
 /// construction chain and every non-scalar parameter is affine.
-pub(crate) fn return_discards_and_parameters_are_exact(
-    returned: &StructuralReturnRecord,
-) -> bool {
+pub(crate) fn return_discards_and_parameters_are_exact(returned: &StructuralReturnRecord) -> bool {
     returned.trivial_affine_discards
         == returned
             .trivial_affine_locals
@@ -81,10 +79,7 @@ pub(crate) fn structural_return_call_plan(
         .scalar_parameters
         .iter()
         .map(|parameter| {
-            let semantic_vocabulary::ScalarType::Integer(integer) = parameter.scalar_type
-            else {
-                return None;
-            };
+            let integer = parameter.scalar_type.as_integer()?;
             if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
                 return None;
             }

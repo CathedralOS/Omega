@@ -14,7 +14,7 @@ pub(in crate::checks::ranges::facts::dependencies) fn root_is_current(
     statement_index: usize,
     root: facts::PlaceRoot,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(symbol) = root else {
+    let Some(symbol) = root.as_symbol() else {
         return false;
     };
     symbol == machine.symbol

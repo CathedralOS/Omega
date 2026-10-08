@@ -53,7 +53,7 @@ pub(super) fn append_whole_affine_transfer(
         );
         return;
     }
-    let facts::PlaceRoot::Expression(expression) = event.root else {
+    let Some(expression) = event.root.as_expression() else {
         return;
     };
     let FlowOwnershipEventSource::Call {
@@ -199,7 +199,7 @@ pub(super) fn check_unselected_claims(
     path: &[facts::PlaceSegment],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let facts::PlaceRoot::Expression(_) = event.root else {
+    let Some(_) = event.root.as_expression() else {
         return;
     };
     let root = validation::CanonicalPlace {

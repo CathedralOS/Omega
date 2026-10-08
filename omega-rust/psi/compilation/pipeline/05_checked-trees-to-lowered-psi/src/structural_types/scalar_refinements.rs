@@ -34,7 +34,7 @@ impl PredicateTerms for FieldSubject {
                 Ok(ScalarTerm::value(ScalarRefinement::SUBJECT, self.carrier))
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
-                let ScalarType::Integer(integer) = self.carrier else {
+                let Some(integer) = self.carrier.as_integer() else {
                     return unsupported("scalar field predicate has a noninteger literal carrier");
                 };
                 ScalarTerm::integer(integer, integer_value(literal, self.carrier)?)

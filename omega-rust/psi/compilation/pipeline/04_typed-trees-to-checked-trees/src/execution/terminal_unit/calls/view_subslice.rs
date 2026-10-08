@@ -538,9 +538,7 @@ fn array_collection(
         collection,
     )?;
 
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     let root = if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     {

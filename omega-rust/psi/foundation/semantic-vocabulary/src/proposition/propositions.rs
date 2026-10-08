@@ -71,6 +71,16 @@ pub enum Proposition {
 }
 
 impl Proposition {
+    /// The (left, right) scalar terms, if this proposition is an equality.
+    pub fn as_equal(&self) -> Option<(&ScalarTerm, &ScalarTerm)> {
+        let Proposition::Equal(left, right) = self else {
+            return None;
+        };
+        Some((left, right))
+    }
+}
+
+impl Proposition {
     pub fn validate(&self) -> Result<(), PropositionError> {
         // An explicit worklist keeps deep propositions off the call stack:
         // children push in reverse so they still validate left to right, and

@@ -433,7 +433,7 @@ pub(super) fn leaf_paths(
             }
             StructuralTypeShape::Record { fields, .. } => {
                 for field in fields.iter().rev() {
-                    if let StructuralFieldType::Structural(child) = field.field_type {
+                    if let Some(child) = field.field_type.as_structural() {
                         if !contains_reference(types, child) {
                             continue;
                         }

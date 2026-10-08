@@ -93,7 +93,7 @@ pub fn check_integer_shift_chain_witness(
     if !matches!(witness.root, ScalarTerm::Value { .. }) {
         return Err(IntegerShiftChainWitnessError::RootNotValue);
     }
-    let ScalarType::Integer(value_type) = witness.root.scalar_type() else {
+    let Some(value_type) = witness.root.scalar_type().as_integer() else {
         return Err(IntegerShiftChainWitnessError::RootNotInteger);
     };
     if !fixed_native(value_type) {

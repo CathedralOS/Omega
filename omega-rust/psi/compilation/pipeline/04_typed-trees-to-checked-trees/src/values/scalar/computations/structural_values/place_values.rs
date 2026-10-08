@@ -119,9 +119,7 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
-            return None;
-        };
+        let symbol = place.root.as_symbol()?;
         // Value planning precedes the final structural parameter roster. Its
         // dense positions change when a borrowed receiver is retained, so an
         // authored leaf must keep its symbol until binding resolves that roster.
@@ -284,9 +282,7 @@ impl Builder<'_, '_> {
         if !canonical_place_is_borrowable(&place) {
             return None;
         }
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
-            return None;
-        };
+        let symbol = place.root.as_symbol()?;
         let source = self.structural_source(symbol);
         let (mut projected, mut path) =
             crate::execution::terminal_unit::calls::projected_argument_path(

@@ -10,9 +10,7 @@
 //! runtime bounds, live loan, value custody and exact restoration debt.
 
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
-use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
 /// Declaration-derived complete projection and the subtree it selects.
 pub struct StructuralWindowProjection {
@@ -98,9 +96,7 @@ pub fn structural_window_projection<'types>(
                 if matches.next().is_some() || field.relevance.is_erased() {
                     return None;
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
+                let child = field.field_type.as_structural()?;
                 child
             }
             (
@@ -127,9 +123,7 @@ pub fn structural_window_projection<'types>(
         if matches.next().is_some() || field.relevance.is_erased() {
             return None;
         }
-        let StructuralFieldType::Structural(child) = field.field_type else {
-            return None;
-        };
+        let child = field.field_type.as_structural()?;
         selected = declaration(child)?;
         complete.push(StructuralPathSegment::Field(field.identity.clone()));
     }

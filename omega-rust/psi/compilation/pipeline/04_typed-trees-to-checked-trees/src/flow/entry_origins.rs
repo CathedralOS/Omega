@@ -596,15 +596,15 @@ pub(super) fn rebase_contexts(
                 for occurrence in contract_occurrences.iter().copied() {
                     if let Some(place) =
                         build.canonical_place_at(program, entry.symbol, 0, occurrence)
-                        && let facts::PlaceRoot::Symbol(root) = place.root
+                        && let Some(root) = place.root.as_symbol()
                     {
                         required_roots.push(root);
                     }
                 }
             }
-            if let FactPlace::Place(place) = fact.place {
+            if let Some(place) = fact.place.as_place() {
                 let mut place = *semantic.places.get(place);
-                if let facts::PlaceRoot::Symbol(root) = place.root {
+                if let Some(root) = place.root.as_symbol() {
                     required_roots.push(root);
                     if let Some((_, target)) = origins.iter().find(|(entry, _)| *entry == root) {
                         place.root = facts::PlaceRoot::Symbol(*target);

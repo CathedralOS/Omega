@@ -71,8 +71,7 @@ fn resolved_fixed_length(
             let Some(argument) = substitution.get(name.as_str()) else {
                 return Err("computed array constant length is an open parameter".to_owned());
             };
-            let TypeReferenceNode::Named(value) = syntax.type_references.type_reference(*argument)
-            else {
+            let Some(value) = syntax.type_references.type_reference(*argument).as_named() else {
                 return Err("computed array constant length is not a closed literal".to_owned());
             };
             value
@@ -103,8 +102,10 @@ pub(crate) fn pending_const_initializer_leaves(
     ) -> Result<(), String> {
         // A carrier spelled as a bare parameter reselects the enclosing
         // application's already-closed argument handle.
-        if let TypeReferenceNode::Named(name) =
-            syntax.type_references.type_reference(type_reference)
+        if let Some(name) = syntax
+            .type_references
+            .type_reference(type_reference)
+            .as_named()
             && let Some(argument) = substitution.get(name.as_str())
         {
             return collect(
@@ -530,7 +531,10 @@ fn pending_aggregate_placeholder_at(
 
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(type_reference)
+    if let Some(name) = syntax
+        .type_references
+        .type_reference(type_reference)
+        .as_named()
         && let Some(argument) = substitution.get(name.as_str())
     {
         return pending_aggregate_placeholder_at(

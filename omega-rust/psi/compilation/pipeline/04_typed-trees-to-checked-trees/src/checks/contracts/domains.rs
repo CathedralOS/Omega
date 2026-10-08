@@ -1,4 +1,4 @@
-use facts::{FactPayload, FactPlace};
+use facts::FactPayload;
 use symbols::SymbolHandle;
 
 use super::labels::{
@@ -60,7 +60,7 @@ fn context_domain_proves_label(
                 value,
                 ..
             } => {
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     return false;
                 };
                 (domain_symbol, value, place)

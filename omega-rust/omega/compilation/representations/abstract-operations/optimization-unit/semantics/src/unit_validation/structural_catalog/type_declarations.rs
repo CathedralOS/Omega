@@ -155,8 +155,7 @@ pub(crate) fn validate_structural_type_graph(
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
             terminal_psi::StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
-                    if let terminal_psi::StructuralFieldType::Structural(target) = field.field_type
-                    {
+                    if let Some(target) = field.field_type.as_structural() {
                         visit(target, types, active, complete)?;
                     }
                 }
@@ -167,8 +166,7 @@ pub(crate) fn validate_structural_type_graph(
             }
             terminal_psi::StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
-                    if let terminal_psi::StructuralFieldType::Structural(target) = field.field_type
-                    {
+                    if let Some(target) = field.field_type.as_structural() {
                         visit(target, types, active, complete)?;
                     }
                 }
@@ -178,8 +176,7 @@ pub(crate) fn validate_structural_type_graph(
                     .iter()
                     .chain(cases.iter().flat_map(|case| &case.fields))
                 {
-                    if let terminal_psi::StructuralFieldType::Structural(target) = field.field_type
-                    {
+                    if let Some(target) = field.field_type.as_structural() {
                         visit(target, types, active, complete)?;
                     }
                 }

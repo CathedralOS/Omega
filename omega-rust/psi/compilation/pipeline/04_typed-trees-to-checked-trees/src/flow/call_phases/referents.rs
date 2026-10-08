@@ -17,7 +17,7 @@ use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
 use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
+    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
     QualificationEvidence,
 };
 use symbols::SymbolHandle;
@@ -122,7 +122,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         let targets: Vec<(validation::CanonicalPlace, bool)> = match exact {
             Some(storage) => vec![(storage, false)],
             None => {
-                let PlaceRoot::Symbol(root) = actual.root else {
+                let Some(root) = actual.root.as_symbol() else {
                     continue;
                 };
                 let Some(candidates) = build.reference_candidate_places_at(
@@ -216,13 +216,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         }
     }
     for (_, refs) in contexts {
-        reference_spans::append_semantic_context(
-            semantic,
-            build,
-            exit,
-            point,
-            refs,
-        );
+        reference_spans::append_semantic_context(semantic, build, exit, point, refs);
     }
 }
 

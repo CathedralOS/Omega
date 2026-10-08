@@ -687,8 +687,11 @@ fn validate_selected_const_type(
 ) -> Result<(), String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let TypeReferenceNode::Named(name) =
-        syntax.tables.type_references.type_reference(type_reference)
+    if let Some(name) = syntax
+        .tables
+        .type_references
+        .type_reference(type_reference)
+        .as_named()
         && let Some(argument) = substitution.get(name.as_str())
     {
         return validate_selected_const_type(
@@ -886,11 +889,10 @@ fn validate_selected_const_type(
                                 .to_owned(),
                         );
                     };
-                    let TypeReferenceNode::Named(value) = syntax
+                    let Some(value) = syntax
                         .tables
                         .type_references
-                        .type_reference(*argument)
-                    else {
+                        .type_reference(*argument).as_named() else {
                         return Err(
                             "const index types require finite structural values with decidable equality and one canonical form"
                                 .to_owned(),
@@ -940,8 +942,11 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
 ) -> Result<CanonicalConstNode, String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let TypeReferenceNode::Named(name) =
-        syntax.tables.type_references.type_reference(expected_type)
+    if let Some(name) = syntax
+        .tables
+        .type_references
+        .type_reference(expected_type)
+        .as_named()
         && let Some(argument) = substitution.get(name.as_str())
     {
         return canonicalize_const_expression(
@@ -1137,8 +1142,11 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
                             return Err("const value expression has an ineligible parameter type"
                                 .to_owned());
                         };
-                        let TypeReferenceNode::Named(value) =
-                            syntax.tables.type_references.type_reference(*argument)
+                        let Some(value) = syntax
+                            .tables
+                            .type_references
+                            .type_reference(*argument)
+                            .as_named()
                         else {
                             return Err("const value expression has an ineligible parameter type"
                                 .to_owned());
@@ -1245,8 +1253,11 @@ fn substituted_type_label(
                     let Some(argument) = substitution.get(name.as_str()) else {
                         return selected_type_label(syntax, reference, selection);
                     };
-                    let TypeReferenceNode::Named(value) =
-                        syntax.tables.type_references.type_reference(*argument)
+                    let Some(value) = syntax
+                        .tables
+                        .type_references
+                        .type_reference(*argument)
+                        .as_named()
                     else {
                         return selected_type_label(syntax, reference, selection);
                     };

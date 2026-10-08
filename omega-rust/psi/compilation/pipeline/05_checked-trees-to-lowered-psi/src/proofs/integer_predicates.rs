@@ -22,7 +22,7 @@ pub(crate) fn lower(
             primitive_type,
             operand,
         } => {
-            let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)? else {
+            let Some(integer_type) = integer_scalar_type(*primitive_type)?.as_integer() else {
                 return unsupported("structural crash bitwise-not has a non-integer type");
             };
             let operand = lower_operand(operand)?;
@@ -42,7 +42,7 @@ pub(crate) fn lower(
                 | CheckedIntegerBinaryKind::BitwiseXor
         ) =>
         {
-            let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)? else {
+            let Some(integer_type) = integer_scalar_type(*primitive_type)?.as_integer() else {
                 return unsupported("structural crash bitwise expression has a non-integer type");
             };
             let left = lower_operand(left)?;
@@ -75,7 +75,7 @@ pub(crate) fn lower(
                 | CheckedIntegerBinaryKind::ExactShiftRight
         ) =>
         {
-            let ScalarType::Integer(value_type) = integer_scalar_type(*primitive_type)? else {
+            let Some(value_type) = integer_scalar_type(*primitive_type)?.as_integer() else {
                 return unsupported("structural crash shift has a non-integer value type");
             };
             let value = lower_operand(left)?;
@@ -83,7 +83,7 @@ pub(crate) fn lower(
             if value.scalar_type() != ScalarType::Integer(value_type) {
                 return unsupported("structural crash shift value does not match its integer type");
             }
-            let ScalarType::Integer(count_type) = count.scalar_type() else {
+            let Some(count_type) = count.scalar_type().as_integer() else {
                 return unsupported("structural crash shift count is not an integer");
             };
             if matches!(
@@ -144,7 +144,7 @@ pub(crate) fn lower(
                 | CheckedIntegerBinaryKind::SaturatingRemainder
         ) =>
         {
-            let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)? else {
+            let Some(integer_type) = integer_scalar_type(*primitive_type)?.as_integer() else {
                 return unsupported("structural crash arithmetic has a non-integer type");
             };
             let left = Box::new(lower_operand(left)?);

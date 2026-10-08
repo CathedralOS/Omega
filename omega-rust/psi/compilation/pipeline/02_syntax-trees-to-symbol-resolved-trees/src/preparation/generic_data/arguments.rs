@@ -34,7 +34,7 @@ pub(super) fn complete_argument_tuple(
     selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
-    let syntax_trees::item::Item::Data(definition) = syntax.root_item(base_info.declaration) else {
+    let Some(definition) = syntax.root_item(base_info.declaration).as_data() else {
         return Err(Diagnostic::error(
             "structural data equation lost its declaration",
         ));
@@ -375,9 +375,7 @@ pub(crate) fn closed_argument_identity(
             return None;
         };
         let declaration = selected_data_item(syntax, selection, base_name)?;
-        let Item::Data(data) = syntax.root_item(declaration) else {
-            return None;
-        };
+        let data = syntax.root_item(declaration).as_data()?;
         let parameters = syntax.items.type_parameters(data.type_parameters);
         let arguments = syntax.type_references.type_reference_handles(*arguments);
         let identities = closed_argument_identities(syntax, selection, parameters, arguments)?;
@@ -429,9 +427,7 @@ pub(crate) fn closed_argument_identity(
                 );
             }
             let declaration = selected_data_item(syntax, selection, base_name)?;
-            let Item::Data(data) = syntax.root_item(declaration) else {
-                return None;
-            };
+            let data = syntax.root_item(declaration).as_data()?;
             let parameters = syntax.items.type_parameters(data.type_parameters);
             let arguments = syntax.type_references.type_reference_handles(*arguments);
             Some(ClosedArgumentIdentity::Instance(
@@ -547,12 +543,9 @@ pub(crate) fn closed_argument_identity(
                                     ) {
                                         return None;
                                     }
-                                    let TypeReferenceNode::Named(carrier) = syntax
+                                    let carrier = syntax
                                         .type_references
-                                        .type_reference(*base_type)
-                                    else {
-                                        return None;
-                                    };
+                                        .type_reference(*base_type).as_named()?;
                                     ClosedConstraintIdentity::RetainedDeclaration(
                                         selection.retained_domain_identity(carrier, name)?,
                                     )
@@ -565,7 +558,7 @@ pub(crate) fn closed_argument_identity(
                             // siblings still decline rather than equating text.
                             let mut candidates =
                                 syntax.root_item_handles().iter().copied().filter(|handle| {
-                                    let Item::Domain(domain) = syntax.root_item(*handle) else {
+                                    let Some(domain) = syntax.root_item(*handle).as_domain() else {
                                         return false;
                                     };
                                     let matching_name = domain.name.as_str() == name.as_str()
@@ -652,7 +645,7 @@ fn indexed_domain_identity(
 ) -> Option<ClosedConstraintIdentity> {
     let authored_leaf = authored.rsplit("::").next().unwrap_or(authored);
     let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
-        let Item::Domain(definition) = syntax.root_item(*handle) else {
+        let Some(definition) = syntax.root_item(*handle).as_domain() else {
             return false;
         };
         let declared = definition.name.as_str();
@@ -667,9 +660,7 @@ fn indexed_domain_identity(
     if candidates.next().is_some() {
         return None;
     }
-    let Item::Domain(definition) = syntax.root_item(declaration) else {
-        return None;
-    };
+    let definition = syntax.root_item(declaration).as_domain()?;
     let (index_parameters, generic_carrier) = domain_index_telescope(syntax, definition);
     if generic_carrier {
         return None;
@@ -716,7 +707,7 @@ pub(crate) fn domain_application_head(
         None => (None, spelled),
     };
     let mut candidates = syntax.root_item_handles().iter().copied().filter(|handle| {
-        let Item::Domain(definition) = syntax.root_item(*handle) else {
+        let Some(definition) = syntax.root_item(*handle).as_domain() else {
             return false;
         };
         let declared = definition.name.as_str();
@@ -738,9 +729,7 @@ pub(crate) fn domain_application_head(
     if candidates.next().is_some() {
         return None;
     }
-    let Item::Domain(definition) = syntax.root_item(declaration) else {
-        return None;
-    };
+    let definition = syntax.root_item(declaration).as_domain()?;
     let (index_parameters, generic_carrier) = domain_index_telescope(syntax, definition);
     if generic_carrier {
         return None;

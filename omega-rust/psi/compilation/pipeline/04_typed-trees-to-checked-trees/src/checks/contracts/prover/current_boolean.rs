@@ -6,7 +6,7 @@
 
 use validation::CanonicalPlace;
 
-use facts::{FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, ScalarValue};
+use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
 
 pub(crate) fn boolean_value_at_place(
     program: &dyn ::validation::CheckingInput,
@@ -65,7 +65,7 @@ fn ordinary_boolean_value_at_place(
             FactPayload::BooleanValue { expression, value } => (expression, value),
             _ => continue,
         };
-        let FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             continue;
         };
         if crate::flow::canonical_place_from_semantic_place(

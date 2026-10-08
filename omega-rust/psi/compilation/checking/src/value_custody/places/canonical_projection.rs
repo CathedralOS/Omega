@@ -176,7 +176,7 @@ pub fn canonical_place_from_expression_in_state(
         expression,
     )
     .or_else(|| canonical_place_from_expression(program, expression))?;
-    if let facts::PlaceRoot::Expression(receiver) = place.root
+    if let Some(receiver) = place.root.as_expression()
         && let Some(state) = program.state_by_symbol(state_symbol)
         && let Some((_, saved)) = super::structural_scalar_field::saved_dispatch_subject(
             program,

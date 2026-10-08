@@ -508,9 +508,7 @@ fn forwarded_parameter(
         usize::try_from(root.statement_ordinal).ok()?,
         root.expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     if !place.segments.is_empty() {
         return None;
     }

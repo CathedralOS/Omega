@@ -38,6 +38,32 @@ pub enum Item {
     Trait(TraitDefinition),
 }
 
+impl Item {
+    /// The data definition, if this item is one.
+    pub fn as_data(&self) -> Option<&DataDefinition> {
+        let Item::Data(data) = self else {
+            return None;
+        };
+        Some(data)
+    }
+
+    /// The domain definition, if this item is one.
+    pub fn as_domain(&self) -> Option<&DomainDefinition> {
+        let Item::Domain(domain) = self else {
+            return None;
+        };
+        Some(domain)
+    }
+
+    /// The machine definition, if this item is one.
+    pub fn as_machine(&self) -> Option<&Machine> {
+        let Item::Machine(machine) = self else {
+            return None;
+        };
+        Some(machine)
+    }
+}
+
 /// A named compile-time pure value (wiki/spec/language/constants.md), either
 /// package/module-scoped or type-scoped:
 /// `const EfiStatus::SUCCESS: EfiStatus = EfiStatus { code: 0 };` — declared

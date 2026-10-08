@@ -447,9 +447,7 @@ fn evaluate_named_const_domain(
         None => {
             let expanded = format!("{carrier}::{authored}");
             let mut matches = syntax.root_items().filter_map(|item| {
-                let Item::Domain(domain) = item else {
-                    return None;
-                };
+                let domain = item.as_domain()?;
                 (domain.name.as_str() == authored || domain.name.as_str() == expanded)
                     .then_some(domain)
             });

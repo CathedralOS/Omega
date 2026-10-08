@@ -725,9 +725,7 @@ fn guarded_case_subject(
         statement_index,
         subject,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     Some((symbol, place.segments))
 }
 

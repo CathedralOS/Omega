@@ -7,7 +7,7 @@ use super::super::path_instantiation::aggregate_arguments::{
     AggregateMove, AggregateOrigins, ReferenceLeaf,
 };
 use super::StoredLocalOrigins;
-use facts::{FactPlan, PlaceRoot, PlaceSegment};
+use facts::{FactPlan, PlaceSegment};
 use symbols::SymbolKind;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -106,9 +106,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
     let mut facts = FactPlan::default();
     let place = facts.append_place_from_expression(program, expression);
     let place = facts.places.get(place);
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     if !root.is_valid() || root_name.head_symbol != root {
         return None;
     }

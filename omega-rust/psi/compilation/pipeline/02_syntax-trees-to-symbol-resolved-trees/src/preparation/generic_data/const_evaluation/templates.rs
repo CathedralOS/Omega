@@ -72,7 +72,7 @@ pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_nam
         }
     }
     for (handle, _) in syntax.type_references.named_nodes_from(type_watermark) {
-        if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(handle)
+        if let Some(name) = syntax.type_references.type_reference(handle).as_named()
             && header_frontier.captures_name(syntax, name)
         {
             captured.type_references.insert(handle);
@@ -200,7 +200,7 @@ fn update_captured_names(
         }
     }
     for reference in type_references.iter() {
-        if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(*reference) {
+        if let Some(name) = syntax.type_references.type_reference(*reference).as_named() {
             if frontier.captures_name(syntax, name) {
                 captured.type_references.insert(*reference);
             } else {
@@ -361,9 +361,7 @@ pub(in crate::preparation::generic_data) fn normalize_generic_template_const_exp
         .iter()
         .map(|declaration| syntax.root_item(*declaration))
         .filter_map(|item| {
-            let Item::Data(definition) = item else {
-                return None;
-            };
+            let definition = item.as_data()?;
             if definition.type_parameters.is_empty() {
                 return None;
             }
@@ -723,7 +721,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
     let mut positions = Vec::new();
     let mut public_positions = Vec::new();
     for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
+        let Some(machine) = item.as_machine() else {
             continue;
         };
         if !machine.type_parameters.is_empty() {

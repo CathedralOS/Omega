@@ -159,7 +159,7 @@ pub(crate) fn leaf_paths(
             _ => return None,
         };
         for field in fields.into_iter().rev() {
-            if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
+            if let Some(child) = field.field_type.as_structural() {
                 if !contains_reference(types, child) {
                     continue;
                 }

@@ -252,8 +252,9 @@ impl InternalUnitCall<'_> {
             // One scalar roster: the abi arm binds the callee's declared
             // scalar parameters, the returned arm the same declaration
             // reached through the structural-return evidence.
-            let scalar_arguments_match = |scalar_parameters: &[target_operations::ScalarAbiValue]| {
-                custody
+            let scalar_arguments_match =
+                |scalar_parameters: &[target_operations::ScalarAbiValue]| {
+                    custody
                     .scalar_arguments
                     .iter()
                     .zip(scalar_parameters)
@@ -289,7 +290,7 @@ impl InternalUnitCall<'_> {
                                 .checked_add(argument.byte_count)
                                 .is_some_and(|argument_end| argument_end <= end)
                     })
-            };
+                };
             match (callee_mixed_abi, callee_mixed_structural_return) {
                 (None, None) => custody.scalar_arguments.is_empty(),
                 (Some(_), Some(_)) => false,

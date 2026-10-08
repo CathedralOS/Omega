@@ -22,13 +22,11 @@ pub(crate) fn bind_applications(
 ) {
     let mut applications = Arena::default();
     for (instance_handle, instance) in cleanup.dispositions.iter() {
-        let Some(specialization) = program
-            .machine_specialization(instance.machine)
-        else {
+        let Some(specialization) = program.machine_specialization(instance.machine) else {
             continue;
         };
         let state = source_symbol(program, instance.state, instance.machine);
-        let PlaceRoot::Symbol(root) = instance.root else {
+        let Some(root) = instance.root.as_symbol() else {
             // A temporary result is established inside this invocation. It is
             // not a lexical input whose source can be obtained from the clone's
             // declaration correspondence.
@@ -57,7 +55,7 @@ pub(crate) fn bind_applications(
             if template_exclusions.len() != instance_exclusions.len()
                 || !template_exclusions.iter().zip(instance_exclusions).all(
                     |(template, instance)| {
-                        let PlaceRoot::Symbol(instance_root) = instance.root else {
+                        let Some(instance_root) = instance.root.as_symbol() else {
                             return false;
                         };
                         template.root

@@ -59,9 +59,7 @@ pub(crate) fn local_reference_storage_before_statement(
     index: usize,
     mut place: CanonicalPlace,
 ) -> Option<CanonicalPlace> {
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let state = program.state_by_symbol(state.state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut declarations =
@@ -145,9 +143,7 @@ pub(crate) fn local_reference_candidate_storages_at_call(
     call: &FlowCallFact,
     place: CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let candidates = reference_result_candidates_before_statement(
         program,
         state.state_symbol,

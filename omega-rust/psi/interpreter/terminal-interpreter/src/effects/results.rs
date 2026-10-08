@@ -89,7 +89,7 @@ impl TerminalExecution<'_> {
         &self,
         result: &OperationResult,
     ) -> Result<(), TerminalInterpretError> {
-        if let OperationResult::Structural(result) = result
+        if let Some(result) = result.as_structural()
             && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
                 && !self.supports_scalar_case_result(result))
                 || self.structural_values.contains_key(&result.place)

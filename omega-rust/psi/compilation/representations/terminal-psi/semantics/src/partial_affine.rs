@@ -6,7 +6,8 @@
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    find_structural_case,    find_structural_type,    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_case, find_structural_type,
 };
 
 fn is_partial_affine_path(
@@ -220,7 +221,7 @@ fn fields_residuals(
         .rev()
         .filter(|field| !field.relevance.is_erased())
     {
-        if let StructuralFieldType::Structural(child_type) = field.field_type {
+        if let Some(child_type) = field.field_type.as_structural() {
             count = count.checked_add(child(
                 types,
                 child_type,

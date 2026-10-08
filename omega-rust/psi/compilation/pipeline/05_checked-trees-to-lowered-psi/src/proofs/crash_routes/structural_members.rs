@@ -287,7 +287,7 @@ fn lower_sum_path(
             .ok_or(LoweringError::Unsupported(
                 "structural sum predicate path field is absent or erased",
             ))?;
-        let StructuralFieldType::Structural(next) = field.field_type else {
+        let Some(next) = field.field_type.as_structural() else {
             return unsupported("structural sum predicate path does not reach a structural value");
         };
         terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));

@@ -76,7 +76,7 @@ pub(crate) fn instantiate_call_contract_place(
     }
 
     let original_place = contract_fact_place(program, facts, contract);
-    let FactPlace::Place(original_place_handle) = original_place else {
+    let Some(original_place_handle) = original_place.as_place() else {
         return original_place;
     };
 
@@ -113,9 +113,7 @@ fn membership_argument_place(
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Option<FactPlace> {
     let declared = validation::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(symbol) = declared.root else {
-        return None;
-    };
+    let symbol = declared.root.as_symbol()?;
     let position = match crate::semantic::facts::contract_parameter_position(
         program,
         proof,

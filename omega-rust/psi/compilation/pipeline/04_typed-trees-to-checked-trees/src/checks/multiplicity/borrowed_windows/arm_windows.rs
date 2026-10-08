@@ -197,7 +197,7 @@ impl ArmWindowPlan {
         if !arm.is_valid() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let Some(root_symbol) = event.root.as_symbol() else {
             return;
         };
         self.arm_debts
@@ -356,7 +356,7 @@ impl ArmWindowPlan {
         {
             return Some(ArmWindowVerdict::Reject);
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
+        let Some(root_symbol) = event.root.as_symbol() else {
             return Some(ArmWindowVerdict::Reject);
         };
         let resolved = resolve_storage_place(
@@ -471,7 +471,7 @@ impl ArmWindowPlan {
         if !arm.is_valid() {
             return;
         }
-        let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
+        let Some(root_symbol) = use_place.root.as_symbol() else {
             return;
         };
         let (root, storage_path) = resolve_storage_place(

@@ -276,7 +276,7 @@ fn push_field_leaf(
     types: &[StructuralTypeDeclaration],
     field: &terminal_psi::StructuralFieldDeclaration,
 ) -> Option<()> {
-    let StructuralFieldType::Structural(child) = field.field_type else {
+    let Some(child) = field.field_type.as_structural() else {
         return Some(());
     };
     if !contains_reference(types, child) {

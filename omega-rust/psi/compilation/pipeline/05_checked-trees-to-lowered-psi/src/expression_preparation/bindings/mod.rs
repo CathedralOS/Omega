@@ -204,7 +204,7 @@ impl ScalarBindings {
                         source.argument.clone()
                     }
                     None => {
-                        let facts::PlaceRoot::Symbol(symbol) = root else {
+                        let Some(symbol) = root.as_symbol() else {
                             return unsupported("computed borrow lost its established expression");
                         };
                         let position =

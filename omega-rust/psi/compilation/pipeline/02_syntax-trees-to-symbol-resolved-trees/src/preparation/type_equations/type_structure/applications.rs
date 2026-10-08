@@ -17,7 +17,7 @@ use language_semantics::const_value::CanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{Item, ItemHandle, TypeParameter, TypeParameterKind};
+use syntax_trees::item::{ItemHandle, TypeParameter, TypeParameterKind};
 use syntax_trees::types::{
     DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -73,7 +73,8 @@ impl Solver<'_, '_> {
                 let (name, declaration, parameters, domain) =
                     match closed_name_identity(self.syntax, self.selection, base_name) {
                         Some(ClosedArgumentIdentity::Nominal(declaration)) => {
-                            let Item::Data(definition) = self.syntax.root_item(declaration) else {
+                            let Some(definition) = self.syntax.root_item(declaration).as_data()
+                            else {
                                 return Err(
                                     self.type_structure_error("requires a data constructor", span)
                                 );
@@ -210,7 +211,7 @@ impl Solver<'_, '_> {
             .iter()
             .copied()
             .filter(|handle| {
-                let Item::Domain(definition) = self.syntax.root_item(*handle) else {
+                let Some(definition) = self.syntax.root_item(*handle).as_domain() else {
                     return false;
                 };
                 let declared = definition.name.as_str();
@@ -230,7 +231,7 @@ impl Solver<'_, '_> {
         if candidates.next().is_some() {
             return Err(decline());
         }
-        let Item::Domain(definition) = self.syntax.root_item(declaration) else {
+        let Some(definition) = self.syntax.root_item(declaration).as_domain() else {
             unreachable!("a domain head is a domain item")
         };
         let (index_parameters, generic_carrier) = domain_index_telescope(self.syntax, definition);
@@ -292,8 +293,11 @@ impl Solver<'_, '_> {
                                 )
                             })?;
                     self.validate_application_integer(type_reference, &value, span)?;
-                    if let TypeReferenceNode::Named(name) =
-                        self.syntax.type_references.type_reference(pattern)
+                    if let Some(name) = self
+                        .syntax
+                        .type_references
+                        .type_reference(pattern)
+                        .as_named()
                         && let Some((position, is_type)) = self.parameter_position(name.as_str())
                     {
                         if is_type || self.base_info.const_parameter_types[position].is_none() {
@@ -403,7 +407,11 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<BigInt>, Diagnostic> {
-        let TypeReferenceNode::Named(name) = self.syntax.type_references.type_reference(reference)
+        let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(reference)
+            .as_named()
         else {
             return Err(self
                 .type_structure_error("requires a normalized integer constructor argument", span));
@@ -434,7 +442,11 @@ impl Solver<'_, '_> {
     }
 
     fn boolean_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
-        let TypeReferenceNode::Named(name) = self.syntax.type_references.type_reference(reference)
+        let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(reference)
+            .as_named()
         else {
             return false;
         };
@@ -450,7 +462,11 @@ impl Solver<'_, '_> {
         binders: bool,
         span: SourceSpan,
     ) -> Result<Option<bool>, Diagnostic> {
-        let TypeReferenceNode::Named(name) = self.syntax.type_references.type_reference(reference)
+        let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(reference)
+            .as_named()
         else {
             return Err(self
                 .type_structure_error("requires a normalized Boolean constructor argument", span));
@@ -501,8 +517,11 @@ impl Solver<'_, '_> {
                     self.type_structure_error("has conflicting constructor constants", span)
                 );
             }
-        } else if let TypeReferenceNode::Named(name) =
-            self.syntax.type_references.type_reference(pattern)
+        } else if let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(pattern)
+            .as_named()
             && let Some((position, false)) = self.parameter_position(name.as_str())
         {
             self.bindings[position] = Some(Binding::Boolean(value));
@@ -556,7 +575,7 @@ impl Solver<'_, '_> {
             TypeReferenceNode::Named(name) => {
                 if let Some(ClosedArgumentIdentity::Nominal(declaration)) =
                     closed_name_identity(self.syntax, self.selection, name)
-                    && let Item::Data(definition) = self.syntax.root_item(declaration)
+                    && let Some(definition) = self.syntax.root_item(declaration).as_data()
                     && (!definition.lifetime_parameters.is_empty()
                         || definition.generic_instance.is_some())
                 {
@@ -577,7 +596,11 @@ impl Solver<'_, '_> {
         value: &BigInt,
         span: SourceSpan,
     ) -> Result<(), Diagnostic> {
-        let TypeReferenceNode::Named(name) = self.syntax.type_references.type_reference(reference)
+        let Some(name) = self
+            .syntax
+            .type_references
+            .type_reference(reference)
+            .as_named()
         else {
             return Err(
                 self.type_structure_error("requires a builtin integer constructor parameter", span)

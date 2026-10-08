@@ -59,7 +59,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
                         && domain.classification
                             == Some(language_semantics::DomainClassification::ProgressProfile)
                 }) {
-                    let facts::PlaceRoot::Symbol(root) = place.root else {
+                    let Some(root) = place.root.as_symbol() else {
                         return false;
                     };
                     let rooted_in_telescope = source_parameters
@@ -74,7 +74,7 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
                 if !place.segments.is_empty() {
                     return false;
                 }
-                let facts::PlaceRoot::Symbol(root) = place.root else {
+                let Some(root) = place.root.as_symbol() else {
                     return false;
                 };
                 let Some(position) = source_parameters
@@ -304,9 +304,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
         if !place.segments.is_empty() {
             return None;
         }
-        let facts::PlaceRoot::Symbol(root) = place.root else {
-            return None;
-        };
+        let root = place.root.as_symbol()?;
         let source_position = source_parameters
             .iter()
             .position(|parameter| parameter_is_root(parameter, root))?;

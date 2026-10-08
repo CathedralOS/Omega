@@ -178,9 +178,7 @@ pub(crate) fn membership_contexts(
         return None;
     };
     let declared = validation::canonical_place_from_expression(program, value)?;
-    let facts::PlaceRoot::Symbol(symbol) = declared.root else {
-        return None;
-    };
+    let symbol = declared.root.as_symbol()?;
     let Some(contract_call) = crate::flow::proof_contract_call(
         &facts.proof,
         state.machine_symbol,
@@ -222,7 +220,7 @@ pub(crate) fn membership_contexts(
     let Some(actual) = actual_at(program, state, call, position, declared.segments) else {
         return Some(Vec::new());
     };
-    let facts::FactPlace::Place(place) = requirement.place else {
+    let Some(place) = requirement.place.as_place() else {
         return Some(Vec::new());
     };
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
@@ -478,8 +476,7 @@ pub(crate) fn proves_bound_predicate<'program>(
     let mut current = predicate.clone();
     current.bindings.clear();
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
-        let observation = predicate
-            .binding(&operand)?;
+        let observation = predicate.binding(&operand)?;
         let actual = actual(observation)?;
         let captured = captured_value(program, facts, state, call, &actual)?;
         let capture = captured.operand;
@@ -574,8 +571,7 @@ pub(crate) fn entry_predicate(
     let predicate = crate::facts::boolean_predicates::bind_entry(program, target, predicate)?;
     let mut expression = predicate.expression.clone();
     crate::facts::boolean_predicates::map_observations(&mut expression, &mut |operand| {
-        let observation = predicate
-            .binding(&operand)?;
+        let observation = predicate.binding(&operand)?;
         let actual = observation_actual(program, state, call, observation)?;
         let primitive = operand.primitive_type()?;
         let captured = captured_value(program, facts, state, call, &actual)?;

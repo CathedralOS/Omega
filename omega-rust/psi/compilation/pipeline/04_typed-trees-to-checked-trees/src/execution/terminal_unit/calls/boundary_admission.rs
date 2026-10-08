@@ -64,9 +64,7 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         validation::CallSite::TransitionNamed { .. } => None,
     };
     let place = place?;
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     if place.segments.is_empty() {
         return None;
     }

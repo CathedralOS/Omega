@@ -288,9 +288,7 @@ fn projected_formal_leaf_value(
         return projected_collection_extent(program, parameters, member.receiver);
     }
     let mut required = crate::flow::projected_leaf_place(program, leaf)?;
-    let facts::PlaceRoot::Symbol(formal) = required.root else {
-        return None;
-    };
+    let formal = required.root.as_symbol()?;
     // `self`'s projections stay with the receiver's own substitution owner;
     // only explicit formals join the positional argument roster.
     let position = typed_trees::signature::state_parameter_position(parameters, formal)?;
@@ -354,9 +352,7 @@ fn projected_collection_extent(
     receiver: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
     let required = crate::flow::projected_leaf_place(program, receiver)?;
-    let facts::PlaceRoot::Symbol(formal) = required.root else {
-        return None;
-    };
+    let formal = required.root.as_symbol()?;
     if !parameters
         .iter()
         .any(|parameter| parameter.symbol == formal)

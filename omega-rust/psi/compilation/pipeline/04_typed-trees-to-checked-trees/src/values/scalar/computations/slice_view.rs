@@ -122,9 +122,7 @@ impl Builder<'_, '_> {
         if !canonical_place_is_borrowable(&place) {
             return None;
         }
-        let facts::PlaceRoot::Symbol(symbol) = place.root else {
-            return None;
-        };
+        let symbol = place.root.as_symbol()?;
         // The root's dense structural position is its signature ordinal when
         // the name resolves to a carried parameter; anything else is an
         // operation-sequence local keyed by symbol. Both views settle the dense

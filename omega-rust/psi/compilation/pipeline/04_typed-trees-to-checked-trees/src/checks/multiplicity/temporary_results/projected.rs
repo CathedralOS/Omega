@@ -20,7 +20,7 @@ pub(super) fn append(
     event: &crate::flow::DiscoveredMoveEvent,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
-    let facts::PlaceRoot::Expression(expression) = event.root else {
+    let Some(expression) = event.root.as_expression() else {
         return;
     };
     let FlowOwnershipEventSource::Call {

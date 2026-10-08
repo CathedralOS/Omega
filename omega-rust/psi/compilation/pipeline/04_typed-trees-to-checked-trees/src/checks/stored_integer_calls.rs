@@ -465,9 +465,7 @@ impl<'a> Admission<'a> {
             ordinal,
             expression,
         )?;
-        let facts::PlaceRoot::Symbol(root) = place.root else {
-            return None;
-        };
+        let root = place.root.as_symbol()?;
         let reference = self
             .program
             .state_parameter_by_symbol(state, root)

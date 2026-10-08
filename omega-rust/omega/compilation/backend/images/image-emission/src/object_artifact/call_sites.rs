@@ -526,9 +526,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
         .scalar_arguments
         .iter()
         .map(|argument| {
-            let semantic_vocabulary::ScalarType::Integer(scalar_type) =
-                argument.source.scalar_type()
-            else {
+            let Some(scalar_type) = argument.source.scalar_type().as_integer() else {
                 return Err(invalid());
             };
             let bits = scalar_type.bits();
@@ -555,8 +553,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
         call.scalar_result
             .as_ref()
             .map(|result| {
-                let semantic_vocabulary::ScalarType::Integer(result_type) = result.home.scalar_type
-                else {
+                let Some(result_type) = result.home.scalar_type.as_integer() else {
                     return Err(invalid());
                 };
                 let expected_shape =
@@ -821,7 +818,10 @@ pub(crate) fn validate_foreign_scalar_arguments(
             .parameters
             .get(native_index)
             .ok_or_else(invalid)?;
-        let placed_bytes = argument.placement.single_word_byte_size().ok_or_else(invalid)?;
+        let placed_bytes = argument
+            .placement
+            .single_word_byte_size()
+            .ok_or_else(invalid)?;
         if argument.parameter_index != native_index as u32
             || argument.placement != *expected_placement
             || argument.placement.shape != *shape

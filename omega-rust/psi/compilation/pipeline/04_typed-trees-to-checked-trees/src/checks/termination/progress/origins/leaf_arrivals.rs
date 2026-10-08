@@ -70,9 +70,7 @@ where
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
-    let PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     // Only an owned local's declaration supplies the boundary's frame type; a
     // parameter or member root keeps its access path unchanged.
     let (_, local) = program
@@ -307,9 +305,7 @@ pub(super) fn leaf_candidate_arrival(
 ) -> Option<LeafArrival> {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
     for _ in 0..REFERENCE_BOUNDARY_HOPS {
-        let PlaceRoot::Symbol(root) = candidate.root else {
-            return None;
-        };
+        let root = candidate.root.as_symbol()?;
         let Some((_, local)) = program
             .state_local_declaration(typed_state, root)
             .filter(|&(ordinal, _)| ordinal < index)

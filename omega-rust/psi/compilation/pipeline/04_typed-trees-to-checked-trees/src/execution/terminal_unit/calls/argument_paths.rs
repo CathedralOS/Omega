@@ -611,9 +611,7 @@ fn runtime_index_field_selector(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<checked_trees::CheckedRuntimeIndex> {
     let place = validation::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let parameters = program.state_parameters(program.state_by_symbol(state_symbol)?);
     let parameter_position = typed_trees::signature::state_parameter_position(parameters, root)?;
     if place.segments.is_empty() {

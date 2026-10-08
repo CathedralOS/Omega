@@ -165,14 +165,15 @@ pub(in crate::checks::multiplicity) fn record_statement(
         let mut consumed: Vec<(SymbolHandle, Vec<facts::PlaceSegment>)> = Vec::new();
         let mut symbol_leaves = 0usize;
         for (_, _, root, path, _) in &leaves {
-            let facts::PlaceRoot::Symbol(symbol) = root else {
+            let Some(symbol) = root.as_symbol() else {
                 continue;
             };
             symbol_leaves += 1;
-            if !consumed.iter().any(|(candidate, candidate_path)| {
-                *candidate == *symbol && *candidate_path == *path
-            }) {
-                consumed.push((*symbol, path.clone()));
+            if !consumed
+                .iter()
+                .any(|(candidate, candidate_path)| *candidate == symbol && *candidate_path == *path)
+            {
+                consumed.push((symbol, path.clone()));
             }
         }
         if consumed.len() > 1 || (!consumed.is_empty() && symbol_leaves != terminals) {
@@ -192,7 +193,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
     for (_, _, root, _, _) in &leaves {
         // A call's structural product roots its own once-evaluated custody;
         // only whole-local roots carry a roster source.
-        let facts::PlaceRoot::Symbol(symbol) = *root else {
+        let Some(symbol) = root.as_symbol() else {
             continue;
         };
         if sources

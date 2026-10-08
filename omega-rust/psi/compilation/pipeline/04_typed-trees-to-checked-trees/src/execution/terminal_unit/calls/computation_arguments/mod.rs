@@ -67,7 +67,7 @@ pub(crate) fn structural_computation_argument(
     // Primitive loans retain the declaration's original home. Binding
     // replacement mutability selects its existing value/storage carrier,
     // never the access that the exact borrow occurrence may lend.
-    if let facts::PlaceRoot::Symbol(symbol) = place.root
+    if let Some(symbol) = place.root.as_symbol()
         && super::super::structural_scalar_store::primitive_local_before(
             program,
             state,
@@ -299,9 +299,7 @@ pub(crate) fn borrowed_storage_argument(
         ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     // A borrowed formal retains the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
@@ -594,9 +592,7 @@ pub(in crate::execution) fn borrowed_view_argument(
         ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     let kind = if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
         .is_some_and(|carrier| carrier.is_borrowed_view())
     {
@@ -868,9 +864,7 @@ pub(super) fn primitive_local_argument(
     place: &validation::CanonicalPlace,
     target_type: TypeReferenceHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     let local = super::super::structural_scalar_store::primitive_local_before(
         program,
         state,

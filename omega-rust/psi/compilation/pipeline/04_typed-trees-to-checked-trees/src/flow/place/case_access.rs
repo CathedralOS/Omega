@@ -6,7 +6,7 @@
 use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 use super::canonical_place_from_semantic_place;
-use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment};
+use facts::{FactContextHandle, FactPayload, FactPlan, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
@@ -149,7 +149,7 @@ pub(crate) fn place_case_has_value(
                     query.predicate(expression, true, subject, case, required, 0)
                 }
                 FactPayload::AssignedCase { variant } => {
-                    let FactPlace::Place(place) = fact.place else {
+                    let Some(place) = fact.place.as_place() else {
                         return false;
                     };
                     canonical_place_from_semantic_place(

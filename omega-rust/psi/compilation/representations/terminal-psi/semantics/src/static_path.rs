@@ -19,8 +19,8 @@ use semantic_vocabulary::{
     StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    OperationKind, StructuralAccess, StructuralArgument, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
 
 /// An immutable selector whose unique SSA producer is an integer constant.
@@ -59,9 +59,7 @@ pub fn runtime_index_bound(
     index_type: ScalarType,
     extent: u64,
 ) -> Option<Proposition> {
-    let ScalarType::Integer(integer_type) = index_type else {
-        return None;
-    };
+    let integer_type = index_type.as_integer()?;
     if integer_type.is_address() {
         return None;
     }
@@ -279,9 +277,7 @@ fn canonical_projection_type<'a>(
                 if matching.next().is_some() || field.relevance.is_erased() {
                     return None;
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
+                let child = field.field_type.as_structural()?;
                 root = child;
             }
             CanonicalStructuralPathSegment::FixedIndex(index) => {

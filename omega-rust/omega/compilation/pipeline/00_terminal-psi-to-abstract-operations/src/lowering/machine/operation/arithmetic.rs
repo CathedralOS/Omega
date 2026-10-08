@@ -1,7 +1,7 @@
 use abstract_operations::{
     AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
-use semantic_vocabulary::{OperationId, ScalarType};
+use semantic_vocabulary::OperationId;
 use terminal_psi::{Operation, OperationKind};
 
 use crate::lowering::LoweringError;
@@ -126,7 +126,7 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
         ),
         _ => unreachable!("arithmetic router is exhaustive"),
     };
-    let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
+    let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer() else {
         return Err(malformed(policy, operator, operation.id));
     };
     let arithmetic = IntegerArithmetic::new(policy, operator, obligation)

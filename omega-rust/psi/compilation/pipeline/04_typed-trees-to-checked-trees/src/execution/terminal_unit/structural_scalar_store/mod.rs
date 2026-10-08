@@ -700,9 +700,7 @@ fn case_field_store(
         statement_index as usize,
         assignment.value,
     )?;
-    let facts::PlaceRoot::Symbol(value_root) = value_place.root else {
-        return None;
-    };
+    let value_root = value_place.root.as_symbol()?;
     let source_parameters = program.state_parameters(state);
     let value_position =
         typed_trees::signature::state_parameter_position(source_parameters, value_root)?;
@@ -974,7 +972,7 @@ fn bound_structural_parameter(
     if !place.segments.is_empty() {
         return false;
     }
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+    let Some(symbol) = place.root.as_symbol() else {
         return false;
     };
     let Some(position) =

@@ -138,9 +138,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                 .is_some_and(|source| event.root == facts::PlaceRoot::Symbol((source).symbol))
         });
         if parameter_index.is_none() {
-            let facts::PlaceRoot::Symbol(root) = event.root else {
-                return None;
-            };
+            let root = event.root.as_symbol()?;
             // An erased formal has no runtime storage and no roster row, so
             // its exit drop owes the return edge nothing.
             let erased_formal = source_parameters.iter().any(|source| {

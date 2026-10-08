@@ -780,9 +780,7 @@ fn substitute_parameter_place(
     place: &validation::CanonicalPlace,
     replacements: &[(SymbolHandle, Option<validation::CanonicalPlace>)],
 ) -> Option<validation::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let Some((_, replacement)) = replacements
         .iter()
         .find(|(parameter, _)| *parameter == root)

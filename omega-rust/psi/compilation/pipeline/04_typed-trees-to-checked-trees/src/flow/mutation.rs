@@ -708,7 +708,7 @@ fn normalize_write_only_range_place(
     // Keep ordinary borrow selectors expression-backed for certificate replay.
     // Only an admitted write-only mutation may collapse immutable copy bounds
     // into the exact caller-visible range footprint.
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+    let Some(root_symbol) = place.root.as_symbol() else {
         return;
     };
     let Some(state) = program.state_by_symbol(state_symbol) else {

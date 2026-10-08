@@ -1,5 +1,5 @@
 use checked_trees::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
-use facts::{FactPayload, FactPlace, FactPlan};
+use facts::{FactPayload, FactPlan};
 use std::collections::BTreeSet;
 use symbols::SymbolHandle;
 mod expression;
@@ -124,7 +124,7 @@ fn compute_domain_dependency_segments(
                 domain_symbol: imported_domain,
                 ..
             } => {
-                let FactPlace::Place(place_handle) = fact.place else {
+                let Some(place_handle) = fact.place.as_place() else {
                     dependencies.push(Vec::new());
                     continue;
                 };

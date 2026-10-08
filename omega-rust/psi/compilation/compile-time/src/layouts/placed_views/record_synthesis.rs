@@ -78,9 +78,7 @@ pub(super) fn synthesize_exact_records(
     let template_machines = template
         .root_items()
         .filter_map(|item| {
-            let Item::Machine(machine) = item else {
-                return None;
-            };
+            let machine = item.as_machine()?;
             (machine
                 .attached_data
                 .as_ref()

@@ -380,9 +380,7 @@ impl ExitScalars<'_, '_> {
         }
         let mut place =
             canonical_place_from_expression_in_state(self.program, entry.symbol, 0, expression)?;
-        let PlaceRoot::Symbol(root) = place.root else {
-            return None;
-        };
+        let root = place.root.as_symbol()?;
         if self
             .program
             .state_parameters(entry)

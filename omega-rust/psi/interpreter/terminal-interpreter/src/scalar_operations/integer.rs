@@ -13,7 +13,7 @@ use terminal_psi::{Operation, OperationKind};
 pub(crate) fn integer_scalar_type(
     operation: &Operation,
 ) -> Result<semantic_vocabulary::IntegerType, TerminalInterpretError> {
-    let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
+    let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer() else {
         return Err(malformed());
     };
     Ok(scalar_type)

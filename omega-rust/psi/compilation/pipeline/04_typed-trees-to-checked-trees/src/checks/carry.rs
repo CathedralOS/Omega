@@ -1,5 +1,5 @@
 use diagnostics::Diagnostic;
-use facts::{FactPayload, FactPlace, QualificationEvidence};
+use facts::{FactPayload, QualificationEvidence};
 use language_semantics::{CarryPolicy, CarrySuspension};
 
 mod activation;
@@ -60,7 +60,7 @@ impl ClaimCarryContext<'_> {
                     FactPayload::CarryOrigin { .. } => None,
                     _ => continue,
                 };
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     continue;
                 };
                 if self.semantic.place_label(program, place) != value_name {
@@ -362,7 +362,7 @@ fn derive_claim_carry_policies(
             FactPayload::CarryOrigin { .. } => None,
             _ => continue,
         };
-        let FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             continue;
         };
         let place = facts.semantic.places.get(place);

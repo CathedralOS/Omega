@@ -5,8 +5,7 @@
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{
-    FactContextHandle, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment,
-    ProgramPoint,
+    FactContextHandle, FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
 };
 use symbols::SymbolHandle;
 
@@ -32,7 +31,7 @@ impl DeclaredFieldRequirements {
             else {
                 continue;
             };
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 continue;
             };
             let place = semantic.places.get(place);
@@ -49,7 +48,7 @@ impl DeclaredFieldRequirements {
                         state_symbol,
                     }) =>
                 {
-                    let PlaceRoot::Symbol(symbol) = place.root else {
+                    let Some(symbol) = place.root.as_symbol() else {
                         continue;
                     };
                     symbol

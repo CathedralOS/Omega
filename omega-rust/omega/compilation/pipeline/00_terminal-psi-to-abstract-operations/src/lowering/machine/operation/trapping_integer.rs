@@ -23,7 +23,7 @@ pub(super) fn lower(
         unreachable!("the Trapping router dispatches only TrappingInteger");
     };
     let malformed = || LoweringError::VerifiedTrappingIntegerMalformed(operation.id);
-    let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
+    let Some(scalar_type) = operation.result.expect_scalar().scalar_type.as_integer() else {
         return Err(malformed());
     };
     let operand_type = |value| match value_types.get(&value) {

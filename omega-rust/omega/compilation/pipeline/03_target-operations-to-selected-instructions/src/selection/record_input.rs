@@ -128,9 +128,7 @@ pub(super) fn structural_operand_shape(
 ) -> Option<ValueShape> {
     let declarations = &source.structural.as_ref()?.structural_types;
     if !argument.path.is_empty() {
-        let StructuralFieldType::Structural(expected_type) = *field_type else {
-            return None;
-        };
+        let expected_type = field_type.as_structural()?;
         let (selected, _) = projected_operand(source, argument)?;
         if selected != expected_type
             || argument.place == parent.place

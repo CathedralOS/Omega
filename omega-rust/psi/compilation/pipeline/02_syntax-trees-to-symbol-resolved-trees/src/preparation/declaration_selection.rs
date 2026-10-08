@@ -186,7 +186,7 @@ impl<'base> ConstantSelection<'base> {
             }
             let source_span = self.symbols.symbol_source_span(symbol);
             let syntax_generic_carrier = syntax.root_items().any(|item| {
-                let Item::Domain(domain) = item else {
+                let Some(domain) = item.as_domain() else {
                     return false;
                 };
                 if Some(domain.name.source_span()) != source_span || domain.name.as_str() != leaf {
@@ -597,8 +597,7 @@ impl<'base> ConstantSelection<'base> {
                     format!("`{name}` does not select one declared constructor carrier")
                 })?;
         let definition = self.data_declaration(syntax, name, selected)?;
-        let case =
-            case.map(|case| Identifier::new(case, name.trailing_span(case.len())));
+        let case = case.map(|case| Identifier::new(case, name.trailing_span(case.len())));
         Ok((definition, case))
     }
 
@@ -936,8 +935,7 @@ pub(crate) fn resolved_generic_argument(
     argument: syntax_trees::types::TypeReferenceHandle,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<syntax_trees::types::TypeReferenceHandle, String> {
-    if let syntax_trees::types::TypeReferenceNode::Named(name) =
-        syntax.type_references.type_reference(argument)
+    if let Some(name) = syntax.type_references.type_reference(argument).as_named()
         && let Some(resolved) = substitution.get(name.as_str())
     {
         return Ok(*resolved);

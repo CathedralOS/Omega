@@ -14,9 +14,7 @@ fn entry_place_at_write_boundary(
     write_scan_end: usize,
     place: &validation::CanonicalPlace,
 ) -> Option<CrashPredicateExpression> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     // Even stable whole storage cannot authenticate an unrelated declaration's
     // field. Replay the complete path from this binding's declared type first.
     validation::canonical_place_type_reference(program, state_symbol, before_statement, place)?;
@@ -44,8 +42,9 @@ fn entry_place_at_write_boundary(
                             typed_trees::data::DataMember::Field(field) => {
                                 (field.symbol == symbol).then_some(field)
                             }
-                            typed_trees::data::DataMember::Variant(variant) => program
-                                .data_payload_field_by_symbol(variant, symbol),
+                            typed_trees::data::DataMember::Variant(variant) => {
+                                program.data_payload_field_by_symbol(variant, symbol)
+                            }
                         })
                 })?;
                 projection.push(PlaceSegment::Field(symbol));

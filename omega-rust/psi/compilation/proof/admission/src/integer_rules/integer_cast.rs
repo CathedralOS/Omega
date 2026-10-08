@@ -49,7 +49,7 @@ pub fn check_integer_cast_chain_witness(
     semantic_axioms: &[Proposition],
     witness: &IntegerCastChainWitness,
 ) -> Result<CheckedIntegerCastChain, IntegerCastChainWitnessError> {
-    let ScalarType::Integer(root_type) = witness.root.scalar_type() else {
+    let Some(root_type) = witness.root.scalar_type().as_integer() else {
         return Err(IntegerCastChainWitnessError::RootNotInteger);
     };
     let mut interval = fixed_native_interval(root_type)

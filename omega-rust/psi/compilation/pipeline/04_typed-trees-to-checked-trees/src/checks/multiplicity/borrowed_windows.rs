@@ -71,7 +71,7 @@ fn resolve_storage_place(
     let mut root = facts::PlaceRoot::Symbol(root_symbol);
     let mut segments = path.to_vec();
     for _ in 0..16 {
-        let facts::PlaceRoot::Symbol(symbol) = root else {
+        let Some(symbol) = root.as_symbol() else {
             break;
         };
         let Some(source) = crate::flow::reference_route_source(

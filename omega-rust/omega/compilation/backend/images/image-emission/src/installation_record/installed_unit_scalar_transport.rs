@@ -737,8 +737,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
                     let (source_count, home_count) =
                         home_source_counts(record, function, &source_home, store.operation_ordinal);
-                    let semantic_vocabulary::ScalarType::Integer(integer) = source_home.scalar_type
-                    else {
+                    let Some(integer) = source_home.scalar_type.as_integer() else {
                         return Err(invalid());
                     };
                     let (shape, width) = installed_native_scalar_shape(source_home.scalar_type)

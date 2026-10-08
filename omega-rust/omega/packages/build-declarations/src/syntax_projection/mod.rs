@@ -481,7 +481,7 @@ fn reject_unprojected_build_declaration_syntax(
     accepted_artifact_only: usize,
 ) -> Result<(), BuildDeclarationError> {
     for item in syntax_trees.root_items() {
-        let Item::Machine(machine) = item else {
+        let Some(machine) = item.as_machine() else {
             continue;
         };
         for state_handle in syntax_trees.items.state_handles(machine.states) {

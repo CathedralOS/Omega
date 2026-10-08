@@ -118,7 +118,7 @@ impl TerminalExecution<'_> {
         program: &std::sync::Arc<crate::program::AdmittedTerminalProgram>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let result = operation.result.scalar().ok_or(malformed())?;
-        let semantic_vocabulary::ScalarType::Integer(scalar_type) = result.scalar_type else {
+        let Some(scalar_type) = result.scalar_type.as_integer() else {
             return Err(malformed());
         };
         if program.catalogs.dynamic_dispatch.table(table).is_none() {

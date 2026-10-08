@@ -10,7 +10,6 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::expression::TableBinaryExpression;
 use syntax_trees::item::Item;
 use syntax_trees::operator_spelling::OperatorSpelling;
-use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) struct AnonymousNumericValue {
     pub(super) value: BigRational,
@@ -287,12 +286,10 @@ fn machine_parameter_names(
         .iter()
         .map(|handle| {
             let parameter = syntax.items.state_parameter(*handle);
-            let TypeReferenceNode::Named(name) = syntax
+            let name = syntax
                 .type_references
                 .type_reference(parameter.type_reference)
-            else {
-                return None;
-            };
+                .as_named()?;
             (!binder_names.contains(&name.as_str())).then(|| name.as_str().to_string())
         })
         .collect()

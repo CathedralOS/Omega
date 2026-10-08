@@ -35,9 +35,7 @@ pub(super) fn proves(
     let Some(mut required) = checked_place(program, expression) else {
         return Some(false);
     };
-    let PlaceRoot::Symbol(formal) = required.root else {
-        return None;
-    };
+    let formal = required.root.as_symbol()?;
     let position = typed_trees::signature::state_parameter_position(parameters, formal)?;
     let Some(argument) = validation::call_site_argument_expressions(program, call)
         .get(position)

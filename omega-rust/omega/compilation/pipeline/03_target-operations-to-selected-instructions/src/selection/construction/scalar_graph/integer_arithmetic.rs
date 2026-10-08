@@ -428,7 +428,7 @@ pub(super) fn emit(
             let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
             let (_, mut right_register, right_site, right_type) =
                 builder.resolve(*right).ok_or_else(invalid)?;
-            let ScalarType::Integer(integer) = scalar_type else {
+            let Some(integer) = scalar_type.as_integer() else {
                 return Err(invalid());
             };
             if left_type != scalar_type
@@ -552,10 +552,10 @@ pub(super) fn emit(
                 builder.resolve(*value).ok_or_else(invalid)?;
             let (_, mut count_register, count_site, count_type) =
                 builder.resolve(*count).ok_or_else(invalid)?;
-            let ScalarType::Integer(value_integer) = scalar_type else {
+            let Some(value_integer) = scalar_type.as_integer() else {
                 return Err(invalid());
             };
-            let ScalarType::Integer(count_integer) = count_type else {
+            let Some(count_integer) = count_type.as_integer() else {
                 return Err(invalid());
             };
             // The result carries the shifted value's type; the

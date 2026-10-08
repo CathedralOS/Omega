@@ -74,7 +74,7 @@ pub(crate) fn evaluate(
                     "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool")
         );
         let original = syntax.type_references.type_reference(argument).clone();
-        if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(argument) {
+        if let Some(name) = syntax.type_references.type_reference(argument).as_named() {
             let name = name.clone();
             let reference = name.source_span();
             let mut members = HandleSpan::empty();

@@ -185,7 +185,7 @@ fn contains_nominal_cleanup(
     match &types.get(&structural_type)?.shape {
         StructuralTypeShape::Record { fields, .. } => {
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                if let StructuralFieldType::Structural(child) = field.field_type {
+                if let Some(child) = field.field_type.as_structural() {
                     result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
                 }
             }
@@ -203,7 +203,7 @@ fn contains_nominal_cleanup(
                 .chain(cases.iter().flat_map(|case| &case.fields))
             {
                 if !field.relevance.is_erased()
-                    && let StructuralFieldType::Structural(child) = field.field_type
+                    && let Some(child) = field.field_type.as_structural()
                 {
                     result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
                 }
@@ -245,7 +245,7 @@ fn append_cleanup_subjects(
                 .rev()
                 .filter(|field| !field.relevance.is_erased())
             {
-                if let StructuralFieldType::Structural(child) = field.field_type {
+                if let Some(child) = field.field_type.as_structural() {
                     let mut child_path = path.clone();
                     child_path.push(StructuralPathSegment::Field(field.identity.clone()));
                     append_cleanup_subjects(
@@ -460,7 +460,8 @@ pub(super) fn consume_nominal_cleanup(
     {
         return Err(mismatch());
     }
-    let ordinal = function.block(block)
+    let ordinal = function
+        .block(block)
         .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
         .ok_or_else(mismatch)?;
     super::references::check_region_access(

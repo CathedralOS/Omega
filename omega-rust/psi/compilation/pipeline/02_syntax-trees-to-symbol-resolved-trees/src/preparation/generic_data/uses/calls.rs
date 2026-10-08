@@ -1,7 +1,7 @@
 //! Expected types from calls, returns and receiver paths.
 use super::super::{
-    ExpressionHandle, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, Item,
-    StatementNode, SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
+    ExpressionHandle, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, StatementNode,
+    SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::uses::{
     ConstructorFrontier, collect_statement_expression_handles, named_type_name,
@@ -28,7 +28,7 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
     let mut attached_signatures =
         HashMap::<(String, String), Option<Vec<TypeReferenceHandle>>>::new();
     for item in syntax.root_items() {
-        let Item::Machine(machine) = item else {
+        let Some(machine) = item.as_machine() else {
             continue;
         };
         if !machine.type_parameters.is_empty() {

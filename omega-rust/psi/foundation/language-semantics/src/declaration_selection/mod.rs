@@ -83,6 +83,16 @@ pub enum AuthoredDeclarationSelectionTarget {
     LateBound(AuthoredDeclarationSelectionLateBinding),
 }
 
+impl AuthoredDeclarationSelectionTarget {
+    /// The resolved declaration, if this selection resolved directly.
+    pub fn as_resolved(&self) -> Option<&ResolvedAuthoredDeclarationSelection> {
+        let AuthoredDeclarationSelectionTarget::Resolved(resolved) = self else {
+            return None;
+        };
+        Some(resolved)
+    }
+}
+
 /// One compiler-owned view operation on a collection or text carrier.
 ///
 /// The operation is retained as closed semantic identity rather than

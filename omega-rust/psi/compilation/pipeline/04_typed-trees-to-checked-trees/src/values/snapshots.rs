@@ -4,7 +4,7 @@
 use validation::CanonicalPlace;
 
 use crate::flow::{canonical_place_from_semantic_place, canonical_place_from_symbol};
-use facts::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
+use facts::{FactContext, FactPayload, FactPlan, ScalarValue};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 /// Read scalar bindings and structural fields from the same live storage facts.
@@ -210,9 +210,7 @@ fn payloads_at_place<'a>(
                 ) {
                     return None;
                 }
-                let FactPlace::Place(place) = fact.place else {
-                    return None;
-                };
+                let place = fact.place.as_place()?;
                 let candidate = canonical_place_from_semantic_place(
                     program,
                     semantic,
@@ -283,7 +281,7 @@ pub(crate) fn literal_assignment_payload(
     program: &dyn ::validation::CheckingInput,
     subject: &CanonicalPlace,
 ) -> Option<FactPayload> {
-    if let PlaceRoot::Expression(expression) = subject.root
+    if let Some(expression) = subject.root.as_expression()
         && subject.segments.is_empty()
         && is_assignment_literal(program, expression)
     {
@@ -318,9 +316,7 @@ pub(crate) fn prepare_assignment_observations(
             ) {
                 return None;
             }
-            let FactPlace::Place(place) = fact.place else {
-                return None;
-            };
+            let place = fact.place.as_place()?;
             let place =
                 canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
             if has_completed_call_snapshot(program, semantic, context, fact) {

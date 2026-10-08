@@ -159,7 +159,7 @@ fn append_expected_residuals(
                 return None;
             }
             for field in fields.iter().rev() {
-                if let StructuralFieldType::Structural(child) = field.field_type {
+                if let Some(child) = field.field_type.as_structural() {
                     visit(StructuralPathSegment::Field(field.identity.clone()), child)?;
                 }
             }

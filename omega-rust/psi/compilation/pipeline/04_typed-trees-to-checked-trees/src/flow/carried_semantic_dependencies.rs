@@ -327,7 +327,7 @@ fn event_exposure(
     state_symbol: SymbolHandle,
     root: facts::PlaceRoot,
 ) -> Exposure {
-    let facts::PlaceRoot::Symbol(root_symbol) = root else {
+    let Some(root_symbol) = root.as_symbol() else {
         return Exposure::PrivateImplementation;
     };
     let Some(machine) = program.machines().iter().find(|machine| {

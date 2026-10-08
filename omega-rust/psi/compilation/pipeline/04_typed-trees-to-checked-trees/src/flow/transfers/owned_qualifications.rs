@@ -61,7 +61,7 @@ pub(super) fn append_owned_qualification_transfer(
         {
             continue;
         }
-        let FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             continue;
         };
         let place = semantic.places.get(place);

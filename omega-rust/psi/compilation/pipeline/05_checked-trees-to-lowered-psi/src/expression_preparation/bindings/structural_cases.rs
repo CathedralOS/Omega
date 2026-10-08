@@ -2,7 +2,7 @@
 //! owners never select each other's tags, and write-only parameters supply no
 //! runtime observation even when a proposition already names their active case.
 
-use super::super::{StructuralFieldType, StructuralTypeId, StructuralTypeShape};
+use super::super::{StructuralTypeId, StructuralTypeShape};
 use super::{
     LoweringError, PlaceId, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, unsupported,
@@ -192,7 +192,7 @@ fn walk(
                         "case observation has an erased or ambiguous carrier field",
                     );
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
+                let Some(child) = field.field_type.as_structural() else {
                     return unsupported("case observation requires a structural carrier field");
                 };
                 structural_type = child;

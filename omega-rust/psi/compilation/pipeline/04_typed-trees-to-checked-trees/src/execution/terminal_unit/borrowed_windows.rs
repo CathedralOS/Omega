@@ -81,9 +81,7 @@ pub(super) fn capture_assignment_destination(
         ordinal,
         assignment.target,
     )?;
-    let PlaceRoot::Symbol(root) = access.root else {
-        return None;
-    };
+    let root = access.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
         program,
         state,
@@ -186,9 +184,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
     place: &CanonicalPlace,
     target: ExpressionHandle,
 ) -> Option<WindowPlace> {
-    let PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
+    let root_symbol = place.root.as_symbol()?;
     let (root, segments) = resolve_storage_place(
         program,
         state,
@@ -197,9 +193,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
         root_symbol,
         &place.segments,
     );
-    let PlaceRoot::Symbol(symbol) = root else {
-        return None;
-    };
+    let symbol = root.as_symbol()?;
     let position =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)?;
     let position = u32::try_from(position).ok()?;
@@ -296,7 +290,7 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
     let mut root = PlaceRoot::Symbol(root_symbol);
     let mut segments = path.to_vec();
     for _ in 0..16 {
-        let PlaceRoot::Symbol(symbol) = root else {
+        let Some(symbol) = root.as_symbol() else {
             break;
         };
         let Some(source) = crate::flow::reference_route_source(

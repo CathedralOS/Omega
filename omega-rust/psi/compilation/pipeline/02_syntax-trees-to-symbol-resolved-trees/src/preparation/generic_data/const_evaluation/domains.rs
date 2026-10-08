@@ -1,7 +1,7 @@
 //! Constant evaluation: domains.
 use super::super::{
     CanonicalConstValue, ConstDefinition, Diagnostic, ExpressionHandle, ExpressionNode, HashMap,
-    HashSet, Identifier, IntegerLiteral, Item, SyntaxTrees, TypeParameterKind, TypeReferenceHandle,
+    HashSet, Identifier, IntegerLiteral, SyntaxTrees, TypeParameterKind, TypeReferenceHandle,
     TypeReferenceNode,
 };
 
@@ -92,7 +92,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
     let mut families = Vec::<ClosedDomainFamily>::new();
 
     for item in syntax.root_items() {
-        let Item::Domain(definition) = item else {
+        let Some(definition) = item.as_domain() else {
             continue;
         };
         let parameters = syntax
@@ -166,8 +166,11 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
                 ClosedDomainParameter::Type { name }
                 | ClosedDomainParameter::Const { name, .. } => name,
             };
-            let TypeReferenceNode::Named(argument_name) =
-                syntax.tables.type_references.type_reference(*argument)
+            let Some(argument_name) = syntax
+                .tables
+                .type_references
+                .type_reference(*argument)
+                .as_named()
             else {
                 return Err(Diagnostic::error(format!(
                     "indexed domain `{}` must select each index binder directly in its family header",

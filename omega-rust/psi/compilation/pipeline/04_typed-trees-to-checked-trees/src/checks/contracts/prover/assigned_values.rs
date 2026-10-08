@@ -4,7 +4,7 @@
 use validation::CanonicalPlace;
 
 use crate::flow::{canonical_place_from_semantic_place, relative_place_segments_from_expression};
-use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle};
+use facts::{FactContextHandle, FactPayload, FactPlan, PlaceHandle};
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionHandle;
@@ -141,7 +141,7 @@ fn recorded_element_extent(
 ) -> Vec<usize> {
     let mut indices = Vec::new();
     for (_, fact) in semantic.facts.iter() {
-        let FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             continue;
         };
         let Some(candidate) =
@@ -201,7 +201,7 @@ fn carried_domain_membership_at_place(
                     | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
                     _ => return false,
                 };
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     return false;
                 };
                 canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
@@ -279,7 +279,7 @@ pub(in crate::checks::contracts) fn byte_predicate_proven_at_place(
                 let FactPayload::BytePredicate { predicate } = fact.payload else {
                     return false;
                 };
-                let FactPlace::Place(place) = fact.place else {
+                let Some(place) = fact.place.as_place() else {
                     return false;
                 };
                 predicate.implies(required)
@@ -391,9 +391,7 @@ impl AssignedValues<'_> {
                     let FactPayload::AssignedCase { variant } = fact.payload else {
                         return None;
                     };
-                    let FactPlace::Place(place) = fact.place else {
-                        return None;
-                    };
+                    let place = fact.place.as_place()?;
                     let candidate = canonical_place_from_semantic_place(
                         self.program,
                         self.semantic,

@@ -101,7 +101,7 @@ fn established_claim_carry_policy(
             facts::FactPayload::CarryOrigin { .. } => None,
             _ => continue,
         };
-        let facts::FactPlace::Place(place) = fact.place else {
+        let Some(place) = fact.place.as_place() else {
             continue;
         };
         let place = semantic.place_label(program, place);

@@ -141,9 +141,7 @@ pub(crate) fn call_contract_argument_projection(
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
     let formal = validation::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(symbol) = formal.root else {
-        return None;
-    };
+    let symbol = formal.root.as_symbol()?;
     let (position, parameter) = parameters
         .iter()
         .enumerate()

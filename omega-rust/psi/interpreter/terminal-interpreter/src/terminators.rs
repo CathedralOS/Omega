@@ -359,7 +359,7 @@ impl TerminalExecution<'_> {
                 let Some(field) = terminal_psi::field_by_identity(&case.fields, identity) else {
                     return Ok(false);
                 };
-                let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {
+                let Some(next) = field.field_type.as_structural() else {
                     return Err(malformed());
                 };
                 structural_type = next;

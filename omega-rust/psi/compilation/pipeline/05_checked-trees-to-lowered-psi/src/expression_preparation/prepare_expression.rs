@@ -747,7 +747,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 proven_indexes,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
-            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+            let Some(source_type) = operand.scalar_type().as_integer() else {
                 return unsupported("wrapping conversion requires fixed integer carriers");
             };
             wrapping_cast::wrapping_cast(operand, source_type, target)
@@ -793,7 +793,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 proven_indexes,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
-            let ScalarType::Integer(source_type) = operand.scalar_type() else {
+            let Some(source_type) = operand.scalar_type().as_integer() else {
                 return unsupported("saturating conversion requires fixed integer carriers");
             };
             saturating_cast::saturating_cast(operand, source_type, target)

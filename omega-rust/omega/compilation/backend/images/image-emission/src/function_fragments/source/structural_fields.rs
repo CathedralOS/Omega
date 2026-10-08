@@ -1053,8 +1053,7 @@ pub(super) fn retained(
                 let Some(selected) = live_field_by_id(fields, *field) else {
                     return false;
                 };
-                let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type
-                else {
+                let Some(child) = selected.field_type.as_structural() else {
                     return false;
                 };
                 runtime_path.push(terminal_psi::StructuralPathSegment::Field(

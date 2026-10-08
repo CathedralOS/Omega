@@ -240,7 +240,7 @@ pub(super) fn check_statement_borrows<'p>(
             frames.assignment_replaces_reference_binding(machine, statement_node) == Some(true)
         });
         let destinations = if binding_replacement {
-            let facts::PlaceRoot::Symbol(root_symbol) = mutated_place.root else {
+            let Some(root_symbol) = mutated_place.root.as_symbol() else {
                 continue;
             };
             Some(vec![super::aliases::ResolvedAlias {

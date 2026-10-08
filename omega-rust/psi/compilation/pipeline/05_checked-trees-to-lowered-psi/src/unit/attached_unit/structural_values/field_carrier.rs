@@ -14,8 +14,8 @@ pub(crate) fn resolve(
     field: &StructuralFieldType,
     reference: TypeReferenceHandle,
 ) -> Result<StructuralTypeId, LoweringError> {
-    if let StructuralFieldType::Structural(identity) = field {
-        return Ok(*identity);
+    if let Some(identity) = field.as_structural() {
+        return Ok(identity);
     }
     match field.byte_sequence_carrier() {
         Some(ByteSequenceCarrier::BoundedOwned { .. }) => {

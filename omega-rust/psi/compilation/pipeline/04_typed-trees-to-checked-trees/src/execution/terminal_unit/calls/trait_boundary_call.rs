@@ -350,9 +350,7 @@ pub(super) fn build(
             continue;
         }
         phase("call operation: boundary argument parameter");
-        let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
-            return None;
-        };
+        let source_symbol = place.root.as_symbol()?;
         // Boundary calls lend the same primitive local home as checked-body
         // calls. Its existing admission retains the authored type and exact
         // borrow occurrence; a scalar local is not a structural parameter.

@@ -251,9 +251,7 @@ pub(crate) fn structural_call_arguments(
             continue;
         }
         arm("call operation: structural arguments: source symbol");
-        let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
-            return None;
-        };
+        let source_symbol = place.root.as_symbol()?;
         if crate::execution::terminal_unit::structural_scalar_store::primitive_local_before(
             program,
             caller_state,
@@ -477,9 +475,7 @@ fn alias_forwarded_access(
     {
         return None;
     }
-    let facts::PlaceRoot::Symbol(owner) = authored_place.root else {
-        return None;
-    };
+    let owner = authored_place.root.as_symbol()?;
     let alias = aliases.iter().find(|alias| alias.owner == owner)?;
     if alias.last_use != statement_index {
         return None;
@@ -502,9 +498,7 @@ fn reborrow_restored_call_alias_target(
     call: &checked_trees::FlowCallFact,
     authored_place: &validation::CanonicalPlace,
 ) -> Option<validation::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
-        return None;
-    };
+    let authored_root = authored_place.root.as_symbol()?;
     if !authored_place.segments.is_empty() {
         return None;
     }
@@ -557,9 +551,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     call_site: &validation::CallSite<'_>,
     authored_place: &validation::CanonicalPlace,
 ) -> Option<validation::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
-        return None;
-    };
+    let authored_root = authored_place.root.as_symbol()?;
     if !authored_place.segments.is_empty() || call.call_ordinal != 0 {
         return None;
     }
@@ -596,9 +588,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                 call.statement_index,
                 *expression,
             )?;
-            let facts::PlaceRoot::Symbol(root) = place.root else {
-                return None;
-            };
+            let root = place.root.as_symbol()?;
             place.segments.is_empty().then_some(root)
         })
         .collect::<Option<Vec<_>>>()?;
@@ -681,9 +671,7 @@ fn borrow_access_spelling(
     machine: SymbolHandle,
     place: &validation::CanonicalPlace,
 ) -> Option<(SymbolHandle, &[facts::PlaceSegment])> {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     if root == machine
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()

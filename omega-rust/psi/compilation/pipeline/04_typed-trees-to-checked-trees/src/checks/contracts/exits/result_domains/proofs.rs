@@ -6,7 +6,7 @@ use super::super::super::return_values::exit_return_expression;
 use super::{domain_predicate_meaning, exact_integer_reference};
 use crate::flow::canonical_place_from_semantic_place;
 use checked_trees::{CheckFacts, FlowExitFact};
-use facts::{FactContextHandle, FactOrigin, FactPayload, FactPlace, PlaceRoot};
+use facts::{FactContextHandle, FactOrigin, FactPayload};
 use typed_trees::types::TypeReferenceNode;
 
 pub(super) fn establishes_scalar_predicates(
@@ -108,7 +108,7 @@ pub(super) fn establishes_scalar_predicates(
             {
                 continue;
             }
-            let FactPlace::Place(place) = fact.place else {
+            let Some(place) = fact.place.as_place() else {
                 continue;
             };
             let Some(subject) = canonical_place_from_semantic_place(
@@ -530,11 +530,11 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
         | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
         _ => return false,
     };
-    let FactPlace::Place(place) = requirement.place else {
+    let Some(place) = requirement.place.as_place() else {
         return false;
     };
     let place = facts.semantic.places.get(place);
-    let PlaceRoot::Expression(root) = place.root else {
+    let Some(root) = place.root.as_expression() else {
         return false;
     };
     // Only the reserved `result` occurrence owned by THIS machine's ensures

@@ -426,9 +426,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                         position: u32::try_from(position).ok()?,
                     }
                 } else {
-                    let facts::PlaceRoot::Symbol(symbol) = root else {
-                        return None;
-                    };
+                    let symbol = root.as_symbol()?;
                     let (_, local) = program
                         .state_local_declaration(state, symbol)
                         .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
@@ -477,9 +475,7 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     position: u32::try_from(position).ok()?,
                 }
             } else {
-                let facts::PlaceRoot::Symbol(symbol) = root else {
-                    return None;
-                };
+                let symbol = root.as_symbol()?;
                 let (_, local) = program
                     .state_local_declaration(state, symbol)
                     .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;

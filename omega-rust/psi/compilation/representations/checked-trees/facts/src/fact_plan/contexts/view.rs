@@ -2,10 +2,7 @@ use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-use crate::{
-    Fact, FactPayload, FactPlace, FactPlan, FactRef, PlaceHandle, ProgramPoint,
-    TypeConstraintFact,
-};
+use crate::{Fact, FactPayload, FactPlan, FactRef, PlaceHandle, ProgramPoint, TypeConstraintFact};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FactContextView<'facts> {
@@ -22,7 +19,6 @@ impl<'facts> FactContextView<'facts> {
             .iter()
             .map(move |reference| self.plan.facts.get(reference.fact))
     }
-
 
     pub fn proves_proposition_label(self, program: &TypedTrees, required_label: &str) -> bool {
         self.facts().any(|fact| {
@@ -68,7 +64,7 @@ impl<'facts> FactContextView<'facts> {
             let (fact_domain, fact_place) = match fact.payload {
                 FactPayload::DomainMembership { domain_symbol, .. }
                 | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
-                    let FactPlace::Place(place) = fact.place else {
+                    let Some(place) = fact.place.as_place() else {
                         return false;
                     };
                     (domain_symbol, place)

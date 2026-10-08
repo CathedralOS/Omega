@@ -39,9 +39,7 @@ pub(super) fn transport(
                         if !stable_value_target {
                             return None;
                         }
-                        let FactPlace::Place(fact_place) = fact.place else {
-                            return None;
-                        };
+                        let fact_place = fact.place.as_place()?;
                         source_place
                             .filter(|source_place| {
                                 semantic.places_match(program, fact_place, *source_place)
@@ -60,9 +58,7 @@ pub(super) fn transport(
                         semantic_domain,
                         ..
                     } => {
-                        let FactPlace::Place(fact_place) = fact.place else {
-                            return None;
-                        };
+                        let fact_place = fact.place.as_place()?;
                         let fact_label = semantic.place_label(program, fact_place);
                         (source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
@@ -83,9 +79,7 @@ pub(super) fn transport(
                     }
                     FactPayload::CarryPermission { permission, .. }
                     | FactPayload::ContractCarryPermission { permission, .. } => {
-                        let FactPlace::Place(fact_place) = fact.place else {
-                            return None;
-                        };
+                        let fact_place = fact.place.as_place()?;
                         let fact_label = semantic.place_label(program, fact_place);
                         (source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)
@@ -100,9 +94,7 @@ pub(super) fn transport(
                             ))
                     }
                     FactPayload::CarryOrigin { .. } => {
-                        let FactPlace::Place(fact_place) = fact.place else {
-                            return None;
-                        };
+                        let fact_place = fact.place.as_place()?;
                         let fact_label = semantic.place_label(program, fact_place);
                         (source_place.is_some_and(|source_place| {
                             semantic.places_match(program, fact_place, source_place)

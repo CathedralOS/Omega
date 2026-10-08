@@ -11,7 +11,7 @@ pub(super) fn is_private_result_place(
     program: &dyn ::validation::CheckingInput,
     place: &CanonicalPlace,
 ) -> bool {
-    let facts::PlaceRoot::Expression(expression) = place.root else {
+    let Some(expression) = place.root.as_expression() else {
         return false;
     };
     let Some(call) = program.expression_table.call_node(expression) else {

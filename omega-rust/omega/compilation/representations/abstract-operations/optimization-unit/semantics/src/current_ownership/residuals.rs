@@ -4,7 +4,8 @@
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    find_structural_case,    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_case,
 };
 
 pub(super) fn partial_affine_residuals(
@@ -168,7 +169,7 @@ fn collect_field_residuals(
         return None;
     }
     for field in fields.iter().rev() {
-        if let StructuralFieldType::Structural(child_type) = field.field_type {
+        if let Some(child_type) = field.field_type.as_structural() {
             collect_child_residuals(
                 structural_types,
                 child_type,

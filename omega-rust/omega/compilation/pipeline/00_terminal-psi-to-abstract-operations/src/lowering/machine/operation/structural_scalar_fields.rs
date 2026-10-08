@@ -176,8 +176,8 @@ fn lower_store(
     }
     let parent_type = resolve_structural_path(structural_types, storage_type, storage_path)
         .ok_or_else(invalid)?;
-    let declaration = terminal_psi::find_structural_type(structural_types, parent_type)
-        .ok_or_else(invalid)?;
+    let declaration =
+        terminal_psi::find_structural_type(structural_types, parent_type).ok_or_else(invalid)?;
     // A mixed shape's common field is a direct field at one offset in every
     // case, stored without case knowledge exactly as a record field.
     let Some(fields) = declaration.shape.direct_fields() else {
@@ -455,9 +455,7 @@ fn resolve_structural_path(
                 if matching.next().is_some() {
                     return None;
                 }
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
+                let next = field.field_type.as_structural()?;
                 next
             }
             (

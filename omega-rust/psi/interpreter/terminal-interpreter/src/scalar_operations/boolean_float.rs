@@ -110,7 +110,7 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_nearest_ieee_float_fused_multiply_add")
         };
-        let ScalarType::IeeeFloat(format) = operation.result.expect_scalar().scalar_type else {
+        let Some(format) = operation.result.expect_scalar().scalar_type.as_ieee_float() else {
             return Err(malformed());
         };
         let TerminalScalarValue::IeeeFloat(left) = self.scalar_value(left)? else {

@@ -50,7 +50,7 @@ fn invocation_contexts_at_referents(
                 .iter()
                 .any(|fact_ref| {
                     let fact = semantic.facts.get(fact_ref.fact);
-                    let facts::FactPlace::Place(place) = fact.place else {
+                    let Some(place) = fact.place.as_place() else {
                         return false;
                     };
                     let Some(place) = crate::flow::canonical_place_from_semantic_place(

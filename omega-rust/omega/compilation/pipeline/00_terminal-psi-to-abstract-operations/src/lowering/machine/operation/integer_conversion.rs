@@ -18,7 +18,7 @@ pub(super) fn lower(
             let Some(ScalarType::Integer(source_type)) = value_types.get(&operand).copied() else {
                 return Err(LoweringError::VerifiedIntegerWidenMalformed(operation.id));
             };
-            let ScalarType::Integer(target_type) = operation.result.expect_scalar().scalar_type
+            let Some(target_type) = operation.result.expect_scalar().scalar_type.as_integer()
             else {
                 return Err(LoweringError::VerifiedIntegerWidenMalformed(operation.id));
             };
@@ -39,7 +39,7 @@ pub(super) fn lower(
                     operation.id,
                 ));
             };
-            let ScalarType::Integer(target_type) = operation.result.expect_scalar().scalar_type
+            let Some(target_type) = operation.result.expect_scalar().scalar_type.as_integer()
             else {
                 return Err(LoweringError::VerifiedIntegerExactCastMalformed(
                     operation.id,

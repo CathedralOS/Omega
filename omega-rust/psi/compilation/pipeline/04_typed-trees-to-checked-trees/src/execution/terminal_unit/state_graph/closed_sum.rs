@@ -61,9 +61,7 @@ pub(super) fn build(
     );
     let dispatch = match subject_place.as_ref() {
         Some(place) => {
-            let facts::PlaceRoot::Symbol(_) = place.root else {
-                return None;
-            };
+            let _ = place.root.as_symbol()?;
             DispatchSubject::Place(place)
         }
         None => DispatchSubject::Computed(dispatch_subjects::evaluated_case_subject(

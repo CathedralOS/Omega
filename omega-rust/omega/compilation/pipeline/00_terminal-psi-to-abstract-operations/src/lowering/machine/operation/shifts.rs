@@ -51,7 +51,7 @@ pub(super) fn lower(
             LoweringError::VerifiedExactShiftMalformed(operation.id)
         }
     };
-    let ScalarType::Integer(value_type) = operation.result.expect_scalar().scalar_type else {
+    let Some(value_type) = operation.result.expect_scalar().scalar_type.as_integer() else {
         return Err(malformed);
     };
     let Some(ScalarType::Integer(count_type)) = value_types.get(&count).copied() else {

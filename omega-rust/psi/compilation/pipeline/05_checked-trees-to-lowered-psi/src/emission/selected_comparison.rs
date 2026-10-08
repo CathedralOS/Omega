@@ -6,7 +6,6 @@ use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredSelectedIntegerComparisonOperation;
-use semantic_vocabulary::ScalarType;
 
 /// Checked occurrence before emission assigns real Terminal identities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +99,7 @@ fn selected_meaning(
             "selected integer comparison has no admitted Terminal operation and operand mapping to join",
         );
     };
-    let ScalarType::Integer(integer_type) = terminal_scalar_type(primitive)? else {
+    let Some(integer_type) = terminal_scalar_type(primitive)?.as_integer() else {
         return unsupported("selected integer comparison has a non-integer operand");
     };
     Ok(SelectedComparisonMeaning::Integer {

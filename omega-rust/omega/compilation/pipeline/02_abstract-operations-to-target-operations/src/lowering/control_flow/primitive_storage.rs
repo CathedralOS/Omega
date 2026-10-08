@@ -494,7 +494,7 @@ pub(super) fn lower(
                             .ok_or_else(|| {
                                 LoweringError::unsupported_control_flow(function.machine)
                             })?;
-                        let StructuralFieldType::Structural(child) = selected.field_type else {
+                        let Some(child) = selected.field_type.as_structural() else {
                             return Err(LoweringError::unsupported_control_flow(function.machine));
                         };
                         runtime_path.push(terminal_psi::StructuralPathSegment::Field(

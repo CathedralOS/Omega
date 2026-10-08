@@ -2,7 +2,7 @@
 //! premises survive the statements between an incoming guard and this call.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{FactPlace, PlaceRoot, PlaceSegment};
+use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -33,7 +33,7 @@ pub(super) fn caller_state_preserves_predicate_premise(
     if let Some(argument) = super::predicate_domains::requirement_subject_expression(facts, fact) {
         collect_expression_self_fields(program, argument, &mut fields);
     }
-    if let FactPlace::Place(place_handle) = fact.place {
+    if let Some(place_handle) = fact.place.as_place() {
         let place = facts.semantic.places.get(place_handle);
         for segment in facts.semantic.place_segments.span_or_empty(place.segments) {
             if let PlaceSegment::Field { symbol } = segment {
@@ -65,7 +65,7 @@ pub(super) fn caller_state_preserves_predicate_premise(
             .flow
             .state_call_prior_invalidations(state_flow, call_flow)
             .any(|invalidation| {
-                let FactPlace::Place(place_handle) = fact.place else {
+                let Some(place_handle) = fact.place.as_place() else {
                     return false;
                 };
                 let subject = facts.semantic.places.get(place_handle);
@@ -124,7 +124,7 @@ pub(super) fn caller_state_preserves_label_names(
         .flow
         .state_call_prior_invalidations(state_flow, call_flow)
         .any(|invalidation| {
-            let PlaceRoot::Symbol(symbol) = invalidation.mutated_root else {
+            let Some(symbol) = invalidation.mutated_root.as_symbol() else {
                 return false;
             };
             names

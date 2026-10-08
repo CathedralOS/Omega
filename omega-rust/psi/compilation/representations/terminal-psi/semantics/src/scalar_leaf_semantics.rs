@@ -319,7 +319,7 @@ fn denotation_term(
     let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
     let built = match (schema.denotation, inputs) {
         (ScalarLeafDenotation::IntegerConstant, ScalarLeafInputs::IntegerLiteral(value)) => {
-            let ScalarType::Integer(integer_type) = result_type else {
+            let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             ScalarTerm::integer(integer_type, value)
@@ -349,7 +349,7 @@ fn denotation_term(
             ScalarTerm::integer_less_or_equal(integer_type, left, term(right)?)
         }
         (ScalarLeafDenotation::IntegerBitwiseNot, ScalarLeafInputs::Unary(operand)) => {
-            let ScalarType::Integer(integer_type) = result_type else {
+            let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             ScalarTerm::integer_bitwise_not(integer_type, term(operand)?)
@@ -357,25 +357,25 @@ fn denotation_term(
         (ScalarLeafDenotation::IntegerWiden, ScalarLeafInputs::Unary(operand)) => {
             let operand = term(operand)?;
             let source_type = integer_type(&operand).ok_or_else(invalid)?;
-            let ScalarType::Integer(target_type) = result_type else {
+            let Some(target_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             ScalarTerm::integer_widen(source_type, target_type, operand)
         }
         (ScalarLeafDenotation::IntegerBitwiseAnd, ScalarLeafInputs::Binary(left, right)) => {
-            let ScalarType::Integer(integer_type) = result_type else {
+            let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             ScalarTerm::integer_bitwise_and(integer_type, term(left)?, term(right)?)
         }
         (ScalarLeafDenotation::IntegerBitwiseOr, ScalarLeafInputs::Binary(left, right)) => {
-            let ScalarType::Integer(integer_type) = result_type else {
+            let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             ScalarTerm::integer_bitwise_or(integer_type, term(left)?, term(right)?)
         }
         (ScalarLeafDenotation::IntegerBitwiseXor, ScalarLeafInputs::Binary(left, right)) => {
-            let ScalarType::Integer(integer_type) = result_type else {
+            let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             ScalarTerm::integer_bitwise_xor(integer_type, term(left)?, term(right)?)
@@ -384,7 +384,7 @@ fn denotation_term(
             ScalarLeafDenotation::WrappingIntegerShiftLeft,
             ScalarLeafInputs::Binary(value, count),
         ) => {
-            let ScalarType::Integer(value_type) = result_type else {
+            let Some(value_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             let count = term(count)?;
@@ -395,7 +395,7 @@ fn denotation_term(
             ScalarLeafDenotation::WrappingIntegerShiftRight,
             ScalarLeafInputs::Binary(value, count),
         ) => {
-            let ScalarType::Integer(value_type) = result_type else {
+            let Some(value_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             let count = term(count)?;
@@ -403,7 +403,7 @@ fn denotation_term(
             ScalarTerm::wrapping_integer_shift_right(value_type, count_type, term(value)?, count)
         }
         (denotation, ScalarLeafInputs::Binary(left, right)) => {
-            let ScalarType::Integer(integer_type) = result_type else {
+            let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());
             };
             let left = term(left)?;

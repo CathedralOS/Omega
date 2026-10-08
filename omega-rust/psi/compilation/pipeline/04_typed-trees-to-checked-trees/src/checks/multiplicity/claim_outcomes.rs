@@ -91,7 +91,7 @@ fn derive_checked_claim_outcome_map(
             *expression,
         )
         && place.segments.is_empty()
-        && let facts::PlaceRoot::Symbol(parameter_symbol) = place.root
+        && let Some(parameter_symbol) = place.root.as_symbol()
         && program.state_parameters(state).iter().any(|parameter| {
             false
                 && (parameter.symbol == parameter_symbol || parameter_symbol == machine_symbol)
@@ -811,7 +811,7 @@ fn claim_outcome_source_for_event(
             && candidate.access == PermissionAccess::Owned
             && candidate.claim_identity == event.claim_identity
             && candidate.provenance == event.provenance
-    }) && let facts::PlaceRoot::Symbol(parameter_symbol) = entry.root
+    }) && let Some(parameter_symbol) = entry.root.as_symbol()
         && parameter_for_symbol(program, state, parameter_symbol).is_some()
     {
         return CheckedClaimOutcomeSource::Input {
@@ -1004,7 +1004,7 @@ pub(crate) fn receiving_value<'a>(
 )> {
     let statement_index = super::linear_validation::permission_event_statement_index(event.source)?;
     let event_path = segments.span_or_empty(event.segments);
-    if let facts::PlaceRoot::Expression(expression) = event.root {
+    if let Some(expression) = event.root.as_expression() {
         return Some((statement_index, expression, event_path));
     }
     let state = program.state_by_symbol(event.state_symbol)?;

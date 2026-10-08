@@ -385,9 +385,7 @@ impl ExitScalars<'_, '_> {
                 _ => return None,
             };
             if contract {
-                let PlaceRoot::Symbol(root) = place.root else {
-                    return None;
-                };
+                let root = place.root.as_symbol()?;
                 let parameter = parameters
                     .iter()
                     .find(|parameter| parameter.symbol == root)?;

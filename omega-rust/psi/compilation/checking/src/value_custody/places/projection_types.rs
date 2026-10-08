@@ -46,7 +46,7 @@ pub fn canonical_place_type_reference(
     // places it — a call at its declared return type, a stored-type leaf at
     // its own reference, a window at its element — then replays the retained
     // segments through the same hop rules member resolution commits to.
-    if let facts::PlaceRoot::Expression(expression) = place.root {
+    if let Some(expression) = place.root.as_expression() {
         return super::member_resolution::expression_place_type_reference(
             program,
             expression,
@@ -55,12 +55,10 @@ pub fn canonical_place_type_reference(
     }
     // A type-reference root names the place's own stored type: its declared
     // type is that reference replayed through the retained segments.
-    if let facts::PlaceRoot::TypeReference(reference) = place.root {
+    if let Some(reference) = place.root.as_type_reference() {
         return project_type_reference_from_segments(program, reference, &place.segments);
     }
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
+    let root_symbol = place.root.as_symbol()?;
 
     // `self` places may retain the authored state-parameter symbol or be
     // normalized to the durable machine symbol. In either form, project their

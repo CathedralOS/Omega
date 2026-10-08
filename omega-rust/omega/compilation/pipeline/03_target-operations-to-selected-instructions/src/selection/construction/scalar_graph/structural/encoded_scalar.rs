@@ -80,7 +80,7 @@ pub(super) fn read(
         &[address, codec, cursor, count, byte, payload],
         provenance(row),
     )?;
-    if let ScalarType::IeeeFloat(format) = definition.scalar_type {
+    if let Some(format) = definition.scalar_type.as_ieee_float() {
         let (kind, key) = match format {
             IeeeFloatFormat::Binary32 => (
                 SelectedInstructionKind::BitsToFloat32,
@@ -122,7 +122,7 @@ pub(super) fn write(
     if !operation_provenance.values.contains(&value.value) {
         operation_provenance.values.push(value.value);
     }
-    let value_register = if let ScalarType::IeeeFloat(format) = scalar {
+    let value_register = if let Some(format) = scalar.as_ieee_float() {
         let bits = transport_register(builder, place, 0)?;
         let (kind, key) = match format {
             IeeeFloatFormat::Binary32 => (

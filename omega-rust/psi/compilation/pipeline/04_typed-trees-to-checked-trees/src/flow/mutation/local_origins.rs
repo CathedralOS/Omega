@@ -201,7 +201,7 @@ fn place_requires_local_write_origin(
     place: &CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let Some(root) = place.root.as_symbol() else {
         return false;
     };
     let Some(state) = program.state_by_symbol(state_symbol) else {
@@ -236,9 +236,7 @@ pub(crate) fn rebase_exact_local_place(
     ) {
         return Some(place);
     }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
     let statement = program
         .statement_table
@@ -291,9 +289,7 @@ pub(super) fn rebase_local_write_places(
     ) {
         return Some(vec![place]);
     }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let (machine, state) = validation::find_state_with_machine(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;

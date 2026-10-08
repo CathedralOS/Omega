@@ -305,9 +305,7 @@ fn place(
         ordinal,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = canonical.root else {
-        return None;
-    };
+    let symbol = canonical.root.as_symbol()?;
     // An erased borrow carrier names its captured referent's storage.
     let (symbol, segments) = match super::receiver_aliases::aliases(program, facts, machine, state)
         .unwrap_or_default()

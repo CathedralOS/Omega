@@ -17,7 +17,7 @@ pub(crate) fn equal(
     left: &ScalarTerm,
     right: &ScalarTerm,
 ) -> Result<bool, ClosedIntegerEvaluationError> {
-    let ScalarType::Integer(carrier) = left.scalar_type() else {
+    let Some(carrier) = left.scalar_type().as_integer() else {
         return Ok(false);
     };
     if carrier.is_address() || right.scalar_type() != ScalarType::Integer(carrier) {

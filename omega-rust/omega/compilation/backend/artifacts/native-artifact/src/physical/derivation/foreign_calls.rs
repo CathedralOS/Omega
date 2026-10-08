@@ -1108,9 +1108,7 @@ fn fixed_scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::Va
 }
 
 fn fixed_integer_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueShape> {
-    let ScalarType::Integer(integer) = scalar_type else {
-        return None;
-    };
+    let integer = scalar_type.as_integer()?;
     let bits = integer.bits();
     if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
         || !matches!(bits, 8 | 16 | 32 | 64)

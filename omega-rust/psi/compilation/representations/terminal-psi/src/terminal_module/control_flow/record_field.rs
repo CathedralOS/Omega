@@ -18,3 +18,13 @@ pub enum RecordFieldValue {
     /// rediscover its contents from a same-shaped declaration.
     Structural(crate::StructuralArgument),
 }
+
+impl RecordFieldValue {
+    /// The structural child, if this field stores one.
+    pub fn as_structural(&self) -> Option<&crate::StructuralArgument> {
+        let RecordFieldValue::Structural(structural) = self else {
+            return None;
+        };
+        Some(structural)
+    }
+}

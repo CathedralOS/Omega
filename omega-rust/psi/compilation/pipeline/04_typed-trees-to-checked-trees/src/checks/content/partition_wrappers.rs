@@ -460,9 +460,7 @@ fn instantiate_partition_subject(
                 argument,
                 &subject.segments,
             )?;
-            let facts::PlaceRoot::Symbol(actual_root) = actual.root else {
-                return None;
-            };
+            let actual_root = actual.root.as_symbol()?;
             let (caller_position, caller_parameter) = program
                 .state_parameters(caller_state)
                 .iter()

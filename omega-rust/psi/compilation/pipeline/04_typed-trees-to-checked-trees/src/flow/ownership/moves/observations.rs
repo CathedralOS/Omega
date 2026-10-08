@@ -228,7 +228,7 @@ pub(super) fn detached_borrowed_copy_admitted(
     place: &CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(_) = place.root else {
+    let Some(_) = place.root.as_symbol() else {
         return false;
     };
     let Some(projected) =

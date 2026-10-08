@@ -1441,9 +1441,7 @@ impl SelectedInstructionPairRule {
 /// signed one. Non-integer, address-carrier, or wider-than-64 result types —
 /// and any result type that cannot admit the full folded value — reject.
 fn scalar_materialize_value(bits: u64, scalar: ScalarType) -> Option<IntegerValue> {
-    let ScalarType::Integer(integer) = scalar else {
-        return None;
-    };
+    let integer = scalar.as_integer()?;
     if integer.is_address() || integer.bits() > 64 {
         return None;
     }

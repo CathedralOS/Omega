@@ -139,9 +139,7 @@ fn reads_owner_layout(
             function.arrival_parameter(*place).is_some_and(|parameter| {
                 structural_types
                     .get(&parameter.structural_type)
-                    .is_some_and(|declaration| {
-                        declaration.shape.is_bounded_owned_byte_sequence()
-                    })
+                    .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
             })
         }
         TargetByteView::Result { .. }
@@ -295,7 +293,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
         source,
         &mut Vec::new(),
     )?;
-    let ScalarType::Integer(scalar_type) = result.scalar_type else {
+    let Some(scalar_type) = result.scalar_type.as_integer() else {
         return Err(invalid());
     };
     if let AbstractOperation::ByteSequenceLength { .. } = operation
@@ -656,9 +654,7 @@ fn owned_byte_result<'a>(
             && result.claims.is_empty()
             && structural_types
                 .get(&result.structural_type)
-                .is_some_and(|declaration| {
-                    declaration.shape.is_bounded_owned_byte_sequence()
-                }))
+                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence()))
         .then_some((psi_operation, result))
     });
     let result = matching.next()?;

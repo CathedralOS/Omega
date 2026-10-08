@@ -273,9 +273,7 @@ pub fn canonicalize_ordinary_path(
                     _ => return None,
                 };
                 let field = terminal_psi::live_field_by_identity(fields, identity)?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
+                let next = field.field_type.as_structural()?;
                 canonical.push(CanonicalStructuralPathSegment::Field(field.id));
                 current = next;
             }
@@ -764,10 +762,8 @@ pub fn comparison_operands(
         if *result != bound {
             return None;
         }
-        let ScalarType::Integer(integer_type) = scalar_type else {
-            return None;
-        };
-        Some((*value, *integer_type))
+        let integer_type = scalar_type.as_integer()?;
+        Some((*value, integer_type))
     })?;
     // This optional specialization records one homogeneous bound carrier.
     // Retain mixed comparisons for the general exact-value execution path.

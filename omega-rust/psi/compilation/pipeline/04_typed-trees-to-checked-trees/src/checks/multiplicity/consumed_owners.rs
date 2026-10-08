@@ -274,7 +274,7 @@ fn owned_custody_chain(
     statement_index: usize,
     place: &CanonicalPlace,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let Some(root) = place.root.as_symbol() else {
         return false;
     };
     let parameters = program.state_parameters(state);

@@ -193,9 +193,7 @@ pub(super) fn target_run(
                         if !matches!(source.root, PlaceRoot::Symbol(root) if root.is_valid()) {
                             return None;
                         }
-                        let PlaceRoot::Symbol(root) = source.root else {
-                            return None;
-                        };
+                        let root = source.root.as_symbol()?;
                         // Local aliases and reference-bearing constructions need their
                         // complete origin relation. Until available, retain rather than
                         // mistaking a fresh local name for an independent loan.

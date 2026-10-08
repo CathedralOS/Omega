@@ -362,9 +362,7 @@ fn dynamic_selector_subjects(
     {
         return None;
     }
-    let facts::PlaceRoot::Symbol(root) = place.root else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     let typed_state = program.state_by_symbol(state_flow.state_symbol)?;
     let (_, local) = program
         .state_local_declaration(typed_state, root)

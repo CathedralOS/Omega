@@ -760,8 +760,7 @@ impl TerminalExecution<'_> {
                             shared_view,
                         ));
                     }
-                    let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
-                    else {
+                    let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
                     projected
@@ -1114,7 +1113,7 @@ impl TerminalExecution<'_> {
                 )
             }
             PrimitiveStorageEndpoint::ArrayElement { array, index } => {
-                let ScalarType::Integer(integer) = scalar_type else {
+                let Some(integer) = scalar_type.as_integer() else {
                     return Err(malformed());
                 };
                 self.stored_byte_array_read(&array, index).map(|byte| {

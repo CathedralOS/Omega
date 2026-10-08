@@ -398,8 +398,7 @@ fn expression_occurrence_violation(
                     if selected.is_none() {
                         return Some(located("Build declaration operand does not resolve to one visible product declaration in this occurrence's package scope".to_owned()));
                     }
-                    if let typed_trees::AuthoredDeclarationSelectionTarget::Resolved(retained) =
-                        selection.target()
+                    if let Some(retained) = selection.target().as_resolved()
                         && Some(retained.selected_symbol()) != selected
                     {
                         return Some(located("Build declaration occurrence does not retain its exact product declaration".to_owned()));

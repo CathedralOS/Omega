@@ -155,7 +155,7 @@ where
     let mut demanded = place.clone();
     let mut cursor = bound;
     for _ in 0..REFERENCE_BOUNDARY_HOPS {
-        let PlaceRoot::Symbol(root) = demanded.root else {
+        let Some(root) = demanded.root.as_symbol() else {
             return Some(demanded);
         };
         let Some((decl_index, local)) = program
@@ -490,7 +490,7 @@ pub(super) fn shared_bound_operand_root_symbols_agree(
     value: ExpressionHandle,
     root: PlaceRoot,
 ) -> bool {
-    let PlaceRoot::Symbol(resolved) = root else {
+    let Some(resolved) = root.as_symbol() else {
         return true;
     };
     let mut current = value;

@@ -14,7 +14,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::{CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment};
 use language_semantics::Multiplicity;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
-use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration};
+use terminal_psi::StructuralTypeDeclaration;
 
 /// Emit the copy into `operations` and return the owned place declaration the
 /// successor argument names directly. `source` is the subject's current place
@@ -51,7 +51,7 @@ pub(super) fn emit(
         LoweringError::Unsupported("Unit graph case-payload field is absent"),
     )?;
     canonical.push(CanonicalStructuralPathSegment::Field(payload.id));
-    let StructuralFieldType::Structural(leaf) = payload.field_type else {
+    let Some(leaf) = payload.field_type.as_structural() else {
         return unsupported("Unit graph case payload is not a structural leaf");
     };
     let leaf = walk_fields(types, &mut canonical, &mut visited, leaf, payload_path)?;
@@ -120,7 +120,7 @@ fn walk_fields(
                     return unsupported("Unit graph case-payload field is erased or ambiguous");
                 }
                 canonical.push(CanonicalStructuralPathSegment::Field(field.id));
-                let StructuralFieldType::Structural(child) = field.field_type else {
+                let Some(child) = field.field_type.as_structural() else {
                     return unsupported(
                         "Unit graph case-payload field is not a structural carrier",
                     );

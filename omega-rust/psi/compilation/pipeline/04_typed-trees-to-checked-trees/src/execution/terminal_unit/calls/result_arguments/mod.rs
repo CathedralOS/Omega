@@ -63,7 +63,7 @@ pub(super) fn argument(
     if matches!(
         argument.source,
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
-    ) && let facts::PlaceRoot::Symbol(symbol) = place.root
+    ) && let Some(symbol) = place.root.as_symbol()
     {
         let source_state = program.state_by_symbol(state)?;
         argument.source =
@@ -324,7 +324,7 @@ fn argument_contract(
                     == program
                         .normalized_type_identity(parameter.type_reference)
                         .as_str()))
-        && let facts::PlaceRoot::Symbol(view_symbol) = place.root
+        && let Some(view_symbol) = place.root.as_symbol()
     {
         let Some(StatementNode::LocalData(local)) = program
             .statement_table
@@ -401,7 +401,7 @@ fn argument_contract(
                 parameter.type_reference,
             )))
         && result.type_identity == target_identity
-        && let facts::PlaceRoot::Expression(source) = place.root
+        && let Some(source) = place.root.as_expression()
         && source == expression
     {
         if usize::try_from(result.statement_index).ok()? != call.statement_index {
@@ -501,9 +501,7 @@ fn argument_contract(
             {
                 return None;
             }
-            let facts::PlaceRoot::Symbol(_) = place.root else {
-                return None;
-            };
+            let _ = place.root.as_symbol()?;
             if exact_structural_argument_access(
                 program, facts, machine, state, call, place, access,
             )? != access
@@ -905,9 +903,7 @@ fn whole_local_storage_type(
     place: &validation::CanonicalPlace,
     result: &CheckedUnitStructuralResultBindingPlan,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
+    let symbol = place.root.as_symbol()?;
     let local = program
         .statement_table
         .statements(source_state.statement_nodes)

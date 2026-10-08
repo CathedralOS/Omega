@@ -66,7 +66,7 @@ impl FrameSourcePlace {
         let mut facts = FactPlan::default();
         let place = facts.append_place_from_expression(program, expression);
         let place = facts.places.get(place);
-        let PlaceRoot::Symbol(root) = place.root else {
+        let Some(root) = place.root.as_symbol() else {
             return Self::default();
         };
         if !root.is_valid() {
