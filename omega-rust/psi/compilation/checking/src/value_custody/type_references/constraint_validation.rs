@@ -628,7 +628,7 @@ fn scoped_maximum_error(
     owner: &TypeReferenceOwner<'_>,
     scoped: typed_trees::dependent_ranges::ScopedNameBound,
 ) -> Option<String> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(scoped.name) else {
+    let Some(path) = program.expression_table.name_path_node(scoped.name) else {
         return Some(format!(
             "{owner} declares a range maximum that is not a name"
         ));

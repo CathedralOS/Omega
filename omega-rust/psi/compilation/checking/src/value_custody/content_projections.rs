@@ -336,10 +336,7 @@ fn normalize_projection_expression(
     algebra: &ContentAlgebraIdentity,
     expression: ExpressionHandle,
 ) -> Option<ContentProjectionExpression> {
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
-    else {
-        return None;
-    };
+    let literal = program.expression_table.struct_literal_node(expression)?;
     let expected_name = match algebra {
         ContentAlgebraIdentity::IntervalSet { .. } => "IntervalSet",
         ContentAlgebraIdentity::CountedQuantity { .. } => "CountedQuantity",

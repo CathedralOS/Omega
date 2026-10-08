@@ -268,7 +268,7 @@ impl GuardContext<'_> {
                 _ => break,
             }
         }
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(base) else {
+        let Some(path) = self.program.expression_table.name_path_node(base) else {
             // The place is rooted at a computed base such as a call result;
             // that base is a read of its own and is visited separately.
             pending.push(base);

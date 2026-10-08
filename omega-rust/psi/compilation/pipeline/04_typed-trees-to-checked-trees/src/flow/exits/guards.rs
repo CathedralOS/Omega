@@ -547,7 +547,7 @@ fn case_membership_claim(
         return None;
     }
     for (case_reference, subject) in [(binary.right, binary.left), (binary.left, binary.right)] {
-        let ExpressionNode::Name(path) = program.expression_table.expression(case_reference) else {
+        let Some(path) = program.expression_table.name_path_node(case_reference) else {
             continue;
         };
         let Some(definition) = program.data_definition_by_symbol(path.head_symbol) else {
@@ -741,7 +741,7 @@ pub(in crate::flow) fn append_match_pattern_context(
     let FactPayload::MatchPattern { expression, .. } = payload else {
         return;
     };
-    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+    let Some(dispatch) = program.expression_table.match_node(expression) else {
         return;
     };
     // Selected float equality need not mean mathematical equality. Missing

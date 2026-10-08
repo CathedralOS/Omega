@@ -2,8 +2,8 @@ use super::dependent_relations::{
     dependent_maximum_of_type_reference, validation_state_preserves_field,
 };
 use super::{
-    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, declared_place_type_raw, guard_narrowing, literal_i64,
+    ArithmeticDomain, BinaryOperator, ExpressionHandle, Interval, Machine, PrimitiveType, State,
+    declared_place_type_raw, guard_narrowing, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::place_label;
@@ -233,7 +233,7 @@ fn product_coupling_operand(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+    let Some(cast) = program.expression_table.cast_node(expression) else {
         return Some(program.expression_table.display_name(expression));
     };
     if cast.form.is_recast() || !cast.semantic_domain.is_empty() {

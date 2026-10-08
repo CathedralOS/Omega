@@ -7,7 +7,7 @@ use language_semantics::{
     PermissionEventSource, PermissionProvenance,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
+
 use typed_trees::statement::{StatementNode, TableLocalData};
 
 /// Returns whether this local retains an affine obligation at state exit.
@@ -143,7 +143,7 @@ fn local_provenance(
     }
     let origin =
         crate::expression_permission_provenance(program, local.initial_value, &mut |expression| {
-            let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+            let Some(name) = program.expression_table.name_path_node(expression) else {
                 return Ok(None);
             };
             if !name.symbol.is_valid() {

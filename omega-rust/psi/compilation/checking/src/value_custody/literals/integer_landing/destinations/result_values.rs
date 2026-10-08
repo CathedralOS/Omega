@@ -69,8 +69,7 @@ pub(super) fn admit_assignment_value<'p>(
         {
             return false;
         }
-        let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value)
-        else {
+        let Some(elements) = program.expression_table.array_literal_node(value) else {
             return false;
         };
         let elements = program.expression_table.expression_handles(*elements);

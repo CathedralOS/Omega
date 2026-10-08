@@ -631,13 +631,13 @@ fn positive_floor_fact(
             || positive_floor_fact(program, binary.right, symbol);
     }
     let name = |side: ExpressionHandle| {
-        let ExpressionNode::Name(name) = program.expression_table.expression(side) else {
+        let Some(name) = program.expression_table.name_path_node(side) else {
             return false;
         };
         name.symbol.is_valid() && name.head_symbol == name.symbol && name.symbol == symbol
     };
     let floor = |side: ExpressionHandle, strictness: bool| {
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(side) else {
+        let Some(literal) = program.expression_table.integer_node(side) else {
             return false;
         };
         literal

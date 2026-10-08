@@ -773,10 +773,7 @@ pub fn unique_literal_field(
     field_symbol: SymbolHandle,
     field_name: &typed_trees::name::Identifier,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(literal)
-    else {
-        return None;
-    };
+    let literal = program.expression_table.struct_literal_node(literal)?;
     if literal.type_symbol != owner || literal.case_symbol.is_some() || literal.case_name.is_some()
     {
         return None;

@@ -240,7 +240,7 @@ impl Invocation<'_> {
             expression,
             self.program.authority.as_deref(),
         )?;
-        let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+        let Some(call) = typed.expression_table.call_node(expression) else {
             return Err("initializer lost its selected call".into());
         };
         if !call.carries_only_positional_arguments()
@@ -336,7 +336,7 @@ impl ConstantCalls for Invocation<'_> {
         let selected = self.selected(expression)?;
         let destination = scalar_probe_destination(typed, selected.return_type())
             .ok_or("constant call result needs an exact builtin scalar carrier")?;
-        let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+        let Some(call) = typed.expression_table.call_node(expression) else {
             return Err("constant validation lost its selected call".into());
         };
         let arguments = typed.expression_table.expression_handles(call.arguments);
@@ -577,7 +577,7 @@ impl Invocation<'_> {
                 })
             }
         };
-        let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+        let Some(call) = typed.expression_table.call_node(expression) else {
             return Err("constant execution lost its selected call".into());
         };
         // Pair each evaluated operand expression with its declared carrier.

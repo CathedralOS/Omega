@@ -30,7 +30,7 @@ pub(super) fn value_preserves_indexed_extent<'program>(
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+    let Some(indexed) = program.expression_table.indexed_node(target) else {
         return true;
     };
     if expression_type_reference(program, machine, state, indexed.collection)

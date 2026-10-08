@@ -13,7 +13,7 @@ use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedScalarExpressionRole,
     CheckedSubsliceSite,
 };
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
 /// Lower the present endpoints of `expression` when it is a range
@@ -29,10 +29,10 @@ pub(crate) fn subslice_endpoints<Value>(
     let Some(expression) = validation::subslice_expression(program, expression) else {
         return Vec::new();
     };
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return Vec::new();
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
         return Vec::new();
     };
     if operators

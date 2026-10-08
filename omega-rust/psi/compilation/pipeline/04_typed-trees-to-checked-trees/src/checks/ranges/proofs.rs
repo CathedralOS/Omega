@@ -1,6 +1,4 @@
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableRangeExpression,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableRangeExpression};
 
 use super::expressions::{ensured_call_result_bounds, expression_integer_value};
 use super::facts::RangeFacts;
@@ -171,7 +169,7 @@ fn symbolic_extent_is_named(
     if is_exact_collection_length(program, machine, state, collection, expression) {
         return true;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
     extent.0.is_valid() && path.symbol == extent.0

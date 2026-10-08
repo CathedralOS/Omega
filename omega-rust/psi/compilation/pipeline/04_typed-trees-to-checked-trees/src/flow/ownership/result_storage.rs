@@ -4,7 +4,6 @@
 use validation::CanonicalPlace;
 use validation::project_type_reference_from_segments;
 
-use checked_trees::expression::ExpressionNode;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -15,7 +14,7 @@ pub(super) fn is_private_result_place(
     let facts::PlaceRoot::Expression(expression) = place.root else {
         return false;
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     let Some(result) = validation::call_target_return_type(program, call.target_symbol) else {

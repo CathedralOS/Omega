@@ -101,7 +101,7 @@ fn expression_names_measure(
     measure_symbol: symbols::SymbolHandle,
     measure_name: Option<&typed_trees::name::Identifier>,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
     path.symbol == measure_symbol
@@ -137,7 +137,7 @@ pub(crate) fn proof_call_has_structural_descent(
     let [subject] = subjects.as_slice() else {
         return false;
     };
-    let ExpressionNode::Name(measure) = program.expression_table.expression(*subject) else {
+    let Some(measure) = program.expression_table.name_path_node(*subject) else {
         return false;
     };
     if !measure.symbol.is_valid() {
@@ -260,7 +260,7 @@ pub(crate) fn validate_proof_machine_recursion(
         )));
         return;
     };
-    let ExpressionNode::Name(measure_path) = program.expression_table.expression(*subject) else {
+    let Some(measure_path) = program.expression_table.name_path_node(*subject) else {
         diagnostics.push(Diagnostic::error(format!(
             "recursive proof machine `{}`: the structural measure must be a bare \
              parameter name (rung 1); compound measures over proof data are not \
@@ -440,7 +440,7 @@ fn substate_parameter_descends(
     measure_symbol: symbols::SymbolHandle,
     measure_name: Option<&Identifier>,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
+    let Some(path) = program.expression_table.name_path_node(argument) else {
         return false;
     };
     let [name] = program.expression_table.name_path_members(path.members) else {
@@ -581,7 +581,7 @@ fn strict_subterm_of_measure(
     measure_symbol: symbols::SymbolHandle,
     measure_name: Option<&Identifier>,
 ) -> bool {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+    let Some(member) = program.expression_table.member_node(expression) else {
         return false;
     };
     let mut root = member.receiver;

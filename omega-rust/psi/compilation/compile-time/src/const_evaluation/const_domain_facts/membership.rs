@@ -1,7 +1,7 @@
 use build_time_values::BuildTimeValue;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
@@ -18,8 +18,9 @@ pub(super) fn evaluate_membership(
     let Some(domain) = typed.domain_definition(pending.membership.domain_symbol) else {
         return Ok(None);
     };
-    let ExpressionNode::Integer(literal) =
-        typed.expression_table.expression(pending.membership.value)
+    let Some(literal) = typed
+        .expression_table
+        .integer_node(pending.membership.value)
     else {
         return Ok(None);
     };

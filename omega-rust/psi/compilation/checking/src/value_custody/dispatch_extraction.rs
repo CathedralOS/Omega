@@ -46,16 +46,13 @@ impl DispatchExtraction {
         // equalities and the authored `if` guard; only the case tests select.
         let mut conjuncts = vec![guard];
         while let Some(conjunct) = conjuncts.pop() {
-            let Some(binary) = program.expression_table.binary_node(conjunct)
-            else {
+            let Some(binary) = program.expression_table.binary_node(conjunct) else {
                 continue;
             };
             match binary.operator {
                 BinaryOperator::And => conjuncts.extend([binary.left, binary.right]),
                 BinaryOperator::Equal => {
-                    let ExpressionNode::Name(case) =
-                        program.expression_table.expression(binary.right)
-                    else {
+                    let Some(case) = program.expression_table.name_path_node(binary.right) else {
                         continue;
                     };
                     if crate::exact_case_reference_owner(program, binary.right).is_none() {

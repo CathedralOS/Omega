@@ -22,7 +22,7 @@ use symbols::SymbolHandle;
 use target::{TargetProfile, normalize_foreign_locator};
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
-use typed_trees::expression::ExpressionNode;
+
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn evaluate_one(
@@ -41,7 +41,7 @@ pub(crate) fn evaluate_one(
             "external realization cannot combine legacy and ordinary `via` bindings",
         ));
     }
-    let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+    let Some(call) = typed.expression_table.call_node(expression) else {
         return Err(at(
             source_span,
             "ordinary external `via` must remain one exact machine call",

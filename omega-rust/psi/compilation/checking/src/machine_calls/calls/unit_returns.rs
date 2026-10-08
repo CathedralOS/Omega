@@ -1,8 +1,6 @@
 //! Unit calls retain their exact statement or return use and declaration.
 
-use super::{
-    ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle, TypeReferenceNode,
-};
+use super::{ExpressionHandle, Machine, State, TypeReferenceHandle, TypeReferenceNode};
 use language_semantics::declaration_selection::BuildOperation;
 /// A standalone call may perform Unit work before later statements. The final
 /// expression still has the state's return contract. Call this for a direct
@@ -57,7 +55,7 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     if admitted_build_declaration_call(program, expression) {
@@ -112,7 +110,7 @@ pub(super) fn admitted_build_declaration_call(
         AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
         AuthoredDeclarationSelectionTarget,
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     let (intrinsic, static_count, value_count) =

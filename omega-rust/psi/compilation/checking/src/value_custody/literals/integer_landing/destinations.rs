@@ -216,7 +216,7 @@ fn retained_integer_fits(
     expression: ExpressionHandle,
     destination: PrimitiveType,
 ) -> bool {
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
+    let Some(literal) = program.expression_table.integer_node(expression) else {
         return false;
     };
     literal.landing().is_some()

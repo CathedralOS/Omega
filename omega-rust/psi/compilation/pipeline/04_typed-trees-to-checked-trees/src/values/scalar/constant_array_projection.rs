@@ -39,10 +39,7 @@ pub(super) fn selected_leaf(
         else {
             return None;
         };
-        let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(selected)
-        else {
-            return None;
-        };
+        let elements = program.expression_table.array_literal_node(selected)?;
         let literal = program.expression_table.integer_node(index)?;
         if literal.landing().is_some_and(|landing| {
             landing.landed_type == numerics::literals::LandedIntegerType::Addr

@@ -438,7 +438,7 @@ fn literal_carrier(
 }
 /// Check builtin anonymous arithmetic eligibility without selecting a carrier.
 pub fn has_anonymous_operator_meaning(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     use language_core::OperatorSpelling;

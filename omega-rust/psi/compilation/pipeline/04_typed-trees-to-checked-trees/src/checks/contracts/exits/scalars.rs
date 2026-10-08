@@ -231,7 +231,7 @@ impl ExitScalars<'_, '_> {
         } else {
             return false;
         };
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(argument) else {
+        let Some(path) = self.program.expression_table.name_path_node(argument) else {
             return false;
         };
         if !path.symbol.is_valid() || path.head_symbol != path.symbol {

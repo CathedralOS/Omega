@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
-    BTreeMap, Cell, DataMember, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame,
-    SymbolHandle, Value, trap,
+    BTreeMap, Cell, DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, SymbolHandle,
+    Value, trap,
 };
 
 impl<'program> Evaluator<'program> {
@@ -8,7 +8,7 @@ impl<'program> Evaluator<'program> {
         if !receiver.is_valid() {
             return false;
         }
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(receiver) else {
+        let Some(path) = self.program.expression_table.name_path_node(receiver) else {
             return false;
         };
         self.is_declaration_namespace(path.symbol)

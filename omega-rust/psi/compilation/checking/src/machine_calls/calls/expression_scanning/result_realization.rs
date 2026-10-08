@@ -101,7 +101,7 @@ fn reference_result_nested_operand_call_is_supported(
     {
         return false;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
     if !call.target_symbol.is_valid()
@@ -172,7 +172,7 @@ fn reference_result_nested_operand_call_is_supported(
     if members.is_empty() {
         return false;
     }
-    let ExpressionNode::Call(nested) = program.expression_table.expression(root) else {
+    let Some(nested) = program.expression_table.call_node(root) else {
         return false;
     };
     if !nested.target_symbol.is_valid()
@@ -273,7 +273,7 @@ fn reference_result_nested_operand_call_is_supported(
             else {
                 return false;
             };
-            let ExpressionNode::Name(name) = program.expression_table.expression(actual) else {
+            let Some(name) = program.expression_table.name_path_node(actual) else {
                 return false;
             };
             if name.head_symbol != name.symbol
@@ -425,7 +425,7 @@ fn ordinary_structural_initializer(
     if !ordinary_structural_result_type(program, result_type) {
         return false;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
     program
@@ -474,7 +474,7 @@ fn initializer_target_is_supported(
     result_type: typed_trees::types::TypeReferenceHandle,
     allow_ordinary: bool,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
     if !call.target_symbol.is_valid()
@@ -796,7 +796,7 @@ fn scalar_initializer_has_operand_evaluation(
     if !program.expression_table.expression_is_valid(value) {
         return false;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
     if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
@@ -832,7 +832,7 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     if !value.is_valid() {
         return;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return;
     };
     // A BUILTIN outer call (`let v = max(self.range(..), floor)`) composes:
@@ -1042,7 +1042,7 @@ pub(super) fn report_void_value_callee(
     if produces_value {
         return;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return;
     };
     let callee_display = call.target.as_str();

@@ -10,9 +10,8 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, ProofFact,
-    SignatureContractKind, StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode,
+    CheckedUnitStructuralPathSegment, Multiplicity, ProofFact, SignatureContractKind,
+    StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -1162,9 +1161,7 @@ pub(crate) fn byte_sequence_literal_argument(
     parameter_type: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let ExpressionNode::String(bytes) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let bytes = program.expression_table.string_node(expression)?;
     let access = structural_access_for_type_reference(program, parameter_type)?;
     match (byte_sequence_carrier(program, parameter_type, &[])?, access) {
         (

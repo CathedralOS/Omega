@@ -72,7 +72,7 @@ fn positive_guard(
     } else {
         return false;
     };
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(bound) else {
+    let Some(literal) = program.expression_table.integer_node(bound) else {
         return false;
     };
     // Any literal bound that places the parameter at one or above: `x > k`

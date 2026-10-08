@@ -90,7 +90,7 @@ pub(super) fn retire_private_call_argument_cases(
         if !borrow.access.is_exclusive() {
             continue;
         }
-        let ExpressionNode::Name(name) = program.expression_table.expression(borrow.target) else {
+        let Some(name) = program.expression_table.name_path_node(borrow.target) else {
             continue;
         };
         let Some(source) = frozen_bindings::binding_source(program, borrow.target, aliases) else {

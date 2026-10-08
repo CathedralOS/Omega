@@ -7,8 +7,8 @@ use super::super::{
 };
 use super::{
     CheckFacts, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
-    MachineSupplyMode, Multiplicity, SymbolHandle,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
+    Multiplicity, SymbolHandle,
 };
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
 use crate::execution::terminal_unit::types::{
@@ -509,7 +509,7 @@ fn collect<'a>(
             }
             _ => *argument,
         };
-        let ExpressionNode::Call(authored) = program.expression_table.expression(expression) else {
+        let Some(authored) = program.expression_table.call_node(expression) else {
             continue;
         };
         result(

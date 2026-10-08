@@ -845,7 +845,7 @@ fn resolve_specialized_receiver_calls(
             }
         }
         for handle in expression_handles {
-            let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+            let Some(call) = program.expression_table.call_node(handle) else {
                 continue;
             };
             let (receiver_symbol, receiver_path) =

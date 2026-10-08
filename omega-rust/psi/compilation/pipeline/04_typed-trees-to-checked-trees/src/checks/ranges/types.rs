@@ -556,8 +556,7 @@ fn const_extent_requires_floor(
                 {
                     continue;
                 }
-                let ExpressionNode::Integer(literal) = program.expression_table.expression(bound)
-                else {
+                let Some(literal) = program.expression_table.integer_node(bound) else {
                     continue;
                 };
                 let Some(bound) = literal.value_bignum().and_then(|value| value.to_i64()) else {
@@ -672,7 +671,7 @@ pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
             else {
                 continue;
             };
-            let ExpressionNode::Name(path) = program.expression_table.expression(*maximum) else {
+            let Some(path) = program.expression_table.name_path_node(*maximum) else {
                 continue;
             };
             // A same-spelled binder in another scope cannot borrow

@@ -1025,7 +1025,7 @@ fn clause_comparison_format(
     right_scalar: &ClosedScalar,
 ) -> FloatFormat {
     for side in [left, right] {
-        let ExpressionNode::Name(path) = program.expression_table.expression(side) else {
+        let Some(path) = program.expression_table.name_path_node(side) else {
             continue;
         };
         let Some(parameter) = parameters.iter().find(|parameter| {

@@ -156,10 +156,10 @@ pub(in crate::checks::ranges) fn seed_subslice_window_facts(
     value: ExpressionHandle,
     name: Option<&str>,
 ) {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(value) else {
+    let Some(indexed) = program.expression_table.indexed_node(value) else {
         return;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
         // Only window subslices (`base[a..b]`) shrink; scalar index does not.
         return;
     };

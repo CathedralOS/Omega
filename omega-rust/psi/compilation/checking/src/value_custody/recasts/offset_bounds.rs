@@ -278,9 +278,7 @@ pub(super) fn offset_expression_is_multiple_of(
             }
             BinaryOperator::ShiftLeft => {
                 let Some(shift) = ({
-                    let ExpressionNode::Integer(shift) =
-                        program.expression_table.expression(binary.right)
-                    else {
+                    let Some(shift) = program.expression_table.integer_node(binary.right) else {
                         return false;
                     };
                     shift.value_i64()

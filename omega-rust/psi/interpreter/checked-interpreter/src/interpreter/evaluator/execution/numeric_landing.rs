@@ -53,9 +53,7 @@ impl Evaluator<'_> {
         element_type: TypeReferenceHandle,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        let ExpressionNode::ArrayLiteral(elements) =
-            self.program.expression_table.expression(expression)
-        else {
+        let Some(elements) = self.program.expression_table.array_literal_node(expression) else {
             return unsupported("array element destination requires an array literal");
         };
         let elements = *elements;

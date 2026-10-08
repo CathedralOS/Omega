@@ -209,9 +209,7 @@ fn evidence_trait_violation(
     }
     visiting.push(trait_definition.symbol);
     for parent in program.trait_requirements(trait_definition) {
-        let Some(parent_definition) = program
-            .trait_definition_by_symbol(parent.symbol)
-        else {
+        let Some(parent_definition) = program.trait_definition_by_symbol(parent.symbol) else {
             continue;
         };
         if let Some(reason) = evidence_trait_violation(program, parent_definition, visiting) {
@@ -234,9 +232,7 @@ fn transparent_proposition_cycle(
     if visiting.contains(&symbol) {
         return true;
     }
-    let Some(proposition) = program
-        .proposition_definition_by_symbol(symbol)
-    else {
+    let Some(proposition) = program.proposition_definition_by_symbol(symbol) else {
         return false;
     };
     let typed_trees::proposition::PropositionBody::Transparent {
@@ -340,8 +336,7 @@ pub(crate) fn validate_proof_facts(
                 }
             }
             ProofFact::Proposition(application) => {
-                let declaration = program
-                    .proposition_definition_by_symbol(application.proposition);
+                let declaration = program.proposition_definition_by_symbol(application.proposition);
                 let parameter_signature = program
                     .data_type_parameters
                     .iter()
@@ -618,8 +613,7 @@ fn proof_argument_declared_type(
         && let Some(attached_data) = program
             .machine_by_name_str(machine_name)
             .and_then(|machine| machine.attached_data.as_ref())
-        && let Some(definition) = program
-            .data_definition_by_name(attached_data)
+        && let Some(definition) = program.data_definition_by_name(attached_data)
         && let Some(type_reference) =
             program
                 .data_members(definition)
@@ -850,7 +844,7 @@ pub(crate) fn string_literal_grants_domain(
     expression: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let ExpressionNode::String(literal) = program.expression_table.expression(expression) else {
+    let Some(literal) = program.expression_table.string_node(expression) else {
         return false;
     };
     typed_trees::byte_predicates::domain_byte_predicate(program, domain_symbol)

@@ -49,9 +49,7 @@ pub(super) fn borrowed_initializers(
             {
                 return vec![initializer];
             }
-            let ExpressionNode::ArrayLiteral(values) =
-                program.expression_table.expression(expression)
-            else {
+            let Some(values) = program.expression_table.array_literal_node(expression) else {
                 return Vec::new();
             };
             program
@@ -174,8 +172,7 @@ fn borrowed_data_literal_initializers(
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     owner_path: &[BorrowOwnerSegment],
 ) -> Vec<BorrowedInitializer> {
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
-    else {
+    let Some(literal) = program.expression_table.struct_literal_node(expression) else {
         return Vec::new();
     };
     let literal_fields = program.expression_table.struct_fields(literal.fields);

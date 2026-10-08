@@ -208,9 +208,7 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                         program, root, &mut tree,
                     );
                     for expression in tree {
-                        let ExpressionNode::Call(call) =
-                            program.expression_table.expression(expression)
-                        else {
+                        let Some(call) = program.expression_table.call_node(expression) else {
                             continue;
                         };
                         if !call.machine_arguments.is_empty() {

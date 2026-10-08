@@ -5,7 +5,7 @@
 //! same recognition, so the shape lives here once.
 
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 
 /// Every `ProofFact::Expression` under `signature`'s `ensures` contracts, in
@@ -59,14 +59,13 @@ pub fn collect_parameter_bound_comparisons(
         );
         return;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(comparison.left) else {
+    let Some(path) = program.expression_table.name_path_node(comparison.left) else {
         return;
     };
     let [parameter_name] = program.expression_table.name_path_members(path.members) else {
         return;
     };
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(comparison.right)
-    else {
+    let Some(literal) = program.expression_table.integer_node(comparison.right) else {
         return;
     };
     let Some(value) = literal.value_i64() else {

@@ -89,7 +89,7 @@ fn exact_mutable_referent(
     }
     let mut matched = false;
     for (parameter, expression) in formals.iter().zip(arguments) {
-        let ExpressionNode::Name(path) = program.expression_table.expression(*expression) else {
+        let Some(path) = program.expression_table.name_path_node(*expression) else {
             continue;
         };
         if path.symbol != source_symbol {
@@ -334,7 +334,7 @@ fn preceding_reborrow_preserves_carrier(
     {
         return false;
     }
-    let ExpressionNode::Name(name) = program.expression_table.expression(*expression) else {
+    let Some(name) = program.expression_table.name_path_node(*expression) else {
         return false;
     };
     if name.head_symbol != source_symbol

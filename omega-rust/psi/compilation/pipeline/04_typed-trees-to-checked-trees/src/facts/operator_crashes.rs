@@ -467,9 +467,7 @@ fn unreachable_match_arm(
     let CheckedOperatorOccurrence::MatchEquality { source_arm } = operator_use.occurrence else {
         return false;
     };
-    let ExpressionNode::Match(dispatch) =
-        program.expression_table.expression(operator_use.expression)
-    else {
+    let Some(dispatch) = program.expression_table.match_node(operator_use.expression) else {
         return false;
     };
     // Compare complete generational handles, not merely an arena-index offset.

@@ -1099,7 +1099,7 @@ fn rebind_realized_member_symbols(
         validation::expression_traversal::collect_expression_tree(program, root, &mut members);
     }
     for handle in members {
-        let ExpressionNode::Member(member) = program.expression_table.expression(handle) else {
+        let Some(member) = program.expression_table.member_node(handle) else {
             continue;
         };
         if member.member_symbol.is_valid() || member.case_variant.is_some() {

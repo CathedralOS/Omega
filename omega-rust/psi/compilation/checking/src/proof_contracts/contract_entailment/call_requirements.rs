@@ -351,7 +351,7 @@ fn intake_state_induction(
     let Some(value) = immutable_value_origin(program, state, position, *value) else {
         return;
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return;
     };
     if !crate::machine_calls::calls::proof_call_has_structural_descent(program, machine, call) {
@@ -382,7 +382,7 @@ fn immutable_value_origin(
     mut expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     loop {
-        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        let Some(name) = program.expression_table.name_path_node(expression) else {
             return Some(expression);
         };
         if !name.symbol.is_valid() {

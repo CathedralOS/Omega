@@ -81,9 +81,7 @@ impl<'field> RangeFacts<'field> {
             if !transferable.contains(&original.label) {
                 continue;
             }
-            let ExpressionNode::Indexed(indexed) =
-                program.expression_table.expression(original.expression)
-            else {
+            let Some(indexed) = program.expression_table.indexed_node(original.expression) else {
                 continue;
             };
             if !program
@@ -112,8 +110,7 @@ impl<'field> RangeFacts<'field> {
                 let ExpressionNode::Indexed(candidate) = node else {
                     continue;
                 };
-                let ExpressionNode::Name(selector) =
-                    program.expression_table.expression(candidate.index)
+                let Some(selector) = program.expression_table.name_path_node(candidate.index)
                 else {
                     continue;
                 };

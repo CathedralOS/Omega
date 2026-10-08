@@ -100,7 +100,7 @@ fn required_comparison(
         (binary.left, binary.right, binary.operator),
         (binary.right, binary.left, reverse(binary.operator)),
     ] {
-        let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
+        let Some(path) = program.expression_table.name_path_node(subject) else {
             continue;
         };
         let Some(parameter) = parameters.iter().find(|parameter| {

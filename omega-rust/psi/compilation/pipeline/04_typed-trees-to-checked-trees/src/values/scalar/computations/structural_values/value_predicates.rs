@@ -232,10 +232,10 @@ pub(super) fn is_view_element_copy(
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
-    let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection) else {
+    let Some(name) = program.expression_table.name_path_node(indexed.collection) else {
         return false;
     };
     !matches!(

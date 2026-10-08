@@ -93,8 +93,7 @@ pub(crate) fn specialize_operator_candidates(
     let templates = &templates.authored;
 
     for request in selected {
-        let Some(machine_index) = templates
-            .machine_position_by_symbol(request.realization_machine)
+        let Some(machine_index) = templates.machine_position_by_symbol(request.realization_machine)
         else {
             diagnostics.push(Diagnostic::error(
                 "generic operator candidate names no realization machine",
@@ -458,7 +457,8 @@ fn selected_operator_applications(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 for root in executable_statement_expression_roots(program, statement) {
                     let mut expressions = Vec::new();

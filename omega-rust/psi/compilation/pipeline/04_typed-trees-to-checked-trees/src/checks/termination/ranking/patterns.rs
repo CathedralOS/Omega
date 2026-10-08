@@ -240,7 +240,7 @@ pub(super) fn expression_is_parameter(
     expression: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
 

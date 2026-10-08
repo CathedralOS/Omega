@@ -200,7 +200,7 @@ fn literal_mint_discharges(
     value: ExpressionHandle,
     indices: &[(SymbolHandle, i128)],
 ) -> MintJudgment {
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(value) else {
+    let Some(literal) = program.expression_table.integer_node(value) else {
         return MintJudgment::NotProved;
     };
     let Ok(minted) = literal.text().parse::<i128>() else {

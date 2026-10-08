@@ -94,7 +94,7 @@ fn extract_one(
             "a request must be the unique exact terminal result of one owner state".to_owned(),
         );
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(request_expression) else {
+    let Some(call) = program.expression_table.call_node(request_expression) else {
         return Err("the retained request is not a call".to_owned());
     };
     let request = call

@@ -121,9 +121,7 @@ pub(crate) fn generate_dynamic_family_specializations(
 
     let mut generated = 0;
     for (template_symbol, tuples) in demands {
-        let Some(machine_index) = program
-            .machine_position_by_symbol(template_symbol)
-        else {
+        let Some(machine_index) = program.machine_position_by_symbol(template_symbol) else {
             return Err(vec![Diagnostic::error(
                 "dynamic family realization lost its machine template",
             )]);
@@ -175,9 +173,7 @@ fn collect_selection_demands(
 ) {
     let mut seen_conformances: Vec<SymbolHandle> = Vec::new();
     for selection in selections {
-        let Some(conformance) = program
-            .conformance_by_symbol(selection.implementation)
-        else {
+        let Some(conformance) = program.conformance_by_symbol(selection.implementation) else {
             continue;
         };
         if seen_conformances.contains(&conformance.symbol) {

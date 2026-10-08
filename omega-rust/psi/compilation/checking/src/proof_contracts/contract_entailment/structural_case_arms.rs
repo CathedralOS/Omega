@@ -92,10 +92,7 @@ pub(crate) fn recognize_guarded_structural_value_arms(
         if equality.operator != BinaryOperator::Equal {
             return None;
         }
-        let ExpressionNode::Boolean(polarity) = program.expression_table.expression(equality.right)
-        else {
-            return None;
-        };
+        let polarity = program.expression_table.boolean_node(equality.right)?;
         Some((equality.left, *polarity, transition.target))
     };
     let (first_condition, first_polarity, first_target) = branch(first)?;

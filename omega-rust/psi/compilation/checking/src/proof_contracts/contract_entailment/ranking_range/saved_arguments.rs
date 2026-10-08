@@ -17,9 +17,7 @@
 //! `let n = k` honest when `k` is reassigned before the call: `n` may claim
 //! the incoming value only while nothing can write it away.
 use super::super::StrictArithmeticExpressionBinding;
-use super::{
-    BigInt, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial, State, lengths, meanings,
-};
+use super::{BigInt, Engine, ExpressionHandle, Machine, Polynomial, State, lengths, meanings};
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
@@ -181,7 +179,7 @@ fn stable_references(
         program, expression, &mut nodes, &mut seen,
     );
     nodes.iter().all(|node| {
-        let ExpressionNode::Name(path) = program.expression_table.expression(*node) else {
+        let Some(path) = program.expression_table.name_path_node(*node) else {
             return true;
         };
         let symbol = path.head_symbol;
@@ -212,7 +210,7 @@ fn bind_local_lengths(
         program, expression, &mut nodes, &mut seen,
     );
     for node in nodes {
-        let ExpressionNode::Member(member) = program.expression_table.expression(node) else {
+        let Some(member) = program.expression_table.member_node(node) else {
             continue;
         };
         if CollectionMeasure::from_authored_spelling(member.member.as_str())

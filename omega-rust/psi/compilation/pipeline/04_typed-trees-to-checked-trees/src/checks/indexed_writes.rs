@@ -4,7 +4,7 @@
 //! statement's live contexts, never a historical fact or a later restoration.
 use checked_trees::CheckFacts;
 use facts::{FactOrigin, FactPayload, FactPlace};
-use typed_trees::expression::ExpressionNode;
+
 use typed_trees::statement::StatementNode;
 
 pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut CheckFacts) {
@@ -28,9 +28,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             if !facts.scalar_index_is_proven(assignment.target) {
                 continue;
             }
-            let ExpressionNode::Indexed(indexed) =
-                program.expression_table.expression(assignment.target)
-            else {
+            let Some(indexed) = program.expression_table.indexed_node(assignment.target) else {
                 continue;
             };
             let Some(carrier) = validation::canonical_place_from_expression_in_state(

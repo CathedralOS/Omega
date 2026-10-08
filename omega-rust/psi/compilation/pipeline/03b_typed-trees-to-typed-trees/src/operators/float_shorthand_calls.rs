@@ -27,7 +27,7 @@ pub(super) fn bind(
                 .map(|(_, use_fact)| (use_fact.expression, use_fact.requirement_symbol)),
         )
     {
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(call) = program.expression_table.call_node(expression) else {
             continue;
         };
         if !program

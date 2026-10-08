@@ -436,7 +436,7 @@ fn replay_invocation(
     program: &dyn ::validation::CheckingInput,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Result<numerics::float_projection::FloatProjectionContractIdentity, Diagnostic> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(fact.invocation) else {
+    let Some(call) = program.expression_table.call_node(fact.invocation) else {
         return Err(Diagnostic::error(
             "validated float-meaning projection invocation is no longer a call",
         ));
@@ -679,7 +679,7 @@ fn imported_call_operand_key(
     target_parameters: Option<&[typed_trees::signature::StateParameter]>,
     argument_expressions: Option<&[typed_trees::expression::ExpressionHandle]>,
 ) -> CheckedFloatProjectionSourceKey {
-    let ExpressionNode::Name(path) = program.expression_table.expression(invocation.source) else {
+    let Some(path) = program.expression_table.name_path_node(invocation.source) else {
         return CheckedFloatProjectionSourceKey::TypedExpression(invocation.source);
     };
     let [name] = program.expression_table.name_path_members(path.members) else {

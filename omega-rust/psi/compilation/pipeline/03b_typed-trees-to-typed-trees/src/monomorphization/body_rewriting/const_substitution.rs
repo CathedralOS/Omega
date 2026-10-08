@@ -188,7 +188,7 @@ pub(crate) fn candidate_const_index_expressions(
         }
     }
     for handle in body_expressions {
-        let ExpressionNode::Cast(cast) = program.expression_table.expression(handle) else {
+        let Some(cast) = program.expression_table.cast_node(handle) else {
             continue;
         };
         collect_const_index_expressions_from_type(

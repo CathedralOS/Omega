@@ -293,7 +293,7 @@ pub(crate) fn require_call_expression_selection(
     expression: ExpressionHandle,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
 ) -> Result<(), String> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return Err("range endpoint lost its original call selection".to_owned());
     };
     if let Some(violation) = expression_occurrence_violation(program, expression, authority) {

@@ -65,7 +65,7 @@ pub fn transition_operand_moves(
     let calls = facts.flow.control.calls.span_or_empty(flow.calls);
     let mut moves = Vec::new();
     for node in nodes {
-        let ExpressionNode::Call(call) = program.expression_table.expression(node) else {
+        let Some(call) = program.expression_table.call_node(node) else {
             continue;
         };
         let names_local = program

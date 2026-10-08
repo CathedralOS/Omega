@@ -372,10 +372,7 @@ fn literal_member_value(
         let facts::PlaceSegment::Field { symbol } = segment else {
             return None;
         };
-        let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(current)
-        else {
-            return None;
-        };
+        let literal = program.expression_table.struct_literal_node(current)?;
         current = program
             .expression_table
             .struct_fields(literal.fields)

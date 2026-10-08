@@ -327,8 +327,9 @@ fn member_field_value(
     program: &TypedTrees,
     member: &TableMemberExpression,
 ) -> Result<ExpressionHandle, String> {
-    let ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(member.receiver)
+    let Some(literal) = program
+        .expression_table
+        .struct_literal_node(member.receiver)
     else {
         return Err("constant member read needs a materialized record receiver".to_owned());
     };
@@ -506,9 +507,7 @@ fn evaluate_expression(
                 pending.push(Step::MatchNext(expression, 0, subject));
             }
             Step::MatchNext(expression, ordinal, subject) => {
-                let ExpressionNode::Match(dispatch) =
-                    program.expression_table.expression(expression)
-                else {
+                let Some(dispatch) = program.expression_table.match_node(expression) else {
                     return Err("constant Match lost dispatch".into());
                 };
                 let arm = program
@@ -546,9 +545,7 @@ fn evaluate_expression(
                     context.has_builtin(program, operand)
                 })?;
                 if matched {
-                    let ExpressionNode::Match(dispatch) =
-                        program.expression_table.expression(expression)
-                    else {
+                    let Some(dispatch) = program.expression_table.match_node(expression) else {
                         return Err("constant Match lost dispatch".into());
                     };
                     let arm = program

@@ -14,7 +14,6 @@ pub(crate) fn bind_outcome_specific_arm_facts(
     program: &dyn ::validation::CheckingInput,
     proof: &mut ProofFacts,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    use typed_trees::expression::ExpressionNode;
     use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
     let mut diagnostics = Vec::new();
@@ -50,8 +49,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     }
                     continue;
                 };
-                let ExpressionNode::Name(result_path) =
-                    program.expression_table.expression(result_expression)
+                let Some(result_path) = program.expression_table.name_path_node(result_expression)
                 else {
                     if !selectors.is_empty() {
                         diagnostics.push(diagnostics::Diagnostic::error(

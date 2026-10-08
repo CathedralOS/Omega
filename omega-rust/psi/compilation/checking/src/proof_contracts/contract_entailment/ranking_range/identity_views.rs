@@ -629,7 +629,7 @@ fn is_parameter(
     expression: ExpressionHandle,
     binder: SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
     path.symbol == binder

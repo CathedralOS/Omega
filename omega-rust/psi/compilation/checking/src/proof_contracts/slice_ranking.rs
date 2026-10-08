@@ -22,10 +22,10 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
     if !parameter.symbol.is_valid() || !parameter_is_slice(program, parameter) {
         return false;
     }
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(argument) else {
+    let Some(indexed) = program.expression_table.indexed_node(argument) else {
         return false;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
         return false;
     };
     if !names_parameter(program, indexed.collection, parameter)
@@ -61,7 +61,7 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
     let Some(binary) = program.expression_table.binary_node(guard) else {
         return false;
     };
-    let ExpressionNode::Member(length) = program.expression_table.expression(binary.left) else {
+    let Some(length) = program.expression_table.member_node(binary.left) else {
         return false;
     };
     // `len > m` proves `len >= m + 1`, so it discharges `len >= start` when

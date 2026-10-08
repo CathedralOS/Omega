@@ -153,7 +153,7 @@ pub(crate) fn bind_selected_operator_calls(
         let Some(binding) = program.machine_token_binding_by_symbol(requirement) else {
             continue;
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(call) = program.expression_table.call_node(expression) else {
             continue;
         };
         if !call.receiver.is_valid() {

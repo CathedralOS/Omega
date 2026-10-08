@@ -20,7 +20,7 @@ pub(crate) fn bind_proof_output_call_facts(
     let mut invocations = arena::Arena::default();
 
     for package in &program.proof_output_calls {
-        let ExpressionNode::Call(call) = program.expression_table.expression(package.call) else {
+        let Some(call) = program.expression_table.call_node(package.call) else {
             diagnostics.push(diagnostics::Diagnostic::error(
                 "proof-output binding requires a direct call",
             ));
@@ -661,9 +661,7 @@ fn checked_static_requirement_dispatch<'program>(
     let [requirement] = requirements.as_slice() else {
         return Err(rejected("its public requirement is absent or ambiguous"));
     };
-    let Some(selected) = program
-        .conformance_by_symbol(application.declaration)
-    else {
+    let Some(selected) = program.conformance_by_symbol(application.declaration) else {
         return Err(rejected("its selected conformance declaration is absent"));
     };
     let selected_rows = selected.rows.as_slice();
@@ -765,9 +763,7 @@ fn trait_requires_transitively(
             if requirement.symbol == required_trait {
                 return true;
             }
-            if let Some(parent) = program
-                .trait_definition_by_symbol(requirement.symbol)
-            {
+            if let Some(parent) = program.trait_definition_by_symbol(requirement.symbol) {
                 pending.push(parent);
             }
         }

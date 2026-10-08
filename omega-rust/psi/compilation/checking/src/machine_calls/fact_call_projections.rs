@@ -72,13 +72,10 @@ pub(crate) fn validate_fact_call_projections(
         );
     }
     for (projection_expression, call_expression) in substituted {
-        let ExpressionNode::Member(member) =
-            program.expression_table.expression(projection_expression)
-        else {
+        let Some(member) = program.expression_table.member_node(projection_expression) else {
             continue;
         };
-        let Some(call) = program.expression_table.call_node(call_expression)
-        else {
+        let Some(call) = program.expression_table.call_node(call_expression) else {
             continue;
         };
         if let Some(row) = validate_direct_projection(
@@ -109,8 +106,7 @@ fn substituted_projection_requests(
     program: &dyn crate::CheckingInput,
     application: &typed_trees::proposition::PropositionApplication,
 ) -> Vec<(ExpressionHandle, ExpressionHandle)> {
-    let Some(declaration) = program
-        .proposition_definition_by_symbol(application.proposition)
+    let Some(declaration) = program.proposition_definition_by_symbol(application.proposition)
     else {
         return Vec::new();
     };

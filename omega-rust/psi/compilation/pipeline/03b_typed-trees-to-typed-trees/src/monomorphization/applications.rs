@@ -80,7 +80,7 @@ pub(super) fn retain_call(
 ) {
     let (application, target_symbol, target, arguments) = match selection.site {
         CallSite::Expression(handle) => {
-            let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+            let Some(call) = program.expression_table.call_node(handle) else {
                 return;
             };
             (

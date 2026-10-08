@@ -362,7 +362,7 @@ fn carrier_extent_discharge(
         (None, Some(value)) => (binary.left, true, value),
         _ => return false,
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
+    let Some(path) = program.expression_table.name_path_node(subject) else {
         return false;
     };
     if !(path.symbol.is_valid() && path.head_symbol == path.symbol) {

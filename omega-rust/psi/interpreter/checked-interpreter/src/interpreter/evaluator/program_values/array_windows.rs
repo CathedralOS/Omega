@@ -1,6 +1,6 @@
 use crate::interpreter::evaluator::{
-    Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt,
-    TypeReferenceHandle, Value, trap, unsupported,
+    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, TypeReferenceHandle, Value, trap,
+    unsupported,
 };
 impl Evaluator<'_> {
     /// Capture a window's exact element footprint without rebinding its backing
@@ -16,8 +16,7 @@ impl Evaluator<'_> {
         let Some(indexed) = self.program.expression_table.indexed_node(target) else {
             return Ok(None);
         };
-        let ExpressionNode::Range(range) = self.program.expression_table.expression(indexed.index)
-        else {
+        let Some(range) = self.program.expression_table.range_node(indexed.index) else {
             return Ok(None);
         };
         let collection = indexed.collection;

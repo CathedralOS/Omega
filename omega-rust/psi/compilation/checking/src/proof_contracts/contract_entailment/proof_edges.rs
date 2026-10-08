@@ -18,7 +18,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_term, structural_term_in_scope,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
@@ -331,9 +331,7 @@ fn selected_decrease_relation(
                 call.target_symbol
             }
             StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                let ExpressionNode::Call(call) =
-                    program.expression_table.expression(local.initial_value)
-                else {
+                let Some(call) = program.expression_table.call_node(local.initial_value) else {
                     continue;
                 };
                 if call.receiver.is_valid() {
@@ -374,9 +372,7 @@ fn selected_decrease_relation(
                         continue;
                     }
                     for operand in [equality.left, equality.right] {
-                        let ExpressionNode::Call(call) =
-                            program.expression_table.expression(operand)
-                        else {
+                        let Some(call) = program.expression_table.call_node(operand) else {
                             continue;
                         };
                         let Some(relation) =

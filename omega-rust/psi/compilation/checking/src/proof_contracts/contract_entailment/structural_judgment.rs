@@ -626,11 +626,7 @@ impl<'program> StructuralJudge<'program> {
             else {
                 return None;
             };
-            let ExpressionNode::StructLiteral(literal) =
-                program.expression_table.expression(*value)
-            else {
-                return None;
-            };
+            let literal = program.expression_table.struct_literal_node(*value)?;
             let projected = program
                 .expression_table
                 .struct_fields(literal.fields)

@@ -60,7 +60,7 @@ pub fn standing_facts_prove_requirement(
             }
             _ => *actual,
         };
-        let ExpressionNode::Member(member) = program.expression_table.expression(place) else {
+        let Some(member) = program.expression_table.member_node(place) else {
             return false;
         };
         // Every field argument must come from one receiver place, the one

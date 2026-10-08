@@ -15,8 +15,7 @@ pub(in crate::value_custody::write_only_borrows) fn captured_type(
 ) -> Option<TypeReferenceHandle> {
     let (_, referee, attached_root) =
         projected(program, expression, roots, &mut |selector, length| {
-            let ExpressionNode::Integer(integer) = program.expression_table.expression(selector)
-            else {
+            let Some(integer) = program.expression_table.integer_node(selector) else {
                 return false;
             };
             integer

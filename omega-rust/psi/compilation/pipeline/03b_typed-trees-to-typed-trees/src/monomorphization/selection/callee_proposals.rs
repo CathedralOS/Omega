@@ -247,7 +247,8 @@ pub(crate) fn enclosing_statement_ordinal(
                 .then_some(ordinal - start)
         }
         CallSite::Expression(handle) => program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
             .find_map(|(offset, statement)| {
                 let mut roots = Vec::new();
                 collect_statement_expression_trees(program, statement, &mut roots);

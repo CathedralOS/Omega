@@ -401,22 +401,14 @@ pub(super) fn closed_lift_literal_for_representative(
             let planes = elements
                 .iter()
                 .map(|plane| {
-                    let ExpressionNode::ArrayLiteral(rows) =
-                        program.expression_table.expression(*plane)
-                    else {
-                        return None;
-                    };
+                    let rows = program.expression_table.array_literal_node(*plane)?;
                     let rows = program.expression_table.expression_handles(*rows);
                     if rows.len() != *plane_height {
                         return None;
                     }
                     rows.iter()
                         .map(|row| {
-                            let ExpressionNode::ArrayLiteral(leaves) =
-                                program.expression_table.expression(*row)
-                            else {
-                                return None;
-                            };
+                            let leaves = program.expression_table.array_literal_node(*row)?;
                             let leaves = program.expression_table.expression_handles(*leaves);
                             if leaves.len() != *row_width {
                                 return None;
@@ -424,11 +416,7 @@ pub(super) fn closed_lift_literal_for_representative(
                             leaves
                                 .iter()
                                 .map(|leaf| {
-                                    let ExpressionNode::Boolean(value) =
-                                        program.expression_table.expression(*leaf)
-                                    else {
-                                        return None;
-                                    };
+                                    let value = program.expression_table.boolean_node(*leaf)?;
                                     Some(*value)
                                 })
                                 .collect::<Option<Vec<_>>>()
@@ -720,9 +708,7 @@ fn closed_recursive_array_element(
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(width),
         } => {
-            let ExpressionNode::ArrayLiteral(elements) =
-                program.expression_table.expression(expression)
-            else {
+            let Some(elements) = program.expression_table.array_literal_node(expression) else {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             };
             let elements = program.expression_table.expression_handles(*elements);
@@ -802,9 +788,7 @@ fn nested_literal_rows<'program>(
     elements
         .iter()
         .map(|row| {
-            let ExpressionNode::ArrayLiteral(row_elements) =
-                program.expression_table.expression(*row)
-            else {
+            let Some(row_elements) = program.expression_table.array_literal_node(*row) else {
                 return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
             };
             let row_elements = program.expression_table.expression_handles(*row_elements);
@@ -823,7 +807,7 @@ fn closed_integer_array_element(
     primitive: PrimitiveType,
     position: usize,
 ) -> Result<ClosedIntegerArrayElement, RelationPlanError> {
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(element) else {
+    let Some(literal) = program.expression_table.integer_node(element) else {
         return Err(RelationPlanError::DirectLiftLiteralTargetMismatch(position));
     };
     let landing = exact_integer_landing(program, element_type, primitive, literal, position)?;
@@ -859,10 +843,7 @@ fn closed_boolean_array_elements(
     elements
         .iter()
         .map(|element| {
-            let ExpressionNode::Boolean(value) = program.expression_table.expression(*element)
-            else {
-                return None;
-            };
+            let value = program.expression_table.boolean_node(*element)?;
             Some(*value)
         })
         .collect()

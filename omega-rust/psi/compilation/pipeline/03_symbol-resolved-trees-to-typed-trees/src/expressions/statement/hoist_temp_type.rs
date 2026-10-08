@@ -392,7 +392,7 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(None);
     }
 
-    let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
+    let Some(indexed) = expressions.indexed_node(initial_value) else {
         return Ok(None);
     };
     // A NESTED indexed read (`grid[i][j]`, `rows[i].data[j]` -- the
@@ -670,7 +670,7 @@ fn member_chain_type(
     place: ExpressionHandle,
 ) -> Option<TypeReference> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    let ExpressionNode::Member(member) = expressions.expression(place) else {
+    let Some(member) = expressions.member_node(place) else {
         return collection_type_reference(lowerer, attached_data, state, place);
     };
     if matches!(

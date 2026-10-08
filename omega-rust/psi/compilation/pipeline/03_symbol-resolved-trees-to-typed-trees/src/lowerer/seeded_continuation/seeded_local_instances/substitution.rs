@@ -256,9 +256,7 @@ fn decide_template_type_equality(
     conjunct: ExpressionHandle,
 ) -> Option<bool> {
     let expressions = &source.tables.bodies.expressions;
-    let ExpressionNode::Binary(binary) = expressions.expression(conjunct) else {
-        return None;
-    };
+    let binary = expressions.binary_node(conjunct)?;
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -266,9 +264,7 @@ fn decide_template_type_equality(
         return None;
     }
     let side_symbol = |side| -> Option<SymbolHandle> {
-        let ExpressionNode::Name(path) = expressions.expression(side) else {
-            return None;
-        };
+        let path = expressions.name_path_node(side)?;
         Some(fact_name_leaf_symbol(source, path))
     };
     let (Some(left), Some(right)) = (side_symbol(binary.left), side_symbol(binary.right)) else {
@@ -719,7 +715,8 @@ fn type_matches(
             symbol.is_valid()
                 && name.as_str() == source.symbols.name(symbol)
                 && validated_instances.contains(&symbol)
-                && source.data_definition_by_symbol(symbol)
+                && source
+                    .data_definition_by_symbol(symbol)
                     .is_some_and(|definition| {
                         let Some(TypeReference::Generic(origin)) =
                             definition.generic_instance.as_ref()

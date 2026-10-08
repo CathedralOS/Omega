@@ -12,11 +12,14 @@ impl ContractExpressionEvaluator<'_, '_> {
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<(ExpressionHandle, BooleanExpressionOwner)> {
-        let Some(path) = self.program.expression_table.name_path_node(expression)
-        else {
+        let Some(path) = self.program.expression_table.name_path_node(expression) else {
             return None;
         };
-        if !self.program.expression_table.name_path_is_single_member(path) {
+        if !self
+            .program
+            .expression_table
+            .name_path_is_single_member(path)
+        {
             return None;
         }
         let resolved = match owner {
@@ -69,11 +72,10 @@ impl ContractExpressionEvaluator<'_, '_> {
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.resolved_expression(indexed.collection)?;
                 let index = usize::try_from(self.integer_value(indexed.index)?).ok()?;
-                let ExpressionNode::ArrayLiteral(values) =
-                    self.program.expression_table.expression(collection)
-                else {
-                    return None;
-                };
+                let values = self
+                    .program
+                    .expression_table
+                    .array_literal_node(collection)?;
                 self.program
                     .expression_table
                     .expression_handles(*values)
@@ -82,11 +84,10 @@ impl ContractExpressionEvaluator<'_, '_> {
             }
             ExpressionNode::Member(member) => {
                 let receiver = self.resolved_expression(member.receiver)?;
-                let ExpressionNode::StructLiteral(struct_literal) =
-                    self.program.expression_table.expression(receiver)
-                else {
-                    return None;
-                };
+                let struct_literal = self
+                    .program
+                    .expression_table
+                    .struct_literal_node(receiver)?;
                 self.program
                     .expression_table
                     .struct_fields(struct_literal.fields)

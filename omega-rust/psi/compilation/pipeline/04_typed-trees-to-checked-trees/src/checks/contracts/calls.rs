@@ -446,7 +446,7 @@ fn value_call_return_domain_grants(
     else {
         return false;
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     let Some(target) = program.state_by_symbol(call.target_symbol) else {

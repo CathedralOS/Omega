@@ -170,7 +170,7 @@ pub(crate) fn normalize_qualification_casts_from(
     program.retain_authored_declaration_selections(selections);
 
     for (handle, _, domain, semantic_id) in updates {
-        let ExpressionNode::Cast(authored) = program.expression_table.expression(handle) else {
+        let Some(authored) = program.expression_table.cast_node(handle) else {
             continue;
         };
         let authored = *authored;

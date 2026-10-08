@@ -541,7 +541,7 @@ fn lower_float_meaning_equality_clause(
     expression: typed_trees::expression::ExpressionHandle,
     float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
 ) -> Option<checked_trees::ClosedScalarContractValue> {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::expression::BinaryOperator;
 
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
@@ -550,7 +550,7 @@ fn lower_float_meaning_equality_clause(
         return None;
     }
     let operand_produces_meaning = |operand: typed_trees::expression::ExpressionHandle| {
-        let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
+        let Some(call) = program.expression_table.call_node(operand) else {
             return false;
         };
         let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)

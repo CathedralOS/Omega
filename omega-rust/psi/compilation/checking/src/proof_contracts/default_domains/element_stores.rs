@@ -45,7 +45,7 @@ pub(super) fn handle_element_store<'program>(
     poisoned_paths: &[String],
     born_zero: bool,
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+    let Some(indexed) = program.expression_table.indexed_node(target) else {
         return false;
     };
     // `receiver.field[index]` names one element; a deeper selector such as
@@ -58,8 +58,7 @@ pub(super) fn handle_element_store<'program>(
                 None => return false,
             },
         };
-    let Some(member) = program.expression_table.member_node(member_expression)
-    else {
+    let Some(member) = program.expression_table.member_node(member_expression) else {
         return false;
     };
     let Some(receiver_spelling) = write_place_spelling(program, member.receiver) else {

@@ -405,7 +405,7 @@ fn projected_linear_owned_source(
         state,
         expression,
         |program, machine, state, cursor| {
-            let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
+            let Some(path) = program.expression_table.name_path_node(cursor) else {
                 // A call's structural product is a temporary: an affine residual
                 // may die with it, but a linear residual sibling has no named
                 // place to preserve its claim, so no projected linear child may

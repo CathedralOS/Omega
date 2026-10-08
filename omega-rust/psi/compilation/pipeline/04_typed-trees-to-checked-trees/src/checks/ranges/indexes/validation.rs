@@ -82,7 +82,7 @@ pub(in crate::checks::ranges) fn is_builtin_scalar_index(
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
     !matches!(
@@ -617,7 +617,7 @@ fn extent_binds_pending_application(
     collection: ExpressionHandle,
     extent: symbols::SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Member(member) = program.expression_table.expression(collection) else {
+    let Some(member) = program.expression_table.member_node(collection) else {
         return false;
     };
     let Some(receiver) = expression_type_reference(program, machine, state, member.receiver) else {

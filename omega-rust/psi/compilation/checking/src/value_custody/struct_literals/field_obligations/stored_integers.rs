@@ -25,8 +25,7 @@ pub(super) fn validate_construction(
     diagnostics: &mut Vec<Diagnostic>,
     statement_index: usize,
 ) -> Option<CheckedStoredIntegerWrite> {
-    let plan = program
-        .plan_laid_layout(literal.type_symbol)?;
+    let plan = program.plan_laid_layout(literal.type_symbol)?;
     let field_index = plan
         .field_symbols
         .iter()

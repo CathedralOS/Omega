@@ -146,7 +146,7 @@ pub(super) fn validate_join(
     shapes: &mut Vec<Shape>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<MatchPlan, String> {
-    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
+    let Some(dispatch) = program.expression_table.match_node(expression) else {
         return Err("constant Match plan lost its dispatch".into());
     };
     let arms = program.expression_table.match_arms(dispatch.arms);

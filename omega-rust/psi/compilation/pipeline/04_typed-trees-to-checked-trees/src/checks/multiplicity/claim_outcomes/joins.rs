@@ -25,7 +25,7 @@ use language_semantics::{
     PermissionProvenance,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -673,7 +673,7 @@ fn derive_receipts(
         let Some(state) = program.state_by_symbol(event.state_symbol) else {
             continue;
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(call) = program.expression_table.call_node(expression) else {
             continue;
         };
         let Some(target) = validation::call_target_state(program, call.target_symbol) else {

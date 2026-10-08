@@ -25,7 +25,7 @@
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, PrimitiveType, StatementNode,
+    CheckedUnitStructuralPathSegment, Multiplicity, PrimitiveType, StatementNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use checked_trees::{
@@ -66,7 +66,7 @@ fn names_local(
     if !program.expression_table.expression_is_valid(result) {
         return false;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(result) else {
+    let Some(path) = program.expression_table.name_path_node(result) else {
         return false;
     };
     if path.symbol.is_valid() {

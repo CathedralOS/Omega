@@ -61,11 +61,7 @@ fn complementary_boolean_guards(
     guards: &[TransitionGuardNode],
 ) -> bool {
     let comparisons = equality_comparisons(program, guards, |comparison| {
-        let ExpressionNode::Boolean(polarity) =
-            program.expression_table.expression(comparison.right)
-        else {
-            return None;
-        };
+        let polarity = program.expression_table.boolean_node(comparison.right)?;
         Some(*polarity)
     });
     comparisons.iter().any(|(left, polarity)| {

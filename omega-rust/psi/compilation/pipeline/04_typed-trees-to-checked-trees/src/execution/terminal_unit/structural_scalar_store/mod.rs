@@ -904,7 +904,7 @@ fn restores_structural_local(
     state: &typed_trees::state::State,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(assignment.value) else {
+    let Some(path) = program.expression_table.name_path_node(assignment.value) else {
         return false;
     };
     if path.head_symbol != path.symbol

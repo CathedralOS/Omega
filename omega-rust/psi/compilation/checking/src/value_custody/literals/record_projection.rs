@@ -121,11 +121,7 @@ pub(super) fn closed_scalar_projection(
                 else {
                     return None;
                 };
-                let ExpressionNode::ArrayLiteral(elements) =
-                    program.expression_table.expression(selected)
-                else {
-                    return None;
-                };
+                let elements = program.expression_table.array_literal_node(selected)?;
                 let ordinal = program.expression_table.integer_node(indexed.index)?;
                 if ordinal.landing().is_some_and(|landing| {
                     landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
@@ -205,10 +201,7 @@ fn record_constructor(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
-    else {
-        return None;
-    };
+    let literal = program.expression_table.struct_literal_node(expression)?;
     if !literal.type_symbol.is_valid()
         || program.symbols.get(literal.type_symbol).kind != SymbolKind::Data
         || literal.case_name.is_some()

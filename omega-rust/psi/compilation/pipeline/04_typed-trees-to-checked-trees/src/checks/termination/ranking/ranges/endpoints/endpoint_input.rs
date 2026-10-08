@@ -159,8 +159,7 @@ impl<'program> EndpointInput<'program> {
         {
             return true;
         }
-        let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(actual)
-        else {
+        let Some(literal) = program.expression_table.struct_literal_node(actual) else {
             return false;
         };
         let (_, root_owner) = self.chain[0];
@@ -231,7 +230,7 @@ impl<'program> EndpointInput<'program> {
         depth: usize,
     ) -> bool {
         for index in (0..=depth).rev() {
-            let ExpressionNode::Member(member) = program.expression_table.expression(cursor) else {
+            let Some(member) = program.expression_table.member_node(cursor) else {
                 return false;
             };
             let (field, _) = self.chain[index];
@@ -267,7 +266,7 @@ fn resolve_local(
     locals: &[(SymbolHandle, ExpressionHandle)],
 ) -> ExpressionHandle {
     for _ in 0..=locals.len() {
-        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        let Some(name) = program.expression_table.name_path_node(expression) else {
             break;
         };
         if !(name.symbol.is_valid() && name.head_symbol == name.symbol)

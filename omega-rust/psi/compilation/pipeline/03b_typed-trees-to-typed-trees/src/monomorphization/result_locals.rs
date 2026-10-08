@@ -191,9 +191,7 @@ pub(super) fn refresh(program: &mut TypedTrees) -> Vec<SymbolHandle> {
             if !local.type_is_inferred {
                 continue;
             }
-            let ExpressionNode::Call(call) =
-                program.expression_table.expression(local.initial_value)
-            else {
+            let Some(call) = program.expression_table.call_node(local.initial_value) else {
                 continue;
             };
             if call.target_symbol.is_valid()

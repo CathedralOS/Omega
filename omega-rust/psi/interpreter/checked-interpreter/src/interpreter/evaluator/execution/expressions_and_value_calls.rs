@@ -434,7 +434,7 @@ impl<'program> Evaluator<'program> {
         if !table.expression_is_valid(binary.left) || !table.expression_is_valid(binary.right) {
             return trap("case membership has an invalid operand");
         }
-        let ExpressionNode::Name(classifier) = table.expression(binary.right) else {
+        let Some(classifier) = table.name_path_node(binary.right) else {
             return trap("case membership requires an exact case classifier");
         };
         let case_symbol = classifier.symbol;

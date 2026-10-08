@@ -221,7 +221,7 @@ fn rewrite_children(
 /// operand rather than a declared machine return.
 fn is_hoistable_value_cast_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+    let Some(call) = expressions.call_node(expression) else {
         return false;
     };
     !call.receiver.is_valid()
@@ -304,7 +304,7 @@ pub(crate) fn hoist_index(
 /// neither hoisted NOR fenced, and silently read ZII natively).
 fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Binary(binary) = expressions.expression(index) else {
+    let Some(binary) = expressions.binary_node(index) else {
         return false;
     };
     let leaf_is_typeable = |operand: ExpressionHandle| -> bool {
@@ -490,7 +490,7 @@ pub(crate) fn hoist_child(
 /// the local-array RMW write path that pattern-matches the unhoisted read.
 fn is_member_of_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Member(member) = expressions.expression(expression) else {
+    let Some(member) = expressions.member_node(expression) else {
         return false;
     };
     let mut receiver = member.receiver;
@@ -500,7 +500,7 @@ fn is_member_of_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHa
     if !is_runtime_indexed_read(lowerer, receiver) {
         return false;
     }
-    let ExpressionNode::Indexed(indexed) = expressions.expression(receiver) else {
+    let Some(indexed) = expressions.indexed_node(receiver) else {
         return false;
     };
     // The collection must be a `self.<field>` place (typeable from attached data).
@@ -523,7 +523,7 @@ fn is_member_of_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHa
 
 pub(crate) fn is_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Indexed(indexed) = expressions.expression(expression) else {
+    let Some(indexed) = expressions.indexed_node(expression) else {
         return false;
     };
     !matches!(
@@ -547,7 +547,7 @@ pub(super) fn is_hoistable_builtin_guard_call(
     expression: ExpressionHandle,
 ) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+    let Some(call) = expressions.call_node(expression) else {
         return false;
     };
     if call.receiver.is_valid() {
@@ -562,7 +562,7 @@ pub(super) fn is_hoistable_builtin_guard_call(
     };
     // The first argument must be a `self.<field>` member access -- the only place
     // shape `infer_hoist_temp_type` can type the temp from.
-    let ExpressionNode::Member(member) = expressions.expression(first) else {
+    let Some(member) = expressions.member_node(first) else {
         return false;
     };
     matches!(

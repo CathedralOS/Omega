@@ -43,7 +43,7 @@ pub(super) fn contribute_case_where_facts(
     let Some(owner) = meaning::exact_case_reference_owner(program, classifier) else {
         return;
     };
-    let ExpressionNode::Name(case) = program.expression_table.expression(classifier) else {
+    let Some(case) = program.expression_table.name_path_node(classifier) else {
         return;
     };
     let Some(variant) = program.data_variant(owner, case.symbol) else {

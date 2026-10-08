@@ -1,8 +1,8 @@
 //! Exact immutable operand bounds project through the current builtin guard.
 
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, State, ValueEnvironment, comparison_interval,
-    negate_comparison, place_path,
+    ExpressionHandle, Machine, State, ValueEnvironment, comparison_interval, negate_comparison,
+    place_path,
 };
 pub(super) fn narrow(
     program: &dyn crate::CheckingInput,
@@ -37,7 +37,7 @@ pub(super) fn narrow(
     ] {
         // The bound owner already checked exact state-parameter custody and
         // immutability. Computed operands can supply a bound, not a new place.
-        let ExpressionNode::Name(_) = program.expression_table.expression(subject) else {
+        let Some(_) = program.expression_table.name_path_node(subject) else {
             continue;
         };
         let Some(name) = place_path(program, subject) else {

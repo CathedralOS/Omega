@@ -178,7 +178,7 @@ pub(crate) fn handle_assignment<'program>(
 
     // A FIELD store: `<self-place>.field = value` where the receiver's type
     // carries where facts.
-    let ExpressionNode::Member(member) = program.expression_table.expression(target) else {
+    let Some(member) = program.expression_table.member_node(target) else {
         return;
     };
     let Some(receiver_spelling) = write_place_spelling(program, member.receiver) else {

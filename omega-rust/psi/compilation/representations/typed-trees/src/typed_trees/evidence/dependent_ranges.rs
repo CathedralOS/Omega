@@ -21,7 +21,7 @@
 //! earlier local) of the owning state and bind it as a proof atom.
 //! Everything else stays behind the non-constant-bound fence.
 
-use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
+use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionTable};
 use crate::name::Identifier;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -139,7 +139,7 @@ fn bound_anchor_and_offset(
     if !bound.is_valid() {
         return None;
     }
-    let ExpressionNode::Binary(binary) = table.expression(bound) else {
+    let Some(binary) = table.binary_node(bound) else {
         return Some((bound, 0));
     };
     let literal = table.integer_node(binary.right)?;

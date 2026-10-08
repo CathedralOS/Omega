@@ -19,8 +19,7 @@ pub(crate) fn evidence_argument_rewrites(
             {
                 typed_trees::name::Identifier::generated(program.symbols.name(binding.symbol))
             } else {
-                let selected = program
-                    .conformance_by_symbol(binding.symbol)?;
+                let selected = program.conformance_by_symbol(binding.symbol)?;
                 selected.alias.clone().unwrap_or_else(|| {
                     typed_trees::name::Identifier::generated("<unnamed-conformance>")
                 })
@@ -81,14 +80,11 @@ pub(crate) fn evidence_requirement_rewrites(
         let Some(binding) = binding.as_ref() else {
             continue;
         };
-        let Some(trait_definition) = program
-            .trait_definition_by_symbol(parameter.trait_symbol)
+        let Some(trait_definition) = program.trait_definition_by_symbol(parameter.trait_symbol)
         else {
             continue;
         };
-        let Some(selected) = program
-            .conformance_by_symbol(binding.symbol)
-        else {
+        let Some(selected) = program.conformance_by_symbol(binding.symbol) else {
             continue;
         };
         let rows = selected.rows.as_slice();
@@ -154,15 +150,12 @@ pub(crate) fn collect_evidence_requirement_closure<'program>(
     // order must mirror the binder placeholder symbols inserted at symbol
     // resolution (own machines, then the refined base, then parents).
     if let Some(base) = &trait_definition.refines
-        && let Some(base_trait) = program
-            .trait_definition_by_symbol(base.symbol)
+        && let Some(base_trait) = program.trait_definition_by_symbol(base.symbol)
     {
         collect_evidence_requirement_closure(program, base_trait, visited, output);
     }
     for parent in program.trait_requirements(trait_definition) {
-        let Some(parent_trait) = program
-            .trait_definition_by_symbol(parent.symbol)
-        else {
+        let Some(parent_trait) = program.trait_definition_by_symbol(parent.symbol) else {
             continue;
         };
         collect_evidence_requirement_closure(program, parent_trait, visited, output);

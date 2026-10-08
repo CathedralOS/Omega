@@ -521,8 +521,7 @@ impl ReturnReader<'_, '_> {
         } else {
             return;
         };
-        let ExpressionNode::Integer(literal) = self.program.expression_table.expression(endpoint)
-        else {
+        let Some(literal) = self.program.expression_table.integer_node(endpoint) else {
             return;
         };
         let Some(value) = literal.value_bignum() else {

@@ -123,7 +123,7 @@ pub(crate) fn validate_asm_value_destination(
     assignment: &typed_trees::statement::TableAssignment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
+    let Some(call) = program.expression_table.call_node(assignment.value) else {
         return;
     };
     let Some(function) = program

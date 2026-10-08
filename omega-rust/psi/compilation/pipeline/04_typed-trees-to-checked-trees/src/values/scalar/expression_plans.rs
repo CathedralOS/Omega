@@ -163,7 +163,7 @@ pub(super) fn retain_expression_call_arguments(
     source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
     binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
 ) {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return;
     };
     let Some(arguments) = lower_call_arguments(

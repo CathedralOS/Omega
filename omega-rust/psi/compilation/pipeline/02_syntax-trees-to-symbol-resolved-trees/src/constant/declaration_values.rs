@@ -72,8 +72,7 @@ pub(super) fn validate_nominal_destinations(
         let Some(literal) = literal else {
             continue;
         };
-        let Some(definition) = program.data_definition_by_symbol(expected)
-        else {
+        let Some(definition) = program.data_definition_by_symbol(expected) else {
             continue;
         };
         for field in table.struct_fields(literal.fields) {
@@ -354,11 +353,8 @@ pub(crate) fn selected_expression_constant(
     program: &SymbolResolvedTrees,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> Option<(SourceSpan, symbols::SymbolHandle)> {
-    use symbol_resolved_trees::expression::ExpressionNode;
     let table = &program.tables.bodies.expressions;
-    let ExpressionNode::Name(path) = table.expression(expression) else {
-        return None;
-    };
+    let path = table.name_path_node(expression)?;
     if matches!(
         program.symbols.get(path.head_symbol).kind,
         SymbolKind::Local

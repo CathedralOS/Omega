@@ -258,8 +258,7 @@ impl CaseAccess<'_> {
                     binary,
                 ) =>
             {
-                let ExpressionNode::Name(observed) =
-                    self.program.expression_table.expression(binary.right)
+                let Some(observed) = self.program.expression_table.name_path_node(binary.right)
                 else {
                     return false;
                 };

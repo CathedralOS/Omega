@@ -74,8 +74,7 @@ fn is_case_value(
         if allow_existing && scalar_case_value_source(program, expression, reference).is_some() {
             continue;
         }
-        let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression)
-        else {
+        let Some(dispatch) = program.expression_table.match_node(expression) else {
             return false;
         };
         let arms = program.expression_table.match_arms(dispatch.arms);

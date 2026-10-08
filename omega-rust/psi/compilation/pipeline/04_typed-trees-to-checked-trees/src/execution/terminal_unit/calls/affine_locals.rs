@@ -5,9 +5,8 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitStructuralTypeShape, ExpressionNode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode,
-    SymbolHandle, TypeReferenceNode,
+    CheckedUnitStructuralTypeShape, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 
 pub(crate) fn build_affine_array_construction_prefix(
@@ -121,11 +120,9 @@ pub(crate) fn build_affine_array_construction_prefix(
         {
             return None;
         }
-        let ExpressionNode::StructLiteral(literal) =
-            program.expression_table.expression(assignment.value)
-        else {
-            return None;
-        };
+        let literal = program
+            .expression_table
+            .struct_literal_node(assignment.value)?;
         if literal.case_name.is_some()
             || !program
                 .expression_table

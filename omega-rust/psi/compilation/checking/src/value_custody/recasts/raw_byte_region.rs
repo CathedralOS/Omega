@@ -116,7 +116,7 @@ pub(super) fn interior_byte_region_source(
     source: ExpressionHandle,
     footprint: i64,
 ) -> InteriorByteRegion {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
+    let Some(indexed) = program.expression_table.indexed_node(source) else {
         return InteriorByteRegion::NotInteriorShape;
     };
     let Some(collection_type) = crate::value_custody::places::declared_place_type(

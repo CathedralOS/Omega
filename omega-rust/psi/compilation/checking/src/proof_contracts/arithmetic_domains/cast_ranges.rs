@@ -66,7 +66,7 @@ pub(crate) fn validate_range_cast_at_use(
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+    let Some(cast) = program.expression_table.cast_node(expression) else {
         return;
     };
     if cast.form.is_recast() {

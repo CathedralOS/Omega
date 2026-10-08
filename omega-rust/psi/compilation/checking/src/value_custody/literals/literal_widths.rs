@@ -132,8 +132,7 @@ fn u64_blessed_literals(program: &dyn crate::CheckingInput) -> Vec<ExpressionHan
             continue;
         };
         for field in program.expression_table.struct_fields(literal.fields) {
-            let ExpressionNode::Integer(value) = program.expression_table.expression(field.value)
-            else {
+            let Some(value) = program.expression_table.integer_node(field.value) else {
                 continue;
             };
             if value.value_i64().is_some() || value.value_u64().is_none() {

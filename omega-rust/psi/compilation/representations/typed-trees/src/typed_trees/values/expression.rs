@@ -694,6 +694,22 @@ impl ExpressionTable {
         }
     }
 
+    /// The typed `String` node, or `None` for every other kind.
+    pub fn string_node(&self, handle: ExpressionHandle) -> Option<&Arc<[u8]>> {
+        match self.expression(handle) {
+            ExpressionNode::String(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `Unary` node, or `None` for every other kind.
+    pub fn unary_node(&self, handle: ExpressionHandle) -> Option<&TableUnaryExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Unary(node) => Some(node),
+            _ => None,
+        }
+    }
+
     /// The typed `Integer` node, or `None` for every other kind.
     pub fn integer_node(&self, handle: ExpressionHandle) -> Option<&IntegerLiteral> {
         match self.expression(handle) {
@@ -835,7 +851,7 @@ impl ExpressionTable {
     /// parameter named `result` shadows the binder, and resolution binds the
     /// occurrence to that parameter instead; see `language_core::contract_result`.
     pub fn names_reserved_result(&self, expression: ExpressionHandle) -> bool {
-        let ExpressionNode::Name(path) = self.expression(expression) else {
+        let Some(path) = self.name_path_node(expression) else {
             return false;
         };
         !path.symbol.is_valid()
@@ -859,7 +875,7 @@ impl ExpressionTable {
         expression: ExpressionHandle,
         parameter: &crate::signature::StateParameter,
     ) -> bool {
-        let ExpressionNode::Name(path) = self.expression(expression) else {
+        let Some(path) = self.name_path_node(expression) else {
             return false;
         };
         let [name] = self.name_path_members(path.members) else {

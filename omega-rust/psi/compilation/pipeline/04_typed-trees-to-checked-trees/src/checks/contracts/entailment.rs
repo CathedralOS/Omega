@@ -109,7 +109,7 @@ pub(super) fn integral_parameter_reflexivity(
     program: &dyn ::validation::CheckingInput,
     fact: &facts::Fact,
 ) -> bool {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::expression::BinaryOperator;
     use typed_trees::types::TypeReferenceNode;
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
@@ -120,10 +120,10 @@ pub(super) fn integral_parameter_reflexivity(
     if comparison.operator != BinaryOperator::Equal {
         return false;
     }
-    let ExpressionNode::Name(left) = program.expression_table.expression(comparison.left) else {
+    let Some(left) = program.expression_table.name_path_node(comparison.left) else {
         return false;
     };
-    let ExpressionNode::Name(right) = program.expression_table.expression(comparison.right) else {
+    let Some(right) = program.expression_table.name_path_node(comparison.right) else {
         return false;
     };
     if !left.symbol.is_valid()

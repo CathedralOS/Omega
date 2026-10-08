@@ -209,7 +209,7 @@ pub(super) fn append_element_replacement_predicates(
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+    let Some(indexed) = program.expression_table.indexed_node(target) else {
         return;
     };
     let collection = indexed.collection;

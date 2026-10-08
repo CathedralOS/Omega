@@ -154,11 +154,7 @@ impl CheckedOperatorUseFact {
                 _ => None,
             },
             CheckedOperatorOccurrence::MatchEquality { source_arm } => {
-                let ExpressionNode::Match(dispatch) =
-                    program.expression_table.expression(self.expression)
-                else {
-                    return None;
-                };
+                let dispatch = program.expression_table.match_node(self.expression)?;
                 if self.spelling != OperatorSpelling::Equal
                     || source_arm.generation() != dispatch.arms.start().generation()
                 {

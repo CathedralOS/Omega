@@ -42,9 +42,7 @@ fn argument_decreases_lexicographically(
     parameter: &typed_trees::signature::StateParameter,
     fields: &[Identifier],
 ) -> bool {
-    let ExpressionNode::StructLiteral(struct_literal) =
-        program.expression_table.expression(argument)
-    else {
+    let Some(struct_literal) = program.expression_table.struct_literal_node(argument) else {
         return false;
     };
     let literal_fields = program

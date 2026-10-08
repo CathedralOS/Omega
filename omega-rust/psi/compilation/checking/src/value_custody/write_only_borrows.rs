@@ -755,9 +755,7 @@ fn write_only_literal_indexed_record_field_assignment(
     if final_member.case_variant.is_some() {
         return false;
     }
-    let ExpressionNode::Indexed(indexed) =
-        program.expression_table.expression(final_member.receiver)
-    else {
+    let Some(indexed) = program.expression_table.indexed_node(final_member.receiver) else {
         return false;
     };
     // A bare `&write` array root is itself the indexed collection; a member
@@ -1014,7 +1012,7 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     >,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
     let (root, collection_type) =
@@ -1039,7 +1037,7 @@ fn validate_write_only_fixed_array_range_assignment<'p>(
     let bound_lookup = bound_lookup.get_or_insert_with(|| {
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
     });
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
         return false;
     };
 

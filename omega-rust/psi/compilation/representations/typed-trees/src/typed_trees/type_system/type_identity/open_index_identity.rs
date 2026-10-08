@@ -1,7 +1,7 @@
 //! Open index operation selection and algebra identities.
 
 use crate::TypedTrees;
-use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use crate::expression::{BinaryOperator, ExpressionHandle};
 use crate::typed_trees::type_system::type_identity::constraint_identity::{atom, compound};
 use crate::typed_trees::type_system::type_identity::identity_context::{
     TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
@@ -110,7 +110,7 @@ pub(crate) fn collect_open_index_operands(
     selection: &crate::expression::OpenIndexOperationSelection,
     context: &TypeIdentityContext<'_>,
 ) -> Vec<String> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return vec![normalize_index_expression(program, expression, context)];
     };
     let mut operands = Vec::new();

@@ -77,8 +77,8 @@ pub(super) fn verify_selected_theorem_schema(
 
     let mut relation_premises = Vec::with_capacity(expected.relation_premises.len());
     for (position, premise) in expected.relation_premises.iter().enumerate() {
-        let Some(relation) = program
-            .proposition_definition_by_symbol(premise.relation.relation_symbol)
+        let Some(relation) =
+            program.proposition_definition_by_symbol(premise.relation.relation_symbol)
         else {
             return Err(RelationPlanError::TheoremSchemaRelationPremiseMismatch(
                 position,
@@ -250,7 +250,7 @@ fn representative_application_matches(
     theorem_parameters: &[StateParameter],
     expected: &TheoremRepresentativeApplication,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     // The theorem's application must be the representative reached through

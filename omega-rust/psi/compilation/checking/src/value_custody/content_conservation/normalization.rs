@@ -291,8 +291,7 @@ fn collect_structural_place(
         ExpressionNode::Indexed(indexed) => {
             let (root, symbol, mut segments) =
                 collect_structural_place(program, indexed.collection)?;
-            let ExpressionNode::Integer(index) = program.expression_table.expression(indexed.index)
-            else {
+            let Some(index) = program.expression_table.integer_node(indexed.index) else {
                 return Err(
                     "old/current structural places admit only literal fixed-array indices"
                         .to_owned(),

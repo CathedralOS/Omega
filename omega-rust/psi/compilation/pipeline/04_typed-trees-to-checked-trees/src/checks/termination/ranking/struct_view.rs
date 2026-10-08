@@ -25,7 +25,7 @@ pub(super) fn state_has_proven_self_loop(
     owner: SymbolHandle,
     call_frames: Option<&CallFrameResolver<'_>>,
 ) -> bool {
-    let ExpressionNode::Name(subject) = program.expression_table.expression(decreases) else {
+    let Some(subject) = program.expression_table.name_path_node(decreases) else {
         return false;
     };
     let Some((argument_index, parameter)) = program
@@ -194,7 +194,7 @@ fn exact_projection(
     field: SymbolHandle,
     name: &Identifier,
 ) -> bool {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+    let Some(member) = program.expression_table.member_node(expression) else {
         return false;
     };
     if !field.is_valid()

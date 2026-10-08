@@ -254,7 +254,7 @@ pub(super) fn carried_edge_decrease_proven(
     let DecreaseMeasure::Single(subject) = measure else {
         return false;
     };
-    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
+    let Some(name) = program.expression_table.name_path_node(subject) else {
         return false;
     };
     if !name.symbol.is_valid() || name.head_symbol != name.symbol {
@@ -406,7 +406,7 @@ fn member_countdown_edge(
     arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Member(member) = program.expression_table.expression(decreases) else {
+    let Some(member) = program.expression_table.member_node(decreases) else {
         return false;
     };
     let Some(parameter) =

@@ -71,7 +71,7 @@ pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
         visit_machine(program, &mut roots, machine);
     }
     for (expression, owner) in roots.expressions {
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(call) = program.expression_table.call_node(expression) else {
             continue;
         };
         if call.machine_arguments.is_empty() || call.authored_machine_application.is_valid() {

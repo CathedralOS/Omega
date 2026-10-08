@@ -248,7 +248,7 @@ fn receiver_selects_domain(
     receiver: ExpressionHandle,
     domain: SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(receiver) else {
+    let Some(path) = program.expression_table.name_path_node(receiver) else {
         return false;
     };
     if path.symbol == domain || path.head_symbol == domain {

@@ -739,7 +739,7 @@ pub(super) fn structural_storage_place(
             authored = indexed.collection;
             continue;
         }
-        let ExpressionNode::Member(member) = program.expression_table.expression(authored) else {
+        let Some(member) = program.expression_table.member_node(authored) else {
             break;
         };
         let selected = selected_fields.next()?;

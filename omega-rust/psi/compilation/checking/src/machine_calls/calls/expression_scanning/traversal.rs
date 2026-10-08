@@ -22,7 +22,7 @@ fn is_declaration_namespace(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
     [path.head_symbol, path.symbol]
@@ -278,7 +278,7 @@ fn report_nested_runtime_indexed_read(
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return;
     };
     // The index must be a RUNTIME SCALAR: not a constant integer (a fixed offset,
@@ -371,7 +371,7 @@ fn double_indexed_machine_read_is_lowerable(
             _ => break,
         }
     }
-    let ExpressionNode::Indexed(inner_indexed) = program.expression_table.expression(inner) else {
+    let Some(inner_indexed) = program.expression_table.indexed_node(inner) else {
         return false;
     };
     let mut inner_index = inner_indexed.index;

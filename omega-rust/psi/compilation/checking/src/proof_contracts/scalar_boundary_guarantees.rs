@@ -185,7 +185,7 @@ fn source_equation_matches(
     expression: typed_trees::expression::ExpressionHandle,
     application: &checked_trees::CheckedFloatSemanticApplication,
 ) -> bool {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::expression::BinaryOperator;
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
@@ -193,7 +193,7 @@ fn source_equation_matches(
         return false;
     }
     let projection_source = |expression, expected: Option<symbols::SymbolHandle>| {
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(call) = program.expression_table.call_node(expression) else {
             return false;
         };
         let Some((_, primitive, _, _)) =
@@ -212,7 +212,7 @@ fn source_equation_matches(
         let [operand] = program.expression_table.expression_handles(call.arguments) else {
             return false;
         };
-        let ExpressionNode::Name(path) = program.expression_table.expression(*operand) else {
+        let Some(path) = program.expression_table.name_path_node(*operand) else {
             return false;
         };
         match expected {
@@ -227,7 +227,7 @@ fn source_equation_matches(
             if !projection_source(result, None) {
                 return false;
             }
-            let ExpressionNode::Call(call) = program.expression_table.expression(meaning) else {
+            let Some(call) = program.expression_table.call_node(meaning) else {
                 return false;
             };
             let Some(operator) =

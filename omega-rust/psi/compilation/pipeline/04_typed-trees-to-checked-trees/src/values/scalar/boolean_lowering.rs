@@ -141,10 +141,7 @@ impl BooleanLowering<'_> {
         if let Some((leaf, PrimitiveType::Bool)) =
             validation::closed_record_scalar_projection(self.program, expression)
         {
-            let ExpressionNode::Boolean(value) = self.program.expression_table.expression(leaf)
-            else {
-                return None;
-            };
+            let value = self.program.expression_table.boolean_node(leaf)?;
             return Some(CheckedBooleanExpression::Constant(*value));
         }
         if let Some(leaf) = constant_array_projection::selected_leaf(
@@ -296,8 +293,7 @@ impl BooleanLowering<'_> {
         {
             return Some(value);
         }
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return self.expression(expression);
         };
         if binary.operator == BinaryOperator::Equal
@@ -342,7 +338,7 @@ fn byte_carrier_literal_equality(
     authored_parameters: &[StateParameter],
 ) -> Option<CheckedBooleanExpression> {
     for (carrier, literal) in [(binary.left, binary.right), (binary.right, binary.left)] {
-        let ExpressionNode::String(bytes) = program.expression_table.expression(literal) else {
+        let Some(bytes) = program.expression_table.string_node(literal) else {
             continue;
         };
         let Some((root, path, _)) = comparable_byte_carrier(program, authored_parameters, carrier)

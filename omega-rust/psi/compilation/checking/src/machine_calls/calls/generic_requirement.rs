@@ -121,7 +121,7 @@ pub(super) fn expression_conformance_receiver(
     machine: &Machine,
     receiver: ExpressionHandle,
 ) -> symbols::SymbolHandle {
-    let ExpressionNode::Name(path) = program.expression_table.expression(receiver) else {
+    let Some(path) = program.expression_table.name_path_node(receiver) else {
         return symbols::SymbolHandle::invalid();
     };
     if named_conformance_receiver(program, machine, path.symbol) {

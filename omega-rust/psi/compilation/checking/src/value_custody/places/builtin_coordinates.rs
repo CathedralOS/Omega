@@ -89,10 +89,10 @@ pub fn has_builtin_subslice_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+    let Some(indexed) = program.expression_table.indexed_node(expression) else {
         return false;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
         return false;
     };
     let operands = [

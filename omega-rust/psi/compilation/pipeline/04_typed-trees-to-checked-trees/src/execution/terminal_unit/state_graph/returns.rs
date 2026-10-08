@@ -18,7 +18,7 @@ use crate::execution::terminal_unit::types::{
 
 use crate::execution::terminal_unit::is_reference;
 
-use crate::execution::terminal_unit::{CheckedStructuralAccess, ExpressionNode, PrimitiveType};
+use crate::execution::terminal_unit::{CheckedStructuralAccess, PrimitiveType};
 
 use checked_trees::{CheckedByteSequenceCarrier, CheckedControlResultPlan};
 
@@ -499,10 +499,7 @@ pub(in crate::execution::terminal_unit) fn literal_result_operation(
             expression,
         ) =>
         {
-            let ExpressionNode::String(literal) = program.expression_table.expression(expression)
-            else {
-                return None;
-            };
+            let literal = program.expression_table.string_node(expression)?;
             literal.to_vec()
         }
         None => return None,

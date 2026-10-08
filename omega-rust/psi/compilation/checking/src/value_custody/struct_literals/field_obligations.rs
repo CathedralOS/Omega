@@ -338,7 +338,7 @@ pub(crate) fn validate_array_literal_elements_for_shape(
     expected_len: Option<usize>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value) else {
+    let Some(elements) = program.expression_table.array_literal_node(value) else {
         return;
     };
     let element_handles = program.expression_table.expression_handles(*elements);

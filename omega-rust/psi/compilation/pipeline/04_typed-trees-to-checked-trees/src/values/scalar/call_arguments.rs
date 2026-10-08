@@ -29,7 +29,7 @@ pub(crate) fn is_scalar_return_call(
     {
         return false;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     validation::call_target_return_type(program, validation::call_target_symbol(program, call))

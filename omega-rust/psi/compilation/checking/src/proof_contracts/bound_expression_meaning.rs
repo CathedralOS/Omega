@@ -528,7 +528,7 @@ fn exact_case_membership_meaning(
     if comparison.operator == BinaryOperator::CaseMembership {
         return true;
     }
-    let ExpressionNode::Name(case) = program.expression_table.expression(comparison.right) else {
+    let Some(case) = program.expression_table.name_path_node(comparison.right) else {
         return false;
     };
     let mut has_owner = false;

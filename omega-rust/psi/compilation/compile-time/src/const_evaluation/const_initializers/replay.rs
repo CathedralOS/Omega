@@ -830,7 +830,7 @@ fn dependency_leaf_value(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Result<DecodedCanonicalConstValue, String> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+    let Some(name) = program.expression_table.name_path_node(expression) else {
         return Err("aggregate dependency leaf is not an exact constant or case use".into());
     };
     match program.symbols.get(name.symbol).kind {

@@ -280,10 +280,10 @@ pub(crate) fn is_reference_struct_parameter_member(
         return false;
     }
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Member(member) = expressions.expression(expression) else {
+    let Some(member) = expressions.member_node(expression) else {
         return false;
     };
-    let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+    let Some(path) = expressions.name_path_node(member.receiver) else {
         return false;
     };
     let members = expressions.name_path_members(path.members);

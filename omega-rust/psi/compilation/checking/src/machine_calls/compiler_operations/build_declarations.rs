@@ -16,7 +16,7 @@ pub fn is_build_declaration_selection(
     expression: ExpressionHandle,
 ) -> bool {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     matches!(
@@ -85,7 +85,7 @@ pub fn is_build_provider_selection(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     is_provider_selection_call(program, call)

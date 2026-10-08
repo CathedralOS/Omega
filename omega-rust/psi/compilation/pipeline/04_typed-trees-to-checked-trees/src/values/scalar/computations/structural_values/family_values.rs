@@ -404,11 +404,10 @@ impl Builder<'_, '_> {
                 value,
             });
         }
-        let ExpressionNode::StructLiteral(literal) =
-            self.program.expression_table.expression(expression)
-        else {
-            return None;
-        };
+        let literal = self
+            .program
+            .expression_table
+            .struct_literal_node(expression)?;
         Some(CheckedStructuralValueKind::StructuralCase {
             data_symbol: literal.type_symbol,
             case: constructor.case,

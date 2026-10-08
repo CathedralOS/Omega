@@ -1285,10 +1285,7 @@ fn aggregate_construction_sources(
         length: typed_trees::types::FixedArrayLength::Literal(length),
     } = program.type_reference_table.type_reference(reference)
     {
-        let ExpressionNode::ArrayLiteral(literal) = program.expression_table.expression(expression)
-        else {
-            return None;
-        };
+        let literal = program.expression_table.array_literal_node(expression)?;
         let elements = program.expression_table.expression_handles(*literal);
         if elements.len() != *length {
             return None;
@@ -1306,11 +1303,7 @@ fn aggregate_construction_sources(
         let symbol = program
             .type_reference_table
             .unparameterized_type_symbol(reference)?;
-        let ExpressionNode::StructLiteral(literal) =
-            program.expression_table.expression(expression)
-        else {
-            return None;
-        };
+        let literal = program.expression_table.struct_literal_node(expression)?;
         if literal.type_symbol != *symbol || literal.case_symbol.is_some() {
             return None;
         }
@@ -1813,7 +1806,7 @@ pub fn nested_call_record_argument(
     expression: typed_trees::expression::ExpressionHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     let Some((destination, sources)) = reference_record_call_sources(program, call) else {
@@ -1897,7 +1890,7 @@ pub fn nested_call_result_loans(
     statement_index: u32,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+    let Some(call) = program.expression_table.call_node(expression) else {
         return false;
     };
     let Some((destination, sources)) = reference_record_call_sources(program, call) else {

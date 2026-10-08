@@ -7,7 +7,7 @@
 //! integer semantic family has eight carriers, so its proof-position overload
 //! is selected by that exact parameter kind before checking sealed custody.
 
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::operator::OperatorDefinition;
 use typed_trees::types::PrimitiveType;
 
@@ -164,8 +164,7 @@ fn scan_conversion_equalities<'program, R>(
             (equality.left, equality.right),
             (equality.right, equality.left),
         ] {
-            let ExpressionNode::Call(conversion) = program.expression_table.expression(converted)
-            else {
+            let Some(conversion) = program.expression_table.call_node(converted) else {
                 continue;
             };
             let Some((selected, semantic)) = resolve(program, conversion) else {

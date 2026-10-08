@@ -702,7 +702,7 @@ pub(super) fn retain_internal_transfer(
     let Some(argument) = arguments.get(argument_position) else {
         return false;
     };
-    let ExpressionNode::Name(name) = program.expression_table.expression(*argument) else {
+    let Some(name) = program.expression_table.name_path_node(*argument) else {
         return false;
     };
     if name.symbol != source_rank.parameter

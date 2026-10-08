@@ -742,7 +742,7 @@ fn normalize_write_only_range_place(
         let facts::PlaceSegment::Index { expression } = *segment else {
             continue;
         };
-        let ExpressionNode::Range(range) = program.expression_table.expression(expression) else {
+        let Some(range) = program.expression_table.range_node(expression) else {
             continue;
         };
         let bound_lookup =

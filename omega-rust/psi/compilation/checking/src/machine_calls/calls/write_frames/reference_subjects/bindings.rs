@@ -7,8 +7,8 @@
 
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::super::{
-    ExpressionHandle, ExpressionNode, FramePlaceOrigin, Machine, StateParameter, TopLevelSymbols,
-    caller_aliases, local_aliases, stored_origins,
+    ExpressionHandle, FramePlaceOrigin, Machine, StateParameter, TopLevelSymbols, caller_aliases,
+    local_aliases, stored_origins,
 };
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
@@ -30,7 +30,7 @@ pub(in crate::machine_calls::calls::write_frames) fn calls_expose_bindings(
     divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
 ) -> bool {
     caller_aliases::expression_any(program, expression, |expression| {
-        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        let Some(call) = program.expression_table.call_node(expression) else {
             return false;
         };
         program

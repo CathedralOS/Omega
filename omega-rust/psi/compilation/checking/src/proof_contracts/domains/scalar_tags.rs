@@ -9,7 +9,7 @@
 
 use symbols::SymbolHandle;
 use typed_trees::domain::{DomainDefinition, ProofFact};
-use typed_trees::expression::ExpressionNode;
+
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
@@ -100,9 +100,7 @@ pub fn scalar_state_contracts_are_qualifications(
                 {
                     return false;
                 }
-                let ExpressionNode::Name(path) =
-                    program.expression_table.expression(membership.value)
-                else {
+                let Some(path) = program.expression_table.name_path_node(membership.value) else {
                     return false;
                 };
                 program.state_parameters(state).iter().any(|parameter| {

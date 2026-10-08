@@ -7,7 +7,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_call_machine_name, structural_term,
 };
 use typed_trees::domain::ProofFact;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
@@ -31,7 +31,7 @@ pub fn transparent_proposition_application_entailed(
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
         ) -> Option<StructuralTerm> {
-            let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+            let Some(call) = program.expression_table.call_node(expression) else {
                 return structural_term(program, expression);
             };
             if call.receiver.is_valid()

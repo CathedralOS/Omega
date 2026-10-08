@@ -75,7 +75,7 @@ fn seed_subslice_facts(
     collection: ExpressionHandle,
     index: ExpressionHandle,
 ) {
-    let ExpressionNode::Range(range) = program.expression_table.expression(index) else {
+    let Some(range) = program.expression_table.range_node(index) else {
         return;
     };
     if !range.end_inclusive || !range.end.is_valid() {

@@ -96,9 +96,7 @@ impl EnsuredResultBounds {
         if !is_result_binder(program, comparison.left) {
             return;
         }
-        let ExpressionNode::Integer(literal) =
-            program.expression_table.expression(comparison.right)
-        else {
+        let Some(literal) = program.expression_table.integer_node(comparison.right) else {
             return;
         };
         let Some(value) = literal.value_i64() else {
@@ -144,7 +142,7 @@ fn is_result_binder(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+    let Some(path) = program.expression_table.name_path_node(expression) else {
         return false;
     };
     matches!(

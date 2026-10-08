@@ -187,14 +187,14 @@ pub(crate) fn hoist_terminal_value_machine_call(
     hoisted: &mut Vec<Statement>,
 ) -> ExpressionHandle {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+    let Some(call) = expressions.call_node(expression) else {
         return expression;
     };
     if is_integer_embedding_call(lowerer, call) || spells_scalar_computation_builtin(call) {
         return expression;
     }
     if call.receiver.is_valid() {
-        let ExpressionNode::Name(path) = expressions.expression(call.receiver) else {
+        let Some(path) = expressions.name_path_node(call.receiver) else {
             return expression;
         };
         if !matches!(expressions.name_path_members(path.members), [member] if member.is_self_receiver())

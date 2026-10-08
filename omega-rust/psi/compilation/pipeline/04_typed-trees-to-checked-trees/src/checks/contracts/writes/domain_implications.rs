@@ -423,7 +423,7 @@ fn value_call_return_domain_implies(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(call) = program.expression_table.call_node(value) else {
         return false;
     };
     let Some(target) = program.state_by_symbol(call.target_symbol) else {

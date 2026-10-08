@@ -306,11 +306,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                 element_type,
                 length: FixedArrayLength::Literal(length),
             } => {
-                let ExpressionNode::ArrayLiteral(elements) =
-                    program.expression_table.expression(expression)
-                else {
-                    return None;
-                };
+                let elements = program.expression_table.array_literal_node(expression)?;
                 let elements = program.expression_table.expression_handles(*elements);
                 // Indexed frame paths deliberately stop at the collection.
                 if !suffix.is_empty() || elements.len() != *length {
@@ -333,11 +329,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                 && concrete_nominal_type(node).is_some() =>
             {
                 let (symbol, _) = concrete_nominal_type(node)?;
-                let ExpressionNode::StructLiteral(literal) =
-                    program.expression_table.expression(expression)
-                else {
-                    return None;
-                };
+                let literal = program.expression_table.struct_literal_node(expression)?;
                 if !struct_literal_matches_expected_type(program, literal, reference)
                     || !symbol.is_valid()
                     || (literal.type_symbol.is_valid() && literal.type_symbol != symbol)

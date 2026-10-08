@@ -27,9 +27,7 @@ pub(super) fn argument_rebuilds_parameter_with_member_minus_one(
     parameter: &typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
-    let ExpressionNode::StructLiteral(struct_literal) =
-        program.expression_table.expression(argument)
-    else {
+    let Some(struct_literal) = program.expression_table.struct_literal_node(argument) else {
         return false;
     };
 

@@ -113,7 +113,7 @@ fn static_namespace_receiver(
     if !program.expression_table.expression_is_valid(call.receiver) {
         return Err("permission provenance has a stale call receiver");
     }
-    let ExpressionNode::Name(receiver) = program.expression_table.expression(call.receiver) else {
+    let Some(receiver) = program.expression_table.name_path_node(call.receiver) else {
         return Ok(false);
     };
     if !receiver.symbol.is_valid()

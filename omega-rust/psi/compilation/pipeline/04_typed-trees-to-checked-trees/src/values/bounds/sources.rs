@@ -7,9 +7,7 @@ use crate::values::bounds::declared_bounds;
 use crate::values::bounds::primitive_range;
 use crate::values::exclusive_reference;
 use facts::{FactContextHandle, FactPlan};
-use typed_trees::{
-    expression::ExpressionNode, signature::StateParameter, types::TypeReferenceHandle,
-};
+use typed_trees::{signature::StateParameter, types::TypeReferenceHandle};
 use validation::CanonicalPlace;
 
 pub(crate) struct PlaceIntegerBounds<'a> {
@@ -201,10 +199,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
                     .map(|context| self.semantic.contexts.get(*context)),
                 &place,
             )?;
-            let ExpressionNode::String(bytes) = self.program.expression_table.expression(literal)
-            else {
-                return None;
-            };
+            let bytes = self.program.expression_table.string_node(literal)?;
             u64::try_from(bytes.len()).ok().map(BigInt::from_u64)
         });
         // A completed whole-carrier literal is the live length snapshot: it
@@ -254,10 +249,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
             &place,
         )
         .and_then(|literal| {
-            let ExpressionNode::String(bytes) = self.program.expression_table.expression(literal)
-            else {
-                return None;
-            };
+            let bytes = self.program.expression_table.string_node(literal)?;
             // A singleton selects one byte. Otherwise every byte in this live
             // snapshot bounds any successful read; this does not prove the index
             // valid or turn an out-of-bounds access into a normal return.

@@ -156,7 +156,12 @@ fn primitive_store_value(
         });
     if let Some(root) = roots.next() {
         if roots.next().is_some()
-            || !computations.is_authored_root(root, machine.symbol, assignment.value, primitive_type)
+            || !computations.is_authored_root(
+                root,
+                machine.symbol,
+                assignment.value,
+                primitive_type,
+            )
             || facts
                 .values
                 .scalar_expressions

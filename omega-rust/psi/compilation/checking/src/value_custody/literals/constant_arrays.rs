@@ -163,10 +163,7 @@ pub fn closed_constant_array_elements(
         if index >= *length {
             return None;
         }
-        let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(selected)
-        else {
-            return None;
-        };
+        let elements = program.expression_table.array_literal_node(selected)?;
         selected = *program
             .expression_table
             .expression_handles(*elements)
@@ -242,11 +239,7 @@ pub fn scalar_array_elements(
                     projections.extend(selected_projections.into_iter().rev());
                     continue;
                 }
-                let ExpressionNode::ArrayLiteral(elements) =
-                    program.expression_table.expression(expression)
-                else {
-                    return None;
-                };
+                let elements = program.expression_table.array_literal_node(expression)?;
                 if !extend_fixed_array_elements(
                     program,
                     &mut pending,

@@ -1,6 +1,6 @@
 use super::validate_array_literal_elements_for_shape;
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -19,10 +19,10 @@ pub(crate) fn validate_array_window_elements<'p>(
     ),
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+    let Some(indexed) = program.expression_table.indexed_node(target) else {
         return;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+    let Some(range) = program.expression_table.range_node(indexed.index) else {
         return;
     };
     let bound_lookup = bound_lookup.1.get_or_insert_with(|| {
