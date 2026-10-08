@@ -138,6 +138,7 @@ pub enum IeeeFloatArithmeticOperation {
     IsInfinite,
 }
 
+
 /// The selected requirement's invalid-input behavior, retained through emission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IeeeFloatToIntegerDomain {

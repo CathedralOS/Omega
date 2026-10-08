@@ -65,6 +65,7 @@
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId, sorted_units};
 use selected_instructions::{
+    ieee_float_arithmetic_is_trapping,
     IeeeFloatArithmeticForm, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
     MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
@@ -110,22 +111,13 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
         implicit_unit_clobbers: clobbers(),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
     };
-    if is_trapping(form) {
+    if ieee_float_arithmetic_is_trapping(form) {
         effects.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
         effects.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
     }
     effects
 }
 
-fn is_trapping(form: IeeeFloatArithmeticForm) -> bool {
-    matches!(
-        form.operation,
-        IeeeFloatArithmeticOperation::TruncateToInteger {
-            domain: IeeeFloatToIntegerDomain::Trapping,
-            ..
-        }
-    )
-}
 
 pub(crate) fn declaration(
     form: IeeeFloatArithmeticForm,
@@ -135,12 +127,12 @@ pub(crate) fn declaration(
         semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
         constraint,
         memory: MachineMemoryEffect::NoneV1,
-        trap: if is_trapping(form) {
+        trap: if ieee_float_arithmetic_is_trapping(form) {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if is_trapping(form) {
+        barrier: if ieee_float_arithmetic_is_trapping(form) {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None

@@ -54,6 +54,6 @@ pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,
     FloatSaturationRule, IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation,
     IeeeFloatBinaryOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
-    IeeeFloatToIntegerDomain,
+    IeeeFloatToIntegerDomain, ieee_float_arithmetic_is_trapping,
 };
 pub use terminal_psi::ByteSequencePredicate;

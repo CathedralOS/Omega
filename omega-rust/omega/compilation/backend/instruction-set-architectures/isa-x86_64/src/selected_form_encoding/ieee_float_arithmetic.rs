@@ -65,6 +65,7 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
 use selected_instructions::{
+    ieee_float_arithmetic_is_trapping,
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier,
     IeeeFloatToIntegerDomain, MachineAlternative, MachineAlternativeApplicability, MachineBarrier,
     MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
@@ -113,15 +114,6 @@ fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
     )
 }
 
-fn traps(form: IeeeFloatArithmeticForm) -> bool {
-    matches!(
-        form.operation,
-        IeeeFloatArithmeticOperation::TruncateToInteger {
-            domain: IeeeFloatToIntegerDomain::Trapping,
-            ..
-        }
-    )
-}
 
 /// The form reads its operands (operands `0..n`) and defines operand `n`.
 pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
@@ -154,7 +146,7 @@ pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     if conversion_control(form) {
         encoded.implicit_unit_clobbers = sorted_units(clobbers().into_iter().chain(view_units("rflags")));
     }
-    if traps(form) {
+    if ieee_float_arithmetic_is_trapping(form) {
         encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
         encoded.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
     }
@@ -197,12 +189,12 @@ pub(crate) fn declaration(
         },
         trap: if form.operation.rounding_direction().is_some() {
             MachineTrapBehavior::MayArchitecturalFaultV1
-        } else if traps(form) {
+        } else if ieee_float_arithmetic_is_trapping(form) {
             MachineTrapBehavior::TrappingIntegerV1
         } else {
             MachineTrapBehavior::NeverV1
         },
-        barrier: if traps(form) {
+        barrier: if ieee_float_arithmetic_is_trapping(form) {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None

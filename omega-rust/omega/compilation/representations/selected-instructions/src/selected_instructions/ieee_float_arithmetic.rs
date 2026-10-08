@@ -163,3 +163,14 @@ pub fn float_bit_transfer_properties(
         _ => return None,
     })
 }
+
+/// Whether the operation must crash on an out-of-range integer truncation.
+pub fn ieee_float_arithmetic_is_trapping(form: IeeeFloatArithmeticForm) -> bool {
+    matches!(
+        form.operation,
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            domain: IeeeFloatToIntegerDomain::Trapping,
+            ..
+        }
+    )
+}
