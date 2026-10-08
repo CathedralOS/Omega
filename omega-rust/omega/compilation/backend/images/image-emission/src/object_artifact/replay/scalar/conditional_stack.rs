@@ -16,7 +16,7 @@ use target::Architecture;
 use target_operations::CallSiteOwner;
 
 use super::super::unit::stack::aarch64_stack_adjustment_at;
-use super::call_stack::validate_scalar_call_stack;
+use super::call_stack::scalar_call_stack_at;
 use super::conditional_regions::{
     collect_conditional_tree_regions, division_branches_in_region, validate_division_branch_regions,
 };
@@ -366,18 +366,11 @@ pub(crate) fn replay_scalar_conditional_region(
                             return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
                         }
                     }
-                    let call_evidence =
-                        call.scalar_stack
-                            .ok_or(ObjectError::MissingScalarCallStackEvidence {
-                                caller: machine,
-                                owner: call.owner,
-                            })?;
-                    let validated = validate_scalar_call_stack(
+                    let validated = scalar_call_stack_at(
                         architecture,
                         machine,
                         bytes,
                         call,
-                        call_evidence,
                         evidence,
                         depth,
                         scalar_affine_cleanup,
@@ -454,18 +447,11 @@ pub(crate) fn replay_scalar_conditional_region(
                             return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
                         }
                     }
-                    let call_evidence =
-                        call.scalar_stack
-                            .ok_or(ObjectError::MissingScalarCallStackEvidence {
-                                caller: machine,
-                                owner: call.owner,
-                            })?;
-                    let validated = validate_scalar_call_stack(
+                    let validated = scalar_call_stack_at(
                         architecture,
                         machine,
                         bytes,
                         call,
-                        call_evidence,
                         evidence,
                         depth,
                         scalar_affine_cleanup,

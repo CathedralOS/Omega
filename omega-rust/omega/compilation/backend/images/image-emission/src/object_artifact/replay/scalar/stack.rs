@@ -16,7 +16,7 @@ use target::Architecture;
 use target_operations::TerminalPsiProvenance;
 
 use super::super::unit::stack::aarch64_stack_adjustment_at;
-use super::call_stack::validate_scalar_call_stack;
+use super::call_stack::scalar_call_stack_at;
 use super::conditional_stack::validate_conditional_tree_scalar_stack;
 use super::division_stack::validate_linear_scalar_division_stack;
 use super::shared_convergence::validate_boolean_shared_convergence_stack;
@@ -193,18 +193,11 @@ pub(crate) fn validate_scalar_stack(
                     let call = call_sites
                         .remove(&offset)
                         .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    let call_evidence =
-                        call.scalar_stack
-                            .ok_or(ObjectError::MissingScalarCallStackEvidence {
-                                caller: machine,
-                                owner: call.owner,
-                            })?;
-                    let validated = validate_scalar_call_stack(
+                    let validated = scalar_call_stack_at(
                         architecture,
                         machine,
                         bytes,
                         call,
-                        call_evidence,
                         evidence,
                         depth,
                         scalar_affine_cleanup,
@@ -276,18 +269,11 @@ pub(crate) fn validate_scalar_stack(
                     let call = call_sites
                         .remove(&offset)
                         .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    let call_evidence =
-                        call.scalar_stack
-                            .ok_or(ObjectError::MissingScalarCallStackEvidence {
-                                caller: machine,
-                                owner: call.owner,
-                            })?;
-                    let validated = validate_scalar_call_stack(
+                    let validated = scalar_call_stack_at(
                         architecture,
                         machine,
                         bytes,
                         call,
-                        call_evidence,
                         evidence,
                         depth,
                         scalar_affine_cleanup,

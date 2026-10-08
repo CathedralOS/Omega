@@ -177,3 +177,32 @@ pub(crate) fn validate_scalar_call_stack(
         caller_live_bytes,
     })
 }
+
+/// The relocation's required stack evidence followed by the full
+/// surrounding-mutation replay; absent evidence is its own diagnostic.
+pub(crate) fn scalar_call_stack_at(
+    architecture: Architecture,
+    caller: MachineId,
+    bytes: &[u8],
+    relocation: InternalCallRelocation,
+    function: &ScalarStackEvidence,
+    replay_depth: u32,
+    scalar_affine_cleanup: Option<&UnitAffineCleanupRecord>,
+) -> Result<ObjectScalarCallStack, ObjectError> {
+    let call = relocation
+        .scalar_stack
+        .ok_or(ObjectError::MissingScalarCallStackEvidence {
+            caller,
+            owner: relocation.owner,
+        })?;
+    validate_scalar_call_stack(
+        architecture,
+        caller,
+        bytes,
+        relocation,
+        call,
+        function,
+        replay_depth,
+        scalar_affine_cleanup,
+    )
+}
