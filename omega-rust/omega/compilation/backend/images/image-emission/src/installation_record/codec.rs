@@ -30,3 +30,36 @@ pub(super) mod trivial_affine_local;
 pub(super) mod unit;
 pub(super) mod value_placement;
 pub(super) mod wire;
+
+/// The tag arms every structural-path decoder shares; tags the wire does not
+/// assign return `None` so each caller keeps its own unknown-tag diagnostic.
+pub(crate) fn scalar_path_segment(
+    tag: u8,
+    reader: &mut crate::installation_record::Reader<'_>,
+) -> Result<
+    Option<terminal_psi::StructuralPathSegment>,
+    crate::installation_record::InstallationError,
+> {
+    use crate::installation_record::InstallationError;
+    use terminal_psi::StructuralPathSegment;
+    Ok(Some(match tag {
+        2 => StructuralPathSegment::FixedIndex(reader.u64()?),
+        3 => StructuralPathSegment::Referent,
+        4 => StructuralPathSegment::FixedByteRange {
+            start: reader.u64()?,
+            end: reader.u64()?,
+        },
+        6 => StructuralPathSegment::RuntimeIndex {
+            index: semantic_vocabulary::ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroSettlementIdentity("ValueId"))?,
+            obligation: semantic_vocabulary::ObligationId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroSettlementIdentity("ObligationId"))?,
+        },
+        7 => StructuralPathSegment::Case(
+            semantic_vocabulary::StructuralCaseId::new(reader.u64()?).ok_or(
+                InstallationError::ZeroSettlementIdentity("StructuralCaseId"),
+            )?,
+        ),
+        _ => return Ok(None),
+    }))
+}

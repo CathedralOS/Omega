@@ -730,24 +730,8 @@ fn decode_structural_path(
                 }
                 StructuralPathSegment::Field(identity)
             }
-            7 => StructuralPathSegment::Case(
-                semantic_vocabulary::StructuralCaseId::new(reader.u64()?).ok_or(
-                    InstallationError::ZeroSettlementIdentity("StructuralCaseId"),
-                )?,
-            ),
-            2 => StructuralPathSegment::FixedIndex(reader.u64()?),
-            3 => StructuralPathSegment::Referent,
-            4 => StructuralPathSegment::FixedByteRange {
-                start: reader.u64()?,
-                end: reader.u64()?,
-            },
-            6 => StructuralPathSegment::RuntimeIndex {
-                index: semantic_vocabulary::ValueId::new(reader.u64()?)
-                    .ok_or(InstallationError::ZeroSettlementIdentity("ValueId"))?,
-                obligation: semantic_vocabulary::ObligationId::new(reader.u64()?)
-                    .ok_or(InstallationError::ZeroSettlementIdentity("ObligationId"))?,
-            },
-            _ => return Err(InstallationError::InvalidBoundaryResult),
+            _ => super::scalar_path_segment(tag, reader)?
+                .ok_or(InstallationError::InvalidBoundaryResult)?,
         });
     }
     Ok(path)
