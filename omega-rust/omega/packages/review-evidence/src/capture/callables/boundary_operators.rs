@@ -3,6 +3,48 @@ use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewExternalBinding;
 use diagnostics::Diagnostic;
 
+/// The singleton members a boundary-operator plan must carry: exactly one
+/// schema method, one realization row, and one requirement and one
+/// realization declaration in the retained provenance.
+fn boundary_operator_plan_singletons<'plan>(
+    plan: &'plan effects::provider_plan::ProviderPlan,
+    retained: &'plan provider_planning::SelectedProviderReviewProvenance,
+) -> Result<
+    (
+        &'plan effects::provider_plan::ServiceMethod,
+        &'plan effects::provider_plan::ProviderPlanRow,
+        &'plan symbols::SymbolHandle,
+        &'plan symbols::SymbolHandle,
+    ),
+    Vec<Diagnostic>,
+> {
+    let [method] = plan.schema.methods.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one schema method",
+            plan.name,
+        ))]);
+    };
+    let [row] = plan.rows.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
+            plan.name,
+        ))]);
+    };
+    let [requirement_symbol] = retained.provider.row_requirements.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must retain exactly one requirement declaration",
+            plan.name,
+        ))]);
+    };
+    let [realization_symbol] = retained.provider.row_realizations.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected boundary-operator ProviderPlan `{}` must retain exactly one realization declaration",
+            plan.name,
+        ))]);
+    };
+    Ok((method, row, requirement_symbol, realization_symbol))
+}
+
 pub(super) fn validate_fixed_token_checked_adapter_dispatch_shape(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
@@ -77,30 +119,8 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
             matches.len(),
         ))]);
     };
-    let [method] = plan.schema.methods.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must contain exactly one schema method",
-            plan.name,
-        ))]);
-    };
-    let [row] = plan.rows.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
-            plan.name,
-        ))]);
-    };
-    let [requirement_symbol] = retained.provider.row_requirements.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must retain exactly one requirement declaration",
-            plan.name,
-        ))]);
-    };
-    let [realization_symbol] = retained.provider.row_realizations.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must retain exactly one realization declaration",
-            plan.name,
-        ))]);
-    };
+    let (method, row, requirement_symbol, realization_symbol) =
+        boundary_operator_plan_singletons(plan, retained)?;
     let expected_machine_identity = compilation
         .machine_callable_identity_text(machine)
         .unwrap_or_default();
@@ -186,30 +206,8 @@ pub(super) fn validate_selected_boundary_operator_external_supply(
             matches.len(),
         ))]);
     };
-    let [method] = plan.schema.methods.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must contain exactly one schema method",
-            plan.name,
-        ))]);
-    };
-    let [row] = plan.rows.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must contain exactly one realization row",
-            plan.name,
-        ))]);
-    };
-    let [requirement_symbol] = retained.provider.row_requirements.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must retain exactly one requirement declaration",
-            plan.name,
-        ))]);
-    };
-    let [realization_symbol] = retained.provider.row_realizations.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator ProviderPlan `{}` must retain exactly one realization declaration",
-            plan.name,
-        ))]);
-    };
+    let (method, row, requirement_symbol, realization_symbol) =
+        boundary_operator_plan_singletons(plan, retained)?;
     let expected_package = compilation
         .typed
         .symbols
