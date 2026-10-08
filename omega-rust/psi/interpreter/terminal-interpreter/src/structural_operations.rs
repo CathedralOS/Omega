@@ -62,6 +62,12 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?,
         )?;
         self.scalar_case_values.insert(result.place, value);
+        self.track_affine_result(result);
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Record the affine debt a fresh affine result owes the live frontier.
+    fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier.insert(StructuralAffineDiscard {
                 place: result.place,
@@ -69,7 +75,6 @@ impl TerminalExecution<'_> {
                 structural_type: result.structural_type,
             });
         }
-        Ok(OperationFlow::Advance)
     }
 
     pub(crate) fn execute_establish_structural_case(
@@ -365,13 +370,7 @@ impl TerminalExecution<'_> {
         self.structural_values.insert(result.place, value);
         // Zeroing establishes payload; it does not discharge the nominal
         // owner's affine debt. The verified continuation still disposes it.
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
+        self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
 
@@ -585,13 +584,7 @@ impl TerminalExecution<'_> {
                 path: Vec::new(),
             },
         );
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
+        self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
 
@@ -822,13 +815,7 @@ impl TerminalExecution<'_> {
         };
         self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved));
         self.structural_values.insert(result.place, moved);
-        if result.multiplicity == StructuralMultiplicity::Affine {
-            self.live_affine_frontier.insert(StructuralAffineDiscard {
-                place: result.place,
-                path: Vec::new(),
-                structural_type: result.structural_type,
-            });
-        }
+        self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
 
