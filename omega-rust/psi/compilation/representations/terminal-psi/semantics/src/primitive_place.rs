@@ -195,21 +195,7 @@ pub fn primitive_read_field<'a>(
     else {
         return None;
     };
-    let Some(fields) = record.shape.record_fields() else {
-        return None;
-    };
-    let mut matching = fields.iter().filter(|field| field.identity == *identity);
-    let field = matching.next()?;
-    if matching.next().is_some()
-        || field.relevance.is_erased()
-        || fields
-            .iter()
-            .filter(|candidate| candidate.id == field.id)
-            .count()
-            != 1
-    {
-        return None;
-    }
+    let field = record.shape.live_record_field(identity)?;
     match field.field_type {
         StructuralFieldType::Scalar(ScalarType::Boolean) => {}
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {}
@@ -421,18 +407,7 @@ fn walk_primitive_projection<'a>(
                         _ => return None,
                     },
                 };
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
-                let field = matching.next()?;
-                if matching.next().is_some()
-                    || field.relevance.is_erased()
-                    || fields
-                        .iter()
-                        .filter(|candidate| candidate.id == field.id)
-                        .count()
-                        != 1
-                {
-                    return None;
-                }
+                let field = terminal_psi::live_field(fields, identity)?;
                 step(Some(CanonicalStructuralPathSegment::Field(field.id)));
                 match field.field_type {
                     StructuralFieldType::Structural(child) => Position::Declared(child),

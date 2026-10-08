@@ -133,6 +133,12 @@ impl StructuralTypeShape {
         }
     }
 
+    /// The unique live field `identity` names on a record shape — absent
+    /// when the name is missing, erased, or resolves to more than one id.
+    pub fn live_record_field(&self, identity: &str) -> Option<&StructuralFieldDeclaration> {
+        live_field(self.record_fields()?, identity)
+    }
+
     /// The case roster of a sum or mixed shape.
     pub fn sum_cases(&self) -> Option<&[StructuralCaseDeclaration]> {
         match self {
@@ -389,4 +395,25 @@ pub enum ByteSequenceCarrier {
     BoundedOwned {
         capacity: u64,
     },
+}
+
+/// The unique live field `identity` names on a field roster — absent when
+/// the name is missing, erased, or ambiguous.
+pub fn live_field<'a>(
+    fields: &'a [StructuralFieldDeclaration],
+    identity: &str,
+) -> Option<&'a StructuralFieldDeclaration> {
+    let mut matching = fields.iter().filter(|field| field.identity == identity);
+    let field = matching.next()?;
+    if matching.next().is_some()
+        || field.relevance.is_erased()
+        || fields
+            .iter()
+            .filter(|candidate| candidate.id == field.id)
+            .count()
+            != 1
+    {
+        return None;
+    }
+    Some(field)
 }
