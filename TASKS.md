@@ -165,13 +165,7 @@ helper that passes does not close an item.
     exit 0), `pass/build/uefi_entry_schema_same_leaf` (UEFI artifact with
     authored image/storage roots), and `pass/control_flow/nonreturning_callee_exit`
     (exit 0, no invented return or frame epilogue). UEFI publication is not
-    UEFI execution. Through the public route, `omega update --target
-    uefi_x86_64` on both std-depending UEFI fixtures stops at std candidate
-    checking with 15 inert-sibling diagnostics
-    (`provider-planning/src/target_machines.rs::reject_inert_sibling_callers`):
-    portable `ConsoleNativeProvider::read_line`, `console_write_bytes` and
-    `Filesystem::{create,open,read_all,try_exists,...}` call bodies declared
-    only for hosted targets. The separate `pass/build/uefi_os_handoff_invocation`
+    UEFI execution. The separate `pass/build/uefi_os_handoff_invocation`
     customer's native-catalog gap for `firmware_return` and `transfer` belongs
     to **UEFI-OS-HANDOFF**, not this selection repair.
   - `fail/build/uefi_entry_schema_wrong_owner` rejects an unaccepted supplier

@@ -243,6 +243,21 @@ pub(super) fn project(
                 .map(|retained| (plan, retained))
         });
         let Some((plan, retained)) = joined else {
+            // A target that selects no provider for this requirement has no
+            // realization of the application to attest: std's float code
+            // checked for `uefi_x86_64`, which supplies no float provider. A
+            // product that reaches such an application fails its own
+            // realization; the portable package does not
+            // (wiki/spec/build/configuration.md#multi-target-compilation). A
+            // selected plan that binds the requirement but does not rejoin
+            // this use is still inconsistent custody.
+            if !selects_requirement_provider(
+                compilation,
+                selected_plans,
+                application.requirement_symbol,
+            ) {
+                continue;
+            }
             return Err(vec![Diagnostic::error(format!(
                 "boundary application at expression {expression:?} rejoins no exact selected provider plan",
             ))]);
@@ -393,6 +408,24 @@ fn specialized_machine_of_member(
     } else {
         None
     }
+}
+
+/// Whether this target selects any provider plan binding `requirement` or the
+/// authored requirement a specialized member came from, the same two
+/// identities the use join tries.
+fn selects_requirement_provider(
+    compilation: &PackageReviewInput<'_>,
+    selected_plans: &[effects::provider_plan::ProviderPlan],
+    requirement: symbols::SymbolHandle,
+) -> bool {
+    let context = provider_planning::ProviderPlanningContext::new(
+        &compilation.program.typed,
+        source::DependencyScope::Product,
+    );
+    let origin = compilation.typed.symbols.authored_origin(requirement);
+    [requirement, origin].into_iter().any(|requirement| {
+        provider_planning::selected_requirement_plan(context, selected_plans, requirement).is_some()
+    })
 }
 
 fn exact_application_uses(
