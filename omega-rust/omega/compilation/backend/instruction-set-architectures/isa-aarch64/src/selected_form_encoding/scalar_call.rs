@@ -106,18 +106,9 @@ pub fn encode_aarch64_selected_scalar_call_template(
     operand_views: &[RegisterViewId],
     effects: &MachineEncodedEffects,
 ) -> Result<ValidatedAarch64SelectedScalarCallTemplate, Aarch64ScalarCallTemplateError> {
-    let callee = match kind {
-        SelectedInstructionKind::CallScalar {
-            target: selected_instructions::SelectedCallTarget::Machine(callee),
-        }
-        | SelectedInstructionKind::CallAggregate {
-            target: selected_instructions::SelectedCallTarget::Machine(callee),
-        }
-        | SelectedInstructionKind::CallUnit {
-            target: selected_instructions::SelectedCallTarget::Machine(callee),
-        } => callee,
-        _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
-    };
+    let callee = kind
+        .machine_callee()
+        .ok_or(Aarch64ScalarCallTemplateError::InstructionKindMismatch)?;
     let bytes = 0x9400_0000_u32.to_le_bytes();
     let fixup = canonical_fixup(callee);
     validate_aarch64_selected_scalar_call_template(
@@ -153,18 +144,9 @@ pub fn validate_aarch64_selected_scalar_call_template(
     if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
     }
-    let callee = match kind {
-        SelectedInstructionKind::CallScalar {
-            target: selected_instructions::SelectedCallTarget::Machine(callee),
-        }
-        | SelectedInstructionKind::CallAggregate {
-            target: selected_instructions::SelectedCallTarget::Machine(callee),
-        }
-        | SelectedInstructionKind::CallUnit {
-            target: selected_instructions::SelectedCallTarget::Machine(callee),
-        } => callee,
-        _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
-    };
+    let callee = kind
+        .machine_callee()
+        .ok_or(Aarch64ScalarCallTemplateError::InstructionKindMismatch)?;
     let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
     let expected_alternative = MachineAlternativeKey {
         family: if unit {

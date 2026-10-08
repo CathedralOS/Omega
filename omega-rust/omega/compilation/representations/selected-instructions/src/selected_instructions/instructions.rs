@@ -491,4 +491,19 @@ impl SelectedInstructionKind {
             _ => None,
         }
     }
+
+    pub const fn machine_callee(self) -> Option<MachineId> {
+        match self {
+            Self::CallScalar {
+                target: SelectedCallTarget::Machine(callee),
+            }
+            | Self::CallAggregate {
+                target: SelectedCallTarget::Machine(callee),
+            }
+            | Self::CallUnit {
+                target: SelectedCallTarget::Machine(callee),
+            } => Some(callee),
+            _ => None,
+        }
+    }
 }
