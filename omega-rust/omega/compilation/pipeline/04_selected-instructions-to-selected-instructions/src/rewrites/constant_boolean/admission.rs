@@ -33,6 +33,7 @@ use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
     resolved_operands,
 };
+use crate::rewrites::block_edges::function_at;
 
 impl From<ConditionStateError> for ConstantBooleanError {
     fn from(error: ConditionStateError) -> Self {

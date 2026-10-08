@@ -283,6 +283,7 @@ pub(super) fn admit<'source>(
         },
         _ => return Err(ProjectedAccessError::UnsupportedConsumer),
     };
+use crate::rewrites::block_edges::function_at;
     // The declared effect surface, checked against the bound catalog: the
     // retained producer is fully effect-isolated while the access row —
     // the consumer's and the rewritten form's alike — carries the

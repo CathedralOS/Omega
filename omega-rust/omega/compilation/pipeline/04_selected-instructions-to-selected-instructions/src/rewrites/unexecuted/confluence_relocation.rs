@@ -118,7 +118,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{all_edges, plain_edge};
+use crate::rewrites::block_edges::{function_at, all_edges, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
@@ -317,6 +317,7 @@ fn derive_confluence_span<'source>(
     else {
         return Err(ConfluenceRelocationError::UnsupportedPair);
     };
+use crate::rewrites::block_edges::function_at;
     // The crossed edge must be a plain semantic successor: case dispatch,
     // continuation, structural transfer, and per-edge fuel all carry
     // boundary effects this step does not cross. Structural bindings may

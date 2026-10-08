@@ -25,7 +25,7 @@ use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::{block_instructions};
+use crate::rewrites::block_edges::{function_at, block_instructions};
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
@@ -193,6 +193,7 @@ pub(super) fn admit<'source>(
     let [source_operand, destination_operand] = producer_instruction.operands.as_slice() else {
         return Err(CopiedCallOperandError::UnsupportedProducer);
     };
+use crate::rewrites::block_edges::function_at;
     if source_operand.operand != 0
         || source_operand.access != RegisterOperandAccess::Use
         || destination_operand.operand != 1

@@ -250,6 +250,7 @@ pub fn validate_projected_access_fold(
         },
         _ => return Err(ProjectedAccessError::UnsupportedConsumer),
     };
+use crate::rewrites::block_edges::function_at;
     // The effect surface is restated on the bound catalog: the retained
     // producer is the isolated projection and the access row carries its
     // dereference — memory effect, fault surface, operand roster, unchanged
