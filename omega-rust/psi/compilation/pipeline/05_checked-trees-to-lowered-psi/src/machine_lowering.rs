@@ -156,15 +156,6 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
-    // Custody gates order deliberately: this program-level check runs before
-    // per-machine lowering, so a custody-carrying unit-effects plan whose
-    // typed machine/state rows are missing reports "direct Unit parameter
-    // plan has no exact typed machine" ahead of the scalar source-custody
-    // gates in expression_preparation/source_custody. Both refusals name the
-    // same root cause (checked facts alone cannot supply authored occurrence
-    // custody); the earlier one fires first on a fully checked program only
-    // when the typed frontend was dropped.
-    attached_unit::validate_body_parameter_custody(checked)?;
     let LoweredSelectedMachine {
         terminal: mut lowered,
         completion,
