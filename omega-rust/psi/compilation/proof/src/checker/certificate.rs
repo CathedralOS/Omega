@@ -141,45 +141,19 @@ pub(crate) fn bounded_integer_value_verdict(
     seed: u64,
     anonymous: bool,
     measurements: &mut ProofPlanMeasurements,
-    mut derivations: Option<&mut DerivationConsultation<'_>>,
+    derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> CertificateVerdict {
-    // A retained derivation under this obligation's semantic key is evidence
-    // the kernel re-decides; an accepted candidate discharges the leg
-    // without re-running the producer.
-    if let Some(consultation) = derivations.as_deref_mut()
-        && let Some(fact) = consultation.recheck()
-    {
-        measurements.record_accepted_fact(&fact);
-        measurements.record_certificate_verdict(CertificateVerdict::Certified);
-        return CertificateVerdict::Certified;
-    }
-    let Some(certificate) = bounded_integer_value(
-        proof_plan,
-        value,
-        value_constraints,
-        base_type,
-        target,
-        seed,
-        anonymous,
-    ) else {
-        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
-        return CertificateVerdict::Uncovered;
-    };
-    measurements.record_emitted_certificate(&certificate.envelope.proof);
-    let verdict = match certificate.verify() {
-        Ok(fact) => {
-            measurements.record_accepted_fact(&fact);
-            CertificateVerdict::Certified
-        }
-        Err(_) => CertificateVerdict::Rejected,
-    };
-    measurements.record_certificate_verdict(verdict);
-    if verdict == CertificateVerdict::Certified
-        && let Some(consultation) = derivations
-    {
-        consultation.retain(certificate);
-    }
-    verdict
+    certificate_verdict_measured(measurements, derivations, || {
+        bounded_integer_value(
+            proof_plan,
+            value,
+            value_constraints,
+            base_type,
+            target,
+            seed,
+            anonymous,
+        )
+    })
 }
 
 /// Certificate route for a bounded state return. Three legs mirror the
