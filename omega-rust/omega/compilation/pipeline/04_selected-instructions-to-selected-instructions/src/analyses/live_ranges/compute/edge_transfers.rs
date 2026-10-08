@@ -3,7 +3,7 @@
 
 use crate::LiveRangeError;
 use selected_instructions::{EdgeRegisterTransfer, FunctionLiveness};
-use selected_instructions::{SelectedFunction, SelectedTerminator};
+use selected_instructions::{SelectedFunction, terminator_successors};
 
 pub(super) fn derive(
     function_index: usize,
@@ -13,27 +13,7 @@ pub(super) fn derive(
     let mut rows = Vec::new();
     let index = crate::analyses::liveness::edge_values::FunctionIndex::new(selected);
     for block in &selected.blocks {
-        let successors = match &block.terminator {
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            } => vec![when_nonzero, when_zero],
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            } => vec![when_less, when_not_less],
-            SelectedTerminator::Jump { successor, .. } => vec![successor],
-            SelectedTerminator::Return { .. }
-            | SelectedTerminator::Crash { .. }
-            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-        };
+        let successors = terminator_successors(&block.terminator);
         for edge in successors {
             let target = live
                 .blocks

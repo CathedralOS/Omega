@@ -849,29 +849,7 @@ fn dropped_def_is_dead(
                 .filter(|operand| operand.virtual_register == register)
                 .count();
         }
-        let successors = match &block.terminator {
-            selected_instructions::SelectedTerminator::Jump { successor, .. } => {
-                vec![successor]
-            }
-            selected_instructions::SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            } => vec![when_nonzero, when_zero],
-            selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            } => vec![when_less, when_not_less],
-            selected_instructions::SelectedTerminator::Return { .. }
-            | selected_instructions::SelectedTerminator::Crash { .. }
-            | selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-        };
+        let successors = selected_instructions::terminator_successors(&block.terminator);
         for successor in successors {
             occurrences += successor
                 .structural_bindings

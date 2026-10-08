@@ -1,17 +1,16 @@
 //! Snapshot edge inputs before writing any destination-associated transfer value.
 use super::{
-    SelectedBlockOrigin, SelectedFunction, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport, VirtualRegisterId,
+    SelectedBlockOrigin, SelectedFunction, SelectedSuccessorRole, SelectedValueTransport,
+    VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::instruction_count;
 use crate::selection::edge_transfers::invalid;
-use crate::selection::edge_transfers::successors_mut;
 use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
-    VirtualRegisterOrigin,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, SelectedTerminator,
+    VirtualRegister, VirtualRegisterOrigin, terminator_successors_mut,
 };
 mod structural_case;
 
@@ -39,7 +38,7 @@ pub(in crate::selection) fn prepare(
                 | SelectedTerminator::ConditionalBranchU64LessThan { .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { .. }
         );
-        for (position, successor) in successors_mut(&mut source.terminator)
+        for (position, successor) in terminator_successors_mut(&mut source.terminator)
             .into_iter()
             .enumerate()
         {

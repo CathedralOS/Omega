@@ -1,5 +1,5 @@
 //! The selected edge loads payloads before committing destination bindings.
-use super::super::SelectedSuccessor;
+use selected_instructions::SelectedSuccessor;
 use super::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedSelectionConstraints,

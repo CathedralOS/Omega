@@ -1,9 +1,7 @@
 //! Physical edge preparation retains one semantic edge and explicit implementation control.
 use crate::selection::model::SelectedInstructionError;
 use selected_instructions::{SelectedBlockOrigin, SelectedSuccessorRole, SelectedValueTransport};
-use selected_instructions::{
-    SelectedFunction, SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
-};
+use selected_instructions::{SelectedFunction, VirtualRegisterId};
 mod addresses;
 mod construction;
 mod descriptors;
@@ -15,30 +13,6 @@ pub(super) use construction::prepare;
 pub(in crate::selection) struct EdgeCleanup {
     pub edge: semantic_vocabulary::EdgeId,
     pub instructions: Vec<selected_instructions::SelectedInstruction>,
-}
-
-fn successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Return { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-    }
 }
 
 fn invalid(function: usize) -> SelectedInstructionError {

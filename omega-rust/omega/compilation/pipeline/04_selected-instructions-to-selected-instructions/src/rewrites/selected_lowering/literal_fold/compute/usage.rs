@@ -19,30 +19,7 @@ fn successor_sites(function: &selected_instructions::SelectedFunction) -> u64 {
         .blocks
         .iter()
         .flat_map(|block| {
-            match &block.terminator {
-                selected_instructions::SelectedTerminator::Jump { successor, .. } => {
-                    vec![successor]
-                }
-                selected_instructions::SelectedTerminator::ConditionalBranch {
-                    when_nonzero,
-                    when_zero,
-                    ..
-                } => vec![when_nonzero, when_zero],
-                selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
-                    when_less,
-                    when_not_less,
-                    ..
-                }
-                | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
-                    when_less,
-                    when_not_less,
-                    ..
-                } => vec![when_less, when_not_less],
-                selected_instructions::SelectedTerminator::Return { .. }
-                | selected_instructions::SelectedTerminator::Crash { .. }
-                | selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-            }
-            .into_iter()
+            selected_instructions::terminator_successors(&block.terminator).into_iter()
         })
         .map(|successor| {
             successor.structural_bindings.len()
