@@ -10,6 +10,34 @@ use super::super::{
 };
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
+/// A materialized carrier owns the same captured loan group whether formed
+/// locally or returned by a call. Statement and exit scheduling must retire
+/// that exact holder, not restrict retirement to one producer family.
+fn captured_reference_result<'operation>(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    operation: &'operation CheckedUnitEffectOperationPlan,
+) -> Option<(
+    &'operation CheckedUnitStructuralResultBindingPlan,
+    arena::HandleSpan<checked_trees::BorrowLoanFact>,
+)> {
+    match operation {
+        CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
+            super::reference_retirement::local_reference_loans(
+                facts, machine, state, result, results,
+            )
+            .map(|loans| (result, loans))
+        }
+        _ => operation.call().and_then(|call| {
+            let custody = call.structural_custody()?;
+            let result = call.structural_result()?;
+            (!custody.reference_loans.is_empty()).then_some((result, custody.reference_loans))
+        }),
+    }
+}
+
 /// End captured reference custody at entry to the next authored statement.
 /// Whole carriers use ordinary affine edge disposal, which retires every leaf;
 /// reference results retain one release of their complete group. Reverse production order
@@ -28,19 +56,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     let mut pending = Vec::new();
     let mut retired = Vec::new();
     for operation in operations.iter().rev() {
-        let reference_result = match operation {
-            CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
-                super::reference_retirement::local_reference_loans(
-                    facts, machine, state, result, results,
-                )
-                .map(|loans| (result, loans))
-            }
-            _ => operation.call().and_then(|call| {
-                let custody = call.structural_custody()?;
-                let result = call.structural_result()?;
-                (!custody.reference_loans.is_empty()).then_some((result, custody.reference_loans))
-            }),
-        };
+        let reference_result = captured_reference_result(facts, machine, state, results, operation);
         if let Some((result, loans)) = reference_result {
             if super::reference_retirement::transferred_paths(
                 program,
@@ -274,11 +290,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
 ) -> Option<()> {
     let mut pending = Vec::new();
     for operation in operations.iter() {
-        // Only an ordinary structural call carries a custody record.
-        if let Some(call) = operation.call()
-            && let Some(custody) = call.structural_custody()
-            && let Some(result) = call.structural_result()
-            && !custody.reference_loans.is_empty()
+        if let Some((result, loans)) =
+            captured_reference_result(facts, machine, state, results, operation)
         {
             // The exit boundary consumes the same current custody as an
             // ordinary statement. A prior constructor/call transfer already
@@ -295,7 +308,6 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             {
                 continue;
             }
-            let loans = custody.reference_loans;
             // Completion transfers this exact carrier and its retained ingress
             // rather than releasing it before the return. Earlier weakening
             // still belongs to statement scheduling; only a loan live through
@@ -361,12 +373,14 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             defer_to_exit: false,
             ..
         } = release
-        {
-            let (_, discard) = operations.iter_mut().find_map(|operation| {
+            && let Some((_, discard)) = operations.iter_mut().find_map(|operation| {
                 operation
                     .discardable_structural_result_mut()
                     .filter(|(result, _)| result.binding_ordinal == *binding_ordinal)
-            })?;
+            })
+        {
+            // Calls also carry an automatic discard flag. EstablishReference
+            // has none: its explicit release is already the sole disposition.
             *discard = false;
         }
     }

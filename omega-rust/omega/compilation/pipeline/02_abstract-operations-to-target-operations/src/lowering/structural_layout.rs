@@ -91,7 +91,7 @@ pub(super) fn primitive_leaf_projection(
 }
 
 fn primitive_access_projection(
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     endpoint: impl Fn(
@@ -100,6 +100,32 @@ fn primitive_access_projection(
         &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)>,
 ) -> Option<PrimitiveProjection> {
+    let regions = reference_projection_regions(root, path, declarations)?;
+    let (scalar, byte_offset, indices) = endpoint(regions.root, regions.path, declarations)?;
+    Some(PrimitiveProjection {
+        scalar,
+        pointer_slots: regions.pointer_slots,
+        leaf: StorageProjection {
+            byte_offset,
+            indices,
+        },
+    })
+}
+
+/// Separate contiguous address regions before selecting an operation's leaf.
+/// Primitive and byte-field observations share each ordered pointer crossing;
+/// endpoint geometry and live permission remain separate judgments.
+pub(super) struct ReferenceProjectionRegions<'path> {
+    pub(super) root: StructuralTypeId,
+    pub(super) path: &'path [StructuralPathSegment],
+    pub(super) pointer_slots: Vec<StorageProjection>,
+}
+
+pub(super) fn reference_projection_regions<'path>(
+    mut root: StructuralTypeId,
+    path: &'path [StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<ReferenceProjectionRegions<'path>> {
     let mut pointer_slots = Vec::new();
     let mut segment_start = 0;
     for (position, segment) in path.iter().enumerate() {
@@ -128,14 +154,10 @@ fn primitive_access_projection(
         root = referent;
         segment_start = position + 1;
     }
-    let (scalar, byte_offset, indices) = endpoint(root, &path[segment_start..], declarations)?;
-    Some(PrimitiveProjection {
-        scalar,
+    Some(ReferenceProjectionRegions {
+        root,
+        path: &path[segment_start..],
         pointer_slots,
-        leaf: StorageProjection {
-            byte_offset,
-            indices,
-        },
     })
 }
 

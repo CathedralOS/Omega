@@ -283,7 +283,11 @@ pub(super) fn read_geometry(
                     indices,
                     &geometry.elements,
                 ))
-            .then_some((argument.place, geometry.length_offset, Vec::new()))
+            .then_some((
+                argument.place,
+                geometry.length_offset,
+                geometry.pointer_slots,
+            ))
         }
 
         // A projection through runtime elements returns its static offset;

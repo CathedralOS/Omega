@@ -331,25 +331,21 @@ fn structural_field_root(
         .ok_or(LoweringError::Unsupported(
             "structural scalar store root type is absent",
         ))?;
-    // A reference-rooted walk joins its referent: `cell.value = 7` through a
-    // `&mut Cell` local walks `Cell`'s members — the `ref-mut` shell is the
-    // loan custody, never the record that owns the field.
-    let field_owner = match &declaration.shape {
-        StructuralTypeShape::Reference { referent, .. } => structural_types
+    // A reference carries its pointer and loan, not inline members. Retain
+    // every crossing so downstream geometry observes the referent, never the
+    // carrier's home. This applies at the root and at every selected child.
+    let mut field_owner = declaration;
+    let mut steps = Vec::new();
+    while let StructuralTypeShape::Reference { referent, .. } = &field_owner.shape {
+        if steps.len() >= structural_types.len() {
+            return unsupported("field geometry contains a cyclic reference path");
+        }
+        field_owner = structural_types
             .iter()
             .find(|candidate| candidate.id == *referent)
             .ok_or(LoweringError::Unsupported(
                 "structural scalar store referent type is absent",
-            ))?,
-        _ => declaration,
-    };
-    let mut steps = Vec::new();
-    // A record reference carries a pointer and its loan, not inline fields.
-    // Make that crossing explicit so downstream geometry cannot mistake the
-    // carrier's own home for the caller's record storage.
-    if matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-        && matches!(field_owner.shape, StructuralTypeShape::Record { .. })
-    {
+            ))?;
         steps.push(ProjectionStep::Static(StructuralPathSegment::Referent));
     }
     Ok((field_owner, steps))
@@ -498,12 +494,12 @@ pub(crate) fn lower_structural_field_steps<'a>(
             }
             _ => return unsupported("structural scalar store carrier path is unsupported"),
         };
-        field_owner = structural_types
-            .iter()
-            .find(|candidate| candidate.id == nested)
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar store nested carrier type is absent",
-            ))?;
+        // A stored reference starts a new region at any depth, not only at
+        // the root. Keep its pointer crossing before the following member.
+        // Checking owns authority; this shared walker supplies geometry only.
+        let (nested_owner, crossings) = structural_field_root(nested, structural_types)?;
+        field_owner = nested_owner;
+        steps.extend(crossings);
     }
     // A mixed shape's common fields sit at one offset in every case, so the
     // leaf writes one without a `Case` step, as a read observes it.

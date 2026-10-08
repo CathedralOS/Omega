@@ -46,7 +46,10 @@ pass/borrows/indexed_record_field_replacement_exit built 6044ms exit:70 interpre
 pass/borrows/interleaved_parameter_field_replacement_exit built 8134ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/local_record_byte_field_snapshot_exit built 1895ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
 pass/borrows/local_record_nested_sequence_extent_exit built 1877ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
+pass/borrows/local_reference_scalar_completion_exit built 4654ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt
+pass/borrows/local_shared_record_sequence_observations_exit built 4163ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt
 pass/borrows/loop_descriptor_reformation_exit built 6344ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
+pass/borrows/nested_reference_byte_observations_exit built 4335ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt
 pass/borrows/nested_reference_crossings_exit built 7261ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/borrows/nested_reference_leaf_projection_exit built 1615ms exit:70 interpreter-exit:70 interpreter:agrees @51b4aa0b5a70+wt
 pass/borrows/owned_byte_value_call_exit built 5365ms exit:70 interpreter-exit:70 interpreter:agrees @316799d840c3+wt

@@ -92,12 +92,25 @@ pub(super) fn payload_pointer(
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let offset = geometry.offset();
-    let root = super::runtime_address::projection_base(function, builder, row, place, offset)?
-        .ok_or_else(|| invalid())?;
+    let root = if geometry.pointer_slots.is_empty() {
+        super::runtime_address::projection_base(function, builder, row, place, offset)?
+            .ok_or_else(|| invalid())?
+    } else {
+        super::place_pointer(builder, row, place, 0)?
+    };
+    let (root, first_leaf_index) = super::runtime_address::cross_references(
+        builder,
+        row,
+        place,
+        root,
+        indices,
+        &geometry.pointer_slots,
+    )?;
+    let indices = indices.get(first_leaf_index..).ok_or_else(|| invalid())?;
     let root = super::runtime_address::scale(builder, row, place, offset, root, indices)?;
     let payload = transport_register(builder, place, offset)?;
-    match geometry {
-        crate::selection::field_bytes::FieldBytes::Inline(_) => builder.emit(
+    if !geometry.is_descriptor {
+        builder.emit(
             SelectedInstructionKind::AddressOffset {
                 byte_offset: offset,
             },
@@ -108,26 +121,25 @@ pub(super) fn payload_pointer(
                 .ok_or_else(|| invalid())?,
             &[root, payload],
             provenance(row),
-        )?,
-        crate::selection::field_bytes::FieldBytes::Descriptor(_) => {
-            super::runtime_address::footprint(
-                builder,
-                row,
-                place,
-                offset,
-                8,
-                indices,
-                super::runtime_address::Written::None,
-            )?;
-            builder.emit(
-                SelectedInstructionKind::Load64 {
-                    byte_offset: offset,
-                },
-                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-                &[root, payload],
-                provenance(row),
-            )?;
-        }
+        )?;
+    } else {
+        super::runtime_address::footprint(
+            builder,
+            row,
+            place,
+            offset,
+            8,
+            indices,
+            super::runtime_address::Written::None,
+        )?;
+        builder.emit(
+            SelectedInstructionKind::Load64 {
+                byte_offset: offset,
+            },
+            builder.constraints.keys.load64.ok_or_else(|| invalid())?,
+            &[root, payload],
+            provenance(row),
+        )?;
     }
     Ok(payload)
 }

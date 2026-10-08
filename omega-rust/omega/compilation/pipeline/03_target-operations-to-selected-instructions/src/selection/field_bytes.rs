@@ -5,12 +5,12 @@
 //! storage layout does not change with its consumer: a descriptor must be
 //! loaded, never addressed as though its words were inline payload.
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::selection) enum FieldBytes {
-    /// The payload's offset from the root.
-    Inline(u32),
-    /// The descriptor's offset from the root; its pointer word is loaded.
-    Descriptor(u32),
+pub(in crate::selection) struct FieldBytes {
+    /// Offset within the final contiguous region, after all pointer crossings.
+    offset: u32,
+    pub(in crate::selection) is_descriptor: bool,
+    pub(in crate::selection) pointer_slots:
+        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
 }
 
 impl FieldBytes {
@@ -40,18 +40,21 @@ impl FieldBytes {
         ) {
             return None;
         }
-        if let Some(offset) = geometry.descriptor_offset {
-            Some(Self::Descriptor(offset))
+        let offset = if let Some(offset) = geometry.descriptor_offset {
+            offset
         } else {
             geometry.capacity?;
-            Some(Self::Inline(geometry.length_offset.checked_add(8)?))
-        }
+            geometry.length_offset.checked_add(8)?
+        };
+        Some(Self {
+            offset,
+            is_descriptor: geometry.descriptor_offset.is_some(),
+            pointer_slots: geometry.pointer_slots,
+        })
     }
 
-    pub(in crate::selection) const fn offset(self) -> u32 {
-        match self {
-            Self::Inline(offset) | Self::Descriptor(offset) => offset,
-        }
+    pub(in crate::selection) const fn offset(&self) -> u32 {
+        self.offset
     }
 }
 

@@ -2463,6 +2463,7 @@ pub(crate) struct ProjectedByteField {
     pub descriptor_offset: Option<u32>,
     pub capacity: Option<u64>,
     pub elements: Vec<RuntimeElement>,
+    pub pointer_slots: Vec<PointerSlot>,
 }
 
 pub(crate) fn projected_byte_field(
@@ -2475,12 +2476,17 @@ pub(crate) fn projected_byte_field(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
             .ok()?,
     );
-    let (length_offset, width, elements) =
-        scalar_field_geometry(root, path, field, count, declarations, true)?;
+    // The carrier reached by the path is independent of the observation's
+    // consumer. Retain each pointer region instead of flattening its offsets
+    // into the descriptor home. Ordinary call operands use this same walker.
+    let geometry = reference_source_geometry(root, path, declarations)?;
+    let (field_offset, width, _) =
+        scalar_field_geometry(geometry.selected, &[], field, count, declarations, true)?;
+    let length_offset = geometry.byte_offset.checked_add(field_offset)?;
     if width != 8 {
         return None;
     }
-    let (carrier, _, _) = runtime_projection(root, path, declarations)?;
+    let carrier = geometry.selected;
     let StructuralTypeShape::Record { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
@@ -2510,7 +2516,8 @@ pub(crate) fn projected_byte_field(
         length_offset,
         descriptor_offset,
         capacity,
-        elements,
+        elements: geometry.elements,
+        pointer_slots: geometry.pointer_slots,
     })
 }
 
@@ -2540,6 +2547,7 @@ pub(crate) fn projected_view_slot(
             descriptor_offset: Some(0),
             capacity: None,
             elements: Vec::new(),
+            pointer_slots: Vec::new(),
         });
     };
     let geometry = projected_byte_field(root, path, field, declarations)?;

@@ -69,19 +69,21 @@ pub(super) fn readable_byte_field(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    // Observations need not share the narrower store grammar. The semantic
-    // check below constrains newly admitted deep paths to fixed storage before
-    // the general projection resolver computes their physical extent.
+    // Permission belongs to the exact observation. Geometry then follows every
+    // pointer crossing; a store-only path grammar cannot describe this read.
     if super::references::check_projected_read(function, live, types, source, path, Some(field)) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
-    if !terminal_psi::is_structural_scalar_store_path(path) {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let carrier = crate::lowering::structural_layout::runtime_projection(
+    let regions = crate::lowering::structural_layout::reference_projection_regions(
         structural_type,
         path,
+        types,
+    )
+    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let carrier = crate::lowering::structural_layout::runtime_projection(
+        regions.root,
+        regions.path,
         types,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
@@ -203,24 +205,25 @@ pub(super) fn field_indices(
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<Vec<target_operations::TargetStructuralRuntimeIndex>, LoweringError> {
     let (root, _) = field_root(function, types, prepared, live, argument.place)?;
-    let (root, path) =
-        if let Some(terminal_psi::StructuralPathSegment::Referent) = argument.path.first() {
-            let Some(StructuralTypeShape::Reference { referent, .. }) =
-                types.get(&root).map(|row| &row.shape)
-            else {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            };
-            (*referent, &argument.path[1..])
-        } else {
-            (root, argument.path.as_slice())
-        };
-    let (_, _, _, runs) = crate::lowering::structural_layout::runtime_projection(
+    let regions = crate::lowering::structural_layout::reference_projection_regions(
         root,
-        path,
+        &argument.path,
+        types,
+    )
+    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let (_, _, _, leaf_indices) = crate::lowering::structural_layout::runtime_projection(
+        regions.root,
+        regions.path,
         types,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )?;
+    let runs = regions
+        .pointer_slots
+        .into_iter()
+        .flat_map(|slot| slot.indices)
+        .chain(leaf_indices)
+        .collect();
     super::scalar_sources::runtime_indices(
         runs,
         function,

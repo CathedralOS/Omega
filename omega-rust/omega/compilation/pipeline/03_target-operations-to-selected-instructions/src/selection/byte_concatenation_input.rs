@@ -144,5 +144,5 @@ pub(super) fn field_offset(
         return None;
     }
     super::field_bytes::FieldBytes::resolve(function, source, *field, &[])
-        .map(super::field_bytes::FieldBytes::offset)
+        .map(|geometry| geometry.offset())
 }

@@ -3850,14 +3850,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `execution/terminal_unit/calls/computation_arguments/`; stage 02
   `validation/structural_call_arguments.rs`; image-emission `argument_custody`.
 
-  Remaining: claim-bearing owned-root/construction-local loans, byte-field
-  observations through stored reference crossings, and matching-host
-  qualification of projected receiver custody. A constructed
-  record's shared local view reaches native stage 02, but
-  `view.description.bytes.len` is rejected by `primitive_storage.rs`'s
-  store-path grammar; stage 03 byte-field geometry also lacks pointer crossings.
-  Generalize the observation geometry, retaining the actual live descriptor,
-  rather than replacing it with a guessed owner or staging a referent copy.
+  Remaining: claim-bearing owned-root/construction-local loans and matching-host
+  qualification of projected receiver custody. Retain actual live descriptors
+  and their ordered pointer crossings, never a guessed owner or referent copy.
   Reuse `Field`, `FixedIndex` and `RuntimeIndex { index, obligation }`; coordinate
   range spelling with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Declared receiver
   custody stays independent of field observations and state count.
@@ -3874,6 +3869,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   retains nested local projections and distinguishes live extent from capacity;
   `borrows/owner_byte_read_during_shared_record_loan_exit` keeps shared owner
   observations available without permitting exclusive overlap.
+  `borrows/local_shared_record_sequence_observations_exit` and
+  `borrows/nested_reference_byte_observations_exit` observe original byte backing
+  across ordered pointer crossings; `borrows/local_reference_scalar_completion_exit`
+  keeps scalar results while releasing their local reference before its owner.
+  `fail/borrows/shared_record_byte_write_before_last_observation` rejects mutation
+  before the reference's final observation.
 
   Acceptance: corpus fixtures execute caller-visible projected/forwarded
   writes, owned-field mutable/write-only subloans, synchronized shared
