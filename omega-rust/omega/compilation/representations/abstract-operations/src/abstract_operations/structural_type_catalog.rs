@@ -25,10 +25,6 @@ impl StructuralTypeCatalog {
         Arc::make_mut(&mut self.0)
     }
 
-    /// Inspect allocation sharing; this is not a semantic validation operation.
-    pub fn shares_storage_with(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
 }
 
 impl From<Vec<StructuralTypeDeclaration>> for StructuralTypeCatalog {

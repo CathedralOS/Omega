@@ -93,16 +93,6 @@ pub fn is_shared_byte_view_in(
     })
 }
 
-/// [`is_shared_bounded_owner_loan`] over a declaration slice whose identities
-/// are unique.
-pub fn is_shared_bounded_owner_loan_in(
-    parameter: &StructuralParameterDeclaration,
-    types: &[StructuralTypeDeclaration],
-) -> bool {
-    is_shared_bounded_owner_loan(parameter, |identity| {
-        unique_structural_type(types.iter(), identity)
-    })
-}
 
 /// An unrestricted bounded byte payload arriving by value. Qualifications
 /// remain declaration-owned obligations; layout does not erase or establish
