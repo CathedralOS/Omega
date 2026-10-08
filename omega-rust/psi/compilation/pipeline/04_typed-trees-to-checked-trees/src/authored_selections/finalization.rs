@@ -28,7 +28,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
     AuthoredDeclarationSelections, BuildOperation,
 };
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use validation::selection_resolution::{
@@ -57,7 +57,8 @@ pub(crate) fn finalize_checked_authored_selections(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let typed_trees::statement::StatementNode::RootBinding(binding) = statement else {
                     continue;
@@ -170,7 +171,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         let fact = argument.path.first().filter(|_| argument.path.len() == 1)
                             .and_then(|name| language_semantics::wire::WireCompatibilityFact::from_name(name.as_str()))
                             .ok_or_else(|| Diagnostic::error(format!("unknown wire compatibility fact `{}`",
-                                argument.path.iter().map(|name| name.as_str()).collect::<Vec<_>>().join("::")))
+                                argument.path.joined_path()))
                                 .with_source_span(selection.source_span()))?;
                         Some(AuthoredSelectionResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact)))
                     }

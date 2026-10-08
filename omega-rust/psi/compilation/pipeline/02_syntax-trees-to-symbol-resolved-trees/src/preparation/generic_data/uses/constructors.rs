@@ -11,6 +11,7 @@ use crate::preparation::generic_data::closed_argument_identity;
 
 use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::selected_data_item;
+use symbols::JoinedPath;
 
 /// Copied type references retain their original application. Reuse that exact
 /// template/argument identity rather than indexing generated display spellings.
@@ -93,14 +94,7 @@ pub(in crate::preparation::generic_data) fn constructor_path_name(
     let last = members.last()?;
     let mut span = first.source_span();
     span.span.end = last.source_span().span.end;
-    Some(Identifier::new(
-        members
-            .iter()
-            .map(Identifier::as_str)
-            .collect::<Vec<_>>()
-            .join("::"),
-        span,
-    ))
+    Some(Identifier::new(members.joined_path(), span))
 }
 
 /// Keep the authored carrier occurrence separate from the generated lookup

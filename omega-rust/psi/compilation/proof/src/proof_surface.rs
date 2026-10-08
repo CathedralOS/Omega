@@ -2,6 +2,7 @@
 //! and bounded type site a program declares, collected from its syntax trees.
 
 use arena::Arena;
+use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, DataMember, Item, Machine, ProofFact,
@@ -500,8 +501,5 @@ fn operator_name(
     syntax_trees
         .items
         .identifier_path_members(name)
-        .iter()
-        .map(syntax_trees::identifier::Identifier::as_str)
-        .collect::<Vec<_>>()
-        .join("::")
+        .joined_path()
 }

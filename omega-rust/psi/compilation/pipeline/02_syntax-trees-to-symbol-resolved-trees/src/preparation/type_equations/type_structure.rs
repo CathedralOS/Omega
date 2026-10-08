@@ -19,6 +19,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
+use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::{
@@ -131,14 +132,7 @@ impl Solver<'_, '_> {
                 if let Some(last) = parts.last() {
                     name_span.span.end = last.source_span().span.end;
                 }
-                let name = Identifier::new(
-                    parts
-                        .iter()
-                        .map(Identifier::as_str)
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                    name_span,
-                );
+                let name = Identifier::new(parts.joined_path(), name_span);
                 Ok(self
                     .syntax
                     .type_references

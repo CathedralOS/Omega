@@ -17,6 +17,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbols::JoinedPath;
 use syntax_trees::{
     SyntaxTrees,
     expression::StaticMachineArgument,
@@ -431,7 +432,7 @@ fn complete_arguments(
                 application_argument_reference(syntax, argument, &parameter.kind, selection)?
             }
             TypeParameterKind::Type if argument.const_literal.is_none() && argument.application.is_none() && argument.evidence_projection.is_none() && !argument.path.is_empty() => {
-                let name = argument.path.iter().map(|part| part.as_str()).collect::<Vec<_>>().join("::");
+                let name = argument.path.joined_path();
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::new(name, argument.path[0].source_span())))
             }
             // Supplied literals retain ordinary static-argument carrier checking;
@@ -613,12 +614,7 @@ fn application_argument_reference(
                 return Err(reject("requires a selected type name"));
             };
             let name = syntax_trees::identifier::Identifier::new(
-                argument
-                    .path
-                    .iter()
-                    .map(|part| part.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::"),
+                argument.path.joined_path(),
                 first.source_span(),
             );
             let Some(application) = &argument.application else {

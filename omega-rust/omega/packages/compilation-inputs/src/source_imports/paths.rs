@@ -2,6 +2,7 @@
 
 use diagnostics::Diagnostic;
 use std::path::{Path, PathBuf};
+use symbols::JoinedPath;
 use syntax_trees::identifier::Identifier;
 
 pub(super) fn resolve_source_path(
@@ -94,10 +95,7 @@ pub(super) fn is_bundled_core_path(path: &[Identifier]) -> bool {
 }
 
 pub(super) fn identifier_path_text(path: &[Identifier]) -> String {
-    path.iter()
-        .map(Identifier::as_str)
-        .collect::<Vec<_>>()
-        .join("::")
+    path.joined_path()
 }
 
 pub fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {

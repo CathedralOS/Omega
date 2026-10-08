@@ -28,6 +28,7 @@ use crate::preparation::generic_data::arguments::{
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;
 use numerics::literals::LandedIntegerType;
+use symbols::JoinedPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::preparation::generic_data) enum CanonicalConstNode {
@@ -1398,14 +1399,7 @@ fn canonicalize_selected_data_const_expression(
             let Some(first) = owner.first() else {
                 return Err(format!("expected a `{type_name}` case owner"));
             };
-            let head = Identifier::new(
-                owner
-                    .iter()
-                    .map(Identifier::as_str)
-                    .collect::<Vec<_>>()
-                    .join("::"),
-                first.source_span(),
-            );
+            let head = Identifier::new(owner.joined_path(), first.source_span());
             let selected = selected_data(syntax, &head, selection)?;
             // A payloadless case spelled through the template still selects the
             // same carrier as the synthesized instance it materializes into.

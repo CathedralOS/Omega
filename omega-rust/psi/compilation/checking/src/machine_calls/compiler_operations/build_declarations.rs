@@ -7,6 +7,7 @@
 
 use super::exact_build_prelude_data;
 use language_semantics::declaration_selection::BuildOperation;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
@@ -163,12 +164,7 @@ pub fn resolve_product_operand(
     {
         return None;
     }
-    let path = argument
-        .path
-        .iter()
-        .map(|name| name.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let path = argument.path.joined_path();
     let candidates = if subject {
         program
             .traits()
