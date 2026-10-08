@@ -202,7 +202,7 @@ pub(crate) fn validate_mixed_structural_scalar_abi(
     Ok(())
 }
 
-fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> Option<ValueShape> {
+pub(crate) fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> Option<ValueShape> {
     if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
         return None;
     }

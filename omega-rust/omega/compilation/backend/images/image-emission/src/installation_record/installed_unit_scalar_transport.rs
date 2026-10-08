@@ -15,22 +15,8 @@ use target_operations::CallSiteOwner;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 use super::{InstallationError, InstallationRecord, InstalledFunction};
+use crate::object_artifact::replay::unit::call_custody::{fixed_integer_shape, unit_scalar_shape};
 
-fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> Option<ValueShape> {
-    if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
-        return None;
-    }
-    let bytes = integer.bits() / 8;
-    Some(ValueShape::integer(u32::from(bytes), bytes))
-}
-
-fn scalar_home_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShape> {
-    match scalar {
-        semantic_vocabulary::ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        semantic_vocabulary::ScalarType::Integer(integer) => fixed_integer_shape(integer),
-        semantic_vocabulary::ScalarType::IeeeFloat(_) => None,
-    }
-}
 
 pub(super) fn installed_function_scalar_transport_is_canonical(
     function: &InstalledFunction,
@@ -51,7 +37,7 @@ pub(super) fn installed_function_scalar_transport_is_canonical(
         .iter()
         .enumerate()
         .all(|(index, home)| {
-            scalar_home_shape(home.scalar_type) == Some(home.shape)
+            unit_scalar_shape(home.scalar_type) == Some(home.shape)
                 && function.unit_scalar_homes[..index].iter().all(|prior| {
                     prior.defining_operation != home.defining_operation
                         && prior.source_value != home.source_value
@@ -91,12 +77,12 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
     let Some(scalar_shapes) = abi
         .scalar_parameters
         .iter()
-        .map(|parameter| scalar_home_shape(parameter.scalar_type))
+        .map(|parameter| unit_scalar_shape(parameter.scalar_type))
         .collect::<Option<Vec<_>>>()
     else {
         return false;
     };
-    let Some(result_shape) = scalar_home_shape(abi.result.scalar_type) else {
+    let Some(result_shape) = unit_scalar_shape(abi.result.scalar_type) else {
         return false;
     };
     let Ok(expected) = evaluate_call_plan(
@@ -193,7 +179,7 @@ fn scalar_abi_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShap
     match scalar {
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(ValueShape::float(4)),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(ValueShape::float(8)),
-        scalar => scalar_home_shape(scalar),
+        scalar => unit_scalar_shape(scalar),
     }
 }
 
