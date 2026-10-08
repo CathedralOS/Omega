@@ -478,29 +478,7 @@ impl TerminalExecution<'_> {
             binding.validate_mutable_referent(&self.program.structural_types(), value)?;
             return Ok(binding.clone());
         }
-        let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
-        else {
-            return Err(malformed());
-        };
-        let mut parent = resolve_structural_arguments(
-            &self.program.structural_types(),
-            &self.structural_values,
-            &[StructuralArgument {
-                place: argument.place,
-                path: prefix.to_vec(),
-                access: argument.access,
-            }],
-        )?
-        .pop()
-        .ok_or_else(malformed)?;
-        let Some(fields) = self.program.record_fields(&parent.structural_type)
-        else {
-            return Err(malformed());
-        };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())
-            .ok_or_else(malformed)?;
+        let (mut parent, identity, field) = self.structural_field_binding_frame(argument)?;
         let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
             field.field_type.byte_sequence_carrier()
         else {
@@ -591,29 +569,7 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
-        else {
-            return Err(malformed());
-        };
-        let mut parent = resolve_structural_arguments(
-            &self.program.structural_types(),
-            &self.structural_values,
-            &[StructuralArgument {
-                place: argument.place,
-                path: prefix.to_vec(),
-                access: argument.access,
-            }],
-        )?
-        .pop()
-        .ok_or_else(malformed)?;
-        let Some(fields) = self.program.record_fields(&parent.structural_type)
-        else {
-            return Err(malformed());
-        };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())
-            .ok_or_else(malformed)?;
+        let (mut parent, identity, field) = self.structural_field_binding_frame(argument)?;
         let carrier = field
             .field_type
             .byte_sequence_carrier()
@@ -645,5 +601,45 @@ impl TerminalExecution<'_> {
             .push(StructuralPathSegment::Field(identity.clone()));
         let bytes = bytes.with_descriptor_home(parent.clone());
         Ok((parent, ByteSequenceBinding::Immutable(bytes)))
+    }
+
+    /// Resolves `argument`'s last-field parent record: the shared preamble
+    /// the mutable and shared boundary bindings walk before their carrier
+    /// policies diverge. Returns the resolved parent value, the last
+    /// segment's field name, and the field declaration.
+    fn structural_field_binding_frame<'a>(
+        &'a self,
+        argument: &'a StructuralArgument,
+    ) -> Result<
+        (
+            TerminalStructuralValue,
+            &'a String,
+            &'a terminal_psi::StructuralFieldDeclaration,
+        ),
+        TerminalInterpretError,
+    > {
+        let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
+        else {
+            return Err(malformed());
+        };
+        let parent = resolve_structural_arguments(
+            &self.program.structural_types(),
+            &self.structural_values,
+            &[StructuralArgument {
+                place: argument.place,
+                path: prefix.to_vec(),
+                access: argument.access,
+            }],
+        )?
+        .pop()
+        .ok_or_else(malformed)?;
+        let Some(fields) = self.program.record_fields(&parent.structural_type) else {
+            return Err(malformed());
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.identity == *identity && !field.relevance.is_erased())
+            .ok_or_else(malformed)?;
+        Ok((parent, identity, field))
     }
 }
