@@ -781,13 +781,7 @@ fn refine(
 }
 
 fn mirrored(operator: BinaryOperator) -> BinaryOperator {
-    match operator {
-        BinaryOperator::Less => BinaryOperator::Greater,
-        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::Greater => BinaryOperator::Less,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-        other => other,
-    }
+    operator.mirrored()
 }
 
 fn decided_by_bounds(

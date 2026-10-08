@@ -31,16 +31,7 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let requirement = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == slot.declaring_trait)
-            .and_then(|definition| {
-                program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == slot.requirement)
-            })?;
+        let requirement = program.dynamic_slot_requirement(slot)?;
         if requirement.suspends {
             return None;
         }

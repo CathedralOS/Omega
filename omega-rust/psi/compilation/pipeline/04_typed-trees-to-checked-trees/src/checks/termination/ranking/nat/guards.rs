@@ -5,13 +5,7 @@ use super::super::patterns;
 use patterns::comparison;
 
 fn reverse(operator: BinaryOperator) -> BinaryOperator {
-    match operator {
-        BinaryOperator::Less => BinaryOperator::Greater,
-        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::Greater => BinaryOperator::Less,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-        other => other,
-    }
+    operator.mirrored()
 }
 
 fn exact_parameter(

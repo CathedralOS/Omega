@@ -274,13 +274,7 @@ fn guard_bounds(
     let literal = if expression_is_counter_member(program, machine, state, binary.left, counter) {
         integer_literal(program, binary.right)
     } else if expression_is_counter_member(program, machine, state, binary.right, counter) {
-        operator = match operator {
-            BinaryOperator::Less => BinaryOperator::Greater,
-            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-            BinaryOperator::Greater => BinaryOperator::Less,
-            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-            other => other,
-        };
+        operator = operator.mirrored();
         integer_literal(program, binary.left)
     } else {
         return Bounds::UNKNOWN;

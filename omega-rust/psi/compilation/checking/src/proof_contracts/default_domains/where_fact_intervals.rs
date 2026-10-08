@@ -323,13 +323,7 @@ fn field_literal_bounds(
         let operator = if field_on_left {
             binary.operator
         } else {
-            match binary.operator {
-                BinaryOperator::Less => BinaryOperator::Greater,
-                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-                BinaryOperator::Greater => BinaryOperator::Less,
-                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-                other => other,
-            }
+            binary.operator.mirrored()
         };
         if !matches!(
             operator,

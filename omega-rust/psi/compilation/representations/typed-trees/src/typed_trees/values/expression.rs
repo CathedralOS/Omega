@@ -1426,6 +1426,18 @@ impl BinaryOperator {
         })
     }
 
+    /// This operator with its operands swapped — `a < b` mirrors to `b > a`.
+    /// Every other operator mirrors to itself.
+    pub fn mirrored(self) -> BinaryOperator {
+        match self {
+            BinaryOperator::Less => BinaryOperator::Greater,
+            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::Greater => BinaryOperator::Less,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+            other => other,
+        }
+    }
+
     /// The comparison expressing this operator's negation, when one exists.
     pub fn complement(self) -> Option<BinaryOperator> {
         match self {

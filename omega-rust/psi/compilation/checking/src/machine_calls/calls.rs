@@ -317,16 +317,7 @@ pub(crate) fn callee_entry_contract(
         });
     }
     let slot = program.dynamic_slot_by_symbol(target)?;
-    let requirement = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == slot.declaring_trait)
-        .and_then(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|signature| signature.symbol == slot.requirement)
-        })?;
+    let requirement = program.dynamic_slot_requirement(slot)?;
     Some(CalleeContract {
         callable: requirement.symbol,
         return_type: requirement.return_type,

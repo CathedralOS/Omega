@@ -300,13 +300,7 @@ fn interval_mint_judgment(
             if typed_trees::domain::domain_subject_reference(program, domain, binary.left) {
                 (binary.operator, literal_of(binary.right)?)
             } else if typed_trees::domain::domain_subject_reference(program, domain, binary.right) {
-                let flipped = match binary.operator {
-                    BinaryOperator::Less => BinaryOperator::Greater,
-                    BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-                    BinaryOperator::Greater => BinaryOperator::Less,
-                    BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-                    other => other,
-                };
+                let flipped = binary.operator.mirrored();
                 (flipped, literal_of(binary.left)?)
             } else {
                 return None;

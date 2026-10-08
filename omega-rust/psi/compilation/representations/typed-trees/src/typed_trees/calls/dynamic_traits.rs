@@ -77,6 +77,21 @@ impl TypedTrees {
         })
     }
 
+    /// The machine signature a dynamic slot's `requirement` resolves to in its
+    /// declaring trait's machine list; `None` when either lookup misses.
+    pub fn dynamic_slot_requirement(
+        &self,
+        slot: &DynamicSlotSignature,
+    ) -> Option<&crate::signature::StateSignature> {
+        let definition = self
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == slot.declaring_trait)?;
+        self.trait_machine_signatures(definition)
+            .iter()
+            .find(|signature| signature.symbol == slot.requirement)
+    }
+
     /// The slot a selector call targets, by the slot's own symbol.
     pub fn dynamic_slot_by_symbol(&self, symbol: SymbolHandle) -> Option<&DynamicSlotSignature> {
         if !symbol.is_valid() {
