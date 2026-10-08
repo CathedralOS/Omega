@@ -30,7 +30,7 @@ pub use boundary::{
     TerminalBoundaryApplicationDemand, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
     TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
     TerminalRootServiceReach, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint,
+    closed_conformance_application_report_fingerprint, find_boundary_machine,
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use control_flow::{
@@ -97,8 +97,9 @@ pub use types::{
     ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
     StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape, live_field,
-    find_structural_case, find_structural_type, structural_case_position, structural_children, unique_structural_declaration,
+    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_case, find_structural_type, live_field, structural_case_position,
+    structural_children, unique_structural_declaration,
 };
 pub use values::{
     ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,

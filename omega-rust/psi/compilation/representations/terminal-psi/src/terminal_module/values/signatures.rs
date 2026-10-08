@@ -158,8 +158,7 @@ pub struct StructuralReferenceResultSource {
     pub sources: Vec<StructuralArgument>,
 }
 
-impl StructuralReferenceResultSource {
-}
+impl StructuralReferenceResultSource {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralArgument {

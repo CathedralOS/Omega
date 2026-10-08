@@ -3,8 +3,8 @@
 
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, ExternalCompletionKind, IeeeFloatFormat, IeeeFloatValue,
-    IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ServiceId,
-    StructuralDomainId, StructuralTypeId,
+    IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ServiceId, StructuralDomainId,
+    StructuralTypeId,
 };
 
 use crate::StructuralPathQualification;

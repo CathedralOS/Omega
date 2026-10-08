@@ -27,8 +27,7 @@ pub struct ContentIdentityReshuffle {
     pub projections: Vec<ClaimContentProjection>,
 }
 
-impl ContentIdentityReshuffle {
-}
+impl ContentIdentityReshuffle {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContentPlaceSubstitution {
@@ -57,5 +56,4 @@ pub struct ContentPartitionComposition {
     pub derived: ContentConservation,
 }
 
-impl ContentPartitionComposition {
-}
+impl ContentPartitionComposition {}

@@ -136,7 +136,6 @@ impl BoundaryMachineDeclaration {
             .filter_map(move |(position, found)| (*found == kind).then_some(position))
     }
 
-
     /// Reconstruct declaration-local scalar formals for contract validation and
     /// substitution. These are proof coordinates, not executable module values.
     pub fn scalar_contract_parameters(&self) -> Option<Vec<ValueDeclaration>> {
@@ -193,6 +192,14 @@ pub struct ProgramLocalRootIntroductionSchema {
     /// plus the enclosing requirement. Exact schema fields and owner
     /// projection replay carry semantic authority.
     pub compatibility_report_identity: u64,
+}
+
+/// The boundary machine declaration keyed `id` in a boundary roster.
+pub fn find_boundary_machine<'declarations>(
+    declarations: &'declarations [BoundaryMachineDeclaration],
+    id: BoundaryMachineId,
+) -> Option<&'declarations BoundaryMachineDeclaration> {
+    declarations.iter().find(|declaration| declaration.id == id)
 }
 
 pub fn program_local_root_introduction_compatibility_report_identity(

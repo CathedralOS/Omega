@@ -114,7 +114,9 @@ impl TerminalMachine {
     /// The structural-place declaration keyed `place`, when the machine
     /// declares it.
     pub fn structural_place(&self, place: PlaceId) -> Option<&StructuralPlaceDeclaration> {
-        self.structural_places.iter().find(|entry| entry.id == place)
+        self.structural_places
+            .iter()
+            .find(|entry| entry.id == place)
     }
 
     /// The operation producing `place`, resolved through the structural-place

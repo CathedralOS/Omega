@@ -86,5 +86,4 @@ pub enum ClosedReachArgument {
     },
 }
 
-impl ClosedReachArgument {
-}
+impl ClosedReachArgument {}

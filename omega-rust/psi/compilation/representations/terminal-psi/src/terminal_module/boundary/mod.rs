@@ -21,7 +21,7 @@ pub use conformances::{
 pub use declarations::{
     BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult,
     BoundaryParameterKind, BoundaryStructuralResultDeclaration, ContentConservationGuarantee,
-    ProgramLocalRootIntroductionSchema, StructuralDomainRequirement,
+    ProgramLocalRootIntroductionSchema, StructuralDomainRequirement, find_boundary_machine,
     program_local_root_introduction_compatibility_report_identity,
 };
 pub use dynamic_dispatch::{
