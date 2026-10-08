@@ -108,7 +108,10 @@ fn owned_local_observation(
     let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
         argument: source,
         ..
-    }) = crate::expression_preparation::bindings::structural_local_by_root(structural_locals, facts::PlaceRoot::Symbol(symbol))
+    }) = crate::expression_preparation::bindings::structural_local_by_root(
+        structural_locals,
+        facts::PlaceRoot::Symbol(symbol),
+    )
     else {
         return unsupported("owned local observation lost its established place");
     };
@@ -1176,10 +1179,7 @@ fn byte_field_observation(
     else {
         return Ok(None);
     };
-    let view_prefix = fields
-        .declarations()
-        .iter()
-        .find(|row| row.id == structural_type)
+    let view_prefix = terminal_psi::find_structural_type(fields.declarations(), structural_type)
         .and_then(|row| match row.shape {
             terminal_psi::StructuralTypeShape::ElementView { .. } => Some(0),
             terminal_psi::StructuralTypeShape::Reference { referent, .. }
