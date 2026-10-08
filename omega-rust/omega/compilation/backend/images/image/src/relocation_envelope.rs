@@ -156,11 +156,11 @@ pub fn validate_final_text_relocation_envelope(
     }
 
     text_relocations.sort_unstable();
-    let encoded_text_digest = EncodedCompilerTextDigest::from_digest(digest_bytes(
+    let encoded_text_digest = EncodedCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
         b"omega.encoded-compiler-text.sha256.v1\0",
         encoded_text_bytes,
     ));
-    let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(digest_bytes(
+    let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(crate::final_image::digest_bytes(
         b"omega.final-compiler-text.sha256.v1\0",
         final_compiler_text,
     ));
@@ -235,13 +235,6 @@ fn report_fingerprint_bytes(bytes: &[u8]) -> u64 {
 }
 
 
-fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.update(domain);
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
-    digest.finalize().into()
-}
 
 #[cfg(test)]
 mod tests {

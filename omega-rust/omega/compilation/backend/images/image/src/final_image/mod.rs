@@ -23,7 +23,7 @@ pub use executable_regions::{
     PlacedExecutableGap, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
     PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
     PlacedExecutableRegionInventoryDigest, StateFootprintEvidenceDigest,
-    bind_compiler_entry_footprint, place_executable_regions,
+    bind_compiler_entry_footprint, digest_bytes, place_executable_regions,
     validate_placed_executable_region_inventory,
 };
 #[cfg(test)]
