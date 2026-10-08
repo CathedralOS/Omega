@@ -79,11 +79,7 @@ pub(crate) fn computation_cleanups(
     machine: SymbolHandle,
 ) -> Result<Vec<&CheckedUnitNominalAffineCleanupPlan>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
-    let roots = plans
-        .roots
-        .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
-        .collect::<Vec<_>>();
+    let roots = plans.roots_for_machine(machine);
     let mut cleanups = Vec::new();
     for identity in
         crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?

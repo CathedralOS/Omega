@@ -58,11 +58,7 @@ fn collect_call_targets(
     structural_only: bool,
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
-    let roots = plans
-        .roots
-        .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
-        .collect::<Vec<_>>();
+    let roots = plans.roots_for_machine(machine);
     let mut targets = Vec::new();
     for handle in reachable_nodes(checked, &roots)? {
         if let CheckedScalarComputationKind::Call {

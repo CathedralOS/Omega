@@ -86,6 +86,36 @@ impl CheckedScalarComputationPlans {
         let root = roots.next()?;
         roots.next().is_none().then_some(root)
     }
+
+    /// Root handles of computations owned by `machine`, in arena order.
+    pub fn roots_for_machine(&self, machine: SymbolHandle) -> Vec<CheckedScalarComputationHandle> {
+        self.roots
+            .iter()
+            .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+            .collect()
+    }
+
+    /// Root handles of computations owned by any machine in `machines`, in
+    /// arena order.
+    pub fn roots_in_machines(
+        &self,
+        machines: &[SymbolHandle],
+    ) -> Vec<CheckedScalarComputationHandle> {
+        self.roots
+            .iter()
+            .filter_map(|(_, root)| machines.contains(&root.machine).then_some(root.root))
+            .collect()
+    }
+
+    /// Root entries owned by any machine in `machines`, in arena order.
+    pub fn machine_roots<'plans>(
+        &'plans self,
+        machines: &'plans [SymbolHandle],
+    ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
+        self.roots
+            .iter()
+            .filter_map(move |(_, root)| machines.contains(&root.machine).then_some(root))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

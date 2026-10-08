@@ -975,11 +975,7 @@ pub(crate) fn prepare(
 ) -> Result<Vec<Binding>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut bindings: Vec<Binding> = Vec::new();
-    for (_, root) in plans
-        .roots
-        .iter()
-        .filter(|(_, root)| machines.contains(&root.machine))
-    {
+    for root in plans.machine_roots(machines) {
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let node = plans.nodes.get(handle);
             let CheckedScalarComputationKind::StructuralField {

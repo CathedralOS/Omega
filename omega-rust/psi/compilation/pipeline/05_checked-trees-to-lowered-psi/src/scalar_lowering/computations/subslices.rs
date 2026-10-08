@@ -31,11 +31,7 @@ pub(crate) fn prepare(
 ) -> Result<Vec<Slot>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
     let mut slots: Vec<Slot> = Vec::new();
-    for (_, root) in plans
-        .roots
-        .iter()
-        .filter(|(_, root)| machines.contains(&root.machine))
-    {
+    for root in plans.machine_roots(machines) {
         for handle in super::reachable_nodes(checked, &[root.root])? {
             let arguments: Vec<_> = match &plans.nodes.get(handle).kind {
                 CheckedScalarComputationKind::Call {
