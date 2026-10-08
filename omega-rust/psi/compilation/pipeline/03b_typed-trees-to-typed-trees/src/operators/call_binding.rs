@@ -99,9 +99,7 @@ pub(crate) fn bind_selected_operator_calls(
     }) {
         let selected = operator_use.selected_operator_symbol;
         if !program
-            .machine_token_bindings()
-            .iter()
-            .any(|view| view.symbol == selected)
+            .machine_token_binding_by_symbol(selected).is_some()
         {
             continue;
         }

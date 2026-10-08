@@ -179,7 +179,7 @@ pub enum SelectionChoice {
 impl SelectionChoice {
     /// Canonicalize a resolved conformance declaration into a choice.
     pub fn conformance(typed: &TypedTrees, symbol: SymbolHandle) -> Result<Self, String> {
-        if !typed.conformances().iter().any(|c| c.symbol == symbol) {
+        if !typed.conformance_by_symbol(symbol).is_some() {
             return Err(
                 "a conformance selection names an exact conformance declaration".to_owned(),
             );
@@ -191,7 +191,7 @@ impl SelectionChoice {
 
     /// Canonicalize a resolved machine declaration into a choice.
     pub fn machine(typed: &TypedTrees, symbol: SymbolHandle) -> Result<Self, String> {
-        if !typed.machines().iter().any(|m| m.symbol == symbol) {
+        if !typed.machine(symbol).is_some() {
             return Err("a machine selection names an exact machine declaration".to_owned());
         }
         Ok(Self::Machine {

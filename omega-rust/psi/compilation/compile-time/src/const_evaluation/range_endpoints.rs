@@ -686,9 +686,7 @@ pub(super) fn selected_endpoint_machine(
                 )
                 || argument.const_literal.is_some()
                 || typed
-                    .const_declarations()
-                    .iter()
-                    .any(|declaration| declaration.symbol == argument.symbol))
+                    .const_declaration_by_symbol(argument.symbol).is_some())
     }) {
         return None;
     }

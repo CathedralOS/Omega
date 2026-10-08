@@ -198,7 +198,9 @@ fn shared_referee_matches(
     }) {
         return true;
     }
-    actual = program.type_reference_table.unconstrained_type_reference(actual);
+    actual = program
+        .type_reference_table
+        .unconstrained_type_reference(actual);
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
@@ -273,7 +275,9 @@ fn fixed_array_binds_open_length(
     else {
         return false;
     };
-    actual = program.type_reference_table.unconstrained_type_reference(actual);
+    actual = program
+        .type_reference_table
+        .unconstrained_type_reference(actual);
     let TypeReferenceNode::FixedArray {
         element_type: actual_element,
         length: actual_length,
@@ -510,7 +514,9 @@ fn owned_array_projects_to_slice(
     else {
         return false;
     };
-    actual = program.type_reference_table.unconstrained_type_reference(actual);
+    actual = program
+        .type_reference_table
+        .unconstrained_type_reference(actual);
     let TypeReferenceNode::FixedArray {
         element_type: actual_element,
         ..
@@ -711,7 +717,9 @@ pub(crate) fn place_forwards_mutable_reference(
     let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
         return false;
     };
-    selected = program.type_reference_table.unconstrained_type_reference(selected);
+    selected = program
+        .type_reference_table
+        .unconstrained_type_reference(selected);
     matches!(
         program.type_reference_table.type_reference(selected),
         TypeReferenceNode::Reference {
@@ -725,7 +733,9 @@ pub(crate) fn declared_reference_access(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
-    reference = program.type_reference_table.unconstrained_type_reference(reference);
+    reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference { access, .. } => Some(*access),
         _ => None,
@@ -767,7 +777,9 @@ pub(crate) fn place_permits_reference_borrow(
     let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
         return false;
     };
-    selected = program.type_reference_table.unconstrained_type_reference(selected);
+    selected = program
+        .type_reference_table
+        .unconstrained_type_reference(selected);
     match program.type_reference_table.type_reference(selected) {
         TypeReferenceNode::Reference {
             access: source_access,
@@ -889,9 +901,7 @@ fn selected_value_type(
             // symbol; its attached data declaration carries the fields. Other
             // receivers already name the data declaration directly.
             let symbol = if program
-                .data_definitions()
-                .iter()
-                .any(|definition| definition.symbol == symbol)
+                .data_definition_by_symbol(symbol).is_some()
             {
                 symbol
             } else {
@@ -1066,9 +1076,7 @@ fn place_machine_symbol(
                 let mut symbol = path.symbol;
                 for _ in 0..128 {
                     if program
-                        .machines()
-                        .iter()
-                        .any(|machine| machine.symbol == symbol)
+                        .machine(symbol).is_some()
                     {
                         return Some(symbol);
                     }

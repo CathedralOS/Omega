@@ -159,9 +159,7 @@ pub(super) fn checked_provider_attachment_requirements(
             let has_independent_requirement = boundary.is_some_and(|planned| {
                 let target_machine = planned.target.machine;
                 program
-                    .machines()
-                    .iter()
-                    .any(|candidate| candidate.symbol == target_machine)
+                    .machine(target_machine).is_some()
                     || (call.target_symbol == target_machine
                         && program.operators().iter().any(|operator| {
                             operator.is_boundary && operator.symbol == target_machine

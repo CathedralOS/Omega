@@ -72,9 +72,7 @@ fn resolve_satisfied_operator_for_conformance<'program>(
     }
     if candidates.iter().any(|candidate| {
         program
-            .machine_token_bindings()
-            .iter()
-            .any(|binding| binding.symbol == candidate.symbol)
+            .machine_token_binding_by_symbol(candidate.symbol).is_some()
     }) {
         // A token-bearing requirement is a machine overload. Apply the
         // clause's ordinary source visibility to the signature-matched set;

@@ -62,9 +62,7 @@ pub fn selected_boundary_operator<'program>(
     resolve_named_expression_call(program, call).filter(|operator| {
         operator.is_boundary
             && program
-                .operators()
-                .iter()
-                .any(|candidate| candidate.symbol == operator.symbol)
+                .operator_definition_by_symbol(operator.symbol).is_some()
     })
 }
 

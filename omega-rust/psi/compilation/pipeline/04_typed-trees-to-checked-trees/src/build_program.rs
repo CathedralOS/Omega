@@ -72,9 +72,7 @@ pub fn project_build_program(
             })
     };
     if !original
-        .machines()
-        .iter()
-        .any(|machine| machine.symbol == entry)
+        .machine(entry).is_some()
         || !in_build_context(entry)
     {
         return Err(vec![Diagnostic::error(

@@ -453,9 +453,7 @@ pub(crate) fn type_atoms(
                                 &mut atoms,
                             )?;
                             if !checked
-                                .domain_definitions()
-                                .iter()
-                                .any(|declaration| declaration.symbol == domain.symbol)
+                                .domain_definition(domain.symbol).is_some()
                             {
                                 return unsupported("scalar qualification lost its declaration");
                             }

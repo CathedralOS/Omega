@@ -227,9 +227,7 @@ pub fn resolve_state_call_target(
     // attached to that data, the same place a `&mut Data` receiver resolves.
     // A data receiver cannot fall through to a state of an unrelated machine.
     if program
-        .data_definitions()
-        .iter()
-        .any(|data| data.symbol == receiver_symbol)
+        .data_definition_by_symbol(receiver_symbol).is_some()
     {
         return attached_machine_state_symbol(
             program,
@@ -265,9 +263,7 @@ pub fn resolve_state_call_target(
     // A known data receiver cannot fall through to a state of an unrelated
     // machine. Trait requirements remain a separate checked dispatch family.
     if program
-        .data_definitions()
-        .iter()
-        .any(|data| data.symbol == type_symbol)
+        .data_definition_by_symbol(type_symbol).is_some()
         && !trait_machine_signature_symbol(program, target_symbol).is_valid()
     {
         return SymbolHandle::invalid();
@@ -352,9 +348,7 @@ fn attached_machine_state_symbol(
         return SymbolHandle::invalid();
     }
     if !program
-        .data_definitions()
-        .iter()
-        .any(|data| data.symbol == data_symbol)
+        .data_definition_by_symbol(data_symbol).is_some()
     {
         return SymbolHandle::invalid();
     }
@@ -516,9 +510,7 @@ pub fn declared_receiver_target(
     let nominal = crate::machine_symbol_from_type_reference_handle(program, type_reference);
     if !nominal.is_valid()
         || !program
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.symbol == nominal)
+            .data_definition_by_symbol(nominal).is_some()
     {
         return Ok(target);
     }

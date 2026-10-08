@@ -174,9 +174,7 @@ pub(super) fn copied_place_type(
         return false;
     };
     program
-        .data_definitions()
-        .iter()
-        .any(|data| data.symbol == *symbol)
+        .data_definition_by_symbol(*symbol).is_some()
 }
 
 /// A member/index projection rooted at readable owned or borrowed storage

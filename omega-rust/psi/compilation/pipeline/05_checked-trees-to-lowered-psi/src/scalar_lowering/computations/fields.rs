@@ -1125,9 +1125,7 @@ pub(crate) fn type_roots(
                 };
                 let referee_symbol = checked.type_reference_symbol(*referee);
                 if !checked
-                    .data_definitions()
-                    .iter()
-                    .any(|definition| definition.symbol == referee_symbol)
+                    .data_definition_by_symbol(referee_symbol).is_some()
                 {
                     continue;
                 }

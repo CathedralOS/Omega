@@ -706,9 +706,7 @@ fn receiver_trait_symbol(
         }
         TypeReferenceNode::Named { symbol, .. }
             if program
-                .traits()
-                .iter()
-                .any(|definition| definition.symbol == *symbol) =>
+                .trait_definition_by_symbol(*symbol).is_some() =>
         {
             Some(*symbol)
         }

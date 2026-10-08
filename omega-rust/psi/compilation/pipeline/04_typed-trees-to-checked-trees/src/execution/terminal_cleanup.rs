@@ -423,9 +423,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 };
                 edge_target != Some(target_symbol)
                     && program
-                        .machines()
-                        .iter()
-                        .any(|candidate| candidate.symbol == target_symbol)
+                        .machine(target_symbol).is_some()
             }
             _ => false,
         }

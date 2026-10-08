@@ -404,9 +404,7 @@ fn positive_comparison_expression(
 fn is_data_namespace(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> bool {
     symbol.is_valid()
         && program
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.symbol == symbol)
+            .data_definition_by_symbol(symbol).is_some()
 }
 
 fn binding(

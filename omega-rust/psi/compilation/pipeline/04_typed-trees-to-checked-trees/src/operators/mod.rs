@@ -33,9 +33,7 @@ pub(crate) fn derive_checked_operator_realization_contracts(
         }
         for conformance in program.machine_trait_conformances(machine) {
             if program
-                .traits()
-                .iter()
-                .any(|definition| definition.symbol == conformance.symbol)
+                .trait_definition_by_symbol(conformance.symbol).is_some()
             {
                 continue;
             }

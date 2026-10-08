@@ -226,9 +226,7 @@ impl PreparedBuildMachineProgram {
     pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
         if !self
             .typed()
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == symbol)
+            .machine(symbol).is_some()
         {
             return Err(format!(
                 "prepared build program contains no machine with exact symbol {symbol:?}"
