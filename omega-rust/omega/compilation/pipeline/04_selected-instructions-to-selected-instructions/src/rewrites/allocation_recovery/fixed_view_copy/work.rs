@@ -6,13 +6,7 @@ use crate::FixedViewCopyError;
 
 use selected_instructions::VirtualFixedConstraintSite;
 
-use super::{
-    FixedViewCopy, TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile, ValidatedSelectedInstructions,
-};
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
-use register_model::target_register_environment_identity;
+use super::FixedViewCopy;
 
 pub(super) fn combined_usage(
     evidence: OptimizationWorkUsage,
@@ -182,42 +176,5 @@ pub(super) fn apply_fixed_view_copy(
             },
         },
     );
-    Ok(())
-}
-
-/// The receipt surface both sides re-prove against the bound roots: the
-/// ranges, legality, physical model, constraints, reservations, and
-/// selected-key inventory all attest this plan's identities. Replay adds
-/// its own plan-binding prefix before the same chain.
-pub(super) fn roots_align(
-    selected: &ValidatedSelectedInstructions,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
-    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-) -> Result<(), FixedViewCopyError> {
-    if ranges.plan().selected != selected.receipt().identity()
-        || ranges.plan().optimization_unit != selected.receipt().optimization_unit()
-        || ranges.plan().fuel_schedule != selected.receipt().fuel_schedule()
-        || ranges.plan().target != selected.plan().target
-        || legality.receipt().ranges() != ranges.receipt().identity()
-        || legality.receipt().register_environment() != register_environment
-        || constraints.physical_identity() != physical.identity()
-        || reservations.physical_identity() != physical.identity()
-        || reservations.target() != selected.plan().target
-        || target_register_environment_identity(
-            selected.plan().target,
-            physical,
-            constraints,
-            reservations,
-            selected_keys,
-        ) != register_environment
-        || selected.plan().functions.len() != legality.plan().functions.len()
-    {
-        return Err(FixedViewCopyError::RootMismatch);
-    }
     Ok(())
 }

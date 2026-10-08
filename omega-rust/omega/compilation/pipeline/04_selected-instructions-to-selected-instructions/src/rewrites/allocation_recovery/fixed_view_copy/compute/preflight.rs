@@ -23,16 +23,27 @@ pub(super) fn validate_roots(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), FixedViewCopyError> {
-    super::super::work::roots_align(
-        selected,
-        ranges,
-        legality,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-    )
+    if ranges.plan().selected != selected.receipt().identity()
+        || ranges.plan().optimization_unit != selected.receipt().optimization_unit()
+        || ranges.plan().fuel_schedule != selected.receipt().fuel_schedule()
+        || ranges.plan().target != selected.plan().target
+        || legality.receipt().ranges() != ranges.receipt().identity()
+        || legality.receipt().register_environment() != register_environment
+        || constraints.physical_identity() != physical.identity()
+        || reservations.physical_identity() != physical.identity()
+        || reservations.target() != selected.plan().target
+        || target_register_environment_identity(
+            selected.plan().target,
+            physical,
+            constraints,
+            reservations,
+            selected_keys,
+        ) != register_environment
+        || selected.plan().functions.len() != legality.plan().functions.len()
+    {
+        return Err(FixedViewCopyError::RootMismatch);
+    }
+    Ok(())
 }
 
 pub(super) fn copy_row<'a>(
