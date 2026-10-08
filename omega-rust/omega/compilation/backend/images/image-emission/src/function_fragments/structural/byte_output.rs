@@ -29,10 +29,7 @@ pub(super) fn settlement(
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
     let (abstracted, _) = source::function(container, machine)?;
-    let instruction = function
-        .blocks
-        .iter()
-        .find(|block| block.id == located.block)
+    let instruction = function.block(located.block)
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or(Error::Mismatch("selected byte output instruction"))?;
     let slot = LocalStorageSlotId::Boundary { operation };
@@ -146,10 +143,7 @@ pub(super) fn validate(
     };
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
-    let row = function
-        .blocks
-        .iter()
-        .find(|block| block.id == located.block)
+    let row = function.block(located.block)
         .and_then(|block| block.instructions.get(located.instruction_index as usize))
         .ok_or_else(invalid)?;
     let slot = LocalStorageSlotId::Boundary { operation };

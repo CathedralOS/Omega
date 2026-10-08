@@ -280,10 +280,7 @@ pub(super) fn match_input(
         }
         nodes::validate(block, optimized, &plan.structural_types)?;
     }
-    let entry = optimized
-        .blocks
-        .iter()
-        .find(|block| block.id == optimized.entry)
+    let entry = optimized.block(optimized.entry)
         .ok_or(LegalizationError::custody())?;
     if !entry.parameters.is_empty() || !entry.structural_parameters.is_empty() {
         return Err(LegalizationError::custody());

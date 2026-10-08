@@ -141,10 +141,7 @@ pub(super) fn rewritten_consumer(
     action: &LiteralFoldAction,
     rows: &AdmittedPairs<'_>,
 ) -> Result<SelectedInstruction, LiteralFoldError> {
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == action.block)
+    let block = function.block(action.block)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;

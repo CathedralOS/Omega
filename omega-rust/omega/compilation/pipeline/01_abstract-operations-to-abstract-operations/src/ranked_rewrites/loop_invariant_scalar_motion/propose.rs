@@ -806,10 +806,7 @@ pub(super) fn component_plan(
     else {
         return Ok(None);
     };
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == preheader_source)
+    let preheader = function.block(preheader_source)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     let Some(terminator_index) = preheader.nodes.len().checked_sub(1) else {
         return Ok(None);
@@ -881,10 +878,7 @@ pub(super) fn component_plan(
     loop {
         let mut progressed = false;
         for member in &component.members {
-            let block = function
-                .blocks
-                .iter()
-                .find(|block| block.id == *member)
+            let block = function.block(*member)
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             for (index, node) in block.nodes.iter().enumerate() {
                 let psi_operation = match node.provenance.first() {

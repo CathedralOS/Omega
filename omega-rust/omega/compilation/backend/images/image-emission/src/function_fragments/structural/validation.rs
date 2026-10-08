@@ -545,10 +545,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
                 | selected_instructions::SelectedBoundarySettlementPayload::HostedReadByte { .. }
                 | selected_instructions::SelectedBoundarySettlementPayload::HostedExitProcessI32 { .. }
         ) {
-            let block = function
-                .blocks
-                .iter()
-                .find(|block| block.id == located.block)
+            let block = function.block(located.block)
                 .ok_or_else(invalid)?;
             let instruction = block
                 .instructions

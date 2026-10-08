@@ -118,10 +118,7 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGv
                 obligation_fact,
             ) in redundants
             {
-                let Some(join) = function
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == redundant.block)
+                let Some(join) = function.block(redundant.block)
                 else {
                     continue;
                 };

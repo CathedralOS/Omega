@@ -212,10 +212,7 @@ fn shared_terminal_fusion_accounting(
     incoming_edge: EdgeId,
     target: BlockId,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let predecessor_block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == predecessor.block)?;
+    let predecessor_block = function.block(predecessor.block)?;
     let incoming = predecessor_block
         .nodes
         .get(usize::try_from(predecessor.node).ok()?)?

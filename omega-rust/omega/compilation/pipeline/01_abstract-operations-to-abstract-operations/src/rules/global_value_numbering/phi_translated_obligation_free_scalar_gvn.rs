@@ -90,10 +90,7 @@ impl PsiOptimizationRule for PhiTranslatedObligationFreeScalarGvnRule {
 
             for (key, redundant, redundant_operation, redundant_result, scalar_type) in &expressions
             {
-                let Some(block) = function
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == redundant.block)
+                let Some(block) = function.block(redundant.block)
                 else {
                     continue;
                 };

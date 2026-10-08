@@ -378,10 +378,7 @@ where
                 }) {
                     continue;
                 }
-                let Some(redundant_block) = function
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == redundant.block)
+                let Some(redundant_block) = function.block(redundant.block)
                 else {
                     continue;
                 };

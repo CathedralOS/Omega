@@ -104,10 +104,7 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedScalarGvnRule {
                 obligation_fact,
             ) in &expressions
             {
-                let Some(block) = function
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == redundant.block)
+                let Some(block) = function.block(redundant.block)
                 else {
                     continue;
                 };

@@ -139,10 +139,7 @@ fn sole_preheader<'function>(
     if component.members.contains(&entry.source) {
         return None;
     }
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == entry.source)?;
+    let preheader = function.block(entry.source)?;
     preheader
         .nodes
         .iter()

@@ -1871,10 +1871,7 @@ pub(in crate::legalization) fn apply_terminator(
         if let Some(target) = target {
             let mut exit = custody.clone();
             if let Some((target, bindings)) = owned_transfer {
-                let destination = function
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == target)
+                let destination = function.block(target)
                     .ok_or_else(invalid)?;
                 for binding in bindings {
                     if binding

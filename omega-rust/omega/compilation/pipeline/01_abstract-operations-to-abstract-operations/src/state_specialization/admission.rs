@@ -223,10 +223,7 @@ pub(super) fn admit_incoming_edge(
         return None;
     }
     let resolved_block = evidence
-        .function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == resolved.target)?;
+        .function.block(resolved.target)?;
     if !resolved_block.structural_parameters.is_empty() {
         return None;
     }
@@ -264,10 +261,7 @@ fn delivered_argument(
     let mut argument = argument;
     for _ in 0..evidence.function.blocks.len() {
         let Some(block) = evidence
-            .function
-            .blocks
-            .iter()
-            .find(|block| block.id == owner_block)
+            .function.block(owner_block)
         else {
             break;
         };

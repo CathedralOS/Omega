@@ -837,10 +837,7 @@ pub(crate) fn invariant_observation_root(
     if !component_preserves_place_observations(function, component) {
         return None;
     }
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == preheader_source)?;
+    let preheader = function.block(preheader_source)?;
     if place_observation_root_visible(function, preheader, source)
         || (relocating_roots.contains(&source)
             && member_root_producer_count(function, component, source) == 1)
@@ -1010,10 +1007,7 @@ fn byte_length_operand_measures_root(
     let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&rebound_length) else {
         return false;
     };
-    let Some(producing) = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == *block)
+    let Some(producing) = function.block(*block)
         .and_then(|block| {
             usize::try_from(*node)
                 .ok()
@@ -1058,10 +1052,7 @@ fn field_byte_length_operand_measures_root(
     let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
         return false;
     };
-    let Some(producing) = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == *block)
+    let Some(producing) = function.block(*block)
         .and_then(|block| {
             usize::try_from(*node)
                 .ok()

@@ -71,10 +71,7 @@ fn destination(
             counted.certificate.guard.zero_operation,
         ));
     }
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == counted.preheader_edge.source)
+    let block = function.block(counted.preheader_edge.source)
         .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
     let node = block
         .nodes
@@ -214,10 +211,7 @@ fn node_at(
     block: BlockId,
     node: u32,
 ) -> Option<&OptimizationNode> {
-    function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)?
+    function.block(block)?
         .nodes
         .get(usize::try_from(node).ok()?)
 }

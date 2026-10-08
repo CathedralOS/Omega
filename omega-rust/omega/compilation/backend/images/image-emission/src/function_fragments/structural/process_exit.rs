@@ -30,10 +30,7 @@ pub(super) fn settlement(
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
     let (abstracted, _) = source::function(container, machine)?;
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == located.block)
+    let block = function.block(located.block)
         .ok_or(Error::Mismatch("process exit block"))?;
     let SelectedTerminator::HostedExitProcess {
         instruction,
@@ -144,10 +141,7 @@ pub(super) fn validate(
     };
     let function = selected(container, machine)?;
     let fragment = fragment(container, machine)?;
-    let block = function
-        .blocks
-        .iter()
-        .find(|row| row.id == located.block)
+    let block = function.block(located.block)
         .ok_or_else(invalid)?;
     let SelectedTerminator::HostedExitProcess {
         instruction,

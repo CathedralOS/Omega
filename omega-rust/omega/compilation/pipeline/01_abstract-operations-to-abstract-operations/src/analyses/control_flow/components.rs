@@ -24,10 +24,7 @@ impl StronglyConnectedComponentAnalysis {
                 components.iter().any(|component| {
                     component.len() > 1
                         || component.iter().any(|block| {
-                            function
-                                .blocks
-                                .iter()
-                                .find(|candidate| candidate.id == *block)
+                            function.block(*block)
                                 .is_some_and(|owner| {
                                     owner
                                         .nodes

@@ -327,10 +327,7 @@ fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
         if !visiting.insert(block) {
             return 0;
         }
-        let resolved = function
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)
+        let resolved = function.block(block)
             .and_then(|owner| {
                 let node = owner.nodes.last()?;
                 match &node.operation {

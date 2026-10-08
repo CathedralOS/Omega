@@ -48,10 +48,7 @@ fn summary(
     let [exit_edge] = component.exits.as_slice() else {
         return Err(shape(function.machine));
     };
-    let source = function
-        .blocks
-        .iter()
-        .find(|block| block.id == preheader_edge.source)
+    let source = function.block(preheader_edge.source)
         .and_then(|block| block.nodes.last())
         .ok_or_else(|| shape(function.machine))?;
     let O::Jump {

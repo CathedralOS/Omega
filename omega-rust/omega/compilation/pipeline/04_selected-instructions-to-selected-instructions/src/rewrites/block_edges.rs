@@ -222,7 +222,7 @@ pub(super) fn acyclic_paths<'function>(
             paths.push(current.clone());
             return true;
         }
-        let Some(block) = function.blocks.iter().find(|block| block.id == at) else {
+        let Some(block) = function.block(at) else {
             return true;
         };
         let instruction = terminator_instruction(&block.terminator);

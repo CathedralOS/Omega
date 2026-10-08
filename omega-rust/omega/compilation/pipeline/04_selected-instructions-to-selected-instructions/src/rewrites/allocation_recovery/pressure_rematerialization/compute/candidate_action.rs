@@ -71,10 +71,7 @@ pub(super) fn derive(
             function: function_index,
         });
     }
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == candidate.block)
+    let block = function.block(candidate.block)
         .ok_or(PressureRematerializationError::MaterializeMismatch {
             function: function_index,
         })?;

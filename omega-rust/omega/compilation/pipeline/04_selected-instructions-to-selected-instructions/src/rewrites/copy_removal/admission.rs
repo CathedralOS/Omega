@@ -640,10 +640,7 @@ pub(super) fn shifted_boundary_settlements(
     block: SelectedBlockId,
     removed: usize,
 ) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, CopyRemovalError> {
-    let body = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)
+    let body = function.block(block)
         .ok_or(CopyRemovalError::SourceMismatch)?
         .instructions
         .len();

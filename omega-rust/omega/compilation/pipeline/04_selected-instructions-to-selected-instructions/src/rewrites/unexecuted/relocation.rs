@@ -300,10 +300,7 @@ fn reconstruct<'source>(
             .map(|edge| edge.block)
             .collect::<BTreeSet<_>>()
         {
-            let source = function
-                .blocks
-                .iter()
-                .find(|block| block.id == source_block)
+            let source = function.block(source_block)
                 .ok_or(MemberRunRelocationError::SourceMismatch)?;
             if terminator_successors(&source.terminator)
                 .iter()

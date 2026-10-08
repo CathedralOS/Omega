@@ -146,10 +146,7 @@ fn conditional_fold_accounting(
     rejected_edge: EdgeId,
     reachable: &BTreeSet<BlockId>,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let decision_node = function
-        .blocks
-        .iter()
-        .find(|block| block.id == decision.block)?
+    let decision_node = function.block(decision.block)?
         .nodes
         .get(usize::try_from(decision.node).ok()?)?;
     let selected = decision_node

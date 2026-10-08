@@ -162,10 +162,7 @@ fn reconstruct_destination(
             counted.certificate.guard.zero_operation,
         ));
     }
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == entry_edge.source)
+    let preheader = function.block(entry_edge.source)
         .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
     let Some((node_index, terminator)) = preheader.nodes.iter().enumerate().next_back() else {
         return Err(unsupported(
@@ -308,10 +305,7 @@ fn validate_constant_locations(
             certificate.guard.zero_operation,
         ));
     }
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == entry.source)
+    let preheader = function.block(entry.source)
         .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
     let jump_index = preheader
         .nodes

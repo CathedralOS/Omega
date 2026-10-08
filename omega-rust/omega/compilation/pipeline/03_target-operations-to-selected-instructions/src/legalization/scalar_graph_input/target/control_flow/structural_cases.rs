@@ -70,10 +70,7 @@ pub(super) fn home_available(
             block: owner,
             declaration,
         } => {
-            let Some(original) = optimized
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == *owner)
+            let Some(original) = optimized.block(*owner)
                 .and_then(|candidate| {
                     candidate
                         .structural_parameters

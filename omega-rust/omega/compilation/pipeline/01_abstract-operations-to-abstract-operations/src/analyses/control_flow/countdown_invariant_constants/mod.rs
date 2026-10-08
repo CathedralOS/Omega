@@ -156,10 +156,7 @@ fn validate_locations(
             certificate.guard.zero_operation,
         ));
     }
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == entry.source)
+    let preheader = function.block(entry.source)
         .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
     let jump_index = preheader
         .nodes

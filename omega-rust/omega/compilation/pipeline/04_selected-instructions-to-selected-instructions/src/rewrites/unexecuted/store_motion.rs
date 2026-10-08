@@ -230,17 +230,11 @@ fn moved_boundary_settlements(
     target_block: SelectedBlockId,
     insert_index: usize,
 ) -> Result<Vec<SelectedBoundarySettlement>, StoreMutationMotionError> {
-    let source_body = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == source_block)
+    let source_body = function.block(source_block)
         .ok_or(StoreMutationMotionError::SourceMismatch)?
         .instructions
         .len();
-    let target_body = function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == target_block)
+    let target_body = function.block(target_block)
         .ok_or(StoreMutationMotionError::SourceMismatch)?
         .instructions
         .len();

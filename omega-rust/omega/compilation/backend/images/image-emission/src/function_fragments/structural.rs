@@ -330,10 +330,7 @@ fn settlement_offset(
     fragment: &machine_code::FunctionFragment,
     row: &SelectedBoundarySettlement,
 ) -> Result<usize, Error> {
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == row.block)
+    let block = function.block(row.block)
         .ok_or(Error::Mismatch("settlement has no block"))?;
     let index = usize::try_from(row.instruction_index).map_err(|_| Error::Overflow)?;
     let instruction = if let Some(instruction) = block.instructions.get(index) {

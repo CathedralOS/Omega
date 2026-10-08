@@ -934,10 +934,7 @@ fn borrow_call_admission(
     }
     let substitution = member_scalar_operand_substitution(function, component, node, relocating)?;
     let preheader_source = shared_entry_source(component)?;
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == preheader_source)?;
+    let preheader = function.block(preheader_source)?;
     let representatives = invariant_member_place_parameters(function, component, relocating_roots);
     let mut rewrites = Vec::new();
     for argument in structural_arguments {

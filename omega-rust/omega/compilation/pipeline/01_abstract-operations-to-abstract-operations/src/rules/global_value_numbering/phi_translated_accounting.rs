@@ -33,10 +33,7 @@ pub(super) fn phi_translated_cse_accounting(
         fuel: removed.fuel.clone(),
     }];
     for row in incoming {
-        let source = function
-            .blocks
-            .iter()
-            .find(|block| block.id == row.source)?;
+        let source = function.block(row.source)?;
         let edge = source
             .nodes
             .iter()

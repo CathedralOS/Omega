@@ -38,10 +38,7 @@ pub(super) fn project(
     for (case_position, ((case, edge), declared)) in
         cases.iter().zip(&node.successors).zip(declared).enumerate()
     {
-        let destination = function
-            .blocks
-            .iter()
-            .find(|block| block.id == case.target)
+        let destination = function.block(case.target)
             .ok_or(Error::custody())?;
         let fields = declared
             .fields
