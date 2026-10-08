@@ -60,6 +60,16 @@ fn word32_transfers() -> Vec<TransferRule> {
     }]
 }
 
+/// An external-access capability on the shared 32-bit transfer rule — the
+/// literal every fixture's external region restates.
+fn word32_access(read: ExternalReadBehavior, write: bool) -> ExternalCapability {
+    ExternalCapability::Access {
+        read,
+        write,
+        transfers: word32_transfers(),
+    }
+}
+
 fn uart_reach() -> BoundaryReach {
     BoundaryReach::from_services([reach()])
 }
@@ -272,11 +282,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
             length,
             peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
-            external: ExternalCapability::Access {
-                read: ExternalReadBehavior::Repeatable,
-                write: true,
-                transfers: word32_transfers(),
-            },
+            external: word32_access(ExternalReadBehavior::Repeatable, true),
             atomic: AtomicCapability::None,
             reach: reach.clone(),
         }],
@@ -406,11 +412,7 @@ fn destructive_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
             length: loan.length(),
             peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
-            external: ExternalCapability::Access {
-                read: ExternalReadBehavior::Destructive,
-                write: false,
-                transfers: word32_transfers(),
-            },
+            external: word32_access(ExternalReadBehavior::Destructive, false),
             atomic: AtomicCapability::None,
             reach: BoundaryReach::default(),
         }],

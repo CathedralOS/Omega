@@ -189,11 +189,7 @@ fn placed_projection_exposes_only_granular_authorized_events() {
                 length: 4,
                 peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
-                external: ExternalCapability::Access {
-                    read: ExternalReadBehavior::Destructive,
-                    write: false,
-                    transfers: super::word32_transfers(),
-                },
+                external: super::word32_access(ExternalReadBehavior::Destructive, false),
                 atomic: AtomicCapability::None,
                 reach: BoundaryReach::default(),
             },
