@@ -274,3 +274,12 @@ fn interpreter_path(target: target::TargetProfile) -> &'static [u8] {
         _ => unreachable!("descriptor fixture uses a Linux target"),
     }
 }
+
+pub(crate) const fn image_section_tag(section: image::FinalImageSection) -> u8 {
+    match section {
+        image::FinalImageSection::Text => 1,
+        image::FinalImageSection::Data => 2,
+        image::FinalImageSection::Bss => 3,
+        image::FinalImageSection::None => 4,
+    }
+}

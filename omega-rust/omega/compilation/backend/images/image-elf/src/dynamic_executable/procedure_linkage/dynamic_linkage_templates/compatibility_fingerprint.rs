@@ -65,17 +65,9 @@ fn hash_semantic_target(hash: &mut Fnv1a, target: ElfProcedureLinkageSemanticTar
             byte_offset,
         } => {
             hash.byte(7);
-            hash.byte(image_section_tag(section));
+            hash.byte(crate::dynamic_executable::image_section_tag(section));
             hash.bytes(&(byte_offset as u64).to_le_bytes());
         }
     }
 }
 
-const fn image_section_tag(section: image::FinalImageSection) -> u8 {
-    match section {
-        image::FinalImageSection::Text => 1,
-        image::FinalImageSection::Data => 2,
-        image::FinalImageSection::Bss => 3,
-        image::FinalImageSection::None => 4,
-    }
-}
