@@ -107,6 +107,15 @@ pub(crate) fn computation_cleanups(
 pub(crate) fn selected_cleanups(
     checked: &CheckedTrees,
 ) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+    let composed_states = || {
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .flat_map(|machine| &machine.states)
+    };
     checked
         .facts
         .flow
@@ -133,23 +142,11 @@ pub(crate) fn selected_cleanups(
                 .flat_map(|machine| continuation_cleanups(&machine.operations)),
         )
         .chain(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .composed_machines
-                .iter()
-                .flat_map(|machine| &machine.states)
+            composed_states()
                 .flat_map(|state| continuation_cleanups(&state.operations)),
         )
         .chain(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .composed_machines
-                .iter()
-                .flat_map(|machine| &machine.states)
+            composed_states()
                 .flat_map(|state| &state.normal_exit_cleanups)
                 .flat_map(|exit| &exit.actions)
                 .filter_map(|action| match action {

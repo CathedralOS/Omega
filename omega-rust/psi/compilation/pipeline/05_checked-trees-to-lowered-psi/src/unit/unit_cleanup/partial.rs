@@ -172,14 +172,10 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         },
     )?;
     let lowered = &mut source_mapped.terminal;
-    let entry = lowered
-        .semantic_module
-        .machines
-        .iter_mut()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .ok_or(LoweringError::Unsupported(
-            "partial affine Unit entry machine was not lowered",
-        ))?;
+    let entry = find_entry_machine(
+            &mut lowered.semantic_module.machines,
+            lowered.semantic_module.entry,
+        )?;
     let root_place = match &root_source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => entry
             .structural_parameters
@@ -367,14 +363,10 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         },
     )?;
     let lowered = &mut source_mapped.terminal;
-    let entry = lowered
-        .semantic_module
-        .machines
-        .iter_mut()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
-        .ok_or(LoweringError::Unsupported(
-            "partial affine Unit entry machine was not lowered",
-        ))?;
+    let entry = find_entry_machine(
+            &mut lowered.semantic_module.machines,
+            lowered.semantic_module.entry,
+        )?;
     // Ordinary bodies can lower to several terminal blocks — a shared
     // continuation on a dying temporary, for example — so the residual
     // swap targets the unique ordinary return edge rather than assuming a
@@ -456,4 +448,19 @@ fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
                     | CheckedUnitStructuralPathSegment::FixedIndex(_)
             )
         })
+}
+
+/// The entry machine the partial lowering produced — the residual edits all
+/// attach to it. Field-granular borrow: callers still read the module's
+/// structural types while holding the entry machine.
+fn find_entry_machine<'m>(
+    machines: &'m mut [terminal_psi::TerminalMachine],
+    entry: semantic_vocabulary::MachineId,
+) -> Result<&'m mut terminal_psi::TerminalMachine, LoweringError> {
+    machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .ok_or(LoweringError::Unsupported(
+            "partial affine Unit entry machine was not lowered",
+        ))
 }
