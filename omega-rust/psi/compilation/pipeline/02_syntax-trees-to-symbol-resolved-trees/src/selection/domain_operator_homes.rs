@@ -14,8 +14,8 @@ use source::SourceId;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::DomainDefinition;
 
-use symbols::same_semantic_name;
 use crate::symbols::NamespaceDeclarations;
+use symbols::same_semantic_name;
 
 /// Logical module/import custody available before the final symbol table is
 /// assigned. Fresh sources answer from the collected namespace declarations;
@@ -557,10 +557,5 @@ fn operator_label(
     program: &SymbolResolvedTrees,
     operator: &symbol_resolved_trees::operator::OperatorDefinition,
 ) -> String {
-    program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    program.operator_path_string(operator.name)
 }

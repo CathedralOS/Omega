@@ -181,12 +181,7 @@ fn operator_canonical_path(
     typed: &TypedTrees,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> String {
-    typed
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    typed.operator_path_string(operator.name)
 }
 
 /// Every boundary overload declared at one package-qualified operator path,

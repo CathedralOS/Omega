@@ -81,12 +81,7 @@ pub(super) fn operator_symbol_name(
     program: &SymbolResolvedTrees,
     operator: &symbol_resolved_trees::operator::OperatorDefinition,
 ) -> String {
-    program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    program.operator_path_string(operator.name)
 }
 
 pub(super) fn measure_symbol_name(

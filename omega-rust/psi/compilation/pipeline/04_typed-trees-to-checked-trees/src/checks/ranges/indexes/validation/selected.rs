@@ -145,12 +145,7 @@ pub(super) fn obligation(
             "selected requires has an unproven non-negative operand",
         ));
     }
-    let path = program
-        .operator_path_members(candidate.operator.name)
-        .iter()
-        .map(|name| name.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let path = program.operator_path_string(candidate.operator.name);
     Ok(Some(format!(
         "cannot prove `{}` — the `requires` of `{path}` (spelled `{}`)",
         clauses.labels.join(" && "),

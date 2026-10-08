@@ -609,6 +609,15 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    /// The operator's `::`-joined path string for diagnostics and lookups.
+    pub fn operator_path_string(&self, span: HandleSpan<crate::name::DiagnosticName>) -> String {
+        self.operator_path_members(span)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::")
+    }
+
     pub fn operator_definitions(
         &self,
         span: HandleSpan<operator::OperatorDefinition>,

@@ -335,8 +335,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 "selected named operator call requires exact selected meaning and ordered operand capture",
             )
         };
-        let Some(call) = program.expression_table.call_node(named_use.expression)
-        else {
+        let Some(call) = program.expression_table.call_node(named_use.expression) else {
             diagnostics.push(invalid());
             continue;
         };
@@ -459,14 +458,7 @@ fn operator_path_label(
     operator_symbol: SymbolHandle,
 ) -> String {
     let path = operator
-        .map(|operator| {
-            program
-                .operator_path_members(operator.name)
-                .iter()
-                .map(|member| member.as_str().to_owned())
-                .collect::<Vec<_>>()
-                .join("::")
-        })
+        .map(|operator| program.operator_path_string(operator.name))
         .unwrap_or_default();
     let path = if path.is_empty() {
         symbol_name(program, operator_symbol)
