@@ -166,6 +166,45 @@ impl TypedTrees {
         })
     }
 
+    /// The unique non-primitive data definition a named type reference
+    /// selects: `Ok(None)` for primitive or non-`Named` references and
+    /// for a symbol that resolves to no definition, `Err` when the
+    /// symbol is invalid, ambiguous, or mismatched with the authored
+    /// name. `field_label` leads both rejections so callers name the
+    /// traversal they were doing.
+    pub fn exact_named_data_definition(
+        &self,
+        field_label: &str,
+        type_reference: crate::types::TypeReferenceHandle,
+    ) -> Result<Option<&data::DataDefinition>, String> {
+        if self.primitive_type_reference(type_reference).is_some() {
+            return Ok(None);
+        }
+        let crate::types::TypeReferenceNode::Named { symbol, name } =
+            self.type_reference_table.type_reference(type_reference)
+        else {
+            return Ok(None);
+        };
+        if !symbol.is_valid() {
+            return Err(format!(
+                "{field_label} `{name}` has no exact nominal identity"
+            ));
+        }
+        let mut matches = self
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.symbol == *symbol);
+        let Some(data) = matches.next() else {
+            return Ok(None);
+        };
+        if matches.next().is_some() || data.name.as_str() != name.as_str() {
+            return Err(format!(
+                "{field_label} `{name}` has ambiguous or mismatched nominal identity"
+            ));
+        }
+        Ok(Some(data))
+    }
+
     /// The `Field` member `definition` declares as `symbol`, if any.
     pub fn data_field(
         &self,

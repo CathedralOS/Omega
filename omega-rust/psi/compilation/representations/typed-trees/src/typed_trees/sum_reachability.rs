@@ -277,30 +277,7 @@ fn exact_named_data<'a>(
     field_label: &'static str,
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<&'a DataDefinition>, SumTraversalFault> {
-    if program.primitive_type_reference(type_reference).is_some() {
-        return Ok(None);
-    }
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return Ok(None);
-    };
-    if !symbol.is_valid() {
-        return Err(SumTraversalFault(format!(
-            "{field_label} `{name}` has no exact nominal identity"
-        )));
-    }
-    let mut matches = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == *symbol);
-    let Some(data) = matches.next() else {
-        return Ok(None);
-    };
-    if matches.next().is_some() || data.name.as_str() != name.as_str() {
-        return Err(SumTraversalFault(format!(
-            "{field_label} `{name}` has ambiguous or mismatched nominal identity"
-        )));
-    }
-    Ok(Some(data))
+    program
+        .exact_named_data_definition(field_label, type_reference)
+        .map_err(SumTraversalFault)
 }

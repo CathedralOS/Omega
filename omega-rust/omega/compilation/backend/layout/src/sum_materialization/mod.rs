@@ -1656,32 +1656,9 @@ fn exact_named_data(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Result<Option<&DataDefinition>, Diagnostic> {
-    if program.primitive_type_reference(type_reference).is_some() {
-        return Ok(None);
-    }
-    let TypeReferenceNode::Named { symbol, name } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return Ok(None);
-    };
-    if !symbol.is_valid() {
-        return Err(Diagnostic::error(format!(
-            "nested-sum field type `{name}` has no exact nominal identity"
-        )));
-    }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == *symbol);
-    let Some(definition) = definitions.next() else {
-        return Ok(None);
-    };
-    if definitions.next().is_some() || definition.name.as_str() != name.as_str() {
-        return Err(Diagnostic::error(format!(
-            "nested-sum field type `{name}` has ambiguous or mismatched nominal identity"
-        )));
-    }
-    Ok(Some(definition))
+    program
+        .exact_named_data_definition("nested-sum field type", type_reference)
+        .map_err(Diagnostic::error)
 }
 
 /// Project one exact closed pure sum or one closed common-field/case mixed
