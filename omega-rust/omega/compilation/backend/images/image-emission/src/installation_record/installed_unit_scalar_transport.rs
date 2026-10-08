@@ -808,30 +808,17 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 store.byte_count,
             );
             if previous.is_some_and(|previous| previous >= key)
-                || !source_is_exact
-                || destination_type_count != 1
-                || store.destination_type.identity.is_empty()
-                || store.destination_type.id != store.destination.structural_type
-                || store.destination.multiplicity != StructuralMultiplicity::Unrestricted
-                || !matches!(
-                    store.destination.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                || !crate::object_artifact::replay::unit::write_only_primitive_store::write_only_store_home_is_exact(
+                    source_is_exact,
+                    destination_type_count,
+                    store,
+                    parameter,
+                    home,
+                    expected_shape,
+                    *placement_byte_size,
+                    *placement_alignment,
+                    u32::from(width),
                 )
-                || !store.destination.qualifications.is_empty()
-                || !store.destination.projected_qualifications.is_empty()
-                || parameter.place != store.destination.place
-                || parameter.structural_type != store.destination.structural_type
-                || parameter.multiplicity != store.destination.multiplicity
-                || parameter.access != store.destination.access
-                || parameter.shape != expected_shape
-                || !parameter.matches_home(home)
-                || home.source.shape != expected_shape
-                || home.source != store.destination_placement
-                || !home.indirect
-                || *placement_byte_size != u32::from(width)
-                || *placement_alignment != width.min(8)
-                || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
-                || !store.parameter_home_indirect
                 || store.byte_count == 0
                 || store.byte_count != store.bytes.len()
                 || store.bytes != expected_bytes

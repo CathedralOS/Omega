@@ -11,13 +11,53 @@ use machine_code::{
 };
 use semantic_vocabulary::{ScalarType, ValueId};
 use target::NativeTarget;
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 use super::structural_scalar_field_store::{
     expected_home_store_bytes, expected_incoming_parameter_store_bytes,
     expected_parameter_store_bytes, expected_store_bytes, integer_bits,
 };
 use crate::{ObjectError, ObjectUnitStack};
+
+/// Whether one write-only primitive store writes exactly the parameter home
+/// it claims: destination, parameter, home and placement all agree.
+pub(crate) fn write_only_store_home_is_exact(
+    source_is_exact: bool,
+    destination_type_count: usize,
+    store: &machine_code::UnitWriteOnlyPrimitiveStoreRecord,
+    parameter: &machine_code::UnitParameterRecord,
+    home: &machine_code::UnitParameterHomeRecord,
+    expected_shape: calling_conventions::ValueShape,
+    placement_byte_size: u32,
+    placement_alignment: u16,
+    byte_size: u32,
+) -> bool {
+    source_is_exact
+        && destination_type_count == 1
+        && !store.destination_type.identity.is_empty()
+        && store.destination_type.id == store.destination.structural_type
+        && store.destination.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && matches!(
+            store.destination.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        )
+        && store.destination.qualifications.is_empty()
+        && store.destination.projected_qualifications.is_empty()
+        && parameter.place == store.destination.place
+        && parameter.structural_type == store.destination.structural_type
+        && parameter.multiplicity == store.destination.multiplicity
+        && parameter.access == store.destination.access
+        && parameter.shape == expected_shape
+        && parameter.matches_home(home)
+        && home.source.shape == expected_shape
+        && home.source == store.destination_placement
+        && home.indirect
+        && placement_byte_size == byte_size
+        && u32::from(placement_alignment) == byte_size.min(8)
+        && Some(store.parameter_home_byte_offset) == home.location.stack_byte_offset()
+        && store.parameter_home_indirect
+}
 
 pub(crate) fn validate_unit_write_only_primitive_stores(
     target: NativeTarget,
@@ -221,30 +261,17 @@ fn validate_store(
         .iter()
         .filter(|candidate| *candidate == &store.destination_type)
         .count();
-    if !source_is_exact
-        || destination_type_count != 1
-        || store.destination_type.identity.is_empty()
-        || store.destination_type.id != store.destination.structural_type
-        || store.destination.multiplicity != StructuralMultiplicity::Unrestricted
-        || !matches!(
-            store.destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !store.destination.qualifications.is_empty()
-        || !store.destination.projected_qualifications.is_empty()
-        || parameter.place != store.destination.place
-        || parameter.structural_type != store.destination.structural_type
-        || parameter.multiplicity != store.destination.multiplicity
-        || parameter.access != store.destination.access
-        || parameter.shape != expected_shape
-        || !parameter.matches_home(home)
-        || home.source.shape != expected_shape
-        || home.source != store.destination_placement
-        || !home.indirect
-        || *placement_byte_size != u32::from(byte_size)
-        || *placement_alignment != byte_size.min(8)
-        || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
-        || !store.parameter_home_indirect
+    if !write_only_store_home_is_exact(
+        source_is_exact,
+        destination_type_count,
+        store,
+        parameter,
+        home,
+        expected_shape,
+        *placement_byte_size,
+        *placement_alignment,
+        u32::from(byte_size),
+    )
         || !function
             .provenance
             .operations
