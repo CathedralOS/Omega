@@ -43,19 +43,10 @@ pub fn validate_paired_calling_plans(
     }
     let semantic_plan = replay_application(semantic, semantic_method, slot.owner.native_target())?;
     let physical_plan = replay_application(physical, physical_method, slot.owner.native_target())?;
-    let expected_policy = |convention| match convention {
-        target::ProgramEntryCallingConvention::MicrosoftX64 => {
-            calling_conventions::CallingPolicy::MicrosoftX64
-        }
-        target::ProgramEntryCallingConvention::Aapcs64 => {
-            calling_conventions::CallingPolicy::Aapcs64
-        }
-        target::ProgramEntryCallingConvention::SystemVAMD64 => {
-            calling_conventions::CallingPolicy::SystemVAMD64
-        }
-    };
-    if semantic_plan.plan().call.policy != expected_policy(expected_semantic)
-        || physical_plan.plan().call.policy != expected_policy(expected_physical)
+    if semantic_plan.plan().call.policy
+        != calling_conventions::CallingPolicy::for_program_entry_convention(expected_semantic)
+        || physical_plan.plan().call.policy
+            != calling_conventions::CallingPolicy::for_program_entry_convention(expected_physical)
     {
         return Err("selected ProgramEntry calling policies drifted from their target slot".into());
     }

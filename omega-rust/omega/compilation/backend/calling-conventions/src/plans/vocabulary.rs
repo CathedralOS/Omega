@@ -301,16 +301,20 @@ impl ValuePlacement {
     /// register or stack word starting at value offset zero.
     pub fn single_word_byte_size(&self) -> Option<u32> {
         match self.locations.as_slice() {
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            }]
-            | [ValueLocation::Stack {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            }] => Some(*byte_size),
+            [
+                ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ]
+            | [
+                ValueLocation::Stack {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => Some(*byte_size),
             _ => None,
         }
     }
@@ -345,6 +349,19 @@ impl CallingPolicy {
                 Architecture::X86_64
             }
             Self::Aapcs64 | Self::LinuxSyscallAarch64 => Architecture::Aarch64,
+        }
+    }
+
+    /// The policy a `ProgramEntryCallingConvention` selects: program-entry
+    /// spellings name ABI families, not syscall conventions, so the three
+    /// variants map one-to-one onto the callable policies.
+    pub const fn for_program_entry_convention(
+        convention: target::ProgramEntryCallingConvention,
+    ) -> Self {
+        match convention {
+            target::ProgramEntryCallingConvention::MicrosoftX64 => Self::MicrosoftX64,
+            target::ProgramEntryCallingConvention::Aapcs64 => Self::Aapcs64,
+            target::ProgramEntryCallingConvention::SystemVAMD64 => Self::SystemVAMD64,
         }
     }
 

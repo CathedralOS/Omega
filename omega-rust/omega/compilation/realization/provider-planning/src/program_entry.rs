@@ -731,17 +731,8 @@ pub fn validate_selected_program_entry_calling_plan(
                 "target boundary schema `{schema_name}` lost its validated physical calling plan: {error}"
             ))]
         })?;
-    let expected_physical = match physical_convention {
-        target::ProgramEntryCallingConvention::MicrosoftX64 => {
-            calling_conventions::CallingPolicy::MicrosoftX64
-        }
-        target::ProgramEntryCallingConvention::Aapcs64 => {
-            calling_conventions::CallingPolicy::Aapcs64
-        }
-        target::ProgramEntryCallingConvention::SystemVAMD64 => {
-            calling_conventions::CallingPolicy::SystemVAMD64
-        }
-    };
+    let expected_physical =
+        calling_conventions::CallingPolicy::for_program_entry_convention(physical_convention);
     if physical_realization.boundary_entry_plan.call.policy != expected_physical {
         return Err(vec![Diagnostic::error(format!(
             "target boundary schema `{schema_name}` evaluates physical requirement `{physical_requirement}` with {:?}, but `{}::{}` requires {:?}",
@@ -751,17 +742,8 @@ pub fn validate_selected_program_entry_calling_plan(
             expected_physical,
         ))]);
     }
-    let expected_semantic = match semantic_convention {
-        target::ProgramEntryCallingConvention::MicrosoftX64 => {
-            calling_conventions::CallingPolicy::MicrosoftX64
-        }
-        target::ProgramEntryCallingConvention::Aapcs64 => {
-            calling_conventions::CallingPolicy::Aapcs64
-        }
-        target::ProgramEntryCallingConvention::SystemVAMD64 => {
-            calling_conventions::CallingPolicy::SystemVAMD64
-        }
-    };
+    let expected_semantic =
+        calling_conventions::CallingPolicy::for_program_entry_convention(semantic_convention);
     if semantic_realization.boundary_entry_plan.call.policy != expected_semantic {
         return Err(vec![Diagnostic::error(format!(
             "target boundary schema `{schema_name}` evaluates semantic requirement `{}` with {:?}, but `{}::{}` requires {:?}",
@@ -907,8 +889,8 @@ fn selected_entry_schema<'program>(
     };
     typed
         .traits()
-.iter()
-.find(|definition| definition.symbol == *symbol && definition.is_boundary)
+        .iter()
+        .find(|definition| definition.symbol == *symbol && definition.is_boundary)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "target entry contract declaration `{schema_name}` is not a boundary schema"
@@ -1144,9 +1126,7 @@ fn arrival_requirement_contract(
             {
                 continue;
             }
-            if let Some(parent) = typed
-                .trait_definition_by_symbol(parent.symbol)
-            {
+            if let Some(parent) = typed.trait_definition_by_symbol(parent.symbol) {
                 inherited.push(parent);
             }
         }
