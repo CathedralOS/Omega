@@ -62,10 +62,7 @@ fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
         )
         .any(|parameter| {
             parameter.place == place
-                && parameter.access == StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Affine
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
+                && parameter.is_unqualified_owned_affine()
                 && function.entry_claims.is_empty()
         })
 }

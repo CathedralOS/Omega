@@ -244,10 +244,7 @@ pub(super) fn validate(
                     // child type; the root keeps its remaining siblings, whose
                     // availability and residual cleanup the ownership replay
                     // checks on this edge.
-                    parameter.access == StructuralAccess::Owned
-                        && parameter.multiplicity == StructuralMultiplicity::Affine
-                        && parameter.qualifications.is_empty()
-                        && parameter.projected_qualifications.is_empty()
+                    parameter.is_unqualified_owned_affine()
                         && crate::current_ownership::partial_affine_root_type(
                             function,
                             binding.argument.place,

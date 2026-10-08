@@ -77,10 +77,7 @@ pub(crate) fn partial_affine_root_type(
         return None;
     }
     if let Some(parameter) = function.arrival_parameter(place) {
-        return (parameter.access == StructuralAccess::Owned
-            && parameter.multiplicity == StructuralMultiplicity::Affine
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty())
+        return (parameter.is_unqualified_owned_affine())
         .then_some(parameter.structural_type);
     }
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {
