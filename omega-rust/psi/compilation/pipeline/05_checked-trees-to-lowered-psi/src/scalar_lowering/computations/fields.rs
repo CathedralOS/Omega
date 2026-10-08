@@ -964,7 +964,7 @@ pub(crate) fn prepare(
             if let StructuralFieldType::Structural(mut selected) = retained.field_type {
                 let mut crossings = 0;
                 loop {
-                    let selected_type = types.iter().find(|entry| entry.id == selected).ok_or(
+                    let selected_type = terminal_psi::find_structural_type(types, selected).ok_or(
                         LoweringError::Unsupported("scalar observation endpoint type is absent"),
                     )?;
                     match selected_type.shape {
