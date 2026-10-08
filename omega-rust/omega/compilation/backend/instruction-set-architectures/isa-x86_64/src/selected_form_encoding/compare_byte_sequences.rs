@@ -16,7 +16,9 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
     X86_64SelectedFormFootprint,
 };
-use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
+use crate::selected_form_encoding::instruction_bytes::{
+    assemble_labeled_stream, modrm, rex,
+};
 use crate::selected_form_encoding::request_validation::resolve_registers;
 
 /// Branch-condition suffix of the near `0F 8x` conditional-jump form.
@@ -188,30 +190,6 @@ fn emit_instruction(
     }
 }
 
-fn assemble(
-    stream: &[(Option<Label>, Instruction)],
-) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
-    let mut bytes = Vec::new();
-    let mut labels: Vec<(Label, usize)> = Vec::new();
-    let mut patches = Vec::new();
-    for (label, instruction) in stream {
-        if let Some(label) = label {
-            labels.push((*label, bytes.len()));
-        }
-        emit_instruction(&mut bytes, *instruction, &mut patches);
-    }
-    for (offset, target) in &patches {
-        let Some((_, position)) = labels.iter().find(|(label, _)| label == target) else {
-            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-        };
-        let relative = *position as i64 - (*offset as i64 + 4);
-        let relative = i32::try_from(relative)
-            .map_err(|_| X86_64SelectedFormEncodingError::MalformedEncoding)?;
-        bytes[*offset..*offset + 4].copy_from_slice(&relative.to_le_bytes());
-    }
-    Ok(bytes)
-}
-
 /// The decoded form of one emitted instruction, with absolute branch targets
 /// resolved from the rel32 fields — the independent shape `validate`
 /// compares against the construction-side layout.
@@ -343,7 +321,7 @@ fn decode_all_stream(bytes: &[u8]) -> Result<Vec<Decoded>, X86_64SelectedFormEnc
 
 fn expected_stream(registers: [u8; 8]) -> Result<Vec<Decoded>, X86_64SelectedFormEncodingError> {
     let plan = layout(registers);
-    let bytes = assemble(&plan)?;
+    let bytes = assemble_labeled_stream(&plan, emit_instruction)?;
     decode_all_stream(&bytes)
 }
 
@@ -392,7 +370,7 @@ pub(super) fn encode(
     displacement: u32,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let registers = request(physical, alternative, operands, displacement)?;
-    let bytes = assemble(&layout(registers))?;
+    let bytes = assemble_labeled_stream(&layout(registers), emit_instruction)?;
     validate(physical, alternative, operands, displacement, &bytes)
 }
 

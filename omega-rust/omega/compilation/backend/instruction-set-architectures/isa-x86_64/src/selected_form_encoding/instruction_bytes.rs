@@ -37,6 +37,34 @@ pub(crate) fn modrm(mode: u8, register: u8, rm: u8) -> u8 {
     (mode << 6) | ((register & 7) << 3) | (rm & 7)
 }
 
+/// Emit a labeled instruction stream into bytes, then patch each recorded
+/// rel32 branch to its label position. `emit` appends one instruction and
+/// records `(offset, target)` for each patch site.
+pub(crate) fn assemble_labeled_stream<L: Copy + Eq, I: Copy>(
+    stream: &[(Option<L>, I)],
+    emit: impl Fn(&mut Vec<u8>, I, &mut Vec<(usize, L)>),
+) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
+    let mut bytes = Vec::new();
+    let mut labels: Vec<(L, usize)> = Vec::new();
+    let mut patches = Vec::new();
+    for (label, instruction) in stream {
+        if let Some(label) = label {
+            labels.push((*label, bytes.len()));
+        }
+        emit(&mut bytes, *instruction, &mut patches);
+    }
+    for (offset, target) in &patches {
+        let Some((_, position)) = labels.iter().find(|(label, _)| label == target) else {
+            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        };
+        let relative = *position as i64 - (*offset as i64 + 4);
+        let relative = i32::try_from(relative)
+            .map_err(|_| X86_64SelectedFormEncodingError::MalformedEncoding)?;
+        bytes[*offset..*offset + 4].copy_from_slice(&relative.to_le_bytes());
+    }
+    Ok(bytes)
+}
+
 fn append_register_binary(bytes: &mut Vec<u8>, opcode: u8, source: u8, destination: u8) {
     bytes.extend([
         rex(source, 0, destination),

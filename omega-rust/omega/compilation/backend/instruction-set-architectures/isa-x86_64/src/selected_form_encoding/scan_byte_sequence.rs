@@ -17,7 +17,9 @@ use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
     X86_64SelectedFormFootprint,
 };
-use crate::selected_form_encoding::instruction_bytes::{modrm, rex};
+use crate::selected_form_encoding::instruction_bytes::{
+    assemble_labeled_stream, modrm, rex,
+};
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use selected_instructions::ByteSequencePredicate;
 
@@ -462,7 +464,7 @@ fn rex8_pair(register: u8) -> u8 {
 fn emit_instruction(
     bytes: &mut Vec<u8>,
     instruction: Instruction,
-    patches: &mut Vec<(usize, Label, u8)>,
+    patches: &mut Vec<(usize, Label)>,
 ) {
     match instruction {
         Instruction::XorSelf(register) => bytes.extend([
@@ -527,39 +529,15 @@ fn emit_instruction(
         }
         Instruction::JumpConditional { condition, target } => {
             bytes.extend([0x0f, condition]);
-            patches.push((bytes.len(), target, 0));
+            patches.push((bytes.len(), target));
             bytes.extend([0; 4]);
         }
         Instruction::Jump { target } => {
             bytes.push(0xe9);
-            patches.push((bytes.len(), target, 0));
+            patches.push((bytes.len(), target));
             bytes.extend([0; 4]);
         }
     }
-}
-
-fn assemble(
-    stream: &[(Option<Label>, Instruction)],
-) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
-    let mut bytes = Vec::new();
-    let mut labels: Vec<(Label, usize)> = Vec::new();
-    let mut patches = Vec::new();
-    for (label, instruction) in stream {
-        if let Some(label) = label {
-            labels.push((*label, bytes.len()));
-        }
-        emit_instruction(&mut bytes, *instruction, &mut patches);
-    }
-    for (offset, target, _) in &patches {
-        let Some((_, position)) = labels.iter().find(|(label, _)| label == target) else {
-            return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-        };
-        let relative = *position as i64 - (*offset as i64 + 4);
-        let relative = i32::try_from(relative)
-            .map_err(|_| X86_64SelectedFormEncodingError::MalformedEncoding)?;
-        bytes[*offset..*offset + 4].copy_from_slice(&relative.to_le_bytes());
-    }
-    Ok(bytes)
 }
 
 /// The decoded form of one emitted instruction, with absolute branch targets
@@ -876,7 +854,10 @@ pub(super) fn encode(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let [base, count, cursor, byte, result] =
         request(physical, alternative, operands, displacement)?;
-    let bytes = assemble(&layout(predicate, base, count, cursor, byte, result))?;
+    let bytes = assemble_labeled_stream(
+        &layout(predicate, base, count, cursor, byte, result),
+        emit_instruction,
+    )?;
     validate(
         physical,
         predicate,
