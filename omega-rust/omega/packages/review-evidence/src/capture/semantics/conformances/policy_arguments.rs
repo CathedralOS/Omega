@@ -83,9 +83,7 @@ pub(super) fn argument_type_reference(
             if symbol_kind == SymbolKind::Const =>
         {
             let declaration = program
-                .const_declarations()
-                .iter()
-                .find(|declaration| declaration.symbol == argument.symbol)
+                .const_declaration_by_symbol(argument.symbol)
                 .ok_or_else(|| rejected("a named const without its exact declaration"))?;
             let encoding = declaration
                 .evaluated_value

@@ -121,9 +121,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
             package_identity: typed.symbols.symbol_package_identity(requirement.symbol),
             requirement_identity,
             operator: typed
-                .machine_token_bindings()
-                .iter()
-                .find(|operator| operator.symbol == requirement.symbol),
+                .machine_token_binding_by_symbol(requirement.symbol),
         })
     }
 
