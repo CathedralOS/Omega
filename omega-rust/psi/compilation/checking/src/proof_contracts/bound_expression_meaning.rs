@@ -816,12 +816,7 @@ fn operand_place_projection_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Borrow(borrow) => {
             operand_place_projection_type(program, machine, state, borrow.target, depth + 1)

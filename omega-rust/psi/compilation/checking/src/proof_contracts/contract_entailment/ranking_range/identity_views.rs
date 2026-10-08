@@ -225,12 +225,7 @@ fn computation_meaning(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Option<TypeReferenceHandle>> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Integer(literal) => {
             (!literal.value_bignum()?.is_negative()).then_some(None)

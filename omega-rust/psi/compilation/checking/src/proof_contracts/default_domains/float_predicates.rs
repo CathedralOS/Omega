@@ -151,12 +151,7 @@ fn predicate(
     infer_field_landing: bool,
     depth: usize,
 ) -> Option<bool> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     let ExpressionNode::Binary(binary) = node else {
         return match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),

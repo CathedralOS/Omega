@@ -48,12 +48,7 @@ pub(super) fn for_each_projection_expression(
         .map(|expression| (*expression, 0))
         .collect::<Vec<_>>();
     while let Some((expression, depth)) = pending.pop() {
-        let Some(node) = program
-            .expression_table
-            .expression_at_depth(expression, depth)
-        else {
-            return None;
-        };
+        let node = program.expression_table.expression_at_depth(expression, depth)?;
         let mut visit = |child: ExpressionHandle| pending.push((child, depth + 1));
         match node {
             ExpressionNode::Member(member) => member_arm(member, expression, &mut visit)?,

@@ -637,12 +637,7 @@ fn direct_input(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Atomic(atomic) => direct_input(program, atomic.value, depth + 1),
         ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
@@ -668,12 +663,7 @@ fn endpoint_inputs<'program>(
     length_dependencies: &mut Vec<LengthDependency<'program>>,
     depth: usize,
 ) -> Option<()> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Integer(_) => Some(()),
         ExpressionNode::Atomic(atomic) => endpoint_inputs(

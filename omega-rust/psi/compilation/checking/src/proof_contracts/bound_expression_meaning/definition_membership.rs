@@ -143,12 +143,7 @@ fn subject_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     let reference = match node {
         ExpressionNode::Name(path) => {
             let [name] = program.expression_table.name_path_members(path.members) else {

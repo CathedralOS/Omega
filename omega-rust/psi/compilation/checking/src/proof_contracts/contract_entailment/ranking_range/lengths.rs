@@ -150,12 +150,7 @@ fn install_expression(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<()> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     // These handles are metadata projections only. A slice Name stays outside
     // the scalar language, including in expressions that algebraically cancel.
     if matches!(node, ExpressionNode::Member(_)) {
@@ -238,12 +233,7 @@ fn evaluate_length(
     engine: &mut Engine<'_>,
     depth: usize,
 ) -> Option<Polynomial> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     if let ExpressionNode::Borrow(borrow) = node {
         if !matches!(
             borrow.access,

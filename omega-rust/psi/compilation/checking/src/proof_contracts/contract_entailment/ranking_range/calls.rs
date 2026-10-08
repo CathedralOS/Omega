@@ -977,12 +977,7 @@ fn bind_destination_fields(
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
-        let Some(node) = program
-            .expression_table
-            .expression_at_depth(expression, depth)
-        else {
-            return None;
-        };
+        let node = program.expression_table.expression_at_depth(expression, depth)?;
         match node {
             ExpressionNode::Member(member) => {
                 if let Some(coordinate) = fields::FieldCoordinate::resolve_field_projection(
@@ -1043,12 +1038,7 @@ fn bind_destination_lengths(
 ) -> Option<()> {
     let mut pending = vec![(expression, 0usize)];
     while let Some((expression, depth)) = pending.pop() {
-        let Some(node) = program
-            .expression_table
-            .expression_at_depth(expression, depth)
-        else {
-            return None;
-        };
+        let node = program.expression_table.expression_at_depth(expression, depth)?;
         match node {
             ExpressionNode::Member(member) => {
                 if member.case_variant.is_none()

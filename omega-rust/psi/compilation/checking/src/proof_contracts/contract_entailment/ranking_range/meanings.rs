@@ -13,12 +13,7 @@ pub(super) fn builtin(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Option<TypeReferenceHandle>> {
-    let Some(node) = program
-        .expression_table
-        .expression_at_depth(expression, depth)
-    else {
-        return None;
-    };
+    let node = program.expression_table.expression_at_depth(expression, depth)?;
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {
         // This uses the existing anonymous-operator classifier and folds only
         // a wholly anonymous integral subtree, not typed integer division.
