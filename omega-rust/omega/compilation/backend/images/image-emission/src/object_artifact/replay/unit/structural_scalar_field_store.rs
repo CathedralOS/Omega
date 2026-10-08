@@ -1,6 +1,7 @@
 //! Independent object replay for fixed-width immediate stores into staged
 //! attached-Unit structural parameter homes.
 
+use super::super::exact_attribution_count;
 use machine_code::{
     InternalUnitScalarArgumentSourceRecord, MachineCodeFunction, SemanticCodeSite,
     UnitStructuralScalarFieldStoreRecord,
@@ -62,7 +63,12 @@ fn validate_store(
             .provenance
             .operations
             .contains(&store.psi_operation)
-        || exact_attribution_count(function, store) != 1
+        || exact_attribution_count(
+            &function.semantic_code_attribution,
+            store.psi_operation,
+            store.operation_ordinal,
+            Some((store.code_offset, store.byte_count)),
+        ) != 1
     {
         return None;
     }
@@ -267,21 +273,6 @@ fn zero_code_source_is_consistent(
         })
 }
 
-fn exact_attribution_count(
-    function: &MachineCodeFunction,
-    store: &UnitStructuralScalarFieldStoreRecord,
-) -> usize {
-    function
-        .semantic_code_attribution
-        .iter()
-        .filter(|row| {
-            row.site == SemanticCodeSite::Operation(store.psi_operation)
-                && row.operation_ordinal == store.operation_ordinal
-                && row.code_offset == store.code_offset
-                && row.byte_count == store.byte_count
-        })
-        .count()
-}
 
 pub(crate) fn integer_bits(scalar_type: IntegerType, value: IntegerValue) -> Option<u64> {
     let width = scalar_type.bits();

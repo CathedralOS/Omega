@@ -1,5 +1,6 @@
 //! Independent object replay for whole-root non-observing primitive stores.
 
+use super::super::exact_attribution_count;
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
@@ -246,7 +247,12 @@ fn validate_store(
             .provenance
             .operations
             .contains(&store.psi_operation)
-        || exact_attribution_count(function, store) != 1
+        || exact_attribution_count(
+            &function.semantic_code_attribution,
+            store.psi_operation,
+            store.operation_ordinal,
+            Some((store.code_offset, store.byte_count)),
+        ) != 1
         || target.pointer_size != 8
         || target.pointer_alignment != 8
     {
@@ -342,21 +348,6 @@ fn exact_zero_code_definition_count(
         .count()
 }
 
-fn exact_attribution_count(
-    function: &MachineCodeFunction,
-    store: &UnitWriteOnlyPrimitiveStoreRecord,
-) -> usize {
-    function
-        .semantic_code_attribution
-        .iter()
-        .filter(|row| {
-            row.site == SemanticCodeSite::Operation(store.psi_operation)
-                && row.operation_ordinal == store.operation_ordinal
-                && row.code_offset == store.code_offset
-                && row.byte_count == store.byte_count
-        })
-        .count()
-}
 
 /// Verify the ABI custody of one scalar source that arrived through a call
 /// parameter: the recorded parameter placement must be the plan's own entry

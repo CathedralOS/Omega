@@ -1,5 +1,6 @@
 //! Independent object replay for bounded ordered mutable-parameter scalar stores.
 
+use super::super::exact_attribution_count;
 use calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
 use machine_code::{MachineCodeFunction, SemanticCodeSite};
 use semantic_vocabulary::{IntegerSign, ScalarType};
@@ -112,7 +113,12 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
             || store.operation_ordinal != operation_ordinal
             || store.code_offset != expected_store_prefix.len()
             || exact_defining_attribution_count(function, store) != 1
-            || exact_attribution_count(function, store) != 1
+            || exact_attribution_count(
+            &function.semantic_code_attribution,
+            store.psi_operation,
+            store.operation_ordinal,
+            Some((store.code_offset, store.byte_count)),
+        ) != 1
             || stores[..index].iter().any(|earlier| {
                 earlier.psi_operation == store.psi_operation
                     || earlier.defining_operation == store.defining_operation
@@ -169,21 +175,6 @@ fn valid_store_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
     )
 }
 
-fn exact_attribution_count(
-    function: &MachineCodeFunction,
-    store: &machine_code::ScalarStructuralScalarFieldStoreRecord,
-) -> usize {
-    function
-        .semantic_code_attribution
-        .iter()
-        .filter(|row| {
-            row.site == SemanticCodeSite::Operation(store.psi_operation)
-                && row.operation_ordinal == store.operation_ordinal
-                && row.code_offset == store.code_offset
-                && row.byte_count == store.byte_count
-        })
-        .count()
-}
 
 fn exact_defining_attribution_count(
     function: &MachineCodeFunction,

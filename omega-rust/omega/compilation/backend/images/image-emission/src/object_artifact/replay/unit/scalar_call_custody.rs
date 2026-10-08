@@ -13,7 +13,7 @@ use calling_conventions::{
 };
 use machine_code::{
     InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord, MachineCodeFunction,
-    SemanticCodeAttribution, SemanticCodeSite, UnitIntegerConstantRecord,
+    UnitIntegerConstantRecord,
 };
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType,
@@ -21,6 +21,7 @@ use semantic_vocabulary::{
 use target::{Architecture, NativeTarget};
 use target_operations::{CallSiteOwner, ScalarFunctionAbi};
 
+use super::super::exact_attribution_count;
 use super::super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
     x86_terminal_register,
@@ -1033,24 +1034,6 @@ fn expected_aarch64_normalize(words: &mut Vec<u32>, register: u8, scalar: Scalar
     );
 }
 
-fn exact_attribution_count(
-    attribution: &[SemanticCodeAttribution],
-    operation: semantic_vocabulary::OperationId,
-    ordinal: usize,
-    interval: Option<(usize, usize)>,
-) -> usize {
-    attribution
-        .iter()
-        .filter(|row| {
-            row.site == SemanticCodeSite::Operation(operation)
-                && row.operation_ordinal == ordinal
-                && interval.is_none_or(|(offset, count)| {
-                    row.code_offset == offset && row.byte_count == count
-                })
-                && (interval.is_some() || row.byte_count == 0)
-        })
-        .count()
-}
 
 fn align(value: u32, alignment: u32) -> Option<u32> {
     if alignment == 0 || !alignment.is_power_of_two() {
