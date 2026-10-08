@@ -322,11 +322,7 @@ impl<'program> LayoutBuilder<'program> {
         match existing {
             Some(index) if self.generic_instance_signatures[index].1 == signature => {
                 // Memo hit: the recorded instance is this one.
-                if let Some(data_layout) = self
-                    .data_layouts
-                    .iter()
-                    .find(|(_, data_layout)| data_layout.symbol == definition.symbol)
-                    .map(|(_, data_layout)| data_layout)
+                if let Some((_, data_layout)) = self.data_layout_entry_by_symbol(definition.symbol)
                 {
                     return Ok(data_layout.layout);
                 }
@@ -342,9 +338,7 @@ impl<'program> LayoutBuilder<'program> {
                 // instance's offsets). Sizes stay correct for BOTH: each use
                 // computes its own layout with its own bindings below.
                 if let Some(handle) = self
-                    .data_layouts
-                    .iter()
-                    .find(|(_, data_layout)| data_layout.symbol == definition.symbol)
+                    .data_layout_entry_by_symbol(definition.symbol)
                     .map(|(handle, _)| handle)
                 {
                     self.data_layouts.get_mut(handle).symbol = SymbolHandle::invalid();
@@ -382,9 +376,8 @@ impl<'program> LayoutBuilder<'program> {
         // The exact typed placed-plan row wins for runtime representation:
         // this is an address carrier, not an inline atomic resident.
         let compiler_placed_accessor = self
-            .data_definitions
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+            .data_definition_by_symbol(symbol)
+            .ok()
             .is_some_and(|definition| self.is_compiler_placed_accessor_definition(definition));
         if compiler_placed_accessor {
             return self.layout_data_definition(symbol);
@@ -404,11 +397,7 @@ impl<'program> LayoutBuilder<'program> {
             )));
         }
 
-        if let Some(definition) = self
-            .data_definitions
-            .iter()
-            .find(|definition| definition.symbol == symbol)
-        {
+        if let Ok(definition) = self.data_definition_by_symbol(symbol) {
             if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
                 if let Some(selection) =
                     selection_for_opaque(self.opaque_representation_selections, symbol)

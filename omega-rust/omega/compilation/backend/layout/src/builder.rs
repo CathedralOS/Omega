@@ -25,7 +25,7 @@ use crate::{
     TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
     TypeLayoutDescriptor, VariantLayout,
 };
-use arena::Arena;
+use arena::{Arena, Handle};
 use diagnostics::Diagnostic;
 use representation_selections::OpaqueRepresentationSelection;
 use symbols::{BuiltinType, SymbolHandle};
@@ -256,12 +256,7 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn layout_data_definition(&mut self, symbol: SymbolHandle) -> Result<TypeLayout, Diagnostic> {
-        if let Some(data_layout) = self
-            .data_layouts
-            .iter()
-            .find(|(_, data_layout)| data_layout.symbol == symbol)
-            .map(|(_, data_layout)| data_layout)
-        {
+        if let Some((_, data_layout)) = self.data_layout_entry_by_symbol(symbol) {
             return Ok(data_layout.layout);
         }
 
@@ -321,6 +316,16 @@ impl<'program> LayoutBuilder<'program> {
             .ok_or_else(|| {
                 Diagnostic::error(format!("unknown data type symbol {}", symbol.arena_index()))
             })
+    }
+
+    /// The planned layout entry keyed `symbol`, when that data type already has one.
+    fn data_layout_entry_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(Handle<DataLayout>, &DataLayout)> {
+        self.data_layouts
+            .iter()
+            .find(|(_, data_layout)| data_layout.symbol == symbol)
     }
 
     fn builtin_type_layout(&self, symbol: SymbolHandle) -> Option<TypeLayout> {
