@@ -215,6 +215,17 @@ pub(crate) fn boolean_decision_block_count(decision: &LoweredBooleanDecision) ->
 /// dispatch, plus the entry block each case edge takes into an outcome that is
 /// not its own reserved test: the selected case's into a shared successor, and
 /// every unselected case's into the false outcome.
+/// A guard decision whose arms return the Boolean literal of the taken side.
+pub(crate) fn boolean_literal_guard_decision(
+    expression: &LoweredBooleanReturnExpression,
+) -> LoweredBooleanDecision {
+    lower_boolean_control_decision(
+        expression,
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }),
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: false }),
+    )
+}
+
 pub(crate) fn boolean_guard_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
     match decision {
         LoweredBooleanDecision::Value(_) => 0,
