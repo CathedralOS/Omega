@@ -362,12 +362,12 @@ fn lower_nonbinary_expression_node_into_table(
             let member_symbols =
                 expression_table(lowerer).reserve_name_path_member_symbols(members.count());
             Ok(
-                expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
+                expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath::new(
                     members,
                     member_symbols,
-                    head_symbol: SymbolHandle::invalid(),
-                    symbol: SymbolHandle::invalid(),
-                })),
+                    SymbolHandle::invalid(),
+                    SymbolHandle::invalid(),
+                ))),
             )
         }
         syntax::expression::ExpressionNode::Range(range) => {

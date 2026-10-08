@@ -117,12 +117,7 @@ pub(crate) fn insert_subject_name(
     let mut member_symbols = HandleSpan::empty();
     table.push_name_path_member_symbol(&mut member_symbols, symbol);
     table.insert(ExpressionNode::Name(
-        typed_trees::expression::TableNamePath {
-            members,
-            member_symbols,
-            head_symbol: symbol,
-            symbol,
-        },
+        typed_trees::expression::TableNamePath::new(members, member_symbols, symbol, symbol),
     ))
 }
 

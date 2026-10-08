@@ -72,10 +72,10 @@ pub(crate) fn mint_hoist_temp(
     let mut members = HandleSpan::empty();
     expressions.push_name_path_member(&mut members, name);
     let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
-    expressions.insert(ExpressionNode::Name(TableNamePath {
+    expressions.insert(ExpressionNode::Name(TableNamePath::new(
         members,
         member_symbols,
-        head_symbol: SymbolHandle::invalid(),
-        symbol: SymbolHandle::invalid(),
-    }))
+        SymbolHandle::invalid(),
+        SymbolHandle::invalid(),
+    )))
 }

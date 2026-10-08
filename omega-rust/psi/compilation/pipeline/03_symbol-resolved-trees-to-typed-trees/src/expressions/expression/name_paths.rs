@@ -24,12 +24,7 @@ pub(super) fn lower_table_name_path_node_into_table(
     let members = lower_name_path_members_into_table(source, target, path.members);
     let member_symbols = lower_name_path_member_symbols_into_table(source, target, path);
 
-    typed::expression::TableNamePath {
-        members,
-        member_symbols,
-        head_symbol: path.head_symbol,
-        symbol: path.symbol,
-    }
+    typed::expression::TableNamePath::new(members, member_symbols, path.head_symbol, path.symbol)
 }
 
 fn lower_name_path_member_symbols_into_table(

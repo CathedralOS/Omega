@@ -742,6 +742,25 @@ pub struct TableNamePath {
     pub symbol: SymbolHandle,
 }
 
+impl TableNamePath {
+    /// The name path spelling a resolved name: ordered members with their
+    /// per-member resolution symbols, the head symbol, and the symbol the
+    /// whole path resolves to.
+    pub const fn new(
+        members: HandleSpan<DiagnosticName>,
+        member_symbols: HandleSpan<SymbolHandle>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            members,
+            member_symbols,
+            head_symbol,
+            symbol,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableStructLiteral {
     pub type_name: DiagnosticName,

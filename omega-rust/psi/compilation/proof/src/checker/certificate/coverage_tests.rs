@@ -45,12 +45,7 @@ fn name_path(program: &mut TypedTrees, symbol: SymbolHandle) -> TableNamePath {
     program
         .expression_table
         .push_name_path_member_symbol(&mut member_symbols, symbol);
-    TableNamePath {
-        members,
-        member_symbols,
-        head_symbol: symbol,
-        symbol,
-    }
+    TableNamePath::new(members, member_symbols, symbol, symbol)
 }
 
 fn binary(
