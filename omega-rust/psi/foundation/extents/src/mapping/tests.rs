@@ -1,70 +1,17 @@
 //! Mapping grant, translation and completion tests.
 
 use super::{
-    AddressSpaceId, Extent, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRights,
-    ExtentRootOrigin, MappingEraId, MappingGrant, MappingGrantId, MappingId, MappingSourceMode,
-    PeerWriteRevocationFactId, PeerWriteRevocationObligations, PeerWriteRevocationReceipt,
-    PendingMap, PendingUnmap, TranslationActivationFactId, TranslationActivationReceipt,
-    TranslationCompletionFactId, TranslationInstallObligations, TranslationReleaseObligations,
-    TranslationReleaseReceipt, map_borrowed, map_owned,
+    AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRootOrigin, MappingEraId,
+    MappingGrant, MappingGrantId, MappingId, MappingSourceMode, PeerWriteRevocationFactId,
+    PeerWriteRevocationObligations, PeerWriteRevocationReceipt, PendingMap, PendingUnmap,
+    TranslationActivationFactId, TranslationActivationReceipt, TranslationCompletionFactId,
+    TranslationInstallObligations, TranslationReleaseObligations, TranslationReleaseReceipt,
+    map_borrowed, map_owned,
 };
-use crate::{ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRightId, ExtentRootGrant};
-
-fn id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
-    constructor(identity).expect("normalized identity")
-}
-
-fn provider_issuance(seed: u64) -> ExtentProviderIssuance {
-    provider_issuance_for_invocation(seed, seed)
-}
-
-fn provider_issuance_for_invocation(
-    issuance_seed: u64,
-    invocation_seed: u64,
-) -> ExtentProviderIssuance {
-    let base = issuance_seed * 16;
-    let invocation_base = invocation_seed * 16;
-    ExtentProviderIssuance::from_normalized_identities([
-        base + 1,
-        base + 2,
-        base + 3,
-        base + 4,
-        base + 5,
-        base + 6,
-        base + 7,
-        base + 8,
-        invocation_base + 9,
-        invocation_base + 10,
-        invocation_base + 11,
-        invocation_base + 12,
-        invocation_base + 13,
-    ])
-    .expect("normalized provider issuance")
-}
-
-fn program_local_origin(seed: u64) -> ExtentProgramLocalOrigin {
-    let base = seed * 16;
-    ExtentProgramLocalOrigin::from_normalized_identities([
-        base + 1,
-        base + 2,
-        base + 3,
-        base + 4,
-        base + 5,
-        base + 6,
-        base + 7,
-        base + 8,
-    ])
-    .expect("normalized program-local origin")
-}
-
-fn rights(identities: &[u64]) -> ExtentRights {
-    ExtentRights::from_normalized_identities(
-        identities
-            .iter()
-            .copied()
-            .map(|identity| id(identity, ExtentRightId::from_normalized_identity)),
-    )
-}
+use crate::ExtentRootGrant;
+use crate::tests::{
+    id, program_local_origin, provider_issuance, provider_issuance_for_invocation, rights,
+};
 
 fn extent(
     lineage: u64,
