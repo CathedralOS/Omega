@@ -51,4 +51,15 @@ impl TableCallExpression {
     pub fn carries_only_positional_arguments(&self) -> bool {
         self.machine_arguments.is_empty() && self.evidence_arguments.is_empty()
     }
+
+    /// Whether the call is an unadorned positional application: no receiver,
+    /// no retained static machine parameter, the nominal route alone, and
+    /// only positional arguments — the shape proof searches accept when they
+    /// model a call by symbol and operand values alone.
+    pub fn is_ordinary_positional_call(&self) -> bool {
+        !self.receiver.is_valid()
+            && !self.static_machine_parameter.is_valid()
+            && self.selects_only_nominal_route()
+            && self.carries_only_positional_arguments()
+    }
 }

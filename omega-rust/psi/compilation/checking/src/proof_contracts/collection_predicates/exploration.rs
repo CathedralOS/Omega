@@ -428,15 +428,7 @@ fn tail_call_exit(
     atoms: &[IntegerSet],
     call: &typed_trees::expression::TableCallExpression,
 ) -> Result<Exit, Stop> {
-    if call.receiver.is_valid()
-        || call.static_machine_parameter.is_valid()
-        || call.static_requirement_dispatch.is_some()
-        || !call.machine_arguments.is_empty()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-        || call.layout_query.is_some()
-        || !call.evidence_arguments.is_empty()
-    {
+    if !call.is_ordinary_positional_call() {
         return Err(Stop::Unsupported);
     }
     let machine =

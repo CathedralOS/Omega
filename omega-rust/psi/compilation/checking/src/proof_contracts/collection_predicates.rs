@@ -93,15 +93,7 @@ pub(crate) fn predicate_application(
     let ExpressionNode::Call(call) = program.expression_table.expression(call_expression) else {
         return None;
     };
-    if call.receiver.is_valid()
-        || call.static_machine_parameter.is_valid()
-        || call.static_requirement_dispatch.is_some()
-        || !call.machine_arguments.is_empty()
-        || call.quotient_operation.is_some()
-        || call.private_layout_operation.is_some()
-        || call.layout_query.is_some()
-        || !call.evidence_arguments.is_empty()
-    {
+    if !call.is_ordinary_positional_call() {
         return None;
     }
     let machine = exploration::admitted_predicate_machine(program, call.target_symbol, false)?;
