@@ -3,9 +3,9 @@
 //! This module owns the mutable abstract environment and its merge/invalidation
 //! rules. Expression analysis and guard recognition remain in the parent.
 
-use super::{ExpressionHandle, Interval, Machine, State, ordered_values, place_path};
+use super::{ExpressionHandle, Interval, Machine, State, ordered_values};
 use crate::proof_contracts::arithmetic_domains::place_paths::{
-    canonical_path_pair, place_paths_overlap,
+    canonical_path_pair, place_path_pair, place_paths_overlap,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -398,10 +398,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         self.joint_add_upper_bounds
@@ -414,10 +411,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         self.joint_add_lower_bounds
@@ -430,10 +424,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         self.joint_subtract_bounds.contains(&(left, right))
@@ -445,10 +436,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         self.signed_joint_subtract_lower_bounds
@@ -461,10 +449,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         self.signed_joint_subtract_upper_bounds
@@ -477,10 +462,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         self.joint_multiply_bounds
@@ -493,10 +475,7 @@ impl ValueEnvironment {
         left: ExpressionHandle,
         right: ExpressionHandle,
     ) -> bool {
-        let Some(left) = place_path(program, left) else {
-            return false;
-        };
-        let Some(right) = place_path(program, right) else {
+        let Some((left, right)) = place_path_pair(program, left, right) else {
             return false;
         };
         let pair = canonical_path_pair(left, right);
@@ -511,9 +490,7 @@ impl ValueEnvironment {
         right: ExpressionHandle,
     ) -> bool {
         for (value, factor) in [(left, right), (right, left)] {
-            let (Some(value), Some(factor)) =
-                (place_path(program, value), place_path(program, factor))
-            else {
+            let Some((value, factor)) = place_path_pair(program, value, factor) else {
                 continue;
             };
             let factor_is_negative_one = self
