@@ -1012,6 +1012,7 @@ pass/host/runtime_console_bounded_line_lf_exit built 3487ms exit:13 stdout:match
 pass/host/runtime_console_bounded_line_middle_window_exit built 3397ms exit:70 stdout:match @0136a22812ee+wt
 pass/host/runtime_console_bounded_line_partial_eof_exit built 3759ms exit:22 stdout:match @0136a22812ee+wt
 pass/host/runtime_console_byte_echo_exit built 643ms exit:70
+pass/host/runtime_descriptor_binary_output_exit built 11297ms exit:0 @b5f60150b9b9+wt
 pass/host/runtime_descriptor_direct_array_exit built 14475ms exit:0 stdout:match stderr:match @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_mutable_view_input_exit built 15729ms exit:0 stdout:match @46782946f3c8+wt
 pass/host/runtime_descriptor_output_streams_exit built 11336ms exit:0 stdout:match stderr:match @c6603d3fbbc8+wt

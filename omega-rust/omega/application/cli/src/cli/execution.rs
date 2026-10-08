@@ -5,6 +5,7 @@ use compiler::CompilerRequestOutcome;
 use omega::execution::{
     ExecutionOutcome, InterpreterComparison, RunError, RunRequest, run_project,
 };
+use std::io::Write;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
     let outcome = match run_project(RunRequest {
@@ -32,8 +33,15 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             exit,
             comparison,
         } => {
-            print!("{}", String::from_utf8_lossy(&output.stdout));
-            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+            if let Err(error) = forward_program_output(&output) {
+                // stderr may itself be the failed pipe. Reporting is best
+                // effort, but failed forwarding must never look successful.
+                let _ = writeln!(
+                    std::io::stderr().lock(),
+                    "cannot forward program output: {error}"
+                );
+                std::process::exit(200);
+            }
             let native_code = exit.code().unwrap_or(-1);
             eprintln!("native {}", exit.describe());
             match comparison {
@@ -67,6 +75,18 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         eprintln!("build dir kept: {}", outcome.build_dir.display());
     }
     std::process::exit(status);
+}
+
+/// Program streams are bytes, not diagnostic text. Forward the captured
+/// payloads unchanged and finish each write before presenting CLI diagnostics.
+/// Explicit flushes expose a failed buffered write before choosing an exit.
+fn forward_program_output(output: &std::process::Output) -> std::io::Result<()> {
+    let mut standard_output = std::io::stdout().lock();
+    standard_output.write_all(&output.stdout)?;
+    standard_output.flush()?;
+    let mut standard_error = std::io::stderr().lock();
+    standard_error.write_all(&output.stderr)?;
+    standard_error.flush()
 }
 
 /// A compile that stopped at a named private provision without a verdict on

@@ -34,7 +34,9 @@ for independent native and Terminal replay. Use a finite pipe or redirected file
 for comparison; interactive input must be ended with EOF. Temporary input storage
 is deleted even with `--keep`.
 Target-only invocations do not read stdin. Stdout/stderr remain captured until
-native execution ends.
+native execution ends. The command forwards those original bytes without
+UTF-8 decoding, before its own diagnostics on stderr. A failed stream write or
+flush reports a command error (status 200), not a successful program result.
 
 Comparison runs the shared Terminal runtime on the native report's exact produced
 artifact and retained entry/provider provisions before publication transfers that

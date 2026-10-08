@@ -3084,6 +3084,7 @@ pass/host/runtime_console_bounded_line_lf_exit checked 3373ms check-target:macos
 pass/host/runtime_console_bounded_line_middle_window_exit checked 3402ms check-target:macos_arm64 @b1114d1269ad
 pass/host/runtime_console_bounded_line_partial_eof_exit checked 3250ms check-target:macos_arm64 @b1114d1269ad
 pass/host/runtime_console_byte_echo_exit checked 3670ms check-target:macos_arm64 @dac9585f443
+pass/host/runtime_descriptor_binary_output_exit checked 11190ms check-target:macos_arm64 @b5f60150b9b9+wt
 pass/host/runtime_descriptor_direct_array_exit checked 14364ms check-target:macos_arm64 @c6603d3fbbc8+wt
 pass/host/runtime_descriptor_mutable_view_input_exit checked 15309ms check-target:macos_arm64 @46782946f3c8+wt
 pass/host/runtime_descriptor_output_streams_exit checked 11212ms check-target:macos_arm64 @c6603d3fbbc8+wt
