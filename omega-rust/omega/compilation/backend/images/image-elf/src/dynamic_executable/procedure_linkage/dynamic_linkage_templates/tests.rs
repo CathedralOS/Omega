@@ -20,45 +20,7 @@ use crate::dynamic_executable::procedure_linkage::dynamic_linkage_templates::tem
 use target::TargetProfile;
 use crate::dynamic_executable::checked::{checked_product, checked_sum, checked_u32, read_u64};
 
-#[derive(Clone, Copy)]
-struct ImportFixture {
-    object: &'static [u8],
-    symbol: &'static [u8],
-    version: &'static [u8],
-    instruction_offsets: &'static [usize],
-}
-
-const FIRST_SITES: &[usize] = &[0, 44];
-const SECOND_SITES: &[usize] = &[16];
-const THIRD_SITES: &[usize] = &[28];
-const IMPORTS: [ImportFixture; 3] = [
-    ImportFixture {
-        object: b"liba\xff.so",
-        symbol: b"alpha\xfe",
-        version: b"V1\xfd",
-        instruction_offsets: FIRST_SITES,
-    },
-    ImportFixture {
-        object: b"liba\xff.so",
-        symbol: b"beta",
-        version: b"V2",
-        instruction_offsets: SECOND_SITES,
-    },
-    ImportFixture {
-        object: b"libb.so",
-        symbol: b"gamma",
-        version: b"V1\xfd",
-        instruction_offsets: THIRD_SITES,
-    },
-];
-
-fn interpreter_path(target: TargetProfile) -> &'static [u8] {
-    match target {
-        TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
-        TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
-        _ => unreachable!("template fixture uses a Linux target"),
-    }
-}
+use crate::test_support::{IMPORTS, ImportFixture, import_fixture_interpreter_path};
 
 fn linkage(
     target: TargetProfile,
@@ -127,8 +89,9 @@ fn linkage(
                 });
         }
     }
-    let interpreter = normalize_elf_interpreter_plan(interpreter_path(target).to_vec(), target)
-        .expect("valid template interpreter");
+    let interpreter =
+        normalize_elf_interpreter_plan(import_fixture_interpreter_path(target).to_vec(), target)
+            .expect("valid template interpreter");
     let inputs =
         plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link inputs");
     let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");

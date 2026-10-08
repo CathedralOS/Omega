@@ -19,45 +19,7 @@ use image::{
 use object_file::SymbolKind;
 use target::{ForeignLocatorCandidate, normalize_elf_interpreter_plan, normalize_foreign_locator};
 
-#[derive(Clone, Copy)]
-struct ImportFixture {
-    object: &'static [u8],
-    symbol: &'static [u8],
-    version: &'static [u8],
-    instruction_offsets: &'static [usize],
-}
-
-const FIRST_SITES: &[usize] = &[0, 44];
-const SECOND_SITES: &[usize] = &[16];
-const THIRD_SITES: &[usize] = &[28];
-const IMPORTS: [ImportFixture; 3] = [
-    ImportFixture {
-        object: b"liba\xff.so",
-        symbol: b"alpha\xfe",
-        version: b"V1\xfd",
-        instruction_offsets: FIRST_SITES,
-    },
-    ImportFixture {
-        object: b"liba\xff.so",
-        symbol: b"beta",
-        version: b"V2",
-        instruction_offsets: SECOND_SITES,
-    },
-    ImportFixture {
-        object: b"libb.so",
-        symbol: b"gamma",
-        version: b"V1\xfd",
-        instruction_offsets: THIRD_SITES,
-    },
-];
-
-fn interpreter_path(target: TargetProfile) -> &'static [u8] {
-    match target {
-        TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
-        TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
-        _ => unreachable!("procedure-linkage fixture uses a Linux target"),
-    }
-}
+use crate::test_support::{IMPORTS, ImportFixture, import_fixture_interpreter_path};
 
 fn image(
     target: TargetProfile,
@@ -166,8 +128,9 @@ fn descriptors_from_image(
     target: TargetProfile,
     image: FinalImage,
 ) -> ValidatedElfDynamicSectionDescriptorPlan {
-    let interpreter = normalize_elf_interpreter_plan(interpreter_path(target).to_vec(), target)
-        .expect("valid procedure-linkage interpreter");
+    let interpreter =
+        normalize_elf_interpreter_plan(import_fixture_interpreter_path(target).to_vec(), target)
+            .expect("valid procedure-linkage interpreter");
     let inputs =
         plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link preflight");
     let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");

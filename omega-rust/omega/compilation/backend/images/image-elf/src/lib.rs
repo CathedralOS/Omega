@@ -360,4 +360,50 @@ pub(crate) mod test_support {
         let relative = crate::plan_elf_relative_section_payload_layout(payloads).unwrap();
         crate::plan_elf_dynamic_load_layout(relative).unwrap()
     }
+
+    /// One procedure-linkage import for the multi-import fixtures: the raw
+    /// library coordinates plus the text offsets that relocate against it.
+    /// The byte values are deliberately unprintable so the tests exercise
+    /// byte-exact identity rather than display paths.
+    #[derive(Clone, Copy)]
+    pub(crate) struct ImportFixture {
+        pub(crate) object: &'static [u8],
+        pub(crate) symbol: &'static [u8],
+        pub(crate) version: &'static [u8],
+        pub(crate) instruction_offsets: &'static [usize],
+    }
+
+    /// The three-import procedure-linkage fixture shared by the relocation
+    /// and template tests: two imports in one library plus a third in
+    /// another.
+    pub(crate) const IMPORTS: [ImportFixture; 3] = [
+        ImportFixture {
+            object: b"liba\xff.so",
+            symbol: b"alpha\xfe",
+            version: b"V1\xfd",
+            instruction_offsets: &[0, 44],
+        },
+        ImportFixture {
+            object: b"liba\xff.so",
+            symbol: b"beta",
+            version: b"V2",
+            instruction_offsets: &[16],
+        },
+        ImportFixture {
+            object: b"libb.so",
+            symbol: b"gamma",
+            version: b"V1\xfd",
+            instruction_offsets: &[28],
+        },
+    ];
+
+    /// The unprintable-byte interpreter path the multi-import fixtures link
+    /// against.
+    pub(crate) fn import_fixture_interpreter_path(target: TargetProfile) -> &'static [u8] {
+        match target {
+            TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
+            TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
+            _ => unreachable!("import fixture uses a Linux target"),
+        }
+    }
 }
