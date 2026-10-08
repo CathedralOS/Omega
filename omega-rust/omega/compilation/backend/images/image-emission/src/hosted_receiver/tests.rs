@@ -1,6 +1,6 @@
 use super::{
     ProgramEntryPhysicalContractPlan, physical_contract_matches, receiver_pointer_matches,
-    zero_valid_record_storage,
+    zero_valid_field, zero_valid_record_storage,
 };
 
 #[test]
@@ -52,12 +52,14 @@ fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
     assert!(!zero_valid_record_storage(
         &declarations,
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     assert!(!zero_valid_record_storage(
         &declarations,
         service,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     let mut used = super::ErasedRowUse::default();
     assert!(
@@ -133,7 +135,12 @@ fn zero_filled_receiver_byte_fields_require_owned_backing_or_a_shared_view() {
         );
         for selected in [root, child] {
             assert_eq!(
-                zero_valid_record_storage(&declarations, selected, &mut Vec::new()),
+                zero_valid_record_storage(
+                    &declarations,
+                    selected,
+                    &mut Vec::new(),
+                    zero_valid_field
+                ),
                 expected,
                 "carrier {carrier:?}, root {selected:?}",
             );
@@ -181,7 +188,8 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
     assert!(zero_valid_record_storage(
         &declarations,
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     for required in [false, true] {
         let mut refined = declarations.clone();
@@ -202,14 +210,15 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
             ))],
         };
         assert_eq!(
-            zero_valid_record_storage(&refined, root, &mut Vec::new()),
+            zero_valid_record_storage(&refined, root, &mut Vec::new(), zero_valid_field),
             !required
         );
     }
     assert!(!zero_valid_record_storage(
         &declarations[..1],
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     for field_type in [
         StructuralFieldType::Structural(root),
@@ -230,14 +239,20 @@ fn nested_receiver_storage_rejects_missing_cyclic_erased_and_zero_excluded_leave
             storage: None,
             fields: vec![field(field_type)],
         };
-        assert!(!zero_valid_record_storage(&changed, root, &mut Vec::new()));
+        assert!(!zero_valid_record_storage(
+            &changed,
+            root,
+            &mut Vec::new(),
+            zero_valid_field
+        ));
     }
     let mut duplicated = declarations.clone();
     duplicated.push(declarations[1].clone());
     assert!(!zero_valid_record_storage(
         &duplicated,
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
 }
 
@@ -299,14 +314,16 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     assert!(zero_valid_record_storage(
         &declarations(sum_declaration(vec![])),
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     assert!(zero_valid_record_storage(
         &declarations(sum_declaration(vec![field(StructuralFieldType::Scalar(
             ScalarType::Boolean
         ))])),
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     for first_case_fields in [
         vec![field(StructuralFieldType::BoundedInteger(
@@ -337,7 +354,8 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
             !zero_valid_record_storage(
                 &declarations(sum_declaration(first_case_fields)),
                 root,
-                &mut Vec::new()
+                &mut Vec::new(),
+                zero_valid_field
             ),
             "first-case payload {label}"
         );
@@ -348,7 +366,8 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
     assert!(!zero_valid_record_storage(
         &declarations(empty),
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
 }
 
@@ -436,7 +455,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             });
         }
         assert!(
-            zero_valid_record_storage(&declarations, root, &mut Vec::new()),
+            zero_valid_record_storage(&declarations, root, &mut Vec::new(), zero_valid_field),
             "length {length} element {element_shape:?}"
         );
     }
@@ -483,7 +502,7 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
         ];
         assert_eq!(
-            zero_valid_record_storage(&declarations, root, &mut Vec::new()),
+            zero_valid_record_storage(&declarations, root, &mut Vec::new(), zero_valid_field),
             expected,
             "element {element_shape:?}"
         );
@@ -507,7 +526,12 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             },
         },
     ];
-    assert!(!zero_valid_record_storage(&cyclic, root, &mut Vec::new()));
+    assert!(!zero_valid_record_storage(
+        &cyclic,
+        root,
+        &mut Vec::new(),
+        zero_valid_field
+    ));
     // A mixed shape composes common fields with the zero-tag case payload.
     let mixed_declaration =
         |common: Vec<StructuralFieldDeclaration>, case_fields| StructuralTypeDeclaration {
@@ -550,7 +574,8 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             vec![]
         )),
         root,
-        &mut Vec::new()
+        &mut Vec::new(),
+        zero_valid_field
     ));
     for (common, case_fields) in [
         (
@@ -589,7 +614,8 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
             !zero_valid_record_storage(
                 &root_mixed(mixed_declaration(common, case_fields)),
                 root,
-                &mut Vec::new()
+                &mut Vec::new(),
+                zero_valid_field
             ),
             "{label}"
         );

@@ -17,6 +17,7 @@ use program_entry_plan::{
     ProgramEntryFusedServiceEstablishment, ProgramEntryPhysicalContractPlan,
     SelectedProgramEntrySourceSignature,
 };
+pub(crate) use terminal_semantics::zero_valid_record_storage;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostedReceiverBinding {
@@ -1142,8 +1143,12 @@ fn validate_receiver_fields(
                             outcome?;
                         }
                         _ => {
-                            let valid =
-                                zero_valid_record_storage(declarations, structural_type, visiting);
+                            let valid = zero_valid_record_storage(
+                                declarations,
+                                structural_type,
+                                visiting,
+                                zero_valid_field,
+                            );
                             if !valid {
                                 return Err(invalid());
                             }
@@ -1155,59 +1160,6 @@ fn validate_receiver_fields(
         }
     }
     Ok(())
-}
-
-/// Whether zero-filled storage is an established value of one nested
-/// declaration: scalar leaves, bounded integers containing zero, owned byte
-/// carriers, records and their transitive fields, fixed arrays whose element
-/// type is zero-valid at any length, and the first declared case of a closed
-/// sum — the zero tag selects it, so later cases never inhabit provisioned
-/// storage. Borrowed carriers, references, erased nested fields, unknown or
-/// duplicated declarations, and cycles all reject.
-fn zero_valid_record_storage(
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-) -> bool {
-    use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
-    let Some(declaration) =
-        terminal_psi::unique_structural_declaration(declarations, structural_type, visiting)
-    else {
-        return false;
-    };
-    visiting.push(structural_type);
-    let valid = match &declaration.shape {
-        StructuralTypeShape::Record { fields, .. } => fields
-            .iter()
-            .all(|field| zero_valid_field(declarations, field, visiting)),
-        StructuralTypeShape::FixedArray { element, .. } => {
-            zero_valid_record_storage(declarations, *element, visiting)
-        }
-        StructuralTypeShape::Sum { cases } => cases.first().is_some_and(|case| {
-            case.fields
-                .iter()
-                .all(|field| zero_valid_field(declarations, field, visiting))
-        }),
-        StructuralTypeShape::Mixed { fields, cases } => {
-            fields
-                .iter()
-                .all(|field| zero_valid_field(declarations, field, visiting))
-                && cases.first().is_some_and(|case| {
-                    case.fields
-                        .iter()
-                        .all(|field| zero_valid_field(declarations, field, visiting))
-                })
-        }
-        StructuralTypeShape::PrimitiveScalar(
-            semantic_vocabulary::ScalarType::Boolean
-            | semantic_vocabulary::ScalarType::Integer(_)
-            | semantic_vocabulary::ScalarType::IeeeFloat(_),
-        )
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
-        _ => false,
-    };
-    visiting.pop();
-    valid
 }
 
 fn zero_valid_field(
@@ -1246,7 +1198,7 @@ fn zero_valid_field(
                 predicates,
             } => predicates.holds_for(&[]),
             StructuralFieldType::Structural(child) => {
-                zero_valid_record_storage(declarations, child, visiting)
+                zero_valid_record_storage(declarations, child, visiting, zero_valid_field)
             }
             // No nested service occurrence is established by this bridge.
             _ => false,

@@ -51,6 +51,7 @@ mod storage_regions;
 mod structural_effect;
 mod structural_window;
 pub mod substitution;
+mod zero_valid_storage;
 mod zeroed_structural;
 
 pub use arrival_storage::{StorageNames, arrival_parameter, root_before_edge, storage_names};
@@ -150,6 +151,7 @@ pub use structural_window::{
     StructuralWindowProjection, structural_window_parameter_origins, structural_window_projection,
     structural_window_selects_child,
 };
+pub use zero_valid_storage::zero_valid_record_storage;
 pub use zeroed_structural::{
     EstablishedErasedStructuralField, ZeroedStructuralLeaf, zeroed_structural_leaves,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,

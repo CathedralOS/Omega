@@ -12,6 +12,8 @@ use terminal_psi::{
 };
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
+pub(crate) use terminal_semantics::zero_valid_record_storage;
+
 /// Derive the semantic entry contract from the settlement's admitted plan and
 /// exact calling application. Settlement owns their identity join; the wrapper
 /// consumes that result without running calling-plan admission again.
@@ -216,7 +218,12 @@ fn validate_receiver_fields(
                             visiting.pop();
                             valid
                         }
-                        _ => zero_valid_record_storage(declarations, child, visiting),
+                        _ => zero_valid_record_storage(
+                            declarations,
+                            child,
+                            visiting,
+                            zero_valid_field,
+                        ),
                     }
                 }
                 _ => false,
@@ -225,58 +232,9 @@ fn validate_receiver_fields(
     })
 }
 
-/// Whether zero-filled storage is an established value of one nested
-/// declaration. Mirrors the hosted-receiver bridge's discipline exactly:
-/// scalar leaves, bounded integers containing zero, owned byte carriers,
-/// records, fixed arrays, and the first declared case of a closed sum are
-/// established; references, erased fields, unknown or duplicated declarations,
-/// and cycles reject.
-fn zero_valid_record_storage(
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-) -> bool {
-    let Some(declaration) =
-        terminal_psi::unique_structural_declaration(declarations, structural_type, visiting)
-    else {
-        return false;
-    };
-    visiting.push(structural_type);
-    let valid = match &declaration.shape {
-        StructuralTypeShape::Record { fields, .. } => fields
-            .iter()
-            .all(|field| zero_valid_field(declarations, field, visiting)),
-        StructuralTypeShape::FixedArray { element, .. } => {
-            zero_valid_record_storage(declarations, *element, visiting)
-        }
-        StructuralTypeShape::Sum { cases } => cases.first().is_some_and(|case| {
-            case.fields
-                .iter()
-                .all(|field| zero_valid_field(declarations, field, visiting))
-        }),
-        StructuralTypeShape::Mixed { fields, cases } => {
-            fields
-                .iter()
-                .all(|field| zero_valid_field(declarations, field, visiting))
-                && cases.first().is_some_and(|case| {
-                    case.fields
-                        .iter()
-                        .all(|field| zero_valid_field(declarations, field, visiting))
-                })
-        }
-        StructuralTypeShape::PrimitiveScalar(
-            ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
-        )
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
-        _ => false,
-    };
-    visiting.pop();
-    valid
-}
-
 #[cfg(test)]
 mod service_tests {
-    use super::{validate_receiver_fields, zero_valid_record_storage};
+    use super::{validate_receiver_fields, zero_valid_field, zero_valid_record_storage};
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
     use terminal_psi::{
         BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
@@ -301,7 +259,8 @@ mod service_tests {
         assert!(!zero_valid_record_storage(
             std::slice::from_ref(&declaration),
             service,
-            &mut Vec::new()
+            &mut Vec::new(),
+            zero_valid_field
         ));
         let mut used = 0;
         assert!(!validate_receiver_fields(
@@ -333,7 +292,7 @@ fn zero_valid_field(
             }
             StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
             StructuralFieldType::Structural(child) => {
-                zero_valid_record_storage(declarations, child, visiting)
+                zero_valid_record_storage(declarations, child, visiting, zero_valid_field)
             }
             _ => false,
         }
