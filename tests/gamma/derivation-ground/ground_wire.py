@@ -19,13 +19,9 @@ def owner_row(definitions, preceding=()):
     return 24 + len(definitions) + 8 + sum(map(len, preceding))
 
 
-def root_left(definitions, owners):
-    return owner_row(definitions, owners)
-
-
 def witness_row(definitions, owners, preceding=()):
     # Eight root bytes finish the proposition; witness magic/count adds eight.
-    return root_left(definitions, owners) + 16 + sum(map(len, preceding))
+    return owner_row(definitions, owners) + 16 + sum(map(len, preceding))
 
 
 def grounded(sections, owner_count, witness_count, left, right, witness_bytes):
