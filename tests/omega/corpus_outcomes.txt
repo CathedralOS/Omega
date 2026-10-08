@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 4.38, "load1_start": 3.61, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.64, "load1_start": 3.97, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -260,6 +260,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 396ms expected @c910d797b35a
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 706ms expected @cba4afbf6f2f+wt
 	state `c_strnlen` receives `bytes` as both mutable and read-only
+fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 4445ms expected @935b9317809f+wt
+	argument `value` for state `read` is declared `&mut` (`&mut f32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/byte_array_state_loan_shared_and_exclusive rejected 447ms expected @ad48a872752b+wt
 	state `both` receives `bytes` as both mutable and read-only
 fail/borrows/byte_view_shared_element_mutable_reference rejected 139ms expected @d1ebe54629b8
@@ -3118,7 +3120,9 @@ pass/host/runtime_console_byte_echo_exit checked 3670ms check-target:macos_arm64
 pass/host/runtime_descriptor_binary_output_exit checked 11190ms check-target:macos_arm64 @b5f60150b9b9+wt
 pass/host/runtime_descriptor_binding_record_result_exit checked 14931ms check-target:macos_arm64 @9be6967d04c3+wt
 pass/host/runtime_descriptor_binding_state_forwarding_input_exit checked 14685ms check-target:macos_arm64 @9be6967d04c3+wt
+pass/host/runtime_descriptor_boolean_loan_output_exit checked 12364ms check-target:macos_arm64 @935b9317809f+wt
 pass/host/runtime_descriptor_direct_array_exit checked 14364ms check-target:macos_arm64 @c6603d3fbbc8+wt
+pass/host/runtime_descriptor_float_loan_input_exit checked 37614ms check-target:macos_arm64 @935b9317809f+wt
 pass/host/runtime_descriptor_local_array_loan_input_exit checked 19456ms check-target:macos_arm64 @198156d53e16
 pass/host/runtime_descriptor_mutable_view_input_exit checked 15309ms check-target:macos_arm64 @46782946f3c8+wt
 pass/host/runtime_descriptor_nested_array_window_exit checked 12842ms check-target:macos_arm64 @cf8f4f487a62+wt

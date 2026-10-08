@@ -558,6 +558,29 @@ fn validate_expression_call_bounds(
         return;
     }
 
+    if let Some(signature) = super::write_frames::boundary_trait_expression_call_signature(
+        program,
+        current_machine,
+        expression,
+    ) {
+        // A result's scalar/structural use does not change the requirement's
+        // argument contract. Apply the same custody, type and bound checks
+        // as statement-position boundary calls before execution planning.
+        super::validate_call_arguments_handles(
+            program,
+            current_machine,
+            Some(current_state),
+            value_environment,
+            arguments,
+            signature.name.as_str(),
+            program.state_signature_parameters(signature),
+            None,
+            writable_roots,
+            diagnostics,
+        );
+        return;
+    }
+
     // Self-call or receiverless call: select a machine requirement or entry,
     // never an internal state that happens to have the same spelling.
     if call_is_self {

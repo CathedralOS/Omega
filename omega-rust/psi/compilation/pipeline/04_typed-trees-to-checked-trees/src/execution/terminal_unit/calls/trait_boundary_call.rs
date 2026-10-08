@@ -353,6 +353,28 @@ pub(super) fn build(
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
+        // Boundary calls lend the same primitive local home as checked-body
+        // calls. Its existing admission retains the authored type and exact
+        // borrow occurrence; a scalar local is not a structural parameter.
+        if super::super::structural_scalar_store::primitive_local_before(
+            program,
+            state,
+            call.statement_index,
+            source_symbol,
+        )
+        .is_some()
+        {
+            structural_arguments.push(super::computation_arguments::primitive_local_argument(
+                program,
+                &facts.borrow,
+                machine.symbol,
+                state,
+                call,
+                &place,
+                formal,
+            )?);
+            continue;
+        }
         let source =
             SourceParameter::resolve(caller_source_parameters, caller_parameters, source_symbol)?;
         let custody = source.custody(structural_access_for_type_reference(program, formal));

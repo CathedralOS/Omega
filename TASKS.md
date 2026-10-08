@@ -1768,7 +1768,8 @@ then independent claimed restoration slices -> final closure.
   isolated instance. Complete external demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, padding-containing or non-scalar host buffers, non-hosted roots and required
+  loans, padding-containing, reference-bearing or atomic host buffers,
+  non-hosted roots and required
   receiver qualifications. Preserve
   `host/runtime_descriptor_binding_{state_forwarding_input,record_result}_exit`
   and `fail/borrows/binding_state_mutable_from_shared`: scalar and structural
@@ -1813,6 +1814,15 @@ then independent claimed restoration slices -> final closure.
   Preserve `host/runtime_descriptor_scalar_input_exit`: canonical boundary-trait
   supplies share one finite input cursor across import slots, retain untouched
   bytes on short reads, and leave caller storage unchanged on zero-count/EOF.
+  Preserve `host/runtime_descriptor_{float_loan_input,boolean_loan_output}_exit`
+  and `fail/borrows/boundary_primitive_loan_mutable_from_shared`: boundary and
+  checked-body calls must share primitive-home loan admission and argument
+  validation. Floating-point output retains exact IEEE bits; Boolean output is
+  its canonical byte, not text. Thin foreign pointers may unwrap an internal
+  scalar descriptor only when the existing storage-view relation proves its
+  exact byte footprint; ambiguous-width scalar exports remain unavailable.
+  Primitive boundary loans from immutable value bindings still need original
+  home admission; binding replacement mutability is not borrow authority.
   Preserve the mutable-view and record-array input fixtures too: original
   array/field windows retain exact live extents and unread/outside bytes;
   field presentation cannot substitute the record owner's type or grant resizing.

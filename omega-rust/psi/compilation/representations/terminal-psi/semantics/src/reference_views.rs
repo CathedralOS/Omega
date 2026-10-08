@@ -49,6 +49,42 @@ pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarT
     }
 }
 
+/// A logical scalar's byte footprint when every admitted backing interpretation
+/// has that footprint. A thin foreign pointer carries no codec, so a logical
+/// width alone cannot justify exporting an internal descriptor: wider integer
+/// observations can still name narrower storage. This query grants neither
+/// access nor lifetime authority and does not replace source/view admission.
+pub fn reference_storage_fixed_byte_width(logical: ScalarType) -> Option<u8> {
+    let width = reference_storage_byte_width(logical)?;
+    let same_width = |stored| {
+        !reference_storage_view_is_compatible(stored, logical)
+            || reference_storage_byte_width(stored) == Some(width)
+    };
+    for stored in [
+        ScalarType::Boolean,
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+    ] {
+        if !same_width(stored) {
+            return None;
+        }
+    }
+    // Closed fixed scalar carriers cover byte-aligned integers through 128
+    // bits. Check both signs; signedness is not a physical byte footprint.
+    for bits in (8..=128).step_by(8) {
+        for sign in [
+            semantic_vocabulary::IntegerSign::Signed,
+            semantic_vocabulary::IntegerSign::Unsigned,
+        ] {
+            let integer = semantic_vocabulary::IntegerType::new(sign, bits).ok()?;
+            if !same_width(ScalarType::Integer(integer)) {
+                return None;
+            }
+        }
+    }
+    Some(width)
+}
+
 /// Check the closed source/view shape relationship without confusing it with
 /// custody. Byte-region views begin at an actual byte endpoint; a nominal
 /// encoded scalar keeps its original cell. The operation's checked geometry,

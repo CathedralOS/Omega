@@ -80,7 +80,7 @@ impl DescriptorImplementation {
     }
 }
 enum DescriptorBuffer {
-    Integer(IntegerType),
+    Scalar(ScalarType),
     Aggregate(NativeBorrowedStorageLayout),
     Bytes,
 }
@@ -146,10 +146,10 @@ impl<'input> DescriptorIoImport<'input> {
             .structural_type(formal.structural_type)
             .map(|row| &row.shape)
         {
-            Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)))
-                if !integer.is_address() && integer.bits() % 8 == 0 && integer.bits() <= 128 =>
+            Some(StructuralTypeShape::PrimitiveScalar(scalar))
+                if captured_storage::scalar_extent(*scalar).is_ok() =>
             {
-                DescriptorBuffer::Integer(*integer)
+                DescriptorBuffer::Scalar(*scalar)
             }
             Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access,
@@ -177,7 +177,7 @@ impl<'input> DescriptorIoImport<'input> {
             ),
         };
         let (scalar_parameters, parameter_order, native_parameters) = match &buffer {
-            DescriptorBuffer::Integer(_) | DescriptorBuffer::Aggregate(_) => (
+            DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => (
                 vec![
                     ScalarType::Integer(descriptor_type),
                     ScalarType::Integer(count_type),
@@ -345,7 +345,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 }
                 (bytes.as_slice(), bytes.len())
             }
-            DescriptorBuffer::Integer(_) | DescriptorBuffer::Aggregate(_) => {
+            DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => {
                 let [
                     _,
                     TerminalScalarValue::Integer {
@@ -365,11 +365,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 }
                 let layout = match &self.buffer {
                     DescriptorBuffer::Aggregate(layout) => Some(layout),
-                    DescriptorBuffer::Integer(integer) => {
+                    DescriptorBuffer::Scalar(scalar) => {
                         let [buffer] = scalar_buffers else {
                             return Err(invalid_operands());
                         };
-                        if buffer.value().scalar_type() != ScalarType::Integer(*integer) {
+                        if buffer.value().scalar_type() != *scalar {
                             return Err(invalid_operands());
                         }
                         None
@@ -425,7 +425,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     .lock()
                     .map_err(|_| TerminalEffectRejection::new("stdin snapshot lock is poisoned"))?;
                 let destination = match &self.buffer {
-                    DescriptorBuffer::Integer(_) | DescriptorBuffer::Aggregate(_) => {
+                    DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => {
                         &mut captured.as_mut().ok_or_else(invalid_operands)?.bytes[..count]
                     }
                     DescriptorBuffer::Bytes => {

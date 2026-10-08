@@ -252,15 +252,21 @@ fn referent_pointer(
         .path
         .iter()
         .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent));
-    if target.shape.class == calling_conventions::ValueClass::BorrowedReference
+    let thin_scalar = if target.shape.class == calling_conventions::ValueClass::BorrowedReference
         && !referent
         && semantic.path.is_empty()
-        && crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
-            .is_some()
     {
-        // A foreign thin-pointer ABI has no storage-codec contract. An
-        // internal descriptor cannot be exported as its backing pointer until
-        // that boundary explicitly proves canonical storage interpretation.
+        crate::selection::reference_input::borrowed_scalar_source(source, semantic.place)
+    } else {
+        None
+    };
+    if let Some(scalar) = thin_scalar
+        && terminal_semantics::reference_storage_fixed_byte_width(scalar).map(u32::from)
+            != Some(target.shape.byte_size)
+    {
+        // A thin ABI carries no codec. Retain the refusal when the original
+        // backing can be narrower than the foreign formal; logical width is
+        // not permission to expose adjacent bytes.
         return Err(SelectedInstructionError::custody());
     }
     let pointer_place = semantic.place;
@@ -308,6 +314,13 @@ fn referent_pointer(
         )?
     } else {
         structural::place_pointer(builder, operation, pointer_place, target.source_byte_offset)?
+    };
+    let pointer = if thin_scalar.is_some() {
+        // The proven footprint belongs to the original referent, not the
+        // descriptor home. Unwrap its address without copying its contents.
+        structural::reference::load(builder, operation, pointer_place, pointer)?
+    } else {
+        pointer
     };
     let pointer = if indices.is_empty() {
         pointer

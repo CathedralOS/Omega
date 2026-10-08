@@ -134,7 +134,7 @@ impl CapturedStorage {
     }
 }
 
-fn scalar_extent(scalar: ScalarType) -> Result<usize, TerminalEffectRejection> {
+pub(super) fn scalar_extent(scalar: ScalarType) -> Result<usize, TerminalEffectRejection> {
     match scalar {
         ScalarType::Boolean => Ok(1),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(4),

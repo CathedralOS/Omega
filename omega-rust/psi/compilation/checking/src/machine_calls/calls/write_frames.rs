@@ -57,7 +57,10 @@ mod value_expressions;
 mod wire_codecs;
 
 pub use alias_bindings::state_reference_parameter_binding_is_stable;
-pub(crate) use boundary_calls::{boundary_trait_call_signature, boundary_trait_signature};
+pub(crate) use boundary_calls::{
+    boundary_trait_call_signature, boundary_trait_expression_call_signature,
+    boundary_trait_signature,
+};
 pub(crate) use call_targets::free_machine_entry_state;
 pub(crate) use call_targets::machine_state_by_symbol;
 pub(crate) use caller_aliases::expression_has_calls;

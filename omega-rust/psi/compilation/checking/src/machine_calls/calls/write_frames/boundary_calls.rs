@@ -141,6 +141,29 @@ pub(crate) fn boundary_trait_call_signature<'program>(
     .map(|selected| selected.signature)
 }
 
+/// Value-position boundary calls select the same declaration and admitted
+/// telescope as statement calls. Selection supplies formals, not permission
+/// to omit their argument checks or infer authority from a member spelling.
+pub(crate) fn boundary_trait_expression_call_signature<'program>(
+    program: &'program dyn crate::CheckingInput,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<&'program typed_trees::signature::StateSignature> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let receiver_members = receiver_member_chain(program, call.receiver)?;
+    boundary_trait_signature_and_receiver_inner(
+        program,
+        current_machine,
+        &receiver_members,
+        call.target.as_str(),
+        CallerWriteSite::Expression(expression),
+        SignatureBinders::StaticMachines,
+    )
+    .map(|selected| selected.signature)
+}
+
 pub(super) fn boundary_trait_signature_for_parts<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
