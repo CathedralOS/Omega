@@ -36,13 +36,11 @@
 //! instantiated at levels that do not match its real sorts all reject
 //! with the exact typed error.
 
-use proof_admission::{
-    Context, CoreError, Declaration, IndexedFamily, Level,
-    Signature, Sort, Term, TermArena, TermHandle, check_signature, convertible,
-    infer_sort, infer_type, shift,
-};
 use crate::common::*;
-
+use proof_admission::{
+    Context, CoreError, Declaration, IndexedFamily, Level, Signature, Sort, Term, TermArena,
+    TermHandle, check_signature, convertible, infer_sort, infer_type, shift,
+};
 
 fn sort_level(arena: &mut TermArena, level: Level) -> TermHandle {
     arena.insert(Term::Sort(Sort::Type(level)))
@@ -52,20 +50,6 @@ fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     sort_level(arena, Level::Constant(level))
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ── The producer signature ────────────────────────────────────────────
 //
 // Positions 0–4 are the derived scheme; the vector's index arithmetic is
@@ -74,9 +58,6 @@ fn type_sort(arena: &mut TermArena, level: u32) -> TermHandle {
 
 /// `vecOf : Π(E : Type u). Π(n : Nat). Type u` — declaration 8.
 const VEC_OF: u32 = 8;
-
-
-
 
 /// `vecOf[u] · E · n` — the declared family applied at instantiation `u`.
 fn vec_at(arena: &mut TermArena, u: Level, element: TermHandle, length: TermHandle) -> TermHandle {

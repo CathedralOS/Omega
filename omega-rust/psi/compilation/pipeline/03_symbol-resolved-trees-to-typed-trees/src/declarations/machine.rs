@@ -370,9 +370,10 @@ fn lower_machine_contents(
     }
 
     for contract in lowerer.source_trees.machine_contracts(machine) {
-        let contract =
-            crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
-        lowerer.typed_trees.push_machine_contract(&mut typed_machine, contract);
+        let contract = crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+        lowerer
+            .typed_trees
+            .push_machine_contract(&mut typed_machine, contract);
     }
 
     for (state_index, state) in lowerer

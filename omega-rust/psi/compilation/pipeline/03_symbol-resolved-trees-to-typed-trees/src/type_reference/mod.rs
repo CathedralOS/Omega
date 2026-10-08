@@ -159,13 +159,13 @@ pub(super) fn lower_dynamic_trait_type_reference(
         exposure,
         language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
     )?;
-    Ok(typed_trees.type_reference_table.insert(
-        typed::types::TypeReferenceNode::DynamicTrait {
+    Ok(typed_trees
+        .type_reference_table
+        .insert(typed::types::TypeReferenceNode::DynamicTrait {
             symbol,
             name: crate::lowerer::name::lower_name(name),
             arguments,
-        },
-    ))
+        }))
 }
 
 /// The `Named` leaf shared by the direct and table-backed type reference

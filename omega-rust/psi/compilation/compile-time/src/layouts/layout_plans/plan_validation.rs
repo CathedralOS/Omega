@@ -95,7 +95,7 @@ pub(crate) fn validate_plan(
             .ok_or_else(|| fail(format!("entry {entry_index} carries no `placement`")))?;
         Ok((field_index, placement))
     };
-        let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
+    let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
         match payload.iter().find(|(field, _)| field == name) {
             Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
             other => Err(fail(format!(

@@ -47,13 +47,11 @@
 //! axioms. The kernel has no primitive lists or connectives; every use
 //! is still re-decided by the checker.
 
-use proof_admission::{
-    Context, CoreError, Declaration, IndexedFamily, Level,
-    Signature, TermArena, TermHandle, check_signature, check_type, convertible,
-    indexed_scheme, 
-};
 use crate::common::*;
-
+use proof_admission::{
+    Context, CoreError, Declaration, IndexedFamily, Level, Signature, TermArena, TermHandle,
+    check_signature, check_type, convertible, indexed_scheme,
+};
 
 /// The eliminator tests' ceiling: `iindW`'s typing and computation
 /// unfold the whole `IndexedAt`/`IW` encoding — the `J` transport, the
@@ -63,16 +61,6 @@ use crate::common::*;
 /// ~25.1 thousand steps); this bound leaves an order of magnitude of
 /// headroom so the run stays budgeted rather than open-ended —
 /// `StepCeiling` is still the decidability witness.
-
-
-
-
-
-
-
-
-
-
 
 /// One side of a nested pair projection, innermost step first:
 /// `project(arena, p, &[Side::Snd, Side::Fst])` is `fst (snd p)`.
@@ -91,13 +79,6 @@ fn project(arena: &mut TermArena, mut term: TermHandle, path: &[Side]) -> TermHa
     }
     term
 }
-
-
-
-
-
-
-
 
 // ── The producer signature ────────────────────────────────────────────
 //

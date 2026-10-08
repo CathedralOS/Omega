@@ -208,10 +208,9 @@ fn nominal_literal(
             )
         }
         BuildTimeValue::Case { variant, payload } => {
-            let case = variant_member_by_name(members, variant.as_str())
-                .ok_or_else(|| {
-                    format!("evaluated aggregate leaf case `{variant}` is absent from its owner")
-                })?;
+            let case = variant_member_by_name(members, variant.as_str()).ok_or_else(|| {
+                format!("evaluated aggregate leaf case `{variant}` is absent from its owner")
+            })?;
             (
                 format!("{owner_path}::{variant}"),
                 program
@@ -398,10 +397,9 @@ fn nominal_value(
             })
         }
         BuildTimeValue::Case { variant, payload } => {
-            let case = variant_member_by_name(members, variant.as_str())
-                .ok_or_else(|| {
-                    format!("evaluated leaf case `{variant}` is absent from its owner")
-                })?;
+            let case = variant_member_by_name(members, variant.as_str()).ok_or_else(|| {
+                format!("evaluated leaf case `{variant}` is absent from its owner")
+            })?;
             let declared = program.data_payload_fields(case).iter().collect::<Vec<_>>();
             Ok(DecodedCanonicalConstValue::Variant {
                 type_name,

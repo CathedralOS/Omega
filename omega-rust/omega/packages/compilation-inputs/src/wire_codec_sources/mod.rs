@@ -62,8 +62,7 @@ use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceHandle;
 
 use analysis::{
-    collect_call_sites, collect_domains, collect_plain_fields, wire_schema_members,
-    WireMemberShape,
+    WireMemberShape, collect_call_sites, collect_domains, collect_plain_fields, wire_schema_members,
 };
 use emission::{emit_decode_machine, emit_encode_machine};
 

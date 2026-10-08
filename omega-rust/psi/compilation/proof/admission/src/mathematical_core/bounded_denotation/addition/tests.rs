@@ -1,4 +1,6 @@
-use super::super::test_utilities::{direct_affine_proof, direct_fixture, mathematical, elaborate_checked};
+use super::super::test_utilities::{
+    direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
+};
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
 use semantic_vocabulary::{
@@ -95,7 +97,8 @@ fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
             assert!(denoted.certificate.signature.len() < 300);
             let parameters = BTreeSet::new();
             let assumptions = [premise.clone()];
-            let elaboration = elaborate_checked(&context, &goal, &assumptions, &axioms, &parameters, &proof);
+            let elaboration =
+                elaborate_checked(&context, &goal, &assumptions, &axioms, &parameters, &proof);
             assert!(elaboration.denotation.rule_axioms.is_empty());
         }
     }

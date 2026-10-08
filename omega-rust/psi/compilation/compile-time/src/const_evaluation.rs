@@ -23,7 +23,10 @@ pub(crate) fn prepared_admission(
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<
-    (crate::PreparedBuildMachineProgram, crate::BuildTimeAdmissionPlan),
+    (
+        crate::PreparedBuildMachineProgram,
+        crate::BuildTimeAdmissionPlan,
+    ),
     Vec<diagnostics::Diagnostic>,
 > {
     let selected_execution =

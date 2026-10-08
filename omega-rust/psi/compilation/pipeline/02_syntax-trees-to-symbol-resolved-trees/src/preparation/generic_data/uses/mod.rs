@@ -27,7 +27,6 @@ pub(super) use patterns::{
     relabel_unique_closed_sum_paths,
 };
 
-
 /// State handles of every generic-free machine in `declarations` — the
 /// prelude the local-type scans share.
 fn concrete_state_handles(

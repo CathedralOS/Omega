@@ -3,10 +3,8 @@
 use crate::dynamic_executable::compatibility_hash::Fnv1a;
 
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::ElfAppliedProcedureLinkageTarget;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::ElfResolvedProcedureLinkageContents;
-use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
-    ElfAppliedProcedureLinkageTarget,
-};
 
 pub(crate) fn non_authoritative_resolved_linkage_compatibility_fingerprint(
     envelope: &ValidatedElfDynamicFileEnvelope,

@@ -128,9 +128,9 @@ pub(super) enum MemberShape {
 }
 
 pub(super) struct WireMemberShape {
-pub(super)     name: String,
-pub(super)     number: u64,
-pub(super)     shape: MemberShape,
+    pub(super) name: String,
+    pub(super) number: u64,
+    pub(super) shape: MemberShape,
 }
 
 /// Canonical unsigned LEB128 bytes (`wire_varint_bytes`).
@@ -152,8 +152,8 @@ pub(super) fn varint_bytes(mut value: u64) -> Vec<u8> {
 /// A domain's parser-bound value occurrences belong to its declared carrier,
 /// not the generated decoder's destination record (also named `value`).
 pub(super) struct DomainPredicate {
-pub(super)     carrier: String,
-pub(super)     predicate: StorePredicate,
+    pub(super) carrier: String,
+    pub(super) predicate: StorePredicate,
 }
 
 /// Literal source segments between the parser's subject occurrences. Joining
@@ -163,7 +163,7 @@ pub(super)     predicate: StorePredicate,
 /// it by matching identifier spellings or rename through an intermediate `self`.
 #[derive(Clone)]
 pub(super) struct StorePredicate {
-pub(super)     segments: Vec<String>,
+    pub(super) segments: Vec<String>,
 }
 
 /// Shape admission is separate from executable validation. Encoding consumes
@@ -171,7 +171,11 @@ pub(super)     segments: Vec<String>,
 pub(super) type StoreFacts = Result<Vec<StorePredicate>, ()>;
 
 impl StorePredicate {
-    pub(super) fn from_source(sources: &SourceMap, span: SourceSpan, subjects: &[SourceSpan]) -> Self {
+    pub(super) fn from_source(
+        sources: &SourceMap,
+        span: SourceSpan,
+        subjects: &[SourceSpan],
+    ) -> Self {
         let text = sources.text_at(span);
         let mut segments = Vec::new();
         let mut copied_until = 0;

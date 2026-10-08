@@ -5,9 +5,7 @@ use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, OperatorDefinition,
-};
+use syntax_trees::item::{CapabilityContract, CapabilityContractKind, OperatorDefinition};
 use syntax_trees::operator_spelling::OperatorSpelling;
 use tokens::PunctuationKind;
 

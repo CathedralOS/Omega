@@ -1,6 +1,6 @@
+use crate::common::*;
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use crate::common::*;
 
 fn context() -> PropositionContext {
     PropositionContext::from_value_types(
@@ -8,7 +8,6 @@ fn context() -> PropositionContext {
     )
     .unwrap()
 }
-
 
 fn converted(conclusion: Proposition, premise: ProofNode) -> ProofNode {
     ProofNode {

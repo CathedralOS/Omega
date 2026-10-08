@@ -160,7 +160,6 @@ impl super::FlowOwnershipFacts {
         let receipt = matches.next()?;
         matches.next().is_none().then_some(receipt)
     }
-
 }
 
 /// One normalized source for a claim transferred through a checked state's

@@ -536,7 +536,7 @@ fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
 /// specialization pipeline's argument spelling exactly: decimal for integer
 /// literals and integer-valued const declarations, the canonical atom for
 /// structured const values, and `true`/`false` for Boolean literals.
-fn static_const_argument_spelling(
+pub fn static_const_argument_spelling(
     program: &TypedTrees,
     argument: &expression::StaticMachineArgument,
 ) -> Option<String> {

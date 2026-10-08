@@ -45,28 +45,11 @@
 //! and the certificate's assumption closure records exactly that one
 //! axiom. Every use is still re-decided by the checker.
 
-use proof_admission::{
-    Context, CoreError, Declaration, IndexedFamily, Level,
-    Signature, TermArena, TermHandle, check_signature, check_type, indexed_scheme,
-};
 use crate::common::*;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+use proof_admission::{
+    Context, CoreError, Declaration, IndexedFamily, Level, Signature, TermArena, TermHandle,
+    check_signature, check_type, indexed_scheme,
+};
 
 // ── The producer signature ────────────────────────────────────────────
 //

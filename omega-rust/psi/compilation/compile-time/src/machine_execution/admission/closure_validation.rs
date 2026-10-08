@@ -51,9 +51,7 @@ pub(super) fn closure_has_authored_requires(
                     .any(|state| has_authored_requires(program.state_contracts(state))))
             .then_some(())
         },
-        |callable| {
-            callable_has_authored_requires(program, callable).then_some(())
-        },
+        |callable| callable_has_authored_requires(program, callable).then_some(()),
     )
     .is_some()
 }
@@ -94,9 +92,7 @@ pub(super) fn closure_requires_are_root_parameter_domains(
             }
             None
         },
-        |callable| {
-            callable_has_authored_requires(program, callable).then_some(())
-        },
+        |callable| callable_has_authored_requires(program, callable).then_some(()),
     )
     .is_none()
 }

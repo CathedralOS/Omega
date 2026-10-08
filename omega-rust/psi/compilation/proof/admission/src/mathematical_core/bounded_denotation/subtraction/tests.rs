@@ -1,5 +1,5 @@
-use std::collections::BTreeSet;
 use super::super::test_utilities::elaborate_checked;
+use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -45,7 +45,14 @@ fn fixture(
 fn checked(integer: IntegerType, left: ScalarTerm, right: ScalarTerm) {
     let (context, assumptions, proof) = fixture(integer, left, right);
     let parameters = BTreeSet::new();
-    let elaboration = elaborate_checked(&context, &proof.conclusion, &assumptions, &[], &parameters, &proof);
+    let elaboration = elaborate_checked(
+        &context,
+        &proof.conclusion,
+        &assumptions,
+        &[],
+        &parameters,
+        &proof,
+    );
     assert!(elaboration.denotation.rule_axioms.is_empty());
     assert!(elaboration.denotation.decisions.is_empty());
     let mut budget = Budget::default();

@@ -7,9 +7,7 @@ use crate::builder::generic_bindings::{
 };
 use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
 use crate::packing::placement_overflow;
-use crate::sizing::{
-    fat_descriptor_layout, primitive_type_layout,
-};
+use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use diagnostics::Diagnostic;
 use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;

@@ -14,8 +14,8 @@ use super::{
 use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
     Establishment, canonicalize_ordinary_path, declared_structural_type, descended_field,
-    descended_field_child, descended_field_id, root_producer, leaf_copy_source,
-    resolved_sole_case, roster_first_case, shape, sole_case,
+    descended_field_child, descended_field_id, leaf_copy_source, resolved_sole_case, root_producer,
+    roster_first_case, shape, sole_case,
 };
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use std::collections::BTreeSet;

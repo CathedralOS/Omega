@@ -3,8 +3,8 @@
 //! closed one keeps the checked rule-instance route, and every premise,
 //! orientation and minuend is load-bearing.
 
-use std::collections::BTreeSet;
 use super::super::test_utilities::elaborate_checked;
+use std::collections::BTreeSet;
 
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -106,7 +106,14 @@ fn antitone(
 fn checked(integer: IntegerType, assumptions: &[Proposition], proof: &ProofNode) -> bool {
     let context = context(integer);
     let parameters = BTreeSet::new();
-    let elaboration = elaborate_checked(&context, &proof.conclusion, assumptions, &[], &parameters, proof);
+    let elaboration = elaborate_checked(
+        &context,
+        &proof.conclusion,
+        assumptions,
+        &[],
+        &parameters,
+        proof,
+    );
     let rule_instance = !elaboration.denotation.rule_axioms.is_empty();
     let mut denoted = verify_bounded_certificate(
         &context,

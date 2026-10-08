@@ -1,5 +1,5 @@
-use std::collections::BTreeSet;
 use super::super::test_utilities::{elaborate_checked, verify_and_assert_forged};
+use std::collections::BTreeSet;
 
 use crate::proof::assumption_proof;
 use crate::{ProofNode, ProofRule, check_certificate};
@@ -55,7 +55,14 @@ fn mathematical_order_translation_derives_from_existing_core_law() {
     check_certificate(&context, &proof.conclusion, &[premise.clone()], &[], &proof).unwrap();
     let parameters = BTreeSet::new();
     let premises = [premise];
-    let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
+    let elaboration = elaborate_checked(
+        &context,
+        &proof.conclusion,
+        &premises,
+        &[],
+        &parameters,
+        &proof,
+    );
     assert!(
         elaboration.denotation.rule_axioms.is_empty(),
         "translation must not introduce a rule-instance assumption"
@@ -72,7 +79,14 @@ fn mathematical_order_translation_retains_closed_numeral_denotation() {
     check_certificate(&context, &proof.conclusion, &[premise.clone()], &[], &proof).unwrap();
     let parameters = BTreeSet::new();
     let premises = [premise];
-    let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
+    let elaboration = elaborate_checked(
+        &context,
+        &proof.conclusion,
+        &premises,
+        &[],
+        &parameters,
+        &proof,
+    );
     assert!(elaboration.denotation.rule_axioms.is_empty());
 }
 
@@ -149,7 +163,14 @@ fn mathematical_order_substitution_rejoins_only_exact_finite_rings() {
         let premises = [relation, equality.clone()];
         check_certificate(&context, &proof.conclusion, &premises, &[], &proof).unwrap();
         let parameters = BTreeSet::new();
-        let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
+        let elaboration = elaborate_checked(
+            &context,
+            &proof.conclusion,
+            &premises,
+            &[],
+            &parameters,
+            &proof,
+        );
         assert!(elaboration.denotation.rule_axioms.is_empty());
         for changed in [
             ScalarTerm::WrappingIntegerAdd {

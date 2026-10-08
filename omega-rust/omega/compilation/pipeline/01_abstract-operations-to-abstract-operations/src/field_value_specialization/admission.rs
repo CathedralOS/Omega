@@ -21,9 +21,7 @@ use optimization_unit::{
     matches_constant_kind, matches_observed_kind, observed_field_declaration, record_initializer,
     root_producer, zeroed_fold,
 };
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, StructuralFieldId, ValueId,
-};
+use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralFieldId, ValueId};
 use std::collections::BTreeSet;
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
@@ -478,5 +476,3 @@ fn forwarded_resolution(
         uses: uses.into_iter().collect(),
     })
 }
-
-

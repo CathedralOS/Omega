@@ -1,5 +1,5 @@
-use std::collections::BTreeSet;
 use super::test_utilities::{elaborate_checked, verify_and_assert_forged};
+use std::collections::BTreeSet;
 
 use crate::proof::assumption_proof;
 use crate::{AcceptedProofRule, ProofNode, ProofRule, accept_certificate, check_certificate};
@@ -49,7 +49,14 @@ fn integer_order_antisymmetry_certifies_both_orders_through_existing_core_law() 
                 .contains(&AcceptedProofRule::IntegerOrderAntisymmetry)
         );
         let parameters = BTreeSet::new();
-        let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
+        let elaboration = elaborate_checked(
+            &context,
+            &proof.conclusion,
+            &premises,
+            &[],
+            &parameters,
+            &proof,
+        );
         assert!(elaboration.denotation.rule_axioms.is_empty());
         verify_and_assert_forged(&context, &proof.conclusion, &premises, &[], &proof);
         assert!(
@@ -148,7 +155,14 @@ fn integer_order_antisymmetry_orients_literal_and_reversed_value_equalities() {
         let (premises, proof) = proof(left, right);
         check_certificate(&context, &proof.conclusion, &premises, &[], &proof).unwrap();
         let parameters = BTreeSet::new();
-        let elaboration = elaborate_checked(&context, &proof.conclusion, &premises, &[], &parameters, &proof);
+        let elaboration = elaborate_checked(
+            &context,
+            &proof.conclusion,
+            &premises,
+            &[],
+            &parameters,
+            &proof,
+        );
         assert!(elaboration.denotation.rule_axioms.is_empty());
     }
 }

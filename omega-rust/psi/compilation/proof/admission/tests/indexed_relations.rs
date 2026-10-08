@@ -25,14 +25,13 @@
 //!   *completed* family embedded negatively inside a later description
 //!   (`B' a = IW[done] zero → Two`) is checked and constructs.
 
+use crate::common::*;
 use proof_admission::{
-    Budget, Context, CoreError, Declaration, INDEXED_W, IndexedFamily,
-    Level, MathematicalCertificate, Signature, Sort, Term, TermArena, TermHandle,
+    Budget, Context, CoreError, Declaration, INDEXED_W, IndexedFamily, Level,
+    MathematicalCertificate, Signature, Sort, Term, TermArena, TermHandle,
     certificate_assumption_closure, check_signature, check_type, indexed_scheme, infer_sort,
     infer_type, verify_mathematical_certificate, weak_head_normalize,
 };
-use crate::common::*;
-
 
 /// The eliminator ceiling: `iindW`'s typing and computation unfold the
 /// whole `IndexedAt`/`IW` encoding — the `J` transport, the repacked
@@ -43,26 +42,9 @@ use crate::common::*;
 /// instantiated statement) dominates and stays far below the bound —
 /// `StepCeiling` remains the decidability witness.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 fn box_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
     arena.insert(Term::BoxIntro { ty, value })
 }
-
-
 
 /// `Id Two one one` — the dead child position: no closed inhabitant, so
 /// every node of the leaf family is a leaf.

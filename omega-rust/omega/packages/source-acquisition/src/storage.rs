@@ -193,8 +193,8 @@ fn verify_retained_directory_identity(
     let retained = directory
         .dir_metadata()
         .map_err(|error| io_error(path, error))?;
-    let named_directory = open_absolute_directory_nofollow(path)
-        .map_err(|error| io_error(path, error))?;
+    let named_directory =
+        open_absolute_directory_nofollow(path).map_err(|error| io_error(path, error))?;
     let named = named_directory
         .dir_metadata()
         .map_err(|error| io_error(path, error))?;

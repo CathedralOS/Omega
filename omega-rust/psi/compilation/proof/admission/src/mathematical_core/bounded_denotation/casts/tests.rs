@@ -1,5 +1,5 @@
-use crate::proof::assumption_proof;
 use super::super::test_utilities::elaborate_checked;
+use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerCastChainWitness, PrimitiveJudgment, ProofNode, ProofRule,
     verify_bounded_certificate,

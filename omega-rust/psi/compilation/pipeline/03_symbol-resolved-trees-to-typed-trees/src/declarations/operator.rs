@@ -56,9 +56,10 @@ pub(crate) fn lower_operator_definition(
     }
 
     for contract in lowerer.source_trees.signature_contracts(operator.contracts) {
-        let contract =
-            crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
-        lowerer.typed_trees.push_operator_contract(&mut typed_operator, contract);
+        let contract = crate::contracts::proof_facts::lower_signature_contract(lowerer, contract)?;
+        lowerer
+            .typed_trees
+            .push_operator_contract(&mut typed_operator, contract);
     }
 
     Ok(typed_operator)

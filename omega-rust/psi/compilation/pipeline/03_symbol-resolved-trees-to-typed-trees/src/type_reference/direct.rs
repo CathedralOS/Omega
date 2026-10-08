@@ -158,13 +158,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             )
         }
         resolved::types::TypeReference::Named { symbol, name } => {
-            super::lower_named_type_reference(
-                source_trees,
-                typed_trees,
-                *symbol,
-                name,
-                exposure,
-            )
+            super::lower_named_type_reference(source_trees, typed_trees, *symbol, name, exposure)
         }
         resolved::types::TypeReference::Unit => Ok(typed_trees
             .type_reference_table

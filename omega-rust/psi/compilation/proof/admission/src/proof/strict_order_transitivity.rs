@@ -60,7 +60,5 @@ fn endpoints<Term: Eq>(
         .ok_or(ProofError::IntegerOrderConclusionMismatch)
 }
 
-
-
 #[cfg(test)]
 mod tests;

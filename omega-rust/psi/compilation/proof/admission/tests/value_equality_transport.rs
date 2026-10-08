@@ -1,6 +1,6 @@
+use crate::common::*;
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, accept_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use crate::common::*;
 
 fn context() -> PropositionContext {
     PropositionContext::from_value_types(
@@ -8,7 +8,6 @@ fn context() -> PropositionContext {
     )
     .unwrap()
 }
-
 
 fn equal(left: ScalarTerm, right: ScalarTerm) -> ScalarTerm {
     ScalarTerm::boolean_equal(left, right).unwrap()
@@ -151,10 +150,7 @@ fn cyclic_and_expanding_equations_fail_with_bounded_work() {
             .collect(),
     ] {
         let goal = Proposition::Equal(value(1), value(1));
-        let proof = transport(
-            goal.clone(),
-            axiom_proofs(&equations),
-        );
+        let proof = transport(goal.clone(), axiom_proofs(&equations));
         assert!(accept_certificate(&context(), &goal, &[], &equations, &proof).is_err());
     }
 }
@@ -241,10 +237,7 @@ mod float_fields {
             },
             _ => super::truth(),
         };
-        let mut proof = transport(
-            goal,
-            axiom_proofs(&equations),
-        );
+        let mut proof = transport(goal, axiom_proofs(&equations));
         let ProofRule::ValueEqualityTransport {
             premise: supplied, ..
         } = &mut proof.rule

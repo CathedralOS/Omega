@@ -370,13 +370,13 @@ mod expression_roots;
 
 #[cfg(test)]
 mod tests {
+    use super::super::value;
     use super::{
         CheckedIntegerCastChain, IntegerCastBoundConversionError, IntegerCastChainWitness,
         IntegerCastChainWitnessError, IntegerSign, IntegerType, IntegerValue, Proposition,
         PropositionContext, ScalarTerm, ScalarType, check_integer_cast_bound_conversion,
         check_integer_cast_chain_witness,
     };
-    use super::super::value;
     use semantic_vocabulary::ValueId;
 
     fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {

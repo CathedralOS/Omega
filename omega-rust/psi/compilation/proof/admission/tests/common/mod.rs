@@ -35,7 +35,11 @@ pub(crate) fn lambda(arena: &mut TermArena, domain: TermHandle, body: TermHandle
     arena.insert(Term::Lambda { domain, body })
 }
 
-pub(crate) fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {
+pub(crate) fn apply(
+    arena: &mut TermArena,
+    function: TermHandle,
+    argument: TermHandle,
+) -> TermHandle {
     arena.insert(Term::Apply { function, argument })
 }
 
@@ -90,7 +94,12 @@ pub(crate) fn case_two(
     })
 }
 
-pub(crate) fn id(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
+pub(crate) fn id(
+    arena: &mut TermArena,
+    ty: TermHandle,
+    left: TermHandle,
+    right: TermHandle,
+) -> TermHandle {
     arena.insert(Term::Id { ty, left, right })
 }
 
@@ -298,7 +307,7 @@ pub(crate) fn tag_selected_children(
 /// tag)` — the `⟨element, predecessor-length⟩` payload the vector family
 /// and the nested family's element-vector share.
 pub(crate) fn elem_nat_payload(arena: &mut TermArena) -> TermHandle {
-   let motive = type_motive(arena);
+    let motive = type_motive(arena);
     let nil_payload = two(arena);
     let cons_payload = {
         let element = elem(arena);

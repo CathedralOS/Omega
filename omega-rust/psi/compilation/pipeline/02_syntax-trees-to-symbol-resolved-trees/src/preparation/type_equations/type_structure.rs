@@ -98,7 +98,10 @@ pub(super) fn collect_binder_mentions(
             trait_arguments,
         } => {
             name_mention(trait_name.as_str());
-            for argument in syntax.type_references.type_reference_handles(*trait_arguments) {
+            for argument in syntax
+                .type_references
+                .type_reference_handles(*trait_arguments)
+            {
                 collect_binder_mentions(syntax, *argument, parameters, mentions);
             }
         }

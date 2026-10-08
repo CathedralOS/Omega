@@ -2,8 +2,8 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
-mod equality_symmetry;
 mod common;
+mod equality_symmetry;
 mod indexed_derivation;
 mod indexed_levels;
 mod indexed_mutual;

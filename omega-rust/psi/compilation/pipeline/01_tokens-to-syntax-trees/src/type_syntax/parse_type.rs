@@ -162,9 +162,8 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
                 input,
             )?;
         if !lifetime_arguments.is_empty() {
-            return Err(input.error_here(
-                "a dynamic selector takes no lifetime arguments; it borrows nothing",
-            ));
+            return Err(input
+                .error_here("a dynamic selector takes no lifetime arguments; it borrows nothing"));
         }
         if input.at_punctuation(PunctuationKind::ColonColon) {
             return Err(input.error_here(

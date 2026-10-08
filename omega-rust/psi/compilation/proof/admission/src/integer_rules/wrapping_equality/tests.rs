@@ -1,7 +1,6 @@
 use crate::mathematical_core::verify_and_assert_forged;
 use crate::{
-    Budget, PrimitiveJudgment, ProofNode, ProofRule, check_certificate,
-    verify_bounded_certificate,
+    Budget, PrimitiveJudgment, ProofNode, ProofRule, check_certificate, verify_bounded_certificate,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,

@@ -7,9 +7,9 @@ use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
 use super::analysis::{
-    const_literal_capacity, scalar_kind_of_type, slice_element_of_type,
-    store_type_facts, value_field_facts, varint_bytes, DomainPredicate, MemberShape,
-    ScalarKind, SliceElement, StoreFacts, StorePredicate, WireMemberShape,
+    DomainPredicate, MemberShape, ScalarKind, SliceElement, StoreFacts, StorePredicate,
+    WireMemberShape, const_literal_capacity, scalar_kind_of_type, slice_element_of_type,
+    store_type_facts, value_field_facts, varint_bytes,
 };
 
 // State-label discipline: each emission helper writes `state` blocks whose

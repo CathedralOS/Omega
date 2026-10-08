@@ -193,8 +193,7 @@ fn terminate_closes_a_group_whose_primary_already_exited() {
 #[cfg(unix)]
 #[test]
 fn terminate_still_kills_descendants_after_the_primary_exited() {
-    let (test_root, marker, shell) =
-        cleanup_probe_tree("omega-bounded-exited-primary-cleanup");
+    let (test_root, marker, shell) = cleanup_probe_tree("omega-bounded-exited-primary-cleanup");
     let mut prepared = prepared(&shell);
     prepared
         .args([

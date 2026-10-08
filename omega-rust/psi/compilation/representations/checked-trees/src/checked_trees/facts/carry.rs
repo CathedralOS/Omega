@@ -231,7 +231,6 @@ impl StableCrossingHash {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DataCarryFact {
     pub data: SymbolHandle,

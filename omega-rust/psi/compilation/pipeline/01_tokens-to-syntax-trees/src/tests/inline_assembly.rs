@@ -280,7 +280,11 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
             }}
             "#
         );
-        let error = super::parse_source_error(&source, "tokenize should succeed", "asm block should reject");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "asm block should reject",
+        );
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains(expected),
@@ -310,7 +314,11 @@ fn rejects_asm_availability_and_unmodeled_operation_classes() {
             machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
-        let error = super::parse_source_error(&source, "tokenize should succeed", "asm instruction should reject");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "asm instruction should reject",
+        );
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains(expected),
@@ -421,7 +429,11 @@ fn parses_memory_transfers_as_place_assignments() {
             machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
-        let error = super::parse_source_error(&source, "tokenize should succeed", "a bracketed transfer operand keeps the bracket refusal");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "a bracketed transfer operand keeps the bracket refusal",
+        );
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains("bracketed `[...]` memory addressing"),
@@ -445,7 +457,11 @@ fn rejects_bracketed_memory_operands_on_register_moves() {
             machine Main::main(main: &mut Main) {{ asm {{ {instruction} }} }}
             "#
         );
-        let error = super::parse_source_error(&source, "tokenize should succeed", "bracketed operand should reject");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "bracketed operand should reject",
+        );
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains("bracketed `[...]` memory addressing"),
@@ -528,7 +544,11 @@ fn rejects_inexact_asm_where_clobber_contracts() {
             machine Main::main(main: &mut Main) {{ {block} }}
             "#
         );
-        let error = super::parse_source_error(&source, "tokenize should succeed", "inexact asm contract should reject");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "inexact asm contract should reject",
+        );
         let rendered = format!("{error:?}");
         assert!(
             rendered.contains(expected),
@@ -554,7 +574,11 @@ fn rejects_unknown_asm_mnemonics() {
             "#
         );
 
-        let error = super::parse_source_error(&source, "tokenize should succeed", "unknown mnemonic must not parse");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "unknown mnemonic must not parse",
+        );
         let message = format!("{error:?}");
         assert!(
             message.contains("only known-contract instructions compile"),

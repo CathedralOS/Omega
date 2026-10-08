@@ -34,28 +34,11 @@
 
 use std::collections::BTreeSet;
 
-use proof_admission::{
-    Context, CoreError, Declaration, Level, Sort, Term,
-    TermArena, TermHandle, check_signature, check_type, infer_type, judgment_assumption_closure,
-    weak_head_normalize,
-};
 use crate::common::*;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+use proof_admission::{
+    Context, CoreError, Declaration, Level, Sort, Term, TermArena, TermHandle, check_signature,
+    check_type, infer_type, judgment_assumption_closure, weak_head_normalize,
+};
 
 // ── The declaration positions ───────────────────────────────────────
 //

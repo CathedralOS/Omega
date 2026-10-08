@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use super::super::test_utilities::mathematical;
 use super::super::Elaboration;
+use super::super::test_utilities::mathematical;
 use super::Law;
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -9,7 +9,6 @@ use semantic_vocabulary::{
     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
     ScalarTerm, ScalarType, ValueId,
 };
-
 
 /// One checked correlated-multiply bound certificate: the quotient
 /// `root = endpoint / right` correlates `left · right` with the carrier

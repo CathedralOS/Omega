@@ -37,39 +37,17 @@
 //! profile — so the index type is assumed, exactly as a producer would
 //! supply it, and every use is still re-decided by the checker.
 
-use proof_admission::{
-    Context, CoreError, Declaration, IndexedFamily, Level,
-    Signature, TermArena, TermHandle, check_signature, check_type,
-};
 use crate::common::*;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+use proof_admission::{
+    Context, CoreError, Declaration, IndexedFamily, Level, Signature, TermArena, TermHandle,
+    check_signature, check_type,
+};
 
 // ── The producer signature ────────────────────────────────────────────
 //
 // Positions 0–4 are the derived scheme (`IndexedAt`, `IW`, `iwPack`,
 // `isup`, `iindW`); the vector's index arithmetic and element type are
 // the appended assumptions:
-
-
-
-
-
 
 /// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
 /// *types* here shares.
@@ -101,7 +79,7 @@ fn out_index(arena: &mut TermArena) -> TermHandle {
         // Under the tag binder: `Π(_ : Payload tag). Nat`.
         let tag = variable(arena, 0);
         let payload_fn = elem_nat_payload(arena);
-            let payload_at = apply(arena, payload_fn, tag);
+        let payload_at = apply(arena, payload_fn, tag);
         let length = nat(arena);
         let codomain = pi(arena, payload_at, length);
         let domain = two(arena);
@@ -140,7 +118,7 @@ fn next_index(arena: &mut TermArena) -> TermHandle {
         // `λ(tag : Two). Π(p : Payload tag). Π(_ : B' tag). Nat`.
         let tag = variable(arena, 0);
         let payload_fn = elem_nat_payload(arena);
-            let payload_at = apply(arena, payload_fn, tag);
+        let payload_at = apply(arena, payload_fn, tag);
         let branching_at = {
             // Under the `p` binder the tag is index 1.
             let motive = type_motive(arena);
