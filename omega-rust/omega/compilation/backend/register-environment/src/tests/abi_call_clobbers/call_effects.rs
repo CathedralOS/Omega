@@ -1,6 +1,7 @@
 use super::{
     Architecture, BTreeSet, RegisterConstraintKey, baseline_target_register_environment,
-    convention_for, declaration_mut, produced_effects, scalar_abi_cases, validated_effects,
+    convention_for, declaration_mut, named_view, produced_effects, scalar_abi_cases,
+    validated_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -71,12 +72,13 @@ fn every_selected_call_rule_binds_the_declared_abi_call_contract() {
             case.convention
         );
 
-        let stack_pointer = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rsp",
-                Architecture::Aarch64 => "sp",
-            })
-            .expect("call matrix names a stack-pointer view");
+        let stack_pointer = named_view(
+            model,
+            case.target,
+            "rsp",
+            "sp",
+            "call matrix names a stack-pointer view",
+        );
 
         for (key, semantic) in &call_rules {
             let supervisor = key.family == register_model::RegisterConstraintFamily::SystemCall;

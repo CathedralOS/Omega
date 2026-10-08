@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
-    baseline_target_register_environment, convention_for, produced_effects, scalar_abi_cases,
-    units_for_names, validate_effects, validated_effects,
+    baseline_target_register_environment, convention_for, named_view, produced_effects,
+    scalar_abi_cases, units_for_names, validate_effects, validated_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::SaturatingCarrier;
@@ -760,12 +760,13 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         );
         assert_eq!(catalog.catalog().selected_keys, keys);
 
-        let flags = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rflags",
-                Architecture::Aarch64 => "nzcv",
-            })
-            .expect("arithmetic matrix names a condition-codes view");
+        let flags = named_view(
+            model,
+            case.target,
+            "rflags",
+            "nzcv",
+            "arithmetic matrix names a condition-codes view",
+        );
         let integer_class = model.view_named(case.arguments[0]).unwrap().class;
         let float_class = model.view_named(case.float_result).unwrap().class;
         // The ABI leaves the condition codes volatile on every pair: an
@@ -947,18 +948,15 @@ fn every_selected_arithmetic_rule_rejects_encoded_effect_forgery_on_every_target
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rsp",
-                Architecture::Aarch64 => "sp",
-            })
-            .unwrap();
-        let flags = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rflags",
-                Architecture::Aarch64 => "nzcv",
-            })
-            .unwrap();
+        let stack_pointer =
+            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let flags = named_view(
+            model,
+            case.target,
+            "rflags",
+            "nzcv",
+            "target names no such view",
+        );
         for (key, semantic) in selected_arithmetic_rules(&environment) {
             let contract = arithmetic_contract(semantic, case.target.architecture);
             let row = environment.constraint(key).unwrap();

@@ -56,6 +56,21 @@ struct ScalarAbiCase {
     return_defs: &'static [&'static str],
 }
 
+fn named_view<'m>(
+    model: &'m register_model::PhysicalRegisterModel,
+    target: NativeTarget,
+    x86_64: &str,
+    aarch64: &str,
+    missing: &'static str,
+) -> &'m register_model::RegisterView {
+    model
+        .view_named(match target.architecture {
+            Architecture::X86_64 => x86_64,
+            Architecture::Aarch64 => aarch64,
+        })
+        .expect(missing)
+}
+
 fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
     vec![
         ScalarAbiCase {

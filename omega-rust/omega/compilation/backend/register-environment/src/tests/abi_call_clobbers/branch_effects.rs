@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
-    baseline_target_register_environment, convention_for, produced_effects, scalar_abi_cases,
-    validate_effects, validated_effects,
+    baseline_target_register_environment, convention_for, named_view, produced_effects,
+    scalar_abi_cases, validate_effects, validated_effects,
 };
 use selected_instructions::{
     MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -180,18 +180,20 @@ fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
         );
         assert_eq!(catalog.catalog().selected_keys, keys);
 
-        let flags = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rflags",
-                Architecture::Aarch64 => "nzcv",
-            })
-            .expect("branch matrix names a condition-codes view");
-        let program_counter = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rip",
-                Architecture::Aarch64 => "pc",
-            })
-            .expect("branch matrix names a program-counter view");
+        let flags = named_view(
+            model,
+            case.target,
+            "rflags",
+            "nzcv",
+            "branch matrix names a condition-codes view",
+        );
+        let program_counter = named_view(
+            model,
+            case.target,
+            "rip",
+            "pc",
+            "branch matrix names a program-counter view",
+        );
         // The ABI fixes the program counter and leaves the condition codes
         // volatile: a branch may consume both but can never touch preserved
         // state.
@@ -316,24 +318,17 @@ fn every_selected_branch_rule_rejects_encoded_control_forgery_on_every_target() 
         let environment = baseline_target_register_environment(case.target).unwrap();
         let model = environment.physical().model();
         let catalog = produced_effects(case, environment.constraints());
-        let stack_pointer = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rsp",
-                Architecture::Aarch64 => "sp",
-            })
-            .unwrap();
-        let flags = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rflags",
-                Architecture::Aarch64 => "nzcv",
-            })
-            .unwrap();
-        let program_counter = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rip",
-                Architecture::Aarch64 => "pc",
-            })
-            .unwrap();
+        let stack_pointer =
+            named_view(model, case.target, "rsp", "sp", "target names no such view");
+        let flags = named_view(
+            model,
+            case.target,
+            "rflags",
+            "nzcv",
+            "target names no such view",
+        );
+        let program_counter =
+            named_view(model, case.target, "rip", "pc", "target names no such view");
         for (key, semantic) in selected_branch_rules(&environment) {
             let contract = branch_contract(semantic);
 

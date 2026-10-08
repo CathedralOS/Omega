@@ -1,7 +1,7 @@
 use super::{
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
-    baseline_target_register_environment, convention_for, produced_effects, scalar_abi_cases,
-    validate_effects, validated_effects,
+    baseline_target_register_environment, convention_for, named_view, produced_effects,
+    scalar_abi_cases, validate_effects, validated_effects,
 };
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
@@ -503,18 +503,20 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         );
         assert_eq!(catalog.catalog().selected_keys, keys);
 
-        let stack_pointer = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rsp",
-                Architecture::Aarch64 => "sp",
-            })
-            .expect("memory matrix names a stack-pointer view");
-        let flags = model
-            .view_named(match case.target.architecture {
-                Architecture::X86_64 => "rflags",
-                Architecture::Aarch64 => "nzcv",
-            })
-            .expect("memory matrix names a flags view");
+        let stack_pointer = named_view(
+            model,
+            case.target,
+            "rsp",
+            "sp",
+            "memory matrix names a stack-pointer view",
+        );
+        let flags = named_view(
+            model,
+            case.target,
+            "rflags",
+            "nzcv",
+            "memory matrix names a flags view",
+        );
         // Every memory operand travels in the class the ABI declares for its
         // integer arguments, and frame custody reads the ABI-fixed stack
         // pointer.
