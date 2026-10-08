@@ -13,6 +13,34 @@ use arena::HandleSpan;
 
 /// A bodyless `main` machine whose only state is `state` — the shared
 /// root-item fixture both extend-from tests push.
+/// Assemble `file` through `extend_from` and return the machine root's
+/// first statement handle — the shared tail of the extend-from assertions.
+fn assembled_first_statement(
+    file: &SyntaxTrees,
+    expect: &'static str,
+) -> (SyntaxTrees, crate::statement::StatementHandle) {
+    let mut assembled = SyntaxTrees::new(Default::default());
+    assembled.extend_from(file);
+
+    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
+        panic!("expected machine root item");
+    };
+    let state_handle = assembled
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state handle");
+    let state = assembled.items.state(state_handle);
+    let statement_handle = assembled
+        .items
+        .statements(state.statements)
+        .first()
+        .copied()
+        .expect(expect);
+    (assembled, statement_handle)
+}
+
 fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
     Machine {
         name: Identifier::generated("main"),
@@ -961,25 +989,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(single_state_machine(state)));
 
-    let mut assembled = SyntaxTrees::new(Default::default());
-    assembled.extend_from(&file);
-
-    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
-        panic!("expected machine root item");
-    };
-    let state_handle = assembled
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state handle");
-    let state = assembled.items.state(state_handle);
-    let statement_handle = assembled
-        .items
-        .statements(state.statements)
-        .first()
-        .copied()
-        .expect("call statement");
+    let (assembled, statement_handle) = assembled_first_statement(&file, "call statement");
     let StatementNode::Call(call) = assembled.statements.statement(statement_handle) else {
         panic!("expected call statement");
     };
@@ -1064,25 +1074,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     let state = file.items.append_state_handle(state);
     file.push_root_item(Item::Machine(single_state_machine(state)));
 
-    let mut assembled = SyntaxTrees::new(Default::default());
-    assembled.extend_from(&file);
-
-    let Item::Machine(machine) = assembled.root_items().next().expect("machine root") else {
-        panic!("expected machine root item");
-    };
-    let state_handle = assembled
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state handle");
-    let state = assembled.items.state(state_handle);
-    let statement_handle = assembled
-        .items
-        .statements(state.statements)
-        .first()
-        .copied()
-        .expect("assignment statement");
+    let (assembled, statement_handle) = assembled_first_statement(&file, "assignment statement");
     let StatementNode::Assignment(assignment) = assembled.statements.statement(statement_handle)
     else {
         panic!("expected assignment statement");
