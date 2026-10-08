@@ -53,9 +53,14 @@ library calibration and retry code still run. Timespec writes and read-only
 wait requests use authenticated original loans and retained native placement.
 This signal-free time model is not evidence of native latency or interruption
 correctness.
-Exact Darwin descriptor writes capture stdout and stderr separately from integer
-loans or readonly byte views. Explicit counts stay within the original primitive
-extent; a pointer to one array element does not grant its allocation's tail.
+Exact MSVCRT/Darwin descriptor imports and Linux read/write syscalls share finite
+input and separate private stdout/stderr. Captured loans use retained native
+placement; Darwin also accepts the admitted pointer/length byte-view ABI.
+Retained or discarded counts use the same transfer. Explicit counts stay within
+the original borrowed extent; a pointer to one array element does not grant its
+allocation's tail. Unknown kernel descriptors or replay failures cannot supply
+an invented kernel status. Large transfers need the selected kernel page-size
+limit, rather than an impossible full-count write.
 Descriptor-backed or
 indefinite waits, CPU clocks and other missing imports decline explicitly;
 there is no tree fallback. The CLI compares host-presented termination only, not

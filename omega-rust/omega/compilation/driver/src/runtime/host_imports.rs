@@ -117,14 +117,20 @@ pub(super) fn bind<'host>(
                         .map_err(TerminalRuntimeError::Binding)?;
                     continue;
                 }
-                let adapter = descriptor_io::DescriptorIoImport::admit(
+                let Some(adapter) = descriptor_io::DescriptorIoImport::admit(
                     program,
                     declaration,
                     binding,
                     provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
-                )?;
+                )?
+                else {
+                    return Err(TerminalRuntimeError::missing(
+                        "runtime-host-import-bindings",
+                        "no trusted host implementation matches this exact foreign binding",
+                    ));
+                };
                 instance
                     .bind_import(*slot, adapter)
                     .map_err(TerminalRuntimeError::Binding)?;

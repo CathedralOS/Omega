@@ -8,6 +8,7 @@ pub boundary trait DescriptorIo {
     machine read_half(descriptor: i32, half: &mut u16, count: u64) -> i64 blocks;
     machine write_word(descriptor: i32, word: &u32, count: u64) -> i64;
     machine write_half(descriptor: i32, half: &u16, count: u64) -> i64;
+    machine write_discarded(descriptor: i32, word: &u32, count: u64);
 }
 pub data DescriptorImports { }
 data Main { io: Binding<DescriptorIo>; word: u32; half: u16; }
@@ -30,6 +31,29 @@ macos_arm64 boundary machine DescriptorImports::write_word(descriptor: i32, word
     satisfies DescriptorIo::write_word via write_binding();
 macos_arm64 boundary machine DescriptorImports::write_half(descriptor: i32, half: &u16, count: u64) -> i64
     satisfies DescriptorIo::write_half via write_binding();
+macos_arm64 boundary machine DescriptorImports::write_discarded(descriptor: i32, word: &u32, count: u64)
+    satisfies DescriptorIo::write_discarded via write_binding();
+
+linux_x86_64 boundary machine DescriptorImports::read_word(descriptor: i32, word: &mut u32, count: u64) -> i64
+    satisfies DescriptorIo::read_word via ForeignBinding::Syscall(0);
+linux_arm64 boundary machine DescriptorImports::read_word(descriptor: i32, word: &mut u32, count: u64) -> i64
+    satisfies DescriptorIo::read_word via ForeignBinding::Syscall(63);
+linux_x86_64 boundary machine DescriptorImports::read_half(descriptor: i32, half: &mut u16, count: u64) -> i64
+    satisfies DescriptorIo::read_half via ForeignBinding::Syscall(0);
+linux_arm64 boundary machine DescriptorImports::read_half(descriptor: i32, half: &mut u16, count: u64) -> i64
+    satisfies DescriptorIo::read_half via ForeignBinding::Syscall(63);
+linux_x86_64 boundary machine DescriptorImports::write_word(descriptor: i32, word: &u32, count: u64) -> i64
+    satisfies DescriptorIo::write_word via ForeignBinding::Syscall(1);
+linux_arm64 boundary machine DescriptorImports::write_word(descriptor: i32, word: &u32, count: u64) -> i64
+    satisfies DescriptorIo::write_word via ForeignBinding::Syscall(64);
+linux_x86_64 boundary machine DescriptorImports::write_half(descriptor: i32, half: &u16, count: u64) -> i64
+    satisfies DescriptorIo::write_half via ForeignBinding::Syscall(1);
+linux_arm64 boundary machine DescriptorImports::write_half(descriptor: i32, half: &u16, count: u64) -> i64
+    satisfies DescriptorIo::write_half via ForeignBinding::Syscall(64);
+linux_x86_64 boundary machine DescriptorImports::write_discarded(descriptor: i32, word: &u32, count: u64)
+    satisfies DescriptorIo::write_discarded via ForeignBinding::Syscall(1);
+linux_arm64 boundary machine DescriptorImports::write_discarded(descriptor: i32, word: &u32, count: u64)
+    satisfies DescriptorIo::write_discarded via ForeignBinding::Syscall(64);
 
 machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     main.word = 1144201745;
@@ -39,6 +63,10 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     let second: i64 = block main.io.read_half(0, &mut main.half, 2);
     let at_end: i64 = block main.io.read_word(0, &mut main.word, 2);
     let written: i64 = main.io.write_word(1, &main.word, 3);
+    main.io.write_discarded(1, &main.word, 0);
+    // Discarding the count must still perform the original storage transfer.
+    let diagnostic: u32 = 174285409;
+    main.io.write_discarded(2, &diagnostic, 4);
     let newline: i64 = main.io.write_half(1, &main.half, 1);
     transition empty == 0 && first == 3 && second == 1 && at_end == 0
         && written == 3 && newline == 1 && main.word == 1147363937 && main.half == 21770 {

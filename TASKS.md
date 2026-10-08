@@ -1839,8 +1839,11 @@ then independent claimed restoration slices -> final closure.
   `borrows/runtime_direct_immutable_scalar_loan_exit` too: computed loans,
   captures, assignments and helper writes must share original scalar backing.
   Preserve `host/runtime_descriptor_scalar_input_exit`: canonical boundary-trait
-  supplies share one finite input cursor across import slots, retain untouched
-  bytes on short reads, and leave caller storage unchanged on zero-count/EOF.
+  and Linux kernel slots share one finite input cursor; short/zero/EOF reads
+  retain untouched backing, and discarded counts still transfer bytes to the
+  independently observed streams. Remaining descriptors need actual custody;
+  oversized kernel transfers need selected page-size limits rather than
+  fabricated complete writes. Linux native input/output remains unqualified.
   Preserve `host/runtime_descriptor_{float_loan_input,boolean_loan_output}_exit`
   and `fail/borrows/boundary_primitive_loan_mutable_from_shared`: boundary and
   checked-body calls must share primitive-home loan admission and argument

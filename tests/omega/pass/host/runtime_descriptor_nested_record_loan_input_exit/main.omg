@@ -25,6 +25,15 @@ macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &m
 macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
     satisfies DescriptorIo::write via write_binding();
 
+linux_x86_64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
+    satisfies DescriptorIo::read via ForeignBinding::Syscall(0);
+linux_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
+    satisfies DescriptorIo::read via ForeignBinding::Syscall(63);
+linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
+    satisfies DescriptorIo::write via ForeignBinding::Syscall(1);
+linux_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
+    satisfies DescriptorIo::write via ForeignBinding::Syscall(64);
+
 machine receive(io: &Binding<DescriptorIo>, packet: &mut Packet) -> i64 reaches DescriptorIo blocks; {
     block io.read(0, packet, 6)
 }

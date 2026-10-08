@@ -19,6 +19,8 @@
 //! Descriptor adapters join complete admitted locator/ABI rows: MSVCRT reads
 //! and writes use captured integer loans, while Darwin writes also accept the
 //! exact readonly byte-view descriptor. Counts cannot widen the loan's extent.
+//! Linux read/write syscalls use those same captured loans and native placement;
+//! raw kernel errors are not guessed from libc or host replay errors.
 //! Slots share finite input and independent ordered stdout/stderr captures;
 //! checked Console wrappers still run in Psi.
 //! Exact Darwin imports and Linux clock syscalls consume a supplied private time
