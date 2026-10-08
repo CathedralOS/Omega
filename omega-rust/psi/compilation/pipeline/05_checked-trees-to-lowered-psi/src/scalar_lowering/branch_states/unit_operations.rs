@@ -212,6 +212,8 @@ pub(super) fn prepare(
     // General structural contract substitution belongs to the existing Unit
     // assembler. This graph lane admits only the already plain primitive call
     // contract, and does not silently erase authored requirements or exits.
+    // An arithmetic policy (`u64 in Wrapping`) governs the callee's own
+    // operations and asks nothing of the caller's argument.
     if !checked.state_contracts(callee_state).is_empty()
         || !contract.closed_scalar_values.requires().is_empty()
         || !contract.closed_scalar_values.ensures().is_empty()
@@ -234,6 +236,9 @@ pub(super) fn prepare(
                     !matches!(
                         reference,
                         checked_trees::types::TypeReferenceNode::Named { .. }
+                    ) && !validation::is_arithmetic_policy_only_integer(
+                        &checked.typed,
+                        parameter.type_reference,
                     )
                 } else {
                     false

@@ -2369,6 +2369,7 @@ pass/calls/mutual_cycle_tail_admitted_exit checked 1566ms check-target:macos_arm
 pass/calls/named_target_payload_dispatch checked 1279ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/negated_edge_guard_requires_exit checked 1337ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/nested_call_init_transition checked 3358ms check-target:macos_arm64 @527c7c316c6f+wt
+pass/calls/nested_call_policy_parameters_exit checked 1428ms check-target:macos_arm64 @78ffda488ec6+wt
 pass/calls/nested_call_runtime_index_arg_exit checked 920ms check-target:macos_arm64 @922ccf420927+wt
 pass/calls/nested_call_tail_roots_exit checked 4392ms check-target:macos_arm64 @c773c4ad3c3
 pass/calls/nested_indexed_scalar_arguments_exit checked 1381ms check-target:macos_arm64 @63377f7122bb+wt

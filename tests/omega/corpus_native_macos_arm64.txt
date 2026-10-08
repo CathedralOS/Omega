@@ -294,6 +294,7 @@ pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
 pass/calls/named_target_payload_dispatch built 1486ms exit:0 @bed5f45e9185+wt
 pass/calls/negated_edge_guard_requires_exit built 1467ms exit:70 @48008365d839
 pass/calls/nested_call_init_transition built 3363ms exit:0 @527c7c316c6f+wt
+pass/calls/nested_call_policy_parameters_exit built 1698ms exit:70
 pass/calls/nested_call_runtime_index_arg_exit built 1341ms exit:70 @922ccf420927+wt
 pass/calls/nested_call_tail_roots_exit built 4653ms exit:0 @922ccf420927+wt
 pass/calls/nested_indexed_scalar_arguments_exit built 1493ms exit:70 @63377f7122bb+wt
