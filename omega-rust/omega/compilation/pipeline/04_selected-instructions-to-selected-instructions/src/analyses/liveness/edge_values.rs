@@ -3,7 +3,7 @@ use super::LivenessError;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedSuccessor,
     SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
 };
 
 /// One function's registers and blocks, indexed once per analysis. Transport
@@ -140,27 +140,7 @@ pub(crate) fn validate_transports(
     };
     let index = FunctionIndex::new(function);
     for block in &function.blocks {
-        let edges = match &block.terminator {
-            SelectedTerminator::Jump { successor, .. } => vec![successor],
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            } => vec![when_nonzero, when_zero],
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. }
-            | SelectedTerminator::Crash { .. }
-            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-        };
+        let edges = terminator_successors(&block.terminator);
         for edge in edges {
             match (block.origin, edge.role) {
                 (

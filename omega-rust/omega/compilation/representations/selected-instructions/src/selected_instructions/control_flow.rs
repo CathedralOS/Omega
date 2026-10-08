@@ -245,9 +245,7 @@ pub fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstr
 }
 
 /// The mutable instruction record every terminator carries.
-pub fn terminator_instruction_mut(
-    terminator: &mut SelectedTerminator,
-) -> &mut SelectedInstruction {
+pub fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
@@ -256,5 +254,57 @@ pub fn terminator_instruction_mut(
         | SelectedTerminator::Return { instruction, .. }
         | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
+    }
+}
+
+/// Every successor edge a terminator carries.
+pub fn terminator_successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
+    match terminator {
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } => vec![when_nonzero, when_zero],
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        } => vec![when_less, when_not_less],
+        SelectedTerminator::Return { .. }
+        | SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
+    }
+}
+
+/// Every successor edge a terminator carries, mutably.
+pub fn terminator_successors_mut(
+    terminator: &mut SelectedTerminator,
+) -> Vec<&mut SelectedSuccessor> {
+    match terminator {
+        SelectedTerminator::Jump { successor, .. } => vec![successor],
+        SelectedTerminator::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+            ..
+        } => vec![when_nonzero, when_zero],
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
+            when_less,
+            when_not_less,
+            ..
+        } => vec![when_less, when_not_less],
+        SelectedTerminator::Return { .. }
+        | SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
     }
 }

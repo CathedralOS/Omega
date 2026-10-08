@@ -22,10 +22,9 @@ mod ieee_float_arithmetic;
 pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
 pub use float_result_policy::{FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule};
 pub use ieee_float_arithmetic::{
-    ieee_float_arithmetic_is_trapping,
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
     IeeeFloatFormat, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
-    float_bit_transfer_properties, is_float_bit_transfer,
+    float_bit_transfer_properties, ieee_float_arithmetic_is_trapping, is_float_bit_transfer,
 };
 pub mod constraints;
 pub mod control_flow;
@@ -57,8 +56,8 @@ pub use control_flow::{
     SelectedAddressBase, SelectedBlock, SelectedBlockOrigin, SelectedFunction,
     SelectedScalarReferenceSource, SelectedStructuralBinding, SelectedStructuralTransport,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
-    terminator_instruction, terminator_instruction_mut,
-    SelectedValueTransport,
+    SelectedValueTransport, terminator_instruction, terminator_instruction_mut,
+    terminator_successors, terminator_successors_mut,
 };
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineAlternative,

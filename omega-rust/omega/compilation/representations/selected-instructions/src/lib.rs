@@ -36,7 +36,7 @@ pub use selected_instructions::{
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedNormalizedForeignCall,
     SelectedOperand, SelectedOutgoingArgumentSlot, SelectedScalarReferenceSource,
     SelectedSelectionConstraints, SelectedStructuralBinding, SelectedStructuralCaseEdge,
-    SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, terminator_instruction, terminator_instruction_mut,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
     SelectedValueBinding, SelectedValueTransport, StoredLoadForwardingIdentity, SuccessorLiveness,
     TrappingForm, TrappingOperation, ValidatedMachineEffectCatalog, VirtualFixedConstraint,
     VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
@@ -48,7 +48,8 @@ pub use selected_instructions::{
     liveness, liveness_function_digest, liveness_identity, liveness_identity_from_digests,
     machine_effect_catalog_identity, plan_identity, pre_allocation_machine_effect_identity,
     provenance, saturating_family_tag, selected_instruction_plan_identity, structural_case,
-    trapping_family_tag, validate_machine_effect_catalog, values,
+    terminator_instruction, terminator_instruction_mut, terminator_successors,
+    terminator_successors_mut, trapping_family_tag, validate_machine_effect_catalog, values,
 };
 pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,

@@ -12,7 +12,7 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionProvenance,
-    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin, terminator_successors_mut,
 };
 
 use crate::rewrites::selected_operands::selected_operand;
@@ -277,27 +277,7 @@ fn redensify(
                 removed_registers,
             )?;
         }
-        let successors = match &mut block.terminator {
-            SelectedTerminator::Jump { successor, .. } => vec![successor],
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            } => vec![when_nonzero, when_zero],
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. }
-            | SelectedTerminator::Crash { .. }
-            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-        };
+        let successors = terminator_successors_mut(&mut block.terminator);
         for successor in successors {
             for binding in &mut successor.structural_bindings {
                 if let selected_instructions::SelectedStructuralTransport::WholeValue {

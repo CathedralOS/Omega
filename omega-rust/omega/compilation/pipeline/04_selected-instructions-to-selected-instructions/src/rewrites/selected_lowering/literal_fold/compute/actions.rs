@@ -4,6 +4,7 @@ use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
     SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    terminator_successors,
 };
 use semantic_vocabulary::{IntegerValue, ScalarType};
 
@@ -228,27 +229,7 @@ fn sole_use(
                 }
             }
         }
-        let successors = match &block.terminator {
-            SelectedTerminator::Jump { successor, .. } => vec![successor],
-            SelectedTerminator::ConditionalBranch {
-                when_nonzero,
-                when_zero,
-                ..
-            } => vec![when_nonzero, when_zero],
-            SelectedTerminator::ConditionalBranchU64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            }
-            | SelectedTerminator::ConditionalBranchI64LessThan {
-                when_less,
-                when_not_less,
-                ..
-            } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. }
-            | SelectedTerminator::Crash { .. }
-            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
-        };
+        let successors = terminator_successors(&block.terminator);
         for successor in successors {
             let carried = successor.structural_bindings.iter().any(|binding| {
                 matches!(
