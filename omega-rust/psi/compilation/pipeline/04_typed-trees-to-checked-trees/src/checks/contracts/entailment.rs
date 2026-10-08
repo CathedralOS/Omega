@@ -148,19 +148,7 @@ pub(super) fn integral_parameter_reflexivity(
                 .type_reference_table
                 .type_reference(parameter.type_reference)
             {
-                TypeReferenceNode::Named { symbol, .. } => matches!(
-                    program.symbols.builtin_type_atom(*symbol),
-                    Some(
-                        symbols::BuiltinTypeAtom::I8
-                            | symbols::BuiltinTypeAtom::I16
-                            | symbols::BuiltinTypeAtom::I32
-                            | symbols::BuiltinTypeAtom::I64
-                            | symbols::BuiltinTypeAtom::U8
-                            | symbols::BuiltinTypeAtom::U16
-                            | symbols::BuiltinTypeAtom::U32
-                            | symbols::BuiltinTypeAtom::U64
-                    )
-                ),
+                TypeReferenceNode::Named { symbol, .. } => program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer()),
                 _ => false,
             }
     })

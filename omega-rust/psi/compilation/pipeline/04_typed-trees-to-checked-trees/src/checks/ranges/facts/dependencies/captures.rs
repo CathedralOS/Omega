@@ -245,7 +245,6 @@ pub(super) fn is_integer_value(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    use symbols::BuiltinTypeAtom;
     use typed_trees::types::TypeReferenceNode;
     let Some(mut reference) = crate::checks::ranges::types::expression_type_reference(
         program, machine, state, expression,
@@ -256,19 +255,7 @@ pub(super) fn is_integer_value(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
-                return matches!(
-                    program.symbols.builtin_type_atom(*symbol),
-                    Some(
-                        BuiltinTypeAtom::I8
-                            | BuiltinTypeAtom::I16
-                            | BuiltinTypeAtom::I32
-                            | BuiltinTypeAtom::I64
-                            | BuiltinTypeAtom::U8
-                            | BuiltinTypeAtom::U16
-                            | BuiltinTypeAtom::U32
-                            | BuiltinTypeAtom::U64
-                    )
-                );
+                return program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer());
             }
             // A copied reference still observes storage; it is not a captured
             // integer value. Atomic and aggregate carriers are not snapshots.

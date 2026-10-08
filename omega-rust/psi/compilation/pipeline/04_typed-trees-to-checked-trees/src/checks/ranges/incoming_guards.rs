@@ -774,19 +774,7 @@ fn immutable_integer_binding(
                 reference = *base_type
             }
             typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-                return matches!(
-                    program.symbols.builtin_type_atom(*symbol),
-                    Some(
-                        symbols::BuiltinTypeAtom::I8
-                            | symbols::BuiltinTypeAtom::I16
-                            | symbols::BuiltinTypeAtom::I32
-                            | symbols::BuiltinTypeAtom::I64
-                            | symbols::BuiltinTypeAtom::U8
-                            | symbols::BuiltinTypeAtom::U16
-                            | symbols::BuiltinTypeAtom::U32
-                            | symbols::BuiltinTypeAtom::U64
-                    )
-                );
+                return program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer());
             }
             _ => return false,
         }

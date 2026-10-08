@@ -178,20 +178,10 @@ pub fn declared_integer_range(
         return None;
     };
     let carrier = program.symbols.builtin_type_atom(*symbol)?;
-    use symbols::BuiltinTypeAtom;
     let (endpoints, end_inclusive) = endpoints?;
-    matches!(
-        carrier,
-        BuiltinTypeAtom::U8
-            | BuiltinTypeAtom::U16
-            | BuiltinTypeAtom::U32
-            | BuiltinTypeAtom::U64
-            | BuiltinTypeAtom::I8
-            | BuiltinTypeAtom::I16
-            | BuiltinTypeAtom::I32
-            | BuiltinTypeAtom::I64
-    )
-    .then_some((carrier, endpoints, end_inclusive))
+    carrier
+        .is_fixed_integer()
+        .then_some((carrier, endpoints, end_inclusive))
 }
 
 /// Read a closed integer range endpoint without interpreting typed

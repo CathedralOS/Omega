@@ -282,17 +282,7 @@ impl<'program> ShapeCollector<'program> {
                     return false;
                 };
                 if name.as_str() != atom.symbol_name()
-                    || !matches!(
-                        atom,
-                        symbols::BuiltinTypeAtom::I8
-                            | symbols::BuiltinTypeAtom::I16
-                            | symbols::BuiltinTypeAtom::I32
-                            | symbols::BuiltinTypeAtom::I64
-                            | symbols::BuiltinTypeAtom::U8
-                            | symbols::BuiltinTypeAtom::U16
-                            | symbols::BuiltinTypeAtom::U32
-                            | symbols::BuiltinTypeAtom::U64
-                    )
+                    || !atom.is_fixed_integer()
                 {
                     return false;
                 }
