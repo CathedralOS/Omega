@@ -27,5 +27,3 @@ pub fn measured_step_budget(steps: u64) -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(1, 1, steps, 1, 1).unwrap()
 }
 
-/// Build a selected instruction from its constraint row and bound registers.
-
