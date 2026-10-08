@@ -80,27 +80,12 @@ pub(super) fn argument(
         {
             return Err(SelectedInstructionError::custody());
         }
-        let pointer = super::structural_case::register(builder, place, 0, 64, false)?;
-        super::structural_case::memory(
+        let pointer = super::structural_case::frame_address_pointer(
             builder,
             block,
             place,
-            0,
+            slot,
             root_shape.byte_size,
-            SelectedMemoryAccessRole::AddressLocal { slot },
-        )?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
-                byte_offset: 0,
-            },
-            builder
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[pointer],
-            Default::default(),
         )?;
         Some(pointer)
     } else {

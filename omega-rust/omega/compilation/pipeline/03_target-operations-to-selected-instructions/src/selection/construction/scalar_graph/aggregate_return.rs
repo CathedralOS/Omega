@@ -5,8 +5,8 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
+use selected_instructions::SelectedMemoryAccessRole;
 use selected_instructions::SelectedTerminator;
-use selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn build(
     source: &LegalizedScalarFunction,
@@ -67,27 +67,12 @@ pub(super) fn build(
     // Inline inputs with no addressable home retain their captured fragments.
     // Both direct and hidden-pointer results consume this same source choice.
     let pointer = if let Some(slot) = slot {
-        let pointer = super::structural_case::register(builder, place, 0, 64, false)?;
-        super::structural_case::memory(
+        let pointer = super::structural_case::frame_address_pointer(
             builder,
             block.id,
             place,
-            0,
+            slot,
             placement.shape.byte_size,
-            SelectedMemoryAccessRole::AddressLocal { slot },
-        )?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(slot),
-                byte_offset: 0,
-            },
-            builder
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[pointer],
-            Default::default(),
         )?;
         Some(pointer)
     } else {

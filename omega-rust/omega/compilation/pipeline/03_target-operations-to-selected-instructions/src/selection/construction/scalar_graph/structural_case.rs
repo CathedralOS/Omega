@@ -157,31 +157,13 @@ pub(super) fn build(
         });
     }
     let pointer = match dispatch_source {
-        selected_instructions::SelectedCaseDispatchSource::Local { slot } => {
-            let pointer = register(builder, subject.place(), 0, 64, false)?;
-            memory(
-                builder,
-                block.id,
-                subject.place(),
-                0,
-                layout.shape.byte_size,
-                SelectedMemoryAccessRole::AddressLocal { slot },
-            )?;
-            builder.emit(
-                SelectedInstructionKind::FrameAddress {
-                    slot: FrameStorageSlotId::Local(slot),
-                    byte_offset: 0,
-                },
-                builder
-                    .constraints
-                    .keys
-                    .frame_address
-                    .ok_or_else(|| invalid())?,
-                &[pointer],
-                Default::default(),
-            )?;
-            pointer
-        }
+        selected_instructions::SelectedCaseDispatchSource::Local { slot } => frame_address_pointer(
+            builder,
+            block.id,
+            subject.place(),
+            slot,
+            layout.shape.byte_size,
+        )?,
         selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => pointer,
     };
     let tag = register(builder, subject.place(), 0, 32, true)?;
@@ -342,6 +324,42 @@ pub(super) fn memory(
         role,
     });
     Ok(())
+}
+
+/// The address an owned aggregate home hands its consumers: a 64-bit
+/// pointer register carrying the local slot's frame address, beside the
+/// address-local memory record the transport keeps.
+#[track_caller]
+pub(super) fn frame_address_pointer(
+    builder: &mut Builder<'_>,
+    block: semantic_vocabulary::BlockId,
+    place: PlaceId,
+    slot: LocalStorageSlotId,
+    byte_size: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let pointer = register(builder, place, 0, 64, false)?;
+    memory(
+        builder,
+        block,
+        place,
+        0,
+        byte_size,
+        SelectedMemoryAccessRole::AddressLocal { slot },
+    )?;
+    builder.emit(
+        SelectedInstructionKind::FrameAddress {
+            slot: FrameStorageSlotId::Local(slot),
+            byte_offset: 0,
+        },
+        builder
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| invalid())?,
+        &[pointer],
+        Default::default(),
+    )?;
+    Ok(pointer)
 }
 
 fn successor(
