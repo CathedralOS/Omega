@@ -45,18 +45,14 @@ impl ResolvedTypeFacts {
 
     /// The declared place type, or zero; never a computed-result substitute.
     pub fn place(&self, expression: ExpressionHandle) -> TypeReferenceHandle {
-        match self.expression(expression) {
-            Some(row) => row.place,
-            None => TypeReferenceHandle::invalid(),
-        }
+        self.expression(expression)
+            .map_or_else(TypeReferenceHandle::invalid, |row| row.place)
     }
 
     /// The result type without a destination guess; zero denotes absence.
     pub fn result(&self, expression: ExpressionHandle) -> TypeReferenceHandle {
-        match self.expression(expression) {
-            Some(row) => row.result,
-            None => TypeReferenceHandle::invalid(),
-        }
+        self.expression(expression)
+            .map_or_else(TypeReferenceHandle::invalid, |row| row.result)
     }
 
     /// The storage carrier beneath shells, or zero for an unnamed handle.

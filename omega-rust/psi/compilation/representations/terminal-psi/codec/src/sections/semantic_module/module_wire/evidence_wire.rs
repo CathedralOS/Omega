@@ -11,8 +11,7 @@ pub(super) fn encode_evidence_term(
 ) -> Result<(), CodecError> {
     writer.id(term.id);
     writer.id(term.proposition);
-    encode_evidence_interface(writer, &term.interface)?;
-    Ok(())
+    encode_evidence_interface(writer, &term.interface)
 }
 
 pub(super) fn encode_evidence_contract_lane(

@@ -32,8 +32,6 @@ pub struct CheckedBoundaryApplicationOperands {
     pub operands: Vec<(ExpressionHandle, Option<PrimitiveType>)>,
 }
 
-impl CheckedBoundaryApplicationOperands {}
-
 impl CheckedOperatorFacts {
     /// The selected boundary operator applied at `expression` in `origin`,
     /// or `None` unless exactly one spelled or named use selected one.

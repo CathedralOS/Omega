@@ -12,7 +12,7 @@ pub enum ProofFactKind {
     GuardedTransition,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofObligationFact {
     pub kind: ProofFactKind,
     pub machine_symbol: SymbolHandle,
@@ -52,17 +52,6 @@ pub enum ProofObligationOwner {
         state_symbol: SymbolHandle,
         parameter_symbol: SymbolHandle,
     },
-}
-
-impl Default for ProofObligationFact {
-    fn default() -> Self {
-        Self {
-            kind: ProofFactKind::default(),
-            machine_symbol: SymbolHandle::invalid(),
-            state_symbol: SymbolHandle::invalid(),
-            owner: ProofObligationOwner::default(),
-        }
-    }
 }
 
 /// A completed integer assignment judgment, before the authored store occurs.
