@@ -2,8 +2,7 @@
 //! and case constructions each establish their own contents.
 
 use super::super::{
-    Builder, CheckedScalarExpressionRole, ExpressionHandle,
-    ExpressionNode, TypeReferenceNode,
+    Builder, CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, TypeReferenceNode,
 };
 use super::value_predicates::{zeroed_integer_literal, zeroed_scalar_array_parts};
 use checked_trees::CheckedStructuralValueKind;

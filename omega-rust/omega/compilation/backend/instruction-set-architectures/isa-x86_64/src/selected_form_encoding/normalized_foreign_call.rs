@@ -815,10 +815,7 @@ mod tests {
             ] {
                 let view = crate::x86_64_fixed_register_view(&physical, register).unwrap();
                 let view = physical
-                    .model()
-                    .views
-                    .iter()
-                    .find(|candidate| candidate.id == view)
+                    .model().view(view)
                     .unwrap();
                 assert!(
                     view.units

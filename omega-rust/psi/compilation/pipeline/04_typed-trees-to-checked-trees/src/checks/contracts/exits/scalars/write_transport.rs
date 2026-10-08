@@ -34,8 +34,7 @@ impl ExitScalars<'_, '_> {
     /// side. Failed search never supplies false; the ordinary value paths keep
     /// their own verdicts.
     pub(super) fn write_transported_equality(&self, expression: ExpressionHandle) -> bool {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return false;
         };
         binary.operator == BinaryOperator::Equal

@@ -67,8 +67,7 @@ impl ExitScalars<'_, '_> {
         call: NormalReturnCall<'_>,
         guarantee: ExpressionHandle,
     ) -> Option<usize> {
-        let Some(binary) = self.program.expression_table.binary_node(guarantee)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(guarantee) else {
             return None;
         };
         if binary.operator != BinaryOperator::Equal {
@@ -187,8 +186,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<NormalReturnCall<'_>> {
-        let Some(authored) = self.program.expression_table.call_node(expression)
-        else {
+        let Some(authored) = self.program.expression_table.call_node(expression) else {
             return None;
         };
         if !authored.machine_arguments.is_empty() {
@@ -201,8 +199,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<NormalReturnCall<'_>> {
-        let Some(authored) = self.program.expression_table.call_node(expression)
-        else {
+        let Some(authored) = self.program.expression_table.call_node(expression) else {
             return None;
         };
         if authored.receiver.is_valid()

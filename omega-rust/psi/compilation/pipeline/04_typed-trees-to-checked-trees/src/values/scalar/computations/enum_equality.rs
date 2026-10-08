@@ -16,8 +16,8 @@
 
 use super::{
     Builder, CheckedBooleanExpression, CheckedScalarComputationHandle,
-    CheckedScalarComputationKind, CheckedScalarExpression, ExpressionHandle,
-    PrimitiveType, operator_is_builtin,
+    CheckedScalarComputationKind, CheckedScalarExpression, ExpressionHandle, PrimitiveType,
+    operator_is_builtin,
 };
 use checked_trees::CheckedScalarComputationStructuralArgument;
 use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -28,8 +28,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<CheckedScalarComputationHandle> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         if !matches!(

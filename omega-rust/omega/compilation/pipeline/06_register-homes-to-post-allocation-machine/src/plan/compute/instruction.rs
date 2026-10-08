@@ -37,10 +37,7 @@ pub(super) fn build(
                     register: operand.virtual_register.0,
                 })?;
             let view = physical
-                .model()
-                .views
-                .iter()
-                .find(|view| view.id == home.view)
+                .model().view(home.view)
                 .ok_or(PostAllocationMachineError::UnknownView {
                     function: function_index,
                     register: operand.virtual_register.0,

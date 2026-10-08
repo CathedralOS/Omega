@@ -10,9 +10,7 @@ use crate::flow::transfers::projected;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowSemanticContextRef};
-use facts::{
-    Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint,
-};
+use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_constructed_field_values(
@@ -104,9 +102,13 @@ pub(super) fn append_constructed_field_values(
             semantic.push_place_segment(place, *segment);
         }
         if crate::values::is_assignment_literal(program, projection.expression) {
-            let fact = semantic.append_transfer_at_point(FactPlace::Place(place), point, FactPayload::AssignedValue {
+            let fact = semantic.append_transfer_at_point(
+                FactPlace::Place(place),
+                point,
+                FactPayload::AssignedValue {
                     value: projection.expression,
-                });
+                },
+            );
             semantic.append_ref(references, fact);
             continue;
         }

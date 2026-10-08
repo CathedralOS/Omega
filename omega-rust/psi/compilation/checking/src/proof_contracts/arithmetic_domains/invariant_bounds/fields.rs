@@ -19,8 +19,7 @@ pub(super) fn type_reference(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    let Some(receiver) = program.expression_table.name_path_node(member.receiver)
-    else {
+    let Some(receiver) = program.expression_table.name_path_node(member.receiver) else {
         return None;
     };
     // One member: the receiver is a bare binding occurrence, not a chain.

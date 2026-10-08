@@ -370,10 +370,7 @@ pub(crate) fn resolve_registers(
         .iter()
         .map(|id| {
             let view = physical
-                .model()
-                .views
-                .iter()
-                .find(|view| view.id == *id)
+                .model().view(*id)
                 .ok_or(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id))?;
             let Some(index) = view.name.strip_prefix('x') else {
                 return Err(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id));

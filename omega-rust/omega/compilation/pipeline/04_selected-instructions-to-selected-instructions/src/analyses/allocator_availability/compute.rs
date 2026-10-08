@@ -86,10 +86,7 @@ fn admitted_views(
             }
             for view_id in views {
                 let Some(view) = physical
-                    .model()
-                    .views
-                    .iter()
-                    .find(|view| view.id == *view_id)
+                    .model().view(*view_id)
                 else {
                     return Err(AllocatorAvailabilityError::UnknownView { view: view_id.0 });
                 };

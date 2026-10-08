@@ -105,10 +105,7 @@ fn derive(
         .filter(|view_id| available.binary_search(view_id).is_ok())
         .filter_map(|view_id| {
             let view = physical
-                .model()
-                .views
-                .iter()
-                .find(|view| view.id == *view_id)?;
+                .model().view(*view_id)?;
             (view.allocatable
                 && view
                     .units

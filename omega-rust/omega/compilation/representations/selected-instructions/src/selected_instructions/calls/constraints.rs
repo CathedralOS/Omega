@@ -260,10 +260,7 @@ fn register_view<'physical>(
 ) -> Option<&'physical RegisterView> {
     let identity = fixed_register_view(register)?;
     physical
-        .model()
-        .views
-        .iter()
-        .find(|view| view.id == identity)
+        .model().view(identity)
 }
 
 fn append_operand(

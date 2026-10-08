@@ -228,8 +228,7 @@ impl Builder<'_, '_> {
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
         let operand = self.same_carrier_cast_operand(expression)?;
-        let Some(cast) = self.program.expression_table.cast_node(expression)
-        else {
+        let Some(cast) = self.program.expression_table.cast_node(expression) else {
             return None;
         };
         if self.program.primitive_type_reference(cast.target_type) != Some(expected_type) {
@@ -242,8 +241,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        let Some(cast) = self.program.expression_table.cast_node(expression)
-        else {
+        let Some(cast) = self.program.expression_table.cast_node(expression) else {
             return None;
         };
         if cast.form.is_recast()

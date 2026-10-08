@@ -531,7 +531,8 @@ fn collect_state_mutation_summary_places(
     let mut writes = Vec::new();
 
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         if let StatementNode::RootBinding(binding) = statement {
             let places = crate::flow::reference_expression_storage_places(

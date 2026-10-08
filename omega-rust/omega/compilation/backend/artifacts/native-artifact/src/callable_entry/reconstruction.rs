@@ -96,10 +96,7 @@ pub(super) fn reconstruct(
             return Err(OptimizedOrdinaryCallableEntryError::RootMismatch);
         }
         let view = physical
-            .model()
-            .views
-            .iter()
-            .find(|view| view.id == fixed_view)
+            .model().view(fixed_view)
             .ok_or(OptimizedOrdinaryCallableEntryError::MissingView(fixed_view))?;
         parameters.push(OptimizedOrdinaryCallableParameter {
             ordinal: u64::try_from(index)
@@ -136,10 +133,7 @@ pub(super) fn reconstruct(
         .fixed_register_view(*result_register)
         .ok_or(OptimizedOrdinaryCallableEntryError::UnsupportedSignature)?;
     let result_model_view = physical
-        .model()
-        .views
-        .iter()
-        .find(|view| view.id == result_view)
+        .model().view(result_view)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingView(
             result_view,
         ))?;

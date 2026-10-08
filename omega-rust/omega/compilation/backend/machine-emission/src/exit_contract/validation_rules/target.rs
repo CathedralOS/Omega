@@ -105,10 +105,7 @@ pub(in crate::exit_contract) fn scalar_return_view(
         )?
     } else {
         physical
-            .model()
-            .views
-            .iter()
-            .find(|view| view.id == integer_result)
+            .model().view(integer_result)
             .ok_or_else(invalid)?
     };
     if register.class != expected.class

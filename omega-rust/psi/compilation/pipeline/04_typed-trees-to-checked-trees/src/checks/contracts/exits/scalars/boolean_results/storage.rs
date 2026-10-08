@@ -24,11 +24,8 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         *remaining -= 1;
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            )?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let statements = self
             .program
             .statement_table
@@ -158,11 +155,8 @@ impl ExitScalars<'_, '_> {
         before_statement: u32,
         remaining: &mut usize,
     ) -> Option<()> {
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            )?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let statements = self
             .program
             .statement_table

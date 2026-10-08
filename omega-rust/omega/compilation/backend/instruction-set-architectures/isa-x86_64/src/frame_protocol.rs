@@ -155,10 +155,7 @@ fn register_code(
     view: RegisterViewId,
 ) -> Result<u8, X86_64FrameProtocolError> {
     let name = model
-        .model()
-        .views
-        .iter()
-        .find(|row| row.id == view)
+        .model().view(view)
         .map(|row| row.name.as_str())
         .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?;
     let code = match name {

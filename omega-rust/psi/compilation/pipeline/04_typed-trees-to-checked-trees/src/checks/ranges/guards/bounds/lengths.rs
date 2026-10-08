@@ -1,5 +1,5 @@
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::expression::{ExpressionHandle};
+use typed_trees::expression::ExpressionHandle;
 
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;
@@ -63,8 +63,7 @@ fn seed_minimum_length_fact(
     possible_length: ExpressionHandle,
     minimum_length: i64,
 ) {
-    let Some(member) = program.expression_table.member_node(possible_length)
-    else {
+    let Some(member) = program.expression_table.member_node(possible_length) else {
         return;
     };
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
@@ -83,8 +82,7 @@ fn seed_length_equality_side(
     value: ExpressionHandle,
     possible_length: ExpressionHandle,
 ) -> bool {
-    let Some(member) = program.expression_table.member_node(possible_length)
-    else {
+    let Some(member) = program.expression_table.member_node(possible_length) else {
         return false;
     };
     if CollectionMeasure::from_authored_spelling(member.member.as_str())

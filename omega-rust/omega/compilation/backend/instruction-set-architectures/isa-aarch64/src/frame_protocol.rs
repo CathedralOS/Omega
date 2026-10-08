@@ -192,10 +192,7 @@ fn register(
     view: RegisterViewId,
 ) -> Result<Register, Aarch64FrameProtocolError> {
     let name = model
-        .model()
-        .views
-        .iter()
-        .find(|row| row.id == view)
+        .model().view(view)
         .map(|row| row.name.as_str())
         .ok_or(Aarch64FrameProtocolError::UnknownOrUnsupportedView(view))?;
     let (prefix, number) = name.split_at(1);

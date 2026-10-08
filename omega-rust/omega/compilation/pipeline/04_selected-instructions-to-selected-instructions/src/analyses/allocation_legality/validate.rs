@@ -249,10 +249,7 @@ fn replay_register(
             let mut candidates = general.views.clone();
             if let Some(fixed) = fixed {
                 let fixed_view = physical
-                    .model()
-                    .views
-                    .iter()
-                    .find(|view| view.id == fixed)
+                    .model().view(fixed)
                     .ok_or(AllocationLegalityError::UnknownFixedView {
                         function: function_index,
                         register: register.virtual_register.0,
@@ -337,10 +334,7 @@ fn replay_register(
         let mut candidates = general.views.clone();
         if let Some(fixed) = fixed.into_iter().next() {
             let fixed_view = physical
-                .model()
-                .views
-                .iter()
-                .find(|view| view.id == fixed)
+                .model().view(fixed)
                 .ok_or(AllocationLegalityError::UnknownFixedView {
                     function: function_index,
                     register: register.virtual_register.0,

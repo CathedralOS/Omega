@@ -5,8 +5,8 @@
 //! frames preserve the collection and selector through the taken-arm return.
 
 use super::{
-    BigInt, ExitScalars, ExpressionHandle, exact_integer_carrier,
-    exit_return_expression, interval_comparison, is_result_reference,
+    BigInt, ExitScalars, ExpressionHandle, exact_integer_carrier, exit_return_expression,
+    interval_comparison, is_result_reference,
 };
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression,
@@ -21,8 +21,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<bool> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         let (argument, result_on_left) =

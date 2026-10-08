@@ -179,7 +179,8 @@ impl ExitScalars<'_, '_> {
                 let binding_ordinal = u32::try_from(position.checked_sub(parameters)?).ok()?;
                 let (statement, local) = self
                     .program
-                    .statement_table.indexed_statements(state.statement_nodes)
+                    .statement_table
+                    .indexed_statements(state.statement_nodes)
                     .filter_map(|(statement, node)| {
                         let typed_trees::statement::StatementNode::LocalData(local) = node else {
                             return None;
