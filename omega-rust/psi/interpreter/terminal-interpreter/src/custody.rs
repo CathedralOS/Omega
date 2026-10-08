@@ -26,7 +26,8 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::TerminalMachine;
 use terminal_psi::{
-    find_structural_case,    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
+    find_structural_case,
+BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralResultClaimBinding, StructuralTypeDeclaration, StructuralTypeShape,
@@ -884,7 +885,7 @@ pub(crate) fn inline_structural_field<'a>(
         (
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
             Some(case),
-        ) => &cases.iter().find(|candidate| candidate.id == case)?.fields,
+        ) => &find_structural_case(cases, case)?.fields,
         _ => return None,
     };
     fields

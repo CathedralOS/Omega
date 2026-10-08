@@ -24,7 +24,8 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{ClaimId, ServiceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeSet;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
+    find_structural_case,
+Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
 };
@@ -300,7 +301,7 @@ pub(crate) fn validate_structural_path(
             else {
                 return malformed("structural case path requires a sum");
             };
-            let Some(selected) = cases.iter().find(|candidate| candidate.id == *case) else {
+            let Some(selected) = find_structural_case(cases, *case) else {
                 return malformed("structural path has an unknown case");
             };
             payload_fields = Some(selected.fields.as_slice());

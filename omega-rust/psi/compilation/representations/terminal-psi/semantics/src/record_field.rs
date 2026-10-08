@@ -1,6 +1,7 @@
 use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
-    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    find_structural_case,
+StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape,
 };
 
@@ -74,7 +75,7 @@ pub fn case_payload_carrier<'types>(
     else {
         return None;
     };
-    let selected = cases.iter().find(|candidate| candidate.id == *case)?;
+    let selected = find_structural_case(cases, *case)?;
     Some(CasePayloadCarrier {
         sum,
         case: *case,
