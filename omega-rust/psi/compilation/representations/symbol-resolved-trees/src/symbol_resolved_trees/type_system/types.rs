@@ -219,14 +219,7 @@ impl TypeReferenceTable {
         *self
             .spans
             .type_reference_handles
-            .get_mut(Handle::from_parts(
-                type_references
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("type reference handle index overflow"),
-                type_references.start().generation(),
-            )) = type_reference;
+            .get_mut(type_references.handle_at(offset)) = type_reference;
     }
 
     pub fn insert_constraints(
@@ -249,14 +242,7 @@ impl TypeReferenceTable {
         offset: u32,
         constraint: TypeConstraintNode,
     ) {
-        *self.spans.constraints.get_mut(Handle::from_parts(
-            constraints
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("type constraint index overflow"),
-            constraints.start().generation(),
-        )) = constraint;
+        *self.spans.constraints.get_mut(constraints.handle_at(offset)) = constraint;
     }
 
     fn insert_type_reference_handle_span_from_trees(

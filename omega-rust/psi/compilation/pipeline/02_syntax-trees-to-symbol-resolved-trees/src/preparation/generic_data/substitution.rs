@@ -173,15 +173,7 @@ fn copy_case_where_facts(
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<HandleSpan<ProofFact>, Diagnostic> {
     let mut copied = HandleSpan::empty();
-    for offset in 0..facts.count() {
-        let source = Handle::from_parts(
-            facts
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("case where-fact source handle overflow"),
-            facts.start().generation(),
-        );
+    for source in facts.handles() {
         if let ProofFact::Membership(_) = snapshot.items.proof_fact(source) {
             copied.push_contiguous(copy_case_membership_fact(
                 syntax,

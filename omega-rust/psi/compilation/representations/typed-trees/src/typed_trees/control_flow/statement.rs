@@ -134,14 +134,7 @@ impl StatementTable {
         offset: u32,
         expression: crate::expression::ExpressionHandle,
     ) {
-        *self.expression_handles.get_mut(Handle::from_parts(
-            expressions
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("expression handle index overflow"),
-            expressions.start().generation(),
-        )) = expression;
+        *self.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn push_name_path_member(&mut self, span: &mut HandleSpan<Identifier>, member: Identifier) {
@@ -525,13 +518,7 @@ impl StatementTable {
         span: HandleSpan<StatementNode>,
     ) -> impl Iterator<Item = (StatementHandle, &StatementNode)> {
         (0..span.count()).map(move |offset| {
-            let handle = Handle::from_parts(
-                span.start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("statement span handle overflow"),
-                span.start().generation(),
-            );
+            let handle = span.handle_at(offset);
             (handle, self.statements.get(handle))
         })
     }

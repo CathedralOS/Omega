@@ -52,6 +52,22 @@ impl<T> HandleSpan<T> {
         self.count == 0
     }
 
+    /// The handle `offset` positions into the span.
+    pub fn handle_at(self, offset: u32) -> Handle<T> {
+        Handle::from_parts(
+            self.start
+                .arena_index()
+                .checked_add(offset)
+                .expect("handle span index overflow"),
+            self.start.generation(),
+        )
+    }
+
+    /// Iterates the span's handles in order: `start` through `start + count`.
+    pub fn handles(self) -> impl Iterator<Item = Handle<T>> {
+        (0..self.count).map(move |offset| self.handle_at(offset))
+    }
+
     pub fn push_contiguous(&mut self, handle: Handle<T>) {
         if self.is_empty() {
             *self = Self::from_parts(handle, 1);

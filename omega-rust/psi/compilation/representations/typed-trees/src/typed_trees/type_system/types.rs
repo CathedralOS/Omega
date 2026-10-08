@@ -229,14 +229,7 @@ impl TypeReferenceTable {
         offset: u32,
         type_reference: TypeReferenceHandle,
     ) {
-        *self.type_reference_handles.get_mut(Handle::from_parts(
-            type_references
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("type reference handle index overflow"),
-            type_references.start().generation(),
-        )) = type_reference;
+        *self.type_reference_handles.get_mut(type_references.handle_at(offset)) = type_reference;
     }
 
     pub fn push_type_reference_handle(
@@ -268,14 +261,7 @@ impl TypeReferenceTable {
         offset: u32,
         constraint: TypeConstraintNode,
     ) {
-        *self.constraints.get_mut(Handle::from_parts(
-            constraints
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("type constraint index overflow"),
-            constraints.start().generation(),
-        )) = constraint;
+        *self.constraints.get_mut(constraints.handle_at(offset)) = constraint;
     }
 
     pub fn push_constraint(

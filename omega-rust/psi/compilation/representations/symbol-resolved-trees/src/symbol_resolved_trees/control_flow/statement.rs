@@ -279,14 +279,7 @@ impl StatementTable {
         offset: u32,
         expression: crate::expression::ExpressionHandle,
     ) {
-        *self.paths.expression_handles.get_mut(Handle::from_parts(
-            expressions
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("expression handle index overflow"),
-            expressions.start().generation(),
-        )) = expression;
+        *self.paths.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {

@@ -205,14 +205,7 @@ pub(crate) fn fact_handles(
     facts: HandleSpan<typed_trees::domain::ProofFact>,
 ) -> impl Iterator<Item = Handle<typed_trees::domain::ProofFact>> {
     (0..facts.count()).map(move |offset| {
-        Handle::from_parts(
-            facts
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("proof fact handle index overflow"),
-            facts.start().generation(),
-        )
+        facts.handle_at(offset)
     })
 }
 

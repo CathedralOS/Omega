@@ -492,14 +492,7 @@ fn realize_data_instance(
     instance.members = HandleSpan::empty();
     for ((field, type_reference), offset) in member_types.iter().zip(0..member_span.count()) {
         let mut field = field.clone();
-        field.symbol = SymbolHandle::from_parts(
-            member_span
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("generated member symbol overflow"),
-            member_span.start().generation(),
-        );
+        field.symbol = member_span.handle_at(offset);
         field.type_reference = *type_reference;
         typed.push_data_member(&mut instance, DataMember::Field(field));
     }

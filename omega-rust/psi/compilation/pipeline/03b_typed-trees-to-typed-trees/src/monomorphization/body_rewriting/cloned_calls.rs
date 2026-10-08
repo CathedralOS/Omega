@@ -20,13 +20,7 @@ pub(crate) fn statement_span_handles(
 ) -> Vec<Handle<StatementNode>> {
     (0..span.count())
         .map(|offset| {
-            Handle::from_parts(
-                span.start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("statement span index overflow"),
-                span.start().generation(),
-            )
+            span.handle_at(offset)
         })
         .collect()
 }

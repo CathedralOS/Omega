@@ -583,14 +583,7 @@ fn append_data_proof_fact_place(
 
 fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Handle<ProofFact>> {
     (0..facts.count()).map(move |offset| {
-        Handle::from_parts(
-            facts
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("proof fact handle index overflow"),
-            facts.start().generation(),
-        )
+        facts.handle_at(offset)
     })
 }
 

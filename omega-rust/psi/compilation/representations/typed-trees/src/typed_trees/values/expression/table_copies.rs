@@ -17,7 +17,7 @@ use crate::typed_trees::values::expression::{
     TableNamePath, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
     TableUnaryExpression,
 };
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 /// Where a subtree copy reads the rows it appends.
@@ -617,14 +617,7 @@ impl ExpressionTable {
         members: HandleSpan<Identifier>,
         offset: u32,
     ) -> &Identifier {
-        self.name_path_members.get(Handle::from_parts(
-            members
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("name path member index overflow"),
-            members.start().generation(),
-        ))
+        self.name_path_members.get(members.handle_at(offset))
     }
 
     fn name_path_member_symbol_at_offset(
@@ -632,14 +625,7 @@ impl ExpressionTable {
         member_symbols: HandleSpan<SymbolHandle>,
         offset: u32,
     ) -> &SymbolHandle {
-        self.name_path_member_symbols.get(Handle::from_parts(
-            member_symbols
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("name path member symbol index overflow"),
-            member_symbols.start().generation(),
-        ))
+        self.name_path_member_symbols.get(member_symbols.handle_at(offset))
     }
 
     pub fn copy_name_path_members_with_member_suffix(

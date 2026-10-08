@@ -14,7 +14,7 @@ use crate::symbol_resolved_trees::values::expression::{
     TableMembershipExpression, TableNamePath, TableRangeExpression, TableStructLiteral,
     TableStructLiteralField, TableUnaryExpression,
 };
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 /// Where a subtree copy reads the rows it appends.
@@ -385,14 +385,7 @@ impl ExpressionTable {
             let member = self
                 .spans
                 .name_path_members
-                .get(Handle::from_parts(
-                    members
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .expect("name path member index overflow"),
-                    members.start().generation(),
-                ))
+                .get(members.handle_at(offset))
                 .clone();
             self.set_name_path_member_at_offset(span, offset, member);
         }

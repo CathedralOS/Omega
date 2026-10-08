@@ -298,14 +298,7 @@ impl ExpressionTable {
         offset: u32,
         expression: ExpressionHandle,
     ) {
-        *self.spans.expression_handles.get_mut(Handle::from_parts(
-            expressions
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("expression handle index overflow"),
-            expressions.start().generation(),
-        )) = expression;
+        *self.spans.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn push_expression_handle(
@@ -338,14 +331,7 @@ impl ExpressionTable {
         offset: u32,
         field: TableStructLiteralField,
     ) {
-        *self.spans.struct_fields.get_mut(Handle::from_parts(
-            fields
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("struct literal field index overflow"),
-            fields.start().generation(),
-        )) = field;
+        *self.spans.struct_fields.get_mut(fields.handle_at(offset)) = field;
     }
 
     pub fn push_struct_field(
@@ -377,14 +363,7 @@ impl ExpressionTable {
         offset: u32,
         member: DiagnosticName,
     ) {
-        *self.spans.name_path_members.get_mut(Handle::from_parts(
-            members
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("name path member index overflow"),
-            members.start().generation(),
-        )) = member;
+        *self.spans.name_path_members.get_mut(members.handle_at(offset)) = member;
     }
 
     pub fn reserve_name_path_member_symbols(&mut self, count: u32) -> HandleSpan<SymbolHandle> {
@@ -403,14 +382,7 @@ impl ExpressionTable {
         *self
             .spans
             .name_path_member_symbols
-            .get_mut(Handle::from_parts(
-                member_symbols
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("name path member symbol index overflow"),
-                member_symbols.start().generation(),
-            )) = member_symbol;
+            .get_mut(member_symbols.handle_at(offset)) = member_symbol;
     }
 
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
@@ -439,14 +411,7 @@ impl ExpressionTable {
         expressions: HandleSpan<ExpressionHandle>,
         offset: u32,
     ) -> &ExpressionHandle {
-        self.spans.expression_handles.get(Handle::from_parts(
-            expressions
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("expression handle index overflow"),
-            expressions.start().generation(),
-        ))
+        self.spans.expression_handles.get(expressions.handle_at(offset))
     }
 
     pub fn struct_fields(
@@ -469,14 +434,7 @@ impl ExpressionTable {
         members: HandleSpan<DiagnosticName>,
         offset: u32,
     ) -> &DiagnosticName {
-        self.spans.name_path_members.get(Handle::from_parts(
-            members
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("name path member index overflow"),
-            members.start().generation(),
-        ))
+        self.spans.name_path_members.get(members.handle_at(offset))
     }
 
     fn storage_path_len(&self, expression: ExpressionHandle) -> Option<u32> {

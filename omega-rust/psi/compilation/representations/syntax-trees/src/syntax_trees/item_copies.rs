@@ -704,14 +704,7 @@ impl SyntaxTrees {
         span: HandleSpan<ProofFact>,
     ) -> HandleSpan<ProofFact> {
         let mut copied = HandleSpan::empty();
-        for offset in 0..span.count() {
-            let source = Handle::from_parts(
-                span.start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("proof fact copy handle index overflow"),
-                span.start().generation(),
-            );
+        for source in span.handles() {
             copied.push_contiguous(self.copy_proof_fact_from(other, source));
         }
         copied
