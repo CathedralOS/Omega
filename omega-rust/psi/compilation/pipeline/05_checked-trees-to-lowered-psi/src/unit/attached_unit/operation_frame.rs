@@ -10,6 +10,10 @@
 //! the checked operation; `OperationFrame::emit` and `OperationFrame::emit_call`
 //! dispatch to the one method for that kind, which delegates the lowering
 //! itself to the shared `crate::emission::*` and `ordinary_calls` helpers.
+//! Assignment destination capture runs before those RHS operations. The shared
+//! ledger retains its home and completed selectors for cleanup and stores, so
+//! a later call cannot redirect an earlier selected assignment by changing an
+//! index. Capturing coordinates introduces no loan or ownership transfer.
 //!
 //! A frame borrows the parameters, structural type roster, evaluation, value
 //! namespace, identity counters, operation buffer and scalar-call context of
@@ -212,6 +216,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
@@ -229,6 +234,29 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         match operation {
+            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
+                statement_index,
+                destination,
+            } => self.windows.capture_assignment_destination(
+                destination,
+                self.parameters,
+                self.structural_types.declarations(),
+                self.type_ids,
+                &mut crate::emission::borrowed_window::WindowEvaluation {
+                    checked: self.checked,
+                    machine: self.machine,
+                    state: self.state,
+                    statement_index: *statement_index,
+                    evaluation: self.evaluation,
+                    source_value_count: self.source_value_count,
+                    calls: self.calls,
+                },
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+            ),
             CheckedUnitEffectOperationPlan::PortWrite {
                 service_reach,
                 port,
@@ -313,8 +341,9 @@ impl OperationFrame<'_, '_> {
                 value,
             } => self.rebind_structural_local(*statement_index, destination, value),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                cleanup_actions, ..
-            } => self.continuation_cleanup(cleanup_actions),
+                boundary,
+                cleanup_actions,
+            } => self.continuation_cleanup(boundary, cleanup_actions),
             CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
                 self.establish_byte_sequence(operation)
             }

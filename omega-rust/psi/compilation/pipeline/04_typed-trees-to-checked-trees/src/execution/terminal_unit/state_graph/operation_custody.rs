@@ -36,6 +36,11 @@ pub(super) fn admit(
         match operation {
             CheckedUnitEffectOperationPlan::Call(call)
                 if call_custody_admitted(call, &operations[..operation_index]) => {}
+            // Capturing coordinates neither moves the destination nor opens
+            // restoration debt. The same checked storage namespace must be
+            // available before evaluating the assignment's value producer.
+            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { destination, .. }
+                if call_argument_admitted(destination, &operations[..operation_index]) => {}
             // The common source replay authenticates construction and each
             // issuance or transferred claim. A state graph changes only the
             // selected-edge disposition, not establishment authority.

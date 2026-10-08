@@ -8,6 +8,80 @@ use crate::execution::terminal_unit::control::structural_operands;
 
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
+/// Assignment targets and scalar values own their computation calls before
+/// the separately scheduled whole-value call. Both the statement sequencer
+/// and that call's operand owner consume the same exact occurrence ledger.
+pub(super) fn collect_assignment_calls(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    assignment: &typed_trees::statement::TableAssignment,
+    calls: &[checked_trees::FlowCallFact],
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<()> {
+    let owner = program.machine_by_symbol(machine)?;
+    // A scalar computation owns its call occurrences whether its value
+    // lands in a local, a field, or an indexed destination. Selectors own
+    // theirs in the same way. Leaving either in the outer-call roster
+    // makes the statement count an invocation the store already evaluates.
+    let plans = &facts.values.scalar_computations;
+    let selectors = validation::assignment_target_selectors(program, assignment.target);
+    let operands = selectors
+        .into_iter()
+        .enumerate()
+        .map(|(depth, expression)| {
+            Some((
+                CheckedScalarExpressionRole::AssignmentIndex {
+                    depth: u32::try_from(depth).ok()?,
+                },
+                expression,
+            ))
+        })
+        .chain(std::iter::once(Some((
+            CheckedScalarExpressionRole::AssignmentValue,
+            assignment.value,
+        ))));
+    for operand in operands {
+        let (role, expression) = operand?;
+        let Some(root) = plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
+        else {
+            continue;
+        };
+        let primitive = match role {
+            CheckedScalarExpressionRole::AssignmentIndex { .. } => {
+                typed_trees::types::PrimitiveType::U64
+            }
+            CheckedScalarExpressionRole::AssignmentValue => {
+                let reference = validation::declared_place_type_raw(
+                    program,
+                    owner,
+                    Some(state),
+                    assignment.target,
+                )?;
+                crate::values::assignment_target_primitive_type(program, reference)?
+            }
+            _ => return None,
+        };
+        if !plans.is_authored_root(root, machine, expression, primitive) {
+            return None;
+        }
+        collect_root_calls(
+            program,
+            facts,
+            state.symbol,
+            statement_index,
+            root.root,
+            calls,
+            0,
+            consumed,
+        )?;
+    }
+
+    Some(())
+}
+
 /// Constructors retain their scalar evaluation roots independently of the
 /// surrounding schedule. Ordinary statements and selected call arms consume
 /// the same exact element, field, subject and pattern occurrence custody.
@@ -201,6 +275,18 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         calls,
         &mut consumed,
     )?;
+    if let StatementNode::Assignment(assignment) = statement {
+        collect_assignment_calls(
+            program,
+            facts,
+            machine,
+            source_state,
+            call.statement_index,
+            assignment,
+            calls,
+            &mut consumed,
+        )?;
+    }
     for nested in structural_operands::for_call(program, facts, owner, source_state, call)? {
         let mut occurrences = facts.flow.control.calls.iter().filter(|(_, candidate)| {
             std::ptr::eq(*candidate, nested)

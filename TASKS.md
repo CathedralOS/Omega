@@ -637,15 +637,15 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: runtime-selected nominal replacement from a structural RHS call
-    (`tokens[index] = replacement(&mut index)`, whose RHS changes the selector)
-    has no executable stage-04 plan: owned-place `projected_argument_path`
-    rejects runtime selectors. Retain the captured destination through value
-    production, old-value cleanup and store; never replay the changed selector.
-    Qualify remaining referent windows and keep evaluation order, disjoint
-    siblings and exact open-place agreement across recoverable failure,
+  - Missing: qualify remaining referent windows and keep evaluation order,
+    disjoint siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
     do not invent rollback. Qualify the remaining paths on supported hosts.
+    Keep `pass/ownership/runtime_captured_replacement_selector_exit`,
+    `runtime_captured_construction_selector_exit` and
+    `runtime_captured_selector_call_exit` (exit 0) for pre-RHS destination
+    capture, changed or out-of-range later selectors, and exact-once target
+    computation through old-value cleanup and store.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

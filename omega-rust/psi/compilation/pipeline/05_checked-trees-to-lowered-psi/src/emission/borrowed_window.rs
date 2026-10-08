@@ -49,6 +49,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::emission::structural_scalar_store::{WindowLeaf, lower_window_path};
+use crate::lowering_error::unsupported;
 use crate::terminal_identities::lookup_type_id;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
@@ -88,6 +89,19 @@ pub(crate) struct BorrowedWindowRepairValue {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct BorrowedWindowLedger {
     open: Vec<OpenBorrowedWindow>,
+    assignment: Option<CapturedAssignmentDestination>,
+}
+
+/// The current assignment's operands, evaluated before its RHS. The source
+/// checker pins the storage route against overlapping mutation; lowering
+/// additionally retains its home and selector values instead of replaying
+/// those reads when old-value cleanup or the final store executes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CapturedAssignmentDestination {
+    statement_index: u32,
+    destination: CheckedUnitStructuralArgumentPlan,
+    source: PlaceId,
+    path: Vec<StructuralPathSegment>,
 }
 
 /// The resolved exact place a move or repair names beneath a window root:
@@ -105,6 +119,132 @@ struct ResolvedWindowPlace {
 }
 
 impl BorrowedWindowLedger {
+    pub(crate) fn capture_assignment_destination(
+        &mut self,
+        destination: &CheckedUnitStructuralArgumentPlan,
+        parameters: &[StructuralParameterDeclaration],
+        structural_types: &[StructuralTypeDeclaration],
+        type_ids: &[(String, StructuralTypeId)],
+        evaluation: &mut WindowEvaluation<'_, '_>,
+        values: &mut Vec<terminal_psi::ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        let place = resolve_window_place(
+            destination,
+            parameters,
+            evaluation.evaluation,
+            operations,
+            structural_types,
+            type_ids,
+        )?;
+        let indexes = runtime_elements::evaluate_selectors(
+            &place.steps,
+            evaluation.checked,
+            evaluation.machine,
+            evaluation.state,
+            evaluation.statement_index,
+            evaluation.evaluation,
+            evaluation.source_value_count,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            evaluation.calls,
+        )?;
+        let mut path =
+            runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
+        if place.field.is_some() {
+            let Some(CheckedUnitStructuralPathSegment::Field(identity)) = destination.path.last()
+            else {
+                return unsupported("captured field destination lost its declaration identity");
+            };
+            path.push(StructuralPathSegment::Field(identity.clone()));
+        }
+        self.assignment = Some(CapturedAssignmentDestination {
+            statement_index: evaluation.statement_index,
+            destination: destination.clone(),
+            source: place.source,
+            path,
+        });
+        Ok(())
+    }
+
+    /// Return the retained target or a fixed descendant selected by the
+    /// replacement's decomposition. Descendant cleanup paths are declaration
+    /// paths; only the assignment prefix owns runtime selector evaluation.
+    pub(crate) fn captured_assignment_place(
+        &self,
+        statement_index: u32,
+        source: &CheckedUnitStructuralArgumentSourcePlan,
+        path: &[CheckedUnitStructuralPathSegment],
+    ) -> Result<Option<(PlaceId, Vec<StructuralPathSegment>)>, LoweringError> {
+        let Some(capture) = &self.assignment else {
+            return Ok(None);
+        };
+        if capture.statement_index != statement_index
+            || &capture.destination.source != source
+            || !path.starts_with(&capture.destination.path)
+        {
+            return Ok(None);
+        }
+        let mut retained = capture.path.clone();
+        retained.extend(
+            crate::expression_preparation::bindings::structural_paths::lower_structural_path(
+                &path[capture.destination.path.len()..],
+            )?,
+        );
+        Ok(Some((capture.source, retained)))
+    }
+
+    fn evaluated_place(
+        &self,
+        plan: &CheckedUnitStructuralArgumentPlan,
+        place: &ResolvedWindowPlace,
+        evaluation: &mut WindowEvaluation<'_, '_>,
+        values: &mut Vec<terminal_psi::ValueDeclaration>,
+        next_value: &mut u64,
+        next_block: &mut u64,
+        next_edge: &mut u64,
+        operations: &mut OperationBuffer,
+    ) -> Result<(PlaceId, Vec<StructuralPathSegment>), LoweringError> {
+        if let Some((source, mut path)) =
+            self.captured_assignment_place(evaluation.statement_index, &plan.source, &plan.path)?
+        {
+            if place.field.is_some() {
+                path.pop();
+            }
+            return Ok((source, path));
+        }
+        let indexes = runtime_elements::evaluate_selectors(
+            &place.steps,
+            evaluation.checked,
+            evaluation.machine,
+            evaluation.state,
+            evaluation.statement_index,
+            evaluation.evaluation,
+            evaluation.source_value_count,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            evaluation.calls,
+        )?;
+        Ok((
+            place.source,
+            runtime_elements::complete_path(
+                place.steps.clone(),
+                indexes,
+                evaluation.calls,
+                operations,
+            )?,
+        ))
+    }
+
     /// Emit `MoveStructuralField` for `moved`, the checked owned place a
     /// consuming move takes out of exclusive storage, binding the
     /// removed value as `result`. Returns the structural result place.
@@ -138,26 +278,17 @@ impl BorrowedWindowLedger {
                 "the moved binding's type differs from the declared field type",
             ));
         }
-        let indexes = runtime_elements::evaluate_selectors(
-            &place.steps,
-            evaluation.checked,
-            evaluation.machine,
-            evaluation.state,
-            evaluation.statement_index,
-            evaluation.evaluation,
-            evaluation.source_value_count,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            evaluation.calls,
+        if place.steps.is_empty() && place.field.is_none() && !place.restoration_required {
+            return Err(unpinned(
+                &place.spelling,
+                "an owned whole local transfers without a restoration window",
+            ));
+        }
+        let (source, path) = self.evaluated_place(
+            moved, &place, evaluation, values, next_value, next_block, next_edge, operations,
         )?;
-        let path =
-            runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
         if let Some(absent) = self.open.iter().find(|absent| {
-            absent.source == place.source
-                && paths_overlap(&absent.checked_path, &place.checked_path)
+            absent.source == source && paths_overlap(&absent.checked_path, &place.checked_path)
         }) {
             return Err(unpinned(
                 &place.spelling,
@@ -169,7 +300,7 @@ impl BorrowedWindowLedger {
             ));
         }
         let moved_place = place_id(allocate_dense(next_place)?);
-        operations.invalidate_field_lengths_under(place.source, &path);
+        operations.invalidate_field_lengths_under(source, &path);
         operations.push_leaf(
             OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -181,13 +312,13 @@ impl BorrowedWindowLedger {
                 claims: result_claims,
             }),
             OperationKind::MoveStructuralField {
-                source: place.source,
+                source,
                 path: path.clone(),
                 field: place.field,
             },
         );
         self.open.push(OpenBorrowedWindow {
-            source: place.source,
+            source,
             path,
             field: place.field,
             hole_type: place.hole_type,
@@ -223,19 +354,28 @@ impl BorrowedWindowLedger {
             structural_types,
             type_ids,
         )?;
+        let (source, path) = self.evaluated_place(
+            destination,
+            &place,
+            evaluation,
+            values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+        )?;
         let index = self.open.iter().position(|absent| {
-            absent.source == place.source && absent.checked_path == place.checked_path
+            absent.source == source && absent.checked_path == place.checked_path
         });
         if index.is_none()
             && (place.restoration_required
                 || self.open.iter().any(|absent| {
-                    absent.source == place.source
+                    absent.source == source
                         && paths_overlap(&absent.checked_path, &place.checked_path)
                 }))
         {
             let reason = if self.open.iter().any(|absent| {
-                absent.source == place.source
-                    && paths_overlap(&absent.checked_path, &place.checked_path)
+                absent.source == source && paths_overlap(&absent.checked_path, &place.checked_path)
             }) {
                 "the store overlaps an open window without naming its exact place"
             } else {
@@ -250,28 +390,11 @@ impl BorrowedWindowLedger {
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
-        let indexes = runtime_elements::evaluate_selectors(
-            &place.steps,
-            evaluation.checked,
-            evaluation.machine,
-            evaluation.state,
-            evaluation.statement_index,
-            evaluation.evaluation,
-            evaluation.source_value_count,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            evaluation.calls,
-        )?;
-        let path =
-            runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
-        operations.invalidate_field_lengths_under(place.source, &path);
+        operations.invalidate_field_lengths_under(source, &path);
         operations.push_leaf(
             OperationResult::Unit,
             OperationKind::StoreStructuralField {
-                destination: place.source,
+                destination: source,
                 path,
                 field: place.field,
                 value: StructuralArgument {
@@ -457,12 +580,6 @@ fn resolve_window_place(
         }
         WindowLeaf::Subtree { structural_type } => (None, structural_type),
     };
-    if steps.is_empty() && field.is_none() {
-        return Err(unpinned(
-            &spelling,
-            "an owned whole local transfers without a restoration window",
-        ));
-    }
     if lookup_type_id(type_ids, &plan.type_identity)? != hole_type {
         return Err(unpinned(
             &spelling,

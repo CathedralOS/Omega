@@ -235,6 +235,13 @@ impl CheckedUnitEffectPlans {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
+    /// Evaluate the assignment's destination before any replacement producer.
+    /// Cleanup and stores retain this occurrence, including selector values;
+    /// they do not read a selector again after the RHS changes its storage.
+    CaptureAssignmentDestination {
+        statement_index: u32,
+        destination: CheckedUnitStructuralArgumentPlan,
+    },
     EstablishReference {
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
@@ -662,6 +669,9 @@ impl CheckedUnitEffectOperationPlan {
                 statement_index, ..
             }
             | Self::StoreStructuralField {
+                statement_index, ..
+            }
+            | Self::CaptureAssignmentDestination {
                 statement_index, ..
             }
             | Self::RebindStructuralLocal {

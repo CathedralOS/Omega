@@ -404,6 +404,9 @@ impl CallTransfers<'_> {
             | CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. } => {
                 self.argument_evaluation(source)
             }
+            CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
+                destination, ..
+            } => self.argument_evaluation(destination),
             CheckedUnitEffectOperationPlan::StoreStructuralField {
                 destination, value, ..
             }

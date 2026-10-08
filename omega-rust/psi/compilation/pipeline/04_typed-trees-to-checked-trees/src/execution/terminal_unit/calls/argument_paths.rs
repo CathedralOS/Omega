@@ -396,19 +396,26 @@ fn projected_argument_path_impl(
                 // tests the argument's presence and nothing else. Removing the
                 // test would admit runtime selectors on the argument route.
                 runtime_index_machine?;
-                let runtime_index =
-                    runtime_index_parameter_position(program, state_symbol, *expression)
-                        .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
-                        .or_else(|| {
-                            runtime_index_field_selector(
-                                program,
-                                state_symbol,
-                                statement_index,
-                                *expression,
-                            )
-                        })
-                        .map(CheckedUnitStructuralPathSegment::RuntimeIndex)
-                        .or_else(|| local_selector.and_then(|resolve| resolve(*expression)))?;
+                // An executable operand owner supplies the occurrence's
+                // evaluation. Only a path without that owner may fall back
+                // to a parameter or field snapshot of the current frame.
+                let runtime_index = local_selector
+                    .and_then(|resolve| resolve(*expression))
+                    .or_else(|| {
+                        runtime_index_parameter_position(program, state_symbol, *expression)
+                            .map(|position| checked_trees::CheckedRuntimeIndex::Parameter {
+                                position,
+                            })
+                            .or_else(|| {
+                                runtime_index_field_selector(
+                                    program,
+                                    state_symbol,
+                                    statement_index,
+                                    *expression,
+                                )
+                            })
+                            .map(CheckedUnitStructuralPathSegment::RuntimeIndex)
+                    })?;
                 path.push(runtime_index);
             }
             facts::PlaceSegment::FixedRange { start, end } => {

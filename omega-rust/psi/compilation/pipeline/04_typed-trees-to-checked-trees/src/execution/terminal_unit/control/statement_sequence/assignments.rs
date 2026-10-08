@@ -102,6 +102,19 @@ pub(super) fn plan(
     if consumed {
         return Some(AssignmentPlan::Planned);
     }
+    if let Some(capture) = super::super::super::borrowed_windows::capture_assignment_destination(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        binders,
+        statement_index,
+        assignment,
+    ) {
+        operations.push(capture);
+    }
     // Guard-group markers beneath the statement phase keep the
     // statement position that `phase` resets.
     let assignment_phase = |phase: &'static str| {

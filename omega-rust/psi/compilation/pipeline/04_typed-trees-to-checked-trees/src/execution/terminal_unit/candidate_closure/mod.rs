@@ -291,6 +291,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
                 | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
@@ -438,6 +439,7 @@ pub(super) fn retain_available(
                     // are already custody rows inside this same state.
                     | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                    | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
                     | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                     => {}
                     CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, cleanup_actions } => {

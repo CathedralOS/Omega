@@ -9,6 +9,12 @@
 //! An empty path selects the exclusive parameter's whole referent. It shares
 //! extraction and repair sequencing with a field; a separate whole-root
 //! admission mode would make the value's custody depend on its spelling.
+//!
+//! A structural assignment captures its destination before the RHS's first
+//! producer. The same retained assignment selectors describe construction,
+//! call, and already-owned replacement values. Cleanup still selects the
+//! original storage's death occurrence; capture changes when coordinates are
+//! read, not permission, restoration debt, or the old value's custody.
 
 use validation::CanonicalPlace;
 
@@ -28,6 +34,125 @@ use crate::execution::terminal_unit::types::terminal_field_identity;
 use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
+
+/// Assignment owns selector evaluation, even when the selector spells a
+/// parameter or field that ordinary call arguments can read directly. Its
+/// retained operand belongs to the pre-RHS occurrence, not a later snapshot.
+fn assignment_path(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    target: ExpressionHandle,
+    place: &CanonicalPlace,
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let selectors =
+        TargetSelectors::resolve(program, facts, machine, state, statement_index, target)?;
+    super::calls::projected_evaluated_path(
+        program,
+        machine.symbol,
+        state.symbol,
+        usize::try_from(statement_index).ok()?,
+        place,
+        Some(&|expression| selectors.runtime_segment(expression)),
+    )
+    .map(|(_, path)| path)
+}
+
+/// Retain the assignment target once, before evaluating any structural RHS.
+/// The target is independent of its replacement's producer and of the fixed
+/// leaves a whole-array replacement will store beneath it.
+pub(super) fn capture_assignment_destination(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    binders: &[(SymbolHandle, String)],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let ordinal = usize::try_from(statement_index).ok()?;
+    let access = validation::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        ordinal,
+        assignment.target,
+    )?;
+    let PlaceRoot::Symbol(root) = access.root else {
+        return None;
+    };
+    let (root, segments) = resolve_storage_place(
+        program,
+        state,
+        program.statement_table.statements(state.statement_nodes),
+        ordinal,
+        root,
+        &access.segments,
+    );
+    let place = CanonicalPlace { root, segments };
+    let owned_local = match root {
+        PlaceRoot::Symbol(symbol) => program
+            .state_local_declaration(state, symbol)
+            .filter(|(position, local)| {
+                *position < ordinal
+                    && local.is_mutable
+                    && !crate::checks::type_reference_is_reference(program, local.type_reference)
+            })
+            .map(|_| symbol),
+        _ => None,
+    };
+    let (source, path) = if let Some(symbol) = owned_local {
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            assignment_path(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                assignment.target,
+                &place,
+            )?,
+        )
+    } else {
+        let place = window_place(
+            program,
+            facts,
+            machine,
+            state,
+            program.statement_table.statements(state.statement_nodes),
+            ordinal,
+            parameters,
+            &access,
+            assignment.target,
+        )?;
+        (place.source, place.path)
+    };
+    let declared =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    let declared = validation::assignment_value_type(program, declared);
+    // Byte/scalar stores already own their target evaluation in their store
+    // operation. This capture belongs to structural replacement sequencing.
+    if program.primitive_type_reference(declared).is_some()
+        || super::types::byte_sequence_carrier(program, declared, &[]).is_some()
+    {
+        return None;
+    }
+    Some(
+        CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
+            statement_index,
+            destination: CheckedUnitStructuralArgumentPlan {
+                source,
+                path,
+                type_identity: shapes.add_type(declared, binders, &[])?,
+                access: CheckedStructuralAccess::Owned,
+            },
+        },
+    )
+}
 
 /// Restoration debt and the selected access route are separate coordinates.
 /// Canonical storage identifies the hole even through forwarding; the emitted
@@ -410,10 +535,13 @@ impl OpenWindows {
             _ => None,
         };
         let (source, path, needs_displacement, needs_cleanup) = if let Some(symbol) = owned_local {
-            let (_, path) = super::calls::projected_argument_path(
+            let path = assignment_path(
                 program,
-                state.symbol,
-                index,
+                facts,
+                machine,
+                state,
+                statement_index,
+                assignment.target,
                 &destination_place,
             )?;
             // The permission producer has already selected old-value death.

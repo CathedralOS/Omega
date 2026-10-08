@@ -1399,6 +1399,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
             | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }

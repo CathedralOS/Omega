@@ -830,24 +830,46 @@ impl OperationFrame<'_, '_> {
     /// Commit ordered cleanup at its exact continuation while retaining scalar values.
     pub(super) fn continuation_cleanup(
         &mut self,
+        boundary: &checked_trees::CheckedUnitCleanupBoundary,
         cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
         let mut actions = Vec::new();
         for action in cleanup_actions {
-            let (place, _) = self.evaluation.cleanup_storage(
-                action.source(),
-                self.parameters,
-                |binding_ordinal| {
-                    let place = self
-                        .results
-                        .continuation_place(binding_ordinal, self.operations)?;
-                    let value = self
-                        .results
-                        .repair_value(binding_ordinal, self.operations)?;
-                    Ok((place, value.structural_type))
-                },
-            )?;
-            let path = lower_structural_path(action.path())?;
+            let captured = match boundary {
+                checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                    statement_index,
+                    destination,
+                    old_value,
+                    ..
+                } if destination.source == old_value.source
+                    && destination.path == old_value.path =>
+                {
+                    self.windows.captured_assignment_place(
+                        *statement_index,
+                        action.source(),
+                        action.path(),
+                    )?
+                }
+                _ => None,
+            };
+            let (place, path) = if let Some(captured) = captured {
+                captured
+            } else {
+                let (place, _) = self.evaluation.cleanup_storage(
+                    action.source(),
+                    self.parameters,
+                    |binding_ordinal| {
+                        let place = self
+                            .results
+                            .continuation_place(binding_ordinal, self.operations)?;
+                        let value = self
+                            .results
+                            .repair_value(binding_ordinal, self.operations)?;
+                        Ok((place, value.structural_type))
+                    },
+                )?;
+                (place, lower_structural_path(action.path())?)
+            };
             let structural_type = lookup_type_id(self.type_ids, action.type_identity())?;
             actions.push(match action {
                 checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => {

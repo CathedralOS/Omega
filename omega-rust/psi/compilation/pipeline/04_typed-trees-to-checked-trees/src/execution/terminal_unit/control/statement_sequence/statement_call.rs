@@ -101,7 +101,7 @@ pub(super) fn plan(
     let mut matching = calls
         .iter()
         .copied()
-        .filter(|call| call.statement_index == index && call.call_ordinal == 0);
+        .filter(|call| call.statement_index == index);
     let call = matching.next()?;
     if matching.next().is_some() {
         return None;

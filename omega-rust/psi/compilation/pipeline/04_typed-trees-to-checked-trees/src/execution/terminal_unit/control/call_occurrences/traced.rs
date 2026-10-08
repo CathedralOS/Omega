@@ -4,8 +4,9 @@
 
 use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, SymbolHandle};
 use super::collecting::{
-    collect_argument_calls, collect_constructor_calls, collect_owned_root_calls,
-    collect_range_calls, collect_root_calls, collect_structural_argument_calls,
+    collect_argument_calls, collect_assignment_calls, collect_constructor_calls,
+    collect_owned_root_calls, collect_range_calls, collect_root_calls,
+    collect_structural_argument_calls,
 };
 use super::{ordered_statement_call, terminal_named_call};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
@@ -313,74 +314,32 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
-        // A scalar computation owns its call occurrences whether its value
-        // lands in a local, a field, or an indexed destination. Selectors own
-        // theirs in the same way. Leaving either in the outer-call roster
-        // makes the statement count an invocation the store already evaluates.
-        let plans = &facts.values.scalar_computations;
-        let selectors = validation::assignment_target_selectors(program, assignment.target);
-        let operands = selectors
-            .into_iter()
-            .enumerate()
-            .map(|(depth, expression)| {
-                Some((
-                    CheckedScalarExpressionRole::AssignmentIndex {
-                        depth: u32::try_from(depth).ok()?,
-                    },
-                    expression,
-                ))
-            })
-            .chain(std::iter::once(Some((
-                CheckedScalarExpressionRole::AssignmentValue,
-                assignment.value,
-            ))));
-        for operand in operands {
-            let (role, expression) = operand?;
-            let Some(root) =
-                plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
-            else {
-                continue;
-            };
-            let primitive = match role {
-                CheckedScalarExpressionRole::AssignmentIndex { .. } => {
-                    typed_trees::types::PrimitiveType::U64
-                }
-                CheckedScalarExpressionRole::AssignmentValue => {
-                    let reference = validation::declared_place_type_raw(
-                        program,
-                        owner,
-                        Some(state),
-                        assignment.target,
-                    )?;
-                    crate::values::assignment_target_primitive_type(program, reference)?
-                }
-                _ => return None,
-            };
-            if !plans.is_authored_root(root, machine, expression, primitive) {
-                return None;
-            }
-            collect_root_calls(
-                program,
-                facts,
-                state.symbol,
-                statement_index,
-                root.root,
-                calls,
-                0,
-                &mut consumed,
-            )?;
-        }
+        collect_assignment_calls(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            assignment,
+            calls,
+            &mut consumed,
+        )?;
     }
     for call in calls
         .iter()
-        .filter(|call| call.call_ordinal == 0 && !scalar_intrinsic(call) && !omitted(call))
+        .filter(|call| !scalar_intrinsic(call) && !omitted(call))
     {
         if consumed
             .iter()
             .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), call))
+            || structural.iter().any(|owned| std::ptr::eq(*owned, call))
         {
             continue;
         }
+        // A target computation can precede the statement's value call, so
+        // ordinal zero does not identify that call. Retained operand owners
+        // remove their exact occurrences; only the statement's unowned outer
+        // call is scheduled here. Its arguments then own their nested calls.
         trace.phase("outer calls: duplicate statement call");
         trace.statement(u32::try_from(call.statement_index).ok());
         if outer.iter().any(|prior: &&checked_trees::FlowCallFact| {
@@ -548,7 +507,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         )?;
     }
     // Calls reached through the structural value walk (a record or case
-    // initializer holding a call node) skip the ordinal-0 loop's operand
+    // initializer holding a call node) skip the outer-call loop's operand
     // gathering. Their own structural argument calls still need the roster —
     // union each operand call into `structural` so transitively nested calls
     // are not reported unconsumed.
@@ -591,12 +550,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     trace.statement(None);
     if let Some(unconsumed) = calls
         .iter()
-        .filter(|call| call.call_ordinal != 0 && !scalar_intrinsic(call) && !omitted(call))
+        .filter(|call| !scalar_intrinsic(call) && !omitted(call))
         .find(|call| {
             !consumed
                 .iter()
                 .any(|handle| std::ptr::eq(facts.flow.control.calls.get(*handle), *call))
                 && !structural.iter().any(|nested| std::ptr::eq(*nested, *call))
+                && !outer
+                    .iter()
+                    .any(|scheduled| std::ptr::eq(*scheduled, *call))
         })
     {
         // Name the statement family holding the first unconsumed nested call:
