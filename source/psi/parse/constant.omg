@@ -90,7 +90,7 @@ crashes Trap
     }
 
     state initializer(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedConstantValue, true, true);
         transition parser.output.accepted {
             true -> end(parser, input, type_reference, parser.expression_result)
             _ -> done()

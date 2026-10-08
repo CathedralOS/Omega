@@ -215,43 +215,13 @@ crashes Trap
     state loaded(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) {
         let token: Token = input.tokens[parser.current_index];
         transition token {
-            Token::Identifier -> length(input, token.decoded_start, token.decoded_length, spelling)
+            Token::Identifier -> spelled(input, token.decoded_start, token.decoded_length, spelling)
             _ -> absent()
         }
     }
 
-    state length(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) {
-        transition length == spelling.len {
-            true -> compare(input, start, spelling, 0)
-            _ -> absent()
-        }
-    }
-
-    state compare(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
-        transition index < spelling.len {
-            true -> byte(input, cursor, spelling, index)
-            _ -> present()
-        }
-    }
-
-    state byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
-        transition cursor < 131072 {
-            true -> compare_byte(input, cursor, spelling, index)
-            _ -> absent()
-        }
-    }
-
-    state compare_byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
-        let decoded: u8 = input.decoded[cursor] as u8;
-        let expected: u8 = spelling[index];
-        transition decoded == expected {
-            true -> compare(input, cursor + 1, spelling, index + 1)
-            _ -> absent()
-        }
-    }
-
-    state present() {
-        true
+    state spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) {
+        Parser::decoded_spells(input, start, length, spelling)
     }
 
     state absent() {
@@ -359,10 +329,10 @@ crashes Trap
 
 // Whether the current token begins a declaration rather than an expression:
 // a declaration keyword (`use`, `data`, `machine`, `pub`), two adjacent
-// names (`boundary trait`, `linux_arm64 machine`, `const N`), or a domain
-// family's `domain<`. No expression begins with two names except a cast
-// `x as T`, a membership `x in D` and an acknowledged call `suspend f()`,
-// `block f()`.
+// names (`boundary trait`, `linux_arm64 machine`, `const N`), a domain
+// family's `domain<`, or a generic conformance `Name<...> satisfies`. No
+// expression begins with two names except a cast `x as T`, a membership
+// `x in D` and an acknowledged call `suspend f()`, `block f()`.
 machine Parser::at_declaration_head(parser: &mut Parser, input: &TokenStream) -> bool
 crashes Trap
 {
@@ -395,7 +365,8 @@ crashes Trap
         let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
         parser.cursor = cursor;
         Parser::load_current(parser, input);
-        named && !cast && !membership || family && generic
+        let conformance: bool = Parser::generic_conformance_ahead(parser, input);
+        named && !cast && !membership || family && generic || conformance
     }
 
     state head() {
@@ -403,6 +374,129 @@ crashes Trap
     }
 
     state expression() {
+        false
+    }
+}
+
+// Whether the name at the cursor opens a generic conformance head `Name<...>
+// satisfies`: a `<` follows, its matching `>` closes a run of tokens a
+// generic parameter list can spell, and `satisfies` follows that `>`. The
+// scan reads tokens without moving the cursor.
+machine Parser::generic_conformance_ahead(parser: &Parser, input: &TokenStream) -> bool
+crashes Trap
+{
+    transition { _ -> next(input, parser.cursor + 1) }
+
+    state next(input: &TokenStream, index: u64 in Trapping) {
+        transition index < input.token_count {
+            true -> opened(input, index)
+            _ -> absent()
+        }
+    }
+
+    state opened(input: &TokenStream, index: u64 in Trapping) {
+        let token: Token = input.tokens[index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Less } -> scan(input, index + 1, 1)
+            _ -> absent()
+        }
+    }
+
+    state scan(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+        transition index < input.token_count {
+            true -> token(input, index, depth)
+            _ -> absent()
+        }
+    }
+
+    state token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+        let token: Token = input.tokens[index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Less } -> scan(input, index + 1, depth + 1)
+            Token::Punctuation { punctuation: PunctuationKind::Greater } -> close(input, index, depth)
+            Token::Punctuation { punctuation: PunctuationKind::ColonColon } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Apostrophe } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Ampersand } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> scan(input, index + 1, depth)
+            Token::Punctuation { punctuation: PunctuationKind::Semicolon } -> scan(input, index + 1, depth)
+            Token::Identifier -> scan(input, index + 1, depth)
+            Token::Keyword { keyword } -> scan(input, index + 1, depth)
+            Token::Integer { base, empty_digits, has_suffix } -> scan(input, index + 1, depth)
+            _ -> absent()
+        }
+    }
+
+    state close(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) {
+        transition depth > 1 {
+            true -> scan(input, index + 1, depth - 1)
+            _ -> related(input, index + 1)
+        }
+    }
+
+    state related(input: &TokenStream, index: u64 in Trapping) {
+        transition index < input.token_count {
+            true -> satisfies(input, index)
+            _ -> absent()
+        }
+    }
+
+    state satisfies(input: &TokenStream, index: u64 in Trapping) {
+        let token: Token = input.tokens[index];
+        transition token {
+            Token::Identifier -> spelled(input, token.decoded_start, token.decoded_length)
+            _ -> absent()
+        }
+    }
+
+    state spelled(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping) {
+        Parser::decoded_spells(input, start, length, "satisfies")
+    }
+
+    state absent() {
+        false
+    }
+}
+
+// Whether the decoded bytes `start..start + length` spell exactly `spelling`.
+machine Parser::decoded_spells(input: &TokenStream, start: u64 in Trapping, length: u64 in Trapping, spelling: &[u8]) -> bool
+crashes Trap
+{
+    transition length == spelling.len {
+        true -> compare(input, start, spelling, 0)
+        _ -> absent()
+    }
+
+    state compare(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        transition index < spelling.len {
+            true -> byte(input, cursor, spelling, index)
+            _ -> present()
+        }
+    }
+
+    state byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        transition cursor < 131072 {
+            true -> compare_byte(input, cursor, spelling, index)
+            _ -> absent()
+        }
+    }
+
+    state compare_byte(input: &TokenStream, cursor: u64 in Trapping, spelling: &[u8], index: u64 in Trapping) {
+        let decoded: u8 = input.decoded[cursor] as u8;
+        let expected: u8 = spelling[index];
+        transition decoded == expected {
+            true -> compare(input, cursor + 1, spelling, index + 1)
+            _ -> absent()
+        }
+    }
+
+    state present() {
+        true
+    }
+
+    state absent() {
         false
     }
 }

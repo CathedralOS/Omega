@@ -13,8 +13,11 @@ use psi::syntax::syntax;
 // a machine, a call-shaped transition target a state of its machine, then a
 // machine binder, then a machine, a construction's path a data declaration
 // or `Type::Case`, a case pattern's path a case, and a path in value position
-// a case or an owned machine. A value target binds as any value. Field
-// selection (`value.field`) needs the value's type and is typing's
+// a case or an owned machine. A value target binds as any value, and so do
+// a value-position match's subject, value patterns and values. A pattern
+// field renamed `field as name` binds as `name`, and a waived `field as _`
+// binds nothing; a membership binds the case its `Type::Case` domain names.
+// Field selection (`value.field`) needs the value's type and is typing's
 // question, not resolution's.
 
 // What a name's position lets it name. Children precede their parent in the
@@ -420,8 +423,22 @@ crashes Trap
         transition expression.kind {
             ExpressionKind::Name -> name(resolver, sources, syntax, scope, root, index, expression)
             ExpressionKind::Path -> name(resolver, sources, syntax, scope, root, index, expression)
+            ExpressionKind::Membership -> membership(resolver, sources, syntax, scope, root, index, expression)
             _ -> next(resolver, sources, syntax, scope, root, index + 1)
         }
+    }
+
+    state membership(
+        resolver: &mut Resolver,
+        sources: &SourceSet,
+        syntax: &SyntaxTrees,
+        scope: NameScope,
+        root: u64 in Trapping,
+        index: u64 in Trapping,
+        expression: Expression
+    ) {
+        Resolver::bind_membership(resolver, sources, syntax, index, expression);
+        transition { _ -> next(resolver, sources, syntax, scope, root, index + 1) }
     }
 
     state name(
@@ -567,10 +584,13 @@ crashes Trap
         }
     }
 
+    // A binder is spelled by its rename (`field as name`), else by its field;
+    // a waived field (`field as _`) binds nothing.
     state binder_field(sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         let field: PatternField = SyntaxTrees::pattern_field(syntax, scope.first_binder + offset);
-        let spelled: bool = SourceSet::spans_equal(sources, field.name.source_span, name);
-        transition spelled && !field.has_value {
+        let binder: IdentifierSpan = Resolver::binder_spelling(field);
+        let spelled: bool = SourceSet::spans_equal(sources, binder.source_span, name);
+        transition spelled && !field.has_value && !field.is_waived {
             true -> found(ValueBinding::PatternBinder { field: scope.first_binder + offset })
             _ -> binder(sources, syntax, scope, name, offset + 1)
         }
@@ -598,6 +618,81 @@ crashes Trap
 
     state found(binding: ValueBinding) -> ValueBinding {
         binding
+    }
+}
+
+// The name a pattern field binds: its rename, else its own field name.
+machine Resolver::binder_spelling(field: PatternField) -> IdentifierSpan {
+    transition field.has_rename {
+        true -> renamed(field)
+        _ -> own(field)
+    }
+
+    state renamed(field: PatternField) {
+        field.rename
+    }
+
+    state own(field: PatternField) {
+        field.name
+    }
+}
+
+// A membership `value in Type::Case` tests one case of its value's data: a
+// case implicitly declares its same-named domain
+// (wiki/spec/language/data_and_literals.md), and the membership binds that
+// case. Any other domain needs a `domain` declaration, which resolution does
+// not bind yet, and rejects; a membership in several domains rejects as an
+// expression form resolution does not bind yet.
+machine Resolver::bind_membership(
+    resolver: &mut Resolver,
+    sources: &SourceSet,
+    syntax: &SyntaxTrees,
+    index: u64 in Trapping,
+    expression: Expression
+)
+crashes Trap
+{
+    transition expression.count == 1 {
+        true -> domain(resolver, sources, syntax, index, expression)
+        _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedExpression, expression.source_span)
+    }
+
+    state domain(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression) {
+        let path: NamePath = SyntaxTrees::name_path(syntax, expression.first);
+        transition path.member_count == 2 {
+            true -> owned(resolver, sources, syntax, index, path)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+        }
+    }
+
+    state owned(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, index: u64 in Trapping, path: NamePath) {
+        let owner: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member);
+        let member: IdentifierSpan = SyntaxTrees::member(syntax, path.first_member + 1);
+        let binding: ValueBinding = Resolver::case_or_machine(sources, syntax, owner.source_span, member.source_span);
+        transition binding {
+            ValueBinding::DataCase { item, data_case } -> bound(resolver, index, binding)
+            ValueBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, path.source_span)
+            _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+        }
+    }
+
+    state bound(resolver: &mut Resolver, index: u64 in Trapping, binding: ValueBinding) {
+        transition index < 65536 {
+            true -> store(resolver, index, binding)
+            _ -> invalid()
+        }
+    }
+
+    state store(resolver: &mut Resolver, index: u64 in Trapping, binding: ValueBinding) {
+        resolver.output.value_bindings[index] = binding;
+    }
+
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, code, source_span);
+    }
+
+    state invalid() {
+        crash Trap;
     }
 }
 

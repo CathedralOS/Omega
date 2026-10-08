@@ -349,6 +349,11 @@ crashes Trap
             ResolveDiagnosticCode::DuplicateStableIdentity -> diagnostic_tag(resolver_harness, output, 16)
             ResolveDiagnosticCode::InvalidStableIdentity -> diagnostic_tag(resolver_harness, output, 17)
             ResolveDiagnosticCode::UnsupportedDeclaration -> diagnostic_tag(resolver_harness, output, 18)
+            ResolveDiagnosticCode::UnsupportedOperatorToken -> diagnostic_tag(resolver_harness, output, 19)
+            ResolveDiagnosticCode::UnsupportedMachineContract -> diagnostic_tag(resolver_harness, output, 20)
+            ResolveDiagnosticCode::UnsupportedClause -> diagnostic_tag(resolver_harness, output, 21)
+            ResolveDiagnosticCode::UnsupportedGenericParameter -> diagnostic_tag(resolver_harness, output, 22)
+            ResolveDiagnosticCode::UnsupportedExpression -> diagnostic_tag(resolver_harness, output, 23)
         }
     }
 

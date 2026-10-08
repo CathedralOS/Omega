@@ -48,6 +48,9 @@ class Observation:
     domains: tuple[tuple[int, ...], ...] = ()
     constants: tuple[tuple[int, ...], ...] = ()
     propositions: tuple[tuple[int, ...], ...] = ()
+    contracts: tuple[tuple[int, ...], ...] = ()
+    match_arms: tuple[tuple[int, ...], ...] = ()
+    definitions: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -72,8 +75,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR11"
-    assert reader.u64() == 11
+    assert reader.bytes(8) == b"OMGPAR12"
+    assert reader.u64() == 12
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -214,7 +217,8 @@ def decode(payload: bytes) -> Observation:
     # Machine rows: owner flag and span, name span, generic-parameter range,
     # parameter range, return-type flag and handle, clause range, entry
     # statement range, state range, body flag, expression range, visibility
-    # flag, span.
+    # flag, span, target flag and span, boundary flag, container tag,
+    # operator token tag and span, contract range, every-requirement flag.
     machines = tuple(
         (
             reader.byte(),
@@ -248,6 +252,13 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.byte(),
+            reader.byte(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
             reader.byte(),
         )
         for _ in range(reader.u64())
@@ -351,6 +362,8 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # Pattern-field rows: name span, value flag and handle, span, rename flag
+    # and span, waived flag.
     pattern_fields = tuple(
         (
             reader.u64(),
@@ -361,9 +374,16 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
         )
         for _ in range(reader.u64())
     )
+    # Clause rows: kind, member range, crash cause, expression handle, span,
+    # expression flag, argument range, label flag and span.
     clauses = tuple(
         (
             reader.byte(),
@@ -371,6 +391,13 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.byte(),
             reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
             reader.u64(),
             reader.u64(),
             reader.u64(),
@@ -391,6 +418,8 @@ def decode(payload: bytes) -> Observation:
             reader.u64(), reader.u64(),
             reader.byte(), reader.byte(),
             reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(), reader.u64(),
         )
         for _ in range(reader.u64())
     )
@@ -448,6 +477,39 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # Contracts: kind (1 machine, 2 proposition), name span, generic range,
+    # parameter range, return flag and handle, clause range, span.
+    contracts = tuple(
+        (
+            reader.byte(), reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    # Value-position match arms: pattern kind, pattern handle, value handle,
+    # span.
+    match_arms = tuple(
+        (reader.byte(), reader.u64(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
+        for _ in range(reader.u64())
+    )
+    # Definitions: name span, generic range, parameter range, result type,
+    # term flag and handle, boundary and visibility flags, span.
+    definitions = tuple(
+        (
+            reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(),
+            reader.byte(), reader.u64(),
+            reader.byte(), reader.byte(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing parser observation bytes"
     return Observation(
         accepted,
@@ -482,6 +544,9 @@ def decode(payload: bytes) -> Observation:
         domains,
         constants,
         propositions,
+        contracts,
+        match_arms,
+        definitions,
     )
 
 
@@ -522,10 +587,43 @@ def data_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     )
 
 
+# What a machine row spelled before operator tokens, contracts and
+# refinements reports: no token, an empty token span, no contracts, and no
+# every-requirement flag.
+NO_TOKEN = (0, 1, 0, 0, 0, 0, 0)
+
+
 def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
     """Machine rows spelled before target-scoped, boundary and member
-    machines are untargeted, not boundary, and stand at the root."""
-    return tuple(row if len(row) == 32 else row + (0, 1, 0, 0, 0, 0) for row in rows)
+    machines are untargeted, not boundary, and stand at the root; rows
+    spelled before operator tokens and contracts carry neither."""
+    rows = tuple(row if len(row) >= 32 else row + (0, 1, 0, 0, 0, 0) for row in rows)
+    return tuple(row if len(row) == 39 else row + NO_TOKEN for row in rows)
+
+
+# The clause kinds whose rows hold a fact expression: requires, ensures and
+# where.
+FACT_CLAUSES = (6, 7, 8)
+
+
+def clause_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
+    """Clause rows spelled before satisfactions and terminations: a fact
+    clause has its expression, and no row has arguments or a label."""
+    return tuple(
+        row if len(row) == 15 else row + (1 if row[0] in FACT_CLAUSES else 0, 0, 0, 0, 1, 0, 0)
+        for row in rows
+    )
+
+
+def pattern_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
+    """Pattern-field rows spelled before renames bind or compare their own
+    field."""
+    return tuple(row if len(row) == 13 else row + (0, 1, 0, 0, 0) for row in rows)
+
+
+def trait_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
+    """Trait rows spelled before contracts and refinements carry neither."""
+    return tuple(row if len(row) == 18 else row + (0, 0, 0, 0) for row in rows)
 
 
 def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
@@ -619,7 +717,7 @@ def accepted(
         statements,
         (),
         (),
-        clauses,
+        clause_rows(clauses),
         type_arguments,
         name_paths,
         traits,
@@ -695,6 +793,7 @@ def rejected(
 DECLARATION_TABLES = (
     "name_paths", "traits", "trait_parents", "conformances",
     "conformance_rows", "domains", "constants", "propositions",
+    "contracts", "match_arms", "definitions",
 )
 
 
@@ -705,7 +804,14 @@ def declaration_accepted(program: str, name: str, source: bytes, **tables: tuple
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
     actual = decode(payload)
-    shorthand = {"data_items": data_rows, "machines": machine_rows, "type_references": type_rows}
+    shorthand = {
+        "data_items": data_rows,
+        "machines": machine_rows,
+        "type_references": type_rows,
+        "clauses": clause_rows,
+        "traits": trait_rows,
+        "pattern_fields": pattern_rows,
+    }
     for table in DECLARATION_TABLES:
         tables.setdefault(table, ())
     for table, rows in tables.items():
@@ -994,7 +1100,7 @@ def root_declaration_cases(program: str) -> None:
          span(b"boundary requirement", b"requirement")[1:], {}),
         ("retired-boundary-operator", b"boundary operator Ptr::offset(p: Ptr) -> Ptr;", 111, (9, 17), {}),
         ("retired-operator", b"operator + Vec2::add(left: Vec2) -> Vec2 {}", 111, (0, 8), {}),
-        ("boundary-declaration", b"boundary let x;", 109, (9, 12), {}),
+        ("boundary-declaration", b"boundary const x;", 109, (9, 14), {}),
         ("boundary-declaration-at-end", b"boundary", 109, (8, 8), {}),
         ("target-scoped-machine", b"linux_arm64 boundary data X;", 112, (21, 25), {}),
         ("unsupported-name-root", b"linux_arm64 thing", 2, (0, 11), {}),
@@ -1085,6 +1191,562 @@ def root_declaration_cases(program: str) -> None:
     source = b"domain i32::D established by r" + routes + b", r;"
     rejected(program, "name-path-capacity-plus-one", source, 141, (len(source) - 1, len(source)),
              type_reference_count=1, member_count=2049, name_path_count=2048)
+
+
+def clause_row(
+    kind: int,
+    members: tuple[int, int],
+    expression: int,
+    extent: tuple[int, int, int],
+    has_expression: bool = False,
+    arguments: tuple[int, int] = (0, 0),
+    label: tuple[int, int, int] = (1, 0, 0),
+) -> tuple[int, ...]:
+    """A full clause row: kind, member range, cause (always Trap here),
+    expression handle, span, expression flag, argument range, label."""
+    return (
+        kind, *members, 1, expression, *extent, 1 if has_expression else 0,
+        *arguments, 0 if label == (1, 0, 0) else 1, *label,
+    )
+
+
+def machine_form_cases(program: str) -> None:
+    """Satisfactions, termination promises, operator tokens, `where machine`
+    and `where proposition` contracts, proposition and evidence binders,
+    transparent refinements and mathematical definitions."""
+    NONE = (1, 0, 0)
+    MACHINE_ROOT, DATA_ROOT, TRAIT_ROOT, CONFORMANCE_ROOT, DEFINITION_ROOT = 3, 2, 4, 5, 9
+    REACHES, SUSPENDS, BLOCKS, REQUIRES, ENSURES, SATISFIES, TERMINATES = 1, 3, 4, 6, 7, 9, 10
+
+    def whole(source: bytes) -> tuple[int, int, int]:
+        return (1, 0, len(source))
+
+    def member(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, int, int]:
+        return span(source, fragment, occurrence)
+
+    # `satisfies Trait[<arguments>]::requirement [as Label] [via value]`: the
+    # trait's path and the requirement in the members table, the trait's
+    # static arguments, the label and the binding payload.
+    source = b"machine f() satisfies Order::before {}"
+    declaration_accepted(
+        program, "satisfies-exact-requirement", source,
+        roots=((MACHINE_ROOT, 0, *whole(source)),),
+        members=(member(source, b"Order"), member(source, b"before")),
+        clauses=(clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies Order::before")),),
+    )
+    source = b"machine f(x: u8) -> u8 satisfies Semiring<u8>::add as Sum via Binding::Intrinsic;"
+    actual = declaration_accepted(
+        program, "satisfies-applied-labelled-binding", source,
+        members=(member(source, b"Semiring"), member(source, b"add"), member(source, b"Binding"),
+                 member(source, b"Intrinsic")),
+        clauses=(clause_row(SATISFIES, (0, 2), 0, through(source, b"satisfies", b"Intrinsic"), True, (0, 1),
+                            span(source, b"Sum")),),
+        type_arguments=(2,),
+        expressions=((2, 0, 0, 0, 2, 2, 0, *span(source, b"Intrinsic"), 0, *span(source, b"Binding::Intrinsic")),),
+    )
+    assert actual.machines[0][19] == 0 and actual.machines[0][23:26] == whole(source), actual.machines
+    source = b"machine f() satisfies A::x, core::B<u8, 4>::y {}"
+    declaration_accepted(
+        program, "satisfies-list", source,
+        clauses=(
+            clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies A::x")),
+            clause_row(SATISFIES, (2, 3), 0, span(source, b"core::B<u8, 4>::y"), arguments=(0, 2)),
+        ),
+        type_arguments=(0, 1),
+    )
+    source = b"machine f() satisfies A::x; requires a {}"
+    declaration_accepted(
+        program, "satisfaction-semicolon-before-clause", source,
+        clauses=(
+            clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies A::x")),
+            clause_row(REQUIRES, (0, 0), 0, span(source, b"requires a"), True),
+        ),
+    )
+    source = b"machine f() satisfies A::x via b(1); data D {}"
+    declaration_accepted(
+        program, "bodyless-satisfaction-before-declaration", source,
+        roots=((MACHINE_ROOT, 0, *span(source, b"machine f() satisfies A::x via b(1);")),
+               (DATA_ROOT, 0, *span(source, b"data D {}"))),
+        clauses=(clause_row(SATISFIES, (0, 2), 2, span(source, b"satisfies A::x via b(1)"), True),),
+    )
+
+    # `terminates;` promises termination; `by` adds the ranked subjects, in
+    # the argument table, and an optional view expression.
+    source = b"machine f() terminates;"
+    declaration_accepted(
+        program, "termination-promise", source,
+        roots=((MACHINE_ROOT, 0, *whole(source)),),
+        clauses=(clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;")),),
+    )
+    source = b"machine f(n: u64) terminates by n; {}"
+    declaration_accepted(
+        program, "ranked-subject", source,
+        clauses=(clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates by n;"), arguments=(0, 1)),),
+        arguments=(0,),
+    )
+    source = b"machine f(i: u64, n: u64) terminates by (i, n.len) -> Nat::BoundedDistance; {}"
+    declaration_accepted(
+        program, "ranked-subject-list-and-view", source,
+        clauses=(clause_row(TERMINATES, (0, 0), 3, through(source, b"terminates", b"Distance;"), True, (0, 2)),),
+        arguments=(0, 2),
+    )
+    source = b"machine f(i: u64, n: u64) terminates by i -> Nat::IncreasingTo(n); requires i < n {}"
+    declaration_accepted(
+        program, "argumented-ranking-view", source,
+        clauses=(
+            clause_row(TERMINATES, (0, 0), 3, span(source, b"terminates by i -> Nat::IncreasingTo(n);"), True, (0, 1)),
+            clause_row(REQUIRES, (0, 0), 6, span(source, b"requires i < n"), True),
+        ),
+        arguments=(0, 2),
+    )
+    source = b"trait Semiring<T> { machine zero() -> T terminates; machine one() -> T terminates; }"
+    actual = declaration_accepted(
+        program, "requirement-termination-promises", source,
+        clauses=(
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;", 1)),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;", 2)),
+        ),
+        traits=((*span(source, b"Semiring"), 0, 1, 0, 0, 0, 2, 0, 0, *whole(source)),),
+    )
+    assert [row[19] for row in actual.machines] == [0, 0], actual.machines
+
+    # A fixed operator token after `machine` binds operator syntax to the
+    # declaration: its tag (1 `+` ... 9 `<=` ... 12 `[]`, 13 `[..]`) and span.
+    for name, source, tag, token, owner, boundary in (
+        ("add-token", b"machine + Vec2::add(left: u8, right: u8) -> u8 { left }", 1, b"+", b"Vec2", 0),
+        ("order-token", b"machine <= Nat::less_or_equal(a: u8, b: u8) -> bool { true }", 9, b"<=", b"Nat", 0),
+        ("index-token", b"machine [] Buffer::at(buffer: u8, index: u8) -> u8;", 12, b"[]", b"Buffer", 0),
+        ("range-token", b"pub boundary machine [..] Slice::range(items: u8) -> u8;", 13, b"[..]", b"Slice", 1),
+    ):
+        actual = declaration_accepted(program, name, source, roots=((MACHINE_ROOT, 0, *whole(source)),))
+        row = actual.machines[0]
+        assert row[0:4] == (1, *span(source, owner)) and row[30] == boundary, (name, row)
+        assert row[32:39] == (tag, *span(source, token), 0, 0, 0), (name, row)
+    source = b"trait Add<T> { machine + add(a: T, b: T) -> T; }"
+    actual = declaration_accepted(
+        program, "requirement-token", source,
+        traits=((*span(source, b"Add"), 0, 1, 0, 0, 0, 1, 0, 0, *whole(source)),),
+    )
+    assert actual.machines[0][31:36] == (1, 1, *span(source, b"+")), actual.machines
+
+    # `where machine` contracts precede a machine's other clauses: one flat
+    # list of signatures, each named for a binder, possibly of an earlier
+    # contract's own generic parameters.
+    source = b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }"
+    actual = declaration_accepted(
+        program, "structural-machine-contract", source,
+        contracts=((1, *span(source, b"F", 2), 1, 0, 1, 1, 1, 3, 0, 0,
+                    *span(source, b"where machine F(value: u8) -> u8;")),),
+        generic_parameters=((5, *span(source, b"F"), 0, 0, 0, *span(source, b"machine F")),),
+    )
+    assert actual.machines[0][7:9] == (0, 1) and actual.machines[0][36:38] == (0, 1), actual.machines
+    source = (b"machine c<machine S, machine M>(p: u8) -> u8 where machine S(i: u8) -> u8; "
+              b"where machine M(p: u8) -> u8; requires p > 0 {}")
+    actual = declaration_accepted(
+        program, "contracts-before-clauses", source,
+        contracts=(
+            (1, *span(source, b"S", 2), 2, 0, 1, 1, 1, 3, 0, 0, *span(source, b"where machine S(i: u8) -> u8;")),
+            (1, *span(source, b"M", 2), 2, 0, 2, 1, 1, 5, 0, 0, *span(source, b"where machine M(p: u8) -> u8;")),
+        ),
+        clauses=(clause_row(REQUIRES, (0, 0), 2, span(source, b"requires p > 0"), True),),
+    )
+    assert actual.machines[0][13:15] == (0, 1) and actual.machines[0][36:38] == (0, 2), actual.machines
+    source = (b"machine forward<machine Schema, machine Selected>(value: u8) -> u8\n"
+              b"where machine Schema<machine Inner>(value: u8) -> u8\n"
+              b"where machine Inner(index: u8) -> u8;\n"
+              b"where machine Selected(index: u8) -> u8;\n{\n    value\n}")
+    actual = declaration_accepted(
+        program, "nested-binder-contracts", source,
+        contracts=(
+            (1, *span(source, b"Schema", 2), 2, 1, 1, 1, 1, 3, 0, 0,
+             1, source.index(b"where machine Schema"), source.index(b"\nwhere machine Inner")),
+            (1, *span(source, b"Inner", 2), 3, 0, 2, 1, 1, 5, 0, 0,
+             *span(source, b"where machine Inner(index: u8) -> u8;")),
+            (1, *span(source, b"Selected", 2), 3, 0, 3, 1, 1, 7, 0, 0,
+             *span(source, b"where machine Selected(index: u8) -> u8;")),
+        ),
+        generic_parameters=(
+            (5, *span(source, b"Schema"), 0, 0, 0, *span(source, b"machine Schema")),
+            (5, *span(source, b"Selected"), 0, 0, 0, *span(source, b"machine Selected")),
+            (5, *span(source, b"Inner"), 0, 0, 0, *span(source, b"machine Inner")),
+        ),
+    )
+    assert actual.machines[0][7:9] == (0, 2) and actual.machines[0][36:38] == (0, 3), actual.machines
+    source = b"machine run<machine H>() where machine H satisfies Hook<u8>::call; {}"
+    actual = declaration_accepted(
+        program, "nominal-machine-contract", source,
+        contracts=((1, *span(source, b"H", 2), 1, 0, 0, 0, 0, 0, 0, 1,
+                    *span(source, b"where machine H satisfies Hook<u8>::call;")),),
+        clauses=(clause_row(SATISFIES, (0, 2), 0, span(source, b"satisfies Hook<u8>::call"), arguments=(0, 1)),),
+        type_arguments=(0,),
+    )
+    assert actual.machines[0][13:15] == (1, 0), actual.machines
+    source = (b"machine e<machine Step>(v: u8) where machine Step(value: u8) requires value > 0 "
+              b"ensures value < 9; ensures v > 1; {}")
+    actual = declaration_accepted(
+        program, "contract-clauses-end-at-semicolon", source,
+        contracts=((1, *span(source, b"Step", 2), 1, 0, 1, 1, 0, 0, 0, 2,
+                    *span(source, b"where machine Step(value: u8) requires value > 0 ensures value < 9;")),),
+        clauses=(
+            clause_row(REQUIRES, (0, 0), 2, span(source, b"requires value > 0"), True),
+            clause_row(ENSURES, (0, 0), 5, span(source, b"ensures value < 9"), True),
+            clause_row(ENSURES, (0, 0), 8, span(source, b"ensures v > 1"), True),
+        ),
+    )
+    assert actual.machines[0][13:15] == (2, 1), actual.machines
+    source = b"machine b<machine F>() where machine F(); data D {}"
+    declaration_accepted(
+        program, "bodyless-machine-contract", source,
+        roots=((MACHINE_ROOT, 0, *span(source, b"machine b<machine F>() where machine F();")),
+               (DATA_ROOT, 0, *span(source, b"data D {}"))),
+        contracts=((1, *span(source, b"F", 2), 1, 0, 0, 0, 0, 0, 0, 0, *span(source, b"where machine F();")),),
+    )
+
+    # Proposition binders take their signature from `where proposition`;
+    # an evidence binder `Name satisfies Trait<...>` names an implementation.
+    source = (b"trait Reflexive<C, proposition Relation>\nwhere proposition Relation(left: C, right: C);\n{\n"
+              b"    machine reflexive(value: C)\n    ensures Relation(value, value);\n}")
+    declaration_accepted(
+        program, "proposition-binder-contract", source,
+        generic_parameters=(
+            (2, *span(source, b"C"), 0, 0, 0, *span(source, b"C")),
+            (6, *span(source, b"Relation"), 0, 0, 0, *span(source, b"proposition Relation")),
+        ),
+        contracts=((2, *span(source, b"Relation", 2), 2, 0, 0, 2, 0, 0, 0, 0,
+                    *span(source, b"where proposition Relation(left: C, right: C);")),),
+        traits=((*span(source, b"Reflexive"), 0, 2, 0, 0, 0, 1, 0, 0, *whole(source), 0, 1, 0, 0),),
+    )
+    source = b"trait Calling<Policy satisfies CallingPolicy> {}"
+    declaration_accepted(
+        program, "trait-evidence-binder", source,
+        generic_parameters=((7, *span(source, b"Policy"), 1, 0, 0, *span(source, b"Policy satisfies CallingPolicy")),),
+        traits=((*span(source, b"Calling"), 0, 1, 0, 0, 0, 0, 0, 0, *whole(source)),),
+    )
+    source = b"machine m<O satisfies Order<T>, T>() {}"
+    declaration_accepted(
+        program, "machine-evidence-binder", source,
+        generic_parameters=(
+            (7, *span(source, b"O"), 1, 1, 0, *span(source, b"O satisfies Order<T>")),
+            (2, *span(source, b"T", 2), 0, 0, 0, *span(source, b"T", 2)),
+        ),
+    )
+
+    # A transparent refinement `trait Name = Base { ... }` narrows its base's
+    # operational axes: members name `*` or one requirement and hold only
+    # `reaches`, `suspends`, `blocks` and `terminates`, each ending at `;`.
+    source = (b"pub trait LocalLogger = Logger {\n    machine *\n        reaches;\n        suspends false;\n"
+              b"        blocks false;\n        terminates;\n}")
+    actual = declaration_accepted(
+        program, "refinement-of-every-requirement", source,
+        roots=((TRAIT_ROOT, 0, *whole(source)),),
+        clauses=(
+            clause_row(REACHES, (0, 0), 0, span(source, b"reaches;")),
+            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends false;"), True),
+            clause_row(BLOCKS, (0, 0), 1, span(source, b"blocks false;"), True),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;")),
+        ),
+        traits=((*span(source, b"LocalLogger"), 0, 0, 0, 0, 0, 1, 0, 1, *whole(source), 0, 0, 1, 0),),
+    )
+    row = actual.machines[0]
+    assert row[4:7] == span(source, b"*") and row[13:15] == (0, 4) and row[19] == 0, row
+    assert row[23:26] == through(source, b"machine", b"terminates;") and row[31] == 3 and row[38] == 1, row
+    source = b"trait Quiet<T> = Logger<T> { machine Logger::log suspends; machine flush reaches _ + Clock; }"
+    actual = declaration_accepted(
+        program, "refinement-of-named-requirements", source,
+        members=(member(source, b"_"), member(source, b"Clock")),
+        clauses=(
+            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends;")),
+            clause_row(REACHES, (0, 2), 0, span(source, b"reaches _ + Clock;")),
+        ),
+        traits=((*span(source, b"Quiet"), 0, 1, 0, 0, 0, 2, 0, 0, *whole(source), 0, 0, 1, 1),),
+    )
+    first, second = actual.machines
+    assert first[0:7] == (1, *span(source, b"Logger", 2), *span(source, b"log")) and first[38] == 0, first
+    assert second[4:7] == span(source, b"flush") and second[31] == 3, second
+
+    # A named mathematical definition `let Name(parameters): Type = term;`,
+    # or an assumption `boundary let` without a term.
+    source = b"let greater_than(limit: i32, value: i32): Strict = value > limit;"
+    declaration_accepted(
+        program, "mathematical-definition", source,
+        roots=((DEFINITION_ROOT, 0, *whole(source)),),
+        definitions=((*span(source, b"greater_than"), 0, 0, 0, 2, 2, 1, 2, 0, 0, *whole(source)),),
+    )
+    source = b"pub boundary let choose<u: core::Level, A: core::Type<u>>(inhabited: core::Squash<A>): A;"
+    declaration_accepted(
+        program, "mathematical-assumption", source,
+        roots=((DEFINITION_ROOT, 0, *whole(source)),),
+        definitions=((*span(source, b"choose"), 0, 2, 0, 1, 5, 0, 0, 1, 1, *whole(source)),),
+    )
+    source = b"let zero: u8 = 0;"
+    declaration_accepted(
+        program, "parameterless-definition", source,
+        definitions=((*span(source, b"zero"), 0, 0, 0, 0, 0, 1, 0, 0, 0, *whole(source)),),
+    )
+
+    # A type's `in` qualifier may name a path, such as a case's implied
+    # domain; the qualifier spans the whole path.
+    source = b"data X { field: T in Event::Completion; }"
+    declaration_accepted(
+        program, "case-domain-qualifier", source,
+        type_references=((2, *span(source, b"T"), *span(source, b"T in Event::Completion"), 1,
+                          *span(source, b"Event::Completion")),),
+    )
+    rejected(program, "domain-qualifier-path-member", b"data X { field: T in A::; }", 3, (24, 25))
+
+    # A trait member's `;` before `requires` ends the member: `requires
+    # Parent;` is then the trait's body parent. A generic conformance head
+    # `Name<...> satisfies` after a bodyless declaration's `;` begins a root.
+    source = b"trait T { machine f() ensures x; requires P; machine g(); }"
+    declaration_accepted(
+        program, "body-parent-after-member-semicolon", source,
+        clauses=(clause_row(ENSURES, (0, 0), 0, span(source, b"ensures x"), True),),
+        traits=((*span(source, b"T"), 0, 0, 0, 1, 0, 2, 0, 0, *whole(source)),),
+        trait_parents=(0,),
+    )
+    source = b"machine f() requires a; Impl<T> satisfies Trait<T> { }"
+    declaration_accepted(
+        program, "generic-conformance-after-semicolon", source,
+        roots=((MACHINE_ROOT, 0, *span(source, b"machine f() requires a;")),
+               (CONFORMANCE_ROOT, 0, *span(source, b"Impl<T> satisfies Trait<T> { }"))),
+        conformances=((*span(source, b"Impl"), 0, 1, 1, 1, 0, 0, 0, 0, *span(source, b"Impl<T> satisfies Trait<T> { }")),),
+    )
+    source = b"machine f() requires a; Impl<T, O satisfies Order<T>> satisfies Sorted<T> { }"
+    declaration_accepted(
+        program, "evidence-conformance-after-semicolon", source,
+        roots=((MACHINE_ROOT, 0, *span(source, b"machine f() requires a;")),
+               (CONFORMANCE_ROOT, 0, *through(source, b"Impl", b"{ }"))),
+        conformances=((*span(source, b"Impl"), 0, 2, 3, 1, 0, 0, 0, 0, *through(source, b"Impl", b"{ }")),),
+    )
+
+    for name, source, diagnostic, fragment, occurrence, counts in (
+        ("satisfies-trait", b"machine f() satisfies {}", 156, b"{", 1, {}),
+        ("bare-satisfied-trait", b"machine f() satisfies Order {}", 157, b"{", 1, {"member_count": 1}),
+        ("applied-trait-without-requirement", b"machine f() satisfies Order<u8> {}", 157, b"{", 1,
+         {"member_count": 1, "type_reference_count": 1}),
+        ("satisfies-label", b"machine f() satisfies A::b as {}", 158, b"{", 1, {"member_count": 2}),
+        ("satisfies-binding", b"machine f() satisfies A::b via ;", 159, b";", 1, {"member_count": 2}),
+        ("state-satisfies-not-admitted", b"machine f() { state s() satisfies A::b {} }", 105, b"satisfies", 1, {}),
+        ("termination-subject", b"machine f() terminates by ; {}", 160, b";", 1, {}),
+        ("termination-subject-end", b"machine f() terminates by (a b) {}", 161, b"b", 2,
+         {"member_count": 1, "expression_count": 1}),
+        ("termination-view", b"machine f() terminates by a -> 1; {}", 162, b"1", 1,
+         {"member_count": 1, "expression_count": 2}),
+        ("termination-end", b"machine f() terminates by a {}", 94, b"{", 1, {"member_count": 1, "expression_count": 1}),
+        ("ranked-subject-is-no-membership", b"machine f() terminates by x in D; {}", 94, b"in", 3,
+         {"member_count": 1, "expression_count": 1}),
+        ("unknown-operator-token", b"machine [x] f() {}", 163, b"x", 1, {}),
+        ("conformance-member-token", b"C satisfies T { machine + f() {} }", 164, b"+", 1, {"type_reference_count": 1}),
+        ("token-before-no-name", b"machine + () {}", 40, b"(", 1, {}),
+        ("contract-name", b"machine f<machine F>() where machine (x: u8); {}", 165, b"(", 2, {"generic_parameter_count": 1}),
+        ("contract-end", b"machine f<machine F>() where machine F() x {}", 166, b"x", 1, {"generic_parameter_count": 1}),
+        ("nominal-contract-takes-no-binding", b"machine f<machine F>() where machine F satisfies H::c via b; {}",
+         166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
+        ("contract-after-clause", b"machine f() requires a where machine F(); {}", 105, b"where", 1,
+         {"member_count": 1, "expression_count": 1}),
+        ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
+        ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
+        ("proposition-contract-end", b"trait R<proposition P> where proposition P(x: u8) {}", 166, b"{", 1,
+         {"generic_parameter_count": 1, "type_reference_count": 1, "parameter_count": 1}),
+        ("proposition-contract-name", b"trait R<proposition P> where proposition (x: u8); {}", 165, b"(", 1,
+         {"generic_parameter_count": 1}),
+        ("refinement-base", b"trait X = { }", 182, b"{", 1, {}),
+        ("refinement-takes-no-clauses", b"trait X = Base requires P; {}", 116, b"requires", 1, {"type_reference_count": 1}),
+        ("refinement-takes-no-parent", b"trait X = Base { requires P; }", 117, b"requires", 1, {"type_reference_count": 1}),
+        ("refinement-requirement", b"trait X = Base { machine ( }", 183, b"(", 1, {"type_reference_count": 1}),
+        ("refinement-axis", b"trait X = Base { machine * suspends maybe; }", 184, b"maybe", 1, {"type_reference_count": 1}),
+        ("refinement-adds-no-requires", b"trait X = Base { machine * requires a; }", 105, b"requires", 1,
+         {"type_reference_count": 1}),
+        ("refinement-takes-no-witness", b"trait X = Base { machine * terminates by n; }", 105, b"by", 1,
+         {"type_reference_count": 1}),
+        ("refinement-declares-no-signature", b"trait X = Base { machine f(x: u8); }", 117, b"(", 1,
+         {"type_reference_count": 1, "machine_count": 1}),
+        ("refinement-clause-end", b"trait X = Base { machine * reaches A }", 94, b"}", 1,
+         {"type_reference_count": 1, "member_count": 1}),
+        ("definition-name", b"let : u8 = 1;", 185, b":", 1, {}),
+        ("definition-colon", b"let x = 1;", 186, b"=", 1, {}),
+        ("definition-type", b"let x: = 1;", 187, b"=", 1, {}),
+        ("definition-term", b"let x: u8;", 188, b";", 1, {"type_reference_count": 1}),
+        ("assumption-takes-no-term", b"boundary let x: u8 = 1;", 189, b"=", 1, {"type_reference_count": 1}),
+        ("assumption-type", b"boundary let x;", 186, b";", 1, {}),
+    ):
+        where = span(source, fragment, occurrence)
+        rejected(program, name, source, diagnostic, where[1:], **counts)
+    rejected(program, "definition-end", b"let x: u8 = 1", 189, (13, 13), type_reference_count=1, expression_count=1)
+
+    # Capacity edges: 256 contracts, 256 definitions and 8 ranked subjects
+    # fill their tables; one more rejects.
+    exact = b"machine f() " + b"where machine F; " * 256 + b"{}"
+    status, payload = run(program, exact)
+    assert status == 0 and len(decode(payload).contracts) == 256, "256 contracts"
+    over = b"machine f() " + b"where machine F; " * 257 + b"{}"
+    start = len(b"machine f() ") + 256 * len(b"where machine F; ")
+    rejected(program, "contract-capacity-plus-one", over, 167, (start, start + 5), root_count=0)
+    exact = b"let x: u8 = 0;\n" * 256
+    status, payload = run(program, exact)
+    assert status == 0 and len(decode(payload).definitions) == 256, "256 definitions"
+    over = exact + b"let x: u8 = 0;\n"
+    rejected(program, "definition-capacity-plus-one", over, 190, (len(exact), len(exact) + 3),
+             root_count=256, type_reference_count=256, expression_count=256, member_count=0)
+    exact = b"machine f() terminates by (" + b", ".join([b"a"] * 8) + b"); {}"
+    status, payload = run(program, exact)
+    assert status == 0 and decode(payload).clauses[0][9:11] == (0, 8), "8 ranked subjects"
+    over = b"machine f() terminates by (" + b", ".join([b"a"] * 9) + b"); {}"
+    rejected(program, "ranked-subject-capacity-plus-one", over, 180, (len(over) - 5, len(over) - 4),
+             member_count=9, expression_count=9)
+
+
+def expression_form_cases(program: str) -> None:
+    """Memberships, value-position matches and renamed pattern fields."""
+    MEMBERSHIP, MATCH = 15, 16
+    WILDCARD, LITERAL, CASE = 2, 3, 4
+
+    def name_row(source: bytes, name: bytes, member: int, occurrence: int = 1) -> tuple[int, ...]:
+        where = span(source, name, occurrence)
+        return (1, 0, 0, 0, member, 1, 0, *where, 0, *where)
+
+    # `value in Domain {& Domain}` or `{| Domain}`: the domains are name
+    # paths, joined by `operator` (0 one domain, 1 `|`, 2 `&`).
+    source = b"machine f(x: u8) requires x in Optional::None {}"
+    declaration_accepted(
+        program, "membership-in-case-domain", source,
+        expressions=(name_row(source, b"x", 0, 2),
+                     (MEMBERSHIP, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, *span(source, b"x in Optional::None"))),
+        name_paths=((1, 2, *span(source, b"Optional::None")),),
+    )
+    source = b"machine f(x: u8) requires x in A & B {}"
+    declaration_accepted(
+        program, "membership-in-every-domain", source,
+        expressions=(name_row(source, b"x", 0, 2), (MEMBERSHIP, 2, 0, 0, 0, 2, 0, 1, 0, 0, 0, *span(source, b"x in A & B"))),
+        name_paths=((1, 1, *span(source, b"A")), (2, 1, *span(source, b"B"))),
+    )
+    source = b"machine f(x: u8) -> bool { x in A | B | C }"
+    declaration_accepted(
+        program, "membership-in-a-union", source,
+        expressions=(name_row(source, b"x", 0, 2),
+                     (MEMBERSHIP, 1, 0, 0, 0, 3, 0, 1, 0, 0, 0, *span(source, b"x in A | B | C"))),
+        name_paths=((1, 1, *span(source, b"A")), (2, 1, *span(source, b"B")), (3, 1, *span(source, b"C"))),
+    )
+    source = b"machine f(a: u8, b: u8) -> bool { a + b in D == !a in E }"
+    declaration_accepted(
+        program, "membership-between-tiers", source,
+        expressions=(
+            name_row(source, b"a", 0, 3),
+            name_row(source, b"b", 1, 3),
+            (9, 14, 0, 1, 0, 0, 0, 1, 0, 0, 0, *span(source, b"a + b")),
+            (MEMBERSHIP, 0, 2, 0, 0, 1, 0, 1, 0, 0, 0, *span(source, b"a + b in D")),
+            name_row(source, b"a", 3, 4),
+            (8, 19, 4, 0, 0, 0, 0, 1, 0, 0, 0, *span(source, b"!a")),
+            (MEMBERSHIP, 0, 5, 0, 1, 1, 0, 1, 0, 0, 0, *span(source, b"!a in E")),
+            (9, 3, 3, 6, 0, 0, 0, 1, 0, 0, 0, *span(source, b"a + b in D == !a in E")),
+        ),
+        name_paths=((2, 1, *span(source, b"D")), (4, 1, *span(source, b"E"))),
+    )
+
+    # `match subject { pattern -> value, ... }` is an operand; its arms keep
+    # their own table (pattern kind, pattern, value, span).
+    source = b"machine f(c: i32) -> u8 { match c { 2 -> 1, 13 -> 2, _ -> 3 } }"
+    actual = declaration_accepted(
+        program, "value-position-match", source,
+        match_arms=(
+            (LITERAL, 1, 2, *span(source, b"2 -> 1")),
+            (LITERAL, 3, 4, *span(source, b"13 -> 2")),
+            (WILDCARD, 0, 5, *span(source, b"_ -> 3")),
+        ),
+    )
+    assert actual.expressions[6] == (MATCH, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0,
+                                     *span(source, b"match c { 2 -> 1, 13 -> 2, _ -> 3 }")), actual.expressions
+    source = b"machine f(c: i32) { x = match c { 1 -> A::B, _ -> A::C, }; }"
+    actual = declaration_accepted(
+        program, "assigned-match-with-trailing-comma", source,
+        match_arms=((LITERAL, 2, 3, *span(source, b"1 -> A::B")), (WILDCARD, 0, 4, *span(source, b"_ -> A::C"))),
+    )
+    assert actual.statements[0][0] == 2 and actual.statements[0][7] == 5, actual.statements
+    source = b"machine f(code: i32) -> E { (match code { 2 -> E::N, _ -> E::O }) }"
+    actual = declaration_accepted(
+        program, "grouped-match-result", source,
+        match_arms=((LITERAL, 1, 2, *span(source, b"2 -> E::N")), (WILDCARD, 0, 3, *span(source, b"_ -> E::O"))),
+    )
+    assert actual.expressions[4][:6] == (MATCH, 0, 0, 0, 0, 2), actual.expressions
+    source = b"machine f(x: u8) { transition x { 0 -> g(match x { 1 -> 2, _ -> 3 }) _ -> h() } }"
+    actual = declaration_accepted(
+        program, "match-inside-transition-arm", source,
+        match_arms=((LITERAL, 4, 5, *span(source, b"1 -> 2")), (WILDCARD, 0, 6, *span(source, b"_ -> 3"))),
+    )
+    assert [arm[0] for arm in actual.arms] == [3, 2] and actual.statements[0][10:12] == (0, 2), actual.arms
+    source = b"machine f(k: K) -> P { match k { K::A -> P { x: 1 }, K::B -> match k { _ -> P { x: 2 } } } }"
+    actual = declaration_accepted(
+        program, "nested-matches-and-constructions", source,
+        match_arms=(
+            (WILDCARD, 0, 9, *span(source, b"_ -> P { x: 2 }")),
+            (CASE, 1, 4, *span(source, b"K::A -> P { x: 1 }")),
+            (CASE, 5, 10, *span(source, b"K::B -> match k { _ -> P { x: 2 } }")),
+        ),
+    )
+    assert actual.expressions[10][:6] == (MATCH, 0, 6, 0, 0, 1), actual.expressions
+    assert actual.expressions[11][:6] == (MATCH, 0, 0, 0, 1, 2), actual.expressions
+
+    # `field as name` renames a pattern binder; `field as _` waives it.
+    source = b"machine f(n: Nat) { transition n { Nat::Succ { prev as w } -> g(w) _ -> h() } }"
+    status, payload = run(program, source)
+    assert status == 0, "renamed-pattern-field"
+    assert decode(payload).pattern_fields == (
+        (*span(source, b"prev"), 0, 0, *span(source, b"prev as w"), 1, *span(source, b"w"), 0),
+    ), "renamed-pattern-field"
+    source = b"machine f(h: Header) { transition h { Header { ok as _, version } -> g(version) } }"
+    status, payload = run(program, source)
+    assert status == 0, "waived-pattern-field"
+    assert decode(payload).pattern_fields == (
+        (*span(source, b"ok"), 0, 0, *span(source, b"ok as _"), 1, *span(source, b"_"), 1),
+        (*span(source, b"version"), 0, 0, *span(source, b"version"), 0, 1, 0, 0, 0),
+    ), "waived-pattern-field"
+
+    for name, source, diagnostic, fragment, occurrence, counts in (
+        ("membership-domain", b"machine f(x: u8) requires x in {}", 168, b"{", 1,
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+        ("mixed-domain-connectives", b"machine f(x: u8) requires x in A & B | C {}", 169, b"|", 1,
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 3, "expression_count": 1,
+          "name_path_count": 2}),
+        ("indexed-membership-domain", b"machine f(x: u8) requires x in AtMost<8> {}", 170, b"<", 1,
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 2, "expression_count": 1,
+          "name_path_count": 1}),
+        ("match-subject", b"machine f() -> u8 { match { _ -> 1 } }", 171, b"{", 2, {"type_reference_count": 1}),
+        ("match-arms", b"machine f(x: u8) -> u8 { match x 1 }", 172, b"1", 1,
+         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+        ("empty-match", b"machine f(x: u8) -> u8 { match x { } }", 177, b"}", 1,
+         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+        ("match-pattern", b"machine f(x: u8) -> u8 { match x { -> 1 } }", 173, b"->", 2,
+         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 1}),
+        ("match-arrow", b"machine f(x: u8) -> u8 { match x { 1 2 } }", 174, b"2", 1,
+         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 2}),
+        ("match-value", b"machine f(x: u8) -> u8 { match x { 1 -> } }", 175, b"}", 1,
+         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 2}),
+        ("match-arm-end", b"machine f(x: u8) -> u8 { match x { 1 -> 2 3 -> 4 } }", 176, b"3", 1,
+         {"type_reference_count": 2, "parameter_count": 1, "member_count": 1, "expression_count": 3}),
+        ("match-destructure-belongs-to-transition", b"machine f(x: u8) -> u8 { match x { P { a } -> 1 } }",
+         174, b"{", 3, {"type_reference_count": 2, "parameter_count": 1, "member_count": 2, "expression_count": 2}),
+        ("match-subject-is-no-construction", b"machine f(x: u8) -> u8 { match S { a: 1 } { _ -> 1 } }",
+         174, b":", 2, {"type_reference_count": 2, "parameter_count": 1, "member_count": 2, "expression_count": 2}),
+        ("pattern-rename", b"machine f(n: Nat) { transition n { Nat::Succ { prev as } -> g() } }", 178, b"}", 1,
+         {"type_reference_count": 1, "parameter_count": 1, "member_count": 3, "expression_count": 2}),
+    ):
+        where = span(source, fragment, occurrence)
+        rejected(program, name, source, diagnostic, where[1:], **counts)
+
+    # Capacity edges: one match stages at most 64 arms, and the match-arm
+    # table holds 1024.
+    arms = b"1 -> 1, " * 64
+    exact = b"machine f(x: u8) {\n" + (b"    let a: u8 = match x { " + arms + b"};\n") * 16 + b"}"
+    status, payload = run(program, exact)
+    assert status == 0 and len(decode(payload).match_arms) == 1024, "1024 match arms"
+    over = exact[:-1] + b"    let b: u8 = match x { 1 -> 1 };\n}"
+    start = over.rindex(b";")
+    rejected(program, "match-arm-table-plus-one", over, 181, (start, start + 1),
+             type_reference_count=18, parameter_count=1, member_count=17, expression_count=2083, statement_count=16)
+    over = b"machine f(x: u8) -> u8 { match x { " + b"1 -> 1, " * 65 + b"} }"
+    start = len(b"machine f(x: u8) -> u8 { match x { ") + 64 * len(b"1 -> 1, ") + len(b"1 -> 1")
+    rejected(program, "staged-match-arm-plus-one", over, 181, (start, start + 1),
+             type_reference_count=2, parameter_count=1, member_count=1, expression_count=131)
 
 
 def main() -> None:
@@ -1611,9 +2273,9 @@ def main() -> None:
     rejected(
         program,
         "unsupported-root-after-data",
-        b"data X {} let run = 1;",
+        b"data X {} while run;",
         2,
-        (10, 13),
+        (10, 15),
         root_count=1,
         data_count=1,
     )
@@ -1647,13 +2309,13 @@ def main() -> None:
         machine_count=512,
     )
 
-    # The shared path-member table holds 24,576 members, more than the
+    # The shared path-member table holds 32,000 members, more than the
     # psi package's units fill together; one unit reaches the edge with a
-    # repeated short member.
-    exact_members = b"use " + b"::".join(b"n" for _ in range(24576)) + b";"
+    # repeated short member, within its 65,536-token bound.
+    exact_members = b"use " + b"::".join(b"n" for _ in range(32000)) + b";"
     exact_member_status, exact_member_payload = run(program, exact_members)
     assert exact_member_status == 0
-    assert len(decode(exact_member_payload).members) == 24576
+    assert len(decode(exact_member_payload).members) == 32000
     overflowing_member_start = len(exact_members) - 1 + 2
     rejected(
         program,
@@ -1661,7 +2323,7 @@ def main() -> None:
         exact_members[:-1] + b"::overflow;",
         7,
         (overflowing_member_start, overflowing_member_start + 8),
-        member_count=24576,
+        member_count=32000,
     )
 
     exact_fields = b"data Huge { " + b"".join(
@@ -2028,7 +2690,7 @@ def main() -> None:
         assert actual.construct_fields == construct_fields, f"{name}:\n{actual.construct_fields}"
         assert actual.statements == statements, f"{name}:\n{actual.statements}"
         assert actual.arms == arms, f"{name}:\n{actual.arms}"
-        assert actual.pattern_fields == pattern_fields, f"{name}:\n{actual.pattern_fields}"
+        assert actual.pattern_fields == pattern_rows(pattern_fields), f"{name}:\n{actual.pattern_fields}"
 
     body(
         "precedence-and-tail",
@@ -2299,7 +2961,7 @@ def main() -> None:
         status, payload = run(program, source)
         assert status == 0, f"{name}: status {status}"
         actual = decode(payload)
-        assert actual.clauses == expected, f"{name}:\n{actual.clauses}"
+        assert actual.clauses == clause_rows(expected), f"{name}:\n{actual.clauses}"
         assert actual.members == members, f"{name}:\n{actual.members}"
         assert len(actual.expressions) == expression_count, f"{name}:\n{actual.expressions}"
         assert actual.machines[0][13:15] == clause_range, f"{name}:\n{actual.machines}"
@@ -2349,10 +3011,10 @@ def main() -> None:
     actual = decode(payload)
     first_requires = source.index(b"requires")
     second_requires = source.index(b"requires", first_requires + 1)
-    assert actual.clauses == (
+    assert actual.clauses == clause_rows((
         (6, 0, 0, 1, 2, 1, first_requires, source.index(b"9") + 1),
         (6, 0, 0, 1, 5, 1, second_requires, source.index(b"0 {") + 1),
-    ), f"state-requires:\n{actual.clauses}"
+    )), f"state-requires:\n{actual.clauses}"
     assert actual.states[0][7:9] == (0, 2), f"state-requires:\n{actual.states}"
     assert actual.machines[0][13:15] == (0, 0), f"state-requires:\n{actual.machines}"
 
@@ -2366,12 +3028,12 @@ def main() -> None:
     requires = source.index(b"requires")
     second_ensures = source.index(b"n < 9 {")
     second_requires = source.index(b"n > 0, {}")
-    assert actual.clauses == (
+    assert actual.clauses == clause_rows((
         (7, 0, 0, 1, 2, 1, ensures, ensures + len(b"ensures n > 0")),
         (7, 0, 0, 1, 5, 1, second_ensures, second_ensures + len(b"n < 9")),
         (6, 0, 0, 1, 8, 1, requires, requires + len(b"requires n < 9")),
         (6, 0, 0, 1, 11, 1, second_requires, second_requires + len(b"n > 0")),
-    ), f"fact-lists:\n{actual.clauses}"
+    )), f"fact-lists:\n{actual.clauses}"
     assert actual.machines[0][13:15] == (0, 2), f"fact-lists:\n{actual.machines}"
     assert actual.states[0][7:9] == (2, 2), f"fact-lists:\n{actual.states}"
     admission_rejections = (
@@ -2783,12 +3445,12 @@ def main() -> None:
         return actual
 
     actual = contract("bodyless-operational-clause", b"machine f() blocks;", [4], [False])
-    assert actual.clauses[0][5:] == (1, 12, 19), f"bodyless-operational-clause:\n{actual.clauses}"
+    assert actual.clauses[0][5:8] == (1, 12, 19), f"bodyless-operational-clause:\n{actual.clauses}"
     assert actual.machines[0][23:26] == (1, 0, 19), f"bodyless-operational-clause:\n{actual.machines}"
     contract("operational-clause-before-body", b"machine f() blocks; suspends; {}", [4, 3], [True])
     source = b"machine f(value: u64) -> u8\nrequires\n    value <= 255;\n{\n    value as u8\n}"
     actual = contract("requires-semicolon-before-body", source, [6], [True])
-    assert actual.clauses[0][5:] == (1, source.index(b"requires"), source.index(b"255") + 3), (
+    assert actual.clauses[0][5:8] == (1, source.index(b"requires"), source.index(b"255") + 3), (
         f"requires-semicolon-before-body:\n{actual.clauses}"
     )
     contract("semicolon-separated-facts", b"machine f() requires a; (b) == c; ensures d; {}", [6, 6, 7], [True])
@@ -2858,6 +3520,8 @@ def main() -> None:
     rejected(program, "expression-nesting-plus-one", too_nested, 68, (46, 47))
 
     root_declaration_cases(program)
+    machine_form_cases(program)
+    expression_form_cases(program)
 
     repeat_source = (
         b"use repeated::observation; data Stable [linear] { "

@@ -557,6 +557,30 @@ def main() -> None:
         b"g(1)",
     )
 
+    # Expression forms typing does not judge yet reject at the expression
+    # rather than leaving it untyped: a value-position match and a case
+    # membership both resolve. A renamed pattern field types as its field.
+    rejected(
+        program,
+        "match-is-unsupported",
+        b"machine f(c: u8) -> u8 { match c { 1 -> 2, _ -> 3 } }",
+        "UnsupportedExpression",
+        b"match c { 1 -> 2, _ -> 3 }",
+    )
+    rejected(
+        program,
+        "membership-is-unsupported",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: O) -> bool { o in O::None }",
+        "UnsupportedExpression",
+        b"o in O::None",
+    )
+    accepted(
+        program,
+        "renamed-pattern-binder",
+        b"data N { case Zero; case Succ(prev: u8); }\nmachine f(n: N) -> u8 { transition n { N::Succ { prev as w } -> w _ -> 0 } }",
+        ((b"w!2", "u8"),),
+    )
+
     # The product's own psi package types as one source set: each module
     # under source/psi as `psi::<directory>::<file>`.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

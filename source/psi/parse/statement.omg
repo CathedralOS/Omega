@@ -9,12 +9,12 @@ use psi::tokens::tokens;
 // Statement grammar for machine and state bodies: `let [mut] name: Type
 // [= value];`, `crash Trap;` or `crash Abort;`, `place = value;`, `value;`,
 // `transition [subject] { arms }`, and a final unterminated `value` before
-// the body's `}`, its result.
-// Statements end at the body's `}` or, in a machine body, at its first
-// `state` member; the caller then reads that token. Statement forms of later
-// slices (`if`, `loop`, `while`, `match`, `return`) reject with
-// the caller's `unsupported` diagnostic, the body end the grammar expects
-// instead. The range lands in `body_first_statement` and the table count.
+// the body's `}`, its result; a value-position `match` is a value like any
+// other. Statements end at the body's `}` or, in a machine body, at its
+// first `state` member; the caller then reads that token. Statement forms of
+// later slices (`if`, `loop`, `while`, `return`) reject with the caller's
+// `unsupported` diagnostic, the body end the grammar expects instead. The
+// range lands in `body_first_statement` and the table count.
 pub machine Parser::parse_statements(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode)
 crashes Trap
 {
@@ -40,7 +40,6 @@ crashes Trap
             Token::Keyword { keyword: KeywordKind::If } -> reject(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::Loop } -> reject(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::While } -> reject(parser, input, unsupported)
-            Token::Keyword { keyword: KeywordKind::Match } -> reject(parser, input, unsupported)
             Token::Keyword { keyword: KeywordKind::Return } -> reject(parser, input, unsupported)
             Token::Identifier -> word(parser, input, unsupported)
             _ -> expression_statement(parser, input, unsupported)
@@ -168,7 +167,7 @@ crashes Trap
 
     state let_value(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
         Parser::take_current(parser, input);
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataInitialValue, true);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataInitialValue, true, true);
         transition parser.output.accepted {
             true -> let_end(parser, input, unsupported, true, parser.expression_result)
             _ -> done()
@@ -213,7 +212,7 @@ crashes Trap
     }
 
     state expression_statement(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
-        Parser::parse_expression(parser, input, unsupported, true);
+        Parser::parse_expression(parser, input, unsupported, true, true);
         transition parser.output.accepted {
             true -> after_expression(parser, input, unsupported, parser.expression_result)
             _ -> done()
@@ -240,7 +239,7 @@ crashes Trap
 
     state assignment(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, target: u64 in Trapping) {
         Parser::take_current(parser, input);
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true, true);
         transition parser.output.accepted {
             true -> assignment_end(parser, input, unsupported, target, parser.expression_result)
             _ -> done()
@@ -349,7 +348,7 @@ crashes Trap
     }
 
     state transition_subject(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionSubject, false);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionSubject, false, true);
         transition parser.output.accepted {
             true -> subject_open(parser, input, unsupported, parser.expression_result)
             _ -> done()
@@ -438,7 +437,7 @@ crashes Trap
         has_subject: bool,
         subject: u64 in Trapping
     ) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionArm, false);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionArm, false, true);
         transition parser.output.accepted {
             true -> arm_classify(parser, input, unsupported, has_subject, subject, parser.expression_result)
             _ -> done()
@@ -542,9 +541,46 @@ crashes Trap
         parser.pattern_field_start = parser.name_start;
         parser.pattern_field_end = parser.name_end;
         let valued: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
+        let renamed: bool = Parser::at_keyword(parser, input, KeywordKind::As);
+        let binder: PatternField = Parser::pattern_binder(parser);
         transition valued {
             true -> pattern_field_value(parser, input, unsupported, subject, pattern)
-            _ -> pattern_field_store(parser, input, unsupported, subject, pattern, false, 0, parser.pattern_field_end)
+            _ -> pattern_field_binder(parser, input, unsupported, subject, pattern, binder, renamed)
+        }
+    }
+
+    // `field as name` binds the field under another name; `field as _`
+    // waives it.
+    state pattern_field_binder(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping,
+        binder: PatternField,
+        renamed: bool
+    ) {
+        transition renamed {
+            true -> pattern_field_rename(parser, input, unsupported, subject, pattern, binder)
+            _ -> pattern_field_store(parser, input, unsupported, subject, pattern, binder)
+        }
+    }
+
+    state pattern_field_rename(
+        parser: &mut Parser,
+        input: &TokenStream,
+        unsupported: ParseDiagnosticCode,
+        subject: u64 in Trapping,
+        pattern: u64 in Trapping,
+        binder: PatternField
+    ) {
+        Parser::take_current(parser, input);
+        let waived: bool = Parser::at_word(parser, input, "_");
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternRename);
+        transition parser.output.accepted {
+            true -> pattern_field_store(parser, input, unsupported, subject, pattern,
+                Parser::renamed_binder(parser, binder, waived))
+            _ -> done()
         }
     }
 
@@ -556,7 +592,7 @@ crashes Trap
         pattern: u64 in Trapping
     ) {
         Parser::take_current(parser, input);
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedPatternField, false);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedPatternField, false, true);
         transition parser.output.accepted {
             true -> pattern_field_valued(parser, input, unsupported, subject, pattern, parser.expression_result)
             _ -> done()
@@ -572,8 +608,8 @@ crashes Trap
         value: u64 in Trapping
     ) {
         let expression: Expression = SyntaxTrees::expression(&parser.output, value);
-        transition { _ -> pattern_field_store(parser, input, unsupported, subject, pattern, true, value,
-            expression.source_span.span.end) }
+        transition { _ -> pattern_field_store(parser, input, unsupported, subject, pattern,
+            Parser::valued_pattern_field(parser, value, expression.source_span.span.end)) }
     }
 
     state pattern_field_store(
@@ -582,12 +618,10 @@ crashes Trap
         unsupported: ParseDiagnosticCode,
         subject: u64 in Trapping,
         pattern: u64 in Trapping,
-        has_value: bool,
-        value: u64 in Trapping,
-        end: u64 in Trapping
+        field: PatternField
     ) {
         transition parser.output.pattern_field_count < 2048 {
-            true -> pattern_field_stored(parser, input, unsupported, subject, pattern, has_value, value, end)
+            true -> pattern_field_stored(parser, input, unsupported, subject, pattern, field)
             _ -> reject(parser, input, ParseDiagnosticCode::PatternFieldCapacityExceeded)
         }
     }
@@ -598,16 +632,9 @@ crashes Trap
         unsupported: ParseDiagnosticCode,
         subject: u64 in Trapping,
         pattern: u64 in Trapping,
-        has_value: bool,
-        value: u64 in Trapping,
-        end: u64 in Trapping
+        field: PatternField
     ) {
-        parser.output.pattern_fields[parser.output.pattern_field_count] = PatternField {
-            name: Parser::identifier_span(parser, parser.pattern_field_start, parser.pattern_field_end),
-            has_value: has_value,
-            value: value,
-            source_span: Parser::source_span(parser, parser.pattern_field_start, end)
-        };
+        parser.output.pattern_fields[parser.output.pattern_field_count] = field;
         parser.output.pattern_field_count = parser.output.pattern_field_count + 1;
         let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
         transition separator {
@@ -733,7 +760,7 @@ crashes Trap
         first_field: u64 in Trapping,
         field_count: u64 in Trapping
     ) {
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionTarget, true);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionTarget, true, true);
         transition parser.output.accepted {
             true -> call_target_shape(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
                 field_count, parser.expression_result)
@@ -948,5 +975,44 @@ machine Parser::acknowledges(operator: OperatorKind) -> bool {
 
     state other() {
         false
+    }
+}
+
+// A pattern field binding its own name, spanning the name.
+machine Parser::pattern_binder(parser: &Parser) -> PatternField {
+    PatternField {
+        name: Parser::identifier_span(parser, parser.pattern_field_start, parser.pattern_field_end),
+        has_value: false,
+        value: 0,
+        has_rename: false,
+        rename: Parser::identifier_span(parser, 0, 0),
+        is_waived: false,
+        source_span: Parser::source_span(parser, parser.pattern_field_start, parser.pattern_field_end)
+    }
+}
+
+// The binder renamed by the last name step, through that name; `_` waives it.
+machine Parser::renamed_binder(parser: &Parser, binder: PatternField, waived: bool) -> PatternField {
+    PatternField {
+        name: binder.name,
+        has_value: false,
+        value: 0,
+        has_rename: true,
+        rename: Parser::identifier_span(parser, parser.name_start, parser.name_end),
+        is_waived: waived,
+        source_span: Parser::source_span(parser, parser.pattern_field_start, parser.name_end)
+    }
+}
+
+// A pattern field compared with `value`, through `end`.
+machine Parser::valued_pattern_field(parser: &Parser, value: u64 in Trapping, end: u64 in Trapping) -> PatternField {
+    PatternField {
+        name: Parser::identifier_span(parser, parser.pattern_field_start, parser.pattern_field_end),
+        has_value: true,
+        value: value,
+        has_rename: false,
+        rename: Parser::identifier_span(parser, 0, 0),
+        is_waived: false,
+        source_span: Parser::source_span(parser, parser.pattern_field_start, end)
     }
 }

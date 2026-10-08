@@ -12,22 +12,37 @@ members share their grammars with the other declarations, with fields
 `[#N] name: Type;` and payload-free `case [#N] Name;` or structured
 `case [#N] Name([#N] field: Type, ...);` members that may carry their own
 `where` facts (`#N` is a stable schema identity), and
-`[pub] [target] [boundary] machine [Owner::]name [<generic parameters>]
-[(parameters)] [-> Type] clauses ({ ... } | ;)` declarations, where a target
-name before `machine` scopes one body of a family keyed by target and
-`boundary` marks a crossing, whose clauses are `reaches`, `invokes`,
-`suspends;`, `blocks;`, `crashes` and `requires`/`ensures` facts separated by
-`,` or `;`, and whose bodies hold entry statements and then
-`state name [(parameters)] [-> Type] [requires fact]* { ... }` members. A
-bodyless machine ends at `;`; a `;` that ends a contract fact or an
-operational clause belongs to the clause only while the declaration continues
-after it with `{`, another clause or another fact, and otherwise ends the
-declaration ([`parse/clause.omg`](parse/clause.omg)).
+`[pub] [target] [boundary] machine [token] [Owner::]name [<generic
+parameters>] [(parameters)] [-> Type] contracts clauses ({ ... } | ;)`
+declarations, where a target name before `machine` scopes one body of a
+family keyed by target, `boundary` marks a crossing, and a fixed operator
+token from the closed vocabulary `+ - * / % == != < <= > >= [] [..]` binds
+operator syntax to the declaration (a conformance member binds none). Each
+`where machine Name [<generic parameters>] [(parameters)] [-> Type] clauses`
+contract, or nominal `where machine Name satisfies Trait::requirement`,
+gives a static machine binder its signature; the contracts precede the
+other clauses, end at their `;` or at the next `where machine`, and form one
+flat list whose binders resolution matches, since a contract may name a
+binder of an earlier contract. The clauses are `reaches`, `invokes`,
+`suspends;`, `blocks;`, `crashes`, `requires`/`ensures` facts separated by
+`,` or `;`, `satisfies Trait[<arguments>]::requirement [as Label] [via
+value]` exact requirement edges (a bare trait rejects: whole-trait
+satisfaction is a named conformance), and `terminates [by subjects [->
+View]];`, whose subjects are one expression or a parenthesized list and whose
+view is a path or an argumented view call. Bodies hold entry statements and
+then `state name [(parameters)] [-> Type] [requires fact]* { ... }` members. A
+bodyless machine ends at `;`; a `;` that ends a contract fact, a
+satisfaction, a termination or an operational clause belongs to the clause
+only while the declaration continues after it with `{`, another clause or
+another fact, and otherwise ends the declaration; a trait member's `;` before
+`requires` ends the member, whose trait reads `requires Parent;` as its body
+parent ([`parse/clause.omg`](parse/clause.omg)).
 Statements are `let [mut] name: Type [= value];`,
 `crash Trap;`/`crash Abort;`, `place = value;`, `value;`,
 `transition [subject] { arms }` and a final unterminated result expression.
 Arms are guards in a subjectless block and `_`, literal or case patterns
-(`Path { binder, field: value }`) over a subject, each with a call target
+(`Path { binder, field as name, field as _, field: value }`, renaming or
+waiving a binder) over a subject, each with a call target
 `-> target(arguments)`, possibly acknowledged (`-> suspend block f(x)`), any
 other expression as a terminal value (`-> (gap)`, `-> View { items: items }`),
 or the Unit completion `-> {}`. Expressions
@@ -37,14 +52,19 @@ and Boolean literals, names and
 static applications `path<arguments>(...)`, `as Type` casts,
 `Path { field: value }` constructions (always inside brackets, never before an
 unbracketed body), prefix `!`, `-`, `~`, `&`, `&mut` and the call
-acknowledgements `suspend`, `block` and `suspend block`, and the binary
-operators in the reference grammar's two precedence tiers, all on explicit
-stacks rather than recursion. Every type position (fields, payload fields,
+acknowledgements `suspend`, `block` and `suspend block`, the binary
+operators in the reference grammar's two precedence tiers, memberships
+`value in Domain {& Domain}` or `{| Domain}` between those tiers (one
+connective per membership; an indexed domain `AtMost<8>` rejects), and
+value-position `match subject { pattern -> value, ... }` whose arms are `_` or
+value patterns and keep their own table, all on explicit stacks rather than
+recursion. Every type position (fields, payload fields,
 generic binders, parameters, return types, `let` types and casts) shares one
 grammar in [`parse/types.omg`](parse/types.omg): references `&[mut] T`, arrays
 `[T; N]`, slices `[T]` and named types, possibly `::` paths, with static
 arguments `Name<T, 4>`, nested on an explicit frame stack, each form that
-admits one taking `in Domain`. A type's rows follow their children, so the
+admits one taking `in Domain`, a name or a path such as a case's implied
+domain `Type::Case`. A type's rows follow their children, so the
 type fills one contiguous run of the table ending at its root. Direct fields
 and case-payload fields retain separate bounded custody while mixed
 declarations preserve exact authored field/case order and shared named
@@ -53,7 +73,11 @@ accepted. The remaining root kinds share those grammars:
 `[pub] boundary data Name [<generic parameters>] [properties];` leaves its
 representation to a crossing, with no members or facts;
 `[pub] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
-{ ... }` holds machine requirements and body parents `requires Parent;`; a
+{where proposition Name(parameters);} { ... }` holds machine requirements and
+body parents `requires Parent;`, and a transparent refinement `trait Name =
+Base { machine (* | [Base::]requirement) clauses }` narrows its base's
+`reaches`, `suspends`, `blocks` and `terminates`, each clause ending at its
+own `;`; a
 named conformance `[pub] Name [<generic parameters>] satisfies Trait<arguments>
 { ... }` holds checked machines and reference rows `Trait::requirement = Path;`
 ([`parse/traits.omg`](parse/traits.omg), [`parse/conformance.omg`](parse/conformance.omg));
@@ -62,10 +86,16 @@ is a transparent alias `= A & B;` or takes `requires` facts and
 `established by Path, ...` routes, closed by `;` or an empty `{ }`
 ([`parse/domain.omg`](parse/domain.omg)); `[pub] const [Owner::]NAME: Type =
 value;` names a compile-time value ([`parse/constant.omg`](parse/constant.omg));
-and `[pub] proposition Name [<generic parameters>] [(parameters)]` ends with
-`;`, `evidence Type;` or `= fact;` ([`parse/proposition.omg`](parse/proposition.omg)).
-A name-led root is a target-scoped machine when `machine` or `boundary` follows
-the name and a conformance when `satisfies` or `<` does. Trait and conformance
+`[pub] proposition Name [<generic parameters>] [(parameters)]` ends with
+`;`, `evidence Type;` or `= fact;` ([`parse/proposition.omg`](parse/proposition.omg));
+and a named mathematical definition `[pub] let Name [<generic parameters>]
+[(parameters)]: Type = term;`, or an admitted assumption `boundary let ...:
+Type;` without a term ([`parse/definition.omg`](parse/definition.omg)).
+Generic parameter lists also take `proposition Name` binders, whose
+signatures come from `where proposition` contracts, and conformance evidence
+binders `Name satisfies Trait<arguments>`. A name-led root is a target-scoped machine when `machine` or `boundary` follows
+the name and a conformance when `satisfies` or `<` does; after a bodyless
+declaration's `;`, `Name<...> satisfies` likewise begins a conformance. Trait and conformance
 members are machine rows marked with their container, held as one contiguous
 range per declaration; a trait member without a body is a requirement, and a
 conformance member must have one. `::` name paths (domain routes and
@@ -77,8 +107,8 @@ requirement of a boundary trait, and a token binds to an ordinary
 discriminants (`case A = 1`), `retired #N;` members, multi-domain unions, the
 retired bracketed scalar range suffix (`u32 [0..=9]`; ranges are
 `where`/`requires`/`ensures` propositions, `scalar-range-contract-spelling`),
-and the `if`, `loop`, `while`, `match` and `return` statements reject instead
-of becoming a private bridge tree.
+and the `if`, `loop`, `while` and `return` statements reject instead of
+becoming a private bridge tree.
 
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): each unit belongs to the module
@@ -118,13 +148,23 @@ value binders (`Count: u32`, `const N: u64`). A callee names a machine binder
 (`machine F`) or a machine, a call-shaped transition target a state of its
 machine before either, a construction or case pattern a data declaration or
 `Type::Case`, and a value path a case or an owned machine; a terminal value
-target binds as any value, and an unknown name rejects. These value bindings
-are indexed by expression handle. Resolution binds `use`, `data` (a
-`boundary data` declaration names an opaque type like any other) and
-untargeted, non-boundary machine roots; every other root kind (a trait,
-conformance, domain, constant or proposition, or a target-scoped or boundary
-machine) rejects at its root as an unsupported declaration before any
-binding, rather than resolving as if its names were absent.
+target binds as any value, as do a value-position match's subject, value
+patterns and values, and an unknown name rejects. A pattern field renamed
+`field as name` binds as `name`, and a waived `field as _` binds nothing. A
+membership `value in Type::Case` binds the case whose implied domain it
+names; another domain rejects as unknown, and several domains at once as an
+unsupported expression. These value bindings are indexed by expression
+handle. Resolution binds `use`, `data` (a `boundary data` declaration names
+an opaque type like any other) and untargeted, non-boundary machine roots;
+every other root kind (a trait, conformance, domain, constant, proposition
+or mathematical definition, or a target-scoped or boundary machine) rejects
+at its root as an unsupported declaration before any binding, rather than
+resolving as if its names were absent. A machine root rejects in the same
+pass, at the form, when it binds an operator token, gives a binder a `where
+machine` contract, carries a `satisfies` or `terminates` clause, or declares
+a proposition or evidence binder ([`resolve/forms.omg`](resolve/forms.omg)):
+each names declarations (traits, conformances, propositions) resolution
+does not bind yet.
 
 Typing follows resolution ([`typing/typer.omg`](typing/typer.omg)) and
 records its results in [`types/types.omg`](types/types.omg): an interned
@@ -162,9 +202,9 @@ meeting any application. A construction names each of its record's or case's
 fields once; a case pattern names a case of its subject's data and types its
 binders by the payload; a transition target supplies its state's parameters,
 and a terminal call or value meets the body's result (a state without its own
-`-> T` takes its machine's). Floats, static applications, calls to generic
-machines and equality needing a declared conformance reject as unsupported
-rather than typing partially. Carrier facts beyond the qualifier (unbounded
+`-> T` takes its machine's). Floats, static applications, value-position
+matches, memberships, calls to generic machines and equality needing a
+declared conformance reject as unsupported rather than typing partially. Carrier facts beyond the qualifier (unbounded
 `UInt`/`Int` storage, ranges) belong to checking.
 
 The source closure is authored against the ordinary-Omega surface that the
@@ -215,7 +255,7 @@ resolves the set, and observes the diagnostic and every type, domain and value
 binding. Lexical or parse rejection exits without an observation.
 
 On macOS ARM64 the three gates build their harnesses natively from a fresh
-CLI: all 348 parser cases, all 126 resolver cases and all 40 typing cases
+CLI: all 453 parser cases, all 144 resolver cases and all 43 typing cases
 pass. Each gate counts each distinct source it runs as one case. No cached
 executable may stand in for that run. Linux and Windows hosts have run none of
 them.
@@ -250,9 +290,9 @@ owns bounded token selection and trivia traversal;
 | `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine, trait, conformance, domain, constant and proposition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
+| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `where machine` contracts), trait (with refinements and `where proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
-| `resolve/` | Owns name resolution from syntax and source bytes to the bindings. | Absorb only into the canonical multi-source resolver. |
+| `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
 | `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
 

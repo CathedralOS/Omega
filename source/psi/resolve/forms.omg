@@ -1,0 +1,71 @@
+use psi::resolution::resolution;
+use psi::resolve::resolver;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Machine forms resolution does not bind yet. A root machine that binds an
+// operator token, gives a static machine binder a `where machine` contract,
+// satisfies an exact requirement, promises termination, or declares a
+// proposition or conformance-evidence binder rejects at that form rather
+// than resolving as if it were absent: a token's operator family, a
+// contract's binder, a satisfied requirement, a ranking witness's view and
+// an evidence binder's trait all name declarations (traits, conformances,
+// propositions) that this resolver does not bind.
+pub machine Resolver::check_machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem)
+crashes Trap
+{
+    transition item.operator == OperatorToken::None {
+        true -> contracts(resolver, syntax, item)
+        _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedOperatorToken, item.token.source_span)
+    }
+
+    state contracts(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
+        transition item.contract_count == 0 {
+            true -> clause(resolver, syntax, item, 0)
+            _ -> contract(resolver, syntax, item)
+        }
+    }
+
+    state contract(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
+        let first: Contract = SyntaxTrees::contract(syntax, item.first_contract);
+        transition { _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, first.source_span) }
+    }
+
+    state clause(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.clause_count {
+            true -> clause_kind(resolver, syntax, item, offset)
+            _ -> generic(resolver, syntax, item, 0)
+        }
+    }
+
+    state clause_kind(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+        let clause: Clause = SyntaxTrees::clause(syntax, item.first_clause + offset);
+        transition clause.kind {
+            ClauseKind::Satisfies -> reject(resolver, ResolveDiagnosticCode::UnsupportedClause, clause.source_span)
+            ClauseKind::Terminates -> reject(resolver, ResolveDiagnosticCode::UnsupportedClause, clause.source_span)
+            _ -> clause(resolver, syntax, item, offset + 1)
+        }
+    }
+
+    state generic(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.generic_parameter_count {
+            true -> generic_kind(resolver, syntax, item, offset)
+            _ -> done()
+        }
+    }
+
+    state generic_kind(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, item.first_generic_parameter + offset);
+        transition parameter.kind {
+            GenericParameterKind::Proposition -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span)
+            GenericParameterKind::Evidence -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span)
+            _ -> generic(resolver, syntax, item, offset + 1)
+        }
+    }
+
+    state reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, code, source_span);
+    }
+
+    state done() {}
+}

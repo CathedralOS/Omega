@@ -30,6 +30,7 @@ pub data TypeFrame [copy] {
 //              | Name [`<` argument {`,` argument} `>`] [`in` Domain]
 //     argument = type | integer
 //     length   = integer | Name
+//     Domain   = Name {`::` Name}
 //
 // Types nest, so the grammar keeps an explicit frame stack instead of
 // recursing: `&`, `[` and `Name<` each open a frame, and each completed type
@@ -171,7 +172,9 @@ crashes Trap
         transition { _ -> push(parser, input, Parser::named_frame(frame, end), ParseDiagnosticCode::ExpectedStaticArgument) }
     }
 
-    // `Named`, `Array` and `Slice` rows may close with `in Domain`.
+    // `Named`, `Array` and `Slice` rows may close with `in Domain`, where
+    // the domain may be a path such as a case's implied domain `Type::Case`;
+    // the qualifier spans the whole path.
     state domain(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
         let qualified: bool = Parser::at_word(parser, input, "in");
         transition qualified {
@@ -184,13 +187,30 @@ crashes Trap
         Parser::take_current(parser, input);
         Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedTypeQualifierDomain);
         transition parser.output.accepted {
-            true -> qualified(parser, input, row)
+            true -> domain_path(parser, input, row, parser.name_start)
             _ -> done()
         }
     }
 
-    state qualified(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
-        let domain: IdentifierSpan = Parser::identifier_span(parser, parser.name_start, parser.name_end);
+    state domain_path(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
+        let separated: bool = Parser::at_punctuation(parser, input, PunctuationKind::ColonColon);
+        transition separated {
+            true -> domain_member(parser, input, row, start)
+            _ -> qualified(parser, input, row, start)
+        }
+    }
+
+    state domain_member(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
+        transition parser.output.accepted {
+            true -> domain_path(parser, input, row, start)
+            _ -> done()
+        }
+    }
+
+    state qualified(parser: &mut Parser, input: &TokenStream, row: TypeReference, start: u64 in Trapping) {
+        let domain: IdentifierSpan = Parser::identifier_span(parser, start, parser.name_end);
         let span: SourceSpan = Parser::source_span(parser, row.source_span.span.start, parser.name_end);
         transition { _ -> append(parser, input, Parser::with_domain(row, domain, span)) }
     }

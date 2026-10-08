@@ -98,10 +98,14 @@ pub data GenericParameterKind [copy] {
     case Const;
     case Value;
     case Machine;
+    case Proposition;
+    case Evidence;
 }
 
-// One declared generic parameter on a `data` or `machine` head: `'a`, `T`,
-// `const N: Ty`, `u: Ty`, or `machine M`, with its property bounds.
+// One declared generic parameter on a declaration head: `'a`, `T`,
+// `const N: Ty`, `u: Ty`, `machine M`, `proposition R`, or the evidence
+// binder `Order satisfies Ranked<T>`, whose trait application is its type
+// reference, with its property bounds.
 pub data GenericParameter [copy] {
     kind: GenericParameterKind;
     name: IdentifierSpan;
@@ -141,9 +145,15 @@ pub data Parameter [copy] {
 // Expression syntax. Children are handles into `SyntaxTrees::expressions`;
 // a parenthesized group adds no node. `first`/`count` select a kind's range:
 // a path's or call's callee members in `SyntaxTrees::members`, a call's
-// arguments in `SyntaxTrees::arguments`, or a construction's fields in
+// arguments in `SyntaxTrees::arguments`, a construction's fields in
 // `SyntaxTrees::construct_fields` (its type path then lives in `left`'s
-// members through a Path or Name child). Unused fields of a kind are zero.
+// members through a Path or Name child), a membership's domains in
+// `SyntaxTrees::name_paths`, or a value-position match's arms in
+// `SyntaxTrees::match_arms`. A membership `value in A & B` tests its value
+// `left` against each domain, joined by `operator` (`And` for `&`, `Or` for
+// `|`, `None` for one domain); a match tests its subject `left` against each
+// arm's pattern in order, and each arm's target is its value. Unused fields
+// of a kind are zero.
 pub data ExpressionKind [copy] {
     case Name;
     case Path;
@@ -159,6 +169,8 @@ pub data ExpressionKind [copy] {
     case Cast;
     case Call;
     case Construct;
+    case Membership;
+    case Match;
 }
 
 pub data OperatorKind [copy] {
@@ -266,12 +278,17 @@ pub data TransitionArm [copy] {
     source_span: SourceSpan;
 }
 
-// One field of a case pattern: a binder (`keyword`) or a nested value
+// One field of a case pattern: a binder (`keyword`), a renamed binder
+// (`keyword as word`, `rename` naming the binder), a waived field
+// (`keyword as _`, which binds nothing) or a nested value
 // (`punctuation: PunctuationKind::Comma`).
 pub data PatternField [copy] {
     name: IdentifierSpan;
     has_value: bool;
     value: u64 in Trapping;
+    has_rename: bool;
+    rename: IdentifierSpan;
+    is_waived: bool;
     source_span: SourceSpan;
 }
 
@@ -292,8 +309,16 @@ pub data Statement [copy] {
 // One clause between a declaration's head and its body. `Reaches` names
 // services and `Invokes` a binding, both in `SyntaxTrees::members`; `Crashes`
 // records its cause; `Requires`, `Ensures` and each `Where` fact hold a fact
-// expression; `Suspends` and `Blocks` carry nothing more. Machines, states,
-// data declarations and cases each own a contiguous range of clauses.
+// expression; `Suspends` and `Blocks` carry nothing more. `Satisfies` names
+// one exact trait requirement `Trait<arguments>::requirement`: the trait's
+// path and then the requirement in `SyntaxTrees::members`, the trait's static
+// arguments in `SyntaxTrees::type_arguments`, an optional satisfier label
+// `as Name` and an optional binding payload `via value` as its expression.
+// `Terminates` is the termination promise; `terminates by subjects [-> View]`
+// adds its ranking witness: the ranked subjects in `SyntaxTrees::arguments`
+// and the view, a path or an argumented view call, as its expression.
+// Machines, contracts, states, data declarations and cases each own a
+// contiguous range of clauses.
 pub data ClauseKind [copy] {
     case Reaches;
     case Invokes;
@@ -303,10 +328,19 @@ pub data ClauseKind [copy] {
     case Requires;
     case Ensures;
     case Where;
+    case Satisfies;
+    case Terminates;
 }
 
+// Whose clauses a clause list reads. A trait member is a machine whose `;`
+// before `requires` ends it, since `requires Parent;` is then the trait's
+// body parent; a contract's clauses end at its `;`; each clause of a
+// refinement member ends at its own `;`.
 pub data ClauseOwner [copy] {
     case Machine;
+    case TraitMember;
+    case Contract;
+    case Refinement;
     case State;
     case Data;
     case DataCase;
@@ -319,6 +353,11 @@ pub data Clause [copy] {
     member_count: u64 in Trapping;
     cause: CrashCause;
     expression: u64 in Trapping;
+    has_expression: bool;
+    first_argument: u64 in Trapping;
+    argument_count: u64 in Trapping;
+    has_label: bool;
+    label: IdentifierSpan;
     source_span: SourceSpan;
 }
 
@@ -338,16 +377,44 @@ pub data StateItem [copy] {
 }
 
 // Where a machine declaration stands: at the root, or as a member of a
-// trait or a named conformance, whose item covers its contiguous range.
+// trait, a named conformance or a transparent refinement, whose item covers
+// its contiguous range. A refinement member names one base requirement,
+// possibly qualified by the base trait (`Base::requirement`), or every one
+// (`machine *`), and carries only the operational clauses it narrows.
 pub data MachineContainer [copy] {
     case Root;
     case Trait;
     case Conformance;
+    case Refinement;
+}
+
+// The fixed operator token an ordinary machine declaration may bind
+// (`machine + Vec2::add(...)`, wiki/spec/language/expressions.md "Operator
+// declarations"): a closed, compiler-owned vocabulary. `None` is a tokenless
+// named machine.
+pub data OperatorToken [copy] {
+    case None;
+    case Add;
+    case Subtract;
+    case Multiply;
+    case Divide;
+    case Modulo;
+    case Equal;
+    case NotEqual;
+    case Less;
+    case LessEqual;
+    case Greater;
+    case GreaterEqual;
+    case Index;
+    case Range;
 }
 
 // A `machine` declaration. `Owner::name` records the owner path member;
 // a free-standing machine has no owner and an empty owner span. Its generic
-// parameters are a contiguous range of `SyntaxTrees::generic_parameters`.
+// parameters are a contiguous range of `SyntaxTrees::generic_parameters`;
+// its `where machine` contracts, one per static machine binder, a contiguous
+// range of `SyntaxTrees::contracts`. A fixed token after `machine` binds
+// `operator`, spelled at `token`.
 // The parameters and return type are the entry's signature; `first_state`
 // and `state_count` cover the authored `state` members; the entry's own
 // statements precede them in the body. A bodyless declaration ends at `;`
@@ -380,6 +447,38 @@ pub data MachineItem [copy] {
     is_boundary: bool;
     container: MachineContainer;
     is_public: bool;
+    operator: OperatorToken;
+    token: IdentifierSpan;
+    first_contract: u64 in Trapping;
+    contract_count: u64 in Trapping;
+    every_requirement: bool;
+    source_span: SourceSpan;
+}
+
+// A declaration-site contract for a static binder of a machine or trait
+// head. A `Machine` contract `where machine Name [<binders>] [(parameters)]
+// [-> Type] clauses ;` gives a machine binder its callable signature, or
+// with a `Satisfies` clause (`where machine Name satisfies Trait::member;`)
+// an exact requirement; a `Proposition` contract `where proposition
+// Name(parameters);` gives a proposition binder its signature. Which binder
+// a contract names is resolution's question: a contract may also name a
+// binder of an earlier contract's own generic parameters.
+pub data ContractKind [copy] {
+    case Machine;
+    case Proposition;
+}
+
+pub data Contract [copy] {
+    kind: ContractKind;
+    name: IdentifierSpan;
+    first_generic_parameter: u64 in Trapping;
+    generic_parameter_count: u64 in Trapping;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    has_return_type: bool;
+    return_type: u64 in Trapping;
+    first_clause: u64 in Trapping;
+    clause_count: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -396,7 +495,11 @@ pub data NamePath [copy] {
 // the header (`: A<T> + B`) and then in the body (`requires A;`), are
 // type-reference handles in `SyntaxTrees::trait_parents`; its member
 // machines are a contiguous range of `SyntaxTrees::machines` whose container
-// is `Trait`. `boundary trait` declares service requirements at a crossing.
+// is `Trait`; its `where proposition` contracts are a contiguous range of
+// `SyntaxTrees::contracts`. `boundary trait` declares service requirements
+// at a crossing. A transparent refinement `trait Name = Base { ... }` names a
+// structural bound on a `Base` conformance, the type reference `base`: it
+// has no parents or contracts, and its members' container is `Refinement`.
 pub data TraitItem [copy] {
     name: IdentifierSpan;
     first_generic_parameter: u64 in Trapping;
@@ -407,6 +510,10 @@ pub data TraitItem [copy] {
     machine_count: u64 in Trapping;
     is_boundary: bool;
     is_public: bool;
+    first_contract: u64 in Trapping;
+    contract_count: u64 in Trapping;
+    is_refinement: bool;
+    base: u64 in Trapping;
     source_span: SourceSpan;
 }
 
@@ -496,6 +603,24 @@ pub data PropositionItem [copy] {
     source_span: SourceSpan;
 }
 
+// A named mathematical definition `let Name<binders>(parameters): Type =
+// term;`, or with `is_boundary` an admitted assumption `boundary let ...;`
+// without a term. `result_type` is a type-reference handle and `term` an
+// expression handle, zero without one.
+pub data DefinitionItem [copy] {
+    name: IdentifierSpan;
+    first_generic_parameter: u64 in Trapping;
+    generic_parameter_count: u64 in Trapping;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    result_type: u64 in Trapping;
+    has_term: bool;
+    term: u64 in Trapping;
+    is_boundary: bool;
+    is_public: bool;
+    source_span: SourceSpan;
+}
+
 pub data RootItemKind [copy] {
     case Use;
     case Data;
@@ -505,6 +630,7 @@ pub data RootItemKind [copy] {
     case Domain;
     case Constant;
     case Proposition;
+    case Definition;
 }
 
 pub data RootItem [copy] {
@@ -669,6 +795,41 @@ pub data ParseDiagnosticCode [copy] {
     case ExpectedPropositionEnd;
     case PropositionCapacityExceeded;
     case ExpectedConformanceMachineBody;
+    case ExpectedSatisfiesTrait;
+    case ExpectedSatisfiedRequirement;
+    case ExpectedSatisfiesLabel;
+    case ExpectedSatisfiesBinding;
+    case ExpectedTerminationSubject;
+    case ExpectedTerminationSubjectEnd;
+    case ExpectedTerminationView;
+    case UnknownOperatorToken;
+    case OperatorTokenNotAdmitted;
+    case ExpectedContractName;
+    case ExpectedContractEnd;
+    case ContractCapacityExceeded;
+    case ExpectedMembershipDomain;
+    case MixedDomainConnectives;
+    case UnsupportedDomainArguments;
+    case ExpectedMatchSubject;
+    case ExpectedMatchArms;
+    case ExpectedMatchPattern;
+    case ExpectedMatchArrow;
+    case ExpectedMatchValue;
+    case ExpectedMatchArmEnd;
+    case EmptyMatch;
+    case ExpectedPatternRename;
+    case ExpectedEvidenceTrait;
+    case RankedSubjectCapacityExceeded;
+    case MatchArmCapacityExceeded;
+    case ExpectedRefinementBase;
+    case ExpectedRefinementRequirement;
+    case ExpectedRefinementAxis;
+    case ExpectedDefinitionName;
+    case ExpectedDefinitionColon;
+    case ExpectedDefinitionType;
+    case ExpectedDefinitionTerm;
+    case ExpectedDefinitionEnd;
+    case DefinitionCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -680,7 +841,7 @@ pub data SyntaxTrees
 where
     root_count <= 1024,
     use_count <= 256,
-    member_count <= 24576,
+    member_count <= 32000,
     data_count <= 256,
     generic_parameter_count <= 256,
     field_count <= 1024,
@@ -707,12 +868,15 @@ where
     domain_count <= 256,
     constant_count <= 512,
     proposition_count <= 256,
+    contract_count <= 256,
+    match_arm_count <= 1024,
+    definition_count <= 256,
 {
     roots: [RootItem; 1024] in Trapping;
     root_count: u64;
     uses: [UseItem; 256] in Trapping;
     use_count: u64;
-    members: [IdentifierSpan; 24576] in Trapping;
+    members: [IdentifierSpan; 32000] in Trapping;
     member_count: u64;
     data_items: [DataItem; 256] in Trapping;
     data_count: u64;
@@ -766,6 +930,12 @@ where
     constant_count: u64;
     propositions: [PropositionItem; 256] in Trapping;
     proposition_count: u64;
+    contracts: [Contract; 256] in Trapping;
+    contract_count: u64;
+    match_arms: [TransitionArm; 1024] in Trapping;
+    match_arm_count: u64;
+    definitions: [DefinitionItem; 256] in Trapping;
+    definition_count: u64;
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -800,6 +970,9 @@ pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId)
     syntax_trees.domain_count = 0;
     syntax_trees.constant_count = 0;
     syntax_trees.proposition_count = 0;
+    syntax_trees.contract_count = 0;
+    syntax_trees.match_arm_count = 0;
+    syntax_trees.definition_count = 0;
     syntax_trees.accepted = true;
     syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
     syntax_trees.diagnostic.source_span.source = source;
@@ -1149,6 +1322,27 @@ crashes Trap
     }
 }
 
+// One arm of a value-position match: a `Wildcard`, `Literal` or `Case`
+// value pattern whose `Value` target is the arm's value. Match arms keep
+// their own table, so a match nested in a transition arm never splits that
+// transition's contiguous arm range.
+pub machine SyntaxTrees::match_arm(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> TransitionArm
+crashes Trap
+{
+    transition handle < syntax_trees.match_arm_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.match_arms[handle]
+    }
+
+    state invalid() -> TransitionArm {
+        crash Trap;
+    }
+}
+
 pub machine SyntaxTrees::pattern_field(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> PatternField
 crashes Trap
 {
@@ -1298,6 +1492,40 @@ crashes Trap
     }
 
     state invalid() -> PropositionItem {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::contract(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> Contract
+crashes Trap
+{
+    transition handle < syntax_trees.contract_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.contracts[handle]
+    }
+
+    state invalid() -> Contract {
+        crash Trap;
+    }
+}
+
+pub machine SyntaxTrees::definition_item(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) -> DefinitionItem
+crashes Trap
+{
+    transition handle < syntax_trees.definition_count {
+        true -> read(syntax_trees, handle)
+        _ -> invalid()
+    }
+
+    state read(syntax_trees: &SyntaxTrees, handle: u64 in Trapping) {
+        syntax_trees.definitions[handle]
+    }
+
+    state invalid() -> DefinitionItem {
         crash Trap;
     }
 }

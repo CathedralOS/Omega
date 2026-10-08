@@ -9,10 +9,15 @@ use psi::tokens::tokens;
 //
 //     parameter = `'` name                        lifetime
 //               | `machine` name                  static machine binder
+//               | `proposition` name              proposition binder
 //               | `const` name `:` type [properties]   static value binder
+//               | name `satisfies` type           conformance evidence binder
 //               | name `:` type [properties]      runtime value binder
 //               | name [properties]               type parameter
 //
+// An evidence binder names an implementation of the trait application it
+// satisfies, not a type; a machine or proposition binder takes its signature
+// from a `where` contract of its declaration.
 // Lifetimes precede every other binder. Each parameter is retained as soon
 // as it is whole, so a rejection keeps every parameter before it. Repeated
 // names are a resolution question, not a grammar one.
@@ -67,11 +72,19 @@ crashes Trap
         let constant: bool = Parser::at_word(parser, input, "const");
         transition constant {
             true -> binder(parser, input, GenericParameterKind::Const)
+            _ -> proposition_word(parser, input)
+        }
+    }
+
+    state proposition_word(parser: &mut Parser, input: &TokenStream) {
+        let proposition: bool = Parser::at_word(parser, input, "proposition");
+        transition proposition {
+            true -> binder(parser, input, GenericParameterKind::Proposition)
             _ -> bare_name(parser, input)
         }
     }
 
-    // `machine` and `const` introduce a binder name.
+    // `machine`, `proposition` and `const` introduce a binder name.
     state binder(parser: &mut Parser, input: &TokenStream, kind: GenericParameterKind) {
         Parser::take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;
@@ -107,8 +120,9 @@ crashes Trap
         }
     }
 
-    // After a bare name, `:` makes a runtime value binder, `[` opens the type
-    // parameter's bounds, and a tick is a lifetime after a runtime binder.
+    // After a bare name, `:` makes a runtime value binder, `satisfies` an
+    // evidence binder, `[` opens the type parameter's bounds, and a tick is a
+    // lifetime after a runtime binder.
     state type_parameter(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
         parser.name_start = parser.token_start;
@@ -117,10 +131,29 @@ crashes Trap
             parser.token_start
         );
         let value: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
+        let evidence: bool = Parser::at_word(parser, input, "satisfies");
         let tick: bool = Parser::at_punctuation(parser, input, PunctuationKind::Apostrophe);
         transition value {
             true -> value_colon(parser, input, parameter)
+            _ -> evidence_word(parser, input, parameter, evidence, tick)
+        }
+    }
+
+    state evidence_word(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter, evidence: bool, tick: bool) {
+        transition evidence {
+            true -> evidence_trait(parser, input, Parser::with_generic_kind(parameter, GenericParameterKind::Evidence))
             _ -> type_tail(parser, input, parameter, tick)
+        }
+    }
+
+    // The satisfied trait application is the binder's type reference; an
+    // implementation takes no property bounds.
+    state evidence_trait(parser: &mut Parser, input: &TokenStream, parameter: GenericParameter) {
+        Parser::take_current(parser, input);
+        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedEvidenceTrait);
+        transition parser.output.accepted {
+            true -> retain(parser, input, Parser::with_generic_type(parser, parameter, parser.type_result))
+            _ -> done()
         }
     }
 

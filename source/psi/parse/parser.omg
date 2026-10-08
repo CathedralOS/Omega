@@ -2,6 +2,7 @@ use psi::parse::clause;
 use psi::parse::conformance;
 use psi::parse::constant;
 use psi::parse::data;
+use psi::parse::definition;
 use psi::parse::domain;
 use psi::parse::expression;
 use psi::parse::generics;
@@ -30,6 +31,8 @@ where
     pending_field_count <= 64,
     type_frame_depth <= 16,
     pending_type_argument_count <= 32,
+    pending_arm_count <= 64,
+    ranked_subject_count <= 8,
 {
     output: SyntaxTrees;
     source: SourceId;
@@ -107,6 +110,16 @@ where
     machine_first_statement: u64 in Trapping;
     machine_statement_count: u64 in Trapping;
     machine_first_state: u64 in Trapping;
+    machine_generic_count: u64 in Trapping;
+    machine_operator: OperatorToken;
+    machine_token_start: u64 in Trapping;
+    machine_token_end: u64 in Trapping;
+    machine_first_contract: u64 in Trapping;
+    // A `where machine` or `where proposition` contract under way.
+    contract_start: u64 in Trapping;
+    contract_name_start: u64 in Trapping;
+    contract_name_end: u64 in Trapping;
+    contract_first_generic: u64 in Trapping;
     state_start: u64 in Trapping;
     state_name_start: u64 in Trapping;
     state_name_end: u64 in Trapping;
@@ -130,8 +143,12 @@ where
     pending_argument_count: u64;
     pending_fields: [ConstructField; 64] in Trapping;
     pending_field_count: u64;
+    // A value-position match's arms stage here until its `}`.
+    pending_arms: [TransitionArm; 64] in Trapping;
+    pending_arm_count: u64;
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
+    expression_allow_membership: bool;
     path_first_member: u64 in Trapping;
     path_start: u64 in Trapping;
     committed_first: u64 in Trapping;
@@ -151,6 +168,11 @@ where
     clause_first: u64 in Trapping;
     clause_start: u64 in Trapping;
     clause_first_member: u64 in Trapping;
+    clause_first_argument: u64 in Trapping;
+    clause_argument_count: u64 in Trapping;
+    // A ranking witness's subjects stage here until its list closes.
+    ranked_subjects: [u64; 8] in Trapping;
+    ranked_subject_count: u64;
     // Declaration scratch for the trait, conformance, domain, constant and
     // proposition grammars; one root declaration is under way at a time, and
     // a member machine keeps its own `machine_*` scratch.
@@ -177,6 +199,8 @@ where
     declaration_first_path: u64 in Trapping;
     declaration_first_parameter: u64 in Trapping;
     declaration_parameter_count: u64 in Trapping;
+    declaration_first_contract: u64 in Trapping;
+    declaration_is_refinement: bool;
     // The last completed name path's handle.
     name_path_result: u64 in Trapping;
 }
@@ -221,13 +245,13 @@ machine Parser::identifier_span(
 
 // Whole-file sequencing and use-item grammar. Every other declaration is
 // delegated to its grammar machine (data.omg, machine.omg, traits.omg,
-// conformance.omg, domain.omg, constant.omg, proposition.omg), the shared type
-// grammar lives in types.omg, and input.omg remains the only token/cursor
-// behavior owner. A root is `[pub]` and then a declaration: `use`, `data`
-// and `machine` by keyword; `boundary`, `trait`, `domain`, `const` and
-// `proposition` by contextual word; and, led by a name, a target-scoped
-// `target [boundary] machine` or a named conformance `Name [<...>]
-// satisfies`. The retired `boundary requirement` and `operator`
+// conformance.omg, domain.omg, constant.omg, proposition.omg,
+// definition.omg), the shared type grammar lives in types.omg, and input.omg
+// remains the only token/cursor behavior owner. A root is `[pub]` and then a
+// declaration: `use`, `data`, `machine` and `let` by keyword; `boundary`,
+// `trait`, `domain`, `const` and `proposition` by contextual word; and, led
+// by a name, a target-scoped `target [boundary] machine` or a named
+// conformance `Name [<...>] satisfies`. The retired `boundary requirement` and `operator`
 // introducers reject at their word. Bounded array reads carry their
 // collection's Trapping policy, so parsing publishes the same crash route
 // its callees do.
@@ -277,6 +301,7 @@ crashes Trap
             KeywordKind::Use -> prepare_use(parser, input)
             KeywordKind::Data -> dispatch_data(parser, input, false, false)
             KeywordKind::Machine -> dispatch_machine(parser, input, head)
+            KeywordKind::Let -> dispatch_definition(parser, input, false, false)
             KeywordKind::Pub -> public_item_root(parser, input)
             _ -> unsupported_root(parser, start, end)
         }
@@ -297,6 +322,7 @@ crashes Trap
         transition token {
             Token::Keyword { keyword: KeywordKind::Data } -> dispatch_data(parser, input, true, false)
             Token::Keyword { keyword: KeywordKind::Machine } -> dispatch_machine(parser, input, head)
+            Token::Keyword { keyword: KeywordKind::Let } -> dispatch_definition(parser, input, true, false)
             Token::Identifier -> named_root(parser, input, true)
             _ -> expected_item_after_public(parser, token.start,
                 token.end
@@ -388,15 +414,23 @@ crashes Trap
         }
     }
 
-    // `boundary data`, `boundary machine` and `boundary trait`. The
-    // carrier-owned `boundary requirement` and the `boundary operator`
-    // introducer are retired; a boundary operation is a requirement of a
-    // boundary trait.
+    // `boundary data`, `boundary machine`, `boundary trait` and the
+    // assumption `boundary let`. The carrier-owned `boundary requirement` and
+    // the `boundary operator` introducer are retired; a boundary operation is
+    // a requirement of a boundary trait.
     state boundary_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
         Parser::take_current(parser, input);
         let opaque: bool = Parser::at_keyword(parser, input, KeywordKind::Data);
+        let assumed: bool = Parser::at_keyword(parser, input, KeywordKind::Let);
         transition opaque {
             true -> dispatch_data(parser, input, is_public, true)
+            _ -> boundary_let(parser, input, is_public, assumed)
+        }
+    }
+
+    state boundary_let(parser: &mut Parser, input: &TokenStream, is_public: bool, assumed: bool) {
+        transition assumed {
+            true -> dispatch_definition(parser, input, is_public, true)
             _ -> boundary_machine_word(parser, input, is_public)
         }
     }
@@ -488,6 +522,12 @@ crashes Trap
     state dispatch_constant(parser: &mut Parser, input: &TokenStream, is_public: bool) {
         let item_start: u64 in Trapping = parser.item_start;
         Parser::parse_constant(parser, input, item_start, is_public);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_definition(parser: &mut Parser, input: &TokenStream, is_public: bool, is_boundary: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_definition(parser, input, item_start, is_public, is_boundary);
         transition { _ -> declared(parser, input) }
     }
 
@@ -592,7 +632,7 @@ crashes Trap
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        transition parser.output.member_count < 24576 {
+        transition parser.output.member_count < 32000 {
             true -> retain_member_bounded(parser, input, start, end)
             _ -> member_full(parser, start, end)
         }

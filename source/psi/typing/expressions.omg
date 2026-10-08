@@ -186,6 +186,8 @@ crashes Trap
         ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Apply -> unsupported(typer, expression)
+        ExpressionKind::Membership -> unsupported(typer, expression)
+        ExpressionKind::Match -> unsupported(typer, expression)
         ExpressionKind::Float -> literal_rejected(typer, expression)
     }
 

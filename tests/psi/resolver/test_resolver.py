@@ -28,6 +28,11 @@ PARTIAL_STABLE_IDENTITIES = 15
 DUPLICATE_STABLE_IDENTITY = 16
 INVALID_STABLE_IDENTITY = 17
 UNSUPPORTED_DECLARATION = 18
+UNSUPPORTED_OPERATOR_TOKEN = 19
+UNSUPPORTED_MACHINE_CONTRACT = 20
+UNSUPPORTED_CLAUSE = 21
+UNSUPPORTED_GENERIC_PARAMETER = 22
+UNSUPPORTED_EXPRESSION = 23
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -957,8 +962,80 @@ def main() -> None:
         ("unsupported-proposition", b"proposition Even(value: u64) = value % 2 == 0;"),
         ("unsupported-target-machine", b"linux_arm64 machine Clock::now() -> u64 {}"),
         ("unsupported-boundary-machine", b"boundary machine entry() {}"),
+        ("unsupported-definition", b"let zero: u8 = 0;"),
+        ("unsupported-assumption", b"boundary let choose(witness: u8): u8;"),
     ):
         rejected(program, name, source, UNSUPPORTED_DECLARATION, source)
+
+    # Machine forms that name declarations resolution does not bind yet
+    # reject at the form, before any binding.
+    for name, source, diagnostic, spelling in (
+        ("unsupported-operator-token", b"machine + add(a: u8, b: u8) -> u8 { a }",
+         UNSUPPORTED_OPERATOR_TOKEN, b"+"),
+        ("unsupported-index-token", b"machine [] at(items: u8, index: u8) -> u8 { items }",
+         UNSUPPORTED_OPERATOR_TOKEN, b"[]"),
+        ("unsupported-machine-contract", b"machine apply<machine F>(x: u8) -> u8 where machine F(value: u8) -> u8; { F(x) }",
+         UNSUPPORTED_MACHINE_CONTRACT, b"where machine F(value: u8) -> u8;"),
+        ("unsupported-satisfies-clause", b"machine f() satisfies Order::before {}",
+         UNSUPPORTED_CLAUSE, b"satisfies Order::before"),
+        ("unsupported-terminates-clause", b"machine f(n: u64) requires n > 0 terminates by n; {}",
+         UNSUPPORTED_CLAUSE, b"terminates by n;"),
+        ("unsupported-evidence-binder", b"machine m<T, O satisfies Order<T>>() {}",
+         UNSUPPORTED_GENERIC_PARAMETER, b"O satisfies Order<T>"),
+        ("unsupported-proposition-binder", b"machine m<proposition R>() {}",
+         UNSUPPORTED_GENERIC_PARAMETER, b"proposition R"),
+    ):
+        rejected(program, name, source, diagnostic, spelling)
+    source = b"data A { x: Q; }\nmachine f() satisfies Order::before {}"
+    rejected(program, "unsupported-form-before-binding", source, UNSUPPORTED_CLAUSE, b"satisfies Order::before")
+
+    # A membership in `Type::Case` binds the case whose implied domain it
+    # names; any other domain, and several at once, reject. A value-position
+    # match binds its subject, value patterns and values as values, and a
+    # renamed pattern field binds under its rename while a waived one binds
+    # nothing.
+    accepted(
+        program,
+        "membership-binds-its-case",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: O) -> bool { o in O::None }",
+        (builtin("u8"), data(0), builtin("bool")),
+        (parameter(0), data_case(0, 0)),
+    )
+    rejected(program, "case-domain-qualifier-is-unknown", b"data X { field: u8 in Event::Completion; }",
+             UNKNOWN_DOMAIN, b"Event::Completion")
+    rejected(program, "membership-in-a-declared-domain", b"machine f(o: u8) -> bool { o in Positive }",
+             UNKNOWN_DOMAIN, b"Positive")
+    rejected(program, "membership-in-a-machine", b"machine O::check() {}\nmachine f(o: u8) -> bool { o in O::check }",
+             UNKNOWN_DOMAIN, b"O::check", occurrence=2)
+    rejected(
+        program,
+        "membership-in-several-domains",
+        b"data O { case None; case Some(value: u8); }\nmachine f(o: O) -> bool { o in O::None | O::Some }",
+        UNSUPPORTED_EXPRESSION,
+        b"o in O::None | O::Some",
+    )
+    accepted(
+        program,
+        "match-binds-its-names",
+        b"data K { case A; case B; }\nmachine f(k: K, x: u8) -> u8 { match k { K::A -> x, _ -> 0 } }",
+        (data(0), builtin("u8"), builtin("u8")),
+        (parameter(0), data_case(0, 0), parameter(1), NOT_A_NAME, NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "renamed-pattern-binder",
+        b"data N { case Zero; case Succ(prev: u8); }\nmachine f(n: N) -> u8 { transition n { N::Succ { prev as w } -> w _ -> 0 } }",
+        (builtin("u8"), data(0), builtin("u8")),
+        (parameter(0), data_case(0, 1), binder(0), NOT_A_NAME),
+    )
+    rejected(
+        program,
+        "waived-pattern-field-binds-nothing",
+        b"data H { case P(ok: u8); }\nmachine f(h: H) -> u8 { transition h { H::P { ok as _ } -> ok } }",
+        UNKNOWN_NAME,
+        b"ok",
+        occurrence=3,
+    )
     source = b"data A { x: u8; }\nconst N: u64 = 1;\ndata B { y: Q; }"
     rejected(program, "unsupported-declaration-before-binding", source, UNSUPPORTED_DECLARATION, b"const N: u64 = 1;")
     accepted(program, "boundary-data-binds", b"boundary data Handle;\ndata A { h: Handle; }", (data(0),))
@@ -979,8 +1056,11 @@ def main() -> None:
         if path.parent != psi_root
     )
     status, payload = run_units(program, psi_units)
-    assert status == 0, f"psi-package: status {status}"
-    package = decode(payload)
+    package = decode(payload) if status in (0, 249) else None
+    assert status == 0, f"psi-package: status {status}" + (
+        f": {package.diagnostic} at {package.diagnostic_span} in {psi_units[package.diagnostic_span[0]][0]!r}"
+        if package else ""
+    )
     assert package.accepted and package.diagnostic == 0, f"psi-package: {package.diagnostic} {package.diagnostic_span}"
     assert len(psi_units) >= 17 and len(package.bindings) > 0 and len(package.value_bindings) > 0, "psi-package"
 

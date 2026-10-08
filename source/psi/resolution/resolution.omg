@@ -51,8 +51,9 @@ pub data TypeBinding [copy] {
 }
 
 // What a name or path in an expression denotes, indexed like
-// `SyntaxTrees::expressions`. Expressions that are not names stay
-// `NotAName`; an accepted resolution leaves no `Unresolved` name. A machine
+// `SyntaxTrees::expressions`. A membership `value in Type::Case` binds the
+// case whose implied domain it names; other expressions that are not names
+// stay `NotAName`; an accepted resolution leaves no `Unresolved` name. A machine
 // binding names the first declaration of its overload family; typing selects
 // among the family. A generic parameter binding names a value or machine
 // binder of the enclosing machine by its `SyntaxTrees::generic_parameters`
@@ -111,9 +112,21 @@ pub data ResolveDiagnosticCode [copy] {
     case DuplicateStableIdentity;
     case InvalidStableIdentity;
     // A declaration kind resolution does not bind yet: a trait, conformance,
-    // domain, constant or proposition, or a target-scoped or boundary
-    // machine. It rejects at its root rather than resolving as if absent.
+    // domain, constant, proposition or mathematical definition, or a
+    // target-scoped or boundary machine. It rejects at its root rather than
+    // resolving as if absent.
     case UnsupportedDeclaration;
+    // A machine form that names declarations resolution does not bind yet
+    // rejects at that form: an operator token, a `where machine` contract, a
+    // `satisfies` or `terminates` clause, or a proposition or evidence
+    // binder.
+    case UnsupportedOperatorToken;
+    case UnsupportedMachineContract;
+    case UnsupportedClause;
+    case UnsupportedGenericParameter;
+    // An expression form resolution does not bind yet: a membership in
+    // several domains at once.
+    case UnsupportedExpression;
 }
 
 pub data ResolveDiagnostic [copy] {

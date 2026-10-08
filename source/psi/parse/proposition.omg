@@ -106,7 +106,7 @@ crashes Trap
 
     state fact_body(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
-        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedPropositionFact, false);
+        Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedPropositionFact, false, true);
         transition parser.output.accepted {
             true -> end(parser, input, PropositionBody::Transparent, 0, parser.expression_result)
             _ -> done()

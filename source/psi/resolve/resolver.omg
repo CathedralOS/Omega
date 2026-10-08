@@ -1,4 +1,5 @@
 use psi::resolution::resolution;
+use psi::resolve::forms;
 use psi::resolve::identities;
 use psi::resolve::imports;
 use psi::resolve::names;
@@ -119,8 +120,9 @@ crashes Trap
 
 // The declaration kinds this resolver binds: `use`, `data` (`boundary data`
 // declares an opaque type name like any other) and untargeted, non-boundary
-// machines. Every other root rejects at its span, in source order, before
-// any binding: its names would otherwise be absent from every scope.
+// machines without the forms forms.omg rejects. Every other root rejects at
+// its span, in source order, before any binding: its names would otherwise
+// be absent from every scope.
 machine Resolver::check_declaration_kinds(resolver: &mut Resolver, syntax: &SyntaxTrees)
 crashes Trap
 {
@@ -147,7 +149,15 @@ crashes Trap
         let item: MachineItem = SyntaxTrees::machine_item(syntax, root.item_index);
         transition item.has_target || item.is_boundary {
             true -> reject(resolver, root.source_span)
-            _ -> next(resolver, syntax, index + 1)
+            _ -> machine_forms(resolver, syntax, index, item)
+        }
+    }
+
+    state machine_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
+        Resolver::check_machine_forms(resolver, syntax, item);
+        transition resolver.output.accepted {
+            true -> next(resolver, syntax, index + 1)
+            _ -> done()
         }
     }
 

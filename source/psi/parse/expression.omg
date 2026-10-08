@@ -1,19 +1,25 @@
 use psi::parse::input;
 use psi::parse::parser;
+use psi::parse::path;
 use psi::parse::types;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // Expression grammar: one shift-reduce pass over explicit stacks, so nested
-// groups, calls, indexes and constructions need no recursion. Precedence
-// follows the reference grammar's two tiers, folded into one ladder:
-// `||` 1, `&&` 2, `==`/`!=` 3, comparisons 4, then `|` 5, `^` 6, `&` 7, shifts
-// 8, `+`/`-` 9, `*`/`/`/`%` 10, and prefix operators 11. Postfix suffixes
-// (`.field`, `[index]`, `(arguments)`, `as Type`) apply to the operand at
-// once, so they bind tighter than any prefix. Binary operators associate to
-// the left. A call's arguments and a construction's fields are staged on
-// scratch stacks while their nested expressions append nodes, and are copied
-// contiguously into their tables when the call or construction closes.
+// groups, calls, indexes, constructions and matches need no recursion.
+// Precedence follows the reference grammar's two tiers, folded into one
+// ladder: `||` 1, `&&` 2, `==`/`!=` 3, comparisons 4, then `|` 5, `^` 6, `&`
+// 7, shifts 8, `+`/`-` 9, `*`/`/`/`%` 10, and prefix operators 11. Postfix
+// suffixes (`.field`, `[index]`, `(arguments)`, `as Type`) apply to the
+// operand at once, so they bind tighter than any prefix. Binary operators
+// associate to the left. A membership `value in Domain {& Domain}` or
+// `value in Domain {| Domain}` separates the tiers: it applies to the whole
+// bitwise and arithmetic operand before it, and comparisons and the logical
+// operators take its result. A value-position `match subject { pattern ->
+// value, ... }` is an operand; its arms are `_` or a value pattern, separated
+// by commas. A call's arguments, a construction's fields and a match's arms
+// are staged on scratch stacks while their nested expressions append nodes,
+// and are copied contiguously into their tables when the bracket closes.
 
 // An operator waiting for its right operand; a prefix operator waits for its
 // only operand.
@@ -24,16 +30,23 @@ pub data PendingOperator [copy] {
     start: u64 in Trapping;
 }
 
+// A match is one frame that moves through its parts: its subject, then for
+// each arm a pattern and a value.
 pub data ExpressionFrameKind [copy] {
     case Group;
     case Arguments;
     case Index;
     case Construct;
+    case MatchSubject;
+    case MatchPattern;
+    case MatchValue;
 }
 
 // One open bracket. Reductions inside it stop at `operator_base`; its staged
-// arguments or fields start at `pending_base`; `callee` is the expression a
-// call, index or construction applies to.
+// arguments, fields or arms start at `pending_base`; `callee` is the
+// expression a call, index or construction applies to, or a match's subject.
+// A match also keeps where it starts, where its current arm starts, and that
+// arm's pattern and pattern kind.
 pub data ExpressionFrame [copy] {
     kind: ExpressionFrameKind;
     operator_base: u64 in Trapping;
@@ -41,17 +54,24 @@ pub data ExpressionFrame [copy] {
     callee: u64 in Trapping;
     field_start: u64 in Trapping;
     field_end: u64 in Trapping;
+    start: u64 in Trapping;
+    arm_start: u64 in Trapping;
+    pattern: u64 in Trapping;
+    pattern_kind: ArmPatternKind;
 }
 
 // Parse one expression, leaving its handle in `expression_result`. `missing`
 // is the caller's diagnostic for an absent first operand; constructions
 // (`Path { field: value }`) are admitted only when `allow_construct` holds,
-// since a transition subject's `{` opens its arms instead.
+// since a transition subject's `{` opens its arms instead, and memberships
+// only when `allow_membership` holds, since a ranking subject's `in` opens
+// its rank range instead.
 pub machine Parser::parse_expression(
     parser: &mut Parser,
     input: &TokenStream,
     missing: ParseDiagnosticCode,
-    allow_construct: bool
+    allow_construct: bool,
+    allow_membership: bool
 )
 crashes Trap
 {
@@ -60,7 +80,9 @@ crashes Trap
     parser.expression_frame_depth = 0;
     parser.pending_argument_count = 0;
     parser.pending_field_count = 0;
+    parser.pending_arm_count = 0;
     parser.expression_allow_construct = allow_construct;
+    parser.expression_allow_membership = allow_membership;
     transition { _ -> operand(parser, input, missing) }
 
     state operand(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
@@ -84,6 +106,7 @@ crashes Trap
             Token::StringLiteral -> literal(parser, input, ExpressionKind::String)
             Token::Keyword { keyword: KeywordKind::True } -> boolean(parser, input, true)
             Token::Keyword { keyword: KeywordKind::False } -> boolean(parser, input, false)
+            Token::Keyword { keyword: KeywordKind::Match } -> match_open(parser, input)
             Token::Keyword { keyword } -> keyword_operand(parser, input, code, keyword)
             Token::Identifier -> identifier_operand(parser, input)
             _ -> reject(parser, input, code)
@@ -275,7 +298,7 @@ crashes Trap
     }
 
     state path_member(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.member_count < 24576 {
+        transition parser.output.member_count < 32000 {
             true -> path_member_bounded(parser, input)
             _ -> member_full(parser, input)
         }
@@ -353,9 +376,8 @@ crashes Trap
 
     state after_path(parser: &mut Parser, input: &TokenStream) {
         let braced: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
-        // A body's `{` can follow only an unbracketed operand; inside any
-        // bracket a braced path is always a construction.
-        transition braced && (parser.expression_allow_construct || parser.expression_frame_depth > 0) {
+        let admitted: bool = Parser::construct_admitted(parser);
+        transition braced && admitted {
             true -> open_construct(parser, input)
             _ -> after_operand(parser, input)
         }
@@ -395,7 +417,319 @@ crashes Trap
             Token::Punctuation { punctuation: PunctuationKind::Asterisk } -> binary(parser, input, OperatorKind::Multiply, 10)
             Token::Punctuation { punctuation: PunctuationKind::Slash } -> binary(parser, input, OperatorKind::Divide, 10)
             Token::Punctuation { punctuation: PunctuationKind::Percent } -> binary(parser, input, OperatorKind::Modulo, 10)
+            Token::Identifier -> word_suffix(parser, input)
             _ -> end_operand(parser, input)
+        }
+    }
+
+    state word_suffix(parser: &mut Parser, input: &TokenStream) {
+        let membership: bool = Parser::at_word(parser, input, "in");
+        transition membership && parser.expression_allow_membership {
+            true -> membership(parser, input)
+            _ -> end_operand(parser, input)
+        }
+    }
+
+    // `in` first closes every pending operator that binds tighter than a
+    // membership, so its value is the whole operand before it.
+    state membership(parser: &mut Parser, input: &TokenStream) {
+        let base: u64 in Trapping = Parser::frame_operator_base(parser);
+        Parser::reduce_until(parser, input, base, 5);
+        transition parser.output.accepted {
+            true -> membership_value(parser, input)
+            _ -> done()
+        }
+    }
+
+    state membership_value(parser: &mut Parser, input: &TokenStream) {
+        let value: u64 in Trapping = Parser::pop_operand(parser);
+        let first_domain: u64 in Trapping = parser.output.name_path_count as u64 in Trapping;
+        Parser::take_current(parser, input);
+        transition { _ -> membership_domain(parser, input, value, first_domain, OperatorKind::None) }
+    }
+
+    state membership_domain(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind
+    ) {
+        Parser::parse_name_path(parser, input, ParseDiagnosticCode::ExpectedMembershipDomain);
+        transition parser.output.accepted {
+            true -> membership_arguments(parser, input, value, first_domain, connective)
+            _ -> done()
+        }
+    }
+
+    // An indexed domain application (`AtMost<8>`) is not read here; a `<`
+    // after a domain rejects rather than comparing the membership's result.
+    state membership_arguments(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind
+    ) {
+        let applied: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        let both: bool = Parser::at_punctuation(parser, input, PunctuationKind::Ampersand);
+        let either: bool = Parser::at_punctuation(parser, input, PunctuationKind::Pipe);
+        transition applied {
+            true -> reject(parser, input, ParseDiagnosticCode::UnsupportedDomainArguments)
+            _ -> membership_connective(parser, input, value, first_domain, connective, both, either)
+        }
+    }
+
+    state membership_connective(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind,
+        both: bool,
+        either: bool
+    ) {
+        transition both {
+            true -> joined(parser, input, value, first_domain, connective, OperatorKind::And)
+            _ -> union_connective(parser, input, value, first_domain, connective, either)
+        }
+    }
+
+    state union_connective(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind,
+        either: bool
+    ) {
+        transition either {
+            true -> joined(parser, input, value, first_domain, connective, OperatorKind::Or)
+            _ -> membership_node(parser, input, value, first_domain, connective)
+        }
+    }
+
+    // One membership joins its domains by one connective: `A & B | C` needs
+    // its grouping spelled.
+    state joined(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind,
+        next: OperatorKind
+    ) {
+        transition connective == OperatorKind::None || connective == next {
+            true -> joined_taken(parser, input, value, first_domain, next)
+            _ -> reject(parser, input, ParseDiagnosticCode::MixedDomainConnectives)
+        }
+    }
+
+    state joined_taken(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind
+    ) {
+        Parser::take_current(parser, input);
+        transition { _ -> membership_domain(parser, input, value, first_domain, connective) }
+    }
+
+    state membership_node(
+        parser: &mut Parser,
+        input: &TokenStream,
+        value: u64 in Trapping,
+        first_domain: u64 in Trapping,
+        connective: OperatorKind
+    ) {
+        let value_expression: Expression = SyntaxTrees::expression(&parser.output, value);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Membership,
+            operator: connective,
+            left: value,
+            right: 0,
+            first: first_domain,
+            count: (parser.output.name_path_count as u64 in Trapping) - first_domain,
+            flag: false,
+            name: Parser::identifier_span(parser, 0, 0),
+            type_reference: 0,
+            first_row: 0,
+            source_span: Parser::source_span(parser, value_expression.source_span.span.start, parser.name_end)
+        };
+        Parser::emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> after_operand(parser, input)
+            _ -> done()
+        }
+    }
+
+    // `match subject { arm, ... }`: the subject admits no construction, since
+    // its `{` opens the arms.
+    state match_open(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        Parser::push_frame(parser, input, ExpressionFrameKind::MatchSubject, 0);
+        transition parser.output.accepted {
+            true -> match_taken(parser, input, token.start)
+            _ -> done()
+        }
+    }
+
+    state match_taken(parser: &mut Parser, input: &TokenStream, start: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        let frame: ExpressionFrame = Parser::top_frame(parser);
+        Parser::replace_top_frame(parser, Parser::match_frame(frame, ExpressionFrameKind::MatchSubject, 0, start));
+        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedMatchSubject) }
+    }
+
+    state match_subject_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedMatchArms);
+        transition parser.output.accepted {
+            true -> match_subject(parser, input, frame)
+            _ -> done()
+        }
+    }
+
+    state match_subject(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let subject: u64 in Trapping = Parser::pop_operand(parser);
+        let arms: ExpressionFrame = Parser::match_frame(frame, ExpressionFrameKind::MatchPattern, subject, frame.start);
+        Parser::replace_top_frame(parser, arms);
+        transition { _ -> match_arm(parser, input, arms) }
+    }
+
+    // An arm, or the `}` that closes a match with at least one arm.
+    state match_arm(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let armed: bool = parser.pending_arm_count > frame.pending_base;
+        transition closing {
+            true -> match_close_armed(parser, input, frame, armed)
+            _ -> match_pattern(parser, input, frame)
+        }
+    }
+
+    state match_close_armed(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, armed: bool) {
+        transition armed {
+            true -> match_close(parser, input, frame)
+            _ -> reject(parser, input, ParseDiagnosticCode::EmptyMatch)
+        }
+    }
+
+    state match_pattern(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::load_current(parser, input);
+        transition parser.current_present {
+            true -> match_pattern_token(parser, input, frame)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedMatchPattern)
+        }
+    }
+
+    state match_pattern_token(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let token: Token = input.tokens[parser.current_index];
+        let wildcard: bool = Parser::at_word(parser, input, "_");
+        let started: ExpressionFrame = Parser::match_arm_frame(frame, token.start);
+        Parser::replace_top_frame(parser, started);
+        transition wildcard {
+            true -> match_wildcard(parser, input, started)
+            _ -> operand(parser, input, ParseDiagnosticCode::ExpectedMatchPattern)
+        }
+    }
+
+    state match_wildcard(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::take_current(parser, input);
+        transition { _ -> match_arrow(parser, input, frame, ArmPatternKind::Wildcard, 0) }
+    }
+
+    // A name or path is a case pattern; any other value pattern a literal.
+    state match_pattern_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let pattern: u64 in Trapping = Parser::pop_operand(parser);
+        let expression: Expression = SyntaxTrees::expression(&parser.output, pattern);
+        let named: bool = Parser::names_declaration(expression.kind);
+        transition named {
+            true -> match_arrow(parser, input, frame, ArmPatternKind::Case, pattern)
+            _ -> match_arrow(parser, input, frame, ArmPatternKind::Literal, pattern)
+        }
+    }
+
+    state match_arrow(
+        parser: &mut Parser,
+        input: &TokenStream,
+        frame: ExpressionFrame,
+        kind: ArmPatternKind,
+        pattern: u64 in Trapping
+    ) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Arrow, ParseDiagnosticCode::ExpectedMatchArrow);
+        transition parser.output.accepted {
+            true -> match_value(parser, input, Parser::match_value_frame(frame, kind, pattern))
+            _ -> done()
+        }
+    }
+
+    state match_value(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::replace_top_frame(parser, frame);
+        transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedMatchValue) }
+    }
+
+    state match_value_end(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let value: u64 in Trapping = Parser::pop_operand(parser);
+        let value_expression: Expression = SyntaxTrees::expression(&parser.output, value);
+        let arm: TransitionArm = Parser::match_arm_row(parser, frame, value, value_expression.source_span.span.end);
+        Parser::stage_arm(parser, input, arm);
+        transition parser.output.accepted {
+            true -> match_arm_delimiter(parser, input, frame)
+            _ -> done()
+        }
+    }
+
+    state match_arm_delimiter(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        let next: ExpressionFrame = Parser::match_frame(frame, ExpressionFrameKind::MatchPattern, frame.callee, frame.start);
+        transition separator {
+            true -> match_separator(parser, input, next)
+            _ -> match_arm_close(parser, input, next, closing)
+        }
+    }
+
+    state match_separator(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::take_current(parser, input);
+        Parser::replace_top_frame(parser, frame);
+        transition { _ -> match_arm(parser, input, frame) }
+    }
+
+    state match_arm_close(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame, closing: bool) {
+        transition closing {
+            true -> match_close(parser, input, frame)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedMatchArmEnd)
+        }
+    }
+
+    state match_close(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::take_current(parser, input);
+        Parser::commit_arms(parser, input, frame.pending_base);
+        transition parser.output.accepted {
+            true -> match_node(parser, input, frame)
+            _ -> done()
+        }
+    }
+
+    state match_node(parser: &mut Parser, input: &TokenStream, frame: ExpressionFrame) {
+        Parser::pop_frame(parser);
+        let node: Expression = Expression {
+            kind: ExpressionKind::Match,
+            operator: OperatorKind::None,
+            left: frame.callee,
+            right: 0,
+            first: parser.committed_first,
+            count: parser.committed_count,
+            flag: false,
+            name: Parser::identifier_span(parser, 0, 0),
+            type_reference: 0,
+            first_row: 0,
+            source_span: Parser::source_span(parser, frame.start, parser.token_end)
+        };
+        Parser::emit_expression(parser, input, node);
+        transition parser.output.accepted {
+            true -> after_operand(parser, input)
+            _ -> done()
         }
     }
 
@@ -652,6 +986,9 @@ crashes Trap
             ExpressionFrameKind::Arguments -> argument_end(parser, input)
             ExpressionFrameKind::Index -> close_index(parser, input, frame)
             ExpressionFrameKind::Construct -> construct_value_end(parser, input, frame)
+            ExpressionFrameKind::MatchSubject -> match_subject_end(parser, input, frame)
+            ExpressionFrameKind::MatchPattern -> match_pattern_end(parser, input, frame)
+            ExpressionFrameKind::MatchValue -> match_value_end(parser, input, frame)
         }
     }
 
@@ -1136,7 +1473,11 @@ crashes Trap
             pending_base: Parser::pending_base(parser, kind),
             callee: callee,
             field_start: 0,
-            field_end: 0
+            field_end: 0,
+            start: 0,
+            arm_start: 0,
+            pattern: 0,
+            pattern_kind: ArmPatternKind::Wildcard
         };
         parser.expression_frame_depth = parser.expression_frame_depth + 1;
     }
@@ -1147,15 +1488,20 @@ crashes Trap
 }
 
 // Arguments stage on the argument stack; construction fields on the field
-// stack.
+// stack; match arms on the arm stack.
 machine Parser::pending_base(parser: &Parser, kind: ExpressionFrameKind) -> u64 in Trapping {
     transition kind {
         ExpressionFrameKind::Construct -> fields(parser)
+        ExpressionFrameKind::MatchSubject -> arms(parser)
         _ -> arguments(parser)
     }
 
     state fields(parser: &Parser) {
         parser.pending_field_count as u64 in Trapping
+    }
+
+    state arms(parser: &Parser) {
+        parser.pending_arm_count as u64 in Trapping
     }
 
     state arguments(parser: &Parser) {
@@ -1215,6 +1561,195 @@ crashes Trap
 
     state outermost() {
         0
+    }
+}
+
+// Rewrite the innermost frame: a match frame moving to its next part.
+machine Parser::replace_top_frame(parser: &mut Parser, frame: ExpressionFrame)
+crashes Trap
+{
+    transition parser.expression_frame_depth > 0 {
+        true -> replace(parser, frame)
+        _ -> invalid()
+    }
+
+    state replace(parser: &mut Parser, frame: ExpressionFrame) {
+        let top: u64 = parser.expression_frame_depth - 1;
+        parser.expression_frames[top] = frame;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+// A match frame in `kind` over `subject`, from `start`.
+machine Parser::match_frame(
+    frame: ExpressionFrame,
+    kind: ExpressionFrameKind,
+    subject: u64 in Trapping,
+    start: u64 in Trapping
+) -> ExpressionFrame {
+    ExpressionFrame {
+        kind: kind,
+        operator_base: frame.operator_base,
+        pending_base: frame.pending_base,
+        callee: subject,
+        field_start: 0,
+        field_end: 0,
+        start: start,
+        arm_start: frame.arm_start,
+        pattern: frame.pattern,
+        pattern_kind: frame.pattern_kind
+    }
+}
+
+// A match frame reading the pattern of an arm starting at `arm_start`.
+machine Parser::match_arm_frame(frame: ExpressionFrame, arm_start: u64 in Trapping) -> ExpressionFrame {
+    ExpressionFrame {
+        kind: ExpressionFrameKind::MatchPattern,
+        operator_base: frame.operator_base,
+        pending_base: frame.pending_base,
+        callee: frame.callee,
+        field_start: 0,
+        field_end: 0,
+        start: frame.start,
+        arm_start: arm_start,
+        pattern: 0,
+        pattern_kind: ArmPatternKind::Wildcard
+    }
+}
+
+// A match frame reading the value of an arm whose pattern is complete.
+machine Parser::match_value_frame(frame: ExpressionFrame, kind: ArmPatternKind, pattern: u64 in Trapping) -> ExpressionFrame {
+    ExpressionFrame {
+        kind: ExpressionFrameKind::MatchValue,
+        operator_base: frame.operator_base,
+        pending_base: frame.pending_base,
+        callee: frame.callee,
+        field_start: 0,
+        field_end: 0,
+        start: frame.start,
+        arm_start: frame.arm_start,
+        pattern: pattern,
+        pattern_kind: kind
+    }
+}
+
+// The arm a match frame completes with `value`, through `end`.
+machine Parser::match_arm_row(parser: &Parser, frame: ExpressionFrame, value: u64 in Trapping, end: u64 in Trapping) -> TransitionArm {
+    TransitionArm {
+        kind: frame.pattern_kind,
+        pattern: frame.pattern,
+        first_field: 0,
+        field_count: 0,
+        target_kind: ArmTargetKind::Value,
+        target: value,
+        source_span: Parser::source_span(parser, frame.arm_start, end)
+    }
+}
+
+// Whether a braced path is a construction here: outside every bracket when
+// the caller admits one, inside a bracket unless it is a match's subject or
+// pattern, where `{` opens the arms or is no value.
+machine Parser::construct_admitted(parser: &Parser) -> bool
+crashes Trap
+{
+    transition parser.expression_frame_depth > 0 {
+        true -> innermost(parser)
+        _ -> outermost(parser)
+    }
+
+    state innermost(parser: &Parser) {
+        let frame: ExpressionFrame = Parser::top_frame(parser);
+        transition frame.kind {
+            ExpressionFrameKind::MatchSubject -> refused()
+            ExpressionFrameKind::MatchPattern -> refused()
+            _ -> admitted()
+        }
+    }
+
+    state outermost(parser: &Parser) {
+        parser.expression_allow_construct
+    }
+
+    state admitted() {
+        true
+    }
+
+    state refused() {
+        false
+    }
+}
+
+machine Parser::stage_arm(parser: &mut Parser, input: &TokenStream, arm: TransitionArm)
+crashes Trap
+{
+    transition parser.pending_arm_count < 64 {
+        true -> stage(parser, arm)
+        _ -> full(parser, input)
+    }
+
+    state stage(parser: &mut Parser, arm: TransitionArm) {
+        parser.pending_arms[parser.pending_arm_count] = arm;
+        parser.pending_arm_count = parser.pending_arm_count + 1;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::MatchArmCapacityExceeded);
+    }
+}
+
+// Move the innermost match's staged arms, from `base` up, into
+// `SyntaxTrees::match_arms`; their range lands in
+// `committed_first`/`committed_count`.
+machine Parser::commit_arms(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping)
+crashes Trap
+{
+    parser.committed_first = parser.output.match_arm_count as u64 in Trapping;
+    parser.committed_count = (parser.pending_arm_count as u64 in Trapping) - base;
+    transition { _ -> next(parser, input, base, base) }
+
+    state next(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+        transition cursor < parser.pending_arm_count {
+            true -> capacity(parser, input, base, cursor)
+            _ -> close(parser, base)
+        }
+    }
+
+    state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+        transition parser.output.match_arm_count < 1024 {
+            true -> copy(parser, input, base, cursor)
+            _ -> full(parser, input)
+        }
+    }
+
+    state copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+        parser.output.match_arms[parser.output.match_arm_count] = parser.pending_arms[cursor];
+        parser.output.match_arm_count = parser.output.match_arm_count + 1;
+        transition { _ -> next(parser, input, base, cursor + 1) }
+    }
+
+    state close(parser: &mut Parser, base: u64 in Trapping) {
+        let restored: u64 = base as u64;
+        transition restored <= 64 {
+            true -> truncate(parser, restored)
+            _ -> invalid()
+        }
+    }
+
+    state truncate(parser: &mut Parser, base: u64)
+    requires base <= 64
+    {
+        parser.pending_arm_count = base;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::MatchArmCapacityExceeded);
+    }
+
+    state invalid() {
+        crash Trap;
     }
 }
 
