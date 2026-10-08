@@ -6,7 +6,8 @@ use calling_conventions::{
 };
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_type,
+StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(crate) fn scalar_storage_type(
@@ -918,7 +919,7 @@ pub(crate) fn collection_view_region_geometry(
                 return None;
             }
             let storage = if matches!(
-                declarations.iter().find(|row| row.id == tip)?.shape,
+                find_structural_type(declarations, tip)?.shape,
                 StructuralTypeShape::ByteSequence(_)
             ) {
                 terminal_semantics::CollectionStorage::Borrowed

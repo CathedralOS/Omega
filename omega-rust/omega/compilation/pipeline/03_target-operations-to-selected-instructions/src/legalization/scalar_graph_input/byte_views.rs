@@ -155,7 +155,7 @@ pub(super) fn view_type(
         .or_else(|| {
             super::literals::declaration_producer(function, place).map(|(_, identity)| identity)
         })?;
-    let declaration = types.iter().find(|row| row.id == identity)?;
+    let declaration = terminal_psi::find_structural_type(types, identity)?;
     (declaration.shape.is_borrowed_byte_view()
         || matches!(
             declaration.shape,
