@@ -43,3 +43,10 @@ pub const fn o_trunc(flags: i32) -> bool {
 pub const fn o_append(flags: i32) -> bool {
     (flags >> O_APPEND_BIT) & 1 != 0
 }
+
+/// Whether an open's flag set writes: O_WRONLY/O_RDWR access modes or any of
+/// the write-implying flags (creat, trunc, append).
+pub const fn wants_write(flags: i32) -> bool {
+    let access = flags & 0x3;
+    access == 1 || access == 2 || o_creat(flags) || o_trunc(flags) || o_append(flags)
+}

@@ -44,12 +44,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // Flag bits decode via the same host-flag mirror the virtual
             // fs uses (host_open_flags -- the program was compiled for
             // `host()`, so the numerology matches).
-            let access = flags & 0x3;
-            let wants_write = access == 1
-                || access == 2
-                || crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
-                || crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags)
-                || crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
+            let wants_write =
+                crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
             match self.authorized_path(&path, wants_write, 0) {
                 Some(path) => {
                     let prepared = self.prepare_sponsored_open(
@@ -459,12 +455,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         Ok({
             // `openat(dirfd, name, flags)`: join against the dirfd's opened
             // path, then the ordinary open (same flag decode + grants).
-            let access = flags & 0x3;
-            let wants_write = access == 1
-                || access == 2
-                || crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
-                || crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags)
-                || crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
+            let wants_write =
+                crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
             let joined = match self.real_fs_mut().files.get(&dirfd) {
                 Some(entry) => match real_path(&name) {
                     Some(name) => entry.path.join(name),

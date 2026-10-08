@@ -460,12 +460,8 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         mode: u32,
         create_variant: bool,
     ) -> EvalResult<i64> {
-        let access = flags & 0x3;
-        let wants_write = access == 1
-            || access == 2
-            || crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
-            || crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags)
-            || crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
+        let wants_write =
+            crate::interpreter::evaluator::filesystem::host_open_flags::wants_write(flags);
         match self.authorized_path(&path, wants_write, 0) {
             Some(path) => {
                 let prepared = self.prepare_sponsored_open(
