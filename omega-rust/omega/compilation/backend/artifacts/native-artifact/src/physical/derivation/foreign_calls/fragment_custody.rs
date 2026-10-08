@@ -750,17 +750,12 @@ fn fragment_scalar_result_custody_rejoin(
     let Some((offset, byte_count)) = fragment_instruction_span(fragment, normalization.id) else {
         return false;
     };
-    let transported_end = block.instructions
-        [transport.call_position..transport.normalization_position]
-        .iter()
-        .try_fold(None, |previous, step| {
-            let (start, count) = fragment_instruction_span(fragment, step.id)?;
-            if previous.is_some_and(|end| end != start) {
-                return None;
-            }
-            Some(Some(start.checked_add(count)?))
-        })
-        .flatten();
+    let transported_end = image_emission::transported_span_end(
+        fragment,
+        block,
+        transport.call_position,
+        transport.normalization_position,
+    );
     if transported_end != Some(offset) {
         return false;
     }

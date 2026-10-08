@@ -358,6 +358,26 @@ pub fn fragment_instruction_span(
         .map(|span| (span.section_offset, span.byte_count))
 }
 
+/// The byte offset one transported span's covered instructions end at, or
+/// `None` when a covered step has no span or coverage is non-contiguous.
+pub fn transported_span_end(
+    fragment: &machine_code::PlacedFunctionFragment,
+    block: &selected_instructions::SelectedBlock,
+    call_position: usize,
+    normalization_position: usize,
+) -> Option<u64> {
+    block.instructions[call_position..normalization_position]
+        .iter()
+        .try_fold(None, |previous, step| {
+            let (start, count) = fragment_instruction_span(fragment, step.id)?;
+            if previous.is_some_and(|end| end != start) {
+                return None;
+            }
+            Some(Some(start.checked_add(count)?))
+        })
+        .flatten()
+}
+
 /// The durable scalar-home area one caller's producers allocate, in emitted
 /// instruction order.
 ///
@@ -1158,18 +1178,13 @@ fn foreign_scalar_result_custody(
     let Some((offset, byte_count)) = fragment_instruction_span(fragment, normalization.id) else {
         return Err(invalid());
     };
-    let transported_end = block.instructions
-        [transport.call_position..transport.normalization_position]
-        .iter()
-        .try_fold(None, |previous, step| {
-            let (start, count) = fragment_instruction_span(fragment, step.id)?;
-            if previous.is_some_and(|end| end != start) {
-                return None;
-            }
-            Some(Some(start.checked_add(count)?))
-        })
-        .flatten()
-        .ok_or_else(invalid)?;
+    let transported_end = transported_span_end(
+        fragment,
+        block,
+        transport.call_position,
+        transport.normalization_position,
+    )
+    .ok_or_else(invalid)?;
     if transported_end != offset {
         return Err(invalid());
     }

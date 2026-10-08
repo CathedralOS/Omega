@@ -34,6 +34,7 @@ pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
 pub use normalized_foreign_calls::{
     derive_normalized_foreign_call_custody, foreign_invocation_provenance_matches,
     durable_home_offsets,
+    transported_span_end,
     producer_instruction, scalar_call_result_producer,
     foreign_result_operand_count, fragment_instruction_span, scalar_observation_producer,
     structural_result_capture,
