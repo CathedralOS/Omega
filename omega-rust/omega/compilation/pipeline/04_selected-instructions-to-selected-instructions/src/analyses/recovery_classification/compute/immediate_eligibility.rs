@@ -2,7 +2,7 @@
 
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
+    SelectedInstruction, SelectedInstructionKind, VirtualRegisterId,
     VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, ScalarType};

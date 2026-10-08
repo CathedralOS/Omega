@@ -446,7 +446,6 @@ pub(crate) fn control(
 pub(crate) fn control_mut(
     terminator: &mut selected_instructions::SelectedTerminator,
 ) -> &mut selected_instructions::SelectedInstruction {
-    use selected_instructions::SelectedTerminator;
     selected_instructions::terminator_instruction_mut(terminator)
 }
 

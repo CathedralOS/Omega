@@ -12,7 +12,7 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionProvenance,
-    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin, terminator_successors_mut,
+    VirtualRegisterId, VirtualRegisterOrigin, terminator_successors_mut,
 };
 
 use crate::rewrites::selected_operands::selected_operand;

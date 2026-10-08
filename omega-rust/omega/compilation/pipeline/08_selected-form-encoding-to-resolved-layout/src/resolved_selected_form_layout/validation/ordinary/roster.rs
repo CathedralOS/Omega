@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use selected_instructions::{
-    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
+    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedInstructionId,
 };
 
 use machine_code::SelectedFormEncodingRow;

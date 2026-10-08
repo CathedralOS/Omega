@@ -2,7 +2,7 @@
 
 use super::{ResolvedFragmentEmissionError, byte_span, instruction, require};
 use machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineLayout};
-use selected_instructions::{SelectedInstructionPlan, SelectedTerminator};
+use selected_instructions::SelectedInstructionPlan;
 
 pub(super) fn check(
     selected: &SelectedInstructionPlan,

@@ -92,7 +92,7 @@ use selected_instructions::{
     MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineMemoryEffect, MachineSemanticKind, SaturatingCarrier, SelectedFunction,
-    SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
+    SelectedInstruction, SelectedInstructionKind,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 

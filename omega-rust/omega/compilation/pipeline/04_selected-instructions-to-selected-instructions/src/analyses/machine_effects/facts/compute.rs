@@ -8,7 +8,7 @@ use selected_instructions::{
     MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineSemanticKind, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
-    SelectedInstructionKind, SelectedTerminator, ValidatedMachineEffectCatalog,
+    SelectedInstructionKind, ValidatedMachineEffectCatalog,
 };
 
 use crate::MachineEffectError;

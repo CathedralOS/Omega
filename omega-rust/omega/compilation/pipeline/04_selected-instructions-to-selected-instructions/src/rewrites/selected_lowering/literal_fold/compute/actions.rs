@@ -3,7 +3,7 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedOperand, VirtualRegisterId, VirtualRegisterOrigin,
     terminator_successors,
 };
 use semantic_vocabulary::{IntegerValue, ScalarType};
