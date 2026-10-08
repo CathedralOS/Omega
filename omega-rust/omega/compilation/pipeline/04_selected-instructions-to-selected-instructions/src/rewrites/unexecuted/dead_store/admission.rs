@@ -493,26 +493,14 @@ pub(super) fn admit<'source>(
     // boundary could observe through; positions outside it only shift. The
     // interval covers the store's block after the removed store, every fully
     // crossed block, and each covering block through its covering store.
-    let origin_cover = killers
-        .iter()
-        .find(|(killer, _)| *killer == block_index)
-        .map(|(_, cover)| *cover);
-    for settlement in function.boundary_settlements.iter() {
-        let position = settlement.instruction_index as usize;
-        if settlement.block == block.id {
-            if store_index < position && origin_cover.is_none_or(|cover| position <= cover) {
-                return Err(DeadStoreEliminationError::InterveningAccess);
-            }
-        } else if crossed.contains(&settlement.block)
-            || killers.iter().any(|(killer, cover)| {
-                *killer != block_index
-                    && function.blocks[*killer].id == settlement.block
-                    && position <= *cover
-            })
-        {
-            return Err(DeadStoreEliminationError::InterveningAccess);
-        }
-    }
+    super::settlement_clear(
+        function,
+        block,
+        block_index,
+        store_index,
+        &killers,
+        &crossed,
+    )?;
     let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))

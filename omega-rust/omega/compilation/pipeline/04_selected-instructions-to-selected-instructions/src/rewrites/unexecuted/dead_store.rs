@@ -286,3 +286,38 @@ pub(super) fn dead_store_route(
         _ => return Err(DeadStoreEliminationError::UnsupportedInstruction),
     })
 }
+
+/// A boundary settlement inside the dead interval is an event a boundary
+/// could observe the still-current bytes through: the origin block's
+/// positions after the store, every fully crossed block, and each covering
+/// block through its cover bound — the audit both sides run identically.
+pub(super) fn settlement_clear(
+    function: &selected_instructions::SelectedFunction,
+    block: &selected_instructions::SelectedBlock,
+    block_index: usize,
+    store_index: usize,
+    killers: &[(usize, usize)],
+    crossed: &[selected_instructions::SelectedBlockId],
+) -> Result<(), DeadStoreEliminationError> {
+    let origin_cover = killers
+        .iter()
+        .find(|(killer, _)| *killer == block_index)
+        .map(|(_, cover)| *cover);
+    for settlement in function.boundary_settlements.iter() {
+        let position = settlement.instruction_index as usize;
+        if settlement.block == block.id {
+            if store_index < position && origin_cover.is_none_or(|cover| position <= cover) {
+                return Err(DeadStoreEliminationError::InterveningAccess);
+            }
+        } else if crossed.contains(&settlement.block)
+            || killers.iter().any(|(killer, cover)| {
+                *killer != block_index
+                    && function.blocks[*killer].id == settlement.block
+                    && position <= *cover
+            })
+        {
+            return Err(DeadStoreEliminationError::InterveningAccess);
+        }
+    }
+    Ok(())
+}
