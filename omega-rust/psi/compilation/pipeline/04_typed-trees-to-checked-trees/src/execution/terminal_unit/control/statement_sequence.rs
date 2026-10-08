@@ -180,60 +180,19 @@ pub(super) fn first_unsupported_statement(
         .skip(construction_statement_count)
         .find(|(index, statement)| !match statement {
             StatementNode::Call(_) | StatementNode::Assignment(_) => true,
-            StatementNode::Expression(expression) => {
+            // A mid-body expression is a statement call. The final one is the
+            // body's completion, which `build` and its completion producers
+            // own: an expression none of them lowers leaves the body without
+            // a result (or reaches `build`'s unsupported-statement arm), so
+            // repeating their shapes here would only be a second vocabulary
+            // that can refuse a supported completion first.
+            StatementNode::Expression(_) => {
                 call_occurrences::ordered_statement_call(program, machine, state, *index).is_some()
-                    || (*index + 1
+                    || *index + 1
                         == program
                             .statement_table
                             .statements(state.statement_nodes)
                             .len()
-                        && (u32::try_from(*index).ok().is_some_and(|ordinal| {
-                            facts
-                                .values
-                                .structural_values
-                                .root_for_expression(state.symbol, ordinal, *expression)
-                                .is_some()
-                        }) || validation::is_scalar_case_value(
-                            program,
-                            *expression,
-                            state.return_type,
-                        ) || matches!(
-                            program.expression_table.expression(*expression),
-                            ExpressionNode::Name(_)
-                        ) || validation::reference_result_custody::source_leaf(program, state)
-                            .is_some()
-                            || (crate::execution::terminal_unit::types::borrowed_named_view(
-                                program,
-                                state.return_type,
-                            ) && validation::canonical_place_from_expression_in_state(
-                                program,
-                                state.symbol,
-                                *index,
-                                *expression,
-                            )
-                            .is_some_and(|place| {
-                                matches!(place.root, facts::PlaceRoot::Symbol(_))
-                            }))
-                            || (crate::execution::terminal_unit::types::borrowed_slice_view(
-                                program,
-                                state.return_type,
-                            ) && matches!(
-                                program.expression_table.expression(*expression),
-                                ExpressionNode::Indexed(_) | ExpressionNode::String(_)
-                            ))
-                            || bounded_byte_values::expression_octets(
-                                program,
-                                state.return_type,
-                                *expression,
-                            )
-                            .is_some()
-                            || validation::is_closed_primitive_array_type(
-                                program,
-                                state.return_type,
-                            )
-                            || program
-                                .primitive_type_reference(state.return_type)
-                                .is_some()))
             }
             // The local planner owns initializer/type admission. Repeating its
             // producers here creates a second vocabulary that can reject a
