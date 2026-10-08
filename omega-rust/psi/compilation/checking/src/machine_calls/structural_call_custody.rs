@@ -845,7 +845,9 @@ pub fn structural_owned_path(
     let mut path = Vec::with_capacity(segments.len());
     for segment in segments {
         structural_result_qualifications(program, reference)?;
-        reference = program.type_reference_table.unconstrained_type_reference(reference);
+        reference = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         match (
             segment,
             program.type_reference_table.type_reference(reference),
@@ -1020,11 +1022,9 @@ pub fn structural_call_custody(
         .iter()
         .find(|machine| machine.symbol == *target_machine)
         .ok_or("structural call has no exact callee")?;
-    let destination = program
-        .machine_states(target)
-        .iter()
-        .find(|state| state.symbol == *target_state)
-        .ok_or("structural call has no exact callee state")?;
+    let destination =
+        typed_trees::state::state_by_symbol(program.machine_states(target), *target_state)
+            .ok_or("structural call has no exact callee state")?;
     let expected_multiplicity = crate::machine_calls::reference_result_custody::result_multiplicity(
         program,
         destination.return_type,

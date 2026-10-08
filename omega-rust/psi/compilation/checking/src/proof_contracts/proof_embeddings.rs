@@ -428,9 +428,7 @@ pub(crate) fn expression_type_reference(
                 let state = if machine.symbol == call.target_symbol {
                     states.first()
                 } else {
-                    states
-                        .iter()
-                        .find(|state| state.symbol == call.target_symbol)
+                    typed_trees::state::state_by_symbol(states, call.target_symbol)
                 }?;
                 state.return_type.is_valid().then_some(state.return_type)
             })

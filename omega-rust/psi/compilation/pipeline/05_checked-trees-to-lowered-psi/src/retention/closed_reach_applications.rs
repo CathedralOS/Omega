@@ -148,11 +148,11 @@ pub(crate) fn retain_closed_reach_applications(
                         .machines()
                         .iter()
                         .find_map(|machine| {
-                            checked
-                                .machine_states(machine)
-                                .iter()
-                                .find(|state| state.symbol == *selected)
-                                .map(|state| (machine, state))
+                            typed_trees::state::state_by_symbol(
+                                checked.machine_states(machine),
+                                *selected,
+                            )
+                            .map(|state| (machine, state))
                         })
                         .ok_or(LoweringError::Unsupported(
                             "closed reach selection has no exact callable owner",
@@ -485,10 +485,7 @@ fn resolved_source_entry(checked: &CheckedTrees, target: SymbolHandle) -> Option
         if machine.symbol == target {
             states.first().map(|state| state.symbol)
         } else {
-            states
-                .iter()
-                .find(|state| state.symbol == target)
-                .map(|state| state.symbol)
+            typed_trees::state::state_by_symbol(states, target).map(|state| state.symbol)
         }
     })
 }

@@ -438,10 +438,7 @@ impl TypedTrees {
         state_symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &crate::state::State)> {
         let machine = self.machine(machine_symbol)?;
-        let state = self
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_symbol)?;
+        let state = crate::state::state_by_symbol(self.machine_states(machine), state_symbol)?;
         Some((machine, state))
     }
 
@@ -720,9 +717,7 @@ impl TypedTrees {
         machine: &machine::Machine,
         symbol: SymbolHandle,
     ) -> Option<&crate::state::State> {
-        self.machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == symbol)
+        crate::state::state_by_symbol(self.machine_states(machine), symbol)
     }
 
     #[inline]
@@ -852,10 +847,7 @@ impl TypedTrees {
     /// targets naming a machine head, builtin, parameter or trait
     /// requirement skip it. State spans are disjoint append-only ranges, so
     /// at most one machine can contain a given state symbol.
-    pub fn machine_holding_state(
-        &self,
-        state_symbol: SymbolHandle,
-    ) -> Option<&machine::Machine> {
+    pub fn machine_holding_state(&self, state_symbol: SymbolHandle) -> Option<&machine::Machine> {
         if !state_symbol.is_valid() {
             return None;
         }
@@ -897,15 +889,10 @@ impl TypedTrees {
 
     /// The state `state_symbol` names, resolved through its owning
     /// machine's span rather than a whole-program state scan.
-    pub fn state_by_symbol(
-        &self,
-        state_symbol: SymbolHandle,
-    ) -> Option<&crate::state::State> {
+    pub fn state_by_symbol(&self, state_symbol: SymbolHandle) -> Option<&crate::state::State> {
         self.machine_holding_state(state_symbol)
             .and_then(|machine| {
-                self.machine_states(machine)
-                    .iter()
-                    .find(|state| state.symbol == state_symbol)
+                crate::state::state_by_symbol(self.machine_states(machine), state_symbol)
             })
     }
 

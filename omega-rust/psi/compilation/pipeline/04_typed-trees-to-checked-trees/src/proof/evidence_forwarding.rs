@@ -389,7 +389,7 @@ fn validate_evidence_forwarding_definite_assignment(
             if !seen.insert(key) {
                 continue;
             }
-            let Some(state) = states.iter().find(|state| state.symbol == state_symbol) else {
+            let Some(state) = typed_trees::state::state_by_symbol(states, state_symbol) else {
                 continue;
             };
             known.extend(contract_proposition_labels(

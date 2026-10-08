@@ -52,7 +52,7 @@ pub(crate) fn callable_identity(
             let states = compilation.machine_states(machine);
             if machine.symbol == symbol {
                 Some((machine, states.first(), None))
-            } else if let Some(state) = states.iter().find(|state| state.symbol == symbol) {
+            } else if let Some(state) = typed_trees::state::state_by_symbol(states, symbol) {
                 Some((machine, Some(state), None))
             } else {
                 compilation

@@ -189,10 +189,7 @@ pub(in crate::proof_contracts::quotients) fn complete_state_forwarding_result_fl
     }
     let states = program.machine_states(machine);
     if states.len() < 2
-        || states
-            .iter()
-            .find(|state| state.symbol == result_state.symbol)
-            != Some(result_state)
+        || typed_trees::state::state_by_symbol(states, result_state.symbol) != Some(result_state)
         || fallthrough_result_root(program, result_state) != Some(root)
         || program
             .statement_table

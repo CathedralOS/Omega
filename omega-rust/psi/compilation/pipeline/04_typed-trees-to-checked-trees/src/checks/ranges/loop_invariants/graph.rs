@@ -119,5 +119,5 @@ pub(super) fn natural_loop(
 }
 
 pub(super) fn find_state(states: &[State], symbol: SymbolHandle) -> Option<&State> {
-    states.iter().find(|state| state.symbol == symbol)
+    typed_trees::state::state_by_symbol(states, symbol)
 }

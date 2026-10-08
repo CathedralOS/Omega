@@ -34,7 +34,7 @@ pub(super) fn surviving_conditions(
         return Vec::new();
     };
     let states = program.machine_states(machine);
-    let Some(state) = states.iter().find(|state| state.symbol == state_symbol) else {
+    let Some(state) = typed_trees::state::state_by_symbol(states, state_symbol) else {
         return Vec::new();
     };
     let Some(call_frames) = context.call_frames() else {
