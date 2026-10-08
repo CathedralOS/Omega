@@ -929,6 +929,27 @@ impl Emission<'_, '_, '_> {
         Ok(completed)
     }
 
+    /// `constructor_operand` under a child field's carrier: the emission's
+    /// type and multiplicity context rebinds to `child_type` and the
+    /// reference's result multiplicity for the operand's duration.
+    pub(super) fn child_constructor_operand(
+        &mut self,
+        child_type: StructuralTypeId,
+        value: CheckedStructuralValueHandle,
+        reference: checked_trees::types::TypeReferenceHandle,
+    ) -> Result<StructuralArgument, LoweringError> {
+        let parent_type = self.structural_type;
+        let parent_multiplicity = self.multiplicity;
+        self.structural_type = child_type;
+        self.multiplicity = crate::terminal_identities::structural_multiplicity(
+            crate::reference_custody::result_multiplicity(self.checked, reference),
+        );
+        let argument = self.constructor_operand(value, reference);
+        self.structural_type = parent_type;
+        self.multiplicity = parent_multiplicity;
+        argument
+    }
+
     /// Complete one constructor operand without erasing an owned projection.
     /// The consuming constructor moves that subtree under ordinary partial
     /// custody; siblings remain attached to the original live root.

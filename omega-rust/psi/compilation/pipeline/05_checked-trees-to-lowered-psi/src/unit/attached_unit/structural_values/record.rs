@@ -176,18 +176,11 @@ impl emission::Emission<'_, '_, '_> {
                             &target.field_type,
                             field.type_reference,
                         )?;
-                        let parent_type = self.structural_type;
-                        let parent_multiplicity = self.multiplicity;
-                        self.structural_type = child_type;
-                        self.multiplicity = crate::terminal_identities::structural_multiplicity(
-                            crate::reference_custody::result_multiplicity(
-                                self.checked,
-                                field.type_reference,
-                            ),
-                        );
-                        let argument = self.constructor_operand(value, field.type_reference)?;
-                        self.structural_type = parent_type;
-                        self.multiplicity = parent_multiplicity;
+                        let argument = self.child_constructor_operand(
+                            child_type,
+                            value,
+                            field.type_reference,
+                        )?;
                         if !validation::linear_claim_frontier(
                             &self.checked.typed,
                             field.type_reference,

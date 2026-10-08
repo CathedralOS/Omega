@@ -1,9 +1,9 @@
 //! Complete fields in authored order before committing a declaration-ordered case.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, allocate_dense, obligation_id, place_id, unsupported,
+    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    allocate_dense, obligation_id, place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
@@ -158,18 +158,8 @@ impl emission::Emission<'_, '_, '_> {
                     let StructuralFieldType::Structural(child_type) = target.field_type else {
                         return unsupported("nested case operand has a scalar destination");
                     };
-                    let parent_type = self.structural_type;
-                    let parent_multiplicity = self.multiplicity;
-                    self.structural_type = child_type;
-                    self.multiplicity = crate::terminal_identities::structural_multiplicity(
-                        crate::reference_custody::result_multiplicity(
-                            self.checked,
-                            field.type_reference,
-                        ),
-                    );
-                    let argument = self.constructor_operand(value, field.type_reference)?;
-                    self.structural_type = parent_type;
-                    self.multiplicity = parent_multiplicity;
+                    let argument =
+                        self.child_constructor_operand(child_type, value, field.type_reference)?;
                     terminal_psi::RecordFieldValue::Structural(argument)
                 }
             };
