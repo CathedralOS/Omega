@@ -11,6 +11,7 @@ use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 mod analysis;
 mod replay;
 pub use analysis::DescriptorAnalysis;
+use terminal_psi::find_structural_type;
 use replay::Replay;
 
 #[derive(Clone)]
@@ -170,7 +171,7 @@ fn may_contain_descriptor(
     if !active.insert(ty) {
         return true;
     }
-    let Some(declaration) = types.iter().find(|declaration| declaration.id == ty) else {
+    let Some(declaration) = find_structural_type(types, ty) else {
         return true;
     };
     let mut fields_contain = |fields: &[terminal_psi::StructuralFieldDeclaration]| {

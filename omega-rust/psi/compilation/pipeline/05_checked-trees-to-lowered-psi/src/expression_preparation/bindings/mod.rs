@@ -10,6 +10,7 @@ use super::{
     StructuralTypeId, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use terminal_psi::find_structural_type;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 
 pub(crate) mod primitive_reads;
@@ -1496,7 +1497,7 @@ pub(crate) fn element_views(
             let terminal_psi::StructuralTypeShape::ElementView { element } = shape.shape else {
                 return None;
             };
-            let element = types.iter().find(|declaration| declaration.id == element)?;
+            let element = find_structural_type(types, element)?;
             let scalar_type = match element.shape {
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                     Some(scalar_type)

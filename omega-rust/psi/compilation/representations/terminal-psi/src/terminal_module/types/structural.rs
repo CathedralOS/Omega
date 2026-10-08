@@ -445,3 +445,11 @@ pub fn live_field<'a>(
     }
     Some(field)
 }
+
+/// The structural type declaration keyed `id` in a declaration roster.
+pub fn find_structural_type<'types>(
+    types: &'types [StructuralTypeDeclaration],
+    id: StructuralTypeId,
+) -> Option<&'types StructuralTypeDeclaration> {
+    types.iter().find(|declaration| declaration.id == id)
+}

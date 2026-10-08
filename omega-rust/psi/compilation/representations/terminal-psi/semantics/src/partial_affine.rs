@@ -6,7 +6,7 @@
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_type,    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 fn is_partial_affine_path(
@@ -83,7 +83,7 @@ fn visit(
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
     emit: bool,
 ) -> Option<usize> {
-    let declaration = types.iter().find(|declaration| declaration.id == current)?;
+    let declaration = find_structural_type(types, current)?;
     let mut count = 0usize;
     match &declaration.shape {
         StructuralTypeShape::Record { fields, .. } => {

@@ -98,7 +98,7 @@ pub use types::{
     StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape, live_field,
-    structural_children, unique_structural_declaration,
+    find_structural_type, structural_children, unique_structural_declaration,
 };
 pub use values::{
     ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,
