@@ -178,12 +178,13 @@ fn discharged_in_body(
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
             } => discharged.extend(cleanup_actions),
-            CheckedUnitEffectOperationPlan::StoreStructuralField { destination, .. }
-            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { destination, .. } => {
-                discharged.retain(|action| {
-                    action.source() != &destination.source
-                        || !action.path().starts_with(&destination.path)
-                });
+            CheckedUnitEffectOperationPlan::Store(store) => {
+                if let Some(destination) = store.window_place(&state.structural_parameters) {
+                    discharged.retain(|action| {
+                        action.source() != &destination.source
+                            || !action.path().starts_with(&destination.path)
+                    });
+                }
             }
             _ => {}
         }

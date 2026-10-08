@@ -15,11 +15,8 @@ pub(crate) fn source(
     symbol: SymbolHandle,
 ) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
     for operation in operations.iter().rev() {
-        if let CheckedUnitEffectOperationPlan::RebindStructuralLocal { destination, .. } = operation
-            && destination.source
-                == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol })
-        {
-            return Some(destination.source.clone());
+        if operation.ends_local_occurrence(symbol) {
+            return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
         }
         if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralLocal { symbol: local, .. } if *local == symbol)
         {

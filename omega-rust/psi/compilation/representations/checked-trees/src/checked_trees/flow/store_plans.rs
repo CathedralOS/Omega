@@ -4,7 +4,8 @@
 //! The destination's leaf representation decides the emitted Terminal
 //! operation: plain primitive storage, a declared scalar field, an indexed
 //! byte or element-view element, a representation view's re-covered leaf,
-//! byte contents, a byte-view descriptor slot or a whole sum field. Every
+//! byte contents, a byte-view descriptor slot, a whole sum field, the hole of
+//! an open borrowed window, or a whole owned local. Every
 //! judgment the store consumes — a declared field's receiving range, an
 //! indexed element's bound and byte-predicate preservation, a view's
 //! footprint width — is data on that leaf, not a separate store family.
@@ -15,6 +16,7 @@ use typed_trees::types::PrimitiveType;
 use crate::{
     CheckedByteSequenceValuePlan, CheckedScalarCaseFieldPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
 };
 
 use super::CheckedUnitStructuralPathSegment;
@@ -37,6 +39,65 @@ pub struct CheckedStoreDestination {
     /// `ByteElement` or `ViewElement` leaf ends at the indexed carrier.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub leaf: CheckedStoreLeaf,
+}
+
+impl CheckedStorePlan {
+    /// The whole owned binding a window repair or local rebind installs.
+    pub fn installed_value(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
+        match (&self.destination.leaf, &self.value) {
+            (
+                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::LocalRebind { .. },
+                CheckedStoreValue::Place(value),
+            ) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn installed_value_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
+        match (&self.destination.leaf, &mut self.value) {
+            (
+                CheckedStoreLeaf::WindowRepair { .. } | CheckedStoreLeaf::LocalRebind { .. },
+                CheckedStoreValue::Place(value),
+            ) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// The window ledger's spelling of a window repair's or local rebind's
+    /// destination: a parameter root as its index in the dense
+    /// `structural_parameters` roster the ledger and cleanup actions name,
+    /// or the local itself.
+    pub fn window_place(
+        &self,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        let (CheckedStoreLeaf::WindowRepair { type_identity }
+        | CheckedStoreLeaf::LocalRebind { type_identity }) = &self.destination.leaf
+        else {
+            return None;
+        };
+        let source = match self.destination.root {
+            CheckedStoreRoot::Parameter { position } => {
+                CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(
+                        structural_parameters
+                            .iter()
+                            .position(|parameter| parameter.position == position)?,
+                    )
+                    .ok()?,
+                }
+            }
+            CheckedStoreRoot::Local { symbol } => {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            }
+        };
+        Some(CheckedUnitStructuralArgumentPlan {
+            source,
+            path: self.destination.path.clone(),
+            type_identity: type_identity.clone(),
+            access: crate::CheckedStructuralAccess::Owned,
+        })
+    }
 }
 
 impl CheckedStoreDestination {
@@ -102,6 +163,17 @@ pub enum CheckedStoreLeaf {
     /// its borrowed window: the stored value is a whole owned place copied
     /// in, or a case literal established in place.
     SumField,
+    /// The hole of an open borrowed window, restored whole: the path names
+    /// the vacated place below an exclusive borrowed parameter or an owned
+    /// local, `type_identity` its declared type, and the stored value is a
+    /// whole owned binding of that type. The checked multiplicity gate
+    /// proved the hole open; the repair closes the window's restoration debt.
+    WindowRepair { type_identity: String },
+    /// A whole owned local (an empty path) rebound to a whole owned value
+    /// after its prior occurrence's disposal. Unlike a window repair, the
+    /// local's value identity changes and no restoration debt opens at
+    /// another owner's home.
+    LocalRebind { type_identity: String },
 }
 
 /// The value one store writes, in the shape its leaf receives.
@@ -115,8 +187,9 @@ pub enum CheckedStoreValue {
     },
     /// A byte value replacing contents or a descriptor slot.
     Bytes(CheckedByteSequenceValuePlan),
-    /// A whole owned place of the leaf's declared unrestricted sum type: the
-    /// write copies every bit and moves nothing.
+    /// A whole place: for a sum field, an owned or shared place of its
+    /// declared unrestricted sum type, copied whole without moving; for a
+    /// window repair or local rebind, the whole owned binding installed.
     Place(CheckedUnitStructuralArgumentPlan),
     /// An authored case literal the store establishes into the leaf's storage.
     CaseLiteral(CheckedCaseLiteralValuePlan),

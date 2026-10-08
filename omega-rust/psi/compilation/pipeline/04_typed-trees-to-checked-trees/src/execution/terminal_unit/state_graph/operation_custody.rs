@@ -77,11 +77,17 @@ pub(super) fn admit(
             // and literal construction or unrestricted leaf copy carries no
             // new ownership across the selected edge. Receiving source
             // replay and the move/restore ledger still check the exact
-            // destination and replacement independently.
-            CheckedUnitEffectOperationPlan::Store(_)
+            // destination and replacement independently. A window repair or
+            // local rebind installs a whole owned binding that rejoined at
+            // mint: it consumes that binding like a call argument does.
+            CheckedUnitEffectOperationPlan::Store(store)
+                if store.installed_value().is_none_or(|value| {
+                    value.access == CheckedStructuralAccess::Owned
+                        && call_argument_admitted(value, &operations[..operation_index])
+                }) => {}
             // An atomic event's root authority and operands rejoined at
             // mint; its observed prior is an ordinary dense scalar local.
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_) => {}
+            CheckedUnitEffectOperationPlan::AtomicAccess(_) => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration
             // into the opened hole — carries no new custody across the
@@ -90,19 +96,6 @@ pub(super) fn admit(
             CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. }
                 if source.access == CheckedStructuralAccess::Owned
                     && call_argument_admitted(source, &operations[..operation_index]) => {}
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination,
-                value,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-                destination,
-                value,
-                ..
-            } if destination.access == CheckedStructuralAccess::Owned
-                && value.access == CheckedStructuralAccess::Owned
-                && call_argument_admitted(destination, &operations[..operation_index])
-                && call_argument_admitted(value, &operations[..operation_index]) => {}
             // Every cleanup boundary uses the same live storage namespace as
             // calls and stores. The ownership producer selected death; this
             // join asks only whether the graph can address that storage.

@@ -524,8 +524,7 @@ pub(in crate::execution::terminal_unit) fn consume_results(
     }
     // A whole-result field store consumes the minted binding the same way a
     // call argument does: Owned access retires the producer's disposal debt.
-    if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
-    | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } = consumer
+    if let Some(value) = consumer.installed_value()
         && let Some(binding_ordinal) = value.source_structural_result_binding_ordinal()
     {
         consume_result(

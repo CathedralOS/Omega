@@ -348,9 +348,11 @@ pub enum CheckedUnitEffectOperationPlan {
         value: u8,
         service_reach: ServiceReachSummary,
     },
-    /// One authored store `place = value` over its exact destination place
-    /// and value; the destination's leaf representation decides the
-    /// Terminal operation (see `store_plans.rs`).
+    /// One store `place = value` over its exact destination place and value:
+    /// an authored scalar, byte or sum-field assignment, the repair of an
+    /// open borrowed window, or an owned local's rebind. The destination's
+    /// leaf representation decides the Terminal operation (see
+    /// `store_plans.rs`).
     Store(crate::CheckedStorePlan),
     /// One normalized atomic event on an exact primitive leaf, joining the
     /// source carrier's placeholder local and carrier assignment into one
@@ -363,23 +365,6 @@ pub enum CheckedUnitEffectOperationPlan {
     MoveStructuralField {
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
-    },
-    /// Restore one open borrowed window by storing a whole owned structural
-    /// binding into the exact absent place. The checked multiplicity gate
-    /// proved the destination is an open hole and the value carries its type.
-    StoreStructuralField {
-        statement_index: u32,
-        destination: CheckedUnitStructuralArgumentPlan,
-        /// Whole owned place carrying the hole's declared type.
-        value: CheckedUnitStructuralArgumentPlan,
-    },
-    /// Transfer an established value to an owned local binding after disposing
-    /// the prior occurrence. Unlike a borrowed store, this changes the local's
-    /// value identity and opens no restoration debt at another owner's home.
-    RebindStructuralLocal {
-        statement_index: u32,
-        destination: CheckedUnitStructuralArgumentPlan,
-        value: CheckedUnitStructuralArgumentPlan,
     },
     /// Finish the body after cleanup, yielding its retained structural/scalar
     /// binding or scalar control result when present, and Unit otherwise.
@@ -563,12 +548,12 @@ impl CheckedUnitEffectOperationPlan {
     }
 
     /// The authored assignment a store writes. One assignment may own several
-    /// stores (each element of an array literal). Repair stores into an open
-    /// borrowed window and atomic events keep their own statement custody and
-    /// answer `None`, as does every operation other than a store.
+    /// stores (each element of an array literal). A window repair or local
+    /// rebind and an atomic event keep their own statement custody and answer
+    /// `None`, as does every operation other than a store.
     pub fn store_statement_index(&self) -> Option<u32> {
         match self {
-            Self::Store(store) => Some(store.statement_index),
+            Self::Store(store) if store.installed_value().is_none() => Some(store.statement_index),
             _ => None,
         }
     }
@@ -594,6 +579,12 @@ impl CheckedUnitEffectOperationPlan {
             Self::Store(store) => Some(store),
             _ => None,
         }
+    }
+
+    /// The whole owned binding a window repair or local rebind installs.
+    pub fn installed_value(&self) -> Option<&CheckedUnitStructuralArgumentPlan> {
+        self.store()
+            .and_then(crate::CheckedStorePlan::installed_value)
     }
 
     /// The byte value a contents or descriptor store writes.
@@ -631,13 +622,7 @@ impl CheckedUnitEffectOperationPlan {
             | Self::EstablishStructuralLocal {
                 statement_index, ..
             }
-            | Self::StoreStructuralField {
-                statement_index, ..
-            }
             | Self::CaptureAssignmentDestination {
-                statement_index, ..
-            }
-            | Self::RebindStructuralLocal {
                 statement_index, ..
             } => Some(*statement_index),
             Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),

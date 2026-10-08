@@ -558,12 +558,21 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                     seeded.push(result.type_identity.as_str());
                                     seeded.extend(value_leaf_type_identities(facts, *value));
                                 }
-                                CheckedUnitEffectOperationPlan::StoreStructuralField {
-                                    destination,
-                                    value,
-                                    ..
-                                } => {
-                                    seeded.push(destination.type_identity.as_str());
+                                CheckedUnitEffectOperationPlan::Store(
+                                    checked_trees::CheckedStorePlan {
+                                        destination:
+                                            checked_trees::CheckedStoreDestination {
+                                                leaf:
+                                                    checked_trees::CheckedStoreLeaf::WindowRepair {
+                                                        type_identity,
+                                                    },
+                                                ..
+                                            },
+                                        value: checked_trees::CheckedStoreValue::Place(value),
+                                        ..
+                                    },
+                                ) => {
+                                    seeded.push(type_identity.as_str());
                                     seeded.push(value.type_identity.as_str());
                                 }
                                 CheckedUnitEffectOperationPlan::MoveStructuralField {
@@ -637,10 +646,16 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 retained_type_identities.insert(result.type_identity.as_str());
                 retained_type_identities.extend(value_leaf_type_identities(facts, *value));
             }
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination, value, ..
-            } => {
-                retained_type_identities.insert(destination.type_identity.as_str());
+            CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+                destination:
+                    checked_trees::CheckedStoreDestination {
+                        leaf: checked_trees::CheckedStoreLeaf::WindowRepair { type_identity },
+                        ..
+                    },
+                value: checked_trees::CheckedStoreValue::Place(value),
+                ..
+            }) => {
+                retained_type_identities.insert(type_identity.as_str());
                 retained_type_identities.insert(value.type_identity.as_str());
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {

@@ -208,8 +208,6 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
@@ -264,16 +262,6 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
                 self.move_structural_field(result, source)
             }
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                statement_index,
-                destination,
-                value,
-            } => self.store_structural_field(*statement_index, destination, value),
-            CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-                statement_index,
-                destination,
-                value,
-            } => self.rebind_structural_local(*statement_index, destination, value),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary,
                 cleanup_actions,
@@ -555,22 +543,16 @@ pub(super) fn structural_type_declaration<'d>(
         .ok_or(LoweringError::Unsupported(context))
 }
 
-/// The owned argument a field store's repair window names: the carrier
-/// path extended by the stored field under the value's declared type
-/// identity.
-fn field_window_place(
+/// The owned argument a store's repair window names: the store's path below
+/// the window root, under the hole's declared type identity.
+fn window_place(
     source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
-    carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
     type_identity: String,
 ) -> CheckedUnitStructuralArgumentPlan {
-    let mut path = carrier_path.to_vec();
-    path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-        field_identity.to_owned(),
-    ));
     CheckedUnitStructuralArgumentPlan {
         source,
-        path,
+        path: path.to_vec(),
         type_identity,
         access: checked_trees::CheckedStructuralAccess::Owned,
     }

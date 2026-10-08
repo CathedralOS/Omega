@@ -151,53 +151,46 @@ pub(super) fn plan(
         // actual producer. Only an occupied destination has a displaced value.
         if !call_result_stores.is_empty() {
             let (store, displacement) = call_result_stores.split_last_mut()?;
-            match store {
-                CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } => {
-                    let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
-                    };
-                    if value.source != old_source {
-                        return None;
-                    }
-                    value.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    };
+            let CheckedUnitEffectOperationPlan::Store(store) = store else {
+                return None;
+            };
+            if let Some(value) = store.installed_value_mut() {
+                let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                };
+                if value.source != old_source {
+                    return None;
                 }
-                CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
-                    value: checked_trees::CheckedStoreValue::Bytes(value),
-                    ..
-                }) => {
-                    let source = match value.nodes.get_mut(value.root) {
-                        checked_trees::CheckedByteSequenceValue::CallResult {
-                            binding_ordinal: source,
-                            state: source_state,
-                            statement_index: source_statement,
-                            ..
-                        } if *source_state == state.symbol
-                            && *source_statement == statement_index =>
-                        {
-                            source
-                        }
-                        checked_trees::CheckedByteSequenceValue::Descriptor { source, .. }
-                            if source.path.is_empty() =>
-                        {
-                            let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal,
-                            } = &mut source.source
-                            else {
-                                return None;
-                            };
-                            binding_ordinal
-                        }
-                        _ => return None,
-                    };
-                    if *source != result.binding_ordinal {
-                        return None;
+                value.source =
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal };
+            } else {
+                let value = store.value.bytes_mut()?;
+                let source = match value.nodes.get_mut(value.root) {
+                    checked_trees::CheckedByteSequenceValue::CallResult {
+                        binding_ordinal: source,
+                        state: source_state,
+                        statement_index: source_statement,
+                        ..
+                    } if *source_state == state.symbol && *source_statement == statement_index => {
+                        source
                     }
-                    *source = binding_ordinal;
+                    checked_trees::CheckedByteSequenceValue::Descriptor { source, .. }
+                        if source.path.is_empty() =>
+                    {
+                        let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        } = &mut source.source
+                        else {
+                            return None;
+                        };
+                        binding_ordinal
+                    }
+                    _ => return None,
+                };
+                if *source != result.binding_ordinal {
+                    return None;
                 }
-                _ => return None,
+                *source = binding_ordinal;
             }
             let old_displaced = result.binding_ordinal.checked_add(1)?;
             let new_displaced = binding_ordinal.checked_add(1)?;

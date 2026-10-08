@@ -321,7 +321,7 @@ impl OperationFrame<'_, '_> {
 
     /// Move one whole structural field out of borrowed storage into the
     /// authored result binding. The opened window stays in the ledger until
-    /// the matching `StoreStructuralField`; each route requires the ledger
+    /// the matching window repair store; each route requires the ledger
     /// closed before its sequence's exits.
     pub(super) fn move_structural_field(
         &mut self,
@@ -777,23 +777,12 @@ impl OperationFrame<'_, '_> {
     /// owner's restoration debt and require a spurious extraction.
     pub(super) fn rebind_structural_local(
         &mut self,
-        _statement_index: u32,
-        destination: &CheckedUnitStructuralArgumentPlan,
+        symbol: symbols::SymbolHandle,
+        type_identity: &str,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
-            destination.source
-        else {
-            return unsupported("owned rebind destination is not a local binding");
-        };
-        if !destination.path.is_empty()
-            || destination.access != checked_trees::CheckedStructuralAccess::Owned
-        {
-            return unsupported("owned rebind destination is not its whole local");
-        }
         let replacement = self.owned_structural_value(value)?;
-        if replacement.structural_type != lookup_type_id(self.type_ids, &destination.type_identity)?
-        {
+        if replacement.structural_type != lookup_type_id(self.type_ids, type_identity)? {
             return unsupported("owned rebind changes the local's declared type");
         }
         let mut locals = self

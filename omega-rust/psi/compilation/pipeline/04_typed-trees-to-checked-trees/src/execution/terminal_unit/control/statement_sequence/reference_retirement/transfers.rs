@@ -65,17 +65,15 @@ pub(super) fn transfers(
                 output.append(query.leaf(argument.path.clone(), None));
             }
         }
-        match operation {
-            CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
-            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. }
-                if query.belongs(value) =>
-            {
-                output.append(query.leaf(value.path.clone(), None))
-            }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } => {
-                output.append(query.value(*value, &[], result, &[], &mut Vec::new())?);
-            }
-            _ => {}
+        if let Some(value) = operation.installed_value()
+            && query.belongs(value)
+        {
+            output.append(query.leaf(value.path.clone(), None))
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
+            operation
+        {
+            output.append(query.value(*value, &[], result, &[], &mut Vec::new())?);
         }
     }
     Some(output)

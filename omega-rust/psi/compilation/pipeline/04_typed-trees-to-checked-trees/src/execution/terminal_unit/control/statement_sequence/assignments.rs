@@ -274,10 +274,12 @@ pub(super) fn plan(
             value,
         ) {
             let displaced_bindings = usize::from(replacement.move_out.is_some());
-            if matches!(replacement.store, CheckedUnitEffectOperationPlan::StoreStructuralField { ref value, .. }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { ref value, .. }
-                if matches!(value.source, CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }))
-            {
+            if replacement.store.installed_value().is_some_and(|value| {
+                matches!(
+                    value.source,
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                )
+            }) {
                 super::consume_result(
                     operations,
                     produced.binding_ordinal,

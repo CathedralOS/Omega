@@ -229,11 +229,13 @@ fn retired_in_body(
                     _ => None,
                 })
                 .collect(),
-            CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
-            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } => value
-                .source_structural_result_binding_ordinal()
-                .into_iter()
-                .collect(),
+            CheckedUnitEffectOperationPlan::Store(store) if store.installed_value().is_some() => {
+                store
+                    .installed_value()
+                    .and_then(|value| value.source_structural_result_binding_ordinal())
+                    .into_iter()
+                    .collect()
+            }
             CheckedUnitEffectOperationPlan::Store(store) => store
                 .value
                 .bytes()

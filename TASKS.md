@@ -1011,6 +1011,13 @@ defines the complete product bar.
     `resolve_structural_byte_sequence_field`. Find a site with an env-gated
     `std::backtrace::Backtrace::force_capture()` in `errors::malformed()`; the
     last trace before the failure is the refusing site.
+  - `pass/providers/{generic_provider_structural_result_composition_exit,specialized_mixed_structural_result_operator_hosted_native}`
+    stop at "`main` has no executable body ... (call operation: claim
+    transfers)" since 59abe20b936 (bisected with the corpus runner; its
+    parent 75e99dbe4a1 checks them). The construction trace names only the
+    last phase set; instrumenting `call_claim_transfers`' explicit refusal
+    branches showed none firing, so look first at that commit's new
+    loan-group `?` returns in `statement_sequence/result_consumption.rs`.
   - A restricted scalar field passed by reference as a call argument
     (`take(&byte.value)` into a `&u8` formal, where `byte.value` carries a
     record `where` bound) fails Terminal validation with "structural path must
@@ -2710,26 +2717,6 @@ code and preserve check/native behavior for the named customer slices.
   finalize, keeping its requirement diagnostics over every machine.
   Acceptance: one nominal build per machine, no dispatcher staging outside
   the published roster, corpus `--filter drops,ownership/,cleanup` unchanged.
-
-- **STORE-OPERATIONS-GENERALIZED.** (new-scope) Every authored scalar, byte
-  and sum-field store is one `CheckedUnitEffectOperationPlan::Store`
-  (`CheckedStorePlan`: root, path, `CheckedStoreLeaf`, `CheckedStoreValue`;
-  `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/store_plans.rs`)
-  lowered by `OperationFrame::store`
-  (`pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/stores.rs`).
-  Two store variants remain, `StoreStructuralField` and
-  `RebindStructuralLocal`: the whole-value repair of a borrowed window and an
-  owned local's rebind. Their destination is the window ledger's
-  `CheckedUnitStructuralArgumentPlan` place with a dense parameter index,
-  which `MoveStructuralField`, `cleanup/replacements.rs`, `local_storage.rs`,
-  `state_graph/operation_custody.rs` and stage 05
-  `composed_control/state_graph/cleanup.rs` compare and admit directly, while
-  a `SumField` store already emits the same move/store window pair from an
-  authored `CheckedStoreRoot`. Fold them into `Store` leaves by naming window
-  places with a `CheckedStoreRoot` and path across that ledger. Acceptance:
-  one store variant remains; corpus
-  `--filter structs/,collections/,slices/,text/,layouts/` is unchanged in
-  check and native.
 
 - **LOCAL-BINDINGS-GENERALIZED.** (new-scope) Local data bindings are split
   into `EstablishPrimitiveLocal`, `EstablishScalarLocal`,

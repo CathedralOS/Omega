@@ -18,16 +18,19 @@
 //! - `ByteContents` and `ByteDescriptor`: contents replacement or one
 //!   descriptor slot store (`emission::structural_byte_sequence_store`);
 //! - `SumField`: a copied place or an established case literal restoring the
-//!   field through its borrowed window.
+//!   field through its borrowed window;
+//! - `WindowRepair`: the owned binding restoring an open borrowed window's
+//!   hole, and `LocalRebind`: an owned local's home replaced by its new
+//!   binding (`operation_frame::locals`).
 //!
 //! Every store evaluates its destination's runtime selectors before its
 //! value, as the authored assignment orders them.
 
 use super::super::primitive_locals::{self};
 use super::{
-    OperationFrame, StructuralTypeRoster, allocate_structural_result, field_window_place,
-    last_operation_id, operation_result_declaration, require_parameter_window_root,
-    structural_type_declaration,
+    OperationFrame, StructuralTypeRoster, allocate_structural_result, last_operation_id,
+    operation_result_declaration, require_parameter_window_root, structural_type_declaration,
+    window_place,
 };
 use crate::emission::borrowed_window::BorrowedWindowRepairValue;
 use crate::emission::indexed_write::IndexedWriteTarget;
@@ -102,6 +105,34 @@ impl OperationFrame<'_, '_> {
                 self.byte_sequence_store(store)
             }
             CheckedStoreLeaf::SumField => self.sum_field_store(store),
+            CheckedStoreLeaf::WindowRepair { type_identity } => {
+                let Some(value) = store.installed_value() else {
+                    return unsupported("window repair installs no whole value");
+                };
+                let source = match store.destination.root {
+                    checked_trees::CheckedStoreRoot::Parameter { .. } => {
+                        self.window_destination(store.destination.root)?.1
+                    }
+                    checked_trees::CheckedStoreRoot::Local { symbol } => {
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                            symbol,
+                        }
+                    }
+                };
+                let place = window_place(source, &store.destination.path, type_identity.clone());
+                self.store_structural_field(store.statement_index, &place, value)
+            }
+            CheckedStoreLeaf::LocalRebind { type_identity } => {
+                let (Some(value), checked_trees::CheckedStoreRoot::Local { symbol }) =
+                    (store.installed_value(), store.destination.root)
+                else {
+                    return unsupported("local rebind names no owned local and value");
+                };
+                if !store.destination.path.is_empty() {
+                    return unsupported("owned rebind destination is not its whole local");
+                }
+                self.rebind_structural_local(symbol, type_identity, value)
+            }
         }
     }
 
@@ -979,12 +1010,11 @@ impl OperationFrame<'_, '_> {
                 return unsupported("sum field store holds no sum value");
             }
         };
-        let window_place =
-            field_window_place(source, carrier_path, field_identity, type_identity.clone());
-        require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
+        let hole = window_place(source, &store.destination.path, type_identity.clone());
+        require_parameter_window_root(self.parameters, &hole, self.evaluation)?;
         let moved = self.emit_window_move(
             store.statement_index,
-            &window_place,
+            &hole,
             &checked_trees::CheckedUnitStructuralResultBindingPlan {
                 statement_index: store.statement_index,
                 binding_ordinal: 0,
@@ -1002,7 +1032,7 @@ impl OperationFrame<'_, '_> {
             .push(operation_result_declaration(moved, move_id, hole_type));
         self.emit_window_store(
             store.statement_index,
-            &window_place,
+            &hole,
             BorrowedWindowRepairValue {
                 place: replacement,
                 structural_type: hole_type,

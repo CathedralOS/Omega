@@ -610,6 +610,27 @@ impl OpenWindows {
         } else {
             place.clone()
         };
+        // The store names the window by its authored root; the move-out and
+        // cleanup keep the ledger's dense spelling of the same place.
+        let root = match place.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                checked_trees::CheckedStoreRoot::Parameter {
+                    position: structural_parameters
+                        .get(parameter_index as usize)?
+                        .position,
+                }
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                checked_trees::CheckedStoreRoot::Local { symbol }
+            }
+            _ => return None,
+        };
+        let type_identity = produced.type_identity.clone();
+        let leaf = if owned_local.is_some() && place.path.is_empty() {
+            checked_trees::CheckedStoreLeaf::LocalRebind { type_identity }
+        } else {
+            checked_trees::CheckedStoreLeaf::WindowRepair { type_identity }
+        };
         Some(FieldReplacement {
             move_out: needs_displacement.then(|| {
                 CheckedUnitEffectOperationPlan::MoveStructuralField {
@@ -648,19 +669,13 @@ impl OpenWindows {
                     )],
                 }
             }),
-            store: if owned_local.is_some() && place.path.is_empty() {
-                CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-                    statement_index,
-                    destination: place,
-                    value,
-                }
-            } else {
-                CheckedUnitEffectOperationPlan::StoreStructuralField {
-                    statement_index,
-                    destination: place,
-                    value,
-                }
-            },
+            store: CheckedUnitEffectOperationPlan::new_store(
+                statement_index,
+                root,
+                place.path,
+                leaf,
+                checked_trees::CheckedStoreValue::Place(value),
+            ),
         })
     }
 

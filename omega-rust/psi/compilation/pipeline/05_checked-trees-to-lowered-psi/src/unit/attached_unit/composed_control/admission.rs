@@ -46,12 +46,10 @@ pub(super) fn admit_calls<'a>(
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
-                // A displaced field's move-out and restoring store carry no
-                // callee; the replacing call carries its own dependency.
+                // A displaced field's move-out carries no callee; the
+                // replacing call carries its own dependency.
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 // A view-subslice local narrows a view the state holds.
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }

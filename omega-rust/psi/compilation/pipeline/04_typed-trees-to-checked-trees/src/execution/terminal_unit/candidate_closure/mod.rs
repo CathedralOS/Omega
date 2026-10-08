@@ -282,9 +282,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
@@ -413,13 +411,11 @@ pub(super) fn retain_available(
                     // frame-local storage at the authored statement as well;
                     // member fills name no callee.
                     | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
-                    // A borrowed-window move/restore pair carries no callee:
-                    // the move's result binding and the restore's stored value
-                    // are already custody rows inside this same state.
+                    // A borrowed-window move carries no callee: its result
+                    // binding, like a repair store's installed value, is
+                    // already a custody row inside this same state.
                     | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                    | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-                    | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                     => {}
                     CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary, cleanup_actions } => {
                         for cleanup in cleanup_actions.iter().filter_map(checked_trees::CheckedNormalCleanupAction::nominal) {

@@ -1185,9 +1185,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }

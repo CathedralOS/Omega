@@ -442,18 +442,11 @@ pub(super) fn account(
         // local stored into a hole is not a second consumption. A copy
         // of an `Unrestricted` value moves into its field the same way.
         let stored = operations[producer_index + 1..].iter().any(|operation| {
-            matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StoreStructuralField {
-                    value, ..
-                }
-                | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-                    value, ..
-                } if value.source_structural_result_binding_ordinal()
-                    == Some(result.binding_ordinal)
+            operation.installed_value().is_some_and(|value| {
+                value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
                     && value.access == CheckedStructuralAccess::Owned
                     && value.path.is_empty()
-            )
+            })
         });
         // A constructor takes its whole owned local operands just as a call
         // does. Statement sequencing already retires their disposal flags;

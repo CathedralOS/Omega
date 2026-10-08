@@ -258,7 +258,14 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .iter()
                 .filter_map(|argument| argument.source_local_declaration_ordinal())
                 .collect::<Vec<_>>(),
+            // A sum field copies its place in; a window repair or local
+            // rebind installs an owned binding the sequence consumes instead.
             CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+                destination:
+                    checked_trees::CheckedStoreDestination {
+                        leaf: checked_trees::CheckedStoreLeaf::SumField,
+                        ..
+                    },
                 value: checked_trees::CheckedStoreValue::Place(value),
                 ..
             }) => value
@@ -275,9 +282,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
-            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }

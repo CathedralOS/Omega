@@ -54,13 +54,18 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             roots.push(result.type_identity.clone());
             roots.push(source.type_identity.clone());
         }
-        CheckedUnitEffectOperationPlan::StoreStructuralField {
-            destination, value, ..
-        }
-        | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-            destination, value, ..
-        } => {
-            roots.push(destination.type_identity.clone());
+        CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+            destination:
+                checked_trees::CheckedStoreDestination {
+                    leaf:
+                        checked_trees::CheckedStoreLeaf::WindowRepair { type_identity }
+                        | checked_trees::CheckedStoreLeaf::LocalRebind { type_identity },
+                    ..
+                },
+            value: checked_trees::CheckedStoreValue::Place(value),
+            ..
+        }) => {
+            roots.push(type_identity.clone());
             roots.push(value.type_identity.clone());
         }
         CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {

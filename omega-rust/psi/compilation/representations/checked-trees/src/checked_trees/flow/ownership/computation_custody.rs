@@ -25,9 +25,9 @@ impl CheckedUnitEffectOperationPlan {
     /// must not be charged to the local's initial producer.
     pub fn ends_local_occurrence(&self, local: SymbolHandle) -> bool {
         local.is_valid()
-            && matches!(self,
-            Self::RebindStructuralLocal { destination, .. }
-                if destination.source == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local }))
+            && matches!(self, Self::Store(store)
+                if matches!(store.destination.leaf, crate::CheckedStoreLeaf::LocalRebind { .. })
+                    && store.destination.root == (crate::CheckedStoreRoot::Local { symbol: local }))
     }
 
     /// Whole transfers guaranteed before this operation's normal continuation.
@@ -395,9 +395,20 @@ impl CallTransfers<'_> {
             CheckedUnitEffectOperationPlan::EstablishByteSequence { value, .. } => {
                 self.bytes(value, value.root)
             }
+            // An installed binding that names a structural local is the
+            // local's whole occurrence, counted as an ordinary argument.
             CheckedUnitEffectOperationPlan::Store(store) => match &store.value {
                 CheckedStoreValue::Scalar { value, .. } => self.store(value),
                 CheckedStoreValue::Bytes(value) => self.bytes(value, value.root),
+                CheckedStoreValue::Place(value)
+                    if store.installed_value().is_some()
+                        && matches!(
+                            value.source,
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                        ) =>
+                {
+                    self.argument(value)
+                }
                 CheckedStoreValue::Place(value) => self.argument_evaluation(value),
                 CheckedStoreValue::CaseLiteral(_) => 0,
             },
@@ -409,22 +420,6 @@ impl CallTransfers<'_> {
             CheckedUnitEffectOperationPlan::CaptureAssignmentDestination {
                 destination, ..
             } => self.argument_evaluation(destination),
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                destination, value, ..
-            }
-            | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
-                destination, value, ..
-            } => {
-                self.argument_evaluation(destination)
-                    + if matches!(
-                        value.source,
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-                    ) {
-                        self.argument(value)
-                    } else {
-                        self.argument_evaluation(value)
-                    }
-            }
             CheckedUnitEffectOperationPlan::AtomicAccess(atomic) => atomic
                 .event
                 .operands()
