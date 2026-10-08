@@ -160,6 +160,19 @@ pub enum CheckedUnitStructuralFieldType {
 }
 
 impl CheckedUnitStructuralFieldType {
+    /// The structural type identity behind a nested-record or fused-service
+    /// field, the two carriers that keep a whole type inside a record.
+    pub fn structural_type_identity(&self) -> Option<&String> {
+        match self {
+            Self::Structural { type_identity }
+            | Self::FusedServiceBacked {
+                provider_type_identity: type_identity,
+                ..
+            } => Some(type_identity),
+            _ => None,
+        }
+    }
+
     pub fn byte_sequence_carrier(&self) -> Option<CheckedByteSequenceCarrier> {
         match self {
             Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => {

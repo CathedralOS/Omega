@@ -1138,11 +1138,7 @@ impl<'program> ShapeCollector<'program> {
                     | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, .. } => {
                         for field in fields {
-                            if let CheckedUnitStructuralFieldType::Structural { type_identity }
-                            | CheckedUnitStructuralFieldType::FusedServiceBacked {
-                                provider_type_identity: type_identity,
-                                ..
-                            } = &field.field_type
+                            if let Some(type_identity) = field.field_type.structural_type_identity()
                             {
                                 retained.insert(type_identity.clone());
                             }
@@ -1159,11 +1155,7 @@ impl<'program> ShapeCollector<'program> {
                     }
                     CheckedUnitStructuralTypeShape::Sum { cases } => {
                         for field in cases.iter().flat_map(|case| &case.fields) {
-                            if let CheckedUnitStructuralFieldType::Structural { type_identity }
-                            | CheckedUnitStructuralFieldType::FusedServiceBacked {
-                                provider_type_identity: type_identity,
-                                ..
-                            } = &field.field_type
+                            if let Some(type_identity) = field.field_type.structural_type_identity()
                             {
                                 retained.insert(type_identity.clone());
                             }
@@ -1174,11 +1166,7 @@ impl<'program> ShapeCollector<'program> {
                             .iter()
                             .chain(cases.iter().flat_map(|case| &case.fields))
                         {
-                            if let CheckedUnitStructuralFieldType::Structural { type_identity }
-                            | CheckedUnitStructuralFieldType::FusedServiceBacked {
-                                provider_type_identity: type_identity,
-                                ..
-                            } = &field.field_type
+                            if let Some(type_identity) = field.field_type.structural_type_identity()
                             {
                                 retained.insert(type_identity.clone());
                             }
