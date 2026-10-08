@@ -220,20 +220,5 @@ fn owns_guarantee(
             .filter(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Ensures
             })
-            .any(|contract| {
-                (0..contract.facts.count()).any(|offset| {
-                    contract
-                        .facts
-                        .start()
-                        .arena_index()
-                        .checked_add(offset)
-                        .is_some_and(|index| {
-                            source
-                                == arena::Handle::from_parts(
-                                    index,
-                                    contract.facts.start().generation(),
-                                )
-                        })
-                })
-            })
+            .any(|contract| contract.facts.handles().any(|fact| fact == source))
 }
