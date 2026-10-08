@@ -77,11 +77,7 @@ pub fn byte_field_root(
             producer,
             structural_type,
         } => {
-            let operation = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find(|operation| operation.id == producer)?;
+            let operation = machine.operation(producer)?;
             let result = operation.result.structural()?;
             return (result.place == source
                 && result.structural_type == structural_type
@@ -175,23 +171,7 @@ fn operation_producer<'machine>(
     &'machine terminal_psi::Operation,
     semantic_vocabulary::StructuralTypeId,
 )> {
-    let declaration = machine
-        .structural_places
-        .iter()
-        .find(|place| place.id == source)?;
-    let StructuralPlaceKind::OperationResult {
-        producer,
-        structural_type,
-    } = declaration.kind
-    else {
-        return None;
-    };
-    let operation = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == producer)?;
-    Some((operation, structural_type))
+    machine.producing_operation(source)
 }
 
 fn authenticated_call_result<'machine>(
@@ -707,11 +687,7 @@ pub fn byte_sequence_source_predicates(
                 producer,
                 structural_type,
             } => {
-                let operation = machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.operations)
-                    .find(|operation| operation.id == producer)?;
+                let operation = machine.operation(producer)?;
                 let result = operation.result.structural()?;
                 if result.place != source || result.structural_type != structural_type {
                     return None;

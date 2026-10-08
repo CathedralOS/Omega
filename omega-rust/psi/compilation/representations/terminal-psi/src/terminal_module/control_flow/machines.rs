@@ -4,7 +4,9 @@ use crate::{
     StructuralPlaceDeclaration, TerminalMachineResult, TerminalRankedScc, Terminator,
     ValueDeclaration,
 };
-use semantic_vocabulary::{BlockId, MachineId, ServiceId, StructuralTypeId};
+use semantic_vocabulary::{
+    BlockId, MachineId, OperationId, PlaceId, ServiceId, StructuralPlaceKind, StructuralTypeId,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachine {
@@ -78,4 +80,53 @@ pub struct Block {
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub operations: Vec<Operation>,
     pub terminator: Terminator,
+}
+
+impl TerminalMachine {
+    /// The operation with `id`, searched across every block's roster.
+    pub fn operation(&self, id: OperationId) -> Option<&Operation> {
+        self.blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == id)
+    }
+
+    /// The operation producing `place`, resolved through the structural-place
+    /// declaration's producer binding. `None` when the place is not declared
+    /// as an operation result.
+    pub fn producing_operation(&self, place: PlaceId) -> Option<(&Operation, StructuralTypeId)> {
+        let declaration = self
+            .structural_places
+            .iter()
+            .find(|entry| entry.id == place)?;
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = declaration.kind
+        else {
+            return None;
+        };
+        let operation = self
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)?;
+        Some((operation, structural_type))
+    }
+
+    /// The structural parameter bound to `place`, searched across the machine
+    /// roster and every block's bindings.
+    pub fn structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .chain(
+                self.blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .find(|parameter| parameter.place == place)
+    }
 }

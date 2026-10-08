@@ -10,8 +10,9 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    BoundaryMachineResult, ClaimTransfer, StructuralArgument, StructuralParameterDeclaration, BoundaryStructuralResultDeclaration, Operation, OperationKind,
-    OperationResult, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceDeclaration,
+    BoundaryMachineResult, BoundaryStructuralResultDeclaration, ClaimTransfer, Operation,
+    OperationKind, OperationResult, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
 };
 

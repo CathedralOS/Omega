@@ -91,17 +91,7 @@ impl TerminalExecution<'_> {
                     &result.projected_qualifications,
                 )
             } else {
-                let parameter = machine
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters),
-                    )
-                    .find(|parameter| parameter.place == place)
-                    .ok_or_else(malformed)?;
+                let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
                 if parameter.access != StructuralAccess::MutableBorrow
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 {

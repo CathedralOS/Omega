@@ -780,12 +780,7 @@ fn callee_exact_payloadless_return(callee: &TerminalMachine) -> bool {
         }) else {
             return false;
         };
-        let Some(operation) = callee
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .find(|operation| operation.id == producer)
-        else {
+        let Some(operation) = callee.operation(producer) else {
             return false;
         };
         if !matches!(&operation.kind, OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty())

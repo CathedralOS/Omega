@@ -33,16 +33,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let parameter = machine
-            .structural_parameters
-            .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == destination);
+        let parameter = machine.structural_parameter(destination);
         let owned_affine = if let Some(parameter) = parameter {
             parameter.access == StructuralAccess::Owned
                 && parameter.multiplicity == StructuralMultiplicity::Affine
