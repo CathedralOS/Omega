@@ -1193,4 +1193,58 @@ impl OperationKind {
             | Self::IntegerStructuralField { .. } => {}
         }
     }
+
+    /// Structural operand roster of call-shaped operations.
+    pub fn structural_arguments(&self) -> &[StructuralArgument] {
+        match self {
+            Self::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalar {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralWithScalarArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            } => structural_arguments,
+            _ => &[],
+        }
+    }
+
+    /// Mutable view of [`Self::structural_arguments`].
+    pub fn structural_arguments_mut(&mut self) -> Option<&mut Vec<StructuralArgument>> {
+        match self {
+            Self::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalar {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralWithScalarArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        }
+    }
 }

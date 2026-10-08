@@ -10,7 +10,7 @@ use super::{
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
-use crate::direct_calls::{DirectCallRole, call_structural_arguments_mut, direct_call_parts};
+use crate::direct_calls::{DirectCallRole, direct_call_parts};
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
@@ -555,7 +555,7 @@ impl Evaluation {
     pub(crate) fn remap_transported_call_operands(&mut self, operations: &mut OperationBuffer) {
         let cleanups = &self.selection_cleanups;
         let remap = |operation: &mut Operation| {
-            let Some(arguments) = call_structural_arguments_mut(&mut operation.kind) else {
+            let Some(arguments) = operation.kind.structural_arguments_mut() else {
                 return;
             };
             for cleanup in cleanups {

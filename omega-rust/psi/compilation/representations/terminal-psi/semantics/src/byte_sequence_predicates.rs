@@ -501,25 +501,7 @@ pub fn byte_copied_field_predicates_at_transfer(
         .iter()
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == consumer)?;
-    let call_arguments = match &consuming.kind {
-        OperationKind::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralWithScalarArguments {
-            structural_arguments,
-            ..
-        } => structural_arguments.as_slice(),
-        _ => &[],
-    };
+    let call_arguments = consuming.kind.structural_arguments();
     // Whole constructors and ordinary calls consume the same completed value.
     // Their source occurrence, rather than the requested destination predicates,
     // selects which pristine snapshot may supply its declared field invariants.
@@ -633,26 +615,7 @@ fn may_change_owned_source(operation: &terminal_psi::Operation, source: PlaceId)
         | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::StoreStructuralField { destination, .. } => *destination == source,
         OperationKind::MoveStructuralField { source: moved, .. } => *moved == source,
-        OperationKind::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralWithScalarArguments {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::BoundaryCall {
-            structural_arguments,
-            ..
-        } => structural_arguments.iter().any(|argument| {
+        kind => kind.structural_arguments().iter().any(|argument| {
             argument.place == source
                 && matches!(
                     argument.access,
@@ -661,7 +624,6 @@ fn may_change_owned_source(operation: &terminal_psi::Operation, source: PlaceId)
                         | StructuralAccess::Owned
                 )
         }),
-        _ => false,
     }
 }
 

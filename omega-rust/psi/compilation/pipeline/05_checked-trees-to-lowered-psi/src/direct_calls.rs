@@ -216,33 +216,3 @@ pub(crate) fn call_structural_arguments(kind: &OperationKind) -> &[StructuralArg
         kind => direct_call_parts(kind).map_or(&[], |call| call.structural_arguments),
     }
 }
-
-/// The structural argument lane of a direct or boundary call, for rewriting
-/// argument places in place; `None` for an operation without one.
-pub(crate) fn call_structural_arguments_mut(
-    kind: &mut OperationKind,
-) -> Option<&mut Vec<StructuralArgument>> {
-    match kind {
-        OperationKind::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::CallStructuralWithScalarArguments {
-            structural_arguments,
-            ..
-        }
-        | OperationKind::BoundaryCall {
-            structural_arguments,
-            ..
-        } => Some(structural_arguments),
-        _ => None,
-    }
-}
