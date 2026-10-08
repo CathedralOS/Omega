@@ -4,7 +4,7 @@
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    find_structural_case,    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 pub(super) fn partial_affine_residuals(
@@ -92,7 +92,7 @@ fn collect_partial_affine_residuals(
                 Some(StructuralPathSegment::Case(case)) => Some(*case),
                 _ => None,
             })?;
-            let selected = cases.iter().find(|case| case.id == selected_case)?;
+            let selected = find_structural_case(cases, selected_case)?;
             let common = structural_types
                 .get(&structural_type)?
                 .shape

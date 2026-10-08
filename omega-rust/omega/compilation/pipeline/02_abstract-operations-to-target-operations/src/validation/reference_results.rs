@@ -24,7 +24,7 @@ use abstract_operations::{
 use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use target_operations::TargetReferenceResult;
 use terminal_psi::{
-    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
+    find_structural_case,    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
     structural_children,
@@ -1106,11 +1106,11 @@ fn establish_constructor(
         (StructuralTypeShape::Record { fields, .. }, None) => (fields, &[]),
         (StructuralTypeShape::Sum { cases }, Some(result_case)) => (
             &[],
-            &cases.iter().find(|case| case.id == result_case)?.fields,
+            &find_structural_case(cases, result_case)?.fields,
         ),
         (StructuralTypeShape::Mixed { fields, cases }, Some(result_case)) => (
             fields,
-            &cases.iter().find(|case| case.id == result_case)?.fields,
+            &find_structural_case(cases, result_case)?.fields,
         ),
         (StructuralTypeShape::FixedArray { length, .. }, None)
             if elements

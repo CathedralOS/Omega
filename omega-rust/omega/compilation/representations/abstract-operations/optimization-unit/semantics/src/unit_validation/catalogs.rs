@@ -8,6 +8,7 @@ use crate::unit_validation::services::{
 };
 use crate::unit_validation::structural_catalog::index_structural_catalogs;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use terminal_psi::find_structural_case;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
@@ -686,7 +687,7 @@ fn validate_structural_field_range_authority(
                 else {
                     continue;
                 };
-                let Some(case) = cases.iter().find(|case| case.id == *result_case) else {
+                let Some(case) = find_structural_case(cases, *result_case) else {
                     continue;
                 };
                 for (declaration, binding) in case.fields.iter().zip(fields) {
