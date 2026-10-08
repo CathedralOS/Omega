@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.72, "load1_start": 3.72, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 4.22, "load1_start": 2.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1358,6 +1358,8 @@ fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
 fail/layouts/recast_integer_at_store_requires_fit rejected 52ms expected @8a4978545872+wt
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
+fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 406ms expected @cd0f1f2b1338
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value has no fitting bounds or entry relation
 fail/layouts/size_of_uninstantiated_plan_laid rejected 111ms expected @2d8ed253669f
 	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
 fail/machines/retired_self_expression rejected 0ms expected @cfe60a3a242
@@ -3091,6 +3093,7 @@ pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit checked 5651m
 pass/layouts/runtime_plan_laid_value_field_exit checked 1412ms check-target:macos_arm64 @2d8ed253669f
 pass/layouts/runtime_reborrow_preserves_store_origin_exit checked 1509ms check-target:macos_arm64 @aab0810e5e06
 pass/layouts/runtime_recast_reference_captures_index_exit checked 1759ms check-target:macos_arm64 @acdf102c21ea+wt
+pass/layouts/runtime_recursive_encoded_reference_exit checked 1822ms check-target:macos_arm64 @cd0f1f2b1338
 pass/layouts/runtime_returned_encoded_reference_exit checked 1710ms check-target:macos_arm64 @83cbaac892d6
 pass/layouts/runtime_selected_reference_parent_restoration_exit checked 1866ms check-target:macos_arm64 @c910d797b35a
 pass/layouts/runtime_size_of_align_of_exit checked 1659ms check-target:macos_arm64 @2d8ed253669f
