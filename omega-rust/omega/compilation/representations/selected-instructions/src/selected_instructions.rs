@@ -57,7 +57,7 @@ pub use control_flow::{
     SelectedScalarReferenceSource, SelectedStructuralBinding, SelectedStructuralTransport,
     SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding,
     SelectedValueTransport, terminator_instruction, terminator_instruction_mut,
-    terminator_successors, terminator_successors_mut,
+    terminator_return_edge, terminator_successors, terminator_successors_mut,
 };
 pub use effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineAlternative,

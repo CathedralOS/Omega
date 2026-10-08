@@ -255,6 +255,16 @@ pub fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut S
     terminator_instruction_match!(terminator)
 }
 
+/// The Psi edge a `Return` terminator maps back to, when it is one.
+pub fn terminator_return_edge(terminator: &SelectedTerminator) -> Option<EdgeId> {
+    match terminator {
+        SelectedTerminator::Return {
+            psi_return_edge, ..
+        } => Some(*psi_return_edge),
+        _ => None,
+    }
+}
+
 macro_rules! terminator_successors_match {
     ($terminator:expr) => {
         match $terminator {
