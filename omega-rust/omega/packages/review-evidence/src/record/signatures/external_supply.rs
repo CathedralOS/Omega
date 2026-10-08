@@ -51,6 +51,42 @@ pub enum PackageReviewForeignLocator {
     },
 }
 
+impl PackageReviewForeignLocator {
+    /// The review-record locator for one provider-plan candidate: a
+    /// byte-for-byte carry of the candidate's coordinates into the review
+    /// vocabulary.
+    pub fn from_candidate(candidate: &target::ForeignLocatorCandidate) -> Self {
+        match candidate {
+            target::ForeignLocatorCandidate::PeByName { library, export } => Self::PeByName {
+                library: library.clone(),
+                export: export.clone(),
+            },
+            target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+                Self::PeByOrdinal {
+                    library: library.clone(),
+                    ordinal: *ordinal,
+                }
+            }
+            target::ForeignLocatorCandidate::ElfVersioned {
+                object,
+                symbol,
+                version,
+            } => Self::ElfVersioned {
+                object: object.clone(),
+                symbol: symbol.clone(),
+                version: version.clone(),
+            },
+            target::ForeignLocatorCandidate::MachODylibSymbol {
+                install_name,
+                symbol,
+            } => Self::MachODylibSymbol {
+                install_name: install_name.clone(),
+                symbol: symbol.clone(),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewEvaluatedBindingUsage {
     pub(crate) usage_schema_version: u32,

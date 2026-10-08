@@ -26,36 +26,7 @@ fn project_evaluated_import(
     evaluated: &effects::provider_plan::EvaluatedForeignImport,
 ) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
     let locator = evaluated.locator();
-    let projected_locator = match locator.locator() {
-        target::ForeignLocatorCandidate::PeByName { library, export } => {
-            PackageReviewForeignLocator::PeByName {
-                library: library.clone(),
-                export: export.clone(),
-            }
-        }
-        target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-            PackageReviewForeignLocator::PeByOrdinal {
-                library: library.clone(),
-                ordinal: *ordinal,
-            }
-        }
-        target::ForeignLocatorCandidate::ElfVersioned {
-            object,
-            symbol,
-            version,
-        } => PackageReviewForeignLocator::ElfVersioned {
-            object: object.clone(),
-            symbol: symbol.clone(),
-            version: version.clone(),
-        },
-        target::ForeignLocatorCandidate::MachODylibSymbol {
-            install_name,
-            symbol,
-        } => PackageReviewForeignLocator::MachODylibSymbol {
-            install_name: install_name.clone(),
-            symbol: symbol.clone(),
-        },
-    };
+    let projected_locator = PackageReviewForeignLocator::from_candidate(locator.locator());
     let receipt = evaluated.receipt();
     let usage = receipt.evaluation_usage();
     Ok(PackageReviewExternalBinding::NormalizedImport(

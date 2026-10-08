@@ -44,7 +44,7 @@ pub(super) fn project(
             }
             PackagePolicyProviderBinding::Import {
                 target: evaluated.locator().target().identity().as_str().to_owned(),
-                locator: locator(evaluated.locator().locator()),
+                locator: PackageReviewForeignLocator::from_candidate(evaluated.locator().locator()),
                 producer: producer(compilation, row)?,
             }
         }
@@ -175,37 +175,4 @@ fn table_declaration(
         ));
     };
     nominal_identity(compilation, table.symbol)
-}
-
-fn locator(locator: &target::ForeignLocatorCandidate) -> PackageReviewForeignLocator {
-    match locator {
-        target::ForeignLocatorCandidate::PeByName { library, export } => {
-            PackageReviewForeignLocator::PeByName {
-                library: library.clone(),
-                export: export.clone(),
-            }
-        }
-        target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
-            PackageReviewForeignLocator::PeByOrdinal {
-                library: library.clone(),
-                ordinal: *ordinal,
-            }
-        }
-        target::ForeignLocatorCandidate::ElfVersioned {
-            object,
-            symbol,
-            version,
-        } => PackageReviewForeignLocator::ElfVersioned {
-            object: object.clone(),
-            symbol: symbol.clone(),
-            version: version.clone(),
-        },
-        target::ForeignLocatorCandidate::MachODylibSymbol {
-            install_name,
-            symbol,
-        } => PackageReviewForeignLocator::MachODylibSymbol {
-            install_name: install_name.clone(),
-            symbol: symbol.clone(),
-        },
-    }
 }
