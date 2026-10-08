@@ -976,6 +976,19 @@ defines the complete product bar.
     the `fail/modules/duplicate_data_keeps_guard_facts` control.
 
   Shared failures, by owner (rerun the unchanged fixture after each repair):
+  - Predicated byte fields constructed from literals
+    (`pass/domains/record_literal_view_member_store_exit`,
+    `pass/collections/record_array_field_access_exit`,
+    `pass/structs/runtime_view_array_elements_exit`,
+    `pass/traits/equatable_string_field_equality_exit`) stop at "Unit closure
+    references a missing structural domain carrier": stage 04's shape
+    collector registers no domain theory for a predicated byte field's
+    carrier (`structural_field_plan` registers field domains only for
+    structural fields). Registering them there conflicts with a signature's
+    registration of the same domain and carrier, because `add_domain` on an
+    already constraint-peeled carrier falls back to the family's first
+    declaration instead of the one typing selected; make both paths register
+    the selected declaration, then register field domains with the shape.
   - **OPERATOR-BOUNDARY-CALLS**: `pass/float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`,
     `pass/expressions/match_float_{interpretation,subjects}`;
     `pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps}`

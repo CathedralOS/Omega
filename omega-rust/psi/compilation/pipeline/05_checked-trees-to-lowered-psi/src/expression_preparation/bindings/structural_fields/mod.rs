@@ -82,11 +82,14 @@ impl StructuralFieldBindings {
     /// it. A projected alias names a subtree of its root's place, so its
     /// fields sit under the alias path rather than at the place's own
     /// layout; leave it out so a field read refuses instead of addressing the
-    /// root's layout.
+    /// root's layout. A view local that owns no structural result (a
+    /// collection view a call opener lends, `let view = items.as_slice()`)
+    /// resolves through the view-local roster that registered its descriptor.
     pub(crate) fn observation_source(
         &self,
         root: checked_trees::CheckedStorageRoot,
         structural_locals: &[super::StructuralLocalBinding],
+        view_locals: &[super::view_locals::ViewLocalBinding],
     ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
         let candidates: Vec<_> = match root {
             checked_trees::CheckedStorageRoot::Parameter { index } => self
@@ -96,13 +99,27 @@ impl StructuralFieldBindings {
                 .map(|binding| (binding.source, binding.structural_type))
                 .collect(),
             checked_trees::CheckedStorageRoot::ViewLocal { symbol }
-            | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => structural_locals
-                .iter()
-                .filter(|local| {
-                    local.root == facts::PlaceRoot::Symbol(symbol) && local.argument.path.is_empty()
-                })
-                .map(|local| (local.argument.place, local.structural_type))
-                .collect(),
+            | checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
+                let owned = structural_locals
+                    .iter()
+                    .filter(|local| {
+                        local.root == facts::PlaceRoot::Symbol(symbol)
+                            && local.argument.path.is_empty()
+                    })
+                    .map(|local| (local.argument.place, local.structural_type))
+                    .collect::<Vec<_>>();
+                if owned.is_empty()
+                    && matches!(root, checked_trees::CheckedStorageRoot::ViewLocal { .. })
+                {
+                    view_locals
+                        .iter()
+                        .filter(|local| local.symbol == symbol)
+                        .map(|local| (local.place, local.structural_type))
+                        .collect()
+                } else {
+                    owned
+                }
+            }
         };
         match candidates.as_slice() {
             [source] => Ok(*source),

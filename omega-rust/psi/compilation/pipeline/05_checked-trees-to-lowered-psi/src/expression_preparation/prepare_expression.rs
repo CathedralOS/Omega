@@ -151,6 +151,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 let (source, path, field) = byte_field_observation(
                     structural_fields,
                     structural_locals,
+                    view_locals,
                     scalar_bindings,
                     *root,
                     path,
@@ -558,6 +559,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 && let Some((source, path, field)) = byte_field_observation(
                     structural_fields,
                     structural_locals,
+                    view_locals,
                     scalar_bindings,
                     *root,
                     path,
@@ -600,8 +602,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         }
                     }
                     checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
-                        let (_, structural_type) =
-                            structural_fields.observation_source(*root, structural_locals)?;
+                        let (_, structural_type) = structural_fields.observation_source(
+                            *root,
+                            structural_locals,
+                            view_locals,
+                        )?;
                         match ViewCarrier::of(structural_type, structural_fields.declarations()) {
                             Some(_) => Some(view_local_observation(view_locals, symbol, path)?),
                             // A retained reference to a fixed collection is not
@@ -675,7 +680,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             // fixed-array references retain their stored descriptor and let
             // this declaration walk expose each pointer crossing.
             let (source, structural_type) =
-                structural_fields.observation_source(*root, structural_locals)?;
+                structural_fields.observation_source(*root, structural_locals, view_locals)?;
             let (source, path, explicit_path, scalar_type) =
                 crate::expression_preparation::bindings::structural_fields::resolve_indexed_element(
                     structural_fields, source, structural_type, path, &geometry)?;
@@ -1015,6 +1020,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 let (source, path, field) = byte_field_observation(
                     structural_fields,
                     structural_locals,
+                    view_locals,
                     scalar_bindings,
                     *root,
                     path,
@@ -1062,6 +1068,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 byte_field_observation(
                     structural_fields,
                     structural_locals,
+                    view_locals,
                     scalar_bindings,
                     checked_trees::CheckedStorageRoot::Parameter {
                         index: field.parameter_position,
@@ -1163,6 +1170,7 @@ fn lower_checked_boolean_expression_with_parameters(
 fn byte_field_observation(
     fields: &crate::expression_preparation::bindings::StructuralFieldBindings,
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    view_locals: &[ViewLocalBinding],
     bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     root: checked_trees::CheckedStorageRoot,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -1175,7 +1183,8 @@ fn byte_field_observation(
     LoweringError,
 > {
     use crate::emission::runtime_elements::ProjectionStep;
-    let (source, structural_type) = fields.observation_source(root, structural_locals)?;
+    let (source, structural_type) =
+        fields.observation_source(root, structural_locals, view_locals)?;
     let Some((source, steps, field)) =
         crate::expression_preparation::bindings::structural_fields::resolve_byte_projection(
             source,
