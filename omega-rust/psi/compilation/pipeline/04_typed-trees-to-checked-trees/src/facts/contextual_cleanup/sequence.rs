@@ -6,6 +6,8 @@
 //! coordinate or independently replayed ownership trace is manufactured here.
 //! Effect discovery compresses array paths; declaration geometry supplies the
 //! exact parent-first, reverse-child execution order when premises are checked.
+//! The selected receiver's captured path identifies its storage; ordering uses
+//! geometry inside that value, not the runtime selector that located it.
 
 use validation::CanonicalPlace;
 
@@ -241,9 +243,13 @@ pub(super) struct SelectedHook {
 
 /// Expand only the already selected live receivers, counting before allocating.
 /// Ancestors sort before their descendants; field/index ordinals come from
-/// declaration geometry, never symbol allocation or rendered names.
+/// declaration geometry, never symbol allocation or rendered names. Every leaf
+/// retains the selected receiver prefix for predicate substitution. Its shared
+/// fields and computed selectors are not relative ordering coordinates; only
+/// a prefix range selects several receivers whose expanded indices must order.
 pub(super) fn ordered_hooks(
     program: &dyn ::validation::CheckingInput,
+    selected_path: &[PlaceSegment],
     leaves: &[CleanupLeaf],
 ) -> Option<Vec<SelectedHook>> {
     let mut hooks = Vec::new();
@@ -251,6 +257,9 @@ pub(super) fn ordered_hooks(
         let CleanupLeaf::Nominal { machine, path } = leaf else {
             continue;
         };
+        if !path.starts_with(selected_path) {
+            return None;
+        }
         let count = path.iter().try_fold(1_usize, |count, segment| {
             if let PlaceSegment::FixedRange { start, end } = *segment {
                 count.checked_mul(end.checked_sub(start)?)
@@ -263,7 +272,13 @@ pub(super) fn ordered_hooks(
         for path in paths {
             let order = path
                 .iter()
-                .map(|segment| segment_order(program, *segment))
+                .enumerate()
+                .filter(|(segment_ordinal, _)| {
+                    selected_path
+                        .get(*segment_ordinal)
+                        .is_none_or(|segment| matches!(segment, PlaceSegment::FixedRange { .. }))
+                })
+                .map(|(_, segment)| segment_order(program, *segment))
                 .collect::<Option<Vec<_>>>()?;
             hooks.push(SelectedHook {
                 machine: *machine,

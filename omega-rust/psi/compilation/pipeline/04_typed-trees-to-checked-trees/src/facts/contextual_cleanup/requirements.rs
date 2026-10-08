@@ -105,9 +105,7 @@ pub(crate) fn infer_entry_requirements(
     // place. It cannot turn a fixed-type local or unrelated parameter into a
     // new public demand merely because another parameter happens to be generic.
     for (_, state) in facts.flow.control.states.iter() {
-        let Some(specialization) = program
-            .machine_specialization(state.machine_symbol)
-        else {
+        let Some(specialization) = program.machine_specialization(state.machine_symbol) else {
             continue;
         };
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
@@ -269,7 +267,12 @@ fn selected_requirements(
         let Some(leaves) = selected_cleanup_leaves(program, facts, disposition) else {
             continue;
         };
-        let hooks = ordered_hooks(program, &leaves).ok_or_else(|| {
+        let selected_path = facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(disposition.path);
+        let hooks = ordered_hooks(program, selected_path, &leaves).ok_or_else(|| {
             vec![Diagnostic::error(
                 "cannot prove automatic cleanup requires: selected receiver order is unresolved",
             )]

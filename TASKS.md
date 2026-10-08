@@ -645,11 +645,12 @@ defines the complete product bar.
     Linux x86-64 execution; the bounded
     [Linux qualification](wiki/drafts/reference/rust_compiler_completion.md#borrowed-storage-linux-qualification)
     does not cover the unfinished failure/suspension paths.
-    Keep `pass/ownership/runtime_captured_replacement_selector_exit`,
-    `runtime_captured_construction_selector_exit` and
-    `runtime_captured_selector_call_exit` (exit 0) for pre-RHS destination
-    capture, changed or out-of-range later selectors, and exact-once target
-    computation through old-value cleanup and store.
+    Keep `pass/ownership/runtime_{captured_replacement_selector,captured_construction_selector,captured_selector_call,borrowed_captured_selector}_exit`
+    (exit 0) for pre-RHS destination capture and exact-once target computation
+    through old-value cleanup and store despite later out-of-range selectors.
+    Keep `pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit`
+    and `fail/drops/borrowed_selected_cleanup_missing_child_requirement` for
+    parent-first guarantees and child prerequisites at that captured receiver.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

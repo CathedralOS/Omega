@@ -3,6 +3,9 @@
 //! selection. Storage namespaces differ; cleanup order and prerequisites do not.
 //! A receiver's nominal hook precedes its structural children; nested hook
 //! paths are ordered obligations, not overlapping attempts to consume a root.
+//! Translate descendants relative to the disposed value's type, then attach
+//! the retained receiver path. Re-resolving a runtime-selected prefix would
+//! either decline an executable destination or observe it again after the RHS.
 
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
@@ -135,34 +138,27 @@ pub(super) fn disposition_actions(
         .exclusions
         .span(disposition.exclusions)?
     {
-        let excluded = validation::CanonicalPlace {
-            root: disposition.root,
-            segments: facts
-                .contextual_cleanup
-                .segments
-                .span(removed.segments)?
-                .to_vec(),
-        };
-        let (reference, removed_path) =
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                program,
-                disposition.state,
-                statement_index,
-                &excluded,
-            )?;
+        let excluded = facts.contextual_cleanup.segments.span(removed.segments)?;
         // The contextual row remembers earlier transfers under the original
         // owner. A selected residual ignores siblings outside its subtree;
         // an already removed ancestor cannot authorize another disposition.
-        let Some(relative_path) = removed_path.strip_prefix(path.as_slice()) else {
-            if path.starts_with(&removed_path) {
+        let Some(relative_segments) = excluded.strip_prefix(place.segments.as_slice()) else {
+            if place.segments.starts_with(excluded) {
                 return None;
             }
             continue;
         };
-        moved.push((
-            relative_path.to_vec(),
-            shapes.add_type(reference, &binders, &[])?,
-        ));
+        let (reference, relative_path) =
+            crate::execution::terminal_unit::calls::projected_argument_path(
+                program,
+                disposition.state,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::TypeReference(reference),
+                    segments: relative_segments.to_vec(),
+                },
+            )?;
+        moved.push((relative_path, shapes.add_type(reference, &binders, &[])?));
     }
     let mut hooks = Vec::new();
     for leaf in selected {
@@ -174,21 +170,21 @@ pub(super) fn disposition_actions(
             return None;
         };
         for segments in crate::flow::concrete_cleanup_paths(&selected_path)? {
+            let relative_segments = segments.strip_prefix(place.segments.as_slice())?;
             let selected_place = validation::CanonicalPlace {
-                root: disposition.root,
-                segments,
+                root: facts::PlaceRoot::TypeReference(reference),
+                segments: relative_segments.to_vec(),
             };
-            let (mut reference, selected_path) =
+            let (selected_reference, relative_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
                     program,
                     disposition.state,
                     statement_index,
                     &selected_place,
                 )?;
-            if disposition.disposed_type.is_valid() && selected_place.segments == place.segments {
-                reference = disposition.disposed_type;
-            }
-            let selected_type = shapes.add_type(reference, &binders, &[])?;
+            let selected_type = shapes.add_type(selected_reference, &binders, &[])?;
+            let mut selected_path = path.clone();
+            selected_path.extend(relative_path);
             hooks.push(selected_nominal(
                 program,
                 targets,

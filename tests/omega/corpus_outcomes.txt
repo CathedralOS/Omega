@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "3", "load1_end": 2.25, "load1_start": 2.25, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 5.66, "load1_start": 5.66, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1091,6 +1091,8 @@ fail/drops/authored_cleanup_static_argument_rejected rejected 72ms expected @9be
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
 fail/drops/borrowed_replacement_old_hook_prerequisite rejected 468ms expected @04d0fbe9d97c
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish Token::drop clause `token.value == 7`
+fail/drops/borrowed_selected_cleanup_missing_child_requirement rejected 406ms expected @fc0dd94dcf25
+	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: elements[selected].child does not establish Child::drop clause `child.value == 7`
 fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 297ms expected @b891e70838b1+wt
 	cannot automatically dispose borrowed temporary `named(name(Pair))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/claim_bearing_temporary_hook_prerequisite rejected 329ms expected @8f8bed73f19b+wt
@@ -2965,6 +2967,7 @@ pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9b
 pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 1600ms check-target:macos_arm64 @f53544b209b2+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 2842ms check-target:macos_arm64 @d83ae44b78cd
+pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 1856ms check-target:macos_arm64 @fc0dd94dcf25
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 1683ms check-target:macos_arm64 @ac7aca8a5050+wt
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 1636ms check-target:macos_arm64 @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target:macos_arm64 @47ad8bb72cea
@@ -3399,6 +3402,7 @@ pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm
 pass/ownership/linear_transparent_record_frontier checked 3103ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
+pass/ownership/runtime_borrowed_captured_selector_exit checked 1853ms check-target:macos_arm64 @fc0dd94dcf25
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 1671ms check-target:macos_arm64 @6cb668db83ab
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 1749ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_borrowed_carrier_repeated_repair_exit checked 1749ms check-target:macos_arm64 @84da89581e65
