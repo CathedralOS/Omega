@@ -6,7 +6,8 @@ use selected_instructions::SelectedFunction;
 use target::Architecture;
 
 use super::super::row;
-use super::{PreLayoutRows, order, plan, roster};
+use super::{PreLayoutRows, order, roster};
+use super::super::super::ordinary::plan;
 
 use super::super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFunctionLayout,

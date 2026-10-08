@@ -1,50 +1,12 @@
-use selected_instructions::{SelectedInstructionPlan, SelectedTerminator};
+use selected_instructions::SelectedInstructionPlan;
 
-use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,
-    is_admitted_canonical_shape, is_single_entry,
-};
+use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
 
+/// The validator re-derives the producer's policy through the shared
+/// selection: the ordinary directory owns the policy vocabulary, so the
+/// same function answers both sides rather than restating it here.
 pub(super) fn derive(
     selected: &SelectedInstructionPlan,
 ) -> Result<SelectedFunctionLayoutPolicy, OptimizedResolvedSelectedFormLayoutError> {
-    let single_entry_count = selected
-        .functions
-        .iter()
-        .filter(|function| is_single_entry(function))
-        .count();
-    if single_entry_count == selected.functions.len() {
-        Ok(SelectedFunctionLayoutPolicy::SingleEntryBlockV1)
-    } else if single_entry_count == 0
-        && selected.functions.iter().all(|function| {
-            matches!(
-                function.blocks.first().map(|block| &block.terminator),
-                Some(SelectedTerminator::ConditionalBranch { .. })
-            )
-        })
-    {
-        Ok(SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1)
-    } else if single_entry_count == 0
-        && selected.functions.iter().all(|function| {
-            matches!(
-                function.blocks.first().map(|block| &block.terminator),
-                Some(
-                    SelectedTerminator::ConditionalBranchU64LessThan { .. }
-                        | SelectedTerminator::ConditionalBranchI64LessThan { .. }
-                )
-            )
-        })
-    {
-        Ok(SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1)
-    } else if selected.functions.iter().all(is_admitted_canonical_shape) {
-        Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
-    } else {
-        Err(
-            OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(
-                selected.functions[single_entry_count].machine,
-            ),
-        )
-    }
+    super::super::ordinary::select(selected)
 }
-
-

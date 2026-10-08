@@ -17,7 +17,6 @@ use super::super::{
 
 mod function;
 mod order;
-mod plan;
 mod roster;
 
 pub(super) fn validate<S: ValidatedSelectedAnalysis>(

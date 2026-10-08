@@ -13,17 +13,17 @@ use machine_code::{
 
 use super::super::OptimizedResolvedSelectedFormLayoutError;
 
-pub(super) struct LayoutPlan {
-    pub(super) block_offsets: BTreeMap<SelectedBlockId, u64>,
-    pub(super) block_sizes: BTreeMap<SelectedBlockId, u64>,
-    pub(super) instruction_offsets: BTreeMap<SelectedInstructionId, u64>,
-    pub(super) function_size: u64,
+pub(in super::super) struct LayoutPlan {
+    pub(in super::super) block_offsets: BTreeMap<SelectedBlockId, u64>,
+    pub(in super::super) block_sizes: BTreeMap<SelectedBlockId, u64>,
+    pub(in super::super) instruction_offsets: BTreeMap<SelectedInstructionId, u64>,
+    pub(in super::super) function_size: u64,
     /// AArch64 conditional branches realized as `B.<invcond> +8; B target`
     /// because the taken edge left the imm19 range under the final offsets.
-    pub(super) widened_branches: BTreeSet<SelectedInstructionId>,
+    pub(in super::super) widened_branches: BTreeSet<SelectedInstructionId>,
 }
 
-pub(super) fn derive(
+pub(in super::super) fn derive(
     architecture: Architecture,
     blocks: &[&SelectedBlock],
     pre_rows: &BTreeMap<SelectedInstructionId, &SelectedFormEncodingRow>,
