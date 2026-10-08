@@ -171,15 +171,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 )));
                 continue;
             };
-            let upper_bound = checked
-                .facts
-                .service_reaches
-                .rows
-                .services(requirement.service_reach_row)
-                .iter()
-                .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
-                .map(|definition| definition.name.clone())
-                .collect();
+            let upper_bound = service_upper_bound_names(checked, requirement.service_reach_row);
             record_installation_reach_row(
                 plan,
                 realization,
@@ -277,15 +269,7 @@ fn append_top_level_installation_reach_resolution<'a>(
         )));
         return;
     };
-    let upper_bound = checked
-        .facts
-        .service_reaches
-        .rows
-        .services(requirement.service_reach_row)
-        .iter()
-        .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
-        .map(|definition| definition.name.clone())
-        .collect();
+    let upper_bound = service_upper_bound_names(checked, requirement.service_reach_row);
     record_installation_reach_row(
         plan,
         realization,
@@ -295,6 +279,23 @@ fn append_top_level_installation_reach_resolution<'a>(
         resolutions,
         pending,
     );
+}
+
+/// The reach requirement's declared service-name ceiling: the resolved
+/// names of every service definition its `service_reach_row` admits.
+fn service_upper_bound_names(
+    checked: &checked_trees::CheckedTrees,
+    service_reach_row: language_semantics::ServiceReachRowId,
+) -> Vec<String> {
+    checked
+        .facts
+        .service_reaches
+        .rows
+        .services(service_reach_row)
+        .iter()
+        .filter_map(|service| checked.facts.service_reaches.services.definition(*service))
+        .map(|definition| definition.name.clone())
+        .collect()
 }
 
 fn record_installation_reach_row<'a>(
