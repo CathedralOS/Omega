@@ -408,9 +408,7 @@ fn resolve_direct_block_float_parameter(
         .facts
         .flow
         .terminal_unit_effects
-        .composed_machines
-        .iter()
-        .find(|plan| plan.machine == source_machine.symbol)
+        .composed_for_machine(source_machine.symbol)
         .ok_or_else(invalid_source)?;
     let position = plan
         .states

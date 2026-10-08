@@ -248,9 +248,7 @@ fn lower_terminal_selection(
             .facts
             .flow
             .terminal_unit_effects
-            .composed_machines
-            .iter()
-            .find(|plan| plan.machine == selection.machine)
+            .composed_for_machine(selection.machine)
             .map(attached_unit::unit_graph_live_states)
             .transpose()?;
         checked
