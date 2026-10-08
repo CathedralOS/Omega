@@ -9,6 +9,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::structural_types::unique_declaration;
+use terminal_psi::live_field;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
 
@@ -254,20 +255,9 @@ fn walk_path(
                 CheckedUnitStructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let mut matching = fields.iter().filter(|field| field.identity == *identity);
-                let field = matching.next().ok_or(LoweringError::Unsupported(
-                    "primitive projection field is absent",
-                ))?;
-                if matching.next().is_some()
-                    || field.relevance.is_erased()
-                    || fields
-                        .iter()
-                        .filter(|candidate| candidate.id == field.id)
-                        .count()
-                        != 1
-                {
+                let Some(field) = live_field(fields, identity) else {
                     return unsupported("primitive projection field is erased or ambiguous");
-                }
+                };
                 result.push(ProjectionStep::Static(Segment::Field(
                     field.identity.clone(),
                 )));

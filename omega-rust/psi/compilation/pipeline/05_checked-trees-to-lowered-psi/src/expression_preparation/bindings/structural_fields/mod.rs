@@ -9,6 +9,7 @@
 //! ordinary primitive read. This keeps case authority at the copy operation;
 //! the primitive path does not acquire an unchecked case projection grammar.
 
+use terminal_psi::live_field;
 use super::super::{
     CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
     StructuralTypeShape,
@@ -367,20 +368,9 @@ pub(crate) fn resolve_typed(
         let Some(fields) = declaration.shape.direct_fields() else {
             return unsupported("runtime field observation requires a record carrier");
         };
-        let mut selected = fields.iter().filter(|field| field.identity == *identity);
-        let field = selected.next().ok_or(LoweringError::Unsupported(
-            "runtime field observation lost its declared field",
-        ))?;
-        if selected.next().is_some()
-            || field.relevance.is_erased()
-            || fields
-                .iter()
-                .filter(|candidate| candidate.id == field.id)
-                .count()
-                != 1
-        {
+        let Some(field) = live_field(fields, identity) else {
             return unsupported("runtime field observation has an erased or ambiguous field");
-        }
+        };
         if ordinal + 1 == path.len() {
             let declared = match field.field_type {
                 StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => scalar,
