@@ -318,7 +318,7 @@ impl Evaluation {
         ) else {
             return Ok(None);
         };
-        let Some(selected_case) = cases.iter().find(|declared| declared.id == case) else {
+        let Some(selected_case) = terminal_psi::find_structural_case(cases, case) else {
             return unsupported("case dispatch selects a case outside its root's sum");
         };
         let mut payloads = Vec::new();
