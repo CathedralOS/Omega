@@ -128,11 +128,7 @@ pub(crate) fn emit(
                         .ok_or(LoweringError::Unsupported(
                             "owned selection parameter source has no signature place",
                         ))?;
-                    if declaration.access != StructuralAccess::Owned
-                        || declaration.multiplicity != StructuralMultiplicity::Affine
-                        || !declaration.qualifications.is_empty()
-                        || !declaration.projected_qualifications.is_empty()
-                    {
+                    if !declaration.is_unqualified_owned_affine() {
                         return Err(LoweringError::Unsupported(
                             "owned selection parameter source lacks whole plain-affine custody",
                         ));
@@ -631,10 +627,7 @@ fn prepare_owners(
                 .ok_or(LoweringError::Unsupported(
                     "selection parameter source has no signature place",
                 ))?;
-            if declaration.access != StructuralAccess::Owned
-                || declaration.multiplicity != StructuralMultiplicity::Affine
-                || !declaration.qualifications.is_empty()
-                || !declaration.projected_qualifications.is_empty()
+            if !declaration.is_unqualified_owned_affine()
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
                 || !crate::content_classes::plain_owned_with_numeric_constraints(
                     checked,
