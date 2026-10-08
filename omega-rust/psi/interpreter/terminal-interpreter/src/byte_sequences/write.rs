@@ -5,13 +5,14 @@ use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
 };
 
-use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::binding::{ByteOwnerHome, ByteSequenceBinding};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
 
 pub(crate) enum MutableByteSequenceStorage {
-    Owned(PlaceId),
+    /// A frame-local bounded owner, written in its own activation.
+    Owned(ByteOwnerHome),
     Field(StructuralByteSequenceRuntimeField),
     Array {
         backing: crate::structural_inputs::byte_arrays::storage::ArrayStorage,
@@ -29,7 +30,8 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let result = machine.structural_place(place)
+        let result = machine
+            .structural_place(place)
             .and_then(|declaration| declaration.kind.as_operation_result());
         let (structural_type, qualifications, projected_qualifications) =
             if let Some((producer, structural_type)) = result {
@@ -130,21 +132,22 @@ impl TerminalExecution<'_> {
                 *window_length,
             ));
         }
-        let ByteSequenceBinding::MutableField {
-            field, capacity, ..
-        } = binding
-        else {
-            return Err(malformed());
+        let storage = match binding {
+            ByteSequenceBinding::MutableField { field, .. } => {
+                MutableByteSequenceStorage::Field(field.clone())
+            }
+            ByteSequenceBinding::MutableOwner { home, .. } => {
+                MutableByteSequenceStorage::Owned(*home)
+            }
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
+                return Err(malformed());
+            }
         };
-        let bytes = self
-            .structural_byte_sequence_fields
-            .get(field)
-            .ok_or_else(malformed)?;
-        let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
-        if length > *capacity {
-            return Err(malformed());
-        }
-        Ok((MutableByteSequenceStorage::Field(field.clone()), length))
+        let (bytes, _) = self.exclusive_owner_bytes(binding)?;
+        Ok((
+            storage,
+            u64::try_from(bytes.len()).map_err(|_| malformed())?,
+        ))
     }
 
     fn owned_byte_sequence_storage(
@@ -156,8 +159,7 @@ impl TerminalExecution<'_> {
             .machines()
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
-        let declaration = machine.structural_place(place)
-            .ok_or_else(malformed)?;
+        let declaration = machine.structural_place(place).ok_or_else(malformed)?;
         let (producer, structural_type) = declaration
             .kind
             .as_operation_result()
@@ -214,7 +216,14 @@ impl TerminalExecution<'_> {
         if length > capacity {
             return Err(malformed());
         }
-        Ok((MutableByteSequenceStorage::Owned(place), length))
+        Ok((
+            MutableByteSequenceStorage::Owned(ByteOwnerHome {
+                depth: self.call_stack.len(),
+                machine: self.current_machine,
+                place,
+            }),
+            length,
+        ))
     }
 
     pub(crate) fn byte_sequence_length(
@@ -227,10 +236,11 @@ impl TerminalExecution<'_> {
             ByteSequenceBinding::Immutable(view) => {
                 u64::try_from(view.len()).map_err(|_| malformed())
             }
-            ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableArray { .. } => {
-                self.mutable_byte_sequence_storage(source)
-                    .map(|(_, length)| length)
-            }
+            ByteSequenceBinding::MutableField { .. }
+            | ByteSequenceBinding::MutableArray { .. }
+            | ByteSequenceBinding::MutableOwner { .. } => self
+                .mutable_byte_sequence_storage(source)
+                .map(|(_, length)| length),
         }
     }
 
@@ -245,7 +255,9 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?
         {
             ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(malformed),
-            ByteSequenceBinding::MutableArray { .. } | ByteSequenceBinding::MutableField { .. } => {
+            ByteSequenceBinding::MutableArray { .. }
+            | ByteSequenceBinding::MutableField { .. }
+            | ByteSequenceBinding::MutableOwner { .. } => {
                 let (storage, length) = self.mutable_byte_sequence_storage(source)?;
                 if index as u128 >= u128::from(length) {
                     return Err(malformed());
@@ -264,7 +276,11 @@ impl TerminalExecution<'_> {
                         .and_then(|bytes| bytes.get(index))
                         .copied()
                         .ok_or_else(malformed),
-                    MutableByteSequenceStorage::Owned(_) => Err(malformed()),
+                    MutableByteSequenceStorage::Owned(home) => self
+                        .byte_owner_bytes(home)?
+                        .get(index)
+                        .copied()
+                        .ok_or_else(malformed),
                 }
             }
         }
@@ -298,15 +314,10 @@ impl TerminalExecution<'_> {
         }
         let byte = u8::try_from(byte).map_err(|_| malformed())?;
         let (bytes, backing_index) = match storage {
-            MutableByteSequenceStorage::Owned(place) => {
+            MutableByteSequenceStorage::Owned(home) => {
                 // The payload may also back earlier field snapshots. Detach via
                 // replace_byte so mutation never changes those immutable values.
-                let Some(ByteSequenceBinding::Immutable(bytes)) =
-                    self.byte_sequence_values.get_mut(&place)
-                else {
-                    return Err(malformed());
-                };
-                (Some(bytes), byte_index)
+                (Some(self.byte_owner_bytes_mut(home)?), byte_index)
             }
             MutableByteSequenceStorage::Field(field) => (
                 self.structural_byte_sequence_fields.get_mut(&field),

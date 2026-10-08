@@ -1,4 +1,5 @@
-//! Whole replacement writes the original caller-owned field, after source snapshot.
+//! Whole replacement writes the original caller-owned field or frame-local
+//! owner, after source snapshot.
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -23,21 +24,21 @@ impl TerminalExecution<'_> {
         if operation.result != OperationResult::Unit || source == destination {
             return Err(malformed());
         }
-        let ByteSequenceBinding::MutableField {
-            field, capacity, ..
-        } = self
-            .byte_sequence_values
-            .get(destination)
-            .ok_or_else(malformed)?
-        else {
-            return Err(malformed());
-        };
-        let field = field.clone();
-        let capacity = *capacity;
         let binding = self
             .byte_sequence_values
             .get(destination)
             .ok_or_else(malformed)?;
+        let (owner, capacity) = match binding {
+            ByteSequenceBinding::MutableField {
+                field, capacity, ..
+            } => (ReplacedOwner::Field(field.clone()), *capacity),
+            ByteSequenceBinding::MutableOwner { home, capacity, .. } => {
+                (ReplacedOwner::Frame(*home), *capacity)
+            }
+            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
+                return Err(malformed());
+            }
+        };
         binding.validate_mutable_referent(
             &self.program.structural_types(),
             self.structural_values
@@ -60,8 +61,22 @@ impl TerminalExecution<'_> {
         if bytes.len() as u128 != *length || *length > u128::from(capacity) {
             return Err(malformed());
         }
-        // Immutable backing snapshots the whole input before changing this field.
-        self.structural_byte_sequence_fields.insert(field, bytes);
+        // Immutable backing snapshots the whole input before changing the owner.
+        match owner {
+            ReplacedOwner::Field(field) => {
+                self.structural_byte_sequence_fields.insert(field, bytes);
+            }
+            ReplacedOwner::Frame(home) => {
+                *self.byte_owner_bytes_mut(home)? = bytes.detached_descriptor();
+            }
+        }
         Ok(())
     }
+}
+
+/// The caller-owned storage a whole replacement writes: a bounded byte field
+/// or a pinned frame-local owner.
+enum ReplacedOwner {
+    Field(crate::values::StructuralByteSequenceRuntimeField),
+    Frame(crate::byte_sequences::binding::ByteOwnerHome),
 }

@@ -46,6 +46,7 @@ impl TerminalExecution<'_> {
             binding,
             crate::byte_sequences::binding::ByteSequenceBinding::MutableArray { .. }
                 | crate::byte_sequences::binding::ByteSequenceBinding::MutableField { .. }
+                | crate::byte_sequences::binding::ByteSequenceBinding::MutableOwner { .. }
         );
         let source_length = self.byte_sequence_length(*source)?;
         let machine = self.program.machines().get(&self.current_machine).ok_or(
@@ -211,7 +212,9 @@ impl TerminalExecution<'_> {
                     )?)
                 }
             }
-            ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableField { .. } => {
+            ByteSequenceBinding::Immutable(_)
+            | ByteSequenceBinding::MutableField { .. }
+            | ByteSequenceBinding::MutableOwner { .. } => {
                 return Err(malformed());
             }
         };

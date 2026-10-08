@@ -284,7 +284,8 @@ impl TerminalExecution<'_> {
                 ByteSequenceBinding::Immutable(bytes) => {
                     *bytes = bytes.clone().with_descriptor_home(value.clone());
                 }
-                ByteSequenceBinding::MutableField { .. } => {
+                ByteSequenceBinding::MutableField { .. }
+                | ByteSequenceBinding::MutableOwner { .. } => {
                     return Err(malformed());
                 }
             }

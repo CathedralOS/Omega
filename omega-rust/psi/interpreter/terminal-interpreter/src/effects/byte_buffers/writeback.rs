@@ -100,29 +100,18 @@ impl BoundaryByteBufferBinding {
                 let bytes = execution.stored_byte_array_snapshot(array, start, end)?;
                 (bytes.bytes().to_vec(), *length)
             }
-            ByteSequenceBinding::MutableField {
-                field,
-                capacity,
-                referent,
-                ..
-            } => {
+            ByteSequenceBinding::MutableField { referent, .. }
+            | ByteSequenceBinding::MutableOwner { referent, .. } => {
                 source
                     .validate_mutable_referent(&execution.program.structural_types(), referent)?;
-                let bytes = execution
-                    .structural_byte_sequence_fields
-                    .get(field)
-                    .ok_or_else(malformed)?
-                    .bytes();
+                let (bytes, capacity) = execution.exclusive_owner_bytes(source)?;
                 let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
-                if length > *capacity {
-                    return Err(malformed());
-                }
                 (
-                    bytes.to_vec(),
+                    bytes.bytes().to_vec(),
                     if scope == BoundaryByteWriteScope::View {
                         length
                     } else {
-                        *capacity
+                        capacity
                     },
                 )
             }
@@ -186,29 +175,16 @@ impl BoundaryByteBufferBinding {
                 }
                 *length
             }
-            ByteSequenceBinding::MutableField {
-                field,
-                capacity,
-                referent,
-                ..
-            } => {
+            ByteSequenceBinding::MutableField { referent, .. }
+            | ByteSequenceBinding::MutableOwner { referent, .. } => {
                 self.source
                     .validate_mutable_referent(&execution.program.structural_types(), referent)?;
-                let length = u64::try_from(
-                    execution
-                        .structural_byte_sequence_fields
-                        .get(field)
-                        .ok_or_else(malformed)?
-                        .len(),
-                )
-                .map_err(|_| malformed())?;
-                if length > *capacity {
-                    return Err(malformed());
-                }
+                let (bytes, capacity) = execution.exclusive_owner_bytes(&self.source)?;
+                let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
                 if self.scope == BoundaryByteWriteScope::View {
                     length
                 } else {
-                    *capacity
+                    capacity
                 }
             }
             ByteSequenceBinding::Immutable(_) => return Err(malformed()),
@@ -239,6 +215,9 @@ impl BoundaryByteBufferBinding {
                 execution
                     .structural_byte_sequence_fields
                     .insert(field, ByteSequenceView::new(buffer.bytes));
+            }
+            ByteSequenceBinding::MutableOwner { home, .. } => {
+                *execution.byte_owner_bytes_mut(home)? = ByteSequenceView::new(buffer.bytes);
             }
             ByteSequenceBinding::Immutable(_) => return Err(malformed()),
         }

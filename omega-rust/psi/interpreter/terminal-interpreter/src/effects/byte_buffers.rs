@@ -113,18 +113,21 @@ impl BoundaryArguments {
                 }
                 ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
                 ByteSequenceBinding::MutableField { .. }
+                | ByteSequenceBinding::MutableOwner { .. }
                     if parameter.access == StructuralAccess::WriteOnlyBorrow =>
                 {
                     StructuralAccess::WriteOnlyBorrow
                 }
                 ByteSequenceBinding::MutableField { .. }
+                | ByteSequenceBinding::MutableOwner { .. }
                 | ByteSequenceBinding::MutableArray { .. } => StructuralAccess::MutableBorrow,
             };
             if parameter.access != access
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.projected_qualifications.is_empty()
                 || match &binding {
-                    ByteSequenceBinding::MutableField { referent, .. } => {
+                    ByteSequenceBinding::MutableField { referent, .. }
+                    | ByteSequenceBinding::MutableOwner { referent, .. } => {
                         referent.qualifications != parameter.qualifications
                     }
                     ByteSequenceBinding::Immutable(_) => false,
@@ -272,7 +275,8 @@ impl TerminalExecution<'_> {
                 }
                 Some(
                     binding @ (ByteSequenceBinding::MutableArray { .. }
-                    | ByteSequenceBinding::MutableField { .. }),
+                    | ByteSequenceBinding::MutableField { .. }
+                    | ByteSequenceBinding::MutableOwner { .. }),
                 ) => {
                     let parameter = &parameters[argument_index];
                     let declaration = self
@@ -437,10 +441,8 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
-            let ByteSequenceBinding::MutableField { referent, .. } = &binding else {
-                return Err(malformed());
-            };
-            return Ok(Some((referent.clone(), binding)));
+            let referent = binding.owner_loan_referent().ok_or_else(malformed)?.clone();
+            return Ok(Some((referent, binding)));
         }
         if parameter.access == StructuralAccess::SharedBorrow
             && declaration.shape.is_bounded_owned_byte_sequence()
@@ -592,6 +594,9 @@ impl TerminalExecution<'_> {
                 .byte_sequence_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
+            if let ByteSequenceBinding::Immutable(_) = binding {
+                return self.lend_frame_owner(parameter, argument.place, value);
+            }
             binding.validate_mutable_referent(&self.program.structural_types(), value)?;
             return Ok(binding.clone());
         }
@@ -623,13 +628,46 @@ impl TerminalExecution<'_> {
         };
         binding.validate_mutable_referent(
             &self.program.structural_types(),
-            match &binding {
-                ByteSequenceBinding::MutableField { referent, .. } => referent,
-                ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
-                    return Err(malformed());
-                }
-            },
+            binding.owner_loan_referent().ok_or_else(malformed)?,
         )?;
+        Ok(binding)
+    }
+
+    /// A frame-local bounded owner lent exclusively stays in its activation:
+    /// the loan pins that home under the owner's own identity, and every
+    /// write through it lands in the owner. The formal must name exactly the
+    /// owner's domains, since writes through it re-prove only those.
+    fn lend_frame_owner(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        place: semantic_vocabulary::PlaceId,
+        owner: &TerminalStructuralValue,
+    ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+        let (crate::byte_sequences::write::MutableByteSequenceStorage::Owned(home), _) =
+            self.mutable_byte_sequence_storage(place)?
+        else {
+            return Err(malformed());
+        };
+        let Some(ByteSequenceCarrier::BoundedOwned { capacity }) = self
+            .program
+            .structural_types()
+            .get(&owner.structural_type)
+            .and_then(|declaration| match &declaration.shape {
+                StructuralTypeShape::ByteSequence(carrier) => Some(*carrier),
+                _ => None,
+            })
+        else {
+            return Err(malformed());
+        };
+        if home.place != place || owner.qualifications != parameter.qualifications {
+            return Err(malformed());
+        }
+        let binding = ByteSequenceBinding::MutableOwner {
+            home,
+            capacity,
+            referent: owner.clone(),
+        };
+        binding.validate_mutable_referent(&self.program.structural_types(), owner)?;
         Ok(binding)
     }
 
@@ -667,6 +705,10 @@ impl TerminalExecution<'_> {
                     .get(field)
                     .ok_or_else(malformed)?
                     .clone()
+            }
+            ByteSequenceBinding::MutableOwner { home, .. } => {
+                binding.validate_mutable_referent(&self.program.structural_types(), value)?;
+                self.byte_owner_bytes(*home)?.clone()
             }
             ByteSequenceBinding::MutableArray { .. } => {
                 return Err(malformed());
