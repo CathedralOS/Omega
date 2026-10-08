@@ -469,15 +469,11 @@ fn type_reference_symbol(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
-        TypeReferenceNode::Reference { referee, .. } => type_reference_symbol(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_symbol(program, *base_type)
-        }
-        _ => None,
-    }
+    program.type_reference_table.type_head_symbol(
+        program
+            .type_reference_table
+            .peeled_type_reference(type_reference),
+    )
 }
 
 /// Walk a proof machine's transitive call closure and report the first entry

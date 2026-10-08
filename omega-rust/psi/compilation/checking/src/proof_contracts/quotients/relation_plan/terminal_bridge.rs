@@ -167,9 +167,7 @@ fn canonical_correspondence(
     }
 
     let public_parameters = program
-        .state_parameters(public_state)
-        .iter()
-        .filter(|parameter| !parameter.is_const)
+        .public_state_parameters(public_state)
         .collect::<Vec<_>>();
     require_plain_immutable_parameters(
         public_parameters

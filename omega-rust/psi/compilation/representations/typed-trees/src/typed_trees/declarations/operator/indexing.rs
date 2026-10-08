@@ -46,7 +46,6 @@ pub fn resolve_indexed_spelling_for_operands<'program>(
     operand_types: &[Option<TypeReferenceHandle>],
     use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
-    /// `true` when `expression` resolves no user `Index` operator for
     if !matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         return Vec::new();
     }

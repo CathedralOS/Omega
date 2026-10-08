@@ -163,18 +163,12 @@ pub(crate) fn range_constraints(
     ranges
 }
 
-
-
 /// The data symbol a type reference names through its `Named`/`Generic` head.
 pub(crate) fn head_data_symbol(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<symbols::SymbolHandle> {
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
-        _ => None,
-    }
+    program.type_reference_table.type_head_symbol(reference)
 }
 
 /// The constraint slices of each `Constrained` shell `handle` carries,

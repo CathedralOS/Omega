@@ -4,7 +4,7 @@ use super::value_classification::{ValueClass, value_class, value_concrete_data_n
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// Validate an `as` cast -- the single entry point for the Cast arm of
 /// `scan_expression_calls` (mirrors `validate_binary_operand_types`). The TARGET
@@ -160,12 +160,11 @@ fn base_data_symbol(
     if !type_reference.is_valid() {
         return None;
     }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
-        TypeReferenceNode::Constrained { base_type, .. } => base_data_symbol(program, *base_type),
-        _ => None,
-    }
+    program.type_reference_table.type_head_symbol(
+        program
+            .type_reference_table
+            .unconstrained_type_reference(type_reference),
+    )
 }
 
 fn expression_data_symbol(
