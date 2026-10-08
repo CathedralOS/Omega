@@ -267,20 +267,14 @@ fn assign_conformance_parameter_symbols(program: &mut SymbolResolvedTrees, symbo
             };
             let resolved_kind = match kind {
                 symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
-                    if let Some(signature) = contract.structural_mut() {
-                        assign_machine_parameter_signature_symbols(
-                            &mut SignatureSymbolTables {
-                                symbols,
-                                data_type_parameters,
-                                state_parameters,
-                                child_type_references,
-                                type_constraints,
-                            },
-                            signature,
-                            parameter_symbol,
-                            &local_type_parameters,
-                        );
-                    }
+                    SignatureSymbolTables {
+    symbols,
+    data_type_parameters,
+    state_parameters,
+    child_type_references,
+    type_constraints,
+}
+.assign_parameter_contract_symbols(&mut contract, parameter_symbol, &local_type_parameters);
                     symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Proposition { mut contract } => {
@@ -328,6 +322,26 @@ pub(super) struct SignatureSymbolTables<'a> {
     pub state_parameters: &'a mut Arena<symbol_resolved_trees::signature::StateParameter>,
     pub child_type_references: &'a mut Arena<symbol_resolved_trees::types::TypeReference>,
     pub type_constraints: &'a Arena<symbol_resolved_trees::types::TypeConstraint>,
+}
+
+impl SignatureSymbolTables<'_> {
+    /// Assigns a machine parameter's structural contract signature, when the
+    /// contract carries one — the guard every parameter-kind site performs.
+    pub(super) fn assign_parameter_contract_symbols(
+        &mut self,
+        contract: &mut symbol_resolved_trees::data::MachineParameterContract,
+        owner_symbol: SymbolHandle,
+        inherited_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    ) {
+        if let Some(signature) = contract.structural_mut() {
+            assign_machine_parameter_signature_symbols(
+                self,
+                signature,
+                owner_symbol,
+                inherited_type_parameters,
+            );
+        }
+    }
 }
 
 pub(super) fn assign_machine_parameter_signature_symbols(

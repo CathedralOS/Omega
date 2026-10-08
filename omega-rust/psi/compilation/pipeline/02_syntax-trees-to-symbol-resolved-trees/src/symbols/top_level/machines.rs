@@ -6,7 +6,7 @@ use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::scope::{LexicalRequirements, MachineScope};
 use crate::symbols::top_level::{
-    SignatureSymbolTables, assign_machine_parameter_signature_symbols, next_child_of_kind,
+    SignatureSymbolTables, next_child_of_kind,
     trait_parameter_tables,
 };
 use crate::symbols::type_references::{
@@ -221,20 +221,14 @@ pub(super) fn assign_machine_symbols(
                             *trait_arguments,
 );
                     }
-                    if let Some(signature) = contract.structural_mut() {
-                        assign_machine_parameter_signature_symbols(
-                            &mut SignatureSymbolTables {
-                                symbols,
-                                data_type_parameters,
-                                state_parameters,
-                                child_type_references,
-                                type_constraints,
-                            },
-                            signature,
-                            parameter_symbol,
-                            &local_type_parameters,
-);
-                    }
+                    SignatureSymbolTables {
+    symbols,
+    data_type_parameters,
+    state_parameters,
+    child_type_references,
+    type_constraints,
+}
+.assign_parameter_contract_symbols(&mut contract, parameter_symbol, &local_type_parameters);
                     symbol_resolved_trees::data::TypeParameterKind::Machine { contract }
                 }
                 other => other,
