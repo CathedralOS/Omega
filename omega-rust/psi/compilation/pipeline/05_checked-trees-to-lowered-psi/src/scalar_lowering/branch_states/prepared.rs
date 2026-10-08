@@ -96,6 +96,31 @@ pub(crate) enum LoweredScalarBranchTerminator {
     },
 }
 
+impl LoweredScalarBranchTerminator {
+    /// A value-only edge: no erased, proof-only or structural actuals and no
+    /// ordered edge work — the shape nearly every plain continuation takes.
+    pub(crate) fn jump(target: usize, arguments: Vec<LoweredDirectExpression>) -> Self {
+        Self::jump_with_cleanup(target, arguments, Vec::new())
+    }
+
+    /// A jump carrying exact ordered edge work (cleanup actions) while the
+    /// erased, proof-only and structural rosters stay empty.
+    pub(crate) fn jump_with_cleanup(
+        target: usize,
+        arguments: Vec<LoweredDirectExpression>,
+        cleanup_actions: Vec<crate::unit::unit_cleanup::PreparedNormalCleanupAction>,
+    ) -> Self {
+        Self::Jump {
+            target,
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            cleanup_actions,
+        }
+    }
+}
+
 /// One armed case of a `CaseDispatchSplit`: `payloads` binds positionally as
 /// the case edge's block parameters, which the block then forwards as
 /// `arguments` to the arm's continuation `target`.

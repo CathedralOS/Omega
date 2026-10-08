@@ -69,14 +69,7 @@ impl Expansion<'_> {
                 erased_formal_types: Vec::new(),
                 erased_proof_formals: Vec::new(),
                 bindings: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Jump {
-                    cleanup_actions: Vec::new(),
-                    target,
-                    arguments,
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                },
+                terminator: LoweredScalarBranchTerminator::jump(target, arguments),
             });
             let when_true_target = self.argument(
                 &Argument::Computation(when_true),

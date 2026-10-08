@@ -525,14 +525,9 @@ impl Expansion<'_> {
                 bindings: Vec::new(),
                 erased_formal_types: Vec::new(),
                 erased_proof_formals: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Jump {
-                    arguments: super::parameters(&parameter_types),
-                    target,
-                    cleanup_actions: discards,
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                },
+                terminator: LoweredScalarBranchTerminator::jump_with_cleanup(target, super::parameters(&parameter_types),
+                    discards,
+                ),
                 parameter_types,
             })
         };
@@ -556,14 +551,7 @@ impl Expansion<'_> {
                         structural_type: slot.structural_type,
                         bytes: slot.bytes.clone(),
                     }],
-                    terminator: LoweredScalarBranchTerminator::Jump {
-                        cleanup_actions: Vec::new(),
-                        target: continuation,
-                        arguments: super::parameters(prefix),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                    },
+                    terminator: LoweredScalarBranchTerminator::jump(continuation, super::parameters(prefix)),
                 }),
                 Operand::Range {
                     argument,
@@ -585,14 +573,7 @@ impl Expansion<'_> {
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
                     structural_effects: vec![effect.clone()],
-                    terminator: LoweredScalarBranchTerminator::Jump {
-                        cleanup_actions: Vec::new(),
-                        target: continuation,
-                        arguments: super::parameters(prefix),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                    },
+                    terminator: LoweredScalarBranchTerminator::jump(continuation, super::parameters(prefix)),
                 }),
                 Operand::Produced(slot) => {
                     let values = &self.checked.facts.values.structural_values;

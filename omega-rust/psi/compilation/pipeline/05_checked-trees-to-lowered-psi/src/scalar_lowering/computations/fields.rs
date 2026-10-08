@@ -139,13 +139,9 @@ impl super::Expansion<'_> {
             erased_formal_types: Vec::new(),
             erased_proof_formals: Vec::new(),
             bindings: vec![crate::emission::operation_emission::LoweredScalarBinding::Expression(expression)],
-            terminator: crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchTerminator::Jump {
-                target, arguments,
-                cleanup_actions: discards.into_iter().map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root).collect(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-            },
+            terminator: crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchTerminator::jump_with_cleanup(target, arguments,
+                discards.into_iter().map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root).collect(),
+            ),
         });
         match completed {
             Some(value) => value.finish(site.state, site.bindings, input_types, observation, self),

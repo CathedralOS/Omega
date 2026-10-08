@@ -333,13 +333,6 @@ fn emit_call(
         erased_proof_formals: Vec::new(),
         bindings: Vec::new(),
         structural_effects: vec![LoweredScalarEffect::Call(call)],
-        terminator: LoweredScalarBranchTerminator::Jump {
-            cleanup_actions: Vec::new(),
-            target,
-            arguments: super::computations::parameters(output_types),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-        },
+        terminator: LoweredScalarBranchTerminator::jump(target, super::computations::parameters(output_types)),
     })
 }

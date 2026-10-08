@@ -92,14 +92,7 @@ impl Expansion<'_> {
                     erased_formal_types: Vec::new(),
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
-                    terminator: LoweredScalarBranchTerminator::Jump {
-                        cleanup_actions: Vec::new(),
-                        target: selected,
-                        arguments: parameters(input_types),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                    },
+                    terminator: LoweredScalarBranchTerminator::jump(selected, parameters(input_types)),
                 }),
                 CheckedScalarDispatchPattern::Value(pattern) => {
                     let mut comparison_bindings = Vec::new();
@@ -143,14 +136,7 @@ impl Expansion<'_> {
                     } else {
                         // Source replay and the coverage pass above establish
                         // this final literal Boolean alternative, not a default.
-                        LoweredScalarBranchTerminator::Jump {
-                            cleanup_actions: Vec::new(),
-                            target: selected,
-                            arguments: parameters(input_types),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments: Vec::new(),
-                        }
+                        LoweredScalarBranchTerminator::jump(selected, parameters(input_types))
                     };
                     let tested = self.push(LoweredScalarBranchState {
                         structural_parameters: Vec::new(),

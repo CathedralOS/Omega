@@ -219,14 +219,7 @@ impl super::Expansion<'_> {
             erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             structural_effects: vec![effect],
-            terminator: LoweredScalarBranchTerminator::Jump {
-                cleanup_actions: Vec::new(),
-                target,
-                arguments: super::parameters(input_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-            },
+            terminator: LoweredScalarBranchTerminator::jump(target, super::parameters(input_types)),
         });
         let entry = self.sequence(&endpoints, input_types, finish, site, active)?;
         let Some(establishment) = establishment else {
@@ -239,14 +232,7 @@ impl super::Expansion<'_> {
             erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             structural_effects: vec![LoweredScalarEffect::EstablishElementView(establishment)],
-            terminator: LoweredScalarBranchTerminator::Jump {
-                cleanup_actions: Vec::new(),
-                target: entry,
-                arguments: super::parameters(input_types),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-            },
+            terminator: LoweredScalarBranchTerminator::jump(entry, super::parameters(input_types)),
         }))
     }
 }
