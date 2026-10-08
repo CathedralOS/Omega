@@ -314,7 +314,6 @@ pub(super) fn project_byte_sequence_subslice(
         unreachable!("dispatched project_byte_sequence_subslice")
     };
     let kind = {
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::ByteSequenceSubslice {
             result: result.clone(),
             source: *source,
@@ -322,7 +321,12 @@ pub(super) fn project_byte_sequence_subslice(
             end: *end,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -354,7 +358,6 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
             custody,
         )
         .ok_or(Error::custody())?;
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
             destination,
             field: *field,
@@ -362,7 +365,12 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -390,7 +398,6 @@ pub(super) fn project_structural_byte_sequence_field_read(
         &unit.structural_types,
     )
     .ok_or(Error::custody())?;
-    let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
     Ok(
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
             indices: scalar_graph_input::structural_fields::byte_index_operands(
@@ -405,7 +412,12 @@ pub(super) fn project_structural_byte_sequence_field_read(
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         },
     )
 }
@@ -435,14 +447,18 @@ pub(super) fn project_structural_byte_sequence_field_store(
             custody,
         )
         .ok_or(Error::custody())?;
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
             destination,
             field: *field,
             source: *source,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -465,14 +481,18 @@ pub(super) fn project_byte_sequence_write(
         unreachable!("dispatched project_byte_sequence_write")
     };
     let kind = {
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::ByteSequenceWrite {
             destination: *destination,
             index: *index,
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -495,13 +515,17 @@ pub(super) fn project_byte_sequence_read(
         unreachable!("dispatched project_byte_sequence_read")
     };
     let kind = {
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::ByteSequenceRead {
             source: *source,
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -525,7 +549,6 @@ pub(super) fn project_element_view_write(
         unreachable!("dispatched project_element_view_write")
     };
     let kind = {
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::ElementViewWrite {
             path: path.clone(),
             destination: *destination,
@@ -533,7 +556,12 @@ pub(super) fn project_element_view_write(
             value: *value,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -558,13 +586,17 @@ pub(super) fn project_element_view_read(
         unreachable!("dispatched project_element_view_read")
     };
     let kind = {
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::ElementViewRead {
             source: *source,
             index: *index,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
             path: path.clone(),
             indices: {
                 let element = scalar_graph_input::byte_views::element_type(
@@ -611,7 +643,6 @@ pub(super) fn project_element_view_subslice(
         unreachable!("dispatched project_element_view_subslice")
     };
     let kind = {
-        let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
         LegalizedScalarInstructionKind::ElementViewSubslice {
             result: result.clone(),
             source: *source,
@@ -619,7 +650,12 @@ pub(super) fn project_element_view_subslice(
             end: *end,
             length: *length,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *obligation,
+            )?,
         }
     };
     Ok(kind)
@@ -642,22 +678,18 @@ pub(super) fn project_byte_sequence_concatenation(
     else {
         return Err(Error::custody());
     };
-    let fact = unit
-        .accepted_obligation_facts
-        .iter()
-        .find(|fact| {
-            fact.machine == optimized.machine
-                && fact.operation == *psi_operation
-                && fact.obligation == *capacity_obligation
-        })
-        .ok_or(Error::custody())?;
     Ok(
         LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
             result: result.clone(),
             left: left.clone(),
             right: right.clone(),
             capacity_obligation: *capacity_obligation,
-            accepted_fact: fact.identity,
+            accepted_fact: obligation_fact_identity(
+                unit,
+                optimized.machine,
+                *psi_operation,
+                *capacity_obligation,
+            )?,
         },
     )
 }
@@ -685,18 +717,31 @@ pub(super) fn project_byte_sequence_store(
         custody,
     )
     .ok_or(Error::custody())?;
-    let fact = accepted_obligation_fact(unit, optimized.machine, *psi_operation, *obligation)?;
     Ok(LegalizedScalarInstructionKind::ByteSequenceStore {
         destination: *destination,
         source: *source,
         length: *length,
         obligation: *obligation,
-        accepted_fact: fact.identity,
+        accepted_fact: obligation_fact_identity(
+            unit,
+            optimized.machine,
+            *psi_operation,
+            *obligation,
+        )?,
     })
 }
 
 /// The obligation fact `obligation` carries on `machine`'s operation
 /// `psi_operation`, or the custody error when the unit recorded none.
+fn obligation_fact_identity(
+    unit: &PsiOptimizationUnit,
+    machine: semantic_vocabulary::MachineId,
+    operation: semantic_vocabulary::OperationId,
+    obligation: semantic_vocabulary::ObligationId,
+) -> Result<optimization_core::AcceptedObligationFactIdentity, Error> {
+    Ok(accepted_obligation_fact(unit, machine, operation, obligation)?.identity)
+}
+
 fn accepted_obligation_fact<'unit>(
     unit: &'unit PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,
