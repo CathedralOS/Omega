@@ -127,9 +127,12 @@ impl TerminalExecution<'_> {
                     .structural_types()
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
-                        matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
-                            || declaration.shape.is_borrowed_byte_carrier()
-                            || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::PrimitiveScalar(_)
+                                | StructuralTypeShape::FixedArray { .. }
+                                | StructuralTypeShape::ElementView { .. }
+                        ) || declaration.shape.is_borrowed_byte_carrier()
                             || declaration.shape.is_bounded_owned_byte_sequence()
                     })
             })

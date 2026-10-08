@@ -8,7 +8,7 @@ use crate::element_views::{ElementView, ElementViewHome};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalStructuralValue;
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -16,6 +16,12 @@ use terminal_psi::{
 };
 
 impl TerminalExecution<'_> {
+    /// A fixed array lent to a fixed-array formal, or lent whole to an
+    /// element-view formal of its own element type (`walk(&items)` for
+    /// `values: &[i32]`), borrows the same live collection home. The view
+    /// formal sees that home under its declared view type, exactly the
+    /// `WholeCollection` view `EstablishElementView` forms, so writes through
+    /// a mutable loan land in the owner.
     pub(crate) fn prepare_scalar_array_loan(
         &self,
         parameter: &StructuralParameterDeclaration,
@@ -26,14 +32,12 @@ impl TerminalExecution<'_> {
         if !matches!(
             parameter.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) || terminal_semantics::scalar_array_leaf_shape(
-            self.program.structural_types().values(),
-            parameter.structural_type,
-        )
-        .is_none()
-        {
+        ) {
             return Ok(None);
         }
+        let Some(collection_type) = self.lent_collection_type(parameter, argument) else {
+            return Ok(None);
+        };
         if argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
@@ -48,7 +52,7 @@ impl TerminalExecution<'_> {
         let StructuralTypeShape::FixedArray { length, .. } = self
             .program
             .structural_types()
-            .get(&parameter.structural_type)
+            .get(&collection_type)
             .ok_or_else(malformed)?
             .shape
         else {
@@ -118,17 +122,19 @@ impl TerminalExecution<'_> {
                 .structural_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            if referent.structural_type != parameter.structural_type
+            if referent.structural_type != collection_type
                 || !loan.matches_descriptor_home(referent)
                 || loan.len() != length
             {
                 return Err(malformed());
             }
+            let mut presented = referent.clone();
+            presented.structural_type = parameter.structural_type;
             let loan = loan
                 .subslice(0, length, parameter.access)
                 .ok_or_else(malformed)?
-                .with_descriptor_home(referent.clone());
-            return Ok(Some((referent.clone(), loan)));
+                .with_descriptor_home(presented.clone());
+            return Ok(Some((presented, loan)));
         }
         let (root, _) =
             self.array_storage_root_staged(argument.place, identity_cursor, local_roots)?;
@@ -139,14 +145,16 @@ impl TerminalExecution<'_> {
             // access/discriminator checks; a storage home grants neither.
             self.resolve_live_projection(argument.place, &argument.path, argument.access)?
         };
-        if referent.structural_type != parameter.structural_type
+        if referent.structural_type != collection_type
             || !referent.qualifications.is_empty()
             || !referent.projected_qualifications.is_empty()
         {
             return Err(malformed());
         }
+        let mut presented = referent.clone();
+        presented.structural_type = parameter.structural_type;
         let loan = ElementView::structural(
-            referent.clone(),
+            referent,
             length,
             parameter.access,
             ElementViewHome {
@@ -154,7 +162,40 @@ impl TerminalExecution<'_> {
                 path: argument.path.clone(),
             },
         )
-        .with_descriptor_home(referent.clone());
-        Ok(Some((referent, loan)))
+        .with_descriptor_home(presented.clone());
+        Ok(Some((presented, loan)))
+    }
+
+    /// The fixed-array type a borrowed formal lends: the formal's own
+    /// scalar-array type, or, for an element-view formal, the argument's
+    /// fixed array when its element is the view's element. Any other pairing
+    /// (a forwarded view, a byte carrier) is not this loan.
+    fn lent_collection_type(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Option<StructuralTypeId> {
+        let types = self.program.structural_types();
+        match types.get(&parameter.structural_type)?.shape {
+            StructuralTypeShape::FixedArray { .. } => {
+                terminal_semantics::scalar_array_leaf_shape(
+                    types.values(),
+                    parameter.structural_type,
+                )?;
+                Some(parameter.structural_type)
+            }
+            StructuralTypeShape::ElementView { element } => {
+                let root_type = self.live_structural_type(argument.place).ok()?;
+                let collection_type =
+                    crate::custody::resolve_structural_path_type(&types, root_type, &argument.path)
+                        .ok()?;
+                matches!(
+                    types.get(&collection_type)?.shape,
+                    StructuralTypeShape::FixedArray { element: source, .. } if source == element
+                )
+                .then_some(collection_type)
+            }
+            _ => None,
+        }
     }
 }
