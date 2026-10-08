@@ -15,22 +15,10 @@ pub(super) fn integer_literal_primitive(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<PrimitiveType> {
-    use numerics::literals::LandedIntegerType;
-
     let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
         return None;
     };
-    Some(match literal.landing()?.landed_type {
-        LandedIntegerType::I8 => PrimitiveType::I8,
-        LandedIntegerType::I16 => PrimitiveType::I16,
-        LandedIntegerType::I32 => PrimitiveType::I32,
-        LandedIntegerType::I64 => PrimitiveType::I64,
-        LandedIntegerType::U8 => PrimitiveType::U8,
-        LandedIntegerType::U16 => PrimitiveType::U16,
-        LandedIntegerType::U32 => PrimitiveType::U32,
-        LandedIntegerType::U64 => PrimitiveType::U64,
-        LandedIntegerType::Addr => return None,
-    })
+    PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)
 }
 
 /// Recover full-width unsigned constants which the i64-backed interval cannot

@@ -4,7 +4,7 @@ use checked_trees::{
     CheckedIntegerBinaryKind, CheckedScalarExpression, CheckedStructuralPredicatePathSegment,
 };
 use facts::IntegerRange;
-use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt, literals::LandedIntegerType};
+use numerics::{arithmetic::ArithmeticDomain, bignum::BigInt};
 use symbols::SymbolHandle;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -105,17 +105,8 @@ fn integer(
             )
         }
         Expression::IntegerLiteral { literal } => {
-            let primitive = match literal.landing()?.landed_type {
-                LandedIntegerType::I8 => PrimitiveType::I8,
-                LandedIntegerType::I16 => PrimitiveType::I16,
-                LandedIntegerType::I32 => PrimitiveType::I32,
-                LandedIntegerType::I64 => PrimitiveType::I64,
-                LandedIntegerType::U8 => PrimitiveType::U8,
-                LandedIntegerType::U16 => PrimitiveType::U16,
-                LandedIntegerType::U32 => PrimitiveType::U32,
-                LandedIntegerType::U64 => PrimitiveType::U64,
-                LandedIntegerType::Addr => return None,
-            };
+            let primitive =
+                PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)?;
             let value = literal.value_bignum()?;
             (
                 primitive,

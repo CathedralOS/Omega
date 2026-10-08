@@ -1,7 +1,7 @@
 //! Complete fields in authored order before committing a declaration-ordered case.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId,
+    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId,
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     StructuralTypeShape, allocate_dense, obligation_id, place_id, unsupported,
 };

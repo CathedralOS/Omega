@@ -264,18 +264,7 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Borrow(inner) => self.expression_scalar_type(inner.target, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
             ExpressionNode::Integer(literal) => literal.landing().map(|landing| {
-                use numerics::literals::LandedIntegerType;
-                let primitive = match landing.landed_type {
-                    LandedIntegerType::I8 => PrimitiveType::I8,
-                    LandedIntegerType::I16 => PrimitiveType::I16,
-                    LandedIntegerType::I32 => PrimitiveType::I32,
-                    LandedIntegerType::I64 => PrimitiveType::I64,
-                    LandedIntegerType::U8 => PrimitiveType::U8,
-                    LandedIntegerType::U16 => PrimitiveType::U16,
-                    LandedIntegerType::U32 => PrimitiveType::U32,
-                    LandedIntegerType::U64 => PrimitiveType::U64,
-                    LandedIntegerType::Addr => PrimitiveType::Addr,
-                };
+                let primitive = PrimitiveType::from_landed_integer(landing.landed_type);
                 (primitive, landing.domain)
             }),
             ExpressionNode::Indexed(_) => {

@@ -50,23 +50,12 @@ pub(crate) fn terminal_scalar_type(primitive: PrimitiveType) -> Result<ScalarTyp
 pub(crate) fn integer_landing_scalar_type(
     literal: &numerics::literals::IntegerLiteral,
 ) -> Result<ScalarType, LoweringError> {
-    use numerics::literals::LandedIntegerType;
-
-    let primitive = match literal
-        .landing()
-        .ok_or(LoweringError::UnlandedIntegerLiteral)?
-        .landed_type
-    {
-        LandedIntegerType::I8 => PrimitiveType::I8,
-        LandedIntegerType::I16 => PrimitiveType::I16,
-        LandedIntegerType::I32 => PrimitiveType::I32,
-        LandedIntegerType::I64 => PrimitiveType::I64,
-        LandedIntegerType::U8 => PrimitiveType::U8,
-        LandedIntegerType::U16 => PrimitiveType::U16,
-        LandedIntegerType::U32 => PrimitiveType::U32,
-        LandedIntegerType::U64 => PrimitiveType::U64,
-        LandedIntegerType::Addr => PrimitiveType::Addr,
-    };
+    let primitive = PrimitiveType::from_landed_integer(
+        literal
+            .landing()
+            .ok_or(LoweringError::UnlandedIntegerLiteral)?
+            .landed_type,
+    );
     integer_scalar_type(primitive)
 }
 

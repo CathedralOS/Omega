@@ -9,7 +9,6 @@ type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
-use numerics::literals::LandedIntegerType;
 use symbols::BuiltinFunction;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
@@ -307,17 +306,9 @@ fn expression_primitive(
         return program.primitive_type_reference(type_reference);
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => Some(match literal.landing()?.landed_type {
-            LandedIntegerType::I8 => PrimitiveType::I8,
-            LandedIntegerType::I16 => PrimitiveType::I16,
-            LandedIntegerType::I32 => PrimitiveType::I32,
-            LandedIntegerType::I64 => PrimitiveType::I64,
-            LandedIntegerType::U8 => PrimitiveType::U8,
-            LandedIntegerType::U16 => PrimitiveType::U16,
-            LandedIntegerType::U32 => PrimitiveType::U32,
-            LandedIntegerType::U64 => PrimitiveType::U64,
-            LandedIntegerType::Addr => PrimitiveType::Addr,
-        }),
+        ExpressionNode::Integer(literal) => Some(PrimitiveType::from_landed_integer(
+            literal.landing()?.landed_type,
+        )),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
         ExpressionNode::Binary(binary) => match binary.operator {
             BinaryOperator::CaseMembership => Some(PrimitiveType::Bool),

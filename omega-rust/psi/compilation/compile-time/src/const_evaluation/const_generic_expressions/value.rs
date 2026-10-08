@@ -1605,19 +1605,12 @@ fn integer_type(carrier: LandedIntegerType) -> Result<IntegerType, String> {
 }
 
 fn primitive(carrier: LandedIntegerType) -> Result<PrimitiveType, String> {
-    Ok(match carrier {
-        LandedIntegerType::I8 => PrimitiveType::I8,
-        LandedIntegerType::I16 => PrimitiveType::I16,
-        LandedIntegerType::I32 => PrimitiveType::I32,
-        LandedIntegerType::I64 => PrimitiveType::I64,
-        LandedIntegerType::U8 => PrimitiveType::U8,
-        LandedIntegerType::U16 => PrimitiveType::U16,
-        LandedIntegerType::U32 => PrimitiveType::U32,
-        LandedIntegerType::U64 => PrimitiveType::U64,
+    match carrier {
         LandedIntegerType::Addr => {
-            return Err("address constant evaluation requires target authority".into());
+            Err("address constant evaluation requires target authority".into())
         }
-    })
+        carrier => Ok(PrimitiveType::from_landed_integer(carrier)),
+    }
 }
 
 /// Anonymous values land exactly; already-landed values retain their policy.

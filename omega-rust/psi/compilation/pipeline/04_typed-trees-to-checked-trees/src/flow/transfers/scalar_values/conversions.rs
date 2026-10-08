@@ -162,17 +162,9 @@ pub(super) fn selected_operand(
         return None;
     }
     let source_type = match program.expression_table.expression(operand) {
-        ExpressionNode::Integer(literal) => match literal.landing()?.landed_type {
-            numerics::literals::LandedIntegerType::I8 => PrimitiveType::I8,
-            numerics::literals::LandedIntegerType::I16 => PrimitiveType::I16,
-            numerics::literals::LandedIntegerType::I32 => PrimitiveType::I32,
-            numerics::literals::LandedIntegerType::I64 => PrimitiveType::I64,
-            numerics::literals::LandedIntegerType::U8 => PrimitiveType::U8,
-            numerics::literals::LandedIntegerType::U16 => PrimitiveType::U16,
-            numerics::literals::LandedIntegerType::U32 => PrimitiveType::U32,
-            numerics::literals::LandedIntegerType::U64 => PrimitiveType::U64,
-            numerics::literals::LandedIntegerType::Addr => return None,
-        },
+        ExpressionNode::Integer(literal) => {
+            PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)?
+        }
         _ => program.primitive_type_reference(validation::expression_type_reference_in_state(
             program,
             state,

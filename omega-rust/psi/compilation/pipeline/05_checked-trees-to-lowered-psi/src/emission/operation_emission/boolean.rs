@@ -9,7 +9,7 @@ use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
-use terminal_psi::{Operation, OperationKind, ValueDeclaration};
+use terminal_psi::{OperationKind, ValueDeclaration};
 
 /// One side of a byte-sequence content comparison: the place its descriptor
 /// occupies plus the element projection and exact byte-sequence field when the

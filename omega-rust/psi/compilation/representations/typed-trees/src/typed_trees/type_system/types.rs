@@ -1064,6 +1064,30 @@ impl PrimitiveType {
     pub fn accepts_finite_constraint(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
     }
+    /// The primitive integer type a landed literal integer type denotes.
+    pub fn from_landed_integer(kind: numerics::literals::LandedIntegerType) -> Self {
+        use numerics::literals::LandedIntegerType;
+        match kind {
+            LandedIntegerType::I8 => Self::I8,
+            LandedIntegerType::I16 => Self::I16,
+            LandedIntegerType::I32 => Self::I32,
+            LandedIntegerType::I64 => Self::I64,
+            LandedIntegerType::U8 => Self::U8,
+            LandedIntegerType::U16 => Self::U16,
+            LandedIntegerType::U32 => Self::U32,
+            LandedIntegerType::U64 => Self::U64,
+            LandedIntegerType::Addr => Self::Addr,
+        }
+    }
+
+    /// [`Self::from_landed_integer`] minus `Addr`, for callers rejecting
+    /// the address lane.
+    pub fn non_address_landed_integer(kind: numerics::literals::LandedIntegerType) -> Option<Self> {
+        match kind {
+            numerics::literals::LandedIntegerType::Addr => None,
+            kind => Some(Self::from_landed_integer(kind)),
+        }
+    }
 }
 
 #[cfg(test)]
