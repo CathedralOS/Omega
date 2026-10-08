@@ -7,15 +7,7 @@ use super::{
     procedure_target_section, procedure_templates, read_field, upstream_payload,
     validate_candidate, validate_contents,
 };
-use crate::{
-    plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
-    plan_elf_dynamic_section_roster, plan_elf_dynamic_sections,
-    plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
-    plan_elf_procedure_linkage_relocations, plan_elf_procedure_linkage_section_descriptors,
-    plan_elf_procedure_linkage_templates, plan_elf_section_name_table,
-    serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
-    serialize_elf_section_header_table,
-};
+use crate::plan_elf_dynamic_link_inputs;
 use arena::Handle;
 use image::{
     FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
@@ -119,18 +111,7 @@ fn headers(
     };
     let interpreter = normalize_elf_interpreter_plan(path.to_vec(), target).unwrap();
     let inputs = plan_elf_dynamic_link_inputs(image, interpreter).unwrap();
-    let sections = plan_elf_dynamic_sections(inputs).unwrap();
-    let payloads = serialize_elf_dynamic_sections(sections).unwrap();
-    let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
-    let linkage = plan_elf_procedure_linkage_relocations(descriptors).unwrap();
-    let templates = plan_elf_procedure_linkage_templates(linkage).unwrap();
-    let descriptors = plan_elf_procedure_linkage_section_descriptors(templates).unwrap();
-    let tags = plan_elf_dynamic_tags(descriptors).unwrap();
-    let dynamic = serialize_elf_dynamic_table(tags).unwrap();
-    let descriptor = plan_elf_dynamic_table_section_descriptor(dynamic).unwrap();
-    let names = plan_elf_section_name_table(descriptor).unwrap();
-    let roster = plan_elf_dynamic_section_roster(names).unwrap();
-    serialize_elf_section_header_table(roster).unwrap()
+    crate::test_support::section_header_table(inputs)
 }
 
 fn candidate(target: TargetProfile) -> Candidate {

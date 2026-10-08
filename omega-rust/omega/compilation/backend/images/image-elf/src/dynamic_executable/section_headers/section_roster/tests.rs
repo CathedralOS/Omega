@@ -6,13 +6,6 @@ use super::{
     non_authoritative_roster_compatibility_fingerprint, plan_elf_dynamic_section_roster,
     validate_candidate, validate_contents, validate_name, validate_row_against_owner,
 };
-use crate::{
-    plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
-    plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
-    plan_elf_procedure_linkage_relocations, plan_elf_procedure_linkage_section_descriptors,
-    plan_elf_procedure_linkage_templates, plan_elf_section_name_table,
-    serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
-};
 use target::TargetProfile;
 
 const FIRST_SITES: &[usize] = &[0, 32];
@@ -44,19 +37,7 @@ fn section_names(
         "valid section-roster locator",
         "valid section-roster interpreter",
     );
-    let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
-    let payloads = serialize_elf_dynamic_sections(sections).expect("valid payloads");
-    let descriptors =
-        plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
-    let linkage = plan_elf_procedure_linkage_relocations(descriptors).expect("valid linkage plan");
-    let templates = plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
-    let descriptors = plan_elf_procedure_linkage_section_descriptors(templates)
-        .expect("valid linkage descriptors");
-    let tags = plan_elf_dynamic_tags(descriptors).expect("valid dynamic tags");
-    let payload = serialize_elf_dynamic_table(tags).expect("valid dynamic payload");
-    let descriptor =
-        plan_elf_dynamic_table_section_descriptor(payload).expect("valid dynamic descriptor");
-    plan_elf_section_name_table(descriptor).expect("valid section-name table")
+    crate::test_support::dynamic_section_names(inputs)
 }
 
 fn candidate(target: TargetProfile) -> Candidate {

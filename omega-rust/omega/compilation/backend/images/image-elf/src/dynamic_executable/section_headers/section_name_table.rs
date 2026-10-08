@@ -398,10 +398,7 @@ mod tests {
     };
     use crate::test_support::DynamicImportFixture as ImportFixture;
     use crate::{
-        plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
         plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
-        plan_elf_procedure_linkage_relocations, plan_elf_procedure_linkage_section_descriptors,
-        plan_elf_procedure_linkage_templates, serialize_elf_dynamic_sections,
         serialize_elf_dynamic_table,
     };
 
@@ -435,16 +432,7 @@ mod tests {
             "valid section-name locator",
             "valid section-name interpreter",
         );
-        let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
-        let payloads = serialize_elf_dynamic_sections(sections).expect("valid payloads");
-        let descriptors =
-            plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
-        let linkage =
-            plan_elf_procedure_linkage_relocations(descriptors).expect("valid linkage plan");
-        let templates =
-            plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
-        let descriptors = plan_elf_procedure_linkage_section_descriptors(templates)
-            .expect("valid linkage descriptors");
+        let descriptors = crate::test_support::linkage_descriptors(inputs);
         let tags = plan_elf_dynamic_tags(descriptors).expect("valid dynamic tags");
         let payload = serialize_elf_dynamic_table(tags).expect("valid dynamic payload");
         plan_elf_dynamic_table_section_descriptor(payload).expect("valid dynamic descriptor")

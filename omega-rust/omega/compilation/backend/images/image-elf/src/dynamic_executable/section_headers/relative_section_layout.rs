@@ -397,23 +397,15 @@ mod tests {
         derive_contents, non_authoritative_layout_compatibility_fingerprint,
         plan_elf_relative_section_payload_layout, validate_candidate, validate_contents,
     };
-    use crate::{
-        plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors,
-        plan_elf_dynamic_section_roster, plan_elf_dynamic_sections,
-        plan_elf_dynamic_table_section_descriptor, plan_elf_dynamic_tags,
-        plan_elf_indexed_section_payloads, plan_elf_procedure_linkage_relocations,
-        plan_elf_procedure_linkage_section_descriptors, plan_elf_procedure_linkage_templates,
-        plan_elf_section_name_table, serialize_elf_dynamic_sections, serialize_elf_dynamic_table,
-        serialize_elf_section_header_table,
-    };
+    
     use arena::Handle;
     use image::{
-        FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
+        FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory,
         FinalImageSection, FinalImageSymbol,
     };
-    use object_file::{RelocationKind, SymbolKind};
+    use object_file::SymbolKind;
     use target::{
-        ForeignLocatorCandidate, TargetProfile, normalize_elf_interpreter_plan,
+        ForeignLocatorCandidate, TargetProfile,
         normalize_foreign_locator,
     };
 
@@ -450,48 +442,11 @@ mod tests {
                 .unwrap(),
             ),
         });
-        let (offset, kind) = match target {
-            TargetProfile::LinuxX64 => {
-                image.memory.text[0] = 0xe8;
-                (1, RelocationKind::X86_64Relative32)
-            }
-            TargetProfile::LinuxArm64 => {
-                image.memory.text[0..4].copy_from_slice(&[0, 0, 0, 0x94]);
-                (0, RelocationKind::Aarch64Branch26)
-            }
-            _ => unreachable!(),
-        };
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Text,
-                offset,
-                byte_width: 4,
-                symbol_handle,
-                addend: 0,
-                kind,
-            });
-        let path = match target {
-            TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".as_slice(),
-            TargetProfile::LinuxArm64 => b"/lib/ld-linux-aarch64.so.1".as_slice(),
-            _ => unreachable!(),
-        };
-        let interpreter = normalize_elf_interpreter_plan(path.to_vec(), target).unwrap();
-        let inputs = plan_elf_dynamic_link_inputs(image, interpreter).unwrap();
-        let sections = plan_elf_dynamic_sections(inputs).unwrap();
-        let payloads = serialize_elf_dynamic_sections(sections).unwrap();
-        let descriptors = plan_elf_dynamic_section_descriptors(payloads).unwrap();
-        let linkage = plan_elf_procedure_linkage_relocations(descriptors).unwrap();
-        let templates = plan_elf_procedure_linkage_templates(linkage).unwrap();
-        let descriptors = plan_elf_procedure_linkage_section_descriptors(templates).unwrap();
-        let tags = plan_elf_dynamic_tags(descriptors).unwrap();
-        let dynamic = serialize_elf_dynamic_table(tags).unwrap();
-        let descriptor = plan_elf_dynamic_table_section_descriptor(dynamic).unwrap();
-        let names = plan_elf_section_name_table(descriptor).unwrap();
-        let roster = plan_elf_dynamic_section_roster(names).unwrap();
-        let headers = serialize_elf_section_header_table(roster).unwrap();
-        plan_elf_indexed_section_payloads(headers).unwrap()
+        crate::test_support::import_call_indexed_payloads(
+            image,
+            symbol_handle,
+            target,
+        )
     }
 
     fn candidate(target: TargetProfile) -> Candidate {

@@ -7,11 +7,6 @@ use super::{
     derive_contents, dynamic_string, non_authoritative_tag_compatibility_fingerprint,
     plan_elf_dynamic_tags, structural_contents, validate_candidate, validate_contents,
 };
-use crate::{
-    plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
-    plan_elf_procedure_linkage_relocations, plan_elf_procedure_linkage_section_descriptors,
-    plan_elf_procedure_linkage_templates, serialize_elf_dynamic_sections,
-};
 
 const FIRST_SITES: &[usize] = &[0, 32];
 const SECOND_SITES: &[usize] = &[16];
@@ -42,12 +37,7 @@ fn descriptors(
         "valid dynamic-tag locator",
         "valid dynamic-tag interpreter",
     );
-    let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
-    let payloads = serialize_elf_dynamic_sections(sections).expect("valid dynamic payloads");
-    let base = plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
-    let linkage = plan_elf_procedure_linkage_relocations(base).expect("valid procedure linkage");
-    let templates = plan_elf_procedure_linkage_templates(linkage).expect("valid linkage templates");
-    plan_elf_procedure_linkage_section_descriptors(templates).expect("valid linkage descriptors")
+    crate::test_support::linkage_descriptors(inputs)
 }
 
 fn candidate(target: TargetProfile) -> Candidate {

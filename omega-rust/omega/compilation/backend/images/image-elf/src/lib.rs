@@ -348,6 +348,44 @@ pub(crate) mod test_support {
         plan_elf_dynamic_tags(descriptors).expect("valid semantic dynamic tags")
     }
 
+    /// The procedure-linkage section descriptor plan — the staging
+    /// point the dynamic-tag fixtures build on.
+    pub(crate) fn linkage_descriptors(
+        inputs: crate::PlannedElfDynamicLinkInputs,
+    ) -> crate::ValidatedElfProcedureLinkageSectionDescriptorPlan {
+        let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
+        let payloads = serialize_elf_dynamic_sections(sections).expect("valid dynamic payloads");
+        let base = plan_elf_dynamic_section_descriptors(payloads).expect("valid base descriptors");
+        let linkage =
+            plan_elf_procedure_linkage_relocations(base).expect("valid procedure linkage");
+        let templates = crate::plan_elf_procedure_linkage_templates(linkage)
+            .expect("valid linkage templates");
+        crate::plan_elf_procedure_linkage_section_descriptors(templates)
+            .expect("valid linkage descriptors")
+    }
+
+    /// The section-name table at the end of the staged dynamic-section
+    /// chain — the shared prefix for the section-header fixtures.
+    pub(crate) fn dynamic_section_names(
+        inputs: crate::PlannedElfDynamicLinkInputs,
+    ) -> crate::ValidatedElfSectionNameTablePlan {
+        let tags = dynamic_tag_plan(inputs);
+        let dynamic = crate::serialize_elf_dynamic_table(tags).expect("valid dynamic table");
+        let descriptor = crate::plan_elf_dynamic_table_section_descriptor(dynamic)
+            .expect("valid dynamic descriptor");
+        crate::plan_elf_section_name_table(descriptor).expect("valid section-name table")
+    }
+
+    /// The serialized section-header table over `dynamic_section_names` —
+    /// the staging point for the indexed-payload and layout fixtures.
+    pub(crate) fn section_header_table(
+        inputs: crate::PlannedElfDynamicLinkInputs,
+    ) -> crate::ValidatedElfSectionHeaderTableTemplate {
+        let names = dynamic_section_names(inputs);
+        let roster = crate::plan_elf_dynamic_section_roster(names).expect("valid section roster");
+        crate::serialize_elf_section_header_table(roster).expect("valid section headers")
+    }
+
     /// The import-call fixture staged through indexed section payloads — the
     /// shared prefix for the load-layout and section-header assertions.
     pub(crate) fn import_call_indexed_payloads(
