@@ -24,12 +24,11 @@
 //! initializer dominance, and the shifted-custody provenance ledger.
 
 use crate::candidates::outside_region::validate_outside_region;
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
 use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+    reconstruct_declared_places,
 };
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
@@ -44,7 +43,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_function, rebuild_node_metadata};
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
 /// `StructuralScalarFieldRead` observing the evidence's place whose stored
@@ -527,12 +526,7 @@ pub(super) fn validate(
     let mut effect = 0u64;
     for block in &mut output_function.blocks {
         for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            let node_index = u32::try_from(node_index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            node.definitions = expected_definitions(&node.operation, block.id, node_index);
-            node.uses = expected_uses(&node.operation, block.id, node_index);
-            node.successors = preserve_edge_custody(node);
-            node.ownership = expected_ownership(&node.operation);
+            rebuild_node_metadata(node, block.id, node_index)?;
             node.effect = optimization_unit::EffectLink {
                 input: effect,
                 output: effect

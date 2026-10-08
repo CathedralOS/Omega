@@ -1,11 +1,10 @@
 //! Proof-certified scalar identity candidate acceptance.
 use crate::candidates::outside_region::validate_outside_region;
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_proof_certified_scalar_identity_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
 use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+    reconstruct_declared_places,
 };
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
@@ -22,7 +21,7 @@ use optimization_unit::{
 use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_function, rebuild_node_metadata};
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
@@ -313,12 +312,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     for block in &mut output_function.blocks {
         for (node_index, node) in block.nodes.iter_mut().enumerate() {
             rewrite_scalar_value_uses(&mut node.operation, patch.result, patch.replacement);
-            let node_index = u32::try_from(node_index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            node.definitions = expected_definitions(&node.operation, block.id, node_index);
-            node.uses = expected_uses(&node.operation, block.id, node_index);
-            node.successors = preserve_edge_custody(node);
-            node.ownership = expected_ownership(&node.operation);
+            rebuild_node_metadata(node, block.id, node_index)?;
             node.effect = optimization_unit::EffectLink {
                 input: effect,
                 output: effect

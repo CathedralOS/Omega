@@ -6,16 +6,15 @@ use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::adjacent_merge::{
     reconstruct_adjacent_merge_accounting, reconstruct_adjacent_merge_ownership_witness,
 };
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+    reconstruct_declared_places,
 };
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_function, rebuild_node_metadata};
 use optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
     recompute_psi_optimization_unit_identity,
@@ -190,12 +189,7 @@ pub(super) fn validate(
             for substitution in &substitutions {
                 rewrite_scalar_value_uses(&mut node.operation, substitution.from, substitution.to);
             }
-            let node_index = u32::try_from(node_index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            node.definitions = expected_definitions(&node.operation, block.id, node_index);
-            node.uses = expected_uses(&node.operation, block.id, node_index);
-            node.successors = preserve_edge_custody(node);
-            node.ownership = expected_ownership(&node.operation);
+            rebuild_node_metadata(node, block.id, node_index)?;
         }
     }
     let mut effect = 0u64;

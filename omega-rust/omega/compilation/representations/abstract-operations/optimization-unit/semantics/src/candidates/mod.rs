@@ -162,3 +162,21 @@ pub(crate) fn candidate_function(
         .find(|function| function.machine == machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
+
+/// Rebuild a node's derived definitions, uses, successors, and ownership from
+/// its operation; `node_index` is the node's position inside `block`.
+pub(crate) fn rebuild_node_metadata(
+    node: &mut optimization_unit::OptimizationNode,
+    block: semantic_vocabulary::BlockId,
+    node_index: usize,
+) -> Result<(), OptimizationUnitValidationError> {
+    let node_index = u32::try_from(node_index)
+        .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
+    node.definitions =
+        crate::unit_validation::derived_metadata::expected_definitions(&node.operation, block, node_index);
+    node.uses =
+        crate::unit_validation::derived_metadata::expected_uses(&node.operation, block, node_index);
+    node.successors = rewrite_accounting::preserve_edge_custody(node);
+    node.ownership = crate::unit_validation::derived_metadata::expected_ownership(&node.operation);
+    Ok(())
+}

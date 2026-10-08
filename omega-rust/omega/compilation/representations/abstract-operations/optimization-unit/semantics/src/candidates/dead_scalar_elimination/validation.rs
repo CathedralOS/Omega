@@ -1,9 +1,8 @@
 //! Independent dead-node rewrite reconstruction and application.
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
-use crate::candidates::rewrite_accounting::preserve_edge_custody;
 use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+    reconstruct_declared_places,
 };
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{
@@ -16,7 +15,7 @@ use optimization_unit::{
 };
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_function, rebuild_node_metadata};
 
 pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
@@ -151,12 +150,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     let mut effect = 0u64;
     for block in &mut output_function.blocks {
         for (node_index, node) in block.nodes.iter_mut().enumerate() {
-            let node_index = u32::try_from(node_index)
-                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
-            node.definitions = expected_definitions(&node.operation, block.id, node_index);
-            node.uses = expected_uses(&node.operation, block.id, node_index);
-            node.successors = preserve_edge_custody(node);
-            node.ownership = expected_ownership(&node.operation);
+            rebuild_node_metadata(node, block.id, node_index)?;
             node.effect = optimization_unit::EffectLink {
                 input: effect,
                 output: effect
