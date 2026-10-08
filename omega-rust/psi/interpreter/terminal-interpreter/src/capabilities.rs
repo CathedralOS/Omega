@@ -202,8 +202,6 @@ mod tests {
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
         TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     };
-    use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine};
-
     fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
         let result = if selected_origins == 0 {
             TerminalMachineResult::Unit
@@ -412,7 +410,7 @@ mod tests {
     #[test]
     fn capability_graph_ignores_unreachable_external_completion() {
         let mut program = program();
-        let boundary = install_process_exit_caller(&mut program, 2);
+        install_process_exit_caller(&mut program, 2);
         assert!(check(&program, None).unwrap().imports.is_empty());
     }
 
