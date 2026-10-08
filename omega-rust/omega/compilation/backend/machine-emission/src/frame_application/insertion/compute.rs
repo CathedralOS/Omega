@@ -314,7 +314,7 @@ fn shifted_offset(
         .ok_or(FrameApplicationError::OffsetOverflow)
 }
 
-fn shift_fixup(
+pub(super) fn shift_fixup(
     fixup: &mut FunctionFragmentInternalMachineFixup,
     shift: u64,
 ) -> Result<(), FrameApplicationError> {
@@ -333,7 +333,7 @@ fn shift_fixup(
     Ok(())
 }
 
-fn shift_foreign_fixup(
+pub(super) fn shift_foreign_fixup(
     fixup: &mut machine_code::FunctionFragmentNormalizedForeignCallFixup,
     shift: u64,
 ) -> Result<(), FrameApplicationError> {

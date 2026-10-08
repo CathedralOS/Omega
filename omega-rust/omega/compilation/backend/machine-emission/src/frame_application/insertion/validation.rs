@@ -1,5 +1,5 @@
 //! Optimizer module role: executable entrance. Independent applied-frame projection checking.
-use super::FrameApplicationError;
+use super::{FrameApplicationError, compute};
 use crate::frame_protocol::{
     FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingPlan,
     target_frame_protocol_encoding_identity,
@@ -266,18 +266,7 @@ fn validate_fixup(
             Err(FrameApplicationError::ArtifactMismatch)
         };
     };
-    expected.opcode_function_offset = expected
-        .opcode_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    expected.patch_function_offset = expected
-        .patch_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    expected.reference_function_offset = expected
-        .reference_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
+    compute::shift_fixup(&mut expected, shift)?;
     if candidate != Some(expected) {
         return Err(FrameApplicationError::ArtifactMismatch);
     }
@@ -296,44 +285,7 @@ fn validate_foreign_fixup(
             Err(FrameApplicationError::ArtifactMismatch)
         };
     };
-    expected.opcode_function_offset = expected
-        .opcode_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    expected.patch_function_offset = expected
-        .patch_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    expected.reference_function_offset = expected
-        .reference_function_offset
-        .checked_add(shift)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    for callback in &mut expected.callbacks {
-        callback.code_function_offset = callback
-            .code_function_offset
-            .checked_add(shift)
-            .ok_or(FrameApplicationError::OffsetOverflow)?;
-        match &mut callback.encoding {
-            machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 {
-                patch_function_offset,
-            } => {
-                *patch_function_offset = patch_function_offset
-                    .checked_add(shift)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-            }
-            machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
-                page_patch_function_offset,
-                page_offset_patch_function_offset,
-            } => {
-                *page_patch_function_offset = page_patch_function_offset
-                    .checked_add(shift)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-                *page_offset_patch_function_offset = page_offset_patch_function_offset
-                    .checked_add(shift)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-            }
-        }
-    }
+    compute::shift_foreign_fixup(&mut expected, shift)?;
     if candidate != Some(expected) {
         return Err(FrameApplicationError::ArtifactMismatch);
     }
