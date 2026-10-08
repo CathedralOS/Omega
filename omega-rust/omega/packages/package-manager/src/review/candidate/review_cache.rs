@@ -6,9 +6,10 @@
 //! when resolution, sources, targets, bindings and build snapshots are all
 //! identical. This module retains one review record per dependency
 //! occurrence — keyed by SHA-256 over package identity, purpose, the checked
-//! context (target plus admitted build profile), the toolchain stamp, the
-//! live-inputs digest and the build-snapshot digest — beneath the same
-//! resolver lane that already carries the checked-source index.
+//! context (target plus admitted build profile), the compiler input identity
+//! the lock records, the live-inputs digest and the build-snapshot digest —
+//! beneath the same resolver lane that already carries the checked-source
+//! index.
 //!
 //! A record never replays a checked verdict by name. The SHA-256 trailer
 //! rejects corruption and truncation, and the policy baseline decodes once

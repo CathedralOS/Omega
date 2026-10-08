@@ -16,9 +16,10 @@ const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V3\0";
 
 /// The SHA-256 key over everything a persisted review depends on: package
 /// identity, occurrence purpose, the checked context (target plus admitted
-/// build profile), the checked entry path, the toolchain that minted the
-/// record, and the content digests of the complete compilation inputs and
-/// the build snapshot.
+/// build profile), the checked entry path, the compiler input identity the
+/// lock records (build-produced compiler digest plus selected toolchain
+/// library content), and the content digests of the complete compilation
+/// inputs and the build snapshot.
 pub(crate) fn compiled_review_key(
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
@@ -101,4 +102,65 @@ pub(super) fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 
         }
     }
     digest.finalize().into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{compiled_review_key, compiled_review_key_with_identity};
+    use crate::declarations::DependencyPurpose;
+    use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+    use semantic_vocabulary::PackageKeyIdentity;
+    use std::path::{Path, PathBuf};
+
+    /// Records are content-named by this key, so a different key is a miss.
+    /// The live key must bind exactly the compiler input identity the lock
+    /// records: a review one compiler issued never stands in for another's,
+    /// while the same compiler finds its own record.
+    #[test]
+    fn compiled_review_key_binds_the_locked_compiler_input_identity() {
+        let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let inputs = PackageCompilationInputs::new_package(
+            package,
+            vec![PackageSourceBinding::new(
+                package,
+                "reviewed_package",
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            )],
+            Vec::new(),
+        )
+        .unwrap();
+        let snapshot = build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
+        let entry = Path::new("main.omg");
+        let key_for = |compiler_identity| {
+            compiled_review_key_with_identity(
+                package,
+                DependencyPurpose::Product,
+                target::TargetProfile::MacosArm64,
+                None,
+                entry,
+                &inputs,
+                &snapshot,
+                compiler_identity,
+            )
+        };
+        let locked_identity = crate::operations::compiler_input_identity()
+            .expect("development builds identify their compiler and toolchain library");
+        let live = compiled_review_key(
+            package,
+            DependencyPurpose::Product,
+            target::TargetProfile::MacosArm64,
+            None,
+            entry,
+            &inputs,
+            &snapshot,
+        )
+        .expect("an identified compiler keys its records");
+
+        assert_eq!(live, key_for(locked_identity));
+        for byte in [0, 31] {
+            let mut other_compiler = locked_identity;
+            other_compiler[byte] ^= 1;
+            assert_ne!(live, key_for(other_compiler));
+        }
+    }
 }
