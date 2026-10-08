@@ -113,9 +113,7 @@ pub fn element_view_leaf(
     let parent = crate::runtime_structural_path_tip(types.iter(), element, prefix)?;
     match (last, &parent.shape) {
         (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields, .. }) => {
-            let field = fields
-                .iter()
-                .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+            let field = terminal_psi::live_field_by_identity(fields, identity)?;
             match field.field_type {
                 terminal_psi::StructuralFieldType::Structural(child) => primitive(child),
                 terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {

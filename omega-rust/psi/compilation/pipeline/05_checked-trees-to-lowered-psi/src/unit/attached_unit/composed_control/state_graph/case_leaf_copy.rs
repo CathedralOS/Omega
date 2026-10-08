@@ -47,13 +47,9 @@ pub(super) fn emit(
             "Unit graph case-payload case is absent",
         ))?;
     canonical.push(CanonicalStructuralPathSegment::Case(selected.id));
-    let payload = selected
-        .fields
-        .iter()
-        .find(|field| field.identity == field_identity && !field.relevance.is_erased())
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph case-payload field is absent",
-        ))?;
+    let payload = terminal_psi::live_field_by_identity(&selected.fields, field_identity).ok_or(
+        LoweringError::Unsupported("Unit graph case-payload field is absent"),
+    )?;
     canonical.push(CanonicalStructuralPathSegment::Field(payload.id));
     let StructuralFieldType::Structural(leaf) = payload.field_type else {
         return unsupported("Unit graph case payload is not a structural leaf");

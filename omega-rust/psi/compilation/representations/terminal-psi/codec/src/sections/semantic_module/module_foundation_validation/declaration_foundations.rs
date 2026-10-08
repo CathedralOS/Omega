@@ -71,8 +71,7 @@ pub(super) fn validate_boundary_machine(
         else {
             return malformed("boundary requirement has an unknown argument index");
         };
-        let Some(domain) = module.structural_domain(requirement.domain)
-        else {
+        let Some(domain) = module.structural_domain(requirement.domain) else {
             return malformed("boundary requirement references an unknown domain");
         };
         if domain.carrier != parameter.structural_type {
@@ -105,9 +104,11 @@ pub(super) fn validate_provider_candidate(
         if !has_structural_type(module, parameter.structural_type) {
             return malformed("provider signature references an unknown structural type");
         }
-        if parameter.qualifications.iter().any(|domain| {
-            !module.structural_domain(*domain).is_some()
-        }) {
+        if parameter
+            .qualifications
+            .iter()
+            .any(|domain| !module.structural_domain(*domain).is_some())
+        {
             return malformed("provider signature references an unknown structural domain");
         }
     }

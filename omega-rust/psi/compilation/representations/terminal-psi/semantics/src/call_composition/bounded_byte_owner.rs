@@ -99,9 +99,7 @@ pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
         let Some(fields) = declaration.shape.record_fields() else {
             return None;
         };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+        let field = terminal_psi::live_field_by_identity(fields, identity)?;
         let ByteSequenceCarrier::BoundedOwned { capacity } =
             field.field_type.byte_sequence_carrier()?
         else {

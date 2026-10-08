@@ -236,8 +236,8 @@ impl TerminalExecution<'_> {
         if contents.structural_type != value.structural_type {
             return Err(malformed());
         }
-        let selected = terminal_psi::find_structural_case(cases, contents.case)
-            .ok_or_else(malformed)?;
+        let selected =
+            terminal_psi::find_structural_case(cases, contents.case).ok_or_else(malformed)?;
         if selected
             .fields
             .iter()

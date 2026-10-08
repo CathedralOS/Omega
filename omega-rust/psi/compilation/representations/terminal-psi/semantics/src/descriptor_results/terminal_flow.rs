@@ -325,8 +325,7 @@ pub(super) fn adapt(
                         &operation.kind
                     {
                         let result_type = result?.structural_type;
-                        let shape = &module.structural_type(result_type)?
-                            .shape;
+                        let shape = &module.structural_type(result_type)?.shape;
                         let cases = match shape {
                             StructuralTypeShape::Sum { cases }
                             | StructuralTypeShape::Mixed { cases, .. } => cases,

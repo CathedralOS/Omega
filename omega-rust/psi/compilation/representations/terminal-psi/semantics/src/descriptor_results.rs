@@ -332,9 +332,7 @@ fn external_backing(
         else {
             return false;
         };
-        fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())
+        terminal_psi::live_field_by_identity(fields, identity)
             .and_then(|field| field.field_type.byte_sequence_carrier())
             .is_some_and(|carrier| {
                 matches!(

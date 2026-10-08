@@ -77,6 +77,25 @@ pub struct StructuralFieldDeclaration {
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
 }
 
+/// The field carrying `identity` on a declaration roster, live or erased.
+pub fn field_by_identity<'fields>(
+    fields: &'fields [StructuralFieldDeclaration],
+    identity: &str,
+) -> Option<&'fields StructuralFieldDeclaration> {
+    fields.iter().find(|field| field.identity == identity)
+}
+
+/// The field carrying `identity` on a declaration roster, when it is not
+/// erased.
+pub fn live_field_by_identity<'fields>(
+    fields: &'fields [StructuralFieldDeclaration],
+    identity: &str,
+) -> Option<&'fields StructuralFieldDeclaration> {
+    fields
+        .iter()
+        .find(|field| field.identity == identity && !field.relevance.is_erased())
+}
+
 /// The one declaration carrying `id` — a cycle through `visiting` or an
 /// absent/ambiguous match means the caller's walk does not own this node.
 pub fn unique_structural_declaration<'d>(

@@ -576,20 +576,17 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         }
         return Ok(());
     }
-    let Some(parameter) = machine
-        .signature_structural_parameter(*source)
-        .or_else(|| {
-            let declaration = machine.structural_place(*source)?;
-            let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
-                return None;
-            };
-            machine
-                .block(&block)?
-                .structural_parameters
-                .get(position as usize)
-                .filter(|parameter| parameter.place == *source && parameter.position == position)
-        })
-    else {
+    let Some(parameter) = machine.signature_structural_parameter(*source).or_else(|| {
+        let declaration = machine.structural_place(*source)?;
+        let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+            return None;
+        };
+        machine
+            .block(&block)?
+            .structural_parameters
+            .get(position as usize)
+            .filter(|parameter| parameter.place == *source && parameter.position == position)
+    }) else {
         return malformed("scalar structural field source is not a parameter");
     };
     let matching = terminal_semantics::observed_field_declaration(

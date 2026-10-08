@@ -285,12 +285,11 @@ pub(crate) fn lower_whole_content_entry_claims(
                     CheckedUnitStructuralPathSegment::Field(identity),
                     StructuralTypeShape::Record { fields, .. },
                 ) => {
-                    let field = fields
-                        .iter()
-                        .find(|field| field.identity == *identity)
-                        .ok_or(LoweringError::Unsupported(
+                    let field = terminal_psi::field_by_identity(fields, identity).ok_or(
+                        LoweringError::Unsupported(
                             "content claim field is absent from its carrier",
-                        ))?;
+                        ),
+                    )?;
                     if field.relevance != language_core::BindingRelevance::Relevant {
                         return unsupported("content claim traverses an erased field");
                     }

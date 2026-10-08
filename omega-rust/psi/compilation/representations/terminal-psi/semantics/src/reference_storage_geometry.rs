@@ -168,9 +168,7 @@ fn storage_path<'types>(
                 StructuralTypeShape::Record { fields, storage },
                 StructuralPathSegment::Field(identity),
             ) => {
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let field = terminal_psi::live_field_by_identity(fields, identity)?;
                 let offset = if storage.is_some() {
                     field.storage.as_ref()?.byte_offset()?
                 } else {

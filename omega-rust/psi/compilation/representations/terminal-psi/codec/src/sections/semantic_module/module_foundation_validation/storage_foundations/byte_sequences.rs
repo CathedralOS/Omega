@@ -30,7 +30,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     let view_slot = match field {
         Some(field) => {
             let parent_type = field_store_parent(module, machine, *destination, path)?;
-            module.structural_type(parent_type)
+            module
+                .structural_type(parent_type)
                 .is_some_and(|declaration| match &declaration.shape {
                     StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
                         candidate.id == *field
@@ -129,7 +130,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("byte field store has invalid destination custody");
     }
     let parent_type = validate_structural_path(module, destination_type, carrier_path)?;
-    let bounded_field = module.structural_type(parent_type)
+    let bounded_field = module
+        .structural_type(parent_type)
         .is_some_and(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => fields.iter().any(|candidate| {
                 candidate.id == *field
@@ -144,8 +146,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if !bounded_field {
         return malformed("byte field store does not select a bounded byte field");
     }
-    let Some(source_place) = machine.structural_place(*source)
-    else {
+    let Some(source_place) = machine.structural_place(*source) else {
         return malformed("byte field store source is unknown");
     };
     let mut owned_source = false;

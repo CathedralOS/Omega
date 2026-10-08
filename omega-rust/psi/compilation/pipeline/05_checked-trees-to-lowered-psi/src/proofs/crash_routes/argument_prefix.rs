@@ -109,9 +109,7 @@ pub(crate) fn structural_crash_route_argument_prefix(
                         }
                     }
                 };
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity)
+                let field = terminal_psi::field_by_identity(fields, identity)
                     .filter(|field| !field.relevance.is_erased())
                     .ok_or(LoweringError::Unsupported(
                         "structural crash route argument field is absent or erased",

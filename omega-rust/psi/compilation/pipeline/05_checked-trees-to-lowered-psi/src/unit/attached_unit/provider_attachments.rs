@@ -33,13 +33,13 @@ pub(crate) fn lower_provider_attachment_places(
     let mut roots = requirements
         .iter()
         .map(|requirement| {
-            let field = fields
-                .expect("provider requirements require record attachment")
-                .iter()
-                .find(|field| field.identity == requirement.field_identity)
-                .ok_or(LoweringError::Unsupported(
-                    "provider-backed attachment requirement names an unknown field",
-                ))?;
+            let field = terminal_psi::field_by_identity(
+                &fields.expect("provider requirements require record attachment"),
+                &requirement.field_identity,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "provider-backed attachment requirement names an unknown field",
+            ))?;
             // A retained binding keeps its semantic field path even though
             // Fused realization has no payload. This specialization root is
             // evidence, not a substitute argument or a new establishment.

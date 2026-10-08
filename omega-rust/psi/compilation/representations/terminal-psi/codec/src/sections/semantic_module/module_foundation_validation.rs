@@ -321,7 +321,7 @@ pub(crate) fn validate_structural_path(
                 if identity.is_empty() {
                     return malformed("structural path field identity cannot be empty");
                 }
-                let Some(field) = fields.iter().find(|field| field.identity == *identity) else {
+                let Some(field) = terminal_psi::field_by_identity(fields, identity) else {
                     return malformed("structural path has an unknown structural field");
                 };
                 if field.relevance.is_erased() {
@@ -824,8 +824,7 @@ fn validate_structural_arguments(
         let Some(actual_type) = structural_place_type(machine, argument.place) else {
             return malformed("structural argument references an unknown structural place");
         };
-        let parameter = machine
-            .signature_structural_parameter(argument.place);
+        let parameter = machine.signature_structural_parameter(argument.place);
         let result = machine
             .operations()
             .filter_map(|operation| operation.result.structural())

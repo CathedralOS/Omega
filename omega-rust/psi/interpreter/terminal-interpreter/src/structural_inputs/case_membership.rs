@@ -83,7 +83,7 @@ impl TerminalExecution<'_> {
                     let common = match &declaration.shape {
                         StructuralTypeShape::Record { fields, .. }
                         | StructuralTypeShape::Mixed { fields, .. } => {
-                            fields.iter().find(|field| field.identity == *identity)
+                            terminal_psi::field_by_identity(fields, identity)
                         }
                         _ => None,
                     };
@@ -101,9 +101,7 @@ impl TerminalExecution<'_> {
                         }
                         let case = terminal_psi::find_structural_case(cases, actual.case)
                             .ok_or_else(malformed)?;
-                        case.fields
-                            .iter()
-                            .find(|field| field.identity == *identity)
+                        terminal_psi::field_by_identity(&case.fields, identity)
                             .ok_or_else(malformed)?
                     };
                     let StructuralFieldType::Structural(child) = field.field_type else {

@@ -347,9 +347,7 @@ pub(crate) fn primitive_geometry(
         if let StructuralTypeShape::Record { fields, .. } =
             &find_structural_type(declarations, carrier)?.shape
         {
-            let field = fields
-                .iter()
-                .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+            let field = terminal_psi::live_field_by_identity(fields, identity)?;
             if field.field_type.scalar_type() == Some(scalar) {
                 return scalar_field_geometry(
                     root,
@@ -422,9 +420,7 @@ fn contiguous_primitive_read_geometry(
     else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    let field = terminal_psi::live_field_by_identity(fields, identity)?;
     // The complete read established eligibility; this suffix independently
     // reconstructs the declared scalar width, field offset and region bounds.
     if field.field_type.scalar_type() != Some(scalar) {
@@ -1066,9 +1062,7 @@ pub(crate) fn stored_view_field_argument(
     else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == *name && !field.relevance.is_erased())?;
+    let field = terminal_psi::live_field_by_identity(fields, name)?;
     byte_view_field_descriptor(source.structural_type, prefix, field.id, declarations)
 }
 
@@ -1339,7 +1333,7 @@ pub(crate) fn projected_scalar_codec(
         else {
             return None;
         };
-        let field = fields.iter().find(|field| field.identity == *identity)?;
+        let field = terminal_psi::field_by_identity(fields, identity)?;
         return scalar_field_codec(root, prefix, field.id, declarations);
     }
     let (selected, _, _) = runtime_projection(root, path, declarations)?;
@@ -1364,7 +1358,7 @@ pub(crate) fn projected_scalar_fragments<'declarations>(
     else {
         return None;
     };
-    let field = fields.iter().find(|field| field.identity == *identity)?;
+    let field = terminal_psi::field_by_identity(fields, identity)?;
     scalar_field_fragments(root, prefix, field.id, declarations)
 }
 
@@ -2059,7 +2053,7 @@ pub(crate) fn element_leaf_projection(
         else {
             return None;
         };
-        let field = fields.iter().find(|field| field.identity == *identity)?;
+        let field = terminal_psi::field_by_identity(fields, identity)?;
         if field.field_type.scalar_type() == Some(scalar) {
             return scalar_field_geometry(element, prefix, field.id, scalar, declarations, false);
         }

@@ -920,12 +920,9 @@ pub(crate) fn prepare(
                         "record read requires a record namespace",
                     ))?,
             };
-            let retained = fields
-                .iter()
-                .find(|field| field.identity == identity)
-                .ok_or(LoweringError::Unsupported(
-                    "record read has no declared field identity",
-                ))?;
+            let retained = terminal_psi::field_by_identity(&fields, &identity).ok_or(
+                LoweringError::Unsupported("record read has no declared field identity"),
+            )?;
             let scalar_type = terminal_scalar_type(node.primitive_type)?;
             let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
             let bounded_leaf =
@@ -1124,9 +1121,7 @@ pub(crate) fn type_roots(
                     continue;
                 };
                 let referee_symbol = checked.type_reference_symbol(*referee);
-                if !checked
-                    .data_definition_by_symbol(referee_symbol).is_some()
-                {
+                if !checked.data_definition_by_symbol(referee_symbol).is_some() {
                     continue;
                 }
                 // The plan registry's identity rule looks through a

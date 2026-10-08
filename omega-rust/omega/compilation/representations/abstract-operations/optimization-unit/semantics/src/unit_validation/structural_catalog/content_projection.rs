@@ -25,7 +25,7 @@ pub(crate) fn validate_content_projection_scalar(
                 else {
                     return false;
                 };
-                let Some(field) = fields.iter().find(|field| field.identity == *segment) else {
+                let Some(field) = terminal_psi::field_by_identity(fields, segment) else {
                     return false;
                 };
                 let last = index + 1 == path.len();

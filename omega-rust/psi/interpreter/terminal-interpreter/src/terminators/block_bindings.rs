@@ -757,8 +757,7 @@ impl TerminalExecution<'_> {
         let Some(machine) = self.program.machines().get(&self.current_machine) else {
             return false;
         };
-        let Some(declaration) = machine.structural_place(place)
-        else {
+        let Some(declaration) = machine.structural_place(place) else {
             return false;
         };
         // A declared trivial affine local is an exact owned source for its

@@ -891,10 +891,7 @@ impl TerminalExecution<'_> {
             | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
             _ => return Err(malformed()),
         };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())
-            .ok_or_else(malformed)?;
+        let field = terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;
         let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(stored_type)) =
             field.field_type.canonical_leaf_shape()
         else {

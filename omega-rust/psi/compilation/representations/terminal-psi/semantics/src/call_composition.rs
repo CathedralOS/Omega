@@ -91,9 +91,7 @@ pub fn stored_view_field_presentation<'types>(
     else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    let field = terminal_psi::live_field_by_identity(fields, identity)?;
     (field.field_type.byte_sequence_carrier()?
         == ByteSequenceCarrier::BorrowedView {
             access: Some(StructuralAccess::SharedBorrow),
@@ -144,9 +142,7 @@ fn inline_byte_field_capacity<'types>(
     let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    let field = terminal_psi::live_field_by_identity(fields, identity)?;
     if access != StructuralAccess::SharedBorrow && !field.field_type.byte_predicates().is_empty() {
         return None;
     }

@@ -176,9 +176,7 @@ fn resolve_path<'types>(
                         _ => return None,
                     },
                 };
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let field = terminal_psi::live_field_by_identity(fields, identity)?;
                 match &field.field_type {
                     terminal_psi::StructuralFieldType::Structural(next) => *next,
                     leaf => {

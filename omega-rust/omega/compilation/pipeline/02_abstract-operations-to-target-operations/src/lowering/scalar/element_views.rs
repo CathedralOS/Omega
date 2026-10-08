@@ -53,7 +53,8 @@ impl<'a> ElementViewBackings<'a> {
             return None;
         }
         let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
-            entry.structural_parameter(source.place)
+            entry
+                .structural_parameter(source.place)
                 .map(|parameter| (entry, parameter))
         })?;
         if entry.block == function.entry
@@ -86,7 +87,8 @@ impl<'a> ElementViewBackings<'a> {
         source: &StructuralArgument,
     ) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
         let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
-            entry.structural_parameter(source.place)
+            entry
+                .structural_parameter(source.place)
                 .map(|parameter| (entry, parameter))
         })?;
         let descriptor_carrier = structural_types
@@ -325,7 +327,7 @@ fn scalar_leaf_offset(
         else {
             return None;
         };
-        let field = fields.iter().find(|field| field.identity == *identity)?;
+        let field = terminal_psi::field_by_identity(fields, identity)?;
         if field.field_type.scalar_type() == Some(scalar) {
             return parent_offset.checked_add(
                 direct_scalar_field_geometry(parent, field.id, scalar, structural_types)
@@ -518,7 +520,8 @@ pub(in crate::lowering) fn resolve_element_view(
         ));
     }
     if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
-        entry.structural_parameter(place)
+        entry
+            .structural_parameter(place)
             .map(|parameter| (entry, parameter))
     }) {
         if entry.block == function.entry || !is_element_view_parameter(parameter, structural_types)
@@ -535,8 +538,7 @@ pub(in crate::lowering) fn resolve_element_view(
             parameter.access,
         ));
     }
-    if let Some(semantic) = function.structural_parameter(place)
-    {
+    if let Some(semantic) = function.structural_parameter(place) {
         let parameter = parameters
             .iter()
             .find(|parameter| parameter.place == place)
@@ -713,43 +715,43 @@ fn established_source(
     ) {
         return Err(invalid());
     }
-    let (root_structural_type, backing) = if let Some(semantic) = function.structural_parameter(source.place)
-    {
-        if !matches!(
-            semantic.access,
-            StructuralAccess::SharedBorrow
-                | StructuralAccess::MutableBorrow
-                | StructuralAccess::Owned
-        ) || (source.access == StructuralAccess::MutableBorrow
-            && !matches!(
+    let (root_structural_type, backing) =
+        if let Some(semantic) = function.structural_parameter(source.place) {
+            if !matches!(
                 semantic.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::Owned
-            ))
-            || semantic.multiplicity != StructuralMultiplicity::Unrestricted
-            || !semantic.qualifications.is_empty()
-            || !semantic.projected_qualifications.is_empty()
-        {
-            return Err(invalid());
-        }
-        let parameter = parameters
-            .iter()
-            .find(|parameter| parameter.place == source.place)
-            .ok_or_else(invalid)?;
-        if parameter.structural_type != semantic.structural_type {
-            return Err(invalid());
-        }
-        (
-            semantic.structural_type,
-            TargetStructuralArgumentSource::from(parameter.placement.clone()),
-        )
-    } else if let Some(backing) = live_aggregate_backing(backings.homes, source.place) {
-        backing
-    } else {
-        backings
-            .descriptor(function, structural_types, source)
-            .or_else(|| backings.address(function, structural_types, source))
-            .ok_or_else(invalid)?
-    };
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::Owned
+            ) || (source.access == StructuralAccess::MutableBorrow
+                && !matches!(
+                    semantic.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::Owned
+                ))
+                || semantic.multiplicity != StructuralMultiplicity::Unrestricted
+                || !semantic.qualifications.is_empty()
+                || !semantic.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.place == source.place)
+                .ok_or_else(invalid)?;
+            if parameter.structural_type != semantic.structural_type {
+                return Err(invalid());
+            }
+            (
+                semantic.structural_type,
+                TargetStructuralArgumentSource::from(parameter.placement.clone()),
+            )
+        } else if let Some(backing) = live_aggregate_backing(backings.homes, source.place) {
+            backing
+        } else {
+            backings
+                .descriptor(function, structural_types, source)
+                .or_else(|| backings.address(function, structural_types, source))
+                .ok_or_else(invalid)?
+        };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let (projected_type, projected_shape, source_byte_offset, runtime_elements) =

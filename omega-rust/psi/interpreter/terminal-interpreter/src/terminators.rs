@@ -89,7 +89,6 @@ impl TerminalExecution<'_> {
         )
     }
 
-
     fn settle_successor(
         &mut self,
         successor: SelectedSuccessor<'_>,
@@ -253,7 +252,11 @@ impl TerminalExecution<'_> {
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(malformed());
         }
-        block_bindings::BlockBindings::default().validate_cleanup_actions(self, &[], cleanup_actions)?;
+        block_bindings::BlockBindings::default().validate_cleanup_actions(
+            self,
+            &[],
+            cleanup_actions,
+        )?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -284,7 +287,11 @@ impl TerminalExecution<'_> {
         if machine.result != TerminalMachineResult::Unit {
             return Err(malformed());
         }
-        block_bindings::BlockBindings::default().validate_cleanup_actions(self, &[], cleanup_actions)?;
+        block_bindings::BlockBindings::default().validate_cleanup_actions(
+            self,
+            &[],
+            cleanup_actions,
+        )?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -349,8 +356,7 @@ impl TerminalExecution<'_> {
                 let Some(case) = find_structural_case(cases, inhabited) else {
                     return Ok(false);
                 };
-                let Some(field) = case.fields.iter().find(|field| field.identity == *identity)
-                else {
+                let Some(field) = terminal_psi::field_by_identity(&case.fields, identity) else {
                     return Ok(false);
                 };
                 let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {

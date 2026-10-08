@@ -931,9 +931,7 @@ pub(crate) fn inline_structural_field<'a>(
         ) => &find_structural_case(cases, case)?.fields,
         _ => return None,
     };
-    fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())
+    terminal_psi::live_field_by_identity(fields, identity)
 }
 
 pub(crate) fn bind_entry_claims(

@@ -272,9 +272,7 @@ pub fn canonicalize_ordinary_path(
                     | StructuralTypeShape::Mixed { fields, .. } => fields,
                     _ => return None,
                 };
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let field = terminal_psi::live_field_by_identity(fields, identity)?;
                 let StructuralFieldType::Structural(next) = field.field_type else {
                     return None;
                 };
@@ -716,11 +714,7 @@ pub fn descended_type(
                 | StructuralTypeShape::Mixed { fields, .. } => fields,
                 _ => return None,
             };
-            match fields
-                .iter()
-                .find(|field| field.identity == *identity)?
-                .field_type
-            {
+            match terminal_psi::field_by_identity(fields, identity)?.field_type {
                 StructuralFieldType::Structural(next) => Some(next),
                 _ => None,
             }

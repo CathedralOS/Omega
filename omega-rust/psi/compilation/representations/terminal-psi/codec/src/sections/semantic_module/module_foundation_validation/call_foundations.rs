@@ -58,8 +58,7 @@ pub(super) fn validate_call_unit(
     if operation.result != OperationResult::Unit {
         return malformed("unit call declares a scalar result");
     }
-    let Some(callee) = module.machine(*callee)
-    else {
+    let Some(callee) = module.machine(*callee) else {
         return malformed("unit call references an unknown callee");
     };
     if callee.result != TerminalMachineResult::Unit
@@ -157,8 +156,7 @@ pub(super) fn validate_call_structural_scalar(
     else {
         unreachable!("dispatched validate_call_structural_scalar")
     };
-    let Some(callee) = module.machine(*callee)
-    else {
+    let Some(callee) = module.machine(*callee) else {
         return malformed("structural scalar call references an unknown callee");
     };
     if arguments.len() != callee.parameters.len()
@@ -214,8 +212,7 @@ pub(super) fn validate_call_structural(
         } => selected_evidence.as_slice(),
         _ => &[],
     };
-    let Some(callee) = module.machine(*callee)
-    else {
+    let Some(callee) = module.machine(*callee) else {
         return malformed("structural call references an unknown callee");
     };
     let Some(expected_result) = callee.result.structural() else {
@@ -276,8 +273,7 @@ pub(super) fn validate_call_structural(
         return malformed("structural call result has an unknown structural type");
     }
     for qualification in &actual_result.qualifications {
-        if !module.structural_domain(*qualification).is_some()
-        {
+        if !module.structural_domain(*qualification).is_some() {
             return malformed("structural call result has an unknown structural domain");
         }
     }

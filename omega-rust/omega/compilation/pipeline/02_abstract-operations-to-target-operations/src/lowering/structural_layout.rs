@@ -205,9 +205,7 @@ fn contiguous_primitive_projection(
         )
         .ok()?;
         if let StructuralTypeShape::Record { fields, .. } = &declarations.get(&carrier)?.shape {
-            let field = fields
-                .iter()
-                .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+            let field = terminal_psi::live_field_by_identity(fields, identity)?;
             let scalar = match field.field_type {
                 StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => Some(scalar),
                 StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(format)),
@@ -282,9 +280,7 @@ fn contiguous_primitive_read_projection(
     let StructuralTypeShape::Record { fields, .. } = &declarations.get(&carrier_type)?.shape else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    let field = terminal_psi::live_field_by_identity(fields, identity)?;
     // Eligibility was checked on the complete read. This suffix supplies only
     // the scalar's storage layout, never store authority or a canonical fact.
     let scalar = field.field_type.scalar_type()?;

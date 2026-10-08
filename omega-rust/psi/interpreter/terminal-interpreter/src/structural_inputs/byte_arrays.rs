@@ -71,9 +71,7 @@ pub(crate) fn array_path_type(
                 StructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let field = terminal_psi::live_field_by_identity(fields, identity)?;
                 let StructuralFieldType::Structural(next) = field.field_type else {
                     return None;
                 };
@@ -322,10 +320,8 @@ impl TerminalExecution<'_> {
                 let Some(fields) = self.program.record_fields(&parent.structural_type) else {
                     return Err(malformed());
                 };
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())
-                    .ok_or_else(malformed)?;
+                let field =
+                    terminal_psi::live_field_by_identity(fields, identity).ok_or_else(malformed)?;
                 if !matches!(
                     field.field_type.byte_sequence_carrier(),
                     Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })

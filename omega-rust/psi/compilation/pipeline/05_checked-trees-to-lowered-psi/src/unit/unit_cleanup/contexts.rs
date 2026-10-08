@@ -112,7 +112,7 @@ pub(crate) fn field_clause(
     let field = find_structural_type(types, parameter.structural_type)
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => {
-                fields.iter().find(|field| field.identity == identity)
+                terminal_psi::field_by_identity(fields, identity)
             }
             _ => None,
         })

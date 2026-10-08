@@ -98,9 +98,10 @@ pub use types::{
     ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
     StructuralCaseDeclaration, StructuralContentProjection, StructuralDomainDeclaration,
     StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
     find_structural_case, find_structural_type, live_field, live_field_by_id,
-    structural_case_position, structural_children, unique_structural_declaration,
+    live_field_by_identity, structural_case_position, structural_children,
+    unique_structural_declaration,
 };
 pub use values::{
     ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,

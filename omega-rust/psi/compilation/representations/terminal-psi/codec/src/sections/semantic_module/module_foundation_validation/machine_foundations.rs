@@ -84,7 +84,8 @@ fn validate_block_parameters(
 fn validate_block_parameter_places(machine: &TerminalMachine) -> Result<(), CodecError> {
     for place in &machine.structural_places {
         if let StructuralPlaceKind::BlockParameter { block, position } = place.kind {
-            let parameter = machine.block(&block)
+            let parameter = machine
+                .block(&block)
                 .and_then(|candidate| candidate.structural_parameters.get(position as usize));
             if parameter.is_none_or(|parameter| parameter.place != place.id) {
                 return malformed("structural block place has no matching parameter");
@@ -98,8 +99,7 @@ fn validate_block_parameter_places(machine: &TerminalMachine) -> Result<(), Code
 /// kind matches its position and self-ness.
 fn validate_parameter_places(machine: &TerminalMachine) -> Result<(), CodecError> {
     for parameter in &machine.structural_parameters {
-        let Some(place) = machine.structural_place(parameter.place)
-        else {
+        let Some(place) = machine.structural_place(parameter.place) else {
             return malformed("structural parameter has no declared structural place");
         };
         if place.kind
@@ -120,9 +120,7 @@ fn validate_entry_claims(
     machine: &TerminalMachine,
 ) -> Result<(), CodecError> {
     for claim in &machine.entry_claims {
-        let Some(parameter) = machine
-            .signature_structural_parameter(claim.input)
-        else {
+        let Some(parameter) = machine.signature_structural_parameter(claim.input) else {
             return malformed("entry claim is not bound to a structural parameter");
         };
         if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
@@ -194,15 +192,15 @@ fn validate_partial_affine_discards(
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
             _ => None,
         }) {
-            let parameter = machine
-                .signature_structural_parameter(discard.place);
+            let parameter = machine.signature_structural_parameter(discard.place);
             let block_parameter = || {
                 let declaration = machine.structural_place(discard.place)?;
                 let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind
                 else {
                     return None;
                 };
-                machine.block(&block)?
+                machine
+                    .block(&block)?
                     .structural_parameters
                     .get(position as usize)
                     .filter(|parameter| {

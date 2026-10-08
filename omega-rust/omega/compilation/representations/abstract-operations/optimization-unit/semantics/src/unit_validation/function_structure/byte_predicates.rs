@@ -400,9 +400,7 @@ pub(crate) fn copied_field_predicates_at_transfer<'t>(
     let Some(fields) = parent.shape.record_fields() else {
         return None;
     };
-    let field = fields
-        .iter()
-        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    let field = terminal_psi::live_field_by_identity(fields, identity)?;
     if field.field_type.byte_sequence_carrier()? != carrier {
         return None;
     }

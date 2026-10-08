@@ -57,8 +57,7 @@ fn reference_store_carrier<'path>(
     let StructuralTypeShape::Reference {
         referent,
         access: terminal_psi::StructuralAccess::MutableBorrow,
-    } = module.structural_type(structural_type)?
-        .shape
+    } = module.structural_type(structural_type)?.shape
     else {
         return None;
     };
@@ -80,8 +79,7 @@ fn owned_record_store_carrier(
     let StructuralPlaceKind::OperationResult {
         producer,
         structural_type,
-    } = machine.structural_place(destination)?
-        .kind
+    } = machine.structural_place(destination)?.kind
     else {
         return None;
     };
@@ -113,7 +111,8 @@ pub(super) fn validate_establish_reference(
     let Some(result) = operation.result.structural() else {
         return malformed("reference establishment requires a structural result");
     };
-    let Some(StructuralTypeShape::Reference { access, .. }) = module.structural_type(result.structural_type)
+    let Some(StructuralTypeShape::Reference { access, .. }) = module
+        .structural_type(result.structural_type)
         .map(|row| &row.shape)
     else {
         return malformed("reference establishment requires a reference carrier type");
@@ -258,9 +257,7 @@ fn place_structural_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    if let Some(parameter) = machine
-        .signature_structural_parameter(place)
-    {
+    if let Some(parameter) = machine.signature_structural_parameter(place) {
         return Some(parameter.structural_type);
     }
     if let Some(parameter) = machine
