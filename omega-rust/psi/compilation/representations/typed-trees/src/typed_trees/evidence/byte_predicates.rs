@@ -85,8 +85,8 @@ pub fn type_reference_domain_predicates(
         if !handle.is_valid() {
             return predicates;
         }
+        handle = program.type_reference_table.dereferenced_type_reference(handle);
         match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
