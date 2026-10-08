@@ -1,0 +1,36 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+
+data Cell [copy] { text: [u8; 8] in Utf8; captured: [u8; 8] in Utf8; sibling: u64; }
+data Main { console: Binding<Console>; cell: Cell; }
+
+machine capture(cell: &mut Cell) -> [u8; 8] in Utf8 {
+    cell.sibling = 29;
+    transition { _ -> "Gate" }
+}
+
+machine relay(snapshot: [u8; 8] in Utf8, cell: &mut Cell) {
+    transition { _ -> replace(snapshot, cell) }
+    state replace(snapshot: [u8; 8] in Utf8, cell: &mut Cell) {
+        cell.text = "é";
+        transition { _ -> observe(snapshot, cell) }
+    }
+    state observe(snapshot: [u8; 8] in Utf8, cell: &mut Cell) {
+        cell.captured = snapshot;
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.cell.text = "Gate";
+    main.cell.sibling = 17;
+    relay(capture(&mut main.cell), &mut main.cell);
+    transition main.cell.captured == "Gate" && main.cell.captured.len == 4
+        && main.cell.text == "é" && main.cell.text.len == 2
+        && main.cell.sibling == 29 {
+        true -> finish(main, 70)
+        _ -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

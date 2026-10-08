@@ -3,6 +3,8 @@
 //! A state edge relocates a borrowed descriptor, not its referent. Mutable and
 //! write-only aggregate loans use the same backing-preserving transport; their
 //! declared source access independently limits what the destination may do.
+//! Qualification requirements use the common argument binder on the captured
+//! runtime memberships. A destination declaration never mints missing evidence.
 
 use crate::program::MachineBlocks;
 use std::collections::{BTreeMap, BTreeSet};
@@ -258,8 +260,6 @@ impl TerminalExecution<'_> {
             .enumerate()
         {
             if usize::try_from(parameter.position).ok() != Some(position)
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
                 || (parameter.access != StructuralAccess::Owned
                     && self
                         .live_claims
@@ -335,7 +335,7 @@ impl TerminalExecution<'_> {
                 // after an earlier projected transfer. Source declarations and
                 // the affine frontier below determine its current custody;
                 // the original backing prefix does not make it a partial owner.
-                (Some(value), None) if value.qualifications.is_empty() => {}
+                (Some(_), None) => {}
                 (None, Some(case))
                     if parameter.access == StructuralAccess::Owned
                         && argument.path.is_empty()
@@ -363,8 +363,6 @@ impl TerminalExecution<'_> {
                                     source.structural_type == parameter.structural_type
                                         && source.multiplicity == parameter.multiplicity
                                         && source.access == StructuralAccess::Owned
-                                        && source.qualifications.is_empty()
-                                        && source.projected_qualifications.is_empty()
                                 })
                                 || self.owned_result_matches(
                                     argument.place,
@@ -442,8 +440,6 @@ impl TerminalExecution<'_> {
                                     source.structural_type == root.structural_type
                                         && source.multiplicity == StructuralMultiplicity::Affine
                                         && source.access == StructuralAccess::Owned
-                                        && source.qualifications.is_empty()
-                                        && source.projected_qualifications.is_empty()
                                 })
                                 || self.owned_result_source(
                                     argument.place,
@@ -700,8 +696,6 @@ impl TerminalExecution<'_> {
         };
         let multiplicity = if let Some(source) = self.owned_block_source(place) {
             if source.structural_type != value.structural_type
-                || !source.qualifications.is_empty()
-                || !source.projected_qualifications.is_empty()
                 || !crate::reference::access_covers(source.access, requested)
                 || (source.access != StructuralAccess::Owned
                     && source.multiplicity != StructuralMultiplicity::Unrestricted)
@@ -814,50 +808,27 @@ impl TerminalExecution<'_> {
         else {
             return false;
         };
-        // The committed record descriptor retains its runtime referent. This
-        // recognizes its exact producer, not a fresh payload or a copied loan.
-        // Storage-backed cases share record subtree custody; packed immutable
-        // cases retain their distinct carrier below.
+        // A successful operation publishes one owned result declaration.
+        // The runtime carrier and the frontier above establish its current
+        // custody; surrounding constructor/call/copy syntax is irrelevant.
+        // Packed cases retain their own payload carrier, while descriptors
+        // require an owned storage shape (including bounded byte owners).
         declared == structural_type
-            && (scalar_case || self.plain_aggregate_type(structural_type))
+            && (scalar_case
+                || terminal_semantics::descriptor_results::plain_owned_shape(
+                    self.program.structural_types().values(),
+                    structural_type,
+                ))
             && machine
                 .blocks
                 .iter()
                 .flat_map(|block| &block.operations)
                 .any(|operation| {
                     operation.id == producer
-                        && match operation.kind {
-                            terminal_psi::OperationKind::EstablishScalarCase { .. } => scalar_case,
-                            // Leaf copies publish fresh record storage, just
-                            // like construction; a whole copy of a scalar
-                            // case publishes a fresh scalar case instead. The
-                            // exact producer, type and multiplicity checks
-                            // below still govern transfer.
-                            terminal_psi::OperationKind::StructuralLeafCopy {
-                                ref path, ..
-                            } => !scalar_case || path.is_empty(),
-                            // A zeroed establishment publishes fresh owned
-                            // storage exactly as construction does; its
-                            // fields are written by later stores.
-                            terminal_psi::OperationKind::EstablishStructuralArray { .. }
-                            | terminal_psi::OperationKind::EstablishStructuralCase { .. }
-                            | terminal_psi::OperationKind::EstablishRecord { .. }
-                            | terminal_psi::OperationKind::EstablishZeroedStructural {}
-                            | terminal_psi::OperationKind::StructuralCaseLeafCopy { .. } => {
-                                !scalar_case
-                            }
-                            terminal_psi::OperationKind::CallStructural { .. }
-                            | terminal_psi::OperationKind::CallStructuralWithScalarArguments {
-                                ..
-                            } => true,
-                            _ => false,
-                        }
                         && operation.result.structural().is_some_and(|result| {
                             result.place == place
                                 && result.structural_type == structural_type
                                 && result.multiplicity == multiplicity
-                                && result.qualifications.is_empty()
-                                && result.projected_qualifications.is_empty()
                         })
                 })
     }

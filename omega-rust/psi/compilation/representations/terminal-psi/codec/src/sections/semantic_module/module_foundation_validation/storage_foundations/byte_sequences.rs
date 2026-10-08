@@ -162,44 +162,26 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         StructuralPlaceKind::ByteSequenceLiteral {
             structural_type, ..
         } => structural_type,
-        StructuralPlaceKind::Parameter { position } => {
-            let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-                parameter.place == *source
-                    && parameter.position == position
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && parameter.projected_qualifications.is_empty()
-                    && ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                        && parameter.qualifications.is_empty())
-                        || (parameter.access == terminal_psi::StructuralAccess::Owned
-                            && terminal_semantics::byte_parameter_predicates(module, parameter)
-                                .is_some()))
-            }) else {
-                return malformed("byte field store source is not an immutable whole view");
-            };
-            // Ordinary owned byte arguments retain their declared predicates
-            // and live length. The carrier check below distinguishes bounded
-            // ownership from a borrowed descriptor; receiving verification
-            // still proves availability, destination predicates and capacity.
-            owned_source = parameter.access == terminal_psi::StructuralAccess::Owned;
-            parameter.structural_type
-        }
-        StructuralPlaceKind::BlockParameter { block, position } => {
-            let Some(parameter) = machine
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)
-                .and_then(|block| block.structural_parameters.get(position as usize))
-                .filter(|parameter| {
-                    parameter.place == *source
-                        && parameter.position == position
-                        && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && parameter.qualifications.is_empty()
+        StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. } => {
+            // A state parameter is the same arrival storage as a machine
+            // parameter. Declaration location grants no additional permission:
+            // both retain exact access, predicates, capacity and live length.
+            let Some(parameter) =
+                terminal_semantics::arrival_parameter(machine, *source).filter(|parameter| {
+                    parameter.multiplicity == StructuralMultiplicity::Unrestricted
                         && parameter.projected_qualifications.is_empty()
+                        && ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
+                            && parameter.qualifications.is_empty())
+                            || (parameter.access == terminal_psi::StructuralAccess::Owned
+                                && terminal_semantics::byte_parameter_predicates(
+                                    module, parameter,
+                                )
+                                .is_some()))
                 })
             else {
-                return malformed("byte field store block source is not an immutable whole view");
+                return malformed("byte field store source is not a readable whole byte carrier");
             };
+            owned_source = parameter.access == terminal_psi::StructuralAccess::Owned;
             parameter.structural_type
         }
         StructuralPlaceKind::OperationResult {

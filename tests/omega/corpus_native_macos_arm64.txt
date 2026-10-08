@@ -1552,6 +1552,7 @@ pass/text/owned_record_byte_field_read_exit built 1454ms exit:70 @c3ad5f6e051f+w
 pass/text/plain_and_qualified_byte_arrays_exit built 1445ms exit:70 @0142400d0e1f
 pass/text/plain_byte_field_and_qualified_state_loan_exit built 1364ms exit:70 @0142400d0e1f
 pass/text/qualified_byte_owner_state_loan_cycle_exit built 1463ms exit:70 stdout:match @ad48a872752b+wt
+pass/text/qualified_byte_state_snapshot_exit built 1794ms exit:70 @a0c004371ad8+wt
 pass/text/runtime_alias_string_write built 688ms @fb2178def922
 pass/text/runtime_bounded_carrier_alias_concat_exit built 1278ms exit:70
 pass/text/runtime_bounded_carrier_concat_exit built 1302ms exit:70

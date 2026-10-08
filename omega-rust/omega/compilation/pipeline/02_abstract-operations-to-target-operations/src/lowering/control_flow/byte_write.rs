@@ -82,12 +82,10 @@ pub(super) fn replace(
         };
     if source == destination
         || live.lengths.get(length) != Some(source)
-        || !(prepared
-            .parameters
-            .iter()
-            .any(|parameter| parameter.place == *source)
-            || live.views.contains_key(source)
-            || live.block_views.contains(source))
+        // Entry and state parameters are the same declared arrival storage.
+        // The retained length observation fixes the readable byte source;
+        // signature preparation alone omits owned state parameters.
+        || !(function.arrival_parameter(*source).is_some() || live.views.contains_key(source))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

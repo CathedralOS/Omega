@@ -1953,6 +1953,8 @@ fail/text/later_arm_guard_read_unbounded rejected 423ms expected @954364ed064e
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
 fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected @ad48a872752b+wt
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
+fail/text/qualified_byte_state_domain_widening rejected 883ms expected @a0c004371ad8+wt
+	cannot prove requires contract for call narrowed from relay: value in [u8; N]::Ascii
 fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65+wt
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
 fail/traits/data_in_implementation_argument rejected 65ms expected @9b6debbda081+wt
@@ -3648,6 +3650,7 @@ pass/text/owned_record_byte_field_read_exit checked 1401ms check-target:macos_ar
 pass/text/plain_and_qualified_byte_arrays_exit checked 1221ms check-target:macos_arm64 @0142400d0e1f
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 1218ms check-target:macos_arm64 @0142400d0e1f
 pass/text/qualified_byte_owner_state_loan_cycle_exit checked 1212ms check-target:macos_arm64 @ad48a872752b+wt
+pass/text/qualified_byte_state_snapshot_exit checked 1785ms check-target:macos_arm64 @a0c004371ad8+wt
 pass/text/runtime_alias_string_write checked 381ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_concat_exit checked 1496ms check-target:macos_arm64 @2d8ed253669f

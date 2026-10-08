@@ -1,3 +1,9 @@
+//! Prepared arguments enter one saved-frame transition for every result form.
+//! Argument preparation owns readable storage, aliasing and domain admission;
+//! a structural result does not introduce another input-path/shape policy.
+//! Owned argument copies precede captured reference-return backing, and the
+//! completion owner publishes the result only after the callee returns.
+
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::calls::scalar_case_arguments;
@@ -13,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeShape, TerminalMachineResult,
+    StructuralTypeShape, TerminalMachineResult,
 };
 
 /// The caller retains an owner only while some subtree remains in its custody.
@@ -207,7 +213,7 @@ impl TerminalExecution<'_> {
         structural_arguments: &[StructuralArgument],
         prepared_arguments: StructuralCallArguments,
         claim_transfers: &[ClaimTransfer],
-        result: SuspendedCallResult,
+        mut result: SuspendedCallResult,
     ) -> Result<(), TerminalInterpretError> {
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
@@ -218,6 +224,17 @@ impl TerminalExecution<'_> {
             &mut structural_values,
             &mut identity_cursor,
         )?;
+        if let SuspendedCallResult::Structural {
+            expected_reference_backings,
+            ..
+        } = &mut result
+        {
+            *expected_reference_backings = self.bind_reference_return_backings(
+                &callee.structural_parameters,
+                callee.result.structural().ok_or_else(malformed)?,
+                &structural_values,
+            )?;
+        }
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
             &callee.structural_parameters,
@@ -371,177 +388,32 @@ impl TerminalExecution<'_> {
         let Some(callee_result) = callee.result.structural() else {
             return Err(malformed());
         };
-        let exact_primitive_structural_call = callee.entry_claims.is_empty()
-            && callee.content_entry_claims.is_empty()
-            && claim_transfers.is_empty()
-            && matches!(
-                result.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            )
-            && result.qualifications.is_empty()
-            && result.claims.is_empty()
-            && (self.plain_aggregate_type(result.structural_type)
-                // A shared byte view is a copyable descriptor. The callee's
-                // return carries its immutable backing with it, and the
-                // completion rebinds that byte sequence to the result place,
-                // so the descriptor needs no owned storage of its own.
-                || self
-                    .program
-                    .structural_types()
-                    .get(&result.structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view()));
-        if structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-            .any(|(argument, parameter)| {
-                !argument.path.is_empty()
-                    // Preparing the argument already resolved its exact path,
-                    // type, access and alias custody. A structural return does
-                    // not change where a static borrowed input is backed.
-                    && !(argument.access != StructuralAccess::Owned
-                        && parameter.access == argument.access
-                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                        && argument.path.iter().all(|segment| matches!(segment,
-                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)))
-                        && prepared_arguments.values.get(&parameter.place).is_some_and(|value|
-                            value.structural_type == parameter.structural_type))
-                    && !(argument.path.last() == Some(&StructuralPathSegment::Referent)
-                        && argument.access != StructuralAccess::Owned
-                        && parameter.access == argument.access
-                        && prepared_arguments
-                            .values
-                            .get(&parameter.place)
-                            .is_some_and(|value| {
-                                value.structural_type == parameter.structural_type
-                                    && self.program
-                                        .structural_types()
-                                        .get(&value.structural_type)
-                                        .is_some_and(|declaration| {
-                                            matches!(
-                                                declaration.shape,
-                                                StructuralTypeShape::PrimitiveScalar(_)
-                                            )
-                                        })
-                            }))
-                    // An owned operand may also name a declared-field subtree
-                    // when the callee returns reference custody: the result's
-                    // published source roster pins each moved leaf, and the
-                    // affine projection split already removed it from the
-                    // caller's frontier.
-                    && !(argument.access == StructuralAccess::Owned
-                        && parameter.access == StructuralAccess::Owned
-                        && parameter.multiplicity == StructuralMultiplicity::Affine
-                        && !callee_result.reference_sources.is_empty()
-                        && argument.path.iter().all(|segment| matches!(segment,
-                            StructuralPathSegment::Field(_)))
-                        && prepared_arguments.values.get(&parameter.place).is_some_and(|value|
-                            value.structural_type == parameter.structural_type))
-                    && !matches!(
-                        prepared_arguments.byte_sequences.get(&parameter.place),
-                        Some(
-                            ByteSequenceBinding::MutableField { .. }
-                                | ByteSequenceBinding::MutableArray { .. }
-                        )
-                    )
-            })
-            || result.structural_type != callee_result.structural_type
+        // Argument preparation owns projection, access, qualification and alias
+        // checks. Returning a value does not impose a second argument-path or
+        // result-shape language. Completion checks the produced carrier against
+        // this exact declaration before installing it in the caller.
+        if result.structural_type != callee_result.structural_type
             || result.multiplicity != callee_result.multiplicity
             || result.qualifications != callee_result.qualifications
             || result.projected_qualifications != callee_result.projected_qualifications
-            || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                && !exact_primitive_structural_call)
             || self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
         {
             return Err(malformed());
         }
-        let values = bind_arguments(&callee.parameters, scalar_arguments)?;
-        prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
-        let mut structural_values = prepared_arguments.values;
-        let mut identity_cursor = prepared_arguments.local_identity_cursor;
-        let aggregate_payload = self.stage_owned_aggregate_arguments(
-            &prepared_arguments.descriptor_parameters,
-            &mut structural_values,
-            &mut identity_cursor,
-        )?;
-        let expected_reference_backings = self.bind_reference_return_backings(
-            &callee.structural_parameters,
-            callee_result,
-            &structural_values,
-        )?;
-        let byte_sequence_values = prepared_arguments.byte_sequences;
-        let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
-            &callee.structural_parameters,
-            &structural_values,
-            &prepared_arguments.scalar_cases,
-        )?;
-        let (remaining_claims, live_claims) = transfer_claims(
-            &self.live_claims,
-            &self.structural_values,
+        self.enter_call(
+            callee_id,
+            callee,
+            scalar_arguments,
             structural_arguments,
+            prepared_arguments,
             claim_transfers,
-            &callee.structural_parameters,
-            &callee.entry_claims,
-            &callee.content_entry_claims,
-            &structural_values,
-        )?;
-
-        let mut caller_affine_frontier = self.live_affine_frontier.clone();
-        for (argument, parameter) in structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-        {
-            if parameter.multiplicity == StructuralMultiplicity::Affine
-                && argument.access == StructuralAccess::Owned
-            {
-                self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
-            }
-        }
-        let mut caller_structural_values = self.structural_values.clone();
-        let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
-        retire_transferred_call_sources(
-            structural_arguments,
-            &callee.structural_parameters,
-            &caller_affine_frontier,
-            &mut caller_structural_values,
-            &mut caller_scalar_case_values,
-        )?;
-        self.next_operation += 1;
-        self.call_stack.push(SuspendedCall {
-            values: std::mem::take(&mut self.values),
-            structural_values: caller_structural_values,
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_case_values: caller_scalar_case_values,
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: caller_affine_frontier,
-            live_claims: remaining_claims,
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result: SuspendedCallResult::Structural {
+            SuspendedCallResult::Structural {
                 result,
                 claim_origin,
-                expected_reference_backings,
+                expected_reference_backings: Vec::new(),
             },
-        });
-        self.values = values;
-        self.structural_values = structural_values;
-        self.byte_sequence_values = byte_sequence_values;
-        self.primitive_loan_values = prepared_arguments.primitive_loans;
-        self.local_structural_identities
-            .commit_cursor(identity_cursor);
-        aggregate_payload.publish(self);
-        self.scalar_array_values = prepared_arguments.scalar_arrays;
-        self.element_view_values = prepared_arguments.element_views;
-        self.scalar_case_values = prepared_arguments.scalar_cases;
-        self.live_affine_frontier = callee_affine_frontier;
-        self.live_claims = live_claims;
-        self.current_machine = callee_id;
-        self.current = callee.entry;
-        self.next_operation = 0;
-        Ok(())
+        )
     }
 }

@@ -3,11 +3,11 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralPathSegment, StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeShape,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::custody::{project_structural_value, resolve_structural_arguments};
+use crate::custody::project_structural_value;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -76,8 +76,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
-        if !source_value.path.is_empty()
-            || !source_value.qualifications.is_empty()
+        if !source_value.projected_qualifications.is_empty()
             || !matches!(self.program.structural_types().get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
                                 || declaration.shape.is_bounded_owned_byte_sequence())
@@ -89,7 +88,11 @@ impl TerminalExecution<'_> {
             .get(source)
             .ok_or_else(malformed)?
             .immutable()?;
-        if bytes.len() as u128 != *length {
+        // A qualified value is still a readable byte carrier. Its immutable
+        // binding retains the captured contents and exact descriptor home;
+        // qualifiers neither change those bytes nor require an empty backing
+        // path for a descriptor borrowed from a field.
+        if !bytes.matches_descriptor_home(source_value) || bytes.len() as u128 != *length {
             return Err(malformed());
         }
         // Sharing immutable backing copies the semantic value. An indexed
@@ -290,27 +293,18 @@ impl TerminalExecution<'_> {
             // Authority belongs to the current binding, including an arrival
             // parameter. The static projection resolver checks every selected hop;
             // the operation-wide selector pass already checked dynamic bounds.
-            if requires_mutation
-                && !matches!(
-                    access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::MutableBorrow
-                        | StructuralAccess::WriteOnlyBorrow
-                )
-            {
+            let requested = if requires_mutation {
+                StructuralAccess::WriteOnlyBorrow
+            } else {
+                StructuralAccess::SharedBorrow
+            };
+            if !crate::reference::access_covers(access, requested) {
                 return Err(malformed());
             }
-            resolve_structural_arguments(
-                &self.program.structural_types(),
-                &self.structural_values,
-                &[StructuralArgument {
-                    place: root,
-                    path: path.to_vec(),
-                    access,
-                }],
-            )?
-            .pop()
-            .ok_or_else(malformed)?
+            // A reference hop selects captured referent storage. Appending
+            // Referent as a physical field path would instead write beneath
+            // the descriptor and leave the caller's bytes unchanged.
+            self.resolve_live_projection(root, path, requested)?
         };
         let declaration = self
             .program

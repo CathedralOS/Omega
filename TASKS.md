@@ -1326,11 +1326,6 @@ defines the complete product bar.
 
   The Dungeon Crawler is migrated to explicit parameters and meets its README
   runtime oracle natively within the sample gate's 300 s per-call timeout.
-  Interpreted composition remains open: on macOS ARM64,
-  `borrows/branch_selected_record_composed_receiver_exit` exits 70 natively
-  but Terminal execution refuses with `Execution(VerifiedOperationMalformed)`.
-  Reproduce with `python tools/corpus_gate.py --both --filter branch_selected_record_composed_receiver_exit`;
-  retain the authored qualified-byte and enum-field behavior.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
@@ -1344,7 +1339,7 @@ defines the complete product bar.
   - Keep `pass/control_flow/element_view_enum_equality_exit`,
     `pass/borrows/{indexed_record_field_replacement_exit,qualified_byte_owner_exclusive_call_exit,branch_selected_record_composed_receiver_exit,returned_record_case_field_store_exit,interleaved_parameter_field_replacement_exit}`,
     `pass/structs/qualified_record_element_assignment_exit` and
-    `pass/text/nested_mutable_receiver_byte_result_exit`. Guarded and
+    `pass/text/{nested_mutable_receiver_byte_result_exit,qualified_byte_state_snapshot_exit}`. Guarded and
     closed-case returns keep physical view cleanup and semantic custody.
   Coordinate with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   **IMPLICIT-STORE-CONVERSION** (policy casts) and **WRITE-ONLY-BORROW**

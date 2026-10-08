@@ -106,15 +106,24 @@ Projected affine operands retain the original subtree backing and leave their
 maximal live complement for the selected cleanup schedule. Case paths check the
 current discriminator before moving, select only active payload siblings, and
 retain mixed common fields in their independent namespace. They do not create
-fresh affine copies. Qualified and claim-bearing projected owners still need
-their separate transport. Exact
+fresh affine copies. Qualification requirements are checked against captured
+runtime memberships by the common argument binder, not copied from destination
+declarations. Claim-bearing projected owners still need their separate transport. Exact
 unqualified mutable byte-view block parameters retain an existing field loan.
 Plain aggregate mutable and write-only block parameters retain their original
 subtree backing, with source declarations governing access attenuation. State
 edges carry a root and projection path, not a manufactured stored reference.
-Qualified and reference-bearing exclusive aggregate transport remains separate.
+Qualified bounded owners retain independent immutable byte snapshots across
+states. Reference-bearing exclusive aggregate transport remains separate.
 
 ## Calls and work
+
+Unit, scalar and structural results share one call-frame transition after their
+exact signatures and arguments are prepared. A structural result imposes no
+additional input-path or unqualified-shape restriction. Returned reference
+backings are captured after owned argument staging and checked at completion;
+the returned carrier, byte contents and memberships enter the saved caller only
+on successful return.
 
 The interpreter charges a call before entering its owned frame. Exhaustion inside
 the callee resumes without paying or invoking that call again. A callee crash
