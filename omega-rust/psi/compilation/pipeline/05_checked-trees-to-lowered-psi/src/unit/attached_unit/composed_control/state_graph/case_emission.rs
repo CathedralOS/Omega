@@ -4,7 +4,8 @@ use super::super::super::super::{
     StructuralParameterDeclaration,
 };
 use super::super::super::{
-    OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
+    OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration,
+    terminal_scalar_type, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlStatePlan, scalars};
@@ -119,13 +120,11 @@ pub(super) fn prepare<'a>(
             let mut fields = Vec::new();
             let mut values = Vec::new();
             for payload in &case.payloads {
-                let field = declared
-                    .fields
-                    .iter()
-                    .find(|field| field.identity == payload.field_identity)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph payload field is missing",
-                    ))?;
+                let field =
+                    terminal_psi::field_by_identity(&declared.fields, &payload.field_identity)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph payload field is missing",
+                        ))?;
                 let scalar_type = terminal_scalar_type(payload.primitive_type)?;
                 fields.push(field.id);
                 values.push((
@@ -167,7 +166,10 @@ pub(super) fn prepare<'a>(
                         fields.push(field.id);
                         values.push((
                             u32::MAX,
-                            crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
+                            crate::terminal_identities::fresh_scalar_declaration(
+                                next_value,
+                                scalar_type,
+                            )?,
                         ));
                     }
                     return Ok(PreparedCase {
@@ -198,10 +200,7 @@ pub(super) fn prepare<'a>(
                     {
                         continue;
                     }
-                    let field = declared
-                        .fields
-                        .iter()
-                        .find(|field| field.identity == field_name)
+                    let field = terminal_psi::field_by_identity(&declared.fields, field_name)
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph case argument reads an undeclared payload",
                         ))?;
@@ -214,7 +213,10 @@ pub(super) fn prepare<'a>(
                     fields.push(field.id);
                     values.push((
                         u32::MAX,
-                        crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
+                        crate::terminal_identities::fresh_scalar_declaration(
+                            next_value,
+                            scalar_type,
+                        )?,
                     ));
                 }
             }
