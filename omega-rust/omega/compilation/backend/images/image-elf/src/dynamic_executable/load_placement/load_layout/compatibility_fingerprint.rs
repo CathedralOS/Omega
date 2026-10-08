@@ -90,32 +90,17 @@ const fn target_tag(target: TargetProfile) -> u8 {
     }
 }
 
-pub(crate) fn checked_sum(left: u64, right: u64, context: &str) -> Result<u64, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Off")))
-}
 
-pub(crate) fn checked_product(left: u64, right: u64, context: &str) -> Result<u64, Diagnostic> {
-    left.checked_mul(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Off")))
-}
 
 pub(crate) fn checked_align(value: u64, alignment: u64, context: &str) -> Result<u64, Diagnostic> {
     if alignment <= 1 {
         return Ok(value);
     }
-    require(
+    crate::dynamic_executable::checked::require(
         alignment.is_power_of_two(),
         "ELF placement alignment is not a power of two",
     )?;
     let mask = alignment - 1;
-    checked_sum(value, mask, context).map(|sum| sum & !mask)
+    crate::dynamic_executable::checked::checked_sum_u64(value, mask, context, "Elf64_Off").map(|sum| sum & !mask)
 }
 
-pub(crate) fn require(condition: bool, message: &str) -> Result<(), Diagnostic> {
-    if condition {
-        Ok(())
-    } else {
-        Err(Diagnostic::error(message))
-    }
-}

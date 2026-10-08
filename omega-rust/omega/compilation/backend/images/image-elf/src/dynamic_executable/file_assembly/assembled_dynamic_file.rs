@@ -332,7 +332,7 @@ fn procedure_got_import_custody(
         .iter()
         .find(|section| section.kind() == ElfPlacedDynamicSectionKind::ProcedureGot)
         .ok_or_else(|| Diagnostic::error("dynamic ELF load layout has no procedure GOT section"))?;
-    require(
+    crate::dynamic_executable::checked::require(
         checked_u64(extent.len(), "dynamic ELF procedure GOT extent")? == section.byte_size(),
         "dynamic ELF procedure GOT extent drifted from its placed section",
     )?;
@@ -424,7 +424,7 @@ fn validate_executable_output(
     let expected_data_regions = place_data_regions(image, load.final_image_layout())?;
     let (expected_import_data, expected_import_regions) =
         procedure_got_import_custody(&assembled.resolved_linkage, load)?;
-    require(
+    crate::dynamic_executable::checked::require(
         image.target == load.target().native_target()
             && image.memory.text == assembled.resolved_linkage.source_text_bytes()
             && image.memory.data == assembled.resolved_linkage.source_data_bytes()
@@ -444,7 +444,7 @@ fn validate_executable_output(
             && output.import_data_regions == expected_import_regions,
         "admitted dynamic ELF output drifted from exact assembled-file custody",
     )?;
-    require(
+    crate::dynamic_executable::checked::require(
         output.bytes.starts_with(b"\x7fELF")
             && output.bytes.get(4) == Some(&2)
             && output.bytes.get(5) == Some(&1),
@@ -548,11 +548,11 @@ fn validate_contents(
 ) -> Result<(), Diagnostic> {
     let expected_fragments = expected_fragments(resolved_linkage)?;
     let expected_file_byte_count = expected_file_byte_count(resolved_linkage)?;
-    require(
+    crate::dynamic_executable::checked::require(
         contents.bytes.len() == expected_file_byte_count,
         "assembled dynamic ELF file length drifted from its section-header extent",
     )?;
-    require(
+    crate::dynamic_executable::checked::require(
         contents.fragment_placements.len() == expected_fragments.len(),
         "assembled dynamic ELF fragment ledger coverage drifted",
     )?;
@@ -566,7 +566,7 @@ fn validate_contents(
     {
         let expected_ordinal = checked_u32(ordinal, "dynamic ELF fragment ordinal")?;
         let expected_byte_count = checked_u64(fragment.bytes.len(), "dynamic ELF fragment size")?;
-        require(
+        crate::dynamic_executable::checked::require(
             placement.ordinal == expected_ordinal
                 && placement.kind == fragment.kind
                 && placement.file_offset == fragment.file_offset
@@ -578,18 +578,18 @@ fn validate_contents(
             fragment.bytes.len(),
             contents.bytes.len(),
         )?;
-        require(
+        crate::dynamic_executable::checked::require(
             occupied[range.clone()].iter().all(|byte| !*byte),
             "assembled dynamic ELF fragments overlap",
         )?;
-        require(
+        crate::dynamic_executable::checked::require(
             contents.bytes[range.clone()] == *fragment.bytes,
             "assembled dynamic ELF fragment bytes do not replay",
         )?;
         occupied[range].fill(true);
     }
 
-    require(
+    crate::dynamic_executable::checked::require(
         contents
             .bytes
             .iter()
@@ -606,7 +606,7 @@ fn expected_fragments(
     let envelope = resolved_linkage.envelope();
     let load = load_layout(resolved_linkage);
     let indexed = load.relative().payloads().contents();
-    require(
+    crate::dynamic_executable::checked::require(
         indexed.rows.len() == SECTION_COUNT && load.sections().len() == SECTION_COUNT,
         "dynamic ELF assembly requires the exact fourteen-row section roster",
     )?;
@@ -630,14 +630,14 @@ fn expected_fragments(
 
     for (index, (row, placed)) in indexed.rows.iter().zip(load.sections()).enumerate() {
         let expected_index = checked_u32(index, "dynamic ELF section index")?;
-        require(
+        crate::dynamic_executable::checked::require(
             row.index == expected_index
                 && placed.index() == expected_index
                 && public_section_kind(row.kind) == placed.kind(),
             "dynamic ELF assembly section roster drifted",
         )?;
         if index == 0 {
-            require(
+            crate::dynamic_executable::checked::require(
                 placed.kind() == ElfPlacedDynamicSectionKind::Null
                     && placed.byte_size() == 0
                     && row.bytes.is_empty(),
@@ -646,7 +646,7 @@ fn expected_fragments(
             continue;
         }
         let bytes = section_bytes(resolved_linkage, index, &row.bytes);
-        require(
+        crate::dynamic_executable::checked::require(
             checked_u64(bytes.len(), "dynamic ELF section payload size")? == placed.byte_size(),
             "dynamic ELF assembled section size drifted from absolute placement",
         )?;
@@ -694,7 +694,7 @@ fn copy_fragment(
         fragment.bytes.len(),
         destination.len(),
     )?;
-    require(
+    crate::dynamic_executable::checked::require(
         occupied[range.clone()].iter().all(|byte| !*byte),
         "dynamic ELF file fragments overlap during assembly",
     )?;
@@ -710,23 +710,23 @@ fn validate_file_extents(
     let load = load_layout(resolved_linkage);
     let file_byte_count = checked_u64(file_byte_count, "assembled dynamic ELF file size")?;
     for header in load.program_headers() {
-        let end = checked_sum(
+        let end = crate::dynamic_executable::checked::checked_sum_u64(
             header.file_offset(),
             header.file_size(),
             "dynamic ELF program-header file extent",
-        )?;
-        require(
+         "Elf64_Xword")?;
+        crate::dynamic_executable::checked::require(
             end <= file_byte_count,
             "assembled dynamic ELF file does not contain a complete program-header extent",
         )?;
     }
     let image = load.image_memory();
-    let data_end = checked_sum(
+    let data_end = crate::dynamic_executable::checked::checked_sum_u64(
         image.data_file_offset(),
         image.data_size(),
         "assembled source-data extent",
-    )?;
-    require(
+     "Elf64_Xword")?;
+    crate::dynamic_executable::checked::require(
         data_end <= file_byte_count
             && checked_u64(load.retained_image().memory.text.len(), "source text size")?
                 == image.text_size()
@@ -740,14 +740,14 @@ fn expected_file_byte_count(
     resolved_linkage: &ValidatedElfResolvedProcedureLinkage,
 ) -> Result<usize, Diagnostic> {
     let envelope = resolved_linkage.envelope();
-    let end = checked_sum(
+    let end = crate::dynamic_executable::checked::checked_sum_u64(
         envelope.section_header_table_file_offset(),
         checked_u64(
             envelope.section_header_table_bytes().len(),
             "dynamic ELF section-header table size",
         )?,
         "dynamic ELF file end",
-    )?;
+     "Elf64_Xword")?;
     usize::try_from(end)
         .map_err(|_| Diagnostic::error("dynamic ELF assembled file exceeds host address space"))
 }
@@ -762,7 +762,7 @@ fn fragment_range(
     let end = start.checked_add(byte_count).ok_or_else(|| {
         Diagnostic::error("dynamic ELF fragment extent overflows host address space")
     })?;
-    require(
+    crate::dynamic_executable::checked::require(
         end <= file_byte_count,
         "dynamic ELF fragment exceeds the assembled file extent",
     )?;
@@ -832,18 +832,7 @@ fn checked_u64(value: usize, context: &str) -> Result<u64, Diagnostic> {
     u64::try_from(value).map_err(|_| Diagnostic::error(format!("{context} exceeds Elf64_Xword")))
 }
 
-fn checked_sum(left: u64, right: u64, context: &str) -> Result<u64, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Xword")))
-}
 
-fn require(condition: bool, message: &str) -> Result<(), Diagnostic> {
-    if condition {
-        Ok(())
-    } else {
-        Err(Diagnostic::error(message))
-    }
-}
 
 #[cfg(test)]
 mod tests;

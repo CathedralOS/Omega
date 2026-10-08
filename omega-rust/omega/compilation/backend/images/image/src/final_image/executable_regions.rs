@@ -597,7 +597,7 @@ pub(crate) fn state_footprint_evidence_digest(
     StateFootprintEvidenceDigest::from_digest(digest.finalize().into())
 }
 
-pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
+pub fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();
     digest.update(domain);
     digest.update((bytes.len() as u64).to_le_bytes());

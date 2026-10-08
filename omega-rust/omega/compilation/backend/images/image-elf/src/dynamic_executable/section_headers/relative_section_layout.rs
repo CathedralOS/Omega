@@ -229,7 +229,7 @@ fn derive_contents(
             let cursor = region_spans.cursor_mut(region);
             let offset =
                 checked_align(*cursor, descriptor.alignment, "relative ELF payload offset")?;
-            *cursor = checked_sum(offset, byte_size, "relative ELF payload end")?;
+            *cursor = crate::dynamic_executable::checked::checked_sum_u64(offset, byte_size, "relative ELF payload end", "Elf64_Off")?;
             (Some(region), offset)
         };
         rows.push(ElfRelativeSectionPayloadPlacement {
@@ -313,7 +313,7 @@ fn validate_contents(
                 descriptor.alignment,
                 "replayed relative ELF offset",
             )?;
-            *cursor = checked_sum(offset, byte_size, "replayed relative ELF payload end")?;
+            *cursor = crate::dynamic_executable::checked::checked_sum_u64(offset, byte_size, "replayed relative ELF payload end", "Elf64_Off")?;
             (Some(region), offset)
         };
         require(
@@ -357,14 +357,10 @@ fn checked_align(value: u64, alignment: u64, context: &'static str) -> Result<u6
     if remainder == 0 {
         Ok(value)
     } else {
-        checked_sum(value, alignment - remainder, context)
+        crate::dynamic_executable::checked::checked_sum_u64(value, alignment - remainder, context, "Elf64_Off")
     }
 }
 
-fn checked_sum(left: u64, right: u64, context: &'static str) -> Result<u64, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Off")))
-}
 
 fn non_authoritative_layout_compatibility_fingerprint(
     payloads: &ValidatedElfIndexedSectionPayloadPlan,
@@ -637,7 +633,7 @@ mod tests {
 
     #[test]
     fn arithmetic_overflow_rejects_without_panicking() {
-        assert!(checked_sum(u64::MAX, 1, "sum").is_err());
+        assert!(crate::dynamic_executable::checked::checked_sum_u64(u64::MAX, 1, "sum", "Elf64_Off").is_err());
         assert!(checked_align(u64::MAX, 8, "alignment").is_err());
         assert_eq!(checked_align(7, 0, "zero alignment").unwrap(), 7);
         assert!(classify_region(SHF_WRITE).is_err());

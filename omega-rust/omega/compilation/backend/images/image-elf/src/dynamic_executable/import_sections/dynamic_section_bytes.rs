@@ -181,7 +181,7 @@ pub fn serialize_elf_dynamic_sections(
 fn encode_payloads(
     contents: &ElfDynamicSectionContents,
 ) -> Result<ElfDynamicSectionPayloadBytes, Diagnostic> {
-    let mut dynsym = Vec::with_capacity(checked_product(
+    let mut dynsym = Vec::with_capacity(crate::dynamic_executable::checked::checked_product(
         contents.dynsym.len(),
         ELF64_SYMBOL_SIZE,
         "ELF64 dynamic symbol payload size",
@@ -199,7 +199,7 @@ fn encode_payloads(
         .checked_add(contents.sysv_hash.buckets.len())
         .and_then(|count| count.checked_add(contents.sysv_hash.chains.len()))
         .ok_or_else(|| Diagnostic::error("System V hash payload word count overflow"))?;
-    let mut sysv_hash = Vec::with_capacity(checked_product(
+    let mut sysv_hash = Vec::with_capacity(crate::dynamic_executable::checked::checked_product(
         hash_word_count,
         4,
         "System V hash payload size",
@@ -215,17 +215,17 @@ fn encode_payloads(
         write_u32(&mut sysv_hash, *word);
     }
 
-    let gnu_hash_bloom_size = checked_product(
+    let gnu_hash_bloom_size = crate::dynamic_executable::checked::checked_product(
         contents.gnu_hash.bloom.len(),
         8,
         "GNU hash bloom payload size",
     )?;
-    let gnu_hash_bucket_size = checked_product(
+    let gnu_hash_bucket_size = crate::dynamic_executable::checked::checked_product(
         contents.gnu_hash.buckets.len(),
         4,
         "GNU hash bucket payload size",
     )?;
-    let gnu_hash_chain_size = checked_product(
+    let gnu_hash_chain_size = crate::dynamic_executable::checked::checked_product(
         contents.gnu_hash.chains.len(),
         4,
         "GNU hash chain payload size",
@@ -258,7 +258,7 @@ fn encode_payloads(
         write_u32(&mut gnu_hash, *word);
     }
 
-    let mut versym = Vec::with_capacity(checked_product(
+    let mut versym = Vec::with_capacity(crate::dynamic_executable::checked::checked_product(
         contents.versym.len(),
         2,
         "GNU symbol-version payload size",
@@ -268,7 +268,7 @@ fn encode_payloads(
     }
 
     let verneed_size = contents.verneed.iter().try_fold(0usize, |size, need| {
-        let auxiliaries = checked_product(
+        let auxiliaries = crate::dynamic_executable::checked::checked_product(
             need.auxiliaries.len(),
             ELF64_VERSION_AUXILIARY_SIZE,
             "GNU version auxiliary payload size",
@@ -396,7 +396,7 @@ fn validate_payloads(
 }
 
 fn decode_dynsym(bytes: &[u8], symbol_count: usize) -> Result<Vec<ElfDynamicSymbol>, Diagnostic> {
-    let expected_size = checked_product(
+    let expected_size = crate::dynamic_executable::checked::checked_product(
         symbol_count,
         ELF64_SYMBOL_SIZE,
         "decoded ELF64 dynamic symbol payload size",
@@ -407,7 +407,7 @@ fn decode_dynsym(bytes: &[u8], symbol_count: usize) -> Result<Vec<ElfDynamicSymb
     )?;
     let mut symbols = Vec::with_capacity(symbol_count);
     for index in 0..symbol_count {
-        let offset = checked_product(index, ELF64_SYMBOL_SIZE, "ELF64 symbol row offset")?;
+        let offset = crate::dynamic_executable::checked::checked_product(index, ELF64_SYMBOL_SIZE, "ELF64 symbol row offset")?;
         symbols.push(ElfDynamicSymbol {
             name: read_u32(bytes, offset, "Elf64_Sym.st_name")?,
             info: read_u8(bytes, offset + 4, "Elf64_Sym.st_info")?,
@@ -435,7 +435,7 @@ fn decode_sysv_hash(bytes: &[u8]) -> Result<ElfSysvHash, Diagnostic> {
         .ok()
         .and_then(|buckets| buckets.checked_add(chain_count as usize))
         .ok_or_else(|| Diagnostic::error("System V hash decoded word count overflow"))?;
-    let expected_size = checked_product(word_count, 4, "System V decoded word byte count")?
+    let expected_size = crate::dynamic_executable::checked::checked_product(word_count, 4, "System V decoded word byte count")?
         .checked_add(8)
         .ok_or_else(|| Diagnostic::error("System V decoded payload size overflow"))?;
     require(
@@ -498,13 +498,13 @@ fn decode_gnu_hash(bytes: &[u8], dynamic_symbol_count: usize) -> Result<ElfGnuHa
     )?;
     let chain_count = dynamic_symbol_count - symbol_offset;
     let bloom_bytes =
-        checked_product(bloom_count as usize, 8, "GNU hash decoded bloom byte count")?;
-    let bucket_bytes = checked_product(
+        crate::dynamic_executable::checked::checked_product(bloom_count as usize, 8, "GNU hash decoded bloom byte count")?;
+    let bucket_bytes = crate::dynamic_executable::checked::checked_product(
         bucket_count as usize,
         4,
         "GNU hash decoded bucket byte count",
     )?;
-    let chain_bytes = checked_product(chain_count, 4, "GNU hash decoded chain byte count")?;
+    let chain_bytes = crate::dynamic_executable::checked::checked_product(chain_count, 4, "GNU hash decoded chain byte count")?;
     let expected_size = checked_add(16, bloom_bytes, "GNU hash decoded bloom end")?
         .checked_add(bucket_bytes)
         .and_then(|size| size.checked_add(chain_bytes))
@@ -575,7 +575,7 @@ fn decode_gnu_hash(bytes: &[u8], dynamic_symbol_count: usize) -> Result<ElfGnuHa
 
 fn decode_versym(bytes: &[u8], symbol_count: usize) -> Result<Vec<u16>, Diagnostic> {
     let expected_size =
-        checked_product(symbol_count, 2, "decoded GNU symbol-version payload size")?;
+        crate::dynamic_executable::checked::checked_product(symbol_count, 2, "decoded GNU symbol-version payload size")?;
     require(
         bytes.len() == expected_size,
         "GNU symbol-version payload has a truncated row or trailing bytes",
@@ -606,7 +606,7 @@ fn decode_verneed(bytes: &[u8], need_count: usize) -> Result<Vec<ElfVersionNeed>
             count > 0 && auxiliary_offset == ELF64_VERSION_NEED_SIZE as u32,
             "GNU version requirement has an empty or noncanonical auxiliary chain",
         )?;
-        let canonical_group_size = checked_product(
+        let canonical_group_size = crate::dynamic_executable::checked::checked_product(
             count as usize,
             ELF64_VERSION_AUXILIARY_SIZE,
             "GNU version requirement group auxiliary size",
@@ -732,10 +732,6 @@ fn read_array<const N: usize>(
         .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))
 }
 
-fn checked_product(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
-    left.checked_mul(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflow")))
-}
 
 fn checked_add(left: usize, right: usize, context: &'static str) -> Result<usize, Diagnostic> {
     left.checked_add(right)

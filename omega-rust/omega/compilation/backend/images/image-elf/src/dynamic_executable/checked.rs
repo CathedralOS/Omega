@@ -81,3 +81,23 @@ pub(super) fn read_i64(
         .ok_or_else(|| Diagnostic::error(format!("truncated {context}")))?;
     Ok(i64::from_le_bytes(value))
 }
+
+pub(super) fn checked_sum_u64(
+    left: u64,
+    right: u64,
+    context: &str,
+    bound: &'static str,
+) -> Result<u64, Diagnostic> {
+    left.checked_add(right)
+        .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
+}
+
+pub(super) fn checked_product_u64(
+    left: u64,
+    right: u64,
+    context: &str,
+    bound: &'static str,
+) -> Result<u64, Diagnostic> {
+    left.checked_mul(right)
+        .ok_or_else(|| Diagnostic::error(format!("{context} overflows {bound}")))
+}

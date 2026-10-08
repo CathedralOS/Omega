@@ -385,11 +385,11 @@ fn validate_section_header_fragment_geometry(
     let byte_count = u64::try_from(byte_count).map_err(|_| {
         Diagnostic::error("dynamic ELF section-header byte count exceeds Elf64_Xword")
     })?;
-    checked_sum_u64(
+    crate::dynamic_executable::checked::checked_sum_u64(
         file_offset,
         byte_count,
         "dynamic ELF section-header fragment end",
-    )?;
+     "Elf64_Off")?;
     require(
         file_offset >= ELF64_HEADER_PREFIX_SIZE as u64,
         "dynamic ELF section-header fragment overlaps the header prefix",
@@ -402,11 +402,11 @@ fn validate_section_header_fragment_geometry(
                 | ElfLoadProgramHeaderKind::LoadReadWrite
         )
     }) {
-        let load_end = checked_sum_u64(
+        let load_end = crate::dynamic_executable::checked::checked_sum_u64(
             load.file_offset(),
             load.file_size(),
             "dynamic ELF PT_LOAD file end",
-        )?;
+         "Elf64_Off")?;
         require(
             file_offset >= load_end,
             "dynamic ELF section-header fragment overlaps a loadable file extent",
@@ -545,10 +545,6 @@ const fn segment_type(kind: ElfLoadProgramHeaderKind) -> u32 {
     }
 }
 
-fn checked_sum_u64(left: u64, right: u64, context: &'static str) -> Result<u64, Diagnostic> {
-    left.checked_add(right)
-        .ok_or_else(|| Diagnostic::error(format!("{context} overflows Elf64_Off")))
-}
 
 fn non_authoritative_envelope_compatibility_fingerprint(
     resolved: &ValidatedElfResolvedDynamicTable,

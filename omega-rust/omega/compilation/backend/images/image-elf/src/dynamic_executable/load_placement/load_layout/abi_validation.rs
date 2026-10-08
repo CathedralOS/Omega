@@ -3,8 +3,7 @@
 use crate::constants::{ELF_HEADER_SIZE, IMAGE_BASE, PROGRAM_HEADER_SIZE};
 use crate::dynamic_executable::load_placement::load_layout::candidates::Candidate;
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::{
-    checked_align, checked_sum, require,
-};
+    checked_align};
 use crate::dynamic_executable::load_placement::load_layout::{
     AARCH64_RELOCATION_PAGE_SIZE, DYNAMIC_PROGRAM_HEADER_COUNT, ElfLoadProgramHeaderKind,
     ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind, ElfSectionPlacementResolutionKind, PF_R,
@@ -27,78 +26,67 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         ElfLoadProgramHeaderKind::LoadReadWrite,
         ElfLoadProgramHeaderKind::Dynamic,
     ];
-    require(
+    crate::dynamic_executable::checked::require(
         candidate.program_headers.len() == expected_kinds.len()
             && candidate
                 .program_headers
                 .iter()
                 .zip(expected_kinds)
                 .all(|(header, kind)| header.kind == kind),
-        "dynamic ELF program headers are not in canonical order",
-    )?;
+        "dynamic ELF program headers are not in canonical order")?;
     for header in &candidate.program_headers[1..=3] {
-        require(
+        crate::dynamic_executable::checked::require(
             header.alignment == candidate.max_page_alignment
                 && header.alignment.is_power_of_two()
                 && header.file_offset % header.alignment
                     == header.virtual_address % header.alignment,
-            "dynamic ELF PT_LOAD alignment or congruence drifted",
-        )?;
-        require(
+            "dynamic ELF PT_LOAD alignment or congruence drifted")?;
+        crate::dynamic_executable::checked::require(
             header.flags & PF_R != 0 && header.flags & (PF_W | PF_X) != (PF_W | PF_X),
-            "dynamic ELF PT_LOAD violates strict readable W^X policy",
-        )?;
-        require(
+            "dynamic ELF PT_LOAD violates strict readable W^X policy")?;
+        crate::dynamic_executable::checked::require(
             header.file_size <= header.memory_size,
-            "dynamic ELF PT_LOAD file size exceeds memory size",
-        )?;
+            "dynamic ELF PT_LOAD file size exceeds memory size")?;
     }
-    require(
+    crate::dynamic_executable::checked::require(
         candidate.program_headers[1].flags == PF_R
             && candidate.program_headers[2].flags == PF_R | PF_X
             && candidate.program_headers[3].flags == PF_R | PF_W,
-        "dynamic ELF PT_LOAD permissions drifted",
-    )?;
-    require(
+        "dynamic ELF PT_LOAD permissions drifted")?;
+    crate::dynamic_executable::checked::require(
         candidate
             .program_headers
             .iter()
             .all(|header| header.physical_address == header.virtual_address),
-        "dynamic ELF physical-address replay drifted from virtual placement",
-    )?;
-    require(
+        "dynamic ELF physical-address replay drifted from virtual placement")?;
+    crate::dynamic_executable::checked::require(
         candidate.program_headers[1].file_offset == 0
             && candidate.program_headers[1].virtual_address == candidate.image_base
             && candidate.program_headers[1].file_size
                 >= ELF_HEADER_SIZE as u64
                     + PROGRAM_HEADER_SIZE as u64 * DYNAMIC_PROGRAM_HEADER_COUNT,
-        "read-only load no longer owns the ELF/program-header prefix",
-    )?;
+        "read-only load no longer owns the ELF/program-header prefix")?;
     for pair in candidate.program_headers[1..=3].windows(2) {
-        require(
-            checked_sum(pair[0].file_offset, pair[0].file_size, "PT_LOAD extent")?
+        crate::dynamic_executable::checked::require(
+            crate::dynamic_executable::checked::checked_sum_u64(pair[0].file_offset, pair[0].file_size, "PT_LOAD extent", "Elf64_Off")?
                 <= pair[1].file_offset,
-            "dynamic ELF PT_LOAD file extents overlap",
-        )?;
-        require(
-            checked_sum(
+            "dynamic ELF PT_LOAD file extents overlap")?;
+        crate::dynamic_executable::checked::require(
+            crate::dynamic_executable::checked::checked_sum_u64(
                 pair[0].virtual_address,
                 pair[0].memory_size,
-                "PT_LOAD memory extent",
-            )? <= pair[1].virtual_address,
-            "dynamic ELF PT_LOAD memory extents overlap or are out of order",
-        )?;
+                "PT_LOAD memory extent", "Elf64_Off")? <= pair[1].virtual_address,
+            "dynamic ELF PT_LOAD memory extents overlap or are out of order")?;
     }
     for placed in &candidate.sections {
         if placed.kind == ElfPlacedDynamicSectionKind::Null {
-            require(
+            crate::dynamic_executable::checked::require(
                 placed.index == 0
                     && placed.region.is_none()
                     && placed.file_offset == 0
                     && placed.virtual_address.is_none()
                     && placed.byte_size == 0,
-                "dynamic ELF null-section placement is not canonical",
-            )?;
+                "dynamic ELF null-section placement is not canonical")?;
             continue;
         }
         let Some(region) = placed.region else {
@@ -106,20 +94,18 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                 "non-null dynamic ELF section has no placement region",
             ));
         };
-        require(
+        crate::dynamic_executable::checked::require(
             placed.alignment != 0
                 && placed.alignment.is_power_of_two()
                 && placed.file_offset % placed.alignment == 0
                 && placed
                     .virtual_address
                     .is_none_or(|address| address % placed.alignment == 0),
-            "dynamic ELF section placement violates retained sh_addralign",
-        )?;
+            "dynamic ELF section placement violates retained sh_addralign")?;
         if region == ElfRelativeSectionPayloadRegion::FileOnly {
-            require(
+            crate::dynamic_executable::checked::require(
                 placed.virtual_address.is_none(),
-                "file-only dynamic ELF section acquired a virtual address",
-            )?;
+                "file-only dynamic ELF section acquired a virtual address")?;
             continue;
         }
         let load_index = match region {
@@ -132,86 +118,75 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         let placed_address = placed.virtual_address.ok_or_else(|| {
             Diagnostic::error("allocated dynamic ELF section has no virtual address")
         })?;
-        require(
-            placed_address == checked_sum(candidate.image_base, placed.file_offset, "section map")?
+        crate::dynamic_executable::checked::require(
+            placed_address == crate::dynamic_executable::checked::checked_sum_u64(candidate.image_base, placed.file_offset, "section map", "Elf64_Off")?
                 && placed.file_offset >= load.file_offset
-                && checked_sum(placed.file_offset, placed.byte_size, "section file extent")?
-                    <= checked_sum(load.file_offset, load.file_size, "load file extent")?
+                && crate::dynamic_executable::checked::checked_sum_u64(placed.file_offset, placed.byte_size, "section file extent", "Elf64_Off")?
+                    <= crate::dynamic_executable::checked::checked_sum_u64(load.file_offset, load.file_size, "load file extent", "Elf64_Off")?
                 && placed_address >= load.virtual_address
-                && checked_sum(placed_address, placed.byte_size, "section memory extent")?
-                    <= checked_sum(load.virtual_address, load.memory_size, "load memory extent")?,
-            "allocated dynamic ELF section is not mapped exactly by its permission load",
-        )?;
+                && crate::dynamic_executable::checked::checked_sum_u64(placed_address, placed.byte_size, "section memory extent", "Elf64_Off")?
+                    <= crate::dynamic_executable::checked::checked_sum_u64(load.virtual_address, load.memory_size, "load memory extent", "Elf64_Off")?,
+            "allocated dynamic ELF section is not mapped exactly by its permission load")?;
     }
     let shstrtab = section(
         &candidate.sections,
         ElfPlacedDynamicSectionKind::SectionNameTable,
     )?;
-    require(
+    crate::dynamic_executable::checked::require(
         shstrtab.region == Some(ElfRelativeSectionPayloadRegion::FileOnly)
             && shstrtab.virtual_address.is_none(),
-        "`.shstrtab` must remain file-only",
-    )?;
+        "`.shstrtab` must remain file-only")?;
     let rw = candidate.program_headers[3];
     let rx = candidate.program_headers[2];
-    let text_file_end = checked_sum(
+    let text_file_end = crate::dynamic_executable::checked::checked_sum_u64(
         candidate.image_memory.text_file_offset,
         candidate.image_memory.text_size,
-        "source text extent",
-    )?;
-    let text_memory_end = checked_sum(
+        "source text extent", "Elf64_Off")?;
+    let text_memory_end = crate::dynamic_executable::checked::checked_sum_u64(
         candidate.image_memory.text_virtual_address,
         candidate.image_memory.text_size,
-        "source text memory extent",
-    )?;
-    require(
+        "source text memory extent", "Elf64_Off")?;
+    crate::dynamic_executable::checked::require(
         candidate.image_memory.text_virtual_address
-            == checked_sum(
+            == crate::dynamic_executable::checked::checked_sum_u64(
                 candidate.image_base,
                 candidate.image_memory.text_file_offset,
-                "source text mapping",
-            )?
+                "source text mapping", "Elf64_Off")?
             && candidate.image_memory.text_file_offset >= rx.file_offset
-            && text_file_end <= checked_sum(rx.file_offset, rx.file_size, "RX file extent")?
+            && text_file_end <= crate::dynamic_executable::checked::checked_sum_u64(rx.file_offset, rx.file_size, "RX file extent", "Elf64_Off")?
             && candidate.image_memory.text_virtual_address >= rx.virtual_address
             && text_memory_end
-                <= checked_sum(rx.virtual_address, rx.memory_size, "RX memory extent")?,
-        "source text is not mapped exactly inside the executable load",
-    )?;
-    let rw_file_end = checked_sum(rw.file_offset, rw.file_size, "RW file extent")?;
-    let rw_memory_end = checked_sum(rw.virtual_address, rw.memory_size, "RW memory extent")?;
-    let data_file_end = checked_sum(
+                <= crate::dynamic_executable::checked::checked_sum_u64(rx.virtual_address, rx.memory_size, "RX memory extent", "Elf64_Off")?,
+        "source text is not mapped exactly inside the executable load")?;
+    let rw_file_end = crate::dynamic_executable::checked::checked_sum_u64(rw.file_offset, rw.file_size, "RW file extent", "Elf64_Off")?;
+    let rw_memory_end = crate::dynamic_executable::checked::checked_sum_u64(rw.virtual_address, rw.memory_size, "RW memory extent", "Elf64_Off")?;
+    let data_file_end = crate::dynamic_executable::checked::checked_sum_u64(
         candidate.image_memory.data_file_offset,
         candidate.image_memory.data_size,
-        "source data extent",
-    )?;
-    let data_memory_end = checked_sum(
+        "source data extent", "Elf64_Off")?;
+    let data_memory_end = crate::dynamic_executable::checked::checked_sum_u64(
         candidate.image_memory.data_virtual_address,
         candidate.image_memory.data_size,
-        "source data memory extent",
-    )?;
-    require(
+        "source data memory extent", "Elf64_Off")?;
+    crate::dynamic_executable::checked::require(
         candidate.image_memory.data_file_offset >= rw.file_offset
             && data_file_end <= rw_file_end
             && candidate.image_memory.data_virtual_address
-                == checked_sum(
+                == crate::dynamic_executable::checked::checked_sum_u64(
                     candidate.image_base,
                     candidate.image_memory.data_file_offset,
-                    "source data mapping",
-                )?
+                    "source data mapping", "Elf64_Off")?
             && candidate.image_memory.data_virtual_address >= rw.virtual_address
             && data_memory_end <= rw_memory_end
             && candidate.image_memory.bss_virtual_address >= rw.virtual_address
             && candidate.image_memory.bss_virtual_address >= data_memory_end
-            && checked_sum(
+            && crate::dynamic_executable::checked::checked_sum_u64(
                 candidate.image_memory.bss_virtual_address,
                 candidate.image_memory.bss_size,
-                "source BSS extent",
-            )? <= rw_memory_end,
-        "source data or BSS is not contained by the writable load",
-    )?;
+                "source BSS extent", "Elf64_Off")? <= rw_memory_end,
+        "source data or BSS is not contained by the writable load")?;
     let target_alignment = retained_image(&candidate.relative).target.pointer_alignment as u64;
-    require(
+    crate::dynamic_executable::checked::require(
         target_alignment != 0
             && target_alignment.is_power_of_two()
             && candidate.image_memory.bss_alignment != 0
@@ -228,8 +203,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                 .image_memory
                 .bss_virtual_address
                 .is_multiple_of(candidate.image_memory.bss_alignment),
-        "source data/BSS placement no longer replays retained target alignment",
-    )?;
+        "source data/BSS placement no longer replays retained target alignment")?;
     let first_rx_section = candidate
         .sections
         .iter()
@@ -241,40 +215,35 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         .sections
         .iter()
         .filter(|section| section.region == Some(ElfRelativeSectionPayloadRegion::ReadWrite))
-        .map(|section| checked_sum(section.file_offset, section.byte_size, "RW section extent"))
+        .map(|section| crate::dynamic_executable::checked::checked_sum_u64(section.file_offset, section.byte_size, "RW section extent", "Elf64_Off"))
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .max()
         .ok_or_else(|| Diagnostic::error("writable section roster is empty"))?;
-    require(
+    crate::dynamic_executable::checked::require(
         text_file_end <= first_rx_section
             && last_rw_section_end <= candidate.image_memory.data_file_offset,
-        "source image storage overlaps dynamic-section storage",
-    )?;
-    require(
+        "source image storage overlaps dynamic-section storage")?;
+    crate::dynamic_executable::checked::require(
         shstrtab.file_offset >= rw_file_end
             && candidate.section_header_table_file_offset
-                >= checked_sum(
+                >= crate::dynamic_executable::checked::checked_sum_u64(
                     shstrtab.file_offset,
                     shstrtab.byte_size,
-                    "`.shstrtab` extent",
-                )?,
-        "file-only metadata overlaps an allocated load",
-    )?;
-    require(
+                    "`.shstrtab` extent", "Elf64_Off")?,
+        "file-only metadata overlaps an allocated load")?;
+    crate::dynamic_executable::checked::require(
         candidate.section_header_resolutions.len() == PLACEMENT_FIXUP_COUNT,
-        "dynamic ELF section-header resolution coverage is not exact",
-    )?;
+        "dynamic ELF section-header resolution coverage is not exact")?;
     let upstream = &candidate
         .relative
         .payloads()
         .section_headers()
         .contents()
         .placement_fixups;
-    require(
+    crate::dynamic_executable::checked::require(
         upstream.len() == candidate.section_header_resolutions.len(),
-        "section-header placement obligation count drifted",
-    )?;
+        "section-header placement obligation count drifted")?;
     for (fixup, resolution) in upstream.iter().zip(&candidate.section_header_resolutions) {
         let placed = candidate
             .sections
@@ -292,7 +261,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                 placed.file_offset,
             ),
         };
-        require(
+        crate::dynamic_executable::checked::require(
             resolution.row_index == fixup.row_index
                 && resolution.section_kind == public_section_kind(fixup.section_kind)
                 && resolution.byte_offset == fixup.byte_offset
@@ -300,8 +269,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                 && resolution.byte_width == fixup.byte_width
                 && resolution.kind == kind
                 && resolution.value == value,
-            "section-header placement resolution does not exactly cover its upstream fixup",
-        )?;
+            "section-header placement resolution does not exactly cover its upstream fixup")?;
     }
     let interpreter = section(
         &candidate.sections,
@@ -315,17 +283,16 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
         (&candidate.program_headers[0], interpreter),
         (&candidate.program_headers[4], dynamic),
     ] {
-        require(
+        crate::dynamic_executable::checked::require(
             header.file_offset == placed.file_offset
                 && header.virtual_address == placed.virtual_address.unwrap_or(0)
                 && header.file_size == placed.byte_size
                 && header.memory_size == placed.byte_size,
-            "special ELF program header no longer aliases its exact section",
-        )?;
+            "special ELF program header no longer aliases its exact section")?;
     }
     let interpreter_header = candidate.program_headers[0];
     let dynamic_header = candidate.program_headers[4];
-    require(
+    crate::dynamic_executable::checked::require(
         interpreter_header.flags == PF_R
             && interpreter_header.alignment == 1
             && interpreter_header.file_size <= interpreter_header.memory_size
@@ -343,9 +310,8 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                 interpreter_header.memory_size,
                 "PT_INTERP memory containment",
             )?,
-        "PT_INTERP flags, alignment, or read-only containment drifted",
-    )?;
-    require(
+        "PT_INTERP flags, alignment, or read-only containment drifted")?;
+    crate::dynamic_executable::checked::require(
         dynamic_header.flags == PF_R | PF_W
             && dynamic_header.alignment == dynamic.alignment
             && dynamic_header.file_size <= dynamic_header.memory_size
@@ -363,8 +329,7 @@ pub(crate) fn validate_abi(candidate: &Candidate) -> Result<(), Diagnostic> {
                 dynamic_header.memory_size,
                 "PT_DYNAMIC memory containment",
             )?,
-        "PT_DYNAMIC flags, alignment, or writable containment drifted",
-    )?;
+        "PT_DYNAMIC flags, alignment, or writable containment drifted")?;
     validate_deferred_constraint_envelope(candidate)
 }
 
@@ -376,8 +341,8 @@ fn range_contains(
     context: &str,
 ) -> Result<bool, Diagnostic> {
     Ok(inner_start >= outer_start
-        && checked_sum(inner_start, inner_size, context)?
-            <= checked_sum(outer_start, outer_size, context)?)
+        && crate::dynamic_executable::checked::checked_sum_u64(inner_start, inner_size, context, "Elf64_Off")?
+            <= crate::dynamic_executable::checked::checked_sum_u64(outer_start, outer_size, context, "Elf64_Off")?)
 }
 
 pub(crate) fn validate_deferred_constraint_envelope(
@@ -405,11 +370,10 @@ pub(crate) fn validate_deferred_constraint_envelope(
                     Diagnostic::error("procedure fixup storage has no allocated placement")
                 })?,
         };
-        let source = checked_sum(
+        let source = crate::dynamic_executable::checked::checked_sum_u64(
             source_base,
             fixup.byte_offset as u64,
-            "procedure fixup site",
-        )?;
+            "procedure fixup site", "Elf64_Off")?;
         let target = candidate
             .sections
             .get(fixup.target_section_index as usize)
@@ -418,35 +382,29 @@ pub(crate) fn validate_deferred_constraint_envelope(
         let target_start = target
             .virtual_address
             .ok_or_else(|| Diagnostic::error("procedure fixup target section is not allocated"))?;
-        require(
+        crate::dynamic_executable::checked::require(
             target.byte_size != 0,
-            "procedure fixup target section has no bytes",
-        )?;
-        let target_last = checked_sum(
+            "procedure fixup target section has no bytes")?;
+        let target_last = crate::dynamic_executable::checked::checked_sum_u64(
             target_start,
             target.byte_size - 1,
-            "procedure target last byte",
-        )?;
+            "procedure target last byte", "Elf64_Off")?;
         let span = source
             .abs_diff(target_start)
             .max(source.abs_diff(target_last));
         match constraint.kind {
-            ElfProcedureLinkagePlacementConstraintKind::X86Signed32 => require(
+            ElfProcedureLinkagePlacementConstraintKind::X86Signed32 => crate::dynamic_executable::checked::require(
                 span <= i32::MAX as u64,
-                "x86-64 procedure fixup exceeds signed-32 placement envelope",
-            )?,
-            ElfProcedureLinkagePlacementConstraintKind::Aarch64Branch26 => require(
+                "x86-64 procedure fixup exceeds signed-32 placement envelope")?,
+            ElfProcedureLinkagePlacementConstraintKind::Aarch64Branch26 => crate::dynamic_executable::checked::require(
                 source % 4 == 0 && span < (1 << 27),
-                "AArch64 branch fixup exceeds aligned branch-26 placement envelope",
-            )?,
-            ElfProcedureLinkagePlacementConstraintKind::Aarch64PageDelta21 => require(
+                "AArch64 branch fixup exceeds aligned branch-26 placement envelope")?,
+            ElfProcedureLinkagePlacementConstraintKind::Aarch64PageDelta21 => crate::dynamic_executable::checked::require(
                 aarch64_page_delta_covers_extent(source, target_start, target.byte_size)?,
-                "AArch64 ADRP fixup exceeds its 4-KiB-page delta envelope",
-            )?,
-            ElfProcedureLinkagePlacementConstraintKind::Aarch64Load64Low12Aligned => require(
+                "AArch64 ADRP fixup exceeds its 4-KiB-page delta envelope")?,
+            ElfProcedureLinkagePlacementConstraintKind::Aarch64Load64Low12Aligned => crate::dynamic_executable::checked::require(
                 target.alignment >= 8 && target_start % 8 == 0,
-                "AArch64 low-12 load target is not eight-byte aligned",
-            )?,
+                "AArch64 low-12 load target is not eight-byte aligned")?,
         }
     }
     Ok(())
@@ -460,11 +418,10 @@ pub(crate) fn aarch64_page_delta_covers_extent(
     if target_size == 0 {
         return Ok(false);
     }
-    let target_last = checked_sum(
+    let target_last = crate::dynamic_executable::checked::checked_sum_u64(
         target_start,
         target_size - 1,
-        "AArch64 ADRP target last byte",
-    )?;
+        "AArch64 ADRP target last byte", "Elf64_Off")?;
     let page_number = |address: u64| address / AARCH64_RELOCATION_PAGE_SIZE;
     let source_page = i128::from(page_number(source));
     let minimum_delta = -(1_i128 << 20);
@@ -549,9 +506,9 @@ pub(crate) fn placed_coordinates(
     relative_offset: u64,
     allocated: bool,
 ) -> Result<(u64, Option<u64>), Diagnostic> {
-    let file_offset = checked_sum(base, relative_offset, "absolute ELF section offset")?;
+    let file_offset = crate::dynamic_executable::checked::checked_sum_u64(base, relative_offset, "absolute ELF section offset", "Elf64_Off")?;
     let virtual_address = allocated
-        .then(|| checked_sum(IMAGE_BASE, file_offset, "absolute ELF section address"))
+        .then(|| crate::dynamic_executable::checked::checked_sum_u64(IMAGE_BASE, file_offset, "absolute ELF section address", "Elf64_Off"))
         .transpose()?;
     Ok((file_offset, virtual_address))
 }

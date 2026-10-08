@@ -6,7 +6,7 @@ use crate::dynamic_executable::section_headers::section_roster::{ElfDynamicRoste
 use diagnostics::{Diagnostic};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{ElfAppliedProcedureLinkageFixup, ElfAppliedProcedureLinkageStorage, ValidatedElfResolvedProcedureLinkage};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::compatibility_fingerprint::{non_authoritative_resolved_linkage_compatibility_fingerprint};
-use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::storage_fields::{checked_sum_usize, decode_rejoins_target, encode_field, indexed_payloads, indexed_row_bytes, load_layout, public_kind, public_storage, public_target, read_field, semantic_target_address, storage_address, storage_bytes, storage_bytes_mut, upstream_storage_bytes, write_field};
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::storage_fields::{ decode_rejoins_target, encode_field, indexed_payloads, indexed_row_bytes, load_layout, public_kind, public_storage, public_target, read_field, semantic_target_address, storage_address, storage_bytes, storage_bytes_mut, upstream_storage_bytes, write_field};
 use crate::dynamic_executable::checked::{checked_u32, require};
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::image_local_relocations::{ElfImageLocalRelocatedMemory, relocate_image_local_memory};
 
@@ -268,7 +268,7 @@ pub(crate) fn validate_nonoverlapping_applications(
     applications: &[ElfAppliedProcedureLinkageFixup],
 ) -> Result<(), Diagnostic> {
     for (index, application) in applications.iter().enumerate() {
-        let end = checked_sum_usize(
+        let end = crate::dynamic_executable::checked::checked_sum(
             application.byte_offset,
             usize::from(application.byte_width),
             "procedure application end",
@@ -277,7 +277,7 @@ pub(crate) fn validate_nonoverlapping_applications(
             if application.storage != other.storage {
                 continue;
             }
-            let other_end = checked_sum_usize(
+            let other_end = crate::dynamic_executable::checked::checked_sum(
                 other.byte_offset,
                 usize::from(other.byte_width),
                 "procedure application end",
