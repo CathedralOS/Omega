@@ -555,6 +555,27 @@ impl ExpressionTable {
         Some(self.expression(handle))
     }
 
+    /// The receiver of an authored `.length` member access: the member spelling
+    /// resolves to `CollectionMeasure::Length` and neither a compiled symbol nor
+    /// a case variant is bound yet. `None` for every other expression.
+    pub fn authored_length_receiver(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        use language_semantics::declaration_selection::CollectionMeasure;
+        let ExpressionNode::Member(member) = self.expression(expression) else {
+            return None;
+        };
+        if CollectionMeasure::from_authored_spelling(member.member.as_str())
+            != Some(CollectionMeasure::Length)
+            || member.member_symbol.is_valid()
+            || member.case_variant.is_some()
+        {
+            return None;
+        }
+        Some(member.receiver)
+    }
+
     /// The name path's `::`-joined spelling for diagnostics and identity
     /// strings; the table's members stay the identity.
     pub fn name_path_string(&self, span: HandleSpan<Identifier>) -> String {

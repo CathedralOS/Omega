@@ -9,7 +9,6 @@ use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedStructuralPredicatePathSegment;
-use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
@@ -51,18 +50,10 @@ pub(super) fn structural_sequence_length(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-        || member.member_symbol.is_valid()
-        || member.case_variant.is_some()
-    {
-        return None;
-    }
-    let (root, path, selected_type) =
-        structural_storage_place(program, parameters, member.receiver)?;
+    let receiver = program
+        .expression_table
+        .authored_length_receiver(expression)?;
+    let (root, path, selected_type) = structural_storage_place(program, parameters, receiver)?;
     // A raw fixed-array projection has a type-owned extent. Do
     // not strip a constrained carrier: its live length can differ from its
     // backing capacity. Dynamic byte views retain their runtime read below.

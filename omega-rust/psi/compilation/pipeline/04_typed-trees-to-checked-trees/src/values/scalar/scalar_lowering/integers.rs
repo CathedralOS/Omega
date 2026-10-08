@@ -6,7 +6,6 @@ use crate::values::scalar::expression_facts::{
     checked_integer_binary_kind, combine_arithmetic_domains, is_integer, scalar_expression_type,
 };
 use checked_trees::{CheckedIntegerRange, CheckedScalarExpression};
-use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -246,18 +245,10 @@ pub(super) fn exact_inline_literal_subslice_length(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<CheckedScalarExpression> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-        || member.member_symbol.is_valid()
-        || member.case_variant.is_some()
-    {
-        return None;
-    }
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(member.receiver)
-    else {
+    let receiver = program
+        .expression_table
+        .authored_length_receiver(expression)?;
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(receiver) else {
         return None;
     };
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {

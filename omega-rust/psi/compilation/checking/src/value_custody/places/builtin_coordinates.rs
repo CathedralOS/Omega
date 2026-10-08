@@ -2,7 +2,6 @@
 
 use super::{declared_indexed_projection_type, declared_place_type_raw};
 use language_core::OperatorSpelling;
-use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -15,24 +14,17 @@ pub fn collection_length_receiver(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if CollectionMeasure::from_authored_spelling(member.member.as_str())
-        != Some(CollectionMeasure::Length)
-        || member.member_symbol.is_valid()
-        || member.case_variant.is_some()
-    {
-        return None;
-    }
-    let receiver = declared_place_type_raw(program, machine, state, member.receiver)?;
-    let receiver = super::unwrapped_type_reference(program, receiver)?;
+    let receiver = program
+        .expression_table
+        .authored_length_receiver(expression)?;
+    let receiver_type = declared_place_type_raw(program, machine, state, receiver)?;
+    let receiver_type = super::unwrapped_type_reference(program, receiver_type)?;
     matches!(
-        program.type_reference_table.type_reference(receiver),
+        program.type_reference_table.type_reference(receiver_type),
         typed_trees::types::TypeReferenceNode::Slice { .. }
             | typed_trees::types::TypeReferenceNode::FixedArray { .. }
     )
-    .then_some(member.receiver)
+    .then_some(receiver)
 }
 
 /// The constant extent a `.len` observation reads when the receiver's
