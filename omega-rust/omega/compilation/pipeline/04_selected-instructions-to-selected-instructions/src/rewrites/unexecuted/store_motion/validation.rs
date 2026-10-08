@@ -34,8 +34,8 @@ use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_instruction, terminator_successors};
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
-    local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
-    structural_place_declarations,
+    local_slot_is_place_storage, local_store_shape, packed_store_row_shape,
+    place_store_row_shape, slot_is_subject_storage, staging_slot, structural_place_declarations,
 };
 use crate::rewrites::window_hazards::{coupled, is_barrier, unaccounted_kind};
 
@@ -310,8 +310,7 @@ fn carried_surface(
     Ok(Carried { registers, writes })
 }
 
-/// The moved store's operand surface — the validator's own surface
-/// audit: the target's `[use pointer, use value]` row with nothing
+/// The `[use pointer, use value]` place store's row with nothing
 /// implicit attached.
 fn place_store_shape(
     instruction: &SelectedInstruction,
@@ -320,12 +319,8 @@ fn place_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if row.operands.len() != 2
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || !row.implicit_uses.is_empty()
+    place_store_row_shape(row, || StoreMutationMotionError::ConstraintMismatch)?;
+    if !row.implicit_uses.is_empty()
         || !row.implicit_defs.is_empty()
         || !row.clobbers.is_empty()
         || row.operands.iter().any(|operand| {
@@ -337,59 +332,11 @@ fn place_store_shape(
     Ok(())
 }
 
-/// The direct slot store's operand surface — the validator's own
-/// surface audit: the target's declared `store64` row, exactly
-/// one stored-value use and an optional early-clobber address scratch.
-/// The ordinary movement hazards preserve that scratch definition.
-fn local_store_shape(
-    instruction: &SelectedInstruction,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<(), StoreMutationMotionError> {
-    if environment.selected_keys().store64 != Some(instruction.constraint) {
-        return Err(StoreMutationMotionError::ConstraintMismatch);
-    }
-    let row = environment
-        .constraint(instruction.constraint)
-        .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if !matches!(row.operands.len(), 1 | 2)
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands.get(1).is_some_and(|operand| {
-            operand.operand != 1
-                || operand.access != RegisterOperandAccess::Def
-                || !operand.early_clobber
-                || operand.tied_to.is_some()
-                || operand.fixed_view.is_some()
-        })
-        || instruction.operands.len() != row.operands.len()
-        || instruction
-            .operands
-            .iter()
-            .zip(&row.operands)
-            .any(|(actual, expected)| {
-                actual.operand != expected.operand
-                    || actual.access != expected.access
-                    || actual.class != expected.class
-                    || actual.early_clobber != expected.early_clobber
-                    || actual.tied_to != expected.tied_to
-                    || actual.fixed_view != expected.fixed_view
-            })
-    {
-        return Err(StoreMutationMotionError::ConstraintMismatch);
-    }
-    Ok(())
-}
-
-/// The moved packed store's operand surface — the validator's own
-/// surface audit: the target's declared `store_packed` row,
-/// `[use pointer, use packed value]` plus the early-clobber scratch
-/// `Def` the multi-instruction store writes through, and the
-/// instruction carrying exactly that row. The move keeps the definition
-/// alive — it only needs the scratch's custody inside the walked
-/// window, which the write-side coupling check proves. The row's
-/// implicit use and definition lists stay empty; whatever the row
-/// declares as clobbers — the flag unit on a flag-publishing target —
-/// moves with the instruction and is guarded the same way.
+/// The moved packed store carries the target's declared `store_packed`
+/// row: `[use pointer, use packed value]` plus the early-clobber scratch
+/// `Def` the multi-instruction store writes through. The row's implicit
+/// use and definition lists stay empty; whatever the row declares as
+/// clobbers moves with the instruction and is guarded the same way.
 fn packed_store_shape(
     instruction: &SelectedInstruction,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -400,15 +347,8 @@ fn packed_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if row.operands.len() != 3
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Use
-        || row.operands[1].operand != 1
-        || row.operands[1].access != RegisterOperandAccess::Use
-        || row.operands[2].operand != 2
-        || row.operands[2].access != RegisterOperandAccess::Def
-        || !row.operands[2].early_clobber
-        || row.operands[0].early_clobber
+    packed_store_row_shape(row, || StoreMutationMotionError::ConstraintMismatch)?;
+    if row.operands[0].early_clobber
         || row.operands[1].early_clobber
         || row
             .operands
@@ -840,7 +780,9 @@ fn reconstruct<'source>(
     if packed {
         packed_store_shape(moved_store, environment)?;
     } else if direct_slot.is_some() {
-        local_store_shape(moved_store, environment)?;
+        local_store_shape(moved_store, environment, || {
+            StoreMutationMotionError::ConstraintMismatch
+        })?;
     } else {
         place_store_shape(moved_store, environment)?;
     }
