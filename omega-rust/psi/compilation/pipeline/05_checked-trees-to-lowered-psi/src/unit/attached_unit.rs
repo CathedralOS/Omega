@@ -46,7 +46,6 @@ use super::{
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
-use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,
 // admission, providers, catalogs, boundaries, claims and signatures.
@@ -83,27 +82,25 @@ mod parameters;
 pub(crate) mod primitive_locals;
 mod reference_results;
 pub(crate) mod scalar_arrays;
-mod structural_calls;
 pub(crate) mod structural_values;
 pub(crate) mod view_ranges;
 
 // How a body completes: its scalar or structural result.
 mod scalar_completion;
-mod structural_completion;
 
 use bodies::{UnitBody, UnitPlans};
-pub(crate) use boundaries::{retain_admitted_unit_boundary, retain_exact_unit_boundary};
+pub(crate) use boundaries::retain_unit_boundary;
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
 use call_closure::{
     checked_scalar_call_closure_with_structural_roots, reject_recursive_unit_closure,
-    unique_unit_boundary, validate_unit_operation_sequence,
+    unique_unit_boundary,
 };
 pub(crate) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
 };
+pub(crate) use catalog::lower_root_service_reach;
 use catalog::require_valid_service_row;
-pub(crate) use catalog::{checked_unit_target_reach_matches, lower_root_service_reach};
 pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
 pub(crate) use parameters::{
@@ -196,8 +193,7 @@ pub(crate) fn lower_unit_closure(
     // calls, then the catalog roots its callees and providers name.
     let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
     for symbol in call_catalog.boundaries {
-        let boundary = unique_unit_boundary(plans, symbol)?;
-        retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
+        retain_unit_boundary(checked, plans, &mut boundaries, symbol)?;
     }
     let admitted_bodies = admission::admit(checked, plans, &closure, &mut boundaries)?;
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));

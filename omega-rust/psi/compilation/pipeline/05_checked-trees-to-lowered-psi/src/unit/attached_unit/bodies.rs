@@ -261,30 +261,6 @@ impl<'a> UnitBody<'a> {
         }
     }
 
-    /// Whether the retained reach summary is the checked one. An ordinary
-    /// body describes one state and retains that state's checked summary
-    /// (`entry_state_reaches`); a state graph retains the machine's inferred
-    /// summary, which covers every state, not just its entry.
-    pub(crate) fn retains_checked_reach(
-        self,
-        checked: &super::CheckedTrees,
-        entry_state_reaches: &[ServiceReachSummary],
-    ) -> bool {
-        match self {
-            Self::Ordinary(plan) => entry_state_reaches == [plan.service_reach],
-            Self::Composed(plan) => checked
-                .facts
-                .service_reaches
-                .for_machine(plan.machine)
-                .is_some_and(|reach| {
-                    ServiceReachSummary {
-                        direct: reach.inferred_direct,
-                        transitive: reach.inferred_transitive,
-                    } == plan.service_reach
-                }),
-        }
-    }
-
     pub(crate) fn ordinary(self) -> Result<&'a CheckedUnitEffectMachinePlan, LoweringError> {
         match self {
             Self::Ordinary(plan) => Ok(plan),

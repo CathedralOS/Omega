@@ -1,5 +1,5 @@
 //! The checked body a scalar call lowers.
-use super::super::{CheckedUnitStructuralParameterPlan, ScalarType, terminal_scalar_type};
+use super::super::CheckedUnitStructuralParameterPlan;
 use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use crate::unit::attached_unit::bodies::UnitBody;
 
@@ -129,14 +129,5 @@ impl<'checked> CheckedScalarCallee<'checked> {
             .entry()
             .map(|entry| entry.erased_proof_parameters.iter().collect())
             .unwrap_or_default()
-    }
-
-    pub(crate) fn result_type(&self) -> Result<ScalarType, LoweringError> {
-        self.0
-            .scalar_result_type()
-            .ok_or(LoweringError::Unsupported(
-                "scalar operation body has no checked scalar result",
-            ))
-            .and_then(terminal_scalar_type)
     }
 }

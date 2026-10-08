@@ -4,9 +4,8 @@
 //! through `emission::emit_call_operations`, which evaluates each call's
 //! operands on the state's schedule and sends every operation, calls
 //! included, to `operation_frame::OperationFrame`, the emitter the ordinary
-//! machine also uses. A state's calls are admitted by the call admission an
-//! ordinary body's are (`attached_unit::admission::calls`); `admission` runs
-//! it per state and rejoins the rest of the composed carrier; `catalogs` holds
+//! machine also uses. `admission` collects the boundaries each state's calls
+//! name and refuses an operation the graph has no route for; `catalogs` holds
 //! the call targets the frame resolves against; `scalar_calls` selects the
 //! scalar helpers a standalone catalog prepares.
 use super::{CheckedTrees, LoweringError};

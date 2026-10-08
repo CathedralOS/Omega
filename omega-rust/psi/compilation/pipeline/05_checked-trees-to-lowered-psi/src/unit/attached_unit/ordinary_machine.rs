@@ -1015,7 +1015,7 @@ fn lower_structural_result_declaration(
 ) -> Result<terminal_psi::StructuralResultDeclaration, LoweringError> {
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
-    let return_type = checked
+    let state = checked
         .typed
         .machine_states(
             checked
@@ -1031,8 +1031,17 @@ fn lower_structural_result_declaration(
         .find(|state| state.symbol == plan.state)
         .ok_or(LoweringError::Unsupported(
             "structural result has no exact state",
-        ))?
-        .return_type;
+        ))?;
+    // A stored loan or a reference record publishes the origins of the
+    // leaves it returns; a body whose exits do not all establish them has no
+    // completion this route can emit.
+    if (crate::reference_custody::stored_loan_parts(checked, state.return_type).is_some()
+        || crate::reference_custody::is_reference_record(checked, state.return_type))
+        && !crate::reference_custody::returns_complete_reference_origins(checked, state)
+    {
+        return unsupported("reference completion has no exact returned leaf origins");
+    }
+    let return_type = state.return_type;
     // A byte view result's inside-borrow domains ride the same peeled
     // carrier identity the result spells, so the machine publishes them
     // as its own qualifications.

@@ -19,7 +19,6 @@ pub(crate) struct AuthoredCall {
     pub source_site: Option<NominalMachineUseSite>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
-    pub boundary: bool,
 }
 
 impl AuthoredCall {}
@@ -126,7 +125,6 @@ pub(crate) fn locate(
         source_site,
         scalar_arguments,
         structural_arguments,
-        boundary: target.boundary,
     })
 }
 
@@ -166,38 +164,4 @@ pub(crate) fn initializes_immutable_local(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
 ) -> bool {
     planned_result(checked, state, coordinate) == FlowCallResult::ImmutableLocal
-}
-
-/// Whether `statement_index` is the state's closing invocation of another
-/// machine: the only transition call a linear operation roster may hold.
-/// Naming the enclosing machine re-enters its entry state, a state-graph edge
-/// the checker never sequences as a call.
-pub(crate) fn linear_terminal_invocation(
-    checked: &CheckedTrees,
-    caller_state: SymbolHandle,
-    statement_index: u32,
-) -> Result<bool, LoweringError> {
-    let (machine, _) = crate::declarations::state_declaration(checked, caller_state)?;
-    let planned =
-        match checked
-            .facts
-            .flow
-            .control
-            .call_at(caller_state, statement_index as usize, 0)
-        {
-            Some(call)
-                if call.authored_site == checked_trees::FlowCallSite::NamedTransition
-                    && call.authored_closing_invocation =>
-            {
-                crate::declarations::target_signature(
-                    checked,
-                    machine.symbol,
-                    call.authored_target,
-                )?
-                .machine
-                    != machine.symbol
-            }
-            _ => false,
-        };
-    Ok(planned)
 }

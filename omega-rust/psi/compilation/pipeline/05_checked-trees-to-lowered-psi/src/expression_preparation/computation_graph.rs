@@ -120,16 +120,6 @@ pub(crate) fn value_call_operations(
     Ok(operations)
 }
 
-/// Retain preparation ownership while restricting the dependency inventory to
-/// one caller namespace. Consumers borrow the ordinary operand sequence.
-pub(crate) fn state_value_calls(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-) -> Result<Vec<&checked_trees::CheckedStructuralValueCall>, LoweringError> {
-    value_calls(checked, machine, Some(state))
-}
-
 fn value_calls(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,

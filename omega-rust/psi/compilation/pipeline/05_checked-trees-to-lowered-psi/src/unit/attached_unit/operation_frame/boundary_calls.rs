@@ -1,8 +1,8 @@
 //! Calls out through a boundary machine: the Unit, scalar and structural
 //! boundary call shapes share the checked completion receipts.
 //!
-//! Every boundary call shape is admitted once, by `admission/calls.rs`, for an
-//! ordinary body and a composed state alike, and emits here the same way.
+//! An ordinary body and a composed state emit every boundary call shape here
+//! the same way; admission only adds each boundary to the closure roster.
 
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;

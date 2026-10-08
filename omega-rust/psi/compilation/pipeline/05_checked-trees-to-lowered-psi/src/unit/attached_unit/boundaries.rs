@@ -11,12 +11,11 @@ use super::operation_frame::BoundaryParameters;
 use super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedTrees, LoweringError,
-    ServiceReachSummary, StructuralDomainRequirement, StructuralTypeId, UnitPlans,
-    boundary_machine_id, checked_unit_boundary_identity, checked_unit_target_reach_matches,
-    dense_identity, lookup_type_id, lower_boundary_content_guarantees, lower_boundary_crash_routes,
-    lower_boundary_parameter_order, lower_fixed_boundary_service_reach,
-    lower_published_service_ceiling, lower_unit_parameters, terminal_scalar_type,
-    unique_unit_boundary, unsupported,
+    StructuralDomainRequirement, StructuralTypeId, UnitPlans, boundary_machine_id,
+    checked_unit_boundary_identity, dense_identity, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_parameter_order,
+    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_unit_parameters,
+    terminal_scalar_type, unique_unit_boundary, unsupported,
 };
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::value_id;
@@ -350,80 +349,15 @@ pub(super) fn lower_boundary_result(
     })
 }
 
-/// Retain the boundary one call names after matching that call's exact
-/// target state, contract fingerprint, result and service reach.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn retain_exact_unit_boundary<'plans>(
+/// Add the boundary `machine` names to the closure roster once, under its
+/// canonical identity. Stage 04 planned each call against this exact target.
+pub(crate) fn retain_unit_boundary<'plans>(
     checked: &CheckedTrees,
     plans: UnitPlans<'plans>,
     boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
-    target_machine: symbols::SymbolHandle,
-    target_state: symbols::SymbolHandle,
-    target_contract_report_fingerprint: u64,
-    service_reach: ServiceReachSummary,
-    expected_result: CheckedBoundaryMachineResultPlan,
+    machine: symbols::SymbolHandle,
 ) -> Result<(), LoweringError> {
-    let target = unique_unit_boundary(plans, target_machine)?;
-    if target.state != target_state
-        || target.contract_report_fingerprint != target_contract_report_fingerprint
-        || target.result != expected_result
-        || !checked_unit_target_reach_matches(service_reach, target.contract_service_reach)
-    {
-        return unsupported(
-            "Unit boundary call does not match the exact checked target state, result, contract, and reach",
-        );
-    }
-    retain_unit_boundary_identity(checked, boundaries, target)
-}
-
-/// Retain a boundary that carries no call of its own to match: one a
-/// composed callee's calls already admitted through
-/// `retain_exact_unit_boundary`, or one an external owner names as a root.
-///
-/// The plan's own `service_reach` is the declaration's checked-inferred
-/// reach, which `lower_contract_service_ceiling` requires only to lie within
-/// its published ceiling. It is not a call's reach: a bodyless top-level
-/// `boundary requirement` infers the empty row while publishing its authored
-/// ceiling, so comparing the plan against itself as if it were a call rejects
-/// every such requirement with a nonempty ceiling.
-pub(crate) fn retain_admitted_unit_boundary<'plans>(
-    checked: &CheckedTrees,
-    plans: UnitPlans<'plans>,
-    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
-    admitted: &CheckedBoundaryMachinePlan,
-) -> Result<(), LoweringError> {
-    let target = unique_unit_boundary(plans, admitted.machine)?;
-    if target != admitted {
-        return unsupported("admitted Unit boundary is not its unique checked target");
-    }
-    retain_unit_boundary_identity(checked, boundaries, target)
-}
-
-/// Rejoin a retained target's contract fingerprint and commitment to its
-/// canonical owner, then add it to the closure roster once.
-fn retain_unit_boundary_identity<'plans>(
-    checked: &CheckedTrees,
-    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
-    target: &'plans CheckedBoundaryMachinePlan,
-) -> Result<(), LoweringError> {
-    if target.contract_report_fingerprint == 0 {
-        return unsupported("Unit boundary target has a null checked contract fingerprint");
-    }
-    if checked
-        .facts
-        .contract_plans
-        .for_machine(target.contract_owner)
-        .is_none()
-        && checked
-            .facts
-            .contract_plans
-            .crash_capsule(target.contract_owner, target.state)
-            .is_none()
-    {
-        return unsupported(
-            "Unit boundary target is missing its canonical checked contract identity",
-        );
-    }
+    let target = unique_unit_boundary(plans, machine)?;
     if !boundaries
         .iter()
         .any(|(candidate, _)| candidate.machine == target.machine)

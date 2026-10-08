@@ -29,15 +29,6 @@ fn custody(
     checked.facts.reference_custody.custody(reference)
 }
 
-/// The exclusive primitive stored leaf this carrier spells — the whole-return
-/// reference-result shape — as `(referent, access)`.
-pub(crate) fn primitive_loan_parts(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    custody(checked, reference).primitive_loan_parts()
-}
-
 /// The one stored carrier leaf this type holds, exclusive or shared.
 pub(crate) fn stored_loan_parts(
     checked: &CheckedTrees,

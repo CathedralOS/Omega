@@ -2596,11 +2596,13 @@ code and preserve check/native behavior for the named customer slices.
 - **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on
   **STAGE05-SOURCE-REREAD-DELETED**. Delete stage 05's validation of the plan
   it receives:
-  - `.../05_checked-trees-to-lowered-psi/src/unit/attached_unit/admission/`
-    and `admission.rs`;
-  - the terminator, edge and case checks against source in
-    `unit/attached_unit/composed_control/state_graph/admission.rs` (the
-    state body rejoin is gone; the terminator ordinal is a plan field);
+  - the closed-sum rejoin in
+    `unit/attached_unit/composed_control/state_graph/cases.rs::validate`
+    (subject declaration, arm order, payload and arm-call custody). It also
+    holds sum-custody refusals the case emitter needs, which stay as plan
+    checks. Ordinary-body admission now only collects the boundary roster,
+    and composed admission checks edges from the plan
+    (`edges::admit_transfers`);
   - every refusal whose message asserts a stage 04 invariant ("disagrees
     with its checked …", "omits or duplicates", "declared more than once",
     "not canonical source order", "substituted", "rejoin"). The standalone
@@ -2617,7 +2619,7 @@ code and preserve check/native behavior for the named customer slices.
 
   A plan that violates an invariant is a stage 04 bug, found by the corpus.
   Refusals for genuinely unsupported constructs stay until the route items
-  below remove them. Acceptance: the listed files are gone; a source-scanning
+  below remove them. Acceptance: the closed-sum rejoin is gone; a source-scanning
   guard rejects new refusal messages matching those phrasings; the full check
   corpus and the native corpus are unchanged.
 

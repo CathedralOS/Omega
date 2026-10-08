@@ -46,31 +46,6 @@ pub(crate) fn linear_owned_contents(
     classes(checked, reference).linear_owned_contents
 }
 
-/// Finite storage without reference descriptors, independently of owner claims
-/// and cleanup. A loan consumer retains access, lifetime and qualifications;
-/// this shape judgment grants neither copying nor disposal authority.
-pub(crate) fn borrow_free_contents(checked: &CheckedTrees, reference: TypeReferenceHandle) -> bool {
-    classes(checked, reference).borrow_free_contents
-}
-
-/// A record whose fields are each either plain owned contents or a shared
-/// `&[T]`/`&'a V` view descriptor.
-pub(crate) fn owned_or_shared_view_fields(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    classes(checked, reference).owned_or_shared_view_fields
-}
-
-/// A concrete primitive array type with no qualifications or ownership
-/// authority.
-pub(crate) fn closed_primitive_array(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    classes(checked, reference).closed_primitive_array
-}
-
 /// The declared capacity of a bounded byte buffer (`[u8; N] in D`), or `None`
 /// when the type is not one.
 pub(crate) fn bounded_byte_capacity(
