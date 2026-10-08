@@ -489,16 +489,11 @@ def jev_fence_verdict(item_name, item_text, owning_paths):
                                        "plausibly edit",
                        "over_fenced": "claims surfaces this item will not "
                                       "touch"}}}}
-    http = urllib.request.Request(
-        typesafe_key.ENDPOINT, data=json.dumps(request).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(http, timeout=15) as response:
-            return (json.load(response).get("answers", {})
-                    .get("fence", {}).get("choice"))
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+    response = typesafe_key.post(typesafe_key.ENDPOINT, key, request,
+                                 timeout=15)
+    if response is None:
         return None
+    return response.get("answers", {}).get("fence", {}).get("choice")
 
 
 def item_section(repository, board, item):

@@ -750,5 +750,49 @@ class OwnershipPathTests(unittest.TestCase):
         self.assertEqual(len(self.module.validate_manifest(record, self.repository)), 2)
 
 
+class JevFenceTests(unittest.TestCase):
+    def setUp(self):
+        self.module = load_launch()
+
+    def call_fence(self):
+        return self.module.jev_fence_verdict(
+            "ITEM-ONE", "the item text", ["src/one"])
+
+    def test_returns_the_choice_from_the_response(self):
+        with mock.patch.dict(os.environ, {"OMEGA_JEV_OFFLINE": ""}), \
+                mock.patch.object(self.module.typesafe_key, "find_key",
+                                  return_value="test-key"), \
+                mock.patch.object(self.module.typesafe_key, "post",
+                                  return_value={"answers": {"fence": {
+                                      "choice": "under_fenced"}}}) as post:
+            self.assertEqual(self.call_fence(), "under_fenced")
+        post.assert_called_once()
+        arguments, keywords = post.call_args
+        self.assertEqual(arguments[:2],
+                         (self.module.typesafe_key.ENDPOINT, "test-key"))
+        self.assertEqual(keywords.get("timeout"), 15)
+
+    def test_none_response_yields_none(self):
+        with mock.patch.dict(os.environ, {"OMEGA_JEV_OFFLINE": ""}), \
+                mock.patch.object(self.module.typesafe_key, "find_key",
+                                  return_value="test-key"), \
+                mock.patch.object(self.module.typesafe_key, "post",
+                                  return_value=None) as post:
+            self.assertIsNone(self.call_fence())
+        self.assertEqual(post.call_args.kwargs.get("timeout"), 15)
+
+    def test_offline_and_missing_key_return_none_without_posting(self):
+        with mock.patch.dict(os.environ, {"OMEGA_JEV_OFFLINE": "1"}), \
+                mock.patch.object(self.module.typesafe_key, "post") as post:
+            self.assertIsNone(self.call_fence())
+            post.assert_not_called()
+        with mock.patch.dict(os.environ, {"OMEGA_JEV_OFFLINE": ""}), \
+                mock.patch.object(self.module.typesafe_key, "find_key",
+                                  return_value=""), \
+                mock.patch.object(self.module.typesafe_key, "post") as post:
+            self.assertIsNone(self.call_fence())
+            post.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

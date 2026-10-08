@@ -2072,3 +2072,64 @@ tools/bootstrap/ + bootstrap/, omega-rust/ (fmt), and tests/omega/<tier>/<group>
 those as `covered`, `added` empty. Standing rule: the augment is the
 discovery layer; an entry it adds repeatedly for one path family moves into
 the table.
+
+## 2026-10-08 (cont.) — angle-finding from artifacts, and a diag-intent probe
+
+Question: can new Jev angles be found from data on disk instead of
+anecdote? Two deterministic scans, then one frozen worked example.
+
+**Scan 1 — test-select cache (17 payloads).** On the retired 53-entry
+catalog Jev flagged 12–26 candidates per compiler diff; on the current
+16-entry catalog it flags ~9/16 on every compiler diff, with
+`clippy_workspace`, `run_tier_execution` and `fmt_check` present on all
+six compiler-diff plans. A flag that fires on every diff is not
+discrimination; by the `aca04571ffa` rule those three are promotion
+candidates (fmt_check already moved to `PATH_CANDIDATES` for `omega-rust/`;
+clippy and run-tier are `auto_run: false` and surface only as `suggested`).
+
+**Scan 2 — corpus golden.** 919 fail rows; 128 carry ≥2 diagnostics
+(histogram 1:791, 2:91, 3:17, 4:8, 5+:12). Side finding independent of
+Jev: 25 `pass/` rows are pinned `rejected`/`incomplete` in
+`corpus_outcomes.txt`, 9 of them the same `requires a selected Fused
+provider for boundary FilesystemHost` diagnostic recorded from a dirty tree
+(`@e01f73c689de+wt`). The README says pass/ has no "checks but does not
+build" status; the golden disagrees.
+
+**Probe — `build/experiments/diag-intent/`** (labels.json frozen before
+the call, probe.py, results.json). Angle: the fixture corpus is free gold —
+directory name + header comment + expected.txt state intent; the golden
+states what the compiler said. Per diagnostic of a multi-diagnostic fail
+fixture, Choice over `pins` / `cascade` (same construct reported again) /
+`genuine_other` (separate real violation) / `contradicts_intent` (header
+assumes the construct is valid — compiler suspect). Baseline: expected.txt
+substring match finds `pins`, cannot split the rest. Nine fixtures, 29
+diagnostics, one request per fixture (cascade is relational), ~9 calls.
+
+Frozen acceptance: ≥80% of non-pin diagnostics; zero false
+`contradicts_intent`; the one real `contradicts_intent` flagged. Result:
+25/29 overall, **13/16 non-pin (81%) pass**, **0 false
+`contradicts_intent` pass**, **real one missed — fail**. Misses: the
+`roll expects 1 argument(s), got 0` diagnostic under a header asserting
+`6 + main.dice.roll()` is a `u32` read as `genuine_other`, not a
+contradiction — the header implies the call is valid but never says
+method-call sugar exists, and Jev does not know Omega; two `pins`/`cascade`
+boundary calls (`exact_integer_cast_unproven` d2 is a second machine's own
+pinned cast, labeled cascade; `float_to_int_exact_unproven` d1 the inverse)
+where the `cascade` criterion's "same offending construct" was read as
+same construct *kind*; `fractional_integer_operand` d2 called
+`genuine_other` where I had cascade/contradicts_intent with no header to
+anchor either. Jev separated genuine fixture-hygiene defects from the
+pinned rule reliably (the `exit_process` Wrapping→i32 conversions in two
+fixtures, the unproven indices) — that half of the angle works and has a
+customer: fail fixtures carrying unintended second violations violate the
+"pin one rule" convention. The compiler-suspect half does not work from
+header prose alone; it needs the language rule in the packet (what
+constructs are valid) or a different evidence type. Do not tune on these
+nine; they are exposed.
+
+Reading for angle-finding: the deterministic scans produced two findings
+and a candidate angle in minutes without any model call; the worked example
+then settled the angle's two halves cheaply. Process rule to add to the
+playbook: inventory the fallback/always-fire branches and gold-labeled
+corpora on disk first; anecdote picks the angle only when the artifacts
+are silent.

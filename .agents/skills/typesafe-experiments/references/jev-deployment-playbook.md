@@ -25,6 +25,8 @@ prose scope, doc claims vs code reality. The generalization that produced
 the campaign: *name the asymmetry, then let the repo's vocabulary gaps
 enumerate themselves.*
 
+Start from artifacts, not anecdotes. Before naming an asymmetry by hand, inventory what the repository already records: fallback and `unknown`/`all()` branches in the deterministic tools and how often they fire, cached advisory responses (a catalog entry flagged on every diff is a promotion candidate, not a signal), and gold-labeled corpora such as `tests/omega/<tier>/<group>/` where directory name, header comment and `expected.txt` state intent beside what the compiler said. Measured 2026-10-08: two deterministic scans produced two findings and one angle in minutes with no model call; the anecdote route picks the angle only when the artifacts are silent.
+
 ## Question shapes that work
 
 - **Descriptions say what BREAKS the thing, not what it reads.** The single

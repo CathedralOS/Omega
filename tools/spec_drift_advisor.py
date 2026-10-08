@@ -25,14 +25,12 @@ drift cases caught, honest unverifiable hedging on partial evidence.
     tools/spec_drift_advisor.py AGENTS.md --limit 15
 """
 import argparse
-import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
 import typesafe_key
-import urllib.request
 
 PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./{}-]+/[-A-Za-z0-9_./{}]+)`")
 CLAIM_LINE = re.compile(
@@ -179,16 +177,12 @@ def jev_verdict(source, claim, evidence, key):
                        "still_true": "evidence supports the claim as written",
                        "drifted": "evidence shows the claim is stale or false",
                        "unverifiable": "evidence insufficient to decide"}}}}
-    http = urllib.request.Request(
-        typesafe_key.ENDPOINT, data=json.dumps(request).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(http, timeout=20) as response:
-            return (json.load(response).get("answers", {})
-                    .get("verdict", {}).get("choice", "unverifiable"))
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+    response = typesafe_key.post(typesafe_key.ENDPOINT, key, request,
+                                 timeout=20)
+    if response is None:
         return "unverifiable"
+    return (response.get("answers", {})
+            .get("verdict", {}).get("choice", "unverifiable"))
 
 
 def main():
