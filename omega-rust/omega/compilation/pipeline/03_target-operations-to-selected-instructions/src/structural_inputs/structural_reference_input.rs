@@ -2429,7 +2429,7 @@ pub(crate) fn case_field_read(
     else {
         return None;
     };
-    let case_position = cases.iter().position(|candidate| candidate.id == case)?;
+    let case_position = structural_case_position(cases, case)?;
     let (field_position, declaration) = cases[case_position]
         .fields
         .iter()
