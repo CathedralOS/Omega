@@ -469,22 +469,22 @@ fn encode_unchecked(
             words.push(0x9a9f_07e0 | ((condition ^ 1) << 12) | u32::from(registers[0]));
         }
         SelectedInstructionKind::ZeroExtendU8 => {
-            words.push(0xd340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+            words.push(two_address(0xd340_1c00, registers[0], registers[1]));
         }
         SelectedInstructionKind::ZeroExtendU16 => {
-            words.push(0xd340_3c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+            words.push(two_address(0xd340_3c00, registers[0], registers[1]));
         }
         SelectedInstructionKind::SignExtendI8 => {
-            words.push(0x9340_1c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+            words.push(two_address(0x9340_1c00, registers[0], registers[1]));
         }
         SelectedInstructionKind::SignExtendI16 => {
-            words.push(0x9340_3c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+            words.push(two_address(0x9340_3c00, registers[0], registers[1]));
         }
         SelectedInstructionKind::SignExtendI32 => {
-            words.push(0x9340_7c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+            words.push(two_address(0x9340_7c00, registers[0], registers[1]));
         }
         SelectedInstructionKind::ZeroExtendU32 => {
-            words.push(0xd340_7c00 | (u32::from(registers[0]) << 5) | u32::from(registers[1]));
+            words.push(two_address(0xd340_7c00, registers[0], registers[1]));
         }
         SelectedInstructionKind::CopyI64 => {
             words.push(0xaa00_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
@@ -506,28 +506,13 @@ fn encode_unchecked(
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::ExactAddI64 { .. } => {
-            words.push(
-                0x8b00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x8b00_0000, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::BitwiseAndI64 => {
-            words.push(
-                0x8a00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x8a00_0000, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::BitwiseOrI64 => {
-            words.push(
-                0xaa00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0xaa00_0000, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::BitwiseNotI64 => {
             // `MVN Xd, Xm` is `ORN Xd, XZR, Xm`: the 0xaa20 base with the
@@ -542,34 +527,19 @@ fn encode_unchecked(
             append_saturating(&mut words, kind, registers)?;
         }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
-            words.push(
-                0x9ac0_0800
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x9ac0_0800, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
             // `SDIV Xd, Xn, Xm` already wraps the one overflowing quotient:
             // i64::MIN / -1 yields i64::MIN, matching the wrapping semantics.
-            words.push(
-                0x9ac0_0c00
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x9ac0_0c00, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::WrappingRemainderI64 { .. }
         | SelectedInstructionKind::ExactRemainderI64 { .. } => {
             if registers[2] == registers[0] || registers[2] == registers[1] {
                 return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            words.push(
-                0x9ac0_0c00
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x9ac0_0c00, registers[0], registers[1], registers[2]));
             // MSUB uses the original dividend, including when SDIV wraps MIN / -1.
             words.push(
                 0x9b00_8000
@@ -582,23 +552,13 @@ fn encode_unchecked(
         SelectedInstructionKind::ExactDivideI64 { .. } => {
             // `sdiv` on the normalized operands: the proven obligations
             // exclude the only quotient SDIV could not represent exactly.
-            words.push(
-                0x9ac0_0c00
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x9ac0_0c00, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::ExactRemainderU64 { .. } => {
             if registers[2] == registers[0] || registers[2] == registers[1] {
                 return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
             }
-            words.push(
-                0x9ac0_0800
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x9ac0_0800, registers[0], registers[1], registers[2]));
             // MSUB recovers `dividend - quotient * divisor` from the original
             // operands while the early-clobber result held the UDIV quotient.
             words.push(
@@ -610,12 +570,7 @@ fn encode_unchecked(
             );
         }
         SelectedInstructionKind::BitwiseXorI64 => {
-            words.push(
-                0xca00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0xca00_0000, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
             words.push(
@@ -627,23 +582,13 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ExactSubtractI64 { .. }
         | SelectedInstructionKind::WrappingSubtractI64 => {
-            words.push(
-                0xcb00_0000
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0xcb00_0000, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::WrappingMultiplyI64 => {
             // `MUL Xd, Xn, Xm` is `MADD Xd, Xn, Xm, XZR`: the 0x9b00 base with
             // the addend field fixed to 31.
-            words.push(
-                0x9b00_7c00
-                    | (u32::from(registers[1]) << 16)
-                    | (u32::from(registers[0]) << 5)
-                    | u32::from(registers[2]),
-            );
+            words.push(three_address(0x9b00_7c00, registers[0], registers[1], registers[2]));
         }
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
@@ -764,6 +709,10 @@ const UNSIGNED_MULTIPLY_HIGH: u32 = 0x9bc0_7c00;
 
 fn three_address(opcode: u32, left: u8, right: u8, destination: u8) -> u32 {
     opcode | (u32::from(right) << 16) | (u32::from(left) << 5) | u32::from(destination)
+}
+
+fn two_address(opcode: u32, left: u8, destination: u8) -> u32 {
+    opcode | (u32::from(left) << 5) | u32::from(destination)
 }
 
 /// Every saturating realization; see `SaturatingRealization` for why each
