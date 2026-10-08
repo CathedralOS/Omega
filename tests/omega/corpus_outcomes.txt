@@ -2756,7 +2756,7 @@ pass/control_flow/borrowed_case_dispatch_payload_arguments_exit checked 1382ms c
 pass/control_flow/borrowed_single_case_dispatch_exit checked 1413ms check-target:macos_arm64 @78ffda488ec6+wt
 pass/control_flow/borrowed_state_argument checked 3409ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/control_flow/case_arm_payload_receiver_call checked 1730ms check-target:macos_arm64 @30260e7900cb+wt
-pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1704ms check-target:macos_arm64 @2d8ed253669f
+pass/control_flow/case_arm_scalar_payload_arguments_exit checked 2819ms check-target:macos_arm64 @fe437279c852+wt
 pass/control_flow/case_dispatch_unread_structural_payload_exit checked 1124ms check-target:macos_arm64 @bd9a4018c019+wt
 pass/control_flow/case_pattern_rename_waive_exit checked 1932ms check-target:macos_arm64 @b5d8c6882a8
 pass/control_flow/composite_state_parameter checked 1293ms check-target:macos_arm64 @2d8ed253669f

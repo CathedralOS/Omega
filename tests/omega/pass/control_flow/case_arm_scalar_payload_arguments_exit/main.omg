@@ -3,7 +3,9 @@
 // fields so the successor's scalar-argument guard admits them — alongside
 // literal actuals, on both the machine's own receiver sum (the api
 // `at(response, position)` shape) and a call-produced local subject (the
-// cli `got_line(count, false)` shape). Exits 70 only when every arm's
+// cli `got_line(count, false)` shape). An arm may forward one binding to
+// several parameters: each parameter then reads the same payload field, on
+// a borrowed subject and on a local one. Exits 70 only when every arm's
 // payload scalars arrive at their named states.
 
 use omega_language_std::console;
@@ -15,14 +17,17 @@ data NextToken {
 }
 
 // Self-subject scalar payload arm: the receiver sum binds `start`/`end` and
-// forwards both through a named state.
+// forwards both through a named state, `end` twice.
 machine NextToken::span(next_token: &NextToken) -> u64 {
     transition next_token {
-        NextToken::Token { start, end } -> at(start, end)
+        NextToken::Token { start, end } -> at(start, end, end)
         _ -> (0)
     }
-    state at(start: u64, end: u64) -> u64 {
-        transition { _ -> (end) }
+    state at(start: u64, end: u64, again: u64) -> u64 {
+        transition end == again {
+            true -> (again)
+            _ -> (0)
+        }
     }
 }
 
@@ -47,12 +52,12 @@ machine line_read() -> LineRead {
 machine Main::main(main: &mut Main) reaches Console {
     let root: NextToken = next_token();
     transition root {
-        NextToken::Token { start, end } -> root_token(main, start, end)
+        NextToken::Token { start, end } -> root_token(main, start, end, start)
         _ -> refused(main)
     }
 
-    state root_token(main: &mut Main, start: u64, end: u64) {
-        transition start == 2 && end == 3 {
+    state root_token(main: &mut Main, start: u64, end: u64, again: u64) {
+        transition start == 2 && end == 3 && again == 2 {
             true -> attached(main)
             _ -> refused(main)
         }

@@ -396,6 +396,9 @@ fn validate_case_transport(
             return Err(mismatch());
         }
     }
+    // A payload row is keyed by the destination parameter it defines. One
+    // field may define several parameters, as when an arm forwards the same
+    // payload binding twice; each row then carries its own observation.
     for payload in &case.payloads {
         if case
             .payloads
@@ -403,12 +406,6 @@ fn validate_case_transport(
             .filter(|other| other.semantic.parameter.value == payload.semantic.parameter.value)
             .count()
             != 1
-            || case
-                .payloads
-                .iter()
-                .filter(|other| other.semantic.field == payload.semantic.field)
-                .count()
-                != 1
             || edge
                 .bindings
                 .iter()
