@@ -1,10 +1,10 @@
 //! Measure definitions and their optional parameter.
 
 use crate::lowering::expression::lower_expression_into_table;
+use crate::lowering::name::lower_operator_path_name;
 use crate::lowering::state::lower_state_parameter;
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::measure::MeasureDefinition;
 use symbols::SymbolHandle;
@@ -15,7 +15,7 @@ pub(crate) fn lower_measure_definition(
     syntax_trees: &SyntaxTrees,
     measure: &syntax::item::MeasureDefinition,
 ) -> Result<MeasureDefinition, Diagnostic> {
-    let name = lower_measure_name(lowerer, syntax_trees, measure.name);
+    let name = lower_operator_path_name(lowerer, syntax_trees, measure.name);
 
     let parameter = if measure.parameter.is_valid() {
         Some(lower_state_parameter(
@@ -55,21 +55,3 @@ pub(crate) fn lower_measure_definition(
     })
 }
 
-fn lower_measure_name(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    name: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
-    let mut span = HandleSpan::empty();
-
-    for member in syntax_trees.items.identifier_path_members(name) {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .operator_path_members
-            .append_to_span(&mut span, crate::lowering::name::lower_name(member));
-    }
-
-    span
-}

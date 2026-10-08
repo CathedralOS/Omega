@@ -2,6 +2,7 @@
 //! `selection::domain_operator_homes`.
 
 use crate::lowering::data::lower_type_parameters;
+use crate::lowering::name::lower_operator_path_name;
 use crate::lowering::state::{lower_signature_contracts, lower_state_parameters};
 use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
@@ -18,7 +19,7 @@ pub(crate) fn lower_operator_definition(
         is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         symbol: Default::default(),
-        name: lower_operator_name(lowerer, syntax_trees, operator.name),
+        name: lower_operator_path_name(lowerer, syntax_trees, operator.name),
         lifetime_parameters: operator
             .lifetime_parameters
             .iter()
@@ -37,24 +38,6 @@ pub(crate) fn lower_operator_definition(
     })
 }
 
-fn lower_operator_name(
-    lowerer: &mut Lowerer,
-    syntax_trees: &SyntaxTrees,
-    name: HandleSpan<syntax::identifier::Identifier>,
-) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
-    let mut span = HandleSpan::empty();
-
-    for member in syntax_trees.items.identifier_path_members(name) {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .operator_path_members
-            .append_to_span(&mut span, crate::lowering::name::lower_name(member));
-    }
-
-    span
-}
 
 /// Whether a `machine` item is a top-level token-bearing boundary signature
 /// (`boundary machine + Owner::name(...);`): bodyless, boundary, tokened, and
