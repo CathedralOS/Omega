@@ -521,18 +521,14 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 .code_offset
                 .checked_add(store.byte_count)
                 .ok_or_else(invalid)?;
-            let exact_attribution_count = record
-                .semantic_code_attribution
-                .iter()
-                .filter(|attribution| {
-                    attribution.machine == function.machine
-                        && attribution.attribution.site
-                            == SemanticCodeSite::Operation(store.psi_operation)
-                        && attribution.attribution.operation_ordinal == store.operation_ordinal
-                        && attribution.attribution.code_offset == store.code_offset
-                        && attribution.attribution.byte_count == store.byte_count
-                })
-                .count();
+            let exact_attribution_count = exact_store_attribution_count(
+                record,
+                function.machine,
+                store.psi_operation,
+                store.operation_ordinal,
+                store.code_offset,
+                store.byte_count,
+            );
             if previous.is_some_and(|previous| previous >= key)
                 || !matches!(
                     store.destination.access,
@@ -786,18 +782,14 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 .code_offset
                 .checked_add(store.byte_count)
                 .ok_or_else(invalid)?;
-            let exact_attribution_count = record
-                .semantic_code_attribution
-                .iter()
-                .filter(|attribution| {
-                    attribution.machine == function.machine
-                        && attribution.attribution.site
-                            == SemanticCodeSite::Operation(store.psi_operation)
-                        && attribution.attribution.operation_ordinal == store.operation_ordinal
-                        && attribution.attribution.code_offset == store.code_offset
-                        && attribution.attribution.byte_count == store.byte_count
-                })
-                .count();
+            let exact_attribution_count = exact_store_attribution_count(
+                record,
+                function.machine,
+                store.psi_operation,
+                store.operation_ordinal,
+                store.code_offset,
+                store.byte_count,
+            );
             if previous.is_some_and(|previous| previous >= key)
                 || !source_is_exact
                 || destination_type_count != 1
@@ -853,6 +845,30 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
 /// a parameter ABI home's recorded location, an explicit scalar home record,
 /// or an immediate carried by its `bits` count — this shared match produces
 /// the expected transport byte shape for either enum's projection.
+
+/// The semantic-code-attribution audit a scalar store owes: exactly one
+/// attribution row naming this machine's operation span and byte extent.
+fn exact_store_attribution_count(
+    record: &InstallationRecord,
+    machine: MachineId,
+    psi_operation: semantic_vocabulary::OperationId,
+    operation_ordinal: usize,
+    code_offset: usize,
+    byte_count: usize,
+) -> usize {
+    record
+        .semantic_code_attribution
+        .iter()
+        .filter(|attribution| {
+            attribution.machine == machine
+                && attribution.attribution.site == SemanticCodeSite::Operation(psi_operation)
+                && attribution.attribution.operation_ordinal == operation_ordinal
+                && attribution.attribution.code_offset == code_offset
+                && attribution.attribution.byte_count == byte_count
+        })
+        .count()
+}
+
 enum ScalarStoreSource {
     ParameterLocation(machine_code::UnitScalarParameterLocationRecord),
     Home(machine_code::UnitScalarHomeRecord),
