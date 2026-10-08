@@ -882,6 +882,20 @@ fn lower_checked_boolean_expression_with_parameters(
     scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     proven_indexes: &[checked_trees::expression::ExpressionHandle],
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    let lower = |expression: &CheckedBooleanExpression| {
+        lower_checked_boolean_expression_with_parameters(
+            expression,
+            structural_parameters,
+            structural_fields,
+            structural_cases,
+            primitive_storage,
+            element_views,
+            view_locals,
+            structural_locals,
+            scalar_bindings,
+            proven_indexes,
+        )
+    };
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
             LoweredBooleanReturnExpression::Constant { value: *value }
@@ -1069,44 +1083,11 @@ fn lower_checked_boolean_expression_with_parameters(
             }
         }
         CheckedBooleanExpression::Not(operand) => LoweredBooleanReturnExpression::Not {
-            operand: Box::new(lower_checked_boolean_expression_with_parameters(
-                operand,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
+            operand: Box::new(lower(operand)?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
-            left: Box::new(lower_checked_boolean_expression_with_parameters(
-                left,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
-            right: Box::new(lower_checked_boolean_expression_with_parameters(
-                right,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
+            left: Box::new(lower(left)?),
+            right: Box::new(lower(right)?),
         },
         CheckedBooleanExpression::IntegerMathComparison { .. } => {
             return unsupported("mathematical contract predicate has no executable Boolean value");
@@ -1167,56 +1148,12 @@ fn lower_checked_boolean_expression_with_parameters(
             return unsupported("structural equality is contract-only terminal vocabulary");
         }
         CheckedBooleanExpression::And { left, right } => LoweredBooleanReturnExpression::And {
-            left: Box::new(lower_checked_boolean_expression_with_parameters(
-                left,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
-            right: Box::new(lower_checked_boolean_expression_with_parameters(
-                right,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
+            left: Box::new(lower(left)?),
+            right: Box::new(lower(right)?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
-            left: Box::new(lower_checked_boolean_expression_with_parameters(
-                left,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
-            right: Box::new(lower_checked_boolean_expression_with_parameters(
-                right,
-                structural_parameters,
-                structural_fields,
-                structural_cases,
-                primitive_storage,
-                element_views,
-                view_locals,
-                structural_locals,
-                scalar_bindings,
-                proven_indexes,
-            )?),
+            left: Box::new(lower(left)?),
+            right: Box::new(lower(right)?),
         },
     })
 }
