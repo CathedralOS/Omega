@@ -11,26 +11,10 @@ use super::{
     validate_name,
 };
 use crate::{
-    plan_elf_dynamic_link_inputs, plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
+    plan_elf_dynamic_section_descriptors, plan_elf_dynamic_sections,
     plan_elf_procedure_linkage_relocations, plan_elf_procedure_linkage_templates,
     serialize_elf_dynamic_sections,
 };
-use arena::Handle;
-use crate::dynamic_executable::interpreter_path;
-use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
-    FinalImageSection, FinalImageSymbol,
-};
-use object_file::{RelocationKind, SymbolKind};
-use target::{ForeignLocatorCandidate, normalize_elf_interpreter_plan, normalize_foreign_locator};
-
-#[derive(Clone, Copy)]
-struct ImportFixture {
-    object: &'static [u8],
-    symbol: &'static [u8],
-    version: &'static [u8],
-    instruction_offsets: &'static [usize],
-}
 
 const FIRST_SITES: &[usize] = &[0, 32];
 const SECOND_SITES: &[usize] = &[16];
@@ -49,78 +33,18 @@ const IMPORTS: [ImportFixture; 2] = [
     },
 ];
 
-
+use crate::test_support::DynamicImportFixture as ImportFixture;
 fn templates(
     target: TargetProfile,
     imports: &[ImportFixture],
 ) -> ValidatedElfProcedureLinkageTemplatePlan {
-    let relocation_count = imports
-        .iter()
-        .map(|fixture| fixture.instruction_offsets.len())
-        .sum();
-    let mut image = FinalImage::with_capacity(
-        target.native_target(),
-        FinalImageMemory {
-            text: vec![0; 64],
-            ..FinalImageMemory::default()
-        },
-        Handle::invalid(),
-        imports.len(),
-        imports.len(),
-        relocation_count,
+    let inputs = crate::test_support::dynamic_import_inputs(
+        target,
+        imports,
+        "__omega_linkage_descriptor_import_",
+        "valid descriptor locator",
+        "valid descriptor interpreter",
     );
-    for (index, fixture) in imports.iter().enumerate() {
-        let symbol_handle = image.symbol_table.symbols.insert(FinalImageSymbol {
-            name: format!("__omega_linkage_descriptor_import_{index}"),
-            section: FinalImageSection::None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Import,
-        });
-        image.symbol_table.imports.insert(FinalImageImport {
-            symbol_handle,
-            import: FinalImageImportPlan::Normalized(
-                normalize_foreign_locator(
-                    ForeignLocatorCandidate::ElfVersioned {
-                        object: fixture.object.to_vec(),
-                        symbol: fixture.symbol.to_vec(),
-                        version: fixture.version.to_vec(),
-                    },
-                    target,
-                )
-                .expect("valid descriptor locator"),
-            ),
-        });
-        for instruction_offset in fixture.instruction_offsets {
-            let (relocation_offset, kind) = match target {
-                TargetProfile::LinuxX64 => {
-                    image.memory.text[*instruction_offset] = 0xe8;
-                    (instruction_offset + 1, RelocationKind::X86_64Relative32)
-                }
-                TargetProfile::LinuxArm64 => {
-                    image.memory.text[*instruction_offset..*instruction_offset + 4]
-                        .copy_from_slice(&[0, 0, 0, 0x94]);
-                    (*instruction_offset, RelocationKind::Aarch64Branch26)
-                }
-                _ => unreachable!(),
-            };
-            image
-                .relocation_table
-                .relocations
-                .insert(FinalImageRelocation {
-                    section: FinalImageSection::Text,
-                    offset: relocation_offset,
-                    byte_width: 4,
-                    symbol_handle,
-                    addend: 0,
-                    kind,
-                });
-        }
-    }
-    let interpreter = normalize_elf_interpreter_plan(interpreter_path(target).to_vec(), target)
-        .expect("valid descriptor interpreter");
-    let inputs =
-        plan_elf_dynamic_link_inputs(image, interpreter).expect("valid dynamic-link inputs");
     let sections = plan_elf_dynamic_sections(inputs).expect("valid dynamic sections");
     let payloads = serialize_elf_dynamic_sections(sections).expect("valid dynamic payloads");
     let descriptors =
