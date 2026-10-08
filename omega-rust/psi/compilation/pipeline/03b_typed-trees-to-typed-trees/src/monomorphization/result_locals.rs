@@ -17,7 +17,8 @@ pub(super) fn refresh_generic_call_results(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (offset, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let StatementNode::LocalData(local) = statement else {
                     continue;
@@ -258,7 +259,7 @@ pub(super) fn refresh(program: &mut TypedTrees) {
         .collect::<Vec<_>>();
     let mut updates = Vec::new();
     for body in bodies {
-        for (offset, statement) in program.statement_table.statements(body).iter().enumerate() {
+        for (offset, statement) in program.statement_table.indexed_statements(body) {
             let StatementNode::LocalData(local) = statement else {
                 continue;
             };
