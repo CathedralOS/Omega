@@ -3,17 +3,16 @@
 //! materialization. The join binds owner slots positionally against the
 //! same roster both sides already read.
 
-use super::super::super::super::{StructuralAccess, StructuralArgument, block_id};
+use super::super::super::super::{StructuralAccess, StructuralArgument};
 use super::super::super::{
-    LoweringError, Operation, OperationKind, PlaceId, ScalarType, StructuralTypeShape, Terminator,
-    allocate_dense, lookup_type_id, lower_structural_path,
+    LoweringError, OperationKind, PlaceId, StructuralTypeShape, lookup_type_id,
+    lower_structural_path,
     operation_frame::{
         allocate_structural_result, operation_result_declaration, structural_type_declaration,
     },
-    unsupported, value_id,
+    unsupported,
 };
 use super::{Emission, ProjectedMove, ValueContinuation};
-use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::expression_preparation::bindings::LoanAccess;
 
 impl Emission<'_, '_, '_> {
@@ -249,30 +248,14 @@ impl Emission<'_, '_, '_> {
         for (position, case) in cases.iter().enumerate() {
             let mut fallback = None;
             if position + 1 < cases.len() {
-                let condition = value_id(allocate_dense(self.next_value)?);
-                let id = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: scalar_result_declaration(condition, ScalarType::Boolean),
-                    kind: OperationKind::StructuralCaseMembership {
+                self.boolean_case_split(
+                    OperationKind::StructuralCaseMembership {
                         source,
                         path: path.clone(),
                         case: case.id,
                     },
-                });
-                let selected = block_id(allocate_dense(self.next_block)?);
-                let next = block_id(allocate_dense(self.next_block)?);
-                let when_true = self.edge(selected, Vec::new(), Vec::new())?;
-                let when_false = self.edge(next, Vec::new(), Vec::new())?;
-                self.finish(Terminator::Conditional {
-                    condition,
-                    when_true,
-                    when_false,
-                });
-                fallback = Some((next, self.values.clone()));
-                self.start(selected);
+                    &mut fallback,
+                )?;
             }
             self.values.truncate(source_count);
             let (place, operation) = allocate_structural_result(

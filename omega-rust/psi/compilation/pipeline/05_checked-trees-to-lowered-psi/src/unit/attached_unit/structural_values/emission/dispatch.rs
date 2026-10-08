@@ -3,13 +3,10 @@
 //! and joins one continuation block, whose parameters carry the selected
 //! result place and the owners that stay live after the selection.
 
-use super::super::super::super::block_id;
 use super::super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
-    Terminator, allocate_dense, unsupported, value_id,
+    CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ScalarType, unsupported,
 };
 use super::{Emission, ValueContinuation};
-use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 
 impl Emission<'_, '_, '_> {
@@ -90,26 +87,7 @@ impl Emission<'_, '_, '_> {
                             "structural dispatch needs selected floating comparison lowering",
                         );
                     };
-                    let condition = value_id(allocate_dense(self.next_value)?);
-                    let id = self.operations.allocate();
-                    self.operations.push(Operation {
-                        static_reach_binding: None,
-                        suspension_crossing: None,
-                        id,
-                        result: scalar_result_declaration(condition, ScalarType::Boolean),
-                        kind,
-                    });
-                    let selected = block_id(allocate_dense(self.next_block)?);
-                    let next = block_id(allocate_dense(self.next_block)?);
-                    let when_true = self.edge(selected, Vec::new(), Vec::new())?;
-                    let when_false = self.edge(next, Vec::new(), Vec::new())?;
-                    self.finish(Terminator::Conditional {
-                        condition,
-                        when_true,
-                        when_false,
-                    });
-                    fallback = Some((next, self.values.clone()));
-                    self.start(selected);
+                    self.boolean_case_split(kind, &mut fallback)?;
                 }
             }
             self.values.truncate(source_count);

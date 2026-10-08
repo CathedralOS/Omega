@@ -1,5 +1,5 @@
 use super::super::super::{
-    BlockId, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    BlockId, ScalarType, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
     StructuralTypeDeclaration, SuccessorEdge, ValueId, block_id,
 };
 use super::super::{
@@ -15,7 +15,7 @@ use super::super::{
     place_id, unsupported, value_id,
 };
 use super::CheckedTrees;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
@@ -1879,6 +1879,37 @@ impl Emission<'_, '_, '_> {
 
     /// Push the `Jump` terminator naming `edge` — every field transfers
     /// from the edge itself and each route supplies its cleanup roster.
+    /// Case-driven control flow splits on one Boolean condition: emit the
+    /// test, close the current block on it, remember the fallback block's
+    /// value tail, and resume at the selected arm.
+    pub(super) fn boolean_case_split(
+        &mut self,
+        kind: OperationKind,
+        fallback: &mut Option<(BlockId, Vec<ValueDeclaration>)>,
+    ) -> Result<(), LoweringError> {
+        let condition = value_id(allocate_dense(self.next_value)?);
+        let id = self.operations.allocate();
+        self.operations.push(terminal_psi::Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: scalar_result_declaration(condition, ScalarType::Boolean),
+            kind,
+        });
+        let selected = block_id(allocate_dense(self.next_block)?);
+        let next = block_id(allocate_dense(self.next_block)?);
+        let when_true = self.edge(selected, Vec::new(), Vec::new())?;
+        let when_false = self.edge(next, Vec::new(), Vec::new())?;
+        self.finish(Terminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+        });
+        *fallback = Some((next, self.values.clone()));
+        self.start(selected);
+        Ok(())
+    }
+
     fn finish_jump(
         &mut self,
         edge: SuccessorEdge,
