@@ -315,36 +315,26 @@ pub(crate) fn stable_alias_initializer_origins(
             // requirement call answers the same way through its retained
             // signature identity.
             .or_else(|| {
-                super::boundary_calls::boundary_result_candidate_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    call,
-                    expression,
-                    inference,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    allow_isolated_local,
-                    stored,
-                )
-            })
-            .or_else(|| {
-                super::boundary_calls::requirement_result_candidate_origins(
-                    program,
-                    current_machine,
-                    machine_symbols,
-                    symbols,
-                    call,
-                    expression,
-                    inference,
-                    parameters,
-                    isolated_local_roots,
-                    aliases,
-                    allow_isolated_local,
-                    stored,
-                )
+                macro_rules! boundary_origins {
+                    ($candidate:ident) => {
+                        super::boundary_calls::$candidate(
+                            program,
+                            current_machine,
+                            machine_symbols,
+                            symbols,
+                            call,
+                            expression,
+                            inference,
+                            parameters,
+                            isolated_local_roots,
+                            aliases,
+                            allow_isolated_local,
+                            stored,
+                        )
+                    };
+                }
+                boundary_origins!(boundary_result_candidate_origins)
+                    .or_else(|| boundary_origins!(requirement_result_candidate_origins))
             })?
         }
         ExpressionNode::Indexed(indexed) => {
