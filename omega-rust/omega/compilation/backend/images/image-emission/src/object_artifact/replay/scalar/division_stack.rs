@@ -12,8 +12,9 @@ use semantic_vocabulary::MachineId;
 use target::Architecture;
 
 use super::call_stack::validate_scalar_call_stack;
-use super::stack_mutation::{replay_scalar_mutation, validate_x86_scalar_mutation};
-use crate::object_artifact::call_sites::validate_internal_call_site;
+use super::stack_mutation::{
+    claimed_mutations_and_call_sites, replay_scalar_mutation, validate_x86_scalar_mutation,
+};
 use crate::{ObjectError, ObjectScalarCallStack, ObjectScalarStack};
 
 pub(crate) fn validate_linear_scalar_division_stack(
@@ -34,19 +35,13 @@ pub(crate) fn validate_linear_scalar_division_stack(
     {
         return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
     }
-    let mut claimed = evidence
-        .mutations
-        .iter()
-        .map(|mutation| (mutation.offset, *mutation))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    if claimed.len() != evidence.mutations.len() {
-        return Err(ObjectError::NonCanonicalScalarStackMutationOrder(machine));
-    }
-    let mut call_sites = std::collections::BTreeMap::new();
-    for call in calls {
-        validate_internal_call_site(architecture, machine, bytes, *call)?;
-        call_sites.insert(call.offset - 1, *call);
-    }
+    let (mut claimed, mut call_sites) = claimed_mutations_and_call_sites(
+        architecture,
+        machine,
+        bytes,
+        evidence,
+        calls,
+    )?;
     let mut validated_calls = Vec::with_capacity(calls.len());
     let mut cursor = 0;
     let mut depth = 0_u32;
