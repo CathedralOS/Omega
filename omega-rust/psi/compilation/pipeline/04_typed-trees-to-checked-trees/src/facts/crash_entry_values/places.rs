@@ -195,21 +195,16 @@ fn entry_parameter_place_at_write_boundary(
             Projection::Member(member) => {
                 // structural_data also supports unresolved-name discovery for
                 // other callers. This provenance query requires a resolved type.
-                let mut owner = reference;
-                loop {
-                    match program.type_reference_table.type_reference(owner) {
-                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                        | typed_trees::types::TypeReferenceNode::Constrained {
-                            base_type: referee,
-                            ..
-                        } => owner = *referee,
-                        typed_trees::types::TypeReferenceNode::Named { symbol, .. }
-                        | typed_trees::types::TypeReferenceNode::Generic {
-                            base_symbol: symbol,
-                            ..
-                        } if symbol.is_valid() => break,
-                        _ => return None,
-                    }
+                let owner = program
+                    .type_reference_table
+                    .peeled_type_reference(reference);
+                match program.type_reference_table.type_reference(owner) {
+                    typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                    | typed_trees::types::TypeReferenceNode::Generic {
+                        base_symbol: symbol,
+                        ..
+                    } if symbol.is_valid() => {}
+                    _ => return None,
                 }
                 let data = crate::values::structural_data(program, reference)?;
                 let mut selected = None;

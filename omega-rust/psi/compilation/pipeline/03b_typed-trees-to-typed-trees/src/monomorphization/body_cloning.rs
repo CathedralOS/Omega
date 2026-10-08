@@ -1107,40 +1107,34 @@ fn carrier_field(
     reference: TypeReferenceHandle,
     name: &str,
 ) -> Option<typed_trees::data::DataField> {
-    let mut reference = reference;
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => {
-                let mut definitions = program
-                    .data_definitions()
-                    .iter()
-                    .filter(|data| data.symbol == *symbol);
-                let definition = definitions.next()?;
-                if definitions.next().is_some() {
-                    return None;
-                }
-                let mut fields = program
-                    .data_members(definition)
-                    .iter()
-                    .filter_map(|member| match member {
-                        typed_trees::data::DataMember::Field(field)
-                            if field.name.as_str() == name =>
-                        {
-                            Some(field)
-                        }
-                        _ => None,
-                    });
-                let field = fields.next()?;
-                if fields.next().is_some() || !field.symbol.is_valid() {
-                    return None;
-                }
-                return Some(field.clone());
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            let mut definitions = program
+                .data_definitions()
+                .iter()
+                .filter(|data| data.symbol == *symbol);
+            let definition = definitions.next()?;
+            if definitions.next().is_some() {
+                return None;
             }
-            _ => return None,
+            let mut fields = program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) if field.name.as_str() == name => {
+                        Some(field)
+                    }
+                    _ => None,
+                });
+            let field = fields.next()?;
+            if fields.next().is_some() || !field.symbol.is_valid() {
+                return None;
+            }
+            return Some(field.clone());
         }
+        _ => None,
     }
 }

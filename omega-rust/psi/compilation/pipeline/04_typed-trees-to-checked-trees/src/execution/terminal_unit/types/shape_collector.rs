@@ -281,9 +281,7 @@ impl<'program> ShapeCollector<'program> {
                 let Some(atom) = self.program.symbols.builtin_type_atom(*symbol) else {
                     return false;
                 };
-                if name.as_str() != atom.symbol_name()
-                    || !atom.is_fixed_integer()
-                {
+                if name.as_str() != atom.symbol_name() || !atom.is_fixed_integer() {
                     return false;
                 }
                 *base_type
@@ -506,13 +504,12 @@ impl<'program> ShapeCollector<'program> {
                     | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
                     | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             ) {
-                let mut referee = type_reference;
+                let mut referee = self
+                    .program
+                    .type_reference_table
+                    .peeled_type_reference(type_reference);
                 loop {
                     match self.program.type_reference_table.type_reference(referee) {
-                        TypeReferenceNode::Reference { referee: inner, .. }
-                        | TypeReferenceNode::Constrained {
-                            base_type: inner, ..
-                        } => referee = *inner,
                         TypeReferenceNode::Named { symbol, .. } => {
                             let Some((_, replacement)) = substitutions
                                 .iter()

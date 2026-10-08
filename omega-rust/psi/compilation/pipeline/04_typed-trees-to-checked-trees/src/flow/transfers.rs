@@ -725,22 +725,15 @@ fn exact_structural_symbol_place(
                 if selected_variant.is_some() {
                     return false;
                 }
-                loop {
-                    match program.type_reference_table.type_reference(current) {
-                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                        | typed_trees::types::TypeReferenceNode::Constrained {
-                            base_type: referee,
-                            ..
-                        } => current = *referee,
-                        typed_trees::types::TypeReferenceNode::FixedArray {
-                            element_type,
-                            length: typed_trees::types::FixedArrayLength::Literal(length),
-                        } if *index < *length => {
-                            current = *element_type;
-                            break;
-                        }
-                        _ => return false,
+                current = program.type_reference_table.peeled_type_reference(current);
+                match program.type_reference_table.type_reference(current) {
+                    typed_trees::types::TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: typed_trees::types::FixedArrayLength::Literal(length),
+                    } if *index < *length => {
+                        current = *element_type;
                     }
+                    _ => return false,
                 }
             }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Index { .. } => {

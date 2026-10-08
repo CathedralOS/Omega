@@ -55,17 +55,15 @@ pub(in crate::values::scalar) fn selected_element(
     ) {
         return None;
     }
-    let (element_type, through_view) = loop {
+    let collection_type = program
+        .type_reference_table
+        .peeled_type_reference(collection_type);
+    let (element_type, through_view) =
         match program.type_reference_table.type_reference(collection_type) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => collection_type = *referee,
-            TypeReferenceNode::FixedArray { element_type, .. } => break (*element_type, false),
-            TypeReferenceNode::Slice { element_type } => break (*element_type, true),
+            TypeReferenceNode::FixedArray { element_type, .. } => (*element_type, false),
+            TypeReferenceNode::Slice { element_type } => (*element_type, true),
             _ => return None,
-        }
-    };
+        };
     let index =
         land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
             .or_else(|| {

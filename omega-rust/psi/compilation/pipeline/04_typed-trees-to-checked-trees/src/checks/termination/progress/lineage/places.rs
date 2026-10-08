@@ -24,17 +24,8 @@ pub(super) fn partition(
     let mut current = parameter.type_reference;
     let mut visiting = Vec::new();
     for projection in &subject.projections {
-        loop {
-            match program.type_reference_table.type_reference(current) {
-                TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
-                // A reference is one borrowed view of its referent, not a
-                // boundary the demanded path stops at. An exact projection
-                // still names storage through it; the replayed-type
-                // visitation bound below keeps recursive referents finite.
-                TypeReferenceNode::Reference { referee, .. } => current = *referee,
-                _ => break,
-            }
-        }
+        current = program.type_reference_table.peeled_type_reference(current);
+
         let field = match replay_partition_data(program, current) {
             Some(data) => {
                 if visiting.contains(&data.symbol) {

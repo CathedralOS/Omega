@@ -188,26 +188,24 @@ pub(super) fn domain_target_is_custody_marked(
     program: &dyn ::validation::CheckingInput,
     target_type: TypeReferenceHandle,
 ) -> bool {
-    let mut type_reference = target_type;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => {
-                if !symbol.is_valid()
-                    || program.type_multiplicity(type_reference)
-                        != language_semantics::Multiplicity::Linear
-                {
-                    return false;
-                }
-                return program.domain_definitions().iter().any(|domain| {
-                    domain_carrier_symbol(program, domain.target_type) == Some(*symbol)
-                        && (domain.predicate_body.is_present()
-                            || !domain.establishment_routes.is_empty())
-                });
+    let type_reference = program
+        .type_reference_table
+        .peeled_type_reference(target_type);
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if !symbol.is_valid()
+                || program.type_multiplicity(type_reference)
+                    != language_semantics::Multiplicity::Linear
+            {
+                return false;
             }
-            _ => return false,
+            return program.domain_definitions().iter().any(|domain| {
+                domain_carrier_symbol(program, domain.target_type) == Some(*symbol)
+                    && (domain.predicate_body.is_present()
+                        || !domain.establishment_routes.is_empty())
+            });
         }
+        _ => false,
     }
 }
 
@@ -217,14 +215,12 @@ pub(super) fn domain_carrier_symbol(
     program: &dyn ::validation::CheckingInput,
     target_type: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let mut type_reference = target_type;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => return Some(*symbol),
-            _ => return None,
-        }
+    let type_reference = program
+        .type_reference_table
+        .peeled_type_reference(target_type);
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        _ => None,
     }
 }
 

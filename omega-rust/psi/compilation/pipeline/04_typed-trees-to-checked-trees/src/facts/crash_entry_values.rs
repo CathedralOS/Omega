@@ -507,17 +507,16 @@ pub(super) fn formal_member_projection(
 ) -> Vec<PlaceSegment> {
     let mut projection = Vec::with_capacity(members.len());
     for member in members {
-        let data_symbol = loop {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-                TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::Generic {
-                    base_symbol: symbol,
-                    ..
-                } => break *symbol,
-                _ => break SymbolHandle::invalid(),
-            }
+        let peeled = program
+            .type_reference_table
+            .peeled_type_reference(type_reference);
+        let data_symbol = match program.type_reference_table.type_reference(peeled) {
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::Generic {
+                base_symbol: symbol,
+                ..
+            } => *symbol,
+            _ => SymbolHandle::invalid(),
         };
         let mut owners = program
             .data_definitions()
