@@ -172,6 +172,17 @@ digest_commitment! {
 
 /// The closed conformance applications retained on `instance`'s
 /// specializations carrying the dispatch's fingerprint and commitment.
+impl MachineSpecialization {
+    /// The specialization carries no residual type, machine, or conformance
+    /// arguments; only the const identities name the tuple it instantiates.
+    pub fn is_const_only(&self) -> bool {
+        self.type_argument_identities.is_empty()
+            && self.machine_arguments.is_empty()
+            && self.conformance_arguments.is_empty()
+            && self.conformance_applications.is_empty()
+    }
+}
+
 pub fn closed_conformance_applications_of<'a>(
     specializations: &'a [MachineSpecialization],
     instance: symbols::SymbolHandle,

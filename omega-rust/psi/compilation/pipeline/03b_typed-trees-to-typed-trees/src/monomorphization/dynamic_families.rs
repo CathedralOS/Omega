@@ -266,10 +266,7 @@ fn tuple_specialization_exists(
         .any(|specialization| {
             specialization.template == template
                 && specialization.const_argument_identities.as_slice() == tuple.identities.as_ref()
-                && specialization.type_argument_identities.is_empty()
-                && specialization.machine_arguments.is_empty()
-                && specialization.conformance_arguments.is_empty()
-                && specialization.conformance_applications.is_empty()
+                && specialization.is_const_only()
         })
 }
 

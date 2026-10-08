@@ -184,10 +184,7 @@ pub(crate) fn checked_requirement_family_rows(
                         specialization.template == realization_machine
                             && specialization.const_argument_identities.as_slice()
                                 == tuple.identities.as_ref()
-                            && specialization.type_argument_identities.is_empty()
-                            && specialization.machine_arguments.is_empty()
-                            && specialization.conformance_arguments.is_empty()
-                            && specialization.conformance_applications.is_empty()
+                            && specialization.is_const_only()
                     });
             let Some(specialization) = specializations.next() else {
                 return unsupported(
