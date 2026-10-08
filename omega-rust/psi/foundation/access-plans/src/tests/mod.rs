@@ -45,6 +45,7 @@ use extents::{
     TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
     map_owned,
 };
+use layout_plans::test_support::layout_field_entry;
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 
 fn reach() -> BoundaryServiceReachId {
@@ -303,11 +304,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
 fn stable_word_placement() -> ValidatedPlacementPlan {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0x5ab1e,
-        entries: vec![LayoutFieldEntryReport {
-            field: "word".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry("word".into(), LayoutPlacementReport::At { offset: 0 })],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,

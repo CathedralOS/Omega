@@ -13,6 +13,7 @@ use crate::{
     validate_resource_profile,
 };
 use language_core::atomic::MemoryOrdering;
+use layout_plans::test_support::layout_field_entry;
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 
 #[test]
@@ -289,11 +290,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
 fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 94,
-        entries: vec![LayoutFieldEntryReport {
-            field: "word".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry("word".into(), LayoutPlacementReport::At { offset: 0 })],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 4,
@@ -509,11 +506,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
 
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 92,
-        entries: vec![LayoutFieldEntryReport {
-            field: "word".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
+        entries: vec![layout_field_entry("word".into(), LayoutPlacementReport::At { offset: 0 })],
         offsets: Some(vec![0]),
         size: Some(4),
         align: 1,
