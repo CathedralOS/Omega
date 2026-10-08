@@ -321,6 +321,25 @@ impl IntegerType {
         minimum
     }
 
+    /// The signed arm every truncating quotient/remainder shares: the
+    /// minimum/-1 operand pair is the sole overflow and yields `on_overflow`;
+    /// every other pair runs the checked op and re-admits the result.
+    fn signed_truncating_or(
+        self,
+        left: i128,
+        right: i128,
+        op: impl Fn(i128, i128) -> Option<i128>,
+        on_overflow: IntegerValue,
+    ) -> Option<IntegerValue> {
+        let minimum = self.signed_minimum();
+        if left == minimum && right == -1 {
+            Some(on_overflow)
+        } else {
+            let result = IntegerValue::Signed(op(left, right)?);
+            self.admits(result).then_some(result)
+        }
+    }
+
     /// Add two admitted values modulo this exact integer width.
     ///
     /// Signed results use two's-complement interpretation of the reduced bit
@@ -428,13 +447,12 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
             |left, right| {
-                let minimum = self.signed_minimum();
-                if left == minimum && right == -1 {
-                    Some(IntegerValue::Signed(minimum))
-                } else {
-                    let result = IntegerValue::Signed(left.checked_div(right)?);
-                    self.admits(result).then_some(result)
-                }
+                self.signed_truncating_or(
+                    left,
+                    right,
+                    |left, right| left.checked_div(right),
+                    IntegerValue::Signed(self.signed_minimum()),
+                )
             },
         )
     }
@@ -448,13 +466,12 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
             |left, right| {
-                let minimum = self.signed_minimum();
-                if left == minimum && right == -1 {
-                    Some(IntegerValue::Signed(0))
-                } else {
-                    let result = IntegerValue::Signed(left.checked_rem(right)?);
-                    self.admits(result).then_some(result)
-                }
+                self.signed_truncating_or(
+                    left,
+                    right,
+                    |left, right| left.checked_rem(right),
+                    IntegerValue::Signed(0),
+                )
             },
         )
     }
@@ -468,13 +485,12 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_div(right)?)),
             |left, right| {
-                let minimum = self.signed_minimum();
-                if left == minimum && right == -1 {
-                    Some(self.maximum_value())
-                } else {
-                    let result = IntegerValue::Signed(left.checked_div(right)?);
-                    self.admits(result).then_some(result)
-                }
+                self.signed_truncating_or(
+                    left,
+                    right,
+                    |left, right| left.checked_div(right),
+                    self.maximum_value(),
+                )
             },
         )
     }
@@ -488,13 +504,12 @@ impl IntegerType {
             right,
             |left, right| Some(IntegerValue::Unsigned(left.checked_rem(right)?)),
             |left, right| {
-                let minimum = self.signed_minimum();
-                if left == minimum && right == -1 {
-                    Some(IntegerValue::Signed(0))
-                } else {
-                    let result = IntegerValue::Signed(left.checked_rem(right)?);
-                    self.admits(result).then_some(result)
-                }
+                self.signed_truncating_or(
+                    left,
+                    right,
+                    |left, right| left.checked_rem(right),
+                    IntegerValue::Signed(0),
+                )
             },
         )
     }
