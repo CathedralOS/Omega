@@ -693,14 +693,7 @@ fn hinted_named_value_type_reference(
             if program.symbols.get(grandparent).kind != symbols::SymbolKind::Machine {
                 return None;
             }
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == grandparent)?;
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == parent)?;
+            let (_, state) = program.machine_state(grandparent, parent)?;
             state_symbol_declared_type(program, state, matches_symbol)
         }
         _ => None,
