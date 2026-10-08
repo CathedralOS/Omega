@@ -105,11 +105,7 @@ pub(super) fn validate(
                                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                             ) || (parameter.access == StructuralAccess::Owned
                                 && !path.is_empty()))
-                            && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                || (!path.is_empty()
-                                    && parameter.multiplicity == StructuralMultiplicity::Affine))
-                            && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty()
+                            && parameter.admits_scalar_read_at(path.is_empty())
                             && claim_free(*source)
                             // A read may end at a scalar field of a
                             // runtime-selected record element; stores keep

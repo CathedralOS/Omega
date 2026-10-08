@@ -20,8 +20,8 @@ use terminal_psi::{
 
 use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::TerminalExecution;
 use crate::execution::SuspendedCall;
+use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -464,11 +464,7 @@ impl TerminalExecution<'_> {
                                         | StructuralAccess::MutableBorrow
                                 )
                             })
-                            && (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                || (!path.is_empty()
-                                    && parameter.multiplicity == StructuralMultiplicity::Affine))
-                            && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty()
+                            && parameter.admits_scalar_read_at(path.is_empty())
                     })
                     .map(|parameter| {
                         (

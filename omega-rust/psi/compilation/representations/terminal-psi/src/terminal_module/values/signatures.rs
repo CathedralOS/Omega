@@ -97,6 +97,16 @@ impl StructuralParameterDeclaration {
         ) && self.qualifications.is_empty()
             && self.projected_qualifications.is_empty()
     }
+
+    /// Whether a scalar read at the given path may use this parameter: an
+    /// unrestricted multiplicity, or an affine one once the path projects
+    /// below the root, with no residual qualifications.
+    pub fn admits_scalar_read_at(&self, path_is_empty: bool) -> bool {
+        (self.multiplicity == StructuralMultiplicity::Unrestricted
+            || (!path_is_empty && self.multiplicity == StructuralMultiplicity::Affine))
+            && self.qualifications.is_empty()
+            && self.projected_qualifications.is_empty()
+    }
 }
 
 /// Exact normal structural result signature. The result place is proof-visible
