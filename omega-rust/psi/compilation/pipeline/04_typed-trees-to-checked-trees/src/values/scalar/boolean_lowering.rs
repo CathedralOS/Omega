@@ -61,7 +61,7 @@ pub(crate) fn lower_boolean_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    BooleanLowering {
+    BooleanLowering::new(
         program,
         operators,
         parameters,
@@ -69,7 +69,7 @@ pub(crate) fn lower_boolean_expression(
         parameter_types,
         locals,
         exact_integer_casts,
-    }
+    )
     .expression(expression)
 }
 
@@ -84,6 +84,28 @@ struct BooleanLowering<'a> {
     parameter_types: &'a [PrimitiveType],
     locals: &'a [ScalarLocal],
     exact_integer_casts: &'a [validation::ExactIntegerCastFact],
+}
+
+impl<'a> BooleanLowering<'a> {
+    fn new(
+        program: &'a dyn ::validation::CheckingInput,
+        operators: &'a CheckedOperatorFacts,
+        parameters: &'a [StateParameter],
+        authored_parameters: &'a [StateParameter],
+        parameter_types: &'a [PrimitiveType],
+        locals: &'a [ScalarLocal],
+        exact_integer_casts: &'a [validation::ExactIntegerCastFact],
+    ) -> Self {
+        Self {
+            program,
+            operators,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        }
+    }
 }
 
 impl BooleanLowering<'_> {
@@ -610,7 +632,7 @@ pub(crate) fn lower_boolean_guard(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    BooleanLowering {
+    BooleanLowering::new(
         program,
         operators,
         parameters,
@@ -618,6 +640,6 @@ pub(crate) fn lower_boolean_guard(
         parameter_types,
         locals,
         exact_integer_casts,
-    }
+    )
     .guard(expression)
 }
