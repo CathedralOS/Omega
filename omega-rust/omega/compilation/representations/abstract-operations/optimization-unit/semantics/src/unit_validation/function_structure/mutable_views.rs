@@ -63,7 +63,7 @@ fn prepare_transfers(
         .collect::<BTreeSet<_>>();
     let mut transfers = Vec::new();
     for source in &function.blocks {
-        for edge in source.nodes.iter().flat_map(|node| &node.successors) {
+        for edge in source.successors() {
             // Unknown successors are rejected by CFG validation, not repaired
             // here. Like the prior replay, only existing destinations contribute.
             let Some(target) = blocks.get(&edge.target) else {

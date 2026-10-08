@@ -67,12 +67,12 @@ pub(in crate::legalization) fn defined_type(
     optimized
         .parameters
         .iter()
-        .chain(optimized.blocks.iter().flat_map(|block| {
-            block
-                .parameters
+        .chain(
+            optimized
+                .blocks
                 .iter()
-                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-        }))
+                .flat_map(|block| block.parameters.iter().chain(block.definitions())),
+        )
         .find(|definition| definition.value == value)
         .map(|definition| definition.scalar_type)
 }

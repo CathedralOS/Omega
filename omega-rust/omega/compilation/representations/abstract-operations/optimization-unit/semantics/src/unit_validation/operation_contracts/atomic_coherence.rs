@@ -50,9 +50,7 @@ pub(crate) fn validate_function_atomic_coherence(
                 .any(|parameter| parameter.place == root);
             let mut mapped = None;
             for edge in predecessor
-                .nodes
-                .iter()
-                .flat_map(|node| &node.successors)
+                .successors()
                 .filter(|edge| edge.target == successor)
             {
                 // Case payloads are not whole-storage forwarding bindings. A

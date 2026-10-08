@@ -37,7 +37,7 @@ pub(crate) fn storage_names(
             continue;
         }
         for predecessor in &function.blocks {
-            for edge in predecessor.nodes.iter().flat_map(|node| &node.successors) {
+            for edge in predecessor.successors() {
                 if edge.target == block
                     && let Some(before) = root_before_edge(edge, root)
                 {

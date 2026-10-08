@@ -280,7 +280,8 @@ pub(super) fn match_input(
         }
         nodes::validate(block, optimized, &plan.structural_types)?;
     }
-    let entry = optimized.block(optimized.entry)
+    let entry = optimized
+        .block(optimized.entry)
         .ok_or(LegalizationError::custody())?;
     if !entry.parameters.is_empty() || !entry.structural_parameters.is_empty() {
         return Err(LegalizationError::custody());
@@ -706,12 +707,12 @@ pub(super) fn value_type(function: &PsiOptimizationFunction, value: ValueId) -> 
     function
         .parameters
         .iter()
-        .chain(function.blocks.iter().flat_map(|block| {
-            block
-                .parameters
+        .chain(
+            function
+                .blocks
                 .iter()
-                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-        }))
+                .flat_map(|block| block.parameters.iter().chain(block.definitions())),
+        )
         .find(|definition| definition.value == value)
         .map(|definition| definition.scalar_type)
 }

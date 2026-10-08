@@ -216,11 +216,7 @@ pub(super) fn node_elision_accounting(
     }
     for use_block in &function.blocks {
         if affected.contains(&use_block.id)
-            || !use_block
-                .nodes
-                .iter()
-                .flat_map(|node| &node.uses)
-                .any(|row| row.value == removed_result)
+            || !use_block.uses().any(|row| row.value == removed_result)
         {
             continue;
         }

@@ -32,9 +32,7 @@ pub(super) fn phi_translated_cse_accounting(
     for row in incoming {
         let source = function.block(row.source)?;
         let edge = source
-            .nodes
-            .iter()
-            .flat_map(|node| &node.successors)
+            .successors()
             .find(|edge| edge.psi_edge == row.edge && edge.target == redundant.block)?;
         if !edge.provenance.is_empty() {
             let site = PsiRealizationSite::Edge {

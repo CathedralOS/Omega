@@ -54,13 +54,7 @@ fn reconstruct_scalar_identity_accounting(
     };
     let (mut blocks, mut provenance) = reconstruct_dead_scalar_node_accounting(function, dead)?;
     for use_block in &function.blocks {
-        if blocks.contains(&use_block.id)
-            || !use_block
-                .nodes
-                .iter()
-                .flat_map(|node| &node.uses)
-                .any(|row| row.value == result)
-        {
+        if blocks.contains(&use_block.id) || !use_block.uses().any(|row| row.value == result) {
             continue;
         }
         blocks.push(use_block.id);

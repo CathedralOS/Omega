@@ -51,19 +51,18 @@ pub(in crate::analyses) fn use_definitions(unit: &PsiOptimizationUnit) -> UseDef
             function
                 .parameters
                 .iter()
-                .chain(function.blocks.iter().flat_map(|block| {
-                    block
-                        .parameters
+                .chain(
+                    function
+                        .blocks
                         .iter()
-                        .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-                }))
+                        .flat_map(|block| block.parameters.iter().chain(block.definitions())),
+                )
                 .copied()
                 .map(|definition| (function.machine, definition)),
         );
         uses.extend(
             function
-                .block_nodes()
-                .flat_map(|node| &node.uses)
+                .node_uses()
                 .copied()
                 .map(|use_site| (function.machine, use_site)),
         );

@@ -41,12 +41,12 @@ pub(crate) fn scalar_array_establishment_matches(
             function
                 .parameters
                 .iter()
-                .chain(function.blocks.iter().flat_map(|block| {
-                    block
-                        .parameters
+                .chain(
+                    function
+                        .blocks
                         .iter()
-                        .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-                }))
+                        .flat_map(|block| block.parameters.iter().chain(block.definitions())),
+                )
                 .any(|definition| {
                     definition.value == *element && definition.scalar_type == scalar_type
                 })

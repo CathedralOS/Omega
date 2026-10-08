@@ -77,7 +77,6 @@ pub(crate) fn provenance_rows(
 
 fn find_edge(function: &PsiOptimizationFunction, edge: EdgeId) -> Option<&OptimizationEdge> {
     function
-        .block_nodes()
-        .flat_map(|node| &node.successors)
+        .block_edges()
         .find(|candidate| candidate.psi_edge == edge)
 }

@@ -1,10 +1,10 @@
 //! Independent SCCP lattice and machine-snapshot reconstruction.
 use crate::unit_validation::derived_metadata::expected_edges;
 use optimization_unit::{
-    OptimizationFact, PsiOptimizationFunction, PsiProvenance,
-    ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
-    SccpValueRow, SccpValueState, derived_sccp_scalar_constant_fact_identity,
-    literal_scalar_constant_fact_identity, scalar_value_definition,
+    OptimizationFact, PsiOptimizationFunction, PsiProvenance, ScalarConstantValue, SccpBlockRow,
+    SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
+    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    scalar_value_definition,
 };
 use semantic_vocabulary::{BlockId, EdgeId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -56,7 +56,7 @@ pub(crate) fn validator_scalar_constant_facts(
         for parameter in &block.parameters {
             values.insert(parameter.value, ValidatorSccpValue::Unknown);
         }
-        for definition in block.nodes.iter().flat_map(|node| &node.definitions) {
+        for definition in block.definitions() {
             values.insert(definition.value, ValidatorSccpValue::Overdefined);
         }
     }

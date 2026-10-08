@@ -136,8 +136,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     continue;
                 }
                 let incoming_count = function
-                    .block_nodes()
-                    .flat_map(|node| &node.successors)
+                    .block_edges()
                     .filter(|edge| edge.target == target.id)
                     .count();
                 if incoming_count < 2

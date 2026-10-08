@@ -72,13 +72,14 @@ pub(super) fn validate(
         }
     }
     for block in &function.blocks {
-        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
-            let destination = function.block(edge.target)
-                .ok_or(OptimizationUnitValidationError::UnknownSuccessor {
+        for edge in block.successors() {
+            let destination = function.block(edge.target).ok_or(
+                OptimizationUnitValidationError::UnknownSuccessor {
                     machine: function.machine,
                     block: block.id,
                     target: edge.target,
-                })?;
+                },
+            )?;
             if edge.structural_bindings.len() != destination.structural_parameters.len() {
                 return Err(invalid());
             }

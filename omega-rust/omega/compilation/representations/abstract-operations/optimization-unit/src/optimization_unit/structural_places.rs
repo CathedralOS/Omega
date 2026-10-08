@@ -929,7 +929,7 @@ pub fn reachable_blocks_after_conditional_fold(
             continue;
         }
         let block = function.block(block_id)?;
-        for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+        for edge in block.successors() {
             if block_id != source || edge.psi_edge == selected_edge {
                 pending.push(edge.target);
             }
@@ -948,7 +948,7 @@ pub fn scalar_value_definition(
         .parameters
         .iter()
         .chain(function.block_parameters())
-        .chain(function.block_nodes().flat_map(|node| &node.definitions))
+        .chain(function.node_definitions())
         .copied()
         .find(|definition| definition.value == value)
 }
@@ -1064,8 +1064,8 @@ pub fn leaf_copy_source<'a>(
     function: &'a PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<(PlaceId, &'a StructuralCopyPath)> {
-    let StructuralPlaceKind::OperationResult { producer, .. } = function.structural_place(place)?
-        .kind
+    let StructuralPlaceKind::OperationResult { producer, .. } =
+        function.structural_place(place)?.kind
     else {
         return None;
     };
@@ -1375,8 +1375,7 @@ pub fn bound_place(
     place: PlaceId,
     rewrites: &dyn Fn(&O, PlaceId) -> bool,
 ) -> Option<PlaceId> {
-    let StructuralPlaceKind::BlockParameter { block, .. } = function.structural_place(place)?
-        .kind
+    let StructuralPlaceKind::BlockParameter { block, .. } = function.structural_place(place)?.kind
     else {
         return None;
     };

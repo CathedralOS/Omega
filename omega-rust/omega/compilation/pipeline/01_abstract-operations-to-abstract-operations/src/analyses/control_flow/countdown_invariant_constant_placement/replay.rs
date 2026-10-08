@@ -162,7 +162,8 @@ fn reconstruct_destination(
             counted.certificate.guard.zero_operation,
         ));
     }
-    let preheader = function.block(entry_edge.source)
+    let preheader = function
+        .block(entry_edge.source)
         .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
     let Some((node_index, terminator)) = preheader.nodes.iter().enumerate().next_back() else {
         return Err(unsupported(
@@ -305,7 +306,8 @@ fn validate_constant_locations(
             certificate.guard.zero_operation,
         ));
     }
-    let preheader = function.block(entry.source)
+    let preheader = function
+        .block(entry.source)
         .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
     let jump_index = preheader
         .nodes
@@ -371,8 +373,7 @@ fn reconstruct_consumer(
         operation,
     )?;
     let value_uses = function
-        .block_nodes()
-        .flat_map(|node| &node.uses)
+        .node_uses()
         .filter(|value_use| value_use.value == constant.result)
         .copied()
         .collect::<Vec<_>>();

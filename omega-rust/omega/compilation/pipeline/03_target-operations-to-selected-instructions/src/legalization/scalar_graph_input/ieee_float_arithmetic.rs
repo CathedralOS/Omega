@@ -85,10 +85,7 @@ pub(in crate::legalization) fn validate(
     let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     // Unit custody validated the caller's boundary reach; rejoin that exact
     // declaration rather than a lookalike with the same identity.
-    if declarations.next().is_some()
-        || unit.boundary_machine(*boundary)
-            != Some(declaration)
-    {
+    if declarations.next().is_some() || unit.boundary_machine(*boundary) != Some(declaration) {
         return Err(LegalizationError::custody());
     }
     let scalar = realization.operation.result_type(realization.format);

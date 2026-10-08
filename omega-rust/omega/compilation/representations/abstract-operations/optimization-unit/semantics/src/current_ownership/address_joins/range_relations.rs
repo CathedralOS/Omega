@@ -22,7 +22,8 @@ impl RangeRelations {
             .collect::<Vec<_>>();
         let mut steps = Vec::with_capacity(positions.len());
         for position in &positions {
-            let block = function.block(position.0)
+            let block = function
+                .block(position.0)
                 .expect("position comes from block");
             let operation = &block.nodes[position.1 as usize].operation;
             let edge = |target: BlockId, bindings: &[ValueBinding], condition| {

@@ -70,14 +70,12 @@ pub(super) fn home_available(
             block: owner,
             declaration,
         } => {
-            let Some(original) = optimized.block(*owner)
-                .and_then(|candidate| {
-                    candidate
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == expected_source)
-                })
-            else {
+            let Some(original) = optimized.block(*owner).and_then(|candidate| {
+                candidate
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == expected_source)
+            }) else {
                 return false;
             };
             let Some(target_parameter) = graph

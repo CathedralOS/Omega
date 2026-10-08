@@ -276,12 +276,11 @@ pub(crate) fn field_initializers_match(
                     function
                         .parameters
                         .iter()
-                        .chain(function.blocks.iter().flat_map(|block| {
-                            block
-                                .parameters
-                                .iter()
-                                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-                        }))
+                        .chain(
+                            function.blocks.iter().flat_map(|block| {
+                                block.parameters.iter().chain(block.definitions())
+                            }),
+                        )
                         .any(|definition| {
                             definition.value == *value && definition.scalar_type == scalar_type
                         })

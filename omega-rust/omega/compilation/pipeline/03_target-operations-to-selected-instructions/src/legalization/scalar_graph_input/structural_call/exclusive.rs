@@ -170,7 +170,8 @@ fn arrival_source(
     native: &TargetOperationPlan,
     source_shape: ValueShape,
 ) -> Result<TargetStructuralArgumentSource, LegalizationError> {
-    let place = caller.structural_place(source.place)
+    let place = caller
+        .structural_place(source.place)
         .ok_or(LegalizationError::custody())?;
     match place.kind {
         StructuralPlaceKind::BlockParameter { block, .. } => {

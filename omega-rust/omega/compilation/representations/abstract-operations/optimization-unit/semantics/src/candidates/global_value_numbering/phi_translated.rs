@@ -72,7 +72,8 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
         .iter()
         .find(|row| row.machine == patch.redundant.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let join = function.block(patch.redundant.block)
+    let join = function
+        .block(patch.redundant.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let redundant_index = usize::try_from(patch.redundant.node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
@@ -131,8 +132,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
         || !redundant.successors.is_empty()
         || !redundant.ownership.is_empty()
         || !function
-            .block_nodes()
-            .flat_map(|node| &node.uses)
+            .node_uses()
             .any(|use_site| use_site.value == redundant_result)
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -177,12 +177,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
     let dominators = independent_reachable_dominators(function);
     let mut expected_incoming = Vec::new();
     for source in &function.blocks {
-        for edge in source
-            .nodes
-            .iter()
-            .flat_map(|node| &node.successors)
-            .filter(|edge| edge.target == join.id)
-        {
+        for edge in source.successors().filter(|edge| edge.target == join.id) {
             if edge.bindings.len() != join.parameters.len() {
                 return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
             }
@@ -386,8 +381,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
 
     for input_block in &function.blocks {
         if !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id)
-                != Some(input_block)
+            && output_function.block(input_block.id) != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
         }

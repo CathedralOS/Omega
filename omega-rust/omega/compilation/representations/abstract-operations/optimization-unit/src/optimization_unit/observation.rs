@@ -181,19 +181,14 @@ pub fn reconstruct_psi_closed_region_observation(
         .parameters
         .iter()
         .chain(function.block_parameters())
-        .chain(function.block_nodes().flat_map(|node| &node.definitions))
+        .chain(function.node_definitions())
         .map(|definition| (definition.value, *definition))
         .collect::<BTreeMap<_, _>>();
     let internal_definitions = function
         .blocks
         .iter()
         .filter(|block| requested.contains(&block.id))
-        .flat_map(|block| {
-            block
-                .parameters
-                .iter()
-                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-        })
+        .flat_map(|block| block.parameters.iter().chain(block.definitions()))
         .map(|definition| (definition.value, *definition))
         .collect::<BTreeMap<_, _>>();
 

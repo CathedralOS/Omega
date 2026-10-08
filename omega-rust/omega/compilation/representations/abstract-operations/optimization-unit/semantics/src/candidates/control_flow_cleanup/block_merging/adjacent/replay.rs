@@ -84,8 +84,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let incoming = function
-        .block_nodes()
-        .flat_map(|node| &node.successors)
+        .block_edges()
         .filter(|edge| edge.target == patch.target)
         .collect::<Vec<_>>();
     if incoming.len() != 1 || incoming[0].psi_edge != patch.incoming_edge {

@@ -71,7 +71,8 @@ fn destination(
             counted.certificate.guard.zero_operation,
         ));
     }
-    let block = function.block(counted.preheader_edge.source)
+    let block = function
+        .block(counted.preheader_edge.source)
         .ok_or_else(|| unsupported(function.machine, counted.certificate.guard.zero_operation))?;
     let node = block
         .nodes
@@ -116,8 +117,7 @@ fn consumer(
 ) -> Result<CountdownInvariantConstantConsumer, CountdownInvariantConstantPlacementAnalysisError> {
     let operation = expected_consumer(certificate, constant.role);
     let uses = function
-        .block_nodes()
-        .flat_map(|node| &node.uses)
+        .node_uses()
         .filter(|value_use| value_use.value == constant.result)
         .copied()
         .collect::<Vec<_>>();
@@ -211,7 +211,8 @@ fn node_at(
     block: BlockId,
     node: u32,
 ) -> Option<&OptimizationNode> {
-    function.block(block)?
+    function
+        .block(block)?
         .nodes
         .get(usize::try_from(node).ok()?)
 }

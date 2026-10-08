@@ -254,13 +254,10 @@ impl SourceDominators {
             .map(|(index, block)| (block.id, index))
             .collect::<std::collections::BTreeMap<_, _>>();
         let successors = |block: BlockId| {
-            blocks.get(&block).into_iter().flat_map(|index| {
-                function.blocks[*index]
-                    .nodes
-                    .iter()
-                    .flat_map(|node| &node.successors)
-                    .map(|edge| edge.target)
-            })
+            blocks
+                .get(&block)
+                .into_iter()
+                .flat_map(|index| function.blocks[*index].successors().map(|edge| edge.target))
         };
         // Postorder by an explicit stack: (block, successors not yet visited).
         let mut postorder = Vec::new();

@@ -24,14 +24,9 @@ impl StronglyConnectedComponentAnalysis {
                 components.iter().any(|component| {
                     component.len() > 1
                         || component.iter().any(|block| {
-                            function.block(*block)
-                                .is_some_and(|owner| {
-                                    owner
-                                        .nodes
-                                        .iter()
-                                        .flat_map(|node| &node.successors)
-                                        .any(|edge| edge.target == *block)
-                                })
+                            function.block(*block).is_some_and(|owner| {
+                                owner.successors().any(|edge| edge.target == *block)
+                            })
                         })
                 })
             })

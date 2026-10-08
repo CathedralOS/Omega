@@ -114,8 +114,7 @@ pub(in crate::legalization) fn validate(
             ::target::NativeTarget::macos_arm64(),
         ]
         .contains(&native)
-        || unit.boundary_machine(*boundary)
-            != Some(declaration)
+        || unit.boundary_machine(*boundary) != Some(declaration)
         || unit.structural_types != plan.structural_types
         || psi_operation != expected_operation
         || boundary != expected_boundary

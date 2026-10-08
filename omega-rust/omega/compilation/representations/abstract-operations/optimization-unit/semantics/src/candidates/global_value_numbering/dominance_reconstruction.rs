@@ -96,12 +96,12 @@ pub(crate) fn independently_replacement_dominates_uses(
     let Some(definition) = function
         .parameters
         .iter()
-        .chain(function.blocks.iter().flat_map(|block| {
-            block
-                .parameters
+        .chain(
+            function
+                .blocks
                 .iter()
-                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-        }))
+                .flat_map(|block| block.parameters.iter().chain(block.definitions())),
+        )
         .find(|definition| definition.value == replacement)
     else {
         return false;
@@ -110,8 +110,7 @@ pub(crate) fn independently_replacement_dominates_uses(
         return false;
     }
     function
-        .block_nodes()
-        .flat_map(|node| &node.uses)
+        .node_uses()
         .filter(|use_site| use_site.value == parameter)
         .all(|use_site| match definition.site {
             ValueDefinitionSite::FunctionParameter(_) => true,

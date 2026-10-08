@@ -617,8 +617,7 @@ fn accepted_provenance(
 ) -> Result<Vec<ProvenanceRewrite>, OptimizationUnitValidationError> {
     let find_edge = |edge: EdgeId| {
         function
-            .block_nodes()
-            .flat_map(|node| &node.successors)
+            .block_edges()
             .find(|candidate| candidate.psi_edge == edge)
             .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)
     };

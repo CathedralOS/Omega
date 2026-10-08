@@ -184,8 +184,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         || !node.ownership.is_empty()
         || block.nodes.get(node_index + 1).is_none()
         || !function
-            .block_nodes()
-            .flat_map(|node| &node.uses)
+            .node_uses()
             .any(|use_site| use_site.value == patch.result)
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);

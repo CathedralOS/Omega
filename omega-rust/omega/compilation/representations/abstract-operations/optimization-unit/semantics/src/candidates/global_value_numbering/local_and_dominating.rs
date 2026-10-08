@@ -97,9 +97,11 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
         .iter()
         .find(|row| row.machine == patch.leader.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let leader_block = function.block(patch.leader.block)
+    let leader_block = function
+        .block(patch.leader.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let redundant_block = function.block(patch.redundant.block)
+    let redundant_block = function
+        .block(patch.redundant.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let leader = leader_block
         .nodes
@@ -333,8 +335,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
             });
         if canonical_leader != Some(patch.leader)
             || function
-                .block_nodes()
-                .flat_map(|node| &node.uses)
+                .node_uses()
                 .filter(|use_site| use_site.value == redundant_result)
                 .any(|use_site| {
                     if use_site.block == patch.leader.block {
@@ -423,8 +424,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
 
     for input_block in &function.blocks {
         if !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id)
-                != Some(input_block)
+            && output_function.block(input_block.id) != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
         }

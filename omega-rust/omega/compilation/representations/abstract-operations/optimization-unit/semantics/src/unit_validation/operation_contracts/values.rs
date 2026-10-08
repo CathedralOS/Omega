@@ -8,16 +8,12 @@ pub(super) fn collect_value_definitions(
     function: &PsiOptimizationFunction,
 ) -> Result<BTreeMap<ValueId, ValueDefinition>, OptimizationUnitValidationError> {
     let mut definitions = BTreeMap::new();
-    for definition in function
-        .parameters
-        .iter()
-        .chain(function.blocks.iter().flat_map(|block| {
-            block
-                .parameters
-                .iter()
-                .chain(block.nodes.iter().flat_map(|node| &node.definitions))
-        }))
-    {
+    for definition in function.parameters.iter().chain(
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| block.parameters.iter().chain(block.definitions())),
+    ) {
         if definitions.insert(definition.value, *definition).is_some() {
             return Err(OptimizationUnitValidationError::DuplicateValue(
                 definition.value,

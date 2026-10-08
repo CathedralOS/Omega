@@ -94,7 +94,7 @@ impl AddressJoinPins {
             })
             .collect::<BTreeMap<PlaceId, BlockId>>();
         let mut origins = BTreeMap::<PlaceId, BTreeSet<PlaceId>>::new();
-        for edge in function.block_nodes().flat_map(|node| &node.successors) {
+        for edge in function.block_edges() {
             for binding in &edge.structural_bindings {
                 if joins.contains_key(&binding.parameter) {
                     origins
@@ -125,7 +125,7 @@ impl AddressJoinPins {
                 ..Self::default()
             };
         }
-        for edge in function.block_nodes().flat_map(|node| &node.successors) {
+        for edge in function.block_edges() {
             for binding in &edge.structural_bindings {
                 if address_joins.contains(&binding.parameter) {
                     origins
@@ -156,7 +156,7 @@ impl AddressJoinPins {
             crate::candidates::global_value_numbering::independent_reachable_dominators(function);
         let mut predecessors = BTreeMap::<BlockId, BTreeSet<BlockId>>::new();
         for block in &function.blocks {
-            for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+            for edge in block.successors() {
                 predecessors
                     .entry(edge.target)
                     .or_default()
@@ -246,7 +246,7 @@ impl AddressJoinPins {
                     descriptors.insert(parameter.place);
                 }
             }
-            for edge in block.nodes.iter().flat_map(|node| &node.successors) {
+            for edge in block.successors() {
                 for binding in &edge.structural_bindings {
                     if binding.argument.access != StructuralAccess::Owned {
                         aliases

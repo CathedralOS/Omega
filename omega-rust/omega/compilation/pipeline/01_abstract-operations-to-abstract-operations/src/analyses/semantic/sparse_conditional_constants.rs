@@ -215,7 +215,7 @@ fn sparse_conditional_constants(
             for parameter in &block.parameters {
                 values.insert(parameter.value, LatticeValue::Unknown);
             }
-            for definition in block.nodes.iter().flat_map(|node| &node.definitions) {
+            for definition in block.definitions() {
                 values.insert(definition.value, LatticeValue::Overdefined);
             }
         }

@@ -98,8 +98,7 @@ pub fn validate_total_scalar_identity_candidate(
         || !node.ownership.is_empty()
         || block.nodes.get(node_index + 1).is_none()
         || !function
-            .block_nodes()
-            .flat_map(|node| &node.uses)
+            .node_uses()
             .any(|use_site| use_site.value == patch.result)
         || scalar_value_definition(function, shape.replacement).is_none_or(|definition| {
             definition.scalar_type != ScalarType::Integer(shape.scalar_type)

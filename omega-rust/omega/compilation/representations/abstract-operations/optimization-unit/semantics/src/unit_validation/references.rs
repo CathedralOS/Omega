@@ -782,8 +782,7 @@ pub(crate) fn validate_function_references(
     // while the root keeps its siblings' loans. A borrow lane would alias the
     // stored loans instead of moving them.
     if function
-        .block_nodes()
-        .flat_map(|node| &node.successors)
+        .block_edges()
         .flat_map(|edge| &edge.structural_bindings)
         .any(|binding| {
             structural_source_contract(function, binding.argument.place)

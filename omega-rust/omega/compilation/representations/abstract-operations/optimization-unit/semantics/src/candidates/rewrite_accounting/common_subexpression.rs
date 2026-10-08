@@ -20,9 +20,7 @@ pub(crate) fn reconstruct_local_cse_accounting(
     for use_block in &function.blocks {
         if blocks.contains(&use_block.id)
             || !use_block
-                .nodes
-                .iter()
-                .flat_map(|node| &node.uses)
+                .uses()
                 .any(|row| row.value == patch.redundant_result)
         {
             continue;
@@ -68,10 +66,9 @@ pub(crate) fn reconstruct_phi_translated_cse_accounting(
     };
     let (mut blocks, mut provenance) = reconstruct_dead_scalar_node_accounting(function, dead)?;
     for incoming in &patch.incoming {
-        let edge = function.block(incoming.source)?
-            .nodes
-            .iter()
-            .flat_map(|node| &node.successors)
+        let edge = function
+            .block(incoming.source)?
+            .successors()
             .find(|edge| edge.psi_edge == incoming.edge && edge.target == patch.redundant.block)?;
         blocks.push(incoming.source);
         let site = PsiRealizationSite::Edge {

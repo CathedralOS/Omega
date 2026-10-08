@@ -76,9 +76,7 @@ pub(super) fn validate(
     let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     // Unit custody validates service catalogs and boundary reach against the
     // caller's ceiling. Rejoin that exact declaration; permissions are not ABI inputs.
-    if unit.boundary_machine(*boundary)
-        != Some(declaration)
-    {
+    if unit.boundary_machine(*boundary) != Some(declaration) {
         return Err(LegalizationError::custody());
     }
     let expected_type = ScalarType::Integer(i32_type());

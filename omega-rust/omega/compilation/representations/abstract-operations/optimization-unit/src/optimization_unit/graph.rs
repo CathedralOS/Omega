@@ -162,6 +162,23 @@ pub struct OptimizationBlock {
     pub nodes: Vec<OptimizationNode>,
 }
 
+impl OptimizationBlock {
+    /// Every node's value definitions, in node order.
+    pub fn definitions(&self) -> impl Iterator<Item = &ValueDefinition> + '_ {
+        self.nodes.iter().flat_map(|node| &node.definitions)
+    }
+
+    /// Every node's value uses, in node order.
+    pub fn uses(&self) -> impl Iterator<Item = &ValueUse> + '_ {
+        self.nodes.iter().flat_map(|node| &node.uses)
+    }
+
+    /// Every node's outgoing edges, in node order.
+    pub fn successors(&self) -> impl Iterator<Item = &OptimizationEdge> + '_ {
+        self.nodes.iter().flat_map(|node| &node.successors)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationFunction {
     pub machine: MachineId,
@@ -217,9 +234,7 @@ impl PsiOptimizationFunction {
 
     /// The structural place keyed `place`, when the function declares it.
     pub fn structural_place(&self, place: PlaceId) -> Option<&StructuralPlaceDeclaration> {
-        self.structural_places
-            .iter()
-            .find(|row| row.id == place)
+        self.structural_places.iter().find(|row| row.id == place)
     }
 
     /// The position of the block keyed `id`, when the function declares it.
@@ -230,6 +245,21 @@ impl PsiOptimizationFunction {
     /// Every block's nodes, in block order.
     pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
         self.blocks.iter().flat_map(|block| &block.nodes)
+    }
+
+    /// Every node's value definitions, in block then node order.
+    pub fn node_definitions(&self) -> impl Iterator<Item = &ValueDefinition> + '_ {
+        self.block_nodes().flat_map(|node| &node.definitions)
+    }
+
+    /// Every node's value uses, in block then node order.
+    pub fn node_uses(&self) -> impl Iterator<Item = &ValueUse> + '_ {
+        self.block_nodes().flat_map(|node| &node.uses)
+    }
+
+    /// Every node's outgoing edges, in block then node order.
+    pub fn block_edges(&self) -> impl Iterator<Item = &OptimizationEdge> + '_ {
+        self.block_nodes().flat_map(|node| &node.successors)
     }
 
     /// Every block's value parameters, in block order.
