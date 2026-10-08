@@ -30,7 +30,6 @@ impl TargetFrameProtocolEncodingIdentity {
 
 use sha2::{Digest, Sha256};
 
-use register_model::FrameAbiPreservationConvention;
 
 use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutPolicy};
 

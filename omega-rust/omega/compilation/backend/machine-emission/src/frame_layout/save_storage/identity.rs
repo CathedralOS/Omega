@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 
 use crate::frame_layout::save_storage::{
-    FrameAbiPreservationConvention, encode_callee_saved_modification_witness_identity,
+    encode_callee_saved_modification_witness_identity,
 };
 
 use super::{
