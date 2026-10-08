@@ -132,39 +132,18 @@ impl<'program> FieldCoordinates<'program> {
         for coordinate in self.coordinates() {
             let entry_symbol = match entry_parameters {
                 None => coordinate.parameter.symbol,
-                Some(entries) => {
-                    let Some(entry) = super::coordinate_entry_symbol(
-                        program,
-                        state,
-                        entries,
-                        coordinate.parameter.symbol,
-                    )?
-                    else {
-                        // A role-less record serves its own guards only; its
-                        // fields never rewrite a template coordinate.
-                        continue;
-                    };
-                    if coordinate
-                        .at_arrival(
-                            program,
-                            RankingRangeState {
-                                state,
-                                entry_parameters: entries,
-                            },
-                            entry,
-                        )
-                        .is_none()
-                        && !required.contains(&entry)
-                    {
-                        // Contested copies of an unrequired role can never
-                        // name which value this coordinate reads. A contested
-                        // required role keeps every copy equal under the
-                        // edge's alias hypotheses, so the coordinate on this
-                        // formal still reads the role's value.
-                        return None;
-                    }
-                    entry
-                }
+                Some(entries) => match super::coordinate::arrived_entry_symbol(
+                    program,
+                    state,
+                    entries,
+                    coordinate,
+                    Some(required),
+                )? {
+                    Some(entry) => entry,
+                    // A role-less record serves its own guards only; its
+                    // fields never rewrite a template coordinate.
+                    None => continue,
+                },
             };
             if entry_symbol != formal {
                 continue;

@@ -11,7 +11,6 @@ use super::fields::{
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
-    
 };
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
@@ -636,9 +635,12 @@ impl<'program> Coordinate<'program> {
                     .map(|coordinate| coordinate.value());
             }
             leaf = unique_literal_field(program, leaf, owner, field.symbol, &field.name)?;
-            if let TypeReferenceNode::Named { symbol, .. } = program
-                .type_reference_table
-                .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
+            if let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(
+                    program
+                        .type_reference_table
+                        .unconstrained_type_reference(field.type_reference),
+                )
             {
                 owner = *symbol;
             }
@@ -821,29 +823,15 @@ impl<'program> SliceCoordinates<'program> {
         for coordinate in self.coordinates() {
             let entry_symbol = match entry_parameters {
                 None => coordinate.parameter.symbol,
-                Some(entries) => {
-                    let Some(entry) = super::coordinate_entry_symbol(
-                        program,
-                        state,
-                        entries,
-                        coordinate.parameter.symbol,
-                    )?
-                    else {
-                        // A role-less record serves its own guards only; its
-                        // projected slices never rewrite a template
-                        // coordinate.
-                        continue;
-                    };
-                    coordinate.at_arrival(
-                        program,
-                        RankingRangeState {
-                            state,
-                            entry_parameters: entries,
-                        },
-                        entry,
-                    )?;
-                    entry
-                }
+                Some(entries) => match super::coordinate::arrived_entry_symbol(
+                    program, state, entries, coordinate, None,
+                )? {
+                    Some(entry) => entry,
+                    // A role-less record serves its own guards only; its
+                    // projected slices never rewrite a template
+                    // coordinate.
+                    None => continue,
+                },
             };
             if entry_symbol != formal {
                 continue;

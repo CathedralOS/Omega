@@ -34,9 +34,12 @@ impl CoordinateKind {
         match self {
             Self::Field => record_referent(program, field.type_reference).map(|(next, _)| next),
             Self::Length => {
-                let TypeReferenceNode::Named { symbol: next, .. } = program
-                    .type_reference_table
-                    .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
+                let TypeReferenceNode::Named { symbol: next, .. } =
+                    program.type_reference_table.type_reference(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(field.type_reference),
+                    )
                 else {
                     return None;
                 };
@@ -329,4 +332,40 @@ impl<'program> Coordinate<'program> {
             self.kind.natural_leaf_on_arrival(),
         )
     }
+}
+
+/// `parameter`'s arriving entry symbol with the coordinate's arrival
+/// confirmed — the shared entry resolution of the field/length template
+/// walks. `required` selects the lenient variant: a failed arrival on a
+/// required role still names the entry (a contested required role keeps
+/// every copy equal under the edge's alias hypotheses), while an
+/// unrequired role's contested copies resolve to no readable value.
+pub(super) fn arrived_entry_symbol<'program>(
+    program: &'program dyn crate::CheckingInput,
+    state: &'program State,
+    entries: &'program [SymbolHandle],
+    coordinate: &Coordinate<'program>,
+    required: Option<&[SymbolHandle]>,
+) -> Option<Option<SymbolHandle>> {
+    let Some(entry) =
+        super::coordinate_entry_symbol(program, state, entries, coordinate.parameter.symbol)?
+    else {
+        return Some(None);
+    };
+    let arrival = coordinate.at_arrival(
+        program,
+        RankingRangeState {
+            state,
+            entry_parameters: entries,
+        },
+        entry,
+    );
+    match required {
+        None => {
+            arrival?;
+        }
+        Some(required) if arrival.is_none() && !required.contains(&entry) => return None,
+        _ => {}
+    }
+    Some(Some(entry))
 }
