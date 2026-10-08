@@ -487,12 +487,7 @@ pub(in crate::legalization) fn structural_argument_at(
         | StructuralAccess::WriteOnlyBorrow => {
             let descriptor = declarations.iter().any(|declaration| {
                 declaration.id == projected_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    )
+                    && declaration.shape.is_borrowed_view_byte_sequence()
             });
             let destination_shape = if descriptor {
                 // A view's loan still has referent storage custody, but its

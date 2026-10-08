@@ -149,12 +149,7 @@ pub(super) fn structural_argument(
         && source.structural.as_ref().is_some_and(|signature| {
             signature.structural_types.iter().any(|declaration| {
                 declaration.id == target.structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    )
+                    && declaration.shape.is_borrowed_view_byte_sequence()
             })
         })
     {

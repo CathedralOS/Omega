@@ -419,12 +419,7 @@ impl OperationFrame<'_, '_> {
             .iter()
             .any(|declaration| {
                 declaration.id == structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                        )
-                    )
+                    && declaration.shape.is_borrowed_view_byte_sequence()
             })
         {
             return unsupported("literal local carrier is not a borrowed byte view");

@@ -368,12 +368,7 @@ pub(crate) fn validate(
             | terminal_psi::StructuralAccess::WriteOnlyBorrow => {
                 let descriptor = signature.structural_types.iter().any(|declaration| {
                     declaration.id == projected_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                            )
-                        )
+                        && declaration.shape.is_borrowed_view_byte_sequence()
                 });
                 if descriptor {
                     let classified =

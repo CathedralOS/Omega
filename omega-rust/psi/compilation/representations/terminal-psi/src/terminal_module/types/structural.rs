@@ -88,6 +88,16 @@ impl StructuralTypeDeclaration {
 }
 
 impl StructuralTypeShape {
+    /// Whether this shape carries bytes behind an immutable borrowed view.
+    pub fn is_borrowed_view_byte_sequence(&self) -> bool {
+        matches!(
+            self,
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+        )
+    }
+}
+
+impl StructuralTypeShape {
     /// The fields addressed directly on the carrier, without a `Case` step: a
     /// record's fields, or a mixed shape's common fields, which sit at one
     /// offset in every case.

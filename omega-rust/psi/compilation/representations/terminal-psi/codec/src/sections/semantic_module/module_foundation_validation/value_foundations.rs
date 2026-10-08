@@ -292,12 +292,7 @@ pub(super) fn validate_establish_structural_local(
     // authenticates them as primitive byte predicates of that carrier.
     let byte_view_home = module.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                )
-            )
+            && declaration.shape.is_borrowed_view_byte_sequence()
     });
     if !matches!(
         result.multiplicity,

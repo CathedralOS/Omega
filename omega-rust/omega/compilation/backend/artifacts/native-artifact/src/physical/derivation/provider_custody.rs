@@ -293,12 +293,10 @@ pub(crate) fn linux_write_line_custody_is_exact(
         || !settlement.runtime_scalar_arguments.is_empty()
         || settlement.arguments.as_slice() != [custody.argument.clone()]
         || !custody.argument.path.is_empty()
-        || !matches!(
-            custody.structural_type.shape,
-            terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-            )
-        )
+        || !custody
+            .structural_type
+            .shape
+            .is_borrowed_view_byte_sequence()
         || !settlement.native_result.is_unit()
     {
         return false;
