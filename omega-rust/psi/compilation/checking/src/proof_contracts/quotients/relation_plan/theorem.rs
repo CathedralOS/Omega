@@ -57,9 +57,7 @@ pub(super) fn derive_selected_theorem_telescope(
     )
     .map_err(|_| RelationPlanError::TheoremStaticApplicationInvalid)?;
     let parameters = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_const)
+        .public_state_parameters(state)
         .map(|parameter| RepresentativeRuntimeParameter {
             symbol: parameter.symbol,
             type_reference: parameter.type_reference,

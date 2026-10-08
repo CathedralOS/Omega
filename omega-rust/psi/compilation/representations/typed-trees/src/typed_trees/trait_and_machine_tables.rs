@@ -882,6 +882,17 @@ impl TypedTrees {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
+    /// `state`'s runtime-visible parameters — the non-`const` entries a
+    /// caller supplies positionally.
+    pub fn public_state_parameters<'a>(
+        &'a self,
+        state: &'a crate::state::State,
+    ) -> impl Iterator<Item = &'a signature::StateParameter> + 'a {
+        self.state_parameters(state)
+            .iter()
+            .filter(|parameter| !parameter.is_const)
+    }
+
     pub fn push_state_contract(
         &mut self,
         state: &mut crate::state::State,

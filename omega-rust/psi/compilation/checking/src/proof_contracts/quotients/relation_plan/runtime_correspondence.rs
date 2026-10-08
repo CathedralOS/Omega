@@ -186,9 +186,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
         return Err(RelationPlanError::DirectLiftOwnerRequiresSubstitution);
     }
     let public_parameters = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_const)
+        .public_state_parameters(state)
         .collect::<Vec<_>>();
     let arguments = program.expression_table.expression_handles(call.arguments);
     if arguments.len() != representative.parameters.len()
@@ -312,9 +310,7 @@ fn derive_define_position_runtime_correspondence(
         return Err(RelationPlanError::DefineOwnerRequiresSubstitution);
     }
     let public_parameters = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_const)
+        .public_state_parameters(state)
         .collect::<Vec<_>>();
     let arguments = program.expression_table.expression_handles(call.arguments);
     let arity_matches = arguments.len() == representative.parameters.len()

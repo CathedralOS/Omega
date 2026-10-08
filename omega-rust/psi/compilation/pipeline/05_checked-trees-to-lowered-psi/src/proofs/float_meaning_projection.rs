@@ -342,9 +342,7 @@ fn resolve_direct_float_parameter(
     };
     let source_parameters = checked
         .typed
-        .state_parameters(source_entry)
-        .iter()
-        .filter(|parameter| !parameter.is_const)
+        .public_state_parameters(source_entry)
         .filter_map(|parameter| {
             checked
                 .typed
