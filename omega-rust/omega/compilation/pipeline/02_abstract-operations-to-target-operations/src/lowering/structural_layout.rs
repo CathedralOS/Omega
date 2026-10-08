@@ -918,10 +918,8 @@ pub(super) fn case_projection(
                 else {
                     return Err(invalid());
                 };
-                let case_position = cases
-                    .iter()
-                    .position(|case| case.id == *identity)
-                    .ok_or_else(invalid)?;
+                let case_position =
+                    terminal_psi::structural_case_position(cases, *identity).ok_or_else(invalid)?;
                 let Some(Segment::Field(field)) = segments.next() else {
                     return Err(invalid());
                 };
