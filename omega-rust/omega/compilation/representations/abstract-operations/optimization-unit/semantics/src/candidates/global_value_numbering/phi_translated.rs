@@ -6,10 +6,9 @@ use crate::candidates::rewrite_accounting::substitutions::{
     rewrite_scalar_value_uses, rewrite_successor_operation,
 };
 use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+    expected_definitions, expected_ownership, expected_uses,
 };
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
     OptimizationValidatorIdentity,
@@ -17,16 +16,15 @@ use optimization_core::{
 use optimization_unit::{
     NodeLocation, OptimizationFact, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
     PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
-    recompute_psi_optimization_unit_identity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
-use crate::candidates::set_node_effect_link;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
+use crate::candidates::set_node_effect_link;
 
 /// Independently validate one obligation-free, proof-certified, or
 /// proof-certified compatible-policy scalar
@@ -388,15 +386,9 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
             effect = set_node_effect_link(node, effect)?;
         }
     }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .functions
-        .iter()
-        .find(|row| row.machine == function.machine)
-        .expect("output function exists");
+    let output_function =
+        crate::unit_validation::revalidate_rewrite_output(&mut output, function.machine)?;
+
     for input_block in &function.blocks {
         if !expected_blocks.contains(&input_block.id)
             && output_function

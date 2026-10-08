@@ -19,7 +19,9 @@
 //! publication authority.
 
 use crate::OptimizationUnitValidationError;
-use optimization_unit::PsiOptimizationUnit;
+use optimization_unit::{
+    PsiOptimizationFunction, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+};
 use semantic_vocabulary::MachineId;
 
 pub(crate) mod affine_authority;
@@ -40,6 +42,31 @@ pub fn validate_psi_optimization_unit(
         unit,
         &function_structure::ControlCyclePolicy::default(),
     )
+}
+
+/// The output-tail every rewrite candidate replays after mutating a function:
+/// rebuild the function's derived fact index and declared places, refresh the
+/// unit identity, re-validate the whole unit, and hand the rebuilt function
+/// back for the caller's remaining checks.
+pub(crate) fn revalidate_rewrite_output(
+    output: &mut PsiOptimizationUnit,
+    machine: MachineId,
+) -> Result<&PsiOptimizationFunction, OptimizationUnitValidationError> {
+    let output_function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == machine)
+        .expect("output function exists");
+    output_function.facts = function_structure::reconstruct_fact_index(output_function);
+    output_function.declared_places =
+        derived_metadata::reconstruct_declared_places(output_function)?;
+    output.identity = recompute_psi_optimization_unit_identity(output);
+    validate_psi_optimization_unit(output)?;
+    Ok(output
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("output function exists"))
 }
 
 /// Check unit structure after a caller has independently admitted the named

@@ -5,15 +5,13 @@ use crate::candidates::rewrite_accounting::threading::{
     reconstruct_path_thread_accounting,
 };
 use crate::unit_validation::derived_metadata::{
-    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+    expected_definitions, expected_ownership, expected_uses,
 };
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-    recompute_psi_optimization_unit_identity,
 };
 
 pub(super) fn validate(
@@ -199,16 +197,8 @@ pub(super) fn validate(
                 .expect("validated function effect count fits u64");
         }
     }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.empty.machine)
-        .expect("output function exists");
+    let output_function =
+        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.empty.machine)?;
     for input_block in &function.blocks {
         if input_block.id != patch.empty.block
             && !expected_blocks.contains(&input_block.id)

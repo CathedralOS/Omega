@@ -3,10 +3,6 @@ use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_proof_certified_scalar_identity_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
-use crate::unit_validation::derived_metadata::{
-    reconstruct_declared_places,
-};
-use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{
@@ -16,12 +12,14 @@ use optimization_core::{
 use optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
     PsiRewritePatch, ScalarConstantValue, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
-    literal_scalar_constant_fact_identity, recompute_psi_optimization_unit_identity,
+    literal_scalar_constant_fact_identity,
 };
 use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
-use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link, candidate_block};
+use crate::candidates::{
+    candidate_block, candidate_function, rebuild_node_metadata, set_node_effect_link,
+};
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
@@ -312,10 +310,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
             effect = set_node_effect_link(node, effect)?;
         }
     }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
+    crate::unit_validation::revalidate_rewrite_output(&mut output, function.machine)?;
     if output.accepted_obligation_facts != input.accepted_obligation_facts {
         return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
     }
@@ -324,6 +319,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         .iter()
         .find(|output_function| output_function.machine == function.machine)
         .expect("output function exists");
+
     validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
     Ok(ValidatedPsiRewrite {
         unit: output,

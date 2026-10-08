@@ -5,17 +5,12 @@ use crate::candidates::global_value_numbering::{
 use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
 use crate::candidates::rewrite_accounting::non_adjacent_merge::reconstruct_non_adjacent_merge_accounting;
 use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
-use crate::unit_validation::derived_metadata::{
-    reconstruct_declared_places,
-};
-use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
-use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
 use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
-    recompute_psi_optimization_unit_identity,
 };
 
 pub(super) fn validate(
@@ -202,15 +197,8 @@ pub(super) fn validate(
             effect = set_node_effect_link(node, effect)?;
         }
     }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.predecessor.machine)
-        .expect("output function exists");
+    let output_function =
+        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.predecessor.machine)?;
     for input_block in &function.blocks {
         if input_block.id != patch.target
             && !expected_blocks.contains(&input_block.id)

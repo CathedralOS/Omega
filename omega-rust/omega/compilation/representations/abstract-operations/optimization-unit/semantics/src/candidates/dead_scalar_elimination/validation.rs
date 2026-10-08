@@ -1,21 +1,18 @@
 //! Independent dead-node rewrite reconstruction and application.
 use crate::candidates::outside_region::validate_outside_region;
 use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
-use crate::unit_validation::derived_metadata::{
-    reconstruct_declared_places,
-};
-use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
-    validate_psi_optimization_unit,
 };
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
-    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
+    ValueDefinitionSite,
 };
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
-use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link, candidate_block};
+use crate::candidates::{
+    candidate_block, candidate_function, rebuild_node_metadata, set_node_effect_link,
+};
 
 pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
@@ -150,15 +147,8 @@ pub(super) fn validate_dead_scalar_node_candidate(
             effect = set_node_effect_link(node, effect)?;
         }
     }
-    output_function.facts = reconstruct_fact_index(output_function);
-    output_function.declared_places = reconstruct_declared_places(output_function)?;
-    output.identity = recompute_psi_optimization_unit_identity(&output);
-    validate_psi_optimization_unit(&output)?;
-    let output_function = output
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .expect("output function exists");
+    let output_function =
+        crate::unit_validation::revalidate_rewrite_output(&mut output, patch.location.machine)?;
     validate_outside_region(&function.blocks, output_function, &expected_blocks)?;
     Ok(ValidatedPsiRewrite {
         unit: output,
