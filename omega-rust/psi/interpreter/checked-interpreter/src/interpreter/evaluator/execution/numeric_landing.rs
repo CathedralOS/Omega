@@ -151,23 +151,23 @@ impl Evaluator<'_> {
         expression: ExpressionHandle,
         destination: Option<PrimitiveType>,
     ) -> EvalResult<Option<Value>> {
-        if let Some(destination) = destination.filter(|primitive| {
-            primitive.is_fixed_integer()
-        }) && let Some(literal) = validation::land_anonymous_integer_expression(
-            self.program,
-            expression,
-            destination,
-            |expression| match self
-                .operator_facts
-                .and_then(|facts| facts.expression_use(expression))
-            {
-                Some(operator) => {
-                    operator.status
-                        == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                }
-                None => validation::has_anonymous_operator_meaning(self.program, expression),
-            },
-        ) && let Some(bits) = literal.bits_u64()
+        if let Some(destination) = destination.filter(|primitive| primitive.is_fixed_integer())
+            && let Some(literal) = validation::land_anonymous_integer_expression(
+                self.program,
+                expression,
+                destination,
+                |expression| match self
+                    .operator_facts
+                    .and_then(|facts| facts.expression_use(expression))
+                {
+                    Some(operator) => {
+                        operator.status
+                            == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    }
+                    None => validation::has_anonymous_operator_meaning(self.program, expression),
+                },
+            )
+            && let Some(bits) = literal.bits_u64()
         {
             // Preserve source-expression fuel accounting even though the
             // exact calculation is shared with compile-time landing.

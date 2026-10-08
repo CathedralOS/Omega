@@ -60,8 +60,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 && crate::interpreter::evaluator::filesystem::host_open_flags::o_excl(flags)
                 && exists
             {
-                self.virtual_errno = 17; // EEXIST (O_CREAT|O_EXCL, path present)
-                -1
+                self.errno_result(17, -1)
             } else {
                 // Whether this call actually creates the file (records the mode
                 // AFTER the open so the create's own access is not gated by it).
@@ -88,8 +87,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if self.virtual_files.remove(&path).is_some() {
                 0
             } else {
-                self.virtual_errno = 2; // ENOENT
-                -1
+                self.errno_result(2, -1)
             }
         })
     }
@@ -109,8 +107,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if self.virtual_dirs.insert(path) {
                 0
             } else {
-                self.virtual_errno = 17; // EEXIST
-                -1
+                self.errno_result(17, -1)
             }
         })
     }
@@ -126,8 +123,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if self.virtual_dirs.remove(&path) {
                 0
             } else {
-                self.virtual_errno = 2; // ENOENT
-                -1
+                self.errno_result(2, -1)
             }
         })
     }
@@ -142,10 +138,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // joined HERE (the OS does it natively), so no Omega path build.
             match self.virtual_at_path(dirfd, &name) {
                 Some(full) => self.virtual_open_flags(full, flags) as i64,
-                None => {
-                    self.virtual_errno = 9; // EBADF (dirfd not an open directory)
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -158,22 +151,14 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // `unlinkat(dirfd, name, flags)`: remove `name` relative to `dirfd`.
             // flags & AT_REMOVEDIR(0x80) removes an empty directory, else a file.
             match self.virtual_at_path(dirfd, &name) {
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
                 Some(full) => {
                     let removed = if (flags & 128) != 0 {
                         self.virtual_dirs.remove(&full)
                     } else {
                         self.virtual_files.remove(&full).is_some()
                     };
-                    if removed {
-                        0
-                    } else {
-                        self.virtual_errno = 2; // ENOENT
-                        -1
-                    }
+                    if removed { 0 } else { self.errno_result(2, -1) }
                 }
             }
         })
@@ -194,8 +179,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 self.virtual_perms.insert(path, mode);
                 0
             } else {
-                self.virtual_errno = 2; // ENOENT
-                -1
+                self.errno_result(2, -1)
             }
         })
     }
@@ -221,8 +205,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 || self.virtual_dirs.contains(&path)
                 || self.virtual_symlinks.contains_key(&path);
             if !exists {
-                self.virtual_errno = 2; // ENOENT
-                -1
+                self.errno_result(2, -1)
             } else {
                 self.virtual_chown_result(uid, gid)
             }
@@ -241,10 +224,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_files.insert(to, content);
                     0
                 }
-                None => {
-                    self.virtual_errno = 2; // ENOENT
-                    -1
-                }
+                None => self.errno_result(2, -1),
             }
         })
     }
@@ -266,13 +246,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 || self.virtual_dirs.contains(&link)
                 || self.virtual_symlinks.contains_key(&link)
             {
-                self.virtual_errno = 17; // EEXIST
-                -1
+                self.errno_result(17, -1)
             } else if self.virtual_hard_link_file(&original, link) {
                 0
             } else {
-                self.virtual_errno = 2; // ENOENT
-                -1
+                self.errno_result(2, -1)
             }
         })
     }
@@ -302,13 +280,11 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 || self.virtual_dirs.contains(&link)
                 || self.virtual_symlinks.contains_key(&link)
             {
-                self.virtual_errno = 183; // ERROR_ALREADY_EXISTS
-                0
+                self.errno_result(183, 0)
             } else if self.virtual_hard_link_file(&existing, link) {
                 1
             } else {
-                self.virtual_errno = 2; // ERROR_FILE_NOT_FOUND
-                0
+                self.errno_result(2, 0)
             }
         })
     }
@@ -325,8 +301,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 || self.virtual_dirs.contains(&link)
                 || self.virtual_symlinks.contains_key(&link)
             {
-                self.virtual_errno = 17; // EEXIST
-                -1
+                self.errno_result(17, -1)
             } else {
                 self.virtual_symlinks.insert(link, target);
                 0
@@ -354,10 +329,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     buffer.write(&target[..n])?;
                     n as i64
                 }
-                None => {
-                    self.virtual_errno = 2; // ENOENT
-                    -1
-                }
+                None => self.errno_result(2, -1),
             }
         })
     }
@@ -383,8 +355,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 buffer.write(&bytes)?;
                 1
             } else {
-                self.virtual_errno = 2; // ENOENT
-                0
+                self.errno_result(2, 0)
             }
         })
     }
@@ -436,10 +407,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     )?;
                     0
                 }
-                None => {
-                    self.virtual_errno = 2; // ENOENT
-                    -1
-                }
+                None => self.errno_result(2, -1),
             }
         })
     }
@@ -486,10 +454,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     )?;
                     0
                 }
-                None => {
-                    self.virtual_errno = 2; // ENOENT
-                    -1
-                }
+                None => self.errno_result(2, -1),
             }
         })
     }

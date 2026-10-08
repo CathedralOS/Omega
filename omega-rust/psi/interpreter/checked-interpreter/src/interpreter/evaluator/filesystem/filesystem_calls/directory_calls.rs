@@ -81,10 +81,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_finds.insert(handle, entries);
                     handle
                 }
-                None => {
-                    self.virtual_errno = 2; // ENOENT
-                    -1
-                }
+                None => self.errno_result(2, -1),
             }
         })
     }

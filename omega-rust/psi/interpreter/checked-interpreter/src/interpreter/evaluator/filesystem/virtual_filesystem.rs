@@ -18,6 +18,13 @@ fn immediate_virtual_child<'path>(path: &'path [u8], prefix: &[u8]) -> Option<&'
 }
 
 impl<'program> Evaluator<'program> {
+    /// Fails the in-flight virtual filesystem call: records `errno` as the
+    /// caller-visible error and yields `result` as the syscall-shaped return.
+    pub(crate) fn errno_result(&mut self, errno: i32, result: i64) -> i64 {
+        self.virtual_errno = errno;
+        result
+    }
+
     /// Build the packed darwin `dirent` records for a directory: `.` and `..`
     /// then each IMMEDIATE child (files in `virtual_files`, subdirs in
     /// `virtual_dirs` directly under `dir_path/`). Each record is
@@ -386,8 +393,7 @@ impl<'program> Evaluator<'program> {
         if effective_uid == VIRTUAL_UID as i32 && effective_gid == VIRTUAL_GID as i32 {
             0
         } else {
-            self.virtual_errno = 1; // EPERM
-            -1
+            self.errno_result(1, -1)
         }
     }
 }

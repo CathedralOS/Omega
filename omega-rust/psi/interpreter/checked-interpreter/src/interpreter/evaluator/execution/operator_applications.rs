@@ -386,10 +386,7 @@ impl<'program> Evaluator<'program> {
             .program
             .primitive_type_reference(signature.return_type)?;
         let is_float = |primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
-        let is_numeric = |primitive| {
-            is_float(primitive)
-                || primitive.is_fixed_integer()
-        };
+        let is_numeric = |primitive| is_float(primitive) || primitive.is_fixed_integer();
         (source != destination
             && is_numeric(source)
             && is_numeric(destination)

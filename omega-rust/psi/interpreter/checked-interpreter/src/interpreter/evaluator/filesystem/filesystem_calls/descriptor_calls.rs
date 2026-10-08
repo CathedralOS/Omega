@@ -10,7 +10,9 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     /// The path a live virtual descriptor was opened on — the lookup every
     /// descriptor-scoped call performs before dispatching on its semantics.
     fn virtual_descriptor_path(&self, fd: i32) -> Option<Vec<u8>> {
-        self.virtual_fds.get(&fd).map(|descriptor| descriptor.path.clone())
+        self.virtual_fds
+            .get(&fd)
+            .map(|descriptor| descriptor.path.clone())
     }
 
     pub(super) fn serve_read(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
@@ -24,10 +26,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     buffer.write(&bytes)?;
                     n
                 }
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -39,10 +38,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         Ok({
             match self.virtual_write(fd, &bytes) {
                 Some(count) => count as i64,
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -66,10 +62,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     buffer.write(&bytes)?;
                     n
                 }
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -83,10 +76,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // WITHOUT moving the cursor (Rust `FileExt::write_at`).
             match self.virtual_write_at(fd, offset, &bytes) {
                 Some(count) => count as i64,
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -101,8 +91,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 self.virtual_flocks.retain(|_, owner| *owner != fd);
                 0
             } else {
-                self.virtual_errno = 9; // EBADF
-                -1
+                self.errno_result(9, -1)
             }
         })
     }
@@ -117,10 +106,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_flocks.retain(|_, owner| *owner != handle);
                     1 // Win32 BOOL success
                 }
-                _ => {
-                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
-                    0
-                }
+                _ => self.errno_result(6, 0),
             }
         })
     }
@@ -146,10 +132,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_fds.insert(new_fd, clone);
                     new_fd as i64
                 }
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -166,10 +149,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // non-blocking acquire on a path another fd holds is EWOULDBLOCK.
             let path = self.virtual_descriptor_path(fd);
             match path {
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
                 Some(path) if operation & 8 != 0 => {
                     // LOCK_UN: release this fd's lock (a no-op if it held none).
                     if self.virtual_flocks.get(&path) == Some(&fd) {
@@ -183,8 +163,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         Some(owner) if *owner != fd
                     );
                     if held_by_other && operation & 4 != 0 {
-                        self.virtual_errno = 35; // EWOULDBLOCK (== EAGAIN)
-                        -1
+                        self.errno_result(35, -1)
                     } else {
                         self.virtual_flocks.insert(path, fd);
                         0
@@ -218,18 +197,14 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let flags = flags as i32;
             let path = self.virtual_descriptor_path(fd);
             match path {
-                None => {
-                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
-                    0
-                }
+                None => self.errno_result(6, 0),
                 Some(path) => {
                     let held_by_other = matches!(
                         self.virtual_flocks.get(&path),
                         Some(owner) if *owner != fd
                     );
                     if held_by_other && flags & 1 != 0 {
-                        self.virtual_errno = 33; // ERROR_LOCK_VIOLATION
-                        0
+                        self.errno_result(33, 0)
                     } else {
                         self.virtual_flocks.insert(path, fd);
                         1
@@ -257,18 +232,12 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             };
             let path = self.virtual_descriptor_path(fd);
             match path {
-                None => {
-                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
-                    0
-                }
+                None => self.errno_result(6, 0),
                 Some(path) if self.virtual_flocks.get(&path) == Some(&fd) => {
                     self.virtual_flocks.remove(&path);
                     1
                 }
-                Some(_) => {
-                    self.virtual_errno = 158; // ERROR_NOT_LOCKED
-                    0
-                }
+                Some(_) => self.errno_result(158, 0),
             }
         })
     }
@@ -280,10 +249,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         Ok({
             match self.virtual_seek(fd, offset, whence) {
                 Some(position) => position,
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -318,10 +284,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_perms.insert(path, mode);
                     0
                 }
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -348,10 +311,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_times.insert(path, mtime);
                     0
                 }
-                None => {
-                    self.virtual_errno = 9; // EBADF
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }
@@ -370,8 +330,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if self.virtual_fds.contains_key(&fd) {
                 0
             } else {
-                self.virtual_errno = 9; // EBADF
-                -1
+                self.errno_result(9, -1)
             }
         })
     }
@@ -389,8 +348,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             if self.virtual_fds.contains_key(&fd) {
                 self.virtual_chown_result(uid, gid)
             } else {
-                self.virtual_errno = 9; // EBADF
-                -1
+                self.errno_result(9, -1)
             }
         })
     }
@@ -449,10 +407,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                         (path.len() + 1) as i64
                     }
                 }
-                None => {
-                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
-                    0
-                }
+                None => self.errno_result(6, 0),
             }
         })
     }
@@ -486,10 +441,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     self.virtual_times.insert(path, secs);
                     1
                 }
-                None => {
-                    self.virtual_errno = 6; // ERROR_INVALID_HANDLE
-                    0
-                }
+                None => self.errno_result(6, 0),
             }
         })
     }
@@ -541,10 +493,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                     )?;
                     0
                 }
-                None => {
-                    self.virtual_errno = 9; // EBADF (unknown descriptor)
-                    -1
-                }
+                None => self.errno_result(9, -1),
             }
         })
     }

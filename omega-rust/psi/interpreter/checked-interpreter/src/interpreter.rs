@@ -362,12 +362,18 @@ fn evaluate_const_on_current_thread(
             usage.record_result_custody(1, 0);
             Ok(MeasuredEvaluation::new(value, usage))
         }
-        Err(Halt::Exit(code)) => Err(format!(
+        Err(halt) => Err(value_return_halt_error(halt)),
+    }
+}
+
+/// The value-returning evaluation's halt text: an explicit exit reports its
+/// code against the value expectation; every other halt carries its message.
+fn value_return_halt_error(halt: Halt) -> String {
+    match halt {
+        Halt::Exit(code) => format!(
             "the machine attempted to exit the process (code {code}) instead of returning a value"
-        )),
-        Err(Halt::Unsupported(message))
-        | Err(Halt::Trap(message))
-        | Err(Halt::Resource(message)) => Err(message),
+        ),
+        Halt::Unsupported(message) | Halt::Trap(message) | Halt::Resource(message) => message,
     }
 }
 
@@ -410,9 +416,9 @@ fn evaluate_structured_return(
                 match result {
                     Ok(value) => {
                         let (result_cells, result_text_bytes) =
-                            build_time_result_custody(std::slice::from_ref(&value)).ok_or_else(|| {
-                            "build-time evaluator result-cell count overflowed".to_owned()
-                        })?;
+                            build_time_result_custody(std::slice::from_ref(&value)).ok_or_else(
+                                || "build-time evaluator result-cell count overflowed".to_owned(),
+                            )?;
                         usage.record_result_custody(result_cells, result_text_bytes);
                         Ok(BuildTimeOperationEvaluation::new(
                             value,
@@ -420,12 +426,7 @@ fn evaluate_structured_return(
                             evaluator.private_layout_placements,
                         ))
                     }
-                    Err(Halt::Exit(code)) => Err(format!(
-                        "the machine attempted to exit the process (code {code}) instead of returning a value"
-                    )),
-                    Err(Halt::Unsupported(message))
-                    | Err(Halt::Trap(message))
-                    | Err(Halt::Resource(message)) => Err(message),
+                    Err(halt) => Err(value_return_halt_error(halt)),
                 }
             })
             .expect("spawn build-time evaluation worker thread")
@@ -701,7 +702,8 @@ fn interpret_on_current_thread(
         .has_crash_qualified_uses(&checked.typed)
     {
         return evaluator.error_outcome(
-            "selected operator crash invocations have no checked execution support".to_owned());
+            "selected operator crash invocations have no checked execution support".to_owned(),
+        );
     }
     if checked
         .expression_table
@@ -717,7 +719,9 @@ fn interpret_on_current_thread(
             )
         })
     {
-        return evaluator.error_outcome("observing single-attempt compare-exchange has no runtime result carrier".to_owned());
+        return evaluator.error_outcome(
+            "observing single-attempt compare-exchange has no runtime result carrier".to_owned(),
+        );
     }
     for (position, binding) in options.virtual_clock_bindings.iter().enumerate() {
         let validity = binding.validate_for(checked).and_then(|()| {
