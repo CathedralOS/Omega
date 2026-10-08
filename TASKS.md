@@ -1339,7 +1339,9 @@ defines the complete product bar.
   - Keep `pass/control_flow/element_view_enum_equality_exit`,
     `pass/borrows/{indexed_record_field_replacement_exit,qualified_byte_owner_exclusive_call_exit,branch_selected_record_composed_receiver_exit,returned_record_case_field_store_exit,interleaved_parameter_field_replacement_exit}`,
     `pass/structs/qualified_record_element_assignment_exit` and
-    `pass/text/{nested_mutable_receiver_byte_result_exit,qualified_byte_state_snapshot_exit}`. Guarded and
+    `pass/text/{nested_mutable_receiver_byte_result_exit,qualified_byte_state_snapshot_exit,qualified_byte_value_forwarding_exit}`.
+    Executable predicate-only structural root returns owe their declared domains;
+    `fail/text/byte_field_snapshot_domain_widening` must reject. Guarded and
     closed-case returns keep physical view cleanup and semantic custody.
   Coordinate with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   **IMPLICIT-STORE-CONVERSION** (policy casts) and **WRITE-ONLY-BORROW**
@@ -3842,6 +3844,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `borrows/static_record_reference_return_exit` (0) in both engines, plus
   `borrow/runtime_indexed_write_only_local_receiver_exit` (0) for caller-visible
   local-array writes through forwarded and direct indexed loans.
+  `borrows/returned_owned_byte_field_snapshot_exit` (70 in both engines on
+  macOS ARM64) preserves an owned field snapshot after replacing the caller's
+  field, without changing its sibling.
 
   Acceptance: corpus fixtures execute caller-visible projected/forwarded
   writes, owned-field mutable/write-only subloans, synchronized shared

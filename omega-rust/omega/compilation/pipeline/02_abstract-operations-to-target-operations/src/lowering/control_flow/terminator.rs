@@ -518,10 +518,6 @@ pub(super) fn lower_terminator(
                 if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != result.structural_type
                     || parameter.multiplicity != result.multiplicity
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                    || !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty()
                     || !trivial_affine_locals.is_empty()
                     || actual.shape != placement.shape
                 {
@@ -556,16 +552,19 @@ pub(super) fn lower_terminator(
                 .structural_homes
                 .get(source)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let qualified_owned_bytes = bounded_owned_byte_return(result, home, structural_types);
+            // Psi proves the declared result domains at this return. The
+            // source home names the physical value, not that proof's roster:
+            // a field snapshot can establish the result through its field
+            // predicate without carrying a root qualification itself. Return
+            // preparation rejoins type, custody and ABI extent, irrespective
+            // of whether a parameter, call or field copy supplied the value.
             if result.structural_type != home.structural_type()
                 || result.multiplicity != home.multiplicity()
-                || ((bounded_owned_byte_type(result.structural_type, structural_types)
-                    || !result.qualifications.is_empty())
-                    && !qualified_owned_bytes)
-                || result
-                    .projected_qualifications
-                    .iter()
-                    .any(|row| !home.projected_qualifications().contains(row))
+                || prepared
+                    .call_plan
+                    .result
+                    .as_ref()
+                    .is_none_or(|placement| placement.shape != home.layout.shape())
                 || !trivial_affine_locals.is_empty()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -755,29 +754,4 @@ pub(super) fn lower_terminator(
         }
         _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }
-}
-
-fn bounded_owned_byte_return(
-    declaration: &terminal_psi::StructuralResultDeclaration,
-    home: &target_operations::TargetStructuralHomeRequirement,
-    structural_types: &StructuralTypeLookup<'_>,
-) -> bool {
-    let Some((_, established)) = home.operation_result() else {
-        return false;
-    };
-    established.structural_type == declaration.structural_type
-        && established.multiplicity == declaration.multiplicity
-        && established.qualifications == declaration.qualifications
-        && established.projected_qualifications == declaration.projected_qualifications
-        && established.claims.is_empty()
-        && bounded_owned_byte_type(declaration.structural_type, structural_types)
-}
-
-fn bounded_owned_byte_type(
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    structural_types: &StructuralTypeLookup<'_>,
-) -> bool {
-    structural_types
-        .get(&structural_type)
-        .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
 }

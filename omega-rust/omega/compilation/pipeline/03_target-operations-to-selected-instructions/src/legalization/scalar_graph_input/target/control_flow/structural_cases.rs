@@ -100,8 +100,6 @@ pub(super) fn home_available(
                 || target_parameter != original
                 || declaration.access != terminal_psi::StructuralAccess::Owned
                 || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-                || !declaration.qualifications.is_empty()
-                || !declaration.projected_qualifications.is_empty()
                 || (*owner != block && !sources::dominates(optimized, *owner, block))
             {
                 return false;

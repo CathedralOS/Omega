@@ -197,6 +197,7 @@ pub(super) fn check_flow_call_contracts(
             exits::check_result_field_domains(
                 program,
                 facts,
+                state_flow,
                 exit_flow,
                 call_frames,
                 &mut diagnostics,

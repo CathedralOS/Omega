@@ -34,9 +34,8 @@ mod byte_lengths;
 mod domain_implications;
 mod member_domains;
 use byte_lengths::{known_byte_lengths_before, static_max_byte_length};
-use domain_implications::{
-    construction_value_proves_qualification, value_proves_domain, value_proves_qualification,
-};
+pub(super) use domain_implications::value_proves_qualification_in_contexts;
+use domain_implications::{value_proves_domain, value_proves_qualification};
 use member_domains::initializer_satisfies_predicate_domain;
 
 pub(super) fn check_domain_field_writes(
@@ -496,7 +495,7 @@ fn scan_construction_field_domains(
                     field.name.as_str(),
                 ) {
                     // (a) The constructed value must be established in the domain.
-                    if !construction_value_proves_qualification(
+                    if !value_proves_qualification_in_contexts(
                         program,
                         facts,
                         state_flow,

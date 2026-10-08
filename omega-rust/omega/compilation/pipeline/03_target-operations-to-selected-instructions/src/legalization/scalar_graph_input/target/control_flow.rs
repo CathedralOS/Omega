@@ -222,13 +222,9 @@ pub(super) fn validate(
                             optimized.structural_parameters.iter().any(|semantic| {
                                 semantic.place == *expected_source
                             && semantic.access == terminal_psi::StructuralAccess::Owned
-                            && semantic.qualifications.is_empty()
-                            && semantic.projected_qualifications.is_empty()
                             && optimized.result.structural().is_some_and(|result| {
                                 result.structural_type == semantic.structural_type
                                     && result.multiplicity == semantic.multiplicity
-                                    && result.qualifications.is_empty()
-                                    && result.projected_qualifications.is_empty()
                             })
                             }) && parameter.place == *expected_source
                                 && graph

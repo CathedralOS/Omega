@@ -2,8 +2,9 @@
 //!
 //! A bounded byte owner returns its live length word and inline backing through
 //! the aggregate ABI, not a borrowed pointer/length descriptor. Its primitive
-//! predicate roster changes no layout, but must still match the declared normal
-//! result exactly; equal byte widths cannot substitute semantic custody.
+//! predicate roster changes no layout. Psi proves the normal result's domains;
+//! this stage retains exact source custody and the declared result's ABI.
+//! Matching widths alone cannot substitute its type, owner or producer.
 //!
 //! `operation_result` joins produced storage to its exact declaration once.
 //! Consumers add their ownership and layout checks; producer computation is
@@ -514,10 +515,6 @@ pub(super) fn returned_parameter<'a>(
     if semantic.access != terminal_psi::StructuralAccess::Owned
         || semantic.structural_type != declared.structural_type
         || semantic.multiplicity != declared.multiplicity
-        || !semantic.qualifications.is_empty()
-        || !semantic.projected_qualifications.is_empty()
-        || !declared.qualifications.is_empty()
-        || !declared.projected_qualifications.is_empty()
     {
         return None;
     }
@@ -803,31 +800,11 @@ pub(super) fn returned<'a>(
             return None;
         }
     };
-    let bounded_owned_bytes = matches!(
-        owner,
-        legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. }
-            if bounded_owned_byte_type(source, result.structural_type)
-    );
-    let exact_qualified_owned_bytes = matches!(
-        owner,
-        legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. }
-            if result.structural_type == declared.structural_type
-                && result.multiplicity == declared.multiplicity
-                && result.qualifications == declared.qualifications
-                && result.projected_qualifications == declared.projected_qualifications
-                && result.qualification_establishments.is_empty()
-                && result.claims.is_empty()
-                && bounded_owned_byte_type(source, result.structural_type)
-    );
-    if structural_type != declared.structural_type
-        || multiplicity != declared.multiplicity
-        || ((bounded_owned_bytes || !declared.qualifications.is_empty())
-            && !exact_qualified_owned_bytes)
-    {
+    if structural_type != declared.structural_type || multiplicity != declared.multiplicity {
         return None;
     }
-    // Projected memberships already match the retained return custody. They
-    // add no bytes to this producer's exact home or to the result placement.
+    // Psi owns result membership. Qualification labels add no bytes to the
+    // exact source home or the result ABI; they need not have identical rosters.
     let placement = source.call_plan.result.as_ref()?;
     if placement.shape != shape
         || !(direct_fragments(placement)

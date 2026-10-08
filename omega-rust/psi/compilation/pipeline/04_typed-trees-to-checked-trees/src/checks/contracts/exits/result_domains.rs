@@ -1,4 +1,4 @@
-//! Declared domain obligations at a machine's normal return. A scalar result
+//! Declared domain obligations at a machine's normal return. A result
 //! consumes live membership with its exact domain instance or must independently
 //! establish the declared predicates and any authorized provenance. Its result
 //! annotation is never an input fact. An `ensures`

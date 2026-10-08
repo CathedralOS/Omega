@@ -480,7 +480,15 @@ pub(super) fn whole_local_bounded_owner_loan(
     formal: checked_trees::types::TypeReferenceHandle,
 ) -> Result<bool, LoweringError> {
     use checked_trees::CheckedStructuralAccess;
-    if !argument.path.is_empty() || result.multiplicity != Multiplicity::Unrestricted {
+    // Owned transport is not loan formation. Let the ordinary value-custody
+    // join consume it; a reference-formal check would change its operation.
+    if !argument.path.is_empty()
+        || !matches!(
+            argument.access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
+        || result.multiplicity != Multiplicity::Unrestricted
+    {
         return Ok(false);
     }
     let (_, state) = crate::declarations::state_declaration(checked, caller.state)?;

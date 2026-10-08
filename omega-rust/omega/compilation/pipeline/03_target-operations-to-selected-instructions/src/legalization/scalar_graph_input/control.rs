@@ -44,24 +44,18 @@ pub(super) fn validate(
                 }
                 return terminal_edge(node, *psi_edge);
             }
-            let (structural_type, multiplicity, source_roster_matches) = if let Some(parameter) =
-                function
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == *source)
+            // Result membership was established by Psi at this edge. Native
+            // custody resolves the exact source carrier, not an equality
+            // between its stored labels and the declared postcondition.
+            let (structural_type, multiplicity) = if let Some(parameter) = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
             {
-                if parameter.access != terminal_psi::StructuralAccess::Owned
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                {
+                if parameter.access != terminal_psi::StructuralAccess::Owned {
                     return Err(LegalizationError::custody());
                 }
-                (
-                    parameter.structural_type,
-                    parameter.multiplicity,
-                    parameter.qualifications == declared.qualifications
-                        && parameter.projected_qualifications == declared.projected_qualifications,
-                )
+                (parameter.structural_type, parameter.multiplicity)
             } else {
                 match super::structural_case::source_owner(function, *source)? {
                     // The returned claims leave with the value; ownership
@@ -69,21 +63,11 @@ pub(super) fn validate(
                     legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                         result,
                         ..
-                    } => (
-                        result.structural_type,
-                        result.multiplicity,
-                        returned_roster_matches(&result, declared),
-                    ),
+                    } => (result.structural_type, result.multiplicity),
                     legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
                         declaration,
                         ..
-                    } => (
-                        declaration.structural_type,
-                        declaration.multiplicity,
-                        declaration.qualifications == declared.qualifications
-                            && declaration.projected_qualifications
-                                == declared.projected_qualifications,
-                    ),
+                    } => (declaration.structural_type, declaration.multiplicity),
                     // `source_owner` never resolves a function parameter.
                     legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
                     | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
@@ -95,7 +79,6 @@ pub(super) fn validate(
             };
             if structural_type != declared.structural_type
                 || multiplicity != declared.multiplicity
-                || !source_roster_matches
                 || (!declared.qualifications.is_empty()
                     && !structural_types.iter().any(|declaration| {
                         declaration.id == declared.structural_type
@@ -203,34 +186,6 @@ pub(super) fn validate(
         }
         _ => Err(LegalizationError::custody()),
     }
-}
-
-/// Domains minted by the producing call's own establishment rows are
-/// discharged evidence that sheds at the return edge, as Terminal return
-/// admission sheds them. The roster left after shedding must be exactly the
-/// declared result's roster; a retained domain the function does not declare
-/// still refuses.
-fn returned_roster_matches(
-    result: &terminal_psi::StructuralOperationResult,
-    declared: &terminal_psi::StructuralResultDeclaration,
-) -> bool {
-    let minted = |domain: semantic_vocabulary::StructuralDomainId| {
-        result
-            .qualification_establishments
-            .iter()
-            .any(|establishment| establishment.domain == domain)
-    };
-    result
-        .qualifications
-        .iter()
-        .copied()
-        .filter(|domain| !minted(*domain))
-        .eq(declared.qualifications.iter().copied())
-        && result
-            .projected_qualifications
-            .iter()
-            .filter(|projection| !minted(projection.domain))
-            .eq(declared.projected_qualifications.iter())
 }
 
 fn terminal_edge(

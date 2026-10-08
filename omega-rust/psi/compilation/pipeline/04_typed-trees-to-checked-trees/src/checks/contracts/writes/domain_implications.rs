@@ -154,7 +154,7 @@ pub(super) fn value_proves_domain(
     )
 }
 
-pub(super) fn construction_value_proves_qualification(
+pub(in crate::checks::contracts) fn value_proves_qualification_in_contexts(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
@@ -249,7 +249,7 @@ pub(super) fn value_proves_domain_in_contexts(
         && validation::field_domains::domain_is_concat_preserving(program, domain_symbol)
     {
         let (left, right) = (binary.left, binary.right);
-        if construction_value_proves_qualification(
+        if value_proves_qualification_in_contexts(
             program,
             facts,
             state_flow,
@@ -258,7 +258,7 @@ pub(super) fn value_proves_domain_in_contexts(
             domain_symbol,
             language_semantics::SemanticDomainId::NULL,
             contexts,
-        ) && construction_value_proves_qualification(
+        ) && value_proves_qualification_in_contexts(
             program,
             facts,
             state_flow,
@@ -276,7 +276,7 @@ pub(super) fn value_proves_domain_in_contexts(
     // implying `domain_symbol` is accepted on the same trust basis as a declared
     // param domain at a call site: the signature's domain is trusted at use
     // sites, with its establishment enforced separately (params at call sites;
-    // scalar results at ordinary exits in exits/result_domains.rs). This is how a
+    // results at ordinary exits in exits/result_domains.rs). This is how a
     // `-> &[u8] in Utf8` value-call result flows into a `&[u8] in Utf8` field.
     if value_call_return_domain_implies(program, value, domain_symbol) {
         return true;

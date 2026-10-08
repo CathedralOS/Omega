@@ -1,11 +1,19 @@
-//! field domains slice of result_domains.
+//! Returned storage owes both root qualifications and declared field domains.
+//!
+//! An executable predicate-only structural root is no less a promise than a
+//! scalar or a routed root. Checking only its fields would let a byte-field copy
+//! claim a stronger encoding on return. Value establishment and return admission
+//! share the occurrence-bound qualification judgment; annotations supply obligations,
+//! not membership. Field requirements still prove at their exact live paths.
+//! Proof-only predicate roots remain outside this storage judgment, as before;
+//! mathematical constructor entailment is not occurrence-bound storage evidence.
 
 use validation::{CanonicalPlace, canonical_place_from_expression_in_state};
 
 use super::super::super::return_values::exit_return_expression;
 use super::scalar_exits::*;
 use crate::flow::canonical_place_from_semantic_place;
-use checked_trees::{CheckFacts, FlowExitFact};
+use checked_trees::{CheckFacts, FlowExitFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
 use typed_trees::types::TypeReferenceNode;
@@ -22,6 +30,7 @@ use typed_trees::types::TypeReferenceNode;
 pub(in crate::checks::contracts) fn check_result_field_domains(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    state_flow: &FlowStateFact,
     exit: &FlowExitFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -53,11 +62,13 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         .primitive_type_reference(entry.return_type)
         .is_none()
     {
+        let proof_only = validation::proof_only_classification(program);
         paths.extend(
             validation::field_domains::domain_constraint_identities(program, entry.return_type)
                 .into_iter()
                 .filter(|(domain, _)| {
                     validation::field_domains::domain_requires_provenance(program, *domain)
+                        || !proof_only.is_proof_machine(program, machine)
                 })
                 .map(|(domain, identity)| (Vec::new(), domain, identity)),
         );
@@ -124,54 +135,71 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
         // a returned constructor projects each requirement onto the exact field
         // or element expression it was built from; anything else proves at the
         // returned place directly.
-        let satisfied = crate::flow::literal_value_projections(
-            program,
-            returned,
-            entry.return_type,
-            &path,
-            false,
-        )
-        .is_some_and(|projections| {
-            !projections.is_empty()
-                && projections.iter().all(|projection| {
-                    canonical_place_from_expression_in_state(
-                        program,
-                        exit.state_symbol,
-                        exit.statement_index,
-                        projection.expression,
-                    )
-                    .is_some_and(|mut subject| {
-                        if !crate::flow::place_cases_are_selected(
+        // A structural result's root annotation is an obligation too, not
+        // evidence available to its body. Use the same occurrence-bound
+        // membership judgment as value construction: it proves literals,
+        // completed calls and live places without minting routed membership.
+        let root_satisfied = path.is_empty()
+            && super::super::super::writes::value_proves_qualification_in_contexts(
+                program,
+                facts,
+                state_flow,
+                exit.statement_index,
+                returned,
+                domain_symbol,
+                semantic_domain,
+                &entry_contexts,
+            );
+        let satisfied = root_satisfied
+            || crate::flow::literal_value_projections(
+                program,
+                returned,
+                entry.return_type,
+                &path,
+                false,
+            )
+            .is_some_and(|projections| {
+                !projections.is_empty()
+                    && projections.iter().all(|projection| {
+                        canonical_place_from_expression_in_state(
                             program,
-                            &facts.semantic,
-                            &entry_contexts,
-                            exit.machine_symbol,
                             exit.state_symbol,
                             exit.statement_index,
-                            &subject,
-                        ) {
-                            return false;
-                        }
-                        subject.extend_segments(&projection.remaining);
-                        proves(&subject)
+                            projection.expression,
+                        )
+                        .is_some_and(|mut subject| {
+                            if !crate::flow::place_cases_are_selected(
+                                program,
+                                &facts.semantic,
+                                &entry_contexts,
+                                exit.machine_symbol,
+                                exit.state_symbol,
+                                exit.statement_index,
+                                &subject,
+                            ) {
+                                return false;
+                            }
+                            subject.extend_segments(&projection.remaining);
+                            proves(&subject)
+                        })
                     })
-                })
-        }) || base.as_ref().is_some_and(|base| {
-            if !crate::flow::place_cases_are_selected(
-                program,
-                &facts.semantic,
-                &entry_contexts,
-                exit.machine_symbol,
-                exit.state_symbol,
-                exit.statement_index,
-                base,
-            ) {
-                return false;
-            }
-            let mut subject = base.clone();
-            subject.extend_segments(&path);
-            proves(&subject)
-        });
+            })
+            || base.as_ref().is_some_and(|base| {
+                if !crate::flow::place_cases_are_selected(
+                    program,
+                    &facts.semantic,
+                    &entry_contexts,
+                    exit.machine_symbol,
+                    exit.state_symbol,
+                    exit.statement_index,
+                    base,
+                ) {
+                    return false;
+                }
+                let mut subject = base.clone();
+                subject.extend_segments(&path);
+                proves(&subject)
+            });
         if !satisfied {
             let (root, mut segments) = base
                 .as_ref()

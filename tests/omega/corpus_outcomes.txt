@@ -1943,6 +1943,8 @@ fail/text/borrowed_bounded_byte_invariant_write rejected 809ms expected @3f1c7fe
 	cannot prove default-domain field requirement for return from corrupt at statement 2: bytes requires [u8; N]::Ascii
 fail/text/bounded_carrier_growth_overflow_rejected rejected 216ms expected @c08960bee2b1+wt
 	the value assigned to `main.line` in Main::main can be up to 18 byte(s), exceeding the 16-byte capacity of its `[u8; 16]` carrier; a bounded text carrier requires every write to provably fit
+fail/text/byte_field_snapshot_domain_widening rejected 619ms expected @d633d9554974+wt
+	cannot prove default-domain field requirement for return from snapshot at statement 0: row.text requires [u8; N]::Ascii
 fail/text/carrier_length_cross_carrier_store rejected 322ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/text/concatenation_into_borrowed_view_rejected rejected 387ms expected @234bf77c3938+wt
@@ -2192,6 +2194,7 @@ pass/borrows/qualified_byte_owner_exclusive_call_exit checked 7292ms check-targe
 pass/borrows/qualified_byte_owner_shared_call_exit checked 24307ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/qualified_record_view_call_exit checked 2701ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 8626ms check-target:macos_arm64 @ccd480905812+wt
+pass/borrows/returned_owned_byte_field_snapshot_exit checked 1724ms check-target:macos_arm64 @d633d9554974+wt
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms check-target:macos_arm64 @2816825e8941
@@ -3655,6 +3658,7 @@ pass/text/plain_and_qualified_byte_arrays_exit checked 1221ms check-target:macos
 pass/text/plain_byte_field_and_qualified_state_loan_exit checked 1218ms check-target:macos_arm64 @0142400d0e1f
 pass/text/qualified_byte_owner_state_loan_cycle_exit checked 1212ms check-target:macos_arm64 @ad48a872752b+wt
 pass/text/qualified_byte_state_snapshot_exit checked 1785ms check-target:macos_arm64 @a0c004371ad8+wt
+pass/text/qualified_byte_value_forwarding_exit checked 1724ms check-target:macos_arm64 @d633d9554974+wt
 pass/text/runtime_alias_string_write checked 381ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1598ms check-target:macos_arm64 @2d8ed253669f
 pass/text/runtime_bounded_carrier_concat_exit checked 1496ms check-target:macos_arm64 @2d8ed253669f
