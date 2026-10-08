@@ -19,7 +19,7 @@ pub fn non_authoritative_callee_save_storage_identity(
     hasher.update(plan.physical_register_model.bytes());
     hasher.update(plan.preservation_storage_catalog.bytes());
     plan.target.encode_identity(&mut hasher);
-    hasher.update([abi_tag(plan.abi)]);
+    hasher.update([plan.abi.abi_tag()]);
     units(&mut hasher, &plan.callee_saved_units);
     hasher.update([match plan.policy {
         NonAuthoritativeCalleeSaveStoragePolicy::CanonicalTargetPreservationGroupsV1 => 0,
@@ -53,14 +53,6 @@ pub fn non_authoritative_callee_save_storage_identity(
     NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(hasher.finalize().into())
 }
 
-fn abi_tag(abi: FrameAbiPreservationConvention) -> u8 {
-    match abi {
-        FrameAbiPreservationConvention::SystemVAMD64 => 0,
-        FrameAbiPreservationConvention::MicrosoftX64 => 1,
-        FrameAbiPreservationConvention::Aapcs64 => 2,
-        FrameAbiPreservationConvention::DarwinAapcs64 => 3,
-    }
-}
 
 fn units(hasher: &mut Sha256, values: &[register_model::RegisterUnitId]) {
     length(hasher, values.len());

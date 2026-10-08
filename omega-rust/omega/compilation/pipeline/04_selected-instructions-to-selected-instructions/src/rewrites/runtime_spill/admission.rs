@@ -1629,7 +1629,7 @@ pub(super) fn reload(
             definition_site: admitted.victim.definition_site,
             entry_fixed_view: None,
         },
-        address: crate::rewrites::test_support::instruction(
+        address: crate::rewrites::instruction(
             address_instruction,
             SelectedInstructionKind::FrameAddress {
                 slot: frame(slot),
@@ -1638,14 +1638,14 @@ pub(super) fn reload(
             admitted.address,
             &[address_register],
         ),
-        load: crate::rewrites::test_support::instruction(
+        load: crate::rewrites::instruction(
             load_instruction,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             admitted.load,
             &[address_register, loaded],
         ),
         convert: conversion.map(|conversion| {
-            crate::rewrites::test_support::instruction(
+            crate::rewrites::instruction(
                 convert_instruction.unwrap_or(restating),
                 conversion.from_kind,
                 conversion.from_bits,
@@ -1755,14 +1755,14 @@ pub(super) fn store(
         }),
         address_scratch,
         convert: conversion.map(|conversion| {
-            crate::rewrites::test_support::instruction(
+            crate::rewrites::instruction(
                 convert_instruction.unwrap_or(store_instruction),
                 conversion.to_kind,
                 conversion.to_bits,
                 &[stored, stored_register],
             )
         }),
-        store: crate::rewrites::test_support::instruction(
+        store: crate::rewrites::instruction(
             store_instruction,
             SelectedInstructionKind::Store64 {
                 slot: frame(slot),

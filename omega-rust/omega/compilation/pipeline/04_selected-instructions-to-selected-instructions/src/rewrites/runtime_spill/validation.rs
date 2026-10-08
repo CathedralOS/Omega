@@ -274,7 +274,7 @@ fn expected_reload(
             definition_site: reconstructed.victim.definition_site,
             entry_fixed_view: None,
         },
-        address: crate::rewrites::test_support::instruction(
+        address: crate::rewrites::instruction(
             address_instruction,
             SelectedInstructionKind::FrameAddress {
                 slot: FrameStorageSlotId::Local(slot),
@@ -283,14 +283,14 @@ fn expected_reload(
             reconstructed.address,
             &[address_register],
         ),
-        load: crate::rewrites::test_support::instruction(
+        load: crate::rewrites::instruction(
             load_instruction,
             SelectedInstructionKind::Load64 { byte_offset: 0 },
             reconstructed.load,
             &[address_register, loaded],
         ),
         convert: conversion.map(|conversion| {
-            crate::rewrites::test_support::instruction(
+            crate::rewrites::instruction(
                 convert_instruction.unwrap_or(restating),
                 conversion.from_kind,
                 conversion.from_bits,
@@ -370,14 +370,14 @@ fn expected_store(
         }),
         address_scratch,
         convert: conversion.map(|conversion| {
-            crate::rewrites::test_support::instruction(
+            crate::rewrites::instruction(
                 convert_instruction.unwrap_or(store_instruction),
                 conversion.to_kind,
                 conversion.to_bits,
                 &[stored, stored_register],
             )
         }),
-        store: crate::rewrites::test_support::instruction(
+        store: crate::rewrites::instruction(
             store_instruction,
             SelectedInstructionKind::Store64 {
                 slot: FrameStorageSlotId::Local(slot),

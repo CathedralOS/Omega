@@ -24,6 +24,18 @@ pub enum FrameAbiPreservationConvention {
     DarwinAapcs64,
 }
 
+impl FrameAbiPreservationConvention {
+    /// Stable byte tag for identity and wire fingerprints.
+    pub const fn abi_tag(self) -> u8 {
+        match self {
+            Self::SystemVAMD64 => 0,
+            Self::MicrosoftX64 => 1,
+            Self::Aapcs64 => 2,
+            Self::DarwinAapcs64 => 3,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PreservationStorageGroupId(pub u16);
 

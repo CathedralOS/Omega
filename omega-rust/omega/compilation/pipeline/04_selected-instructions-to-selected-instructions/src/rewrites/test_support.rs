@@ -7,11 +7,7 @@
 
 pub use crate::rewrites::runtime_spill::test_support::runtime_spill_source;
 use optimization_core::OptimizationWorkBudget;
-use register_model::RegisterInstructionConstraint;
-use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
-    VirtualRegisterId,
-};
+
 
 pub use crate::rewrites::allocation_recovery::pressure_rematerialization::tests::{
     multiple_use::exercise_multiple_use_rematerialization,
@@ -33,36 +29,7 @@ pub fn measured_step_budget(steps: u64) -> OptimizationWorkBudget {
 }
 
 /// Build a selected instruction from its constraint row and bound registers.
-pub fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+
 
 /// Retain a checked run produced with an explicit test register budget.
 pub fn retain_selected_lowering_run(

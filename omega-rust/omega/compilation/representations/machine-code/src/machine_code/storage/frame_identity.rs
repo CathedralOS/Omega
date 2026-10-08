@@ -43,7 +43,7 @@ pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrame
     hasher.update(plan.register_environment.bytes());
     hasher.update(plan.physical_register_model.bytes());
     plan.target.encode_identity(&mut hasher);
-    hasher.update([abi_tag(plan.abi)]);
+    hasher.update([plan.abi.abi_tag()]);
     hasher.update([match plan.policy {
         TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1 => 0,
         TargetFrameLayoutPolicy::CanonicalSavedReturnAddressFrameV1 => 1,
@@ -124,14 +124,6 @@ fn encode_return_address(hasher: &mut Sha256, custody: ReturnAddressFrameCustody
     }
 }
 
-fn abi_tag(abi: FrameAbiPreservationConvention) -> u8 {
-    match abi {
-        FrameAbiPreservationConvention::SystemVAMD64 => 0,
-        FrameAbiPreservationConvention::MicrosoftX64 => 1,
-        FrameAbiPreservationConvention::Aapcs64 => 2,
-        FrameAbiPreservationConvention::DarwinAapcs64 => 3,
-    }
-}
 
 fn encode_len(hasher: &mut Sha256, value: usize) {
     hasher.update((value as u64).to_le_bytes());

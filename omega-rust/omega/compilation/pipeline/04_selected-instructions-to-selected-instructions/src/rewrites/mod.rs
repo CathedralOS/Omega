@@ -229,3 +229,40 @@ pub use load_forwarding::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
     forward_selected_stored_load,
 };
+
+use register_model::RegisterInstructionConstraint;
+use selected_instructions::{
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
+    VirtualRegisterId,
+};
+
+pub(crate) fn instruction(
+    id: SelectedInstructionId,
+    kind: SelectedInstructionKind,
+    row: &RegisterInstructionConstraint,
+    registers: &[VirtualRegisterId],
+) -> SelectedInstruction {
+    SelectedInstruction {
+        id,
+        kind,
+        constraint: row.key,
+        operands: row
+            .operands
+            .iter()
+            .zip(registers)
+            .map(|(operand, register)| SelectedOperand {
+                operand: operand.operand,
+                virtual_register: *register,
+                access: operand.access,
+                class: operand.class,
+                fixed_view: operand.fixed_view,
+                tied_to: operand.tied_to,
+                early_clobber: operand.early_clobber,
+            })
+            .collect(),
+        implicit_uses: row.implicit_uses.clone(),
+        implicit_defs: row.implicit_defs.clone(),
+        clobbers: row.clobbers.clone(),
+        provenance: Default::default(),
+    }
+}

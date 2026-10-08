@@ -16,7 +16,7 @@ pub fn allocated_callee_saved_requirement_identity(
     hasher.update(plan.register_environment.bytes());
     hasher.update(plan.physical_register_model.bytes());
     plan.target.encode_identity(&mut hasher);
-    hasher.update([abi_tag(plan.abi)]);
+    hasher.update([plan.abi.abi_tag()]);
     units(&mut hasher, &plan.callee_saved_units);
     hasher.update([match plan.policy {
         AllocatedCalleeSavedRequirementPolicy::AllocatedSelectedWritesIntersectAbiPreservationV1 => 0,
@@ -38,14 +38,6 @@ pub fn allocated_callee_saved_requirement_identity(
     AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finalize().into())
 }
 
-fn abi_tag(abi: register_environment::FrameAbiPreservationConvention) -> u8 {
-    match abi {
-        register_environment::FrameAbiPreservationConvention::SystemVAMD64 => 0,
-        register_environment::FrameAbiPreservationConvention::MicrosoftX64 => 1,
-        register_environment::FrameAbiPreservationConvention::Aapcs64 => 2,
-        register_environment::FrameAbiPreservationConvention::DarwinAapcs64 => 3,
-    }
-}
 
 fn units(hasher: &mut Sha256, values: &[register_model::RegisterUnitId]) {
     length(hasher, values.len());

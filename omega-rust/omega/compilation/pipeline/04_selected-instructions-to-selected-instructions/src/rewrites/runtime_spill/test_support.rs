@@ -54,7 +54,7 @@ pub fn runtime_spill_source(
             definition_site: Some(ValueDefinitionSite::FunctionParameter(0)),
             entry_fixed_view: None,
         });
-        instructions.push(crate::rewrites::test_support::instruction(
+        instructions.push(crate::rewrites::instruction(
             instruction,
             SelectedInstructionKind::CopyI64,
             copy,
@@ -95,7 +95,7 @@ pub fn runtime_spill_source(
                 ),
                 instructions,
                 terminator: SelectedTerminator::Return {
-                    instruction: crate::rewrites::test_support::instruction(
+                    instruction: crate::rewrites::instruction(
                         SelectedInstructionId(5),
                         SelectedInstructionKind::ReturnUnit,
                         terminal_row,
