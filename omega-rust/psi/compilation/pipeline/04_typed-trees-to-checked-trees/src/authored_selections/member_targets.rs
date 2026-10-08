@@ -194,24 +194,20 @@ fn member_symbol_from_type_reference(
     let data = program.data_definitions().iter().find(|definition| {
         (symbol.is_valid() && definition.symbol == symbol) || definition.name == *name
     })?;
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == member_name => {
-                Some(field.symbol)
-            }
-            typed_trees::data::DataMember::Variant(variant)
-                if variant.name.as_str() == member_name =>
-            {
-                Some(variant.symbol)
-            }
-            typed_trees::data::DataMember::Variant(variant) => program
-                .data_payload_fields(variant)
-                .iter()
-                .find_map(|field| (field.name.as_str() == member_name).then_some(field.symbol)),
-            _ => None,
-        })
+    validation::data_member_symbol_by_name(program, data, member_name).or_else(|| {
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find_map(|field| {
+                        (field.name.as_str() == member_name).then_some(field.symbol)
+                    }),
+                _ => None,
+            })
+    })
 }
 
 /// A `len` or `capacity` member on a fixed array or slice selects the
