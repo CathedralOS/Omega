@@ -2,7 +2,7 @@
 
 use crate::constants::TEXT_RVA;
 use diagnostics::Diagnostic;
-use image::{FinalImage, FinalImageSection, final_image_symbol_name};
+use image::FinalImage;
 
 pub(crate) fn pe_entry_rva(image: &FinalImage) -> Result<u32, Diagnostic> {
     Ok(TEXT_RVA + image::final_image_entry_symbol(image, "PE")?.offset as u32)

@@ -36,8 +36,7 @@ pub use dependencies::{
 pub use prelude::build_prelude_source;
 pub use syntax_projection::{
     BuildDeclarationSyntaxProjection, BuildEntrySyntaxProjection, extract_build_declaration,
-    project_build_declaration_from_source, project_build_declaration_from_syntax_trees,
-    project_build_declaration_in_entry, project_build_declaration_syntax,
-    project_build_entry_syntax,
-    package_authored_type_name,
+    package_authored_type_name, project_build_declaration_from_source,
+    project_build_declaration_from_syntax_trees, project_build_declaration_in_entry,
+    project_build_declaration_syntax, project_build_entry_syntax, read_build_file_source,
 };

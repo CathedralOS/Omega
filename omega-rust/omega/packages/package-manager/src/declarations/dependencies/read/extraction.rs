@@ -3,7 +3,6 @@ use super::projection::{
     extract_build_projection_from_source, extract_scoped_requests_from_source,
 };
 use super::{BuildDependencyProjection, DependencyPurpose, DependencySourceRequest};
-use std::fs;
 use std::path::Path;
 
 pub(super) const BUILD_FILE_NAME: &str = "build.omg";
@@ -30,25 +29,13 @@ pub fn extract_dependency_projection(
 pub fn extract_build_dependency_projection(
     package_root: impl AsRef<Path>,
 ) -> Result<BuildDependencyProjection, DependencyProjectionError> {
-    let build_path = package_root.as_ref().join(BUILD_FILE_NAME);
-    let source_bytes = match fs::read(&build_path) {
-        Ok(source) => source,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Err(DependencyProjectionError::MissingBuildFile { path: build_path });
-        }
-        Err(error) => {
-            return Err(DependencyProjectionError::ReadBuildFile {
-                path: build_path,
-                message: error.to_string(),
-            });
-        }
-    };
-    let source = std::str::from_utf8(&source_bytes).map_err(|_| {
-        DependencyProjectionError::InvalidBuildFileEncoding {
-            path: build_path.clone(),
-        }
-    })?;
-    extract_build_projection_from_source(source)
+    let source = build_declarations::read_build_file_source(
+        package_root,
+        |path| DependencyProjectionError::MissingBuildFile { path },
+        |path, message| DependencyProjectionError::ReadBuildFile { path, message },
+        |path| DependencyProjectionError::InvalidBuildFileEncoding { path },
+    )?;
+    extract_build_projection_from_source(&source)
 }
 
 /// Project every unconditional direct dependency row in authored order,

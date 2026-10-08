@@ -1,8 +1,6 @@
 use super::evidence::require_rederived_data_definition_facts;
 use crate::capture::PackageReviewInput;
-use crate::capture::api::domains::facts::{
-    project_definition_contract_fact, semantic_fact_matches_definition_fact,
-};
+use crate::capture::api::domains::facts::project_definition_contract_fact;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,

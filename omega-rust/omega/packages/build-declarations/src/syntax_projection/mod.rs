@@ -14,7 +14,7 @@ use crate::{
 };
 use source_files_to_tokens::Lexer;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{Item, StateHandle, StateParameterHandle};
@@ -69,28 +69,37 @@ impl BuildEntrySyntaxProjection {
 }
 
 /// Read and project the authoritative declaration from a root `build.omg`.
-pub fn extract_build_declaration(
+/// Read `<root>/build.omg` as UTF-8 source, mapping each IO failure to the
+/// caller's error vocabulary.
+pub fn read_build_file_source<E>(
     root: impl AsRef<Path>,
-) -> Result<BuildDeclaration, BuildDeclarationError> {
+    missing: impl Fn(PathBuf) -> E,
+    read: impl Fn(PathBuf, String) -> E,
+    encoding: impl Fn(PathBuf) -> E,
+) -> Result<String, E> {
     let build_path = root.as_ref().join(BUILD_FILE_NAME);
     let source_bytes = match fs::read(&build_path) {
         Ok(source) => source,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Err(BuildDeclarationError::MissingBuildFile { path: build_path });
+            return Err(missing(build_path));
         }
-        Err(error) => {
-            return Err(BuildDeclarationError::ReadBuildFile {
-                path: build_path,
-                message: error.to_string(),
-            });
-        }
+        Err(error) => return Err(read(build_path, error.to_string())),
     };
-    let source = std::str::from_utf8(&source_bytes).map_err(|_| {
-        BuildDeclarationError::InvalidBuildFileEncoding {
-            path: build_path.clone(),
-        }
-    })?;
-    project_build_declaration_from_source(source)
+    std::str::from_utf8(&source_bytes)
+        .map(|source| source.to_owned())
+        .map_err(|_| encoding(build_path))
+}
+
+pub fn extract_build_declaration(
+    root: impl AsRef<Path>,
+) -> Result<BuildDeclaration, BuildDeclarationError> {
+    let source = read_build_file_source(
+        root,
+        |path| BuildDeclarationError::MissingBuildFile { path },
+        |path, message| BuildDeclarationError::ReadBuildFile { path, message },
+        |path| BuildDeclarationError::InvalidBuildFileEncoding { path },
+    )?;
+    project_build_declaration_from_source(&source)
 }
 
 /// Parse source and project its authoritative role without evaluating it.
