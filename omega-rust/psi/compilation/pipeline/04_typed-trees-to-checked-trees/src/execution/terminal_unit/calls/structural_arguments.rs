@@ -843,6 +843,7 @@ pub(crate) fn exact_structural_borrow_access(
 /// from a parameter, local, projection or computed result. Event coverage
 /// below still refuses a purported owned transfer with no owned argument.
 pub(crate) fn call_claim_transfers(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -925,8 +926,35 @@ pub(crate) fn call_claim_transfers(
                 _ => return None,
             };
             if let Some(root) = root {
+                // A projected operand carries only the claims beneath its
+                // selected path; sibling claims stay with their owner or cross
+                // at another operand of the same call.
+                let root_type = if argument.path.is_empty() {
+                    None
+                } else {
+                    Some(validation::canonical_place_type_reference(
+                        program,
+                        state,
+                        call.statement_index,
+                        &validation::CanonicalPlace {
+                            root,
+                            segments: Vec::new(),
+                        },
+                    )?)
+                };
                 let mut claims = Vec::new();
                 for event in events.iter().filter(|event| event.root == root) {
+                    if let Some(root_type) = root_type {
+                        let (path, _) = validation::structural_owned_path(
+                            program,
+                            root_type,
+                            facts.flow.ownership.segments.span_or_empty(event.segments),
+                        )
+                        .ok()?;
+                        if !path.starts_with(&argument.path) {
+                            continue;
+                        }
+                    }
                     if event.claim_identity == PermissionClaimIdentity::Unknown
                         || claims.contains(&event.claim_identity)
                     {

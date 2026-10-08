@@ -133,7 +133,7 @@ pub(crate) fn prepare_permission_events(
             .span_or_empty(state_flow.calls)
             .to_vec();
         let temporary_owners =
-            temporary_results::shared_temporary_owners(program, facts, machine, state, &calls);
+            temporary_results::temporary_owners(program, facts, machine, state, &calls);
         // Expression-owned completions need the same claim namespace as
         // named destinations. A name/projection already refers to existing
         // custody; only a real expression root reserves a new owner here.
@@ -242,6 +242,16 @@ pub(crate) fn prepare_permission_events(
                         &mut permission_events,
                         &mut claim_identities,
                         &mut conditional_carrier_transfers,
+                    );
+                    temporary_results::append_owned_transfer(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        statement_index,
+                        evaluation,
+                        &temporary_owners,
+                        places,
+                        &mut permission_events,
                     );
                     temporary_results::append_shared_borrow(
                         program,
@@ -808,7 +818,8 @@ fn apply_statically_inactive_call_results(
             {
                 return None;
             }
-            let (_, expression) = super::claim_outcomes::receiving_value(program, event)?;
+            let (_, expression, receiving_path) =
+                super::claim_outcomes::receiving_value(program, segments, event)?;
             let typed_trees::expression::ExpressionNode::Call(call) =
                 program.expression_table.expression(expression)
             else {
@@ -816,7 +827,6 @@ fn apply_statically_inactive_call_results(
             };
             let target = program.state_by_symbol(call.target_symbol)?;
             let map = maps.iter().find(|map| map.state_symbol == target.symbol)?;
-            let receiving_path = segments.span_or_empty(event.segments);
             (!map
                 .entries
                 .iter()

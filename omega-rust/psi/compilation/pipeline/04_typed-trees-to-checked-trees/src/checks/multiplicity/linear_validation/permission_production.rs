@@ -22,7 +22,7 @@ pub(crate) fn apply_statement_permission_production(
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
     state_calls: &[checked_trees::FlowCallFact],
-    temporary_owners: &[temporary_results::SharedTemporaryOwner],
+    temporary_owners: &[temporary_results::TemporaryOwner],
     statement_index: usize,
     statement: &StatementNode,
     evaluation: checked_trees::FlowPermissionEvaluation,

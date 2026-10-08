@@ -263,23 +263,8 @@ pub(crate) fn emit(
         // The root's claim roster is on its producing operation's result,
         // or -- when its value completed at a control join -- on the
         // completed binding the join published for it.
-        let mut published_claims = emission
-            .operations
-            .structural_values
-            .iter()
-            .map(|(_, root)| (root.place(), root.claims()))
-            .chain(
-                emission
-                    .operations
-                    .operations
-                    .iter()
-                    .filter_map(|operation| operation.result.structural())
-                    .map(|produced| (produced.place, produced.claims.as_slice())),
-            )
-            .filter(|(place, _)| *place == projected.root)
-            .flat_map(|(_, claims)| claims)
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut published_claims =
+            completed_place_claims(emission.operations, projected.root).collect::<Vec<_>>();
         // Invocation parameters have no producing operation. Join their
         // checked entry frontier to the same physical source home and claim
         // namespace, including a later state's retained entry-place alias.
@@ -328,6 +313,38 @@ pub(crate) fn emit(
                     path: lower_structural_path(&path)?,
                 });
             }
+        }
+        // A field store reseats its subtree: the stored value's claims, rebased
+        // under the stored field, replace whatever the root held there. Stores
+        // apply in emission order after the root's establishment.
+        for operation in &emission.operations.operations {
+            let OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: Some(field),
+                value,
+            } = &operation.kind
+            else {
+                continue;
+            };
+            if *destination != projected.root || !value.path.is_empty() {
+                continue;
+            }
+            let mut stored_path = path.clone();
+            stored_path.push(terminal_psi::StructuralPathSegment::Field(
+                crate::structural_types::field_identity(emission.structural_types, *field)?,
+            ));
+            let stored_claims =
+                completed_place_claims(emission.operations, value.place).collect::<Vec<_>>();
+            published_claims.retain(|claim| !claim.path.starts_with(&stored_path));
+            published_claims.extend(stored_claims.into_iter().map(|claim| {
+                let mut path = stored_path.clone();
+                path.extend(claim.path.iter().cloned());
+                terminal_psi::StructuralResultClaimBinding {
+                    claim: claim.claim,
+                    path,
+                }
+            }));
         }
         for binding in &result_claims {
             let mut published_path = alias_path.clone();
@@ -2088,4 +2105,27 @@ impl Emission<'_, '_, '_> {
             }
         }
     }
+}
+
+/// The claims a completed place holds where it was established: on its
+/// producing operation's result, or on the binding a control join published
+/// for a value that completed there.
+fn completed_place_claims(
+    operations: &OperationBuffer,
+    place: PlaceId,
+) -> impl Iterator<Item = terminal_psi::StructuralResultClaimBinding> + '_ {
+    operations
+        .structural_values
+        .iter()
+        .map(|(_, root)| (root.place(), root.claims()))
+        .chain(
+            operations
+                .operations
+                .iter()
+                .filter_map(|operation| operation.result.structural())
+                .map(|produced| (produced.place, produced.claims.as_slice())),
+        )
+        .filter(move |(candidate, _)| *candidate == place)
+        .flat_map(|(_, claims)| claims)
+        .cloned()
 }

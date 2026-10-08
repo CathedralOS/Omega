@@ -1199,6 +1199,11 @@ pass/ownership/linear_assignment_establishes checked 161ms
 pass/ownership/linear_boundary_entry_handoff checked 206ms
 pass/ownership/linear_branch_reconciliation checked 213ms
 pass/ownership/linear_call_result_claims_exit built 2458ms exit:0 @e007e1d70f35+wt
+pass/ownership/linear_call_result_place_assignment_exit built 2656ms exit:0 @9c376f77b213+wt
+pass/ownership/linear_inline_constructed_argument_claims_exit built 2790ms exit:0 @9c376f77b213+wt
+pass/ownership/linear_qualified_call_result_claims checked 626ms @9c376f77b213+wt
+pass/ownership/linear_result_member_projection_arguments_exit built 2676ms exit:0 @9c376f77b213+wt
+pass/ownership/linear_result_owners_residual_cleanup_exit built 2689ms exit:0 @9c376f77b213+wt
 pass/ownership/linear_self_receiver_disposition checked 208ms
 pass/ownership/linear_transfer_and_consume built 3491ms exit:0 @e4c5f1527652+wt
 pass/ownership/linear_transparent_record_frontier built 2369ms exit:0 @e007e1d70f35+wt

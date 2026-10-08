@@ -96,13 +96,32 @@ pub(in crate::flow) fn append_call_ownership_events(
             continue;
         }
 
+        // A claim-bearing construction is an anonymous owner: its operands
+        // move into it when it completes at this statement, before the call
+        // transfers the completed owner whole. Permission production
+        // establishes that owner and records its transfer.
+        let operand_source = if crate::checks::owned_temporary_type(
+            program,
+            state.symbol,
+            borrow_call.statement_index,
+            parameter,
+            *argument,
+        )
+        .is_some()
+        {
+            FlowOwnershipEventSource::Statement {
+                statement_index: borrow_call.statement_index,
+            }
+        } else {
+            source
+        };
         moves::append_move_events_for_expression(
             program,
             sink,
             state.symbol,
             borrow_call.statement_index,
             *argument,
-            source,
+            operand_source,
         );
     }
 }

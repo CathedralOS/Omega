@@ -164,8 +164,12 @@ pub(crate) fn prepare_establishment_claims(
             && matches!(event.source, language_semantics::PermissionEventSource::Statement { statement_index }
                 | language_semantics::PermissionEventSource::Call { statement_index, .. } if statement_index == statement))
         .map(|event| {
+            // A claim moved in from another owner continues that owner's
+            // identity. The completed owner's own later transfer to its
+            // consuming call is not provenance.
             let transferred = checked.facts.flow.ownership.permissions.iter().any(|(_, source)| {
                 source.machine_symbol == machine && source.state_symbol == state && source.evaluation == event.evaluation
+                    && source.root != event.root
                     && source.kind == language_semantics::PermissionEventKind::Transfer
                     && source.access == language_semantics::PermissionAccess::Owned
                     && source.claim_identity == event.claim_identity && source.obligation_live

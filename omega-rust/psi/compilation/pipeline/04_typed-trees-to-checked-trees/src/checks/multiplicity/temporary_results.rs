@@ -22,12 +22,15 @@ use language_semantics::PermissionProvenance;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceNode;
 
+mod owned_transfers;
+mod owners;
 mod projected;
 mod shared_borrows;
 
-pub(super) use shared_borrows::{
-    SharedTemporaryOwner, append_shared_borrow, shared_temporary_owners,
-};
+pub(super) use owned_transfers::append_owned_transfer;
+pub(crate) use owners::owned_temporary_type;
+pub(super) use owners::{TemporaryOwner, temporary_owners};
+pub(super) use shared_borrows::append_shared_borrow;
 
 pub(super) fn append_whole_affine_transfer(
     program: &dyn ::validation::CheckingInput,
@@ -102,7 +105,8 @@ pub(super) fn append_whole_affine_transfer(
 /// its transfer into the owned formal is produced here from the call's own
 /// arguments, unless an earlier producer already recorded the same transfer.
 /// An unrestricted construction is copied, not moved, and needs no transfer;
-/// linear constructions keep their claim rules.
+/// a claim-bearing construction is a temporary owner whose claim frontier
+/// transfers instead (`owned_transfers`).
 pub(super) fn append_constructed_argument_transfers(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -157,6 +161,14 @@ pub(super) fn append_constructed_argument_transfers(
                 || parameter.relevance.is_erased()
                 || multiplicity != Multiplicity::Affine
                 || type_multiplicity(program, parameter.type_reference) != multiplicity
+                || owners::owned_temporary_type(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    parameter,
+                    *argument,
+                )
+                .is_some()
                 || matches!(
                     program
                         .type_reference_table

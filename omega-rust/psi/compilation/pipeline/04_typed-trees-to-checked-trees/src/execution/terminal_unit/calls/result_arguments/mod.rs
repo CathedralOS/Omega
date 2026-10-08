@@ -540,11 +540,19 @@ fn argument_contract(
                 )
     );
     // A projection selects the referent's type, not the containing owner's
-    // multiplicity. Its resolved storage/formal correspondence was checked by
-    // the presentation above; the local declaration separately rejoins the
-    // complete owner below. Whole operands retain their result contract.
+    // multiplicity: an affine owner can hold linear members. Its resolved
+    // storage/formal correspondence was checked by the presentation above;
+    // the local declaration separately rejoins the complete owner below.
+    // Whole operands retain their result contract.
     let selected_multiplicity = if projected_borrow {
         program.type_multiplicity(storage_type?)
+    } else if projected {
+        program.type_multiplicity(validation::canonical_place_type_reference(
+            program,
+            state,
+            call.statement_index,
+            place,
+        )?)
     } else {
         result.multiplicity
     };

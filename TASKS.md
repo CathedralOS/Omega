@@ -556,18 +556,30 @@ defines the complete product bar.
     `pass/collections/{empty_record_array_borrow_exit,nested_empty_record_array_borrow_exit}` (0),
     and rejections `fail/borrows/{stored_reference_live_source_write,nested_reference_live_source_write}`.
   - **Claim-bearing results and native receiving.** A structural call result
-    binds the claim the callee's returning edge holds at each result path;
-    `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`
-    run natively. Still refused: a claim-bearing argument constructed inline
-    at the call (stage 04: "has no unique conserved claim mapping"), a
-    claim-bearing call result assigned to an existing place rather than bound
-    by `let`. A free `main` that projects the members of two claim-bearing call
-    results and retires them through a drop-hooked consumer stops at "state
-    graph: structural result has no selected disposition".
-    Wider/nested structural results (indirect/stack ABI slots such as
-    Windows x64's 12-byte Msg) do not reach target lowering. Add corpus
-    fixtures for a qualified linear structural result and for two distinct
-    result owners with ordered residual cleanup;
+    binds the claim the callee's returning edge holds at each result path; an
+    inline claim-bearing construction is an anonymous owner whose claims
+    transfer whole to its call; a projected owned argument carries the claims
+    beneath its path. `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`
+    and `pass/ownership/linear_{inline_constructed_argument_claims,result_member_projection_arguments,result_owners_residual_cleanup,call_result_place_assignment}_exit`
+    run natively. Still refused: in a composed state graph a scalar computed
+    call takes no claim-bearing argument (stage 05
+    `scalar_lowering/computations/call_signature.rs` refuses a callee with
+    entry claims), and a local moved into a construction operand of a computed
+    call has no counted disposition ("state graph: structural result has no
+    selected disposition", affine members included). A claim-bearing nested
+    call result passed by value (`consume(make(8))`) checks but is no
+    structural operand: `values/scalar/call_arguments.rs::nested_structural_call_return_type`
+    admits only affine/unrestricted results of entry-state targets, so even an
+    affine bare free-machine operand has no callee plan. Passing a projection
+    of a linear field reseated by `pair.left = make(5)` fails Terminal
+    foundation validation ("claim action does not match a declared structural
+    claim path"); consuming the reseated owner whole runs. Qualified record
+    results (`-> Receipt in Issued`) stop in Omega stages 02/03, whose
+    `supports_result_qualifications` admits byte carriers only:
+    `pass/ownership/linear_qualified_call_result_claims` checks but has no
+    native build. Wider/nested
+    structural results (indirect/stack ABI slots such as Windows x64's
+    12-byte Msg) do not reach target lowering.
     `pass/effects/structural_callback_reach/projected.omg` is only a control.
   - **Saved observations and arithmetic.** Stable unwritten mutable carriers
     contribute saved facts in

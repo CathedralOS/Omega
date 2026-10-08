@@ -1499,11 +1499,25 @@ fail/ownership/boundary_cycle_reuses_consumed_owner rejected 354ms expected @04d
 	cannot use `token` in machine `main` state `cycle` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/copy_linear_conflict rejected 2ms expected @2d8ed253669f
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
+fail/ownership/linear_call_result_field_live_overwrite rejected 644ms expected @9c376f77b213+wt
+	assignment would overwrite live linear value `pair.left`; consume or transfer the existing obligation first
+fail/ownership/linear_call_result_field_scope_loss rejected 500ms expected @9c376f77b213+wt
+	linear value `pair.left` reaches scope exit without being consumed or transferred
+fail/ownership/linear_inline_argument_result_scope_loss rejected 552ms expected @9c376f77b213+wt
+	linear value `passed` reaches scope exit without being consumed or transferred
+fail/ownership/linear_inline_argument_result_second_use rejected 453ms expected @9c376f77b213+wt
+	cannot use `passed` in machine `main` state `entry` (statement 2) after `passed` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `passed` first
+fail/ownership/linear_inline_construction_member_second_use rejected 470ms expected @9c376f77b213+wt
+	cannot use `left` in machine `main` state `entry` (statement 3) after `left` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `left` first
 fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
 	assignment would overwrite live linear value `receipt`; consume or transfer the existing obligation first
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed253669f
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
+fail/ownership/linear_result_member_argument_scope_loss rejected 668ms expected @9c376f77b213+wt
+	linear value `second.right` reaches scope exit without being consumed or transferred
+fail/ownership/linear_result_member_argument_second_use rejected 487ms expected @9c376f77b213+wt
+	cannot use `first.left` in machine `main` state `entry` (statement 2) after `first.left` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `first.left` first
 fail/ownership/linear_scope_loss rejected 512ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_second_transfer rejected 332ms expected @04d0fbe9d97c
@@ -3323,6 +3337,11 @@ pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_call_result_claims_exit checked 3292ms check-target:macos_arm64 @e007e1d70f35+wt
+pass/ownership/linear_call_result_place_assignment_exit checked 2933ms check-target:macos_arm64 @9c376f77b213+wt
+pass/ownership/linear_inline_constructed_argument_claims_exit checked 3119ms check-target:macos_arm64 @9c376f77b213+wt
+pass/ownership/linear_qualified_call_result_claims checked 541ms @9c376f77b213+wt
+pass/ownership/linear_result_member_projection_arguments_exit checked 3205ms check-target:macos_arm64 @9c376f77b213+wt
+pass/ownership/linear_result_owners_residual_cleanup_exit checked 3024ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
 pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm64 @e4c5f1527652+wt
 pass/ownership/linear_transparent_record_frontier checked 3103ms check-target:macos_arm64 @e007e1d70f35+wt

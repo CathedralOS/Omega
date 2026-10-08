@@ -128,6 +128,7 @@ pub(super) fn build(
     let selector = scalar_arguments.remove(0);
     phase("call operation: dynamic claim transfers");
     let transfers = call_claim_transfers(
+        program,
         facts,
         machine.symbol,
         state.symbol,

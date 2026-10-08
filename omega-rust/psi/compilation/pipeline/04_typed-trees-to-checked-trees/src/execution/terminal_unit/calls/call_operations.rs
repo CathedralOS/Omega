@@ -489,6 +489,7 @@ pub(in crate::execution) fn build_call_operation(
         Vec::new()
     } else {
         call_claim_transfers(
+            program,
             facts,
             machine.symbol,
             state.symbol,

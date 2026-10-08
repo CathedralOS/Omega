@@ -667,7 +667,9 @@ fn derive_receipts(
         {
             continue;
         }
-        let Some((statement_index, expression)) = super::receiving_value(program, event) else {
+        let Some((statement_index, expression, received_path)) =
+            super::receiving_value(program, &ownership.segments, event)
+        else {
             continue;
         };
         let Some(state) = program.state_by_symbol(event.state_symbol) else {
@@ -711,12 +713,12 @@ fn derive_receipts(
             let mut entries = frontier
                 .entries
                 .iter()
-                .filter(|entry| entry.output_path == path);
+                .filter(|entry| entry.output_path == received_path);
             let Some(entry) = entries.next() else {
                 if frontier
                     .inactive_paths
                     .iter()
-                    .any(|inactive| inactive == path)
+                    .any(|inactive| inactive == received_path)
                 {
                     alternatives.push(Alternative {
                         exits: frontier.exits,

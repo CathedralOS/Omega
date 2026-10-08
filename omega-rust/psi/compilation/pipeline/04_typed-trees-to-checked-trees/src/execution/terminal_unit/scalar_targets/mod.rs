@@ -384,6 +384,7 @@ pub(super) fn available_target(
         .collect::<Vec<_>>();
     if calls.next().is_some()
         || call_claim_transfers(
+            program,
             facts,
             caller.machine,
             caller.state,

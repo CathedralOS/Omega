@@ -82,6 +82,24 @@ pub(super) fn complete(
             if let OperationKind::ReleaseReference { source, path } = &operation.kind {
                 remove_path(&mut frontier, *source, path)?;
             }
+            // A store moves its whole value into the exact vacated subtree,
+            // which rejoins its owner: later edges dispose it with the root.
+            if let OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field,
+                value,
+            } = &operation.kind
+            {
+                transfer(&mut frontier, value)?;
+                let mut stored = path.clone();
+                if let Some(field) = field {
+                    stored.push(StructuralPathSegment::Field(
+                        crate::structural_types::field_identity(types, *field)?,
+                    ));
+                }
+                restore_path(&mut frontier, *destination, &stored);
+            }
             if let Some(result) = operation.result.structural() {
                 frontier.retain(|root| root.place != result.place);
             }
@@ -223,6 +241,23 @@ fn remove_path(
         frontier.sort_by_key(|root| root.place);
     }
     Ok(())
+}
+
+/// Rejoin an exactly restored subtree to its owner's frontier. An empty path
+/// restores the whole referent a root window vacated.
+fn restore_path(frontier: &mut Frontier, place: PlaceId, path: &[StructuralPathSegment]) {
+    let Some(position) = frontier.iter().position(|root| root.place == place) else {
+        return;
+    };
+    if path.is_empty() {
+        frontier.remove(position);
+        return;
+    }
+    let root = &mut frontier[position];
+    root.paths.remove(path);
+    if root.paths.is_empty() {
+        frontier.remove(position);
+    }
 }
 
 fn residuals(

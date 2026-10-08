@@ -1,0 +1,55 @@
+// Claim-bearing arguments constructed inline at their call. A construction
+// passed by value is an anonymous owner: it establishes its claim frontier
+// when it completes, and the call receives the completed owner whole. A
+// nested construction mints a fresh claim; a moved member's claim continues
+// into the construction at its field. `pass` returns its input, so the
+// caller's result continues the inline construction's claim. Every value
+// reaches the drop-hooked consumer exactly once, including a construction
+// handed straight to the generic `drop`.
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; }
+
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+data Pair { left: Receipt; right: Receipt; }
+
+machine pass(receipt: Receipt) -> Receipt {
+    receipt
+}
+
+machine consume(receipt: Receipt) -> i32 {
+    let observed: i32 = receipt.code;
+    drop(receipt);
+    observed
+}
+
+machine settle(pair: Pair) -> i32 {
+    let left: Receipt = pair.left;
+    let right: Receipt = pair.right;
+    let total: i32 = ((left.code as i32 in Wrapping) + (right.code as i32 in Wrapping)) as i32;
+    drop(left);
+    drop(right);
+    total
+}
+
+machine verify(settled: bool) crashes Trap {
+    transition settled {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let left: Receipt = Receipt { code: 1 };
+    let right: Receipt = Receipt { code: 2 };
+    let moved: i32 = settle(Pair { left: left, right: right });
+    let fresh: i32 = settle(Pair { left: Receipt { code: 3 }, right: Receipt { code: 4 } });
+    let direct: i32 = consume(Receipt { code: 5 });
+    let passed: Receipt = pass(Receipt { code: 6 });
+    let forwarded: i32 = consume(passed);
+    drop(Receipt { code: 9 });
+    verify(moved == 3 && fresh == 7 && direct == 5 && forwarded == 6);
+}

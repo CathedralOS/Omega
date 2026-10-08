@@ -1,8 +1,7 @@
 //! Shared access to an anonymous owner ends before that owner's call cleanup.
 //! Every contained linear obligation needs an authorized disposition on normal
-//! completion, including obligations outside a borrowed projection. One source
-//! evaluation inventory supplies named/anonymous permission production and the
-//! exact loan continuation; executable admission consumes that published roster.
+//! completion, including obligations outside a borrowed projection.
+use super::owners::{TemporaryConsumption, TemporaryOwner};
 use super::{
     CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionProvenance,
@@ -11,166 +10,6 @@ use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
 use diagnostics::Diagnostic;
 use language_semantics::PermissionEventSource;
-use typed_trees::expression::ExpressionNode;
-
-/// An evaluated loan retains the whole producing owner, even when its operand
-/// selects a child. The source evaluation inventory is shared with permission
-/// production so skipped calls cannot establish anonymous custody.
-pub(crate) struct SharedTemporaryOwner {
-    pub(crate) expression: typed_trees::expression::ExpressionHandle,
-    pub(crate) type_reference: typed_trees::types::TypeReferenceHandle,
-    pub(crate) borrowed_path: Vec<facts::PlaceSegment>,
-    pub(crate) evaluation: checked_trees::FlowPermissionEvaluation,
-    pub(crate) producer: PermissionEventSource,
-    pub(crate) consumer: PermissionEventSource,
-}
-
-pub(crate) fn shared_temporary_owners(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    calls: &[checked_trees::FlowCallFact],
-) -> Vec<SharedTemporaryOwner> {
-    let completed = program
-        .statement_table.indexed_statements(state.statement_nodes)
-        .map(|(statement_index, statement)| {
-            crate::checks::ownership_occurrences::statement_steps(
-                program,
-                machine,
-                state,
-                statement_index,
-                statement,
-                &[],
-                &facts.operators,
-            )
-            .into_iter()
-            .filter_map(|occurrence| match occurrence.step {
-                crate::checks::ownership_occurrences::StatementStep::Complete(expression) => {
-                    Some(expression)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    let mut owners = Vec::new();
-    for consumer in calls {
-        if facts.flow.control.is_retired(state.symbol, consumer)
-            || (consumer.authored_expression.is_valid()
-                && !completed
-                    .get(consumer.statement_index)
-                    .is_some_and(|expressions| expressions.contains(&consumer.authored_expression)))
-        {
-            continue;
-        }
-        let Some(site) = validation::find_call_site(
-            program,
-            machine.symbol,
-            state.symbol,
-            consumer.statement_index,
-            consumer.call_ordinal,
-        ) else {
-            continue;
-        };
-        let Some(parameters) = validation::call_target_parameters(program, consumer.target_symbol)
-        else {
-            continue;
-        };
-        let arguments = validation::call_site_argument_expressions(program, &site);
-        if parameters.len() != arguments.len() {
-            continue;
-        }
-        for (parameter, argument) in parameters.iter().zip(arguments) {
-            if parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased() {
-                continue;
-            }
-            let Some((borrowed, _)) = crate::semantic::calls::shared_argument_referent(
-                program,
-                *argument,
-                parameter.type_reference,
-            ) else {
-                continue;
-            };
-            let Some(place) = validation::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                consumer.statement_index,
-                borrowed,
-            ) else {
-                continue;
-            };
-            let facts::PlaceRoot::Expression(expression) = place.root else {
-                continue;
-            };
-            let root = validation::CanonicalPlace {
-                root: place.root,
-                segments: Vec::new(),
-            };
-            let Some(type_reference) = validation::canonical_place_type_reference(
-                program,
-                state.symbol,
-                consumer.statement_index,
-                &root,
-            ) else {
-                continue;
-            };
-            let evaluation = crate::flow::call_permission_evaluation(
-                program,
-                machine,
-                state,
-                consumer.statement_index,
-                consumer.call_ordinal,
-            );
-            if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
-                continue;
-            }
-            let producer =
-                if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
-                    let mut producers = calls.iter().filter(|producer| {
-                        producer.statement_index == consumer.statement_index
-                            && producer.authored_expression == expression
-                    });
-                    let Some(producer) = producers.next() else {
-                        continue;
-                    };
-                    if producers.next().is_some()
-                        || crate::flow::call_permission_evaluation(
-                            program,
-                            machine,
-                            state,
-                            producer.statement_index,
-                            producer.call_ordinal,
-                        ) != evaluation
-                    {
-                        continue;
-                    }
-                    PermissionEventSource::Call {
-                        statement_index: producer.statement_index,
-                        call_ordinal: producer.call_ordinal,
-                        target_symbol: producer.target_symbol,
-                    }
-                } else {
-                    PermissionEventSource::Statement {
-                        statement_index: consumer.statement_index,
-                    }
-                };
-            owners.push(SharedTemporaryOwner {
-                expression,
-                type_reference,
-                borrowed_path: place.segments,
-                evaluation,
-                producer,
-                consumer: PermissionEventSource::Call {
-                    statement_index: consumer.statement_index,
-                    call_ordinal: consumer.call_ordinal,
-                    target_symbol: consumer.target_symbol,
-                },
-            });
-        }
-    }
-    owners
-}
 
 pub(in crate::checks::multiplicity) fn append_shared_borrow(
     program: &dyn ::validation::CheckingInput,
@@ -179,13 +18,16 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
     state: symbols::SymbolHandle,
     statement_index: usize,
     evaluation: checked_trees::FlowPermissionEvaluation,
-    owners: &[SharedTemporaryOwner],
+    owners: &[TemporaryOwner],
     places: &mut [crate::checks::multiplicity::linear_obligations::LinearPlace],
     permissions: &mut Vec<FlowPermissionEventFact>,
     diagnostics: &mut Vec<Diagnostic>,
     dispositions: &mut checked_trees::ContextualCleanupFacts,
 ) {
-    for owner in owners.iter().filter(|owner| {
+    for (owner, borrowed_path) in owners.iter().filter_map(|owner| match &owner.consumption {
+        TemporaryConsumption::SharedBorrow { borrowed_path } => Some((owner, borrowed_path)),
+        TemporaryConsumption::OwnedTransfer => None,
+    }).filter(|(owner, _)| {
         matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
             && owner.evaluation == evaluation
     }) {
@@ -219,7 +61,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
             multiplicity: Multiplicity::Unrestricted, access: PermissionAccess::Shared,
             claim_identity: PermissionClaimIdentity::Unknown,
             provenance: PermissionProvenance::Established { machine_symbol: machine, state_symbol: state, source: owner.producer },
-            root, segments: facts.flow.ownership.segments.insert_many(owner.borrowed_path.iter().copied()),
+            root, segments: facts.flow.ownership.segments.insert_many(borrowed_path.iter().copied()),
             obligation_live: false,
         });
         for place in places.iter_mut().filter(|place| place.root == root && place.live) {

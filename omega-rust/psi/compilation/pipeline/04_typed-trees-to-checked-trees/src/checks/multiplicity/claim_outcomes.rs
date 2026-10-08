@@ -994,26 +994,50 @@ fn argument_for_parameter(
 
 /// Rejoin a produced value through its actual owner root. Anonymous results
 /// retain their expression identity; named destinations retain their write.
-pub(crate) fn receiving_value(
+/// The returned path is the establishment's position beneath the produced
+/// value: an assignment into a projected place (`pair.left = make()`) roots
+/// its establishment at the containing owner, so the destination's own
+/// projection is stripped before the path meets a callee's result paths.
+pub(crate) fn receiving_value<'a>(
     program: &dyn ::validation::CheckingInput,
+    segments: &'a arena::Arena<facts::PlaceSegment>,
     event: &FlowPermissionEventFact,
-) -> Option<(usize, typed_trees::expression::ExpressionHandle)> {
+) -> Option<(
+    usize,
+    typed_trees::expression::ExpressionHandle,
+    &'a [facts::PlaceSegment],
+)> {
     let statement_index = super::linear_validation::permission_event_statement_index(event.source)?;
+    let event_path = segments.span_or_empty(event.segments);
     if let facts::PlaceRoot::Expression(expression) = event.root {
-        return Some((statement_index, expression));
+        return Some((statement_index, expression, event_path));
     }
     let state = program.state_by_symbol(event.state_symbol)?;
     let statement = program
         .statement_table
         .statement_at(state, statement_index)?;
-    let expression = match statement {
-        StatementNode::LocalData(local) => local.initial_value,
-        StatementNode::Assignment(assignment) => assignment.value,
+    let (expression, path) = match statement {
+        StatementNode::LocalData(local) => (local.initial_value, event_path),
+        StatementNode::Assignment(assignment) => {
+            let destination = validation::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                assignment.target,
+            )?;
+            if destination.root != event.root {
+                return None;
+            }
+            (
+                assignment.value,
+                event_path.strip_prefix(destination.segments.as_slice())?,
+            )
+        }
         _ => return None,
     };
     expression
         .is_valid()
-        .then_some((statement_index, expression))
+        .then_some((statement_index, expression, path))
 }
 
 pub(crate) fn call_result_origin_rewrites(
@@ -1035,7 +1059,9 @@ pub(crate) fn call_result_origin_rewrites(
         {
             continue;
         }
-        let Some((statement_index, result_expression)) = receiving_value(program, event) else {
+        let Some((statement_index, result_expression, receiving_path)) =
+            receiving_value(program, segments, event)
+        else {
             continue;
         };
         let locally_minted =
@@ -1062,7 +1088,6 @@ pub(crate) fn call_result_origin_rewrites(
         else {
             continue;
         };
-        let receiving_path = segments.span_or_empty(event.segments);
         let matching = map
             .entries
             .iter()

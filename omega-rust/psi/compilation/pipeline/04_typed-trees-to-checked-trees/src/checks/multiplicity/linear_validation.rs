@@ -320,8 +320,8 @@ fn append_unresolved_state_result_mapping_diagnostics(
         {
             continue;
         }
-        let Some((statement_index, result_expression)) =
-            super::claim_outcomes::receiving_value(program, event)
+        let Some((statement_index, result_expression, result_path)) =
+            super::claim_outcomes::receiving_value(program, &ownership.segments, event)
         else {
             continue;
         };
@@ -359,7 +359,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
             .filter(|(_, map)| map.state_symbol == target_state.symbol)
             .flat_map(|(_, map)| ownership.claim_outcome_entries.span_or_empty(map.entries))
             .any(|entry| {
-                ownership.segments.span_or_empty(entry.output_segments) == receiving_path
+                ownership.segments.span_or_empty(entry.output_segments) == result_path
                     && matches!(
                         entry.source,
                         FlowClaimOutcomeSource::Established {

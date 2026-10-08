@@ -1,0 +1,37 @@
+// COMPILE-ONLY, and named without `_exit`: a qualified linear structural
+// result checks through the claim paths that unqualified results execute
+// natively. `pass` returns its qualified input, so the caller's result
+// continues that input's claim; `issue`'s fresh claim continues into a
+// record field when the result initializes it and again when it reseats the
+// vacated field by assignment. Omega stages 02/03 admit result
+// qualifications only on byte carriers, so this program has no native build
+// yet; the unqualified shapes are `linear_call_result_claims_exit` and
+// `linear_call_result_place_assignment_exit`.
+data Receipt [linear] { code: i32; }
+
+domain Receipt::Issued;
+
+boundary requirement Receipt::ack(receipt: Receipt in Issued);
+
+data Slot { receipt: Receipt in Issued; }
+
+machine pass(receipt: Receipt in Issued) -> Receipt in Issued {
+    receipt
+}
+
+machine issue(code: i32) -> Receipt in Issued {
+    let issued: Receipt in Issued = Receipt { code: code };
+    issued
+}
+
+machine main() {
+    let fresh: Receipt in Issued = Receipt { code: 6 };
+    let passed: Receipt in Issued = pass(fresh);
+    Receipt::ack(passed);
+    let mut slot: Slot = Slot { receipt: issue(1) };
+    let vacated: Receipt in Issued = slot.receipt;
+    Receipt::ack(vacated);
+    slot.receipt = issue(2);
+    let refilled: Receipt in Issued = slot.receipt;
+    Receipt::ack(refilled);
+}

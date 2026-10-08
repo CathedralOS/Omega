@@ -1158,6 +1158,7 @@ pub fn structural_call_custody(
             *target_state,
             structural_arguments,
             &transfers,
+            &facts.flow.ownership.segments,
         )?;
         // A bare `&'a V` shared-view result is itself counted a reference
         // record for custody, but it is no construction — its loan is the
@@ -1283,6 +1284,7 @@ pub fn structural_call_custody(
         *target_state,
         structural_arguments,
         &transfers,
+        &facts.flow.ownership.segments,
     )?;
     let received = received_result_claims(
         program,
@@ -1329,9 +1331,10 @@ pub fn structural_call_custody(
     })
 }
 
-/// Join each linear claim this call consumes to the owned whole argument
-/// whose place holds it. The roster follows the caller's transfer events, so
-/// every event lands on exactly one argument; projected and borrowed
+/// Join each linear claim this call consumes to the owned argument whose
+/// place holds it: a named owner, a projection of one, or an anonymous owner
+/// its producer completed at this statement. The roster follows the caller's
+/// transfer events, so every event lands on exactly one argument; borrowed
 /// arguments transfer nothing.
 #[allow(clippy::too_many_arguments)]
 fn owned_argument_claim_transfers(
@@ -1343,6 +1346,7 @@ fn owned_argument_claim_transfers(
     target_state: SymbolHandle,
     structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[&checked_trees::FlowPermissionEventFact],
+    segments: &arena::Arena<facts::PlaceSegment>,
 ) -> Result<Vec<CheckedUnitClaimTransferPlan>, &'static str> {
     let mut claim_transfers = Vec::with_capacity(transfers.len());
     if transfers.is_empty() {
@@ -1359,12 +1363,9 @@ fn owned_argument_claim_transfers(
     )?;
     let mut accounted = vec![false; transfers.len()];
     for (parameter_position, authored_argument) in authored_arguments.iter().enumerate() {
-        let ExpressionNode::Name(path) = program.expression_table.expression(*authored_argument)
-        else {
-            continue;
-        };
-        if crate::expression_traversal::single_segment_name_symbol(program, *authored_argument)
-            .is_none()
+        if program
+            .primitive_type_reference(parameters[parameter_position].type_reference)
+            .is_some()
         {
             continue;
         }
@@ -1379,11 +1380,22 @@ fn owned_argument_claim_transfers(
         let Some(argument) = structural_arguments.get(argument_position) else {
             return Err("structural claim transfer names an absent argument");
         };
-        if argument.access != CheckedStructuralAccess::Owned || !argument.path.is_empty() {
+        if argument.access != CheckedStructuralAccess::Owned {
             continue;
         }
+        let Some(place) = crate::canonical_place_from_expression_in_state(
+            program,
+            source_state.symbol,
+            call.statement_index,
+            *authored_argument,
+        ) else {
+            continue;
+        };
         for (event_index, event) in transfers.iter().enumerate() {
-            if event.root != facts::PlaceRoot::Symbol(path.symbol)
+            if event.root != place.root
+                || !segments
+                    .span_or_empty(event.segments)
+                    .starts_with(place.segments.as_slice())
                 || event.claim_identity == PermissionClaimIdentity::Unknown
                 || accounted[event_index]
             {
@@ -1404,10 +1416,10 @@ fn owned_argument_claim_transfers(
 }
 
 /// The caller's establishments that receive this call's result: a local
-/// initialized by the call, or the call expression itself when it is an
-/// anonymous operand. An empty roster means no caller place receives the
-/// value (a terminal call returned at once); an assignment destination would
-/// need its own projected prefix and is not admitted here.
+/// initialized by the call, an assigned place (whose establishments are
+/// rebased beneath its projection), or the call expression itself when it is
+/// an anonymous operand. An empty roster means no caller place receives the
+/// value (a terminal call returned at once).
 fn received_result_claims<'facts>(
     program: &dyn crate::CheckingInput,
     facts: &'facts CheckFacts,

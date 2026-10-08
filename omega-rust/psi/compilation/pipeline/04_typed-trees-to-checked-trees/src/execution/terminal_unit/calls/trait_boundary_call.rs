@@ -525,6 +525,7 @@ pub(super) fn build(
         }
         semantic_vocabulary::BoundaryCompletion::NormalReturn => {
             checked_trees::CheckedUnitCallTransfers::CompletionReceipts(call_claim_transfers(
+                program,
                 facts,
                 machine.symbol,
                 state.symbol,
