@@ -50,9 +50,7 @@ fn exact_integer_primitive(
     else {
         return None;
     };
-    let primitive = PrimitiveType::from_builtin_atom(
-        program.symbols.builtin_type_atom(*symbol)?,
-    )?;
+    let primitive = PrimitiveType::from_builtin_atom(program.symbols.builtin_type_atom(*symbol)?)?;
     if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
         return None;
     }
@@ -496,14 +494,7 @@ fn bounds(
             unsigned_bitwise_bounds(program, binary.operator, left, right)
         }
         ExpressionNode::Binary(binary) => {
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                _ => return None,
-            };
+            let spelling = typed_trees::operator::arithmetic_operator_spelling(binary.operator)?;
             let (left, right) =
                 binary_operand_bounds(program, machine, state, binary, declared_mutable_leaves)?;
             // A wholly anonymous tree was handled by the closed query above.

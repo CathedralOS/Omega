@@ -101,6 +101,19 @@ pub fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpel
     })
 }
 
+/// The authored [`OperatorSpelling`] of an arithmetic operator — the five
+/// operators `+`, `-`, `*`, `/`, `%`. Every other operator maps to `None`.
+pub fn arithmetic_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+    Some(match operator {
+        BinaryOperator::Add => OperatorSpelling::Add,
+        BinaryOperator::Subtract => OperatorSpelling::Subtract,
+        BinaryOperator::Multiply => OperatorSpelling::Multiply,
+        BinaryOperator::Divide => OperatorSpelling::Divide,
+        BinaryOperator::Modulo => OperatorSpelling::Modulo,
+        _ => return None,
+    })
+}
+
 /// The authored [`OperatorSpelling`] of a comparison operator — the equality
 /// and ordering tests. Every other operator maps to `None`.
 pub fn comparison_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {

@@ -21,23 +21,9 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 /// Identity conversions and the distinct address carrier are not widenings.
 pub fn integer_widen_is_total(source: PrimitiveType, target: PrimitiveType) -> bool {
     fn shape(primitive: PrimitiveType) -> Option<(bool, u8)> {
-        Some(match primitive {
-            PrimitiveType::I8 => (true, 8),
-            PrimitiveType::I16 => (true, 16),
-            PrimitiveType::I32 => (true, 32),
-            PrimitiveType::I64 => (true, 64),
-            PrimitiveType::U8 => (false, 8),
-            PrimitiveType::U16 => (false, 16),
-            PrimitiveType::U32 => (false, 32),
-            PrimitiveType::U64 => (false, 64),
-            PrimitiveType::Addr
-            | PrimitiveType::Selector
-            | PrimitiveType::Bool
-            | PrimitiveType::F32
-            | PrimitiveType::F64 => {
-                return None;
-            }
-        })
+        primitive
+            .integer_sign_bits()
+            .map(|(sign, bits)| (sign == semantic_vocabulary::IntegerSign::Signed, bits as u8))
     }
     let Some((source_signed, source_bits)) = shape(source) else {
         return false;

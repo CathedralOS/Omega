@@ -746,14 +746,7 @@ fn operand_type_at_depth(
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::Binary(binary) => {
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                _ => return None,
-            };
+            let spelling = typed_trees::operator::arithmetic_operator_spelling(binary.operator)?;
             let operands = [binary.left, binary.right];
             let types = operands
                 .map(|operand| operand_type_at_depth(program, machine, state, operand, depth + 1));
@@ -940,13 +933,9 @@ fn builtin_arithmetic_node(
     {
         return true;
     }
-    let spelling = match binary.operator {
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        _ => return false,
+    let Some(spelling) = typed_trees::operator::arithmetic_operator_spelling(binary.operator)
+    else {
+        return false;
     };
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
