@@ -142,15 +142,6 @@ pub(crate) fn lower_mixed_cases(
         .collect()
 }
 
-/// The single declaration carrying `identity`, or an error describing the
-/// caller's carrier when it is absent or declared twice.
-pub(crate) fn declaration<'a>(
-    types: &'a [StructuralTypeDeclaration],
-    identity: StructuralTypeId,
-) -> Option<&'a StructuralTypeDeclaration> {
-    types.iter().find(|declaration| declaration.id == identity)
-}
-
 pub(crate) fn unique_declaration<'a>(
     types: &'a [StructuralTypeDeclaration],
     identity: StructuralTypeId,

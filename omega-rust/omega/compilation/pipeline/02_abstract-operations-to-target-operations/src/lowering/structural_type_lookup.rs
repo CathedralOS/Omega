@@ -71,9 +71,7 @@ impl<'a> StructuralTypeLookup<'a> {
                     StructuralPathSegment::Field(identity),
                     StructuralTypeShape::Record { fields, .. },
                 ) => {
-                    let field = fields.iter().find(|field| {
-                        field.identity == *identity && !field.relevance.is_erased()
-                    })?;
+                    let field = terminal_psi::live_field_by_identity(fields, identity)?;
                     match &field.field_type {
                         StructuralFieldType::Structural(child) => *child,
                         leaf => {

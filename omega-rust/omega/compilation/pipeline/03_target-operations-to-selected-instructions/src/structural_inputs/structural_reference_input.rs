@@ -1756,12 +1756,8 @@ fn project_inner<'a>(
                 let Projection::FieldName(identity) = path.next()? else {
                     return None;
                 };
-                let (field_position, field) = cases[case_position]
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, field)| field.identity == identity)?;
+                let (field_position, field) =
+                    terminal_psi::live_field_entry(&cases[case_position].fields, identity)?;
                 let StructuralFieldType::Structural(selected) = field.field_type else {
                     return None;
                 };
@@ -1813,11 +1809,7 @@ fn project_inner<'a>(
                 carrier = element;
             }
             (Projection::FieldName(name), StructuralTypeShape::Mixed { fields, .. }) => {
-                let (position, field) = fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, field)| field.identity == name)?;
+                let (position, field) = terminal_psi::live_field_entry(fields, name)?;
                 let nested = match &field.field_type {
                     StructuralFieldType::Structural(nested) => *nested,
                     leaf => {

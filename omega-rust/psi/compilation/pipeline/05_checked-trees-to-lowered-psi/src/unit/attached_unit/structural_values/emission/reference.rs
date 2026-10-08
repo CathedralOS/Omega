@@ -31,13 +31,10 @@ impl Emission<'_, '_, '_> {
             .with_structural_observations(self.structural_types)
             .with_primitive_storage(&self.evaluation.primitive_storage);
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
-        let referent = crate::structural_types::declaration(
-            &self.structural_types[..],
-            referent_type,
-        )
-            .ok_or(LoweringError::Unsupported(
-                "reference referent type is missing",
-            ))?;
+        let referent =
+            terminal_psi::find_structural_type(&self.structural_types[..], referent_type).ok_or(
+                LoweringError::Unsupported("reference referent type is missing"),
+            )?;
         // Direct primitive storage needs its original mutable home. Existing
         // structural projections, parameters and immutable homes retain their
         // established join, including shared root qualification custody.
@@ -68,13 +65,11 @@ impl Emission<'_, '_, '_> {
                 self.direct_borrow(argument)
             };
         }
-        let declaration = crate::structural_types::declaration(
-            &self.structural_types[..],
-            self.structural_type,
-        )
-            .ok_or(LoweringError::Unsupported(
-                "reference value type is missing",
-            ))?;
+        let declaration =
+            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "reference value type is missing",
+                ))?;
         if let StructuralTypeShape::Reference { .. } = &declaration.shape {
             let carrier = super::super::super::reference_results::emit_carrier(
                 self.structural_type,

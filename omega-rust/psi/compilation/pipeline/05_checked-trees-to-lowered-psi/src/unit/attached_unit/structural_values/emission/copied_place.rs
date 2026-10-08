@@ -122,10 +122,7 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "indexed copy has no established root type",
             ))?;
-        let declaration = crate::structural_types::declaration(
-            &self.structural_types[..],
-            root_type,
-        )
+        let declaration = terminal_psi::find_structural_type(&self.structural_types[..], root_type)
             .ok_or(LoweringError::Unsupported(
                 "indexed copy root type is absent from the catalog",
             ))?;

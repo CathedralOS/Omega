@@ -138,7 +138,7 @@ impl Emission<'_, '_, '_> {
                         &self.evaluation.structural_locals,
                         facts::PlaceRoot::Symbol(*symbol),
                     )
-                        .map(|local| &local.argument)
+                    .map(|local| &local.argument)
                     {
                         // A root that is itself a projected alias contributes
                         // its own path: the composed walk names the leaf under

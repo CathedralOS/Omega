@@ -483,6 +483,20 @@ pub fn live_field_by_id<'fields>(
         .find(|field| field.id == id && !field.relevance.is_erased())
 }
 
+/// The live-field position and declaration `identity` names on a field
+/// roster — absent when no live field carries it. Position counts live
+/// fields only, so callers can index a parallel live-only layout roster.
+pub fn live_field_entry<'fields>(
+    fields: &'fields [StructuralFieldDeclaration],
+    identity: &str,
+) -> Option<(usize, &'fields StructuralFieldDeclaration)> {
+    fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .enumerate()
+        .find(|(_, field)| field.identity == identity)
+}
+
 /// The structural case declaration keyed `id` in a case roster.
 pub fn find_structural_case<'cases>(
     cases: &'cases [StructuralCaseDeclaration],

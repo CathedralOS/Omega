@@ -1064,13 +1064,9 @@ fn storage_projection_path(
                 let Some(StructuralPathSegment::Field(identity)) = segments.next() else {
                     return Err(invalid());
                 };
-                let (field_position, field) = cases[case_position]
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, field)| field.identity == *identity)
-                    .ok_or_else(invalid)?;
+                let (field_position, field) =
+                    terminal_psi::live_field_entry(&cases[case_position].fields, identity)
+                        .ok_or_else(invalid)?;
                 let StructuralFieldType::Structural(selected) = field.field_type else {
                     return Err(invalid());
                 };

@@ -602,7 +602,7 @@ impl<'a> Replay<'a> {
                 access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) && !matches!(
-                self.types.iter().find(|ty| ty.id == structural_type)?.shape,
+                find_structural_type(self.types, structural_type)?.shape,
                 StructuralTypeShape::Reference {
                     access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
                     ..

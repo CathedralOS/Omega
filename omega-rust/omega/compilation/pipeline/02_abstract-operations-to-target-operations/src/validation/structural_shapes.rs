@@ -113,13 +113,9 @@ pub(super) fn project_static_path(
             let Some(StructuralPathSegment::Field(identity)) = segments.next() else {
                 return Err(InvalidStructuralShape);
             };
-            let (field_position, field) = cases[case_position]
-                .fields
-                .iter()
-                .filter(|field| !field.relevance.is_erased())
-                .enumerate()
-                .find(|(_, field)| field.identity == *identity)
-                .ok_or(InvalidStructuralShape)?;
+            let (field_position, field) =
+                terminal_psi::live_field_entry(&cases[case_position].fields, identity)
+                    .ok_or(InvalidStructuralShape)?;
             let StructuralFieldType::Structural(selected) = field.field_type else {
                 return Err(InvalidStructuralShape);
             };

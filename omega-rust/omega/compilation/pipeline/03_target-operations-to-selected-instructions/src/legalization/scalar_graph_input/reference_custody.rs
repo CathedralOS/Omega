@@ -533,12 +533,7 @@ fn leaf_type(
             Some(fields) => fields,
             None => declaration.shape.direct_fields()?,
         };
-        let field = selected_fields
-            .iter()
-            .find(|field| &field.identity == identity)?;
-        if field.relevance.is_erased() {
-            return None;
-        }
+        let field = terminal_psi::live_field_by_identity(selected_fields, identity)?;
         current = match &field.field_type {
             StructuralFieldType::Structural(child) => *child,
             leaf => {

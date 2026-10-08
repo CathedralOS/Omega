@@ -136,9 +136,7 @@ fn resolve_copyable_path(
                 StructuralPathSegment::Field(identity),
                 StructuralTypeShape::Record { fields, .. },
             ) => {
-                let field = fields.iter().find(|candidate| {
-                    candidate.identity == *identity && !candidate.relevance.is_erased()
-                })?;
+                let field = terminal_psi::live_field_by_identity(fields, identity)?;
                 match &field.field_type {
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {
@@ -191,8 +189,7 @@ fn byte_carrier_leaf_copy(
     let Some(parent) = resolve_copyable_path(structural_types, root, prefix) else {
         return false;
     };
-    let Some(declaration) = terminal_psi::find_structural_type(structural_types, parent)
-    else {
+    let Some(declaration) = terminal_psi::find_structural_type(structural_types, parent) else {
         return false;
     };
     let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {

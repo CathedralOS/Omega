@@ -443,10 +443,7 @@ fn leaf_type(
             StructuralTypeShape::Mixed { fields, .. } => fields,
             _ => return None,
         };
-        let field = fields.iter().find(|field| &field.identity == identity)?;
-        if field.relevance.is_erased() {
-            return None;
-        }
+        let field = terminal_psi::live_field_by_identity(fields, identity)?;
         current = match &field.field_type {
             StructuralFieldType::Structural(child) => *child,
             leaf => {

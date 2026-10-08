@@ -103,7 +103,8 @@ pub use terminal_module::{
     find_structural_type, float_meaning_equality_proposition_id, identity,
     is_bounded_structural_scalar_store_path, is_static_structural_path,
     is_structural_scalar_store_path, live_field, live_field_by_id, live_field_by_identity,
-    observation, ownership, program_local_root_introduction_compatibility_report_identity, proof,
-    structural_case_position, structural_children, structural_parameter_position,
-    suspension_frontier_commitment, types, unique_structural_declaration, values,
+    live_field_entry, observation, ownership,
+    program_local_root_introduction_compatibility_report_identity, proof, structural_case_position,
+    structural_children, structural_parameter_position, suspension_frontier_commitment, types,
+    unique_structural_declaration, values,
 };

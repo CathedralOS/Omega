@@ -113,7 +113,7 @@ pub fn return_origins(
         return None;
     }
     let graph = terminal_graph(module);
-    let row = graph.iter().find(|row| row.id == machine.id)?;
+    let row = descriptor_machine(&graph, machine.id)?;
     let mut origins = Vec::new();
     for (position, location) in row
         .returns
@@ -142,7 +142,7 @@ pub fn reconstruct_return_slots_external(
     position: DescriptorPosition,
     source: PlaceId,
 ) -> bool {
-    let Some(machine) = machines.iter().find(|machine| machine.id == identity) else {
+    let Some(machine) = descriptor_machine(machines, identity) else {
         return false;
     };
     if !machine.returns.as_ref().is_some_and(|returns| {
@@ -166,7 +166,7 @@ pub fn return_slots_have_external_backing(
     source: PlaceId,
 ) -> bool {
     let graph = terminal_graph(module);
-    let Some(row) = graph.iter().find(|row| row.id == machine.id) else {
+    let Some(row) = descriptor_machine(&graph, machine.id) else {
         return false;
     };
     let Some(returns) = &row.returns else {

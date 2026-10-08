@@ -101,7 +101,11 @@ pub(crate) fn emit(
                 .iter()
                 .rev()
                 .map(|source| {
-                    if let Some(argument) = crate::expression_preparation::bindings::structural_local_by_root(&evaluation.structural_locals, facts::PlaceRoot::Symbol(source.symbol))
+                    if let Some(argument) =
+                        crate::expression_preparation::bindings::structural_local_by_root(
+                            &evaluation.structural_locals,
+                            facts::PlaceRoot::Symbol(source.symbol),
+                        )
                         .map(|local| local.argument.clone())
                     {
                         return Ok(argument);
@@ -1338,11 +1342,11 @@ impl Emission<'_, '_, '_> {
                         &self.evaluation.structural_locals,
                         facts::PlaceRoot::Symbol(*symbol),
                     )
-                        .map(|local| local.argument.place)
-                        .or(self.parameter_source(&argument)?)
-                        .ok_or(LoweringError::Unsupported(
-                            "owned selection local place missing",
-                        ))?,
+                    .map(|local| local.argument.place)
+                    .or(self.parameter_source(&argument)?)
+                    .ok_or(LoweringError::Unsupported(
+                        "owned selection local place missing",
+                    ))?,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                         ..
                     } => self
@@ -1645,13 +1649,11 @@ impl Emission<'_, '_, '_> {
         reads: &[checked_trees::CheckedScalarExpression],
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
-        let shape = crate::structural_types::declaration(
-            &self.structural_types[..],
-            self.structural_type,
-        )
-            .ok_or(LoweringError::Unsupported(
-                "view element copy structural type missing",
-            ))?;
+        let shape =
+            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
+                .ok_or(LoweringError::Unsupported(
+                    "view element copy structural type missing",
+                ))?;
         let Some(fields) = shape.shape.record_fields() else {
             return unsupported("view element copy establishes a nonrecord");
         };

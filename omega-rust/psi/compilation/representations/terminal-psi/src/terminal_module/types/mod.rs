@@ -16,6 +16,6 @@ pub use structural::{
     ByteSequenceCarrier, StructuralCaseDeclaration, StructuralFieldDeclaration,
     StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape, field_by_identity,
     find_structural_case, find_structural_type, live_field, live_field_by_id,
-    live_field_by_identity, structural_case_position, structural_children,
+    live_field_by_identity, live_field_entry, structural_case_position, structural_children,
     unique_structural_declaration,
 };
