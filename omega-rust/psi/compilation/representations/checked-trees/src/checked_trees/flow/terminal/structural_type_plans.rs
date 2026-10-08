@@ -308,6 +308,20 @@ pub enum CheckedStructuralAccess {
     WriteOnlyBorrow,
 }
 
+impl CheckedStructuralAccess {
+    /// The loan kind a borrowed access grants; `None` for owned carriers, which
+    /// move rather than loan.
+    pub fn borrow_access_kind(self) -> Option<crate::checked_trees::borrow::BorrowAccessKind> {
+        use crate::checked_trees::borrow::BorrowAccessKind;
+        Some(match self {
+            Self::SharedBorrow => BorrowAccessKind::Read,
+            Self::MutableBorrow => BorrowAccessKind::Mutable,
+            Self::WriteOnlyBorrow => BorrowAccessKind::WriteOnly,
+            Self::Owned => return None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralParameterPlan {
     /// Position in the authored state signature. Structural argument lists use

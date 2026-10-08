@@ -405,22 +405,7 @@ pub(crate) fn contains(outer: &IntegerRange, inner: &IntegerRange) -> bool {
 }
 
 pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<IntegerRange> {
-    let (signed, bits) = match primitive {
-        PrimitiveType::I8 => (true, 8),
-        PrimitiveType::I16 => (true, 16),
-        PrimitiveType::I32 => (true, 32),
-        PrimitiveType::I64 => (true, 64),
-        PrimitiveType::U8 => (false, 8),
-        PrimitiveType::U16 => (false, 16),
-        PrimitiveType::U32 => (false, 32),
-        PrimitiveType::U64 => (false, 64),
-        _ => return None,
-    };
-    let (minimum, maximum) = if signed {
-        (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
-    } else {
-        (0, (1i128 << bits) - 1)
-    };
+    let (minimum, maximum) = primitive.integer_bounds()?;
     Some(IntegerRange {
         minimum: BigInt::from_i128(minimum),
         maximum: BigInt::from_i128(maximum),

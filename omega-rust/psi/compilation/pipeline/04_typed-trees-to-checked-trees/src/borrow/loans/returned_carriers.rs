@@ -66,7 +66,7 @@ fn completed_field_sources(
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],
 ) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
-    use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
     use validation::reference_result_custody::{loan_place_segments, returned_reference_sources};
 
     let (machine, state) = validation::find_state_with_machine(program, target)?;
@@ -102,12 +102,7 @@ fn completed_field_sources(
             state.return_type,
             &source.path,
         )?)?;
-        let kind = match source.source.access {
-            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
-            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
-            CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
-            CheckedStructuralAccess::Owned => return None,
-        };
+        let kind = source.source.access.borrow_access_kind()?;
         let (source_path, projection) = if is_reference_type(program, parameter.type_reference) {
             (
                 Vec::new(),

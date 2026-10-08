@@ -1221,22 +1221,7 @@ pub(super) fn carrier_maximum(carrier: symbols::BuiltinTypeAtom) -> Option<Polyn
 /// flow-dependent endpoint formation proof bounds the produced polynomial with
 /// this exact carrier range instead of a signed-window approximation.
 pub(super) fn integer_carrier_bounds(primitive: PrimitiveType) -> Option<(BigInt, BigInt)> {
-    let (signed, bits): (bool, u32) = match primitive {
-        PrimitiveType::I8 => (true, 8),
-        PrimitiveType::I16 => (true, 16),
-        PrimitiveType::I32 => (true, 32),
-        PrimitiveType::I64 => (true, 64),
-        PrimitiveType::U8 => (false, 8),
-        PrimitiveType::U16 => (false, 16),
-        PrimitiveType::U32 => (false, 32),
-        PrimitiveType::U64 => (false, 64),
-        _ => return None,
-    };
-    let (minimum, maximum): (i128, i128) = if signed {
-        (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
-    } else {
-        (0, (1i128 << bits) - 1)
-    };
+    let (minimum, maximum) = primitive.integer_bounds()?;
     Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
 

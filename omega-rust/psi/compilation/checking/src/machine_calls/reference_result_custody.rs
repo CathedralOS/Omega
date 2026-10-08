@@ -1518,12 +1518,7 @@ pub fn local_record_loans(
         // shared `&T` captures a read loan, exclusive carriers capture their
         // mutable or write-only loan -- the same kind derivation
         // `result_loan` applies to shared views.
-        let expected_kind = match source.source.access {
-            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
-            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
-            CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
-            CheckedStructuralAccess::Owned => return None,
-        };
+        let expected_kind = source.source.access.borrow_access_kind()?;
         if matching.next().is_some()
             || loan.statement_index != statement_index as usize
             || loan.kind != expected_kind
@@ -1913,12 +1908,7 @@ fn active_record_loans(
         });
         let handle = matching.next()?;
         let loan = facts.borrow.loans.get(handle);
-        let access = match source.source.access {
-            CheckedStructuralAccess::SharedBorrow => checked_trees::BorrowAccessKind::Read,
-            CheckedStructuralAccess::MutableBorrow => checked_trees::BorrowAccessKind::Mutable,
-            CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
-            CheckedStructuralAccess::Owned => return None,
-        };
+        let access = source.source.access.borrow_access_kind()?;
         if matching.next().is_some()
             || loan.statement_index >= statement_index as usize
             || loan.kind != access
