@@ -111,9 +111,7 @@ fn dispatched_implementations(
                 })
                 .filter_map(|selection| {
                     program
-                        .conformances()
-                        .iter()
-                        .find(|conformance| conformance.symbol == selection.implementation)
+                        .conformance_by_symbol(selection.implementation)
                 })
                 .flat_map(|conformance| {
                     conformance

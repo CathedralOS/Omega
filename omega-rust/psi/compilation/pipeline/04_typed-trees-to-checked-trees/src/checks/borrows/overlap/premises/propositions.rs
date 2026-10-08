@@ -28,9 +28,7 @@ pub(super) fn append_proposition_premises(
     premises: &mut Vec<StatedOrderingPremise>,
 ) {
     let Some(definition) = program
-        .propositions()
-        .iter()
-        .find(|definition| definition.symbol == application.proposition)
+        .proposition_definition_by_symbol(application.proposition)
     else {
         return;
     };

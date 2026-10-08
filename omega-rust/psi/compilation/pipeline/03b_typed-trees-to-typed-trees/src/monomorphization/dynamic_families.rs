@@ -178,9 +178,7 @@ fn collect_selection_demands(
     let mut seen_conformances: Vec<SymbolHandle> = Vec::new();
     for selection in selections {
         let Some(conformance) = program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == selection.implementation)
+            .conformance_by_symbol(selection.implementation)
         else {
             continue;
         };

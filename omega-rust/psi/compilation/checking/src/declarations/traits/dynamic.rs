@@ -135,9 +135,7 @@ fn collect_selections_in(
         }
     };
     let Some(conformance) = program
-        .conformances()
-        .iter()
-        .find(|conformance| conformance.symbol == implementation)
+        .conformance_by_symbol(implementation)
     else {
         return;
     };
@@ -230,9 +228,7 @@ pub fn collect_dynamic_slot_demands(
     };
     for selection in collect_dynamic_implementation_selections(program)? {
         let Some(implementation) = program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == selection.implementation)
+            .conformance_by_symbol(selection.implementation)
         else {
             continue;
         };

@@ -105,9 +105,7 @@ fn normalize_private_callback_demands(
             ));
         }
         let conformance = typed
-            .conformances()
-            .iter()
-            .find(|candidate| candidate.symbol == selected.symbol)
+            .conformance_by_symbol(selected.symbol)
             .ok_or_else(|| {
                 format!(
                     "policy `{policy_name}` selected private layout conformance `{}` whose declaration was not retained",

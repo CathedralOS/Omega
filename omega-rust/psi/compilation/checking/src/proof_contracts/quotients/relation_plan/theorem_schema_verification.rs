@@ -78,9 +78,7 @@ pub(super) fn verify_selected_theorem_schema(
     let mut relation_premises = Vec::with_capacity(expected.relation_premises.len());
     for (position, premise) in expected.relation_premises.iter().enumerate() {
         let Some(relation) = program
-            .propositions()
-            .iter()
-            .find(|candidate| candidate.symbol == premise.relation.relation_symbol)
+            .proposition_definition_by_symbol(premise.relation.relation_symbol)
         else {
             return Err(RelationPlanError::TheoremSchemaRelationPremiseMismatch(
                 position,

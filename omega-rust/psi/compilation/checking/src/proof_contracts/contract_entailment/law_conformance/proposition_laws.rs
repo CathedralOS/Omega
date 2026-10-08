@@ -154,9 +154,7 @@ pub(crate) fn synthesize_indexed_law_binder_labels(
     entry_state: &typed_trees::state::State,
 ) -> Option<Vec<String>> {
     let declaration = program
-        .propositions()
-        .iter()
-        .find(|declaration| declaration.symbol == instantiated_law.proposition)?;
+        .proposition_definition_by_symbol(instantiated_law.proposition)?;
     let binder_count = program.proposition_binders(declaration).len();
     if binder_count == 0 {
         return Some(Vec::new());

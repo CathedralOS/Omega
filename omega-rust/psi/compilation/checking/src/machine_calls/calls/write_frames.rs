@@ -195,9 +195,7 @@ fn known_call_written_paths_for_parts_with_origins(
         return None;
     }
     if let Some(operator) = program
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == target_symbol)
+        .operator_definition_by_symbol(target_symbol)
     {
         // The resolved requirement, not its namespace spelling or selected
         // provider, owns the caller-storage ceiling. Use the same ownership

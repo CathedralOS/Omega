@@ -234,9 +234,7 @@ pub fn select_named_evidence_implementation<'program>(
     symbols::SymbolHandle,
 )> {
     let conformance = program
-        .conformances()
-        .iter()
-        .find(|candidate| candidate.symbol == conformance_symbol)?;
+        .conformance_by_symbol(conformance_symbol)?;
     if conformance.alias.as_ref()?.as_str() != source_name {
         return None;
     }

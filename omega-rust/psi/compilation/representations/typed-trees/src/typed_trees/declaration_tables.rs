@@ -290,6 +290,16 @@ impl TypedTrees {
             .span_or_empty(self.roots.propositions)
     }
 
+    /// The proposition definition `symbol` declares, if any.
+    pub fn proposition_definition_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&proposition::PropositionDefinition> {
+        self.propositions()
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+    }
+
     pub fn proposition_binders(
         &self,
         proposition: &proposition::PropositionDefinition,
@@ -415,6 +425,16 @@ impl TypedTrees {
 
     pub fn operators(&self) -> &[crate::operator::OperatorDefinition] {
         self.tables.operators.span_or_empty(self.roots.operators)
+    }
+
+    /// The operator definition `symbol` declares, if any.
+    pub fn operator_definition_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::operator::OperatorDefinition> {
+        self.operators()
+            .iter()
+            .find(|definition| definition.symbol == symbol)
     }
 
     /// Append one token-bearing machine's operator-signature view. The view

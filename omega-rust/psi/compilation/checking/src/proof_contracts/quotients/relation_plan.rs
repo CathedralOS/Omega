@@ -1014,9 +1014,7 @@ fn exact_quotient_relation(
         return ExactRelationLookup::NotQuotient;
     };
     let Some(relation) = program
-        .propositions()
-        .iter()
-        .find(|relation| relation.symbol == metadata.relation_symbol)
+        .proposition_definition_by_symbol(metadata.relation_symbol)
     else {
         return ExactRelationLookup::OpenApplication;
     };
@@ -1368,9 +1366,7 @@ fn machine_state_label(
 
 fn relation_name(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> String {
     program
-        .propositions()
-        .iter()
-        .find(|proposition| proposition.symbol == symbol)
+        .proposition_definition_by_symbol(symbol)
         .map(|proposition| proposition.name.as_str().to_owned())
         .unwrap_or_else(|| format!("relation#{symbol:?}"))
 }

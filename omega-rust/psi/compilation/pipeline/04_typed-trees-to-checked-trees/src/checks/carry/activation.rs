@@ -406,9 +406,7 @@ fn find_operator(
     target: SymbolHandle,
 ) -> Option<&typed_trees::operator::OperatorDefinition> {
     program
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == target)
+        .operator_definition_by_symbol(target)
         .or_else(|| {
             program.domain_definitions().iter().find_map(|domain| {
                 program

@@ -235,9 +235,7 @@ fn transparent_proposition_cycle(
         return true;
     }
     let Some(proposition) = program
-        .propositions()
-        .iter()
-        .find(|proposition| proposition.symbol == symbol)
+        .proposition_definition_by_symbol(symbol)
     else {
         return false;
     };
@@ -343,9 +341,7 @@ pub(crate) fn validate_proof_facts(
             }
             ProofFact::Proposition(application) => {
                 let declaration = program
-                    .propositions()
-                    .iter()
-                    .find(|proposition| proposition.symbol == application.proposition);
+                    .proposition_definition_by_symbol(application.proposition);
                 let parameter_signature = program
                     .data_type_parameters
                     .iter()

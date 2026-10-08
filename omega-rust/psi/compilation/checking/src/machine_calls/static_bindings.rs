@@ -259,9 +259,7 @@ fn validate_conformance_bindings(
             continue;
         };
         let Some(selected) = program
-            .conformances()
-            .iter()
-            .find(|selected| selected.symbol == argument.symbol)
+            .conformance_by_symbol(argument.symbol)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` binds `{}` to a symbol that is not a named conformance",

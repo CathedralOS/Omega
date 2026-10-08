@@ -307,9 +307,7 @@ pub(super) fn unresolved_implementation_call(
 ) -> String {
     let name = program.symbols.name(implementation);
     let rows = program
-        .conformances()
-        .iter()
-        .find(|conformance| conformance.symbol == implementation)
+        .conformance_by_symbol(implementation)
         .map(|conformance| conformance.rows.as_slice())
         .unwrap_or_default()
         .iter()

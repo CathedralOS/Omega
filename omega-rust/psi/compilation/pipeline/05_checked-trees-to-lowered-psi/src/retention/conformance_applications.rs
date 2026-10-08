@@ -59,9 +59,7 @@ fn collect_closed_conformance_applications(
         };
         for application in &specialization.conformance_applications {
             let selected = checked
-                .conformances()
-                .iter()
-                .find(|conformance| conformance.symbol == application.declaration)
+                .conformance_by_symbol(application.declaration)
                 .ok_or(LoweringError::Unsupported(
                     "closed conformance application lost its declaration",
                 ))?;

@@ -174,9 +174,7 @@ impl ExplicitApplication<'_> {
         let application = close_conformance_application(program, self.implementation)
             .map_err(|diagnostic| diagnostic.message)?;
         let Some(conformance) = program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == application.declaration)
+            .conformance_by_symbol(application.declaration)
         else {
             return Err(format!(
                 "`{}` does not name an implementation",

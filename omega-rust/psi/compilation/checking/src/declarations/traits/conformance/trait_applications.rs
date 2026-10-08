@@ -141,9 +141,7 @@ fn validate_proposition_family_arguments(
             && program.symbols.get(*symbol).kind == symbols::SymbolKind::Proposition
         {
             program
-                .propositions()
-                .iter()
-                .find(|proposition| proposition.symbol == *symbol)
+                .proposition_definition_by_symbol(*symbol)
         } else {
             None
         };

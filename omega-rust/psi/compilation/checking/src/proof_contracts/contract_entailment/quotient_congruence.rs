@@ -96,9 +96,7 @@ fn transparent_relation_fact_matches(
     right: ExpressionHandle,
 ) -> bool {
     let Some(relation) = program
-        .propositions()
-        .iter()
-        .find(|relation| relation.symbol == relation_symbol)
+        .proposition_definition_by_symbol(relation_symbol)
     else {
         return false;
     };

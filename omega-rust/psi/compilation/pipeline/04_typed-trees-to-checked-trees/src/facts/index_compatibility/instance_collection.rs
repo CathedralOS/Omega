@@ -203,9 +203,7 @@ pub(super) fn expression_indexed_instances(
                 .named_uses()
                 .find(|operator_use| operator_use.expression == expression)
                 && let Some(operator) = program
-                    .operators()
-                    .iter()
-                    .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
+                    .operator_definition_by_symbol(operator_use.selected_operator_symbol)
             {
                 collect_type_indexed_instances(
                     program,
@@ -219,9 +217,7 @@ pub(super) fn expression_indexed_instances(
         ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Indexed(_) => {
             if let Some(operator_use) = operators.expression_use(expression)
                 && let Some(operator) = program
-                    .operators()
-                    .iter()
-                    .find(|operator| operator.symbol == operator_use.selected_operator_symbol)
+                    .operator_definition_by_symbol(operator_use.selected_operator_symbol)
             {
                 collect_type_indexed_instances(
                     program,

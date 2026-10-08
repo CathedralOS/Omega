@@ -20,9 +20,7 @@ pub(crate) fn evidence_argument_rewrites(
                 typed_trees::name::Identifier::generated(program.symbols.name(binding.symbol))
             } else {
                 let selected = program
-                    .conformances()
-                    .iter()
-                    .find(|conformance| conformance.symbol == binding.symbol)?;
+                    .conformance_by_symbol(binding.symbol)?;
                 selected.alias.clone().unwrap_or_else(|| {
                     typed_trees::name::Identifier::generated("<unnamed-conformance>")
                 })
@@ -89,9 +87,7 @@ pub(crate) fn evidence_requirement_rewrites(
             continue;
         };
         let Some(selected) = program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == binding.symbol)
+            .conformance_by_symbol(binding.symbol)
         else {
             continue;
         };

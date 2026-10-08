@@ -213,6 +213,16 @@ impl TypedTrees {
             .span_or_empty(self.roots.conformances)
     }
 
+    /// The conformance `symbol` declares, if any.
+    pub fn conformance_by_symbol(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&trait_definition::Conformance> {
+        self.conformances()
+            .iter()
+            .find(|conformance| conformance.symbol == symbol)
+    }
+
     pub fn conformance_type_parameters(
         &self,
         conformance: &trait_definition::Conformance,

@@ -102,9 +102,7 @@ pub fn transparent_proposition_application_entailed(
         }
 
         let declaration = program
-            .propositions()
-            .iter()
-            .find(|candidate| candidate.symbol == application.proposition)?;
+            .proposition_definition_by_symbol(application.proposition)?;
         let typed_trees::proposition::PropositionBody::Transparent {
             proposition: typed_trees::proposition::PropositionFormula::BooleanExpression(formula),
         } = declaration.body

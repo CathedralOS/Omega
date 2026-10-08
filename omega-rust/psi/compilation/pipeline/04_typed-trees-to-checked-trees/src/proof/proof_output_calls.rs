@@ -662,9 +662,7 @@ fn checked_static_requirement_dispatch<'program>(
         return Err(rejected("its public requirement is absent or ambiguous"));
     };
     let Some(selected) = program
-        .conformances()
-        .iter()
-        .find(|conformance| conformance.symbol == application.declaration)
+        .conformance_by_symbol(application.declaration)
     else {
         return Err(rejected("its selected conformance declaration is absent"));
     };

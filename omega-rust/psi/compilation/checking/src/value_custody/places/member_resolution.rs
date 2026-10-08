@@ -294,9 +294,7 @@ fn container_member_type_position(
         }
         symbols::SymbolKind::Operator => {
             let Some(operator) = program
-                .operators()
-                .iter()
-                .find(|operator| operator.symbol == parent)
+                .operator_definition_by_symbol(parent)
             else {
                 return ContainerOutcome::Unmapped;
             };

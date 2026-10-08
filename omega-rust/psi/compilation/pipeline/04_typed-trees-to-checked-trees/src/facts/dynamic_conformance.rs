@@ -7,9 +7,7 @@ pub(crate) fn build_dynamic_conformance_facts(
     let mut diagnostics = Vec::new();
     for selection in validation::collect_dynamic_implementation_selections(program)? {
         let Some(implementation) = program
-            .conformances()
-            .iter()
-            .find(|conformance| conformance.symbol == selection.implementation)
+            .conformance_by_symbol(selection.implementation)
         else {
             diagnostics.push(diagnostics::Diagnostic::error(
                 "dynamic selection names no exact implementation",

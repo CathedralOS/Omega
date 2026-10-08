@@ -260,9 +260,7 @@ fn checked_evidence_producer(
 
     let expected_interface = output.evidence_interface.as_ref()?;
     let conformance = program
-        .conformances()
-        .iter()
-        .find(|candidate| candidate.symbol == conformance_symbol)?;
+        .conformance_by_symbol(conformance_symbol)?;
     if conformance.alias.as_ref()?.as_str() != source_name {
         return None;
     }

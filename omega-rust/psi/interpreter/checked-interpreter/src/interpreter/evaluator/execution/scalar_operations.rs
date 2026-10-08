@@ -48,9 +48,7 @@ impl<'program> Evaluator<'program> {
             .find(|operator_use| operator_use.expression == expression)?;
         let operator = self
             .program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == operator_use.selected_operator_symbol)?;
+            .operator_definition_by_symbol(operator_use.selected_operator_symbol)?;
         let members = self.program.operator_path_members(operator.name);
         match members.first()?.as_str() {
             "F32" | "F64" => members.last().map(|member| member.as_str()),

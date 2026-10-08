@@ -110,9 +110,7 @@ fn substituted_projection_requests(
     application: &typed_trees::proposition::PropositionApplication,
 ) -> Vec<(ExpressionHandle, ExpressionHandle)> {
     let Some(declaration) = program
-        .propositions()
-        .iter()
-        .find(|candidate| candidate.symbol == application.proposition)
+        .proposition_definition_by_symbol(application.proposition)
     else {
         return Vec::new();
     };

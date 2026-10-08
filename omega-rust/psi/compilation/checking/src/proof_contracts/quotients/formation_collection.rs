@@ -71,9 +71,7 @@ pub(crate) fn collect_validated_quotient_formations(
         }
 
         let Some(relation) = program
-            .propositions()
-            .iter()
-            .find(|relation| relation.symbol == quotient.relation_symbol)
+            .proposition_definition_by_symbol(quotient.relation_symbol)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` relation `{relation_name}` must resolve to one exact proposition family",

@@ -254,9 +254,7 @@ fn outcome_evidence_interface_scope(
 ) -> Option<checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
     let interface = proposition.evidence_interface.clone()?;
     let definition = program
-        .propositions()
-        .iter()
-        .find(|definition| definition.symbol == proposition.declaration)?;
+        .proposition_definition_by_symbol(proposition.declaration)?;
     let typed_trees::proposition::PropositionBody::Witness { evidence } = definition.body else {
         return None;
     };

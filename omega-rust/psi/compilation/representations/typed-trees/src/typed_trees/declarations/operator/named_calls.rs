@@ -19,9 +19,7 @@ pub fn resolve_named_call<'program>(
 ) -> Option<&'program OperatorDefinition> {
     if target_symbol.is_valid() {
         return program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == target_symbol);
+            .operator_definition_by_symbol(target_symbol);
     }
 
     let mut candidates = program.operators().iter().filter(|operator| {
@@ -40,9 +38,7 @@ pub fn resolve_named_expression_call<'program>(
 ) -> Option<&'program OperatorDefinition> {
     if call.target_symbol.is_valid() {
         return program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == call.target_symbol);
+            .operator_definition_by_symbol(call.target_symbol);
     }
     let candidates = named_expression_call_candidates(program, call);
     let [selected] = candidates.as_slice() else {

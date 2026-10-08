@@ -95,9 +95,7 @@ pub fn close_conformance_application(
     selected: &StaticMachineArgument,
 ) -> Result<ClosedConformanceApplication, Diagnostic> {
     let Some(conformance) = program
-        .conformances()
-        .iter()
-        .find(|candidate| candidate.symbol == selected.symbol)
+        .conformance_by_symbol(selected.symbol)
     else {
         return Err(Diagnostic::error(format!(
             "static argument `{}` does not name a package-scoped conformance",

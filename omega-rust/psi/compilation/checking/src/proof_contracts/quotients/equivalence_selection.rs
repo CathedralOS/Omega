@@ -85,9 +85,7 @@ pub(crate) fn validate_equivalence_selection(
     }
 
     let Some(conformance) = program
-        .conformances()
-        .iter()
-        .find(|candidate| candidate.symbol == selection.conformance_symbol)
+        .conformance_by_symbol(selection.conformance_symbol)
     else {
         diagnostics.push(Diagnostic::error(format!(
             "quotient data `{}` names unresolved equivalence conformance `{}`",
@@ -332,9 +330,7 @@ pub(crate) fn exact_relation_application_matches(
     right_type: TypeReferenceHandle,
 ) -> bool {
     let Some(relation) = program
-        .propositions()
-        .iter()
-        .find(|relation| relation.symbol == relation_symbol)
+        .proposition_definition_by_symbol(relation_symbol)
     else {
         return false;
     };

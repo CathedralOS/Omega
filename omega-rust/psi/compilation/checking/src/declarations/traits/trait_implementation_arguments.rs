@@ -186,9 +186,7 @@ fn validate_binding(
     }
     if let Some(refinement) = carrier.refinement {
         let implementation = program
-            .conformances()
-            .iter()
-            .find(|implementation| implementation.symbol == application.declaration)
+            .conformance_by_symbol(application.declaration)
             .ok_or_else(|| "closed implementation has no declaration".to_owned())?;
         let diagnostics = super::refinement_fit::refinement_fit_diagnostics(
             program,

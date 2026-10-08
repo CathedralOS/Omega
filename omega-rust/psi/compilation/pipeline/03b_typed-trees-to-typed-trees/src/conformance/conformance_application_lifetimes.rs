@@ -108,9 +108,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             }
             let Some(conformance) = program
-                .conformances()
-                .iter()
-                .find(|conformance| conformance.symbol == selected.symbol)
+                .conformance_by_symbol(selected.symbol)
             else {
                 continue;
             };

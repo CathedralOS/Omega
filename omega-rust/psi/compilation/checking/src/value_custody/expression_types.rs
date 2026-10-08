@@ -669,9 +669,7 @@ fn hinted_named_value_type_reference(
         }
         // Proposition parameters: the binder's parent is the proposition.
         symbols::SymbolKind::Proposition => program
-            .propositions()
-            .iter()
-            .find(|proposition| proposition.symbol == parent)
+            .proposition_definition_by_symbol(parent)
             .and_then(|proposition| {
                 program
                     .proposition_parameters(proposition)

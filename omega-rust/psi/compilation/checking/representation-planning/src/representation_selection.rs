@@ -186,9 +186,7 @@ fn close_selection(
         conformance_argument,
     )?;
     let conformance = typed
-        .conformances()
-        .iter()
-        .find(|candidate| candidate.symbol == application.declaration)
+        .conformance_by_symbol(application.declaration)
         .ok_or_else(|| Diagnostic::error("selected opaque conformance disappeared"))?;
     // The conformance and its application may carry distinct symbol instances
     // of the same toolchain trait declaration: a source imported on both the

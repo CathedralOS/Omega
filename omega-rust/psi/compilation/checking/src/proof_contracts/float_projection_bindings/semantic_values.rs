@@ -84,9 +84,7 @@ fn closed_meaning(
         let (format, meaning) =
             closed_projection_source(operation, program.expression_table.expression(*source))?;
         let operator = program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == selected_operator)?;
+            .operator_definition_by_symbol(selected_operator)?;
         return Some(ClosedFloatMeaning {
             format,
             meaning,

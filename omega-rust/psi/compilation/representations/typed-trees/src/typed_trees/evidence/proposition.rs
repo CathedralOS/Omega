@@ -608,9 +608,7 @@ impl crate::TypedTrees {
             return None;
         }
         let declaration = self
-            .propositions()
-            .iter()
-            .find(|candidate| candidate.symbol == application.proposition)?;
+            .proposition_definition_by_symbol(application.proposition)?;
         let binders = self.proposition_binders(declaration);
         let parameters = self.proposition_parameters(declaration);
         if binders.len() != binder_labels.len()
@@ -816,9 +814,7 @@ impl crate::TypedTrees {
             return None;
         }
         let declaration = self
-            .propositions()
-            .iter()
-            .find(|candidate| candidate.symbol == application.proposition);
+            .proposition_definition_by_symbol(application.proposition);
         if declaration.is_none()
             && self.symbols.get(application.proposition).kind
                 == symbols::SymbolKind::PropositionParameter

@@ -174,9 +174,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     &mut diagnostics,
                 ) {
                     if let Some(operator) = program
-                        .operators()
-                        .iter()
-                        .find(|operator| operator.symbol == selected)
+                        .operator_definition_by_symbol(selected)
                     {
                         if !operator.return_type.is_valid() {
                             statement_updates.push((state.statement_nodes, index, selected));
@@ -289,9 +287,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 .attach_authored_selection_occurrences(expression, [occurrence]);
         }
         let type_reference = program
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == selected)
+            .operator_definition_by_symbol(selected)
             .expect("selected statement operator disappeared")
             .return_type;
         let generated_name = format!(

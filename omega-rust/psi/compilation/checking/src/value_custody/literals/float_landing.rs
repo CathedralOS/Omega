@@ -86,9 +86,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 // formal through its receiver, exactly as its operand roster
                 // does.
                 let Some(operator) = program
-                    .operators()
-                    .iter()
-                    .find(|operator| operator.symbol == call.target_symbol)
+                    .operator_definition_by_symbol(call.target_symbol)
                 else {
                     continue;
                 };
