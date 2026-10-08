@@ -715,19 +715,20 @@ fn admit_member_node(
 /// first and the borrower follows in the same run. A write-only borrower is
 /// exempt: its callee cannot read the cell, so a staying write-only borrower
 /// keeps writing the same deterministic contents nobody observes.
-fn mutable_borrowers_relocate(
+fn roots_relocate(
     evidence: &PlanEvidence<'_>,
     root: PlaceId,
     relocating: &std::collections::BTreeSet<ValueId>,
     relocating_roots: &std::collections::BTreeSet<PlaceId>,
+    observed_roots: impl Fn(
+        &abstract_operations::AbstractOperation,
+    ) -> std::collections::BTreeSet<PlaceId>,
 ) -> bool {
     let mut extended = relocating_roots.clone();
     extended.insert(root);
     for block in &evidence.function.blocks {
         for node in &block.nodes {
-            if !crate::validation::place_observations::mutable_borrow_roots(&node.operation)
-                .contains(&root)
-            {
+            if !observed_roots(&node.operation).contains(&root) {
                 continue;
             }
             if !evidence.component.members.contains(&block.id)
@@ -738,6 +739,36 @@ fn mutable_borrowers_relocate(
         }
     }
     true
+}
+
+fn mutable_borrowers_relocate(
+    evidence: &PlanEvidence<'_>,
+    root: PlaceId,
+    relocating: &std::collections::BTreeSet<ValueId>,
+    relocating_roots: &std::collections::BTreeSet<PlaceId>,
+) -> bool {
+    roots_relocate(
+        evidence,
+        root,
+        relocating,
+        relocating_roots,
+        crate::validation::place_observations::mutable_borrow_roots,
+    )
+}
+
+fn owned_consumers_relocate(
+    evidence: &PlanEvidence<'_>,
+    root: PlaceId,
+    relocating: &std::collections::BTreeSet<ValueId>,
+    relocating_roots: &std::collections::BTreeSet<PlaceId>,
+) -> bool {
+    roots_relocate(
+        evidence,
+        root,
+        relocating,
+        relocating_roots,
+        crate::validation::place_observations::owned_argument_roots,
+    )
 }
 
 /// Whether every node spelling `root` through an `Owned` structural
@@ -754,30 +785,6 @@ fn mutable_borrowers_relocate(
 /// actually scans it. The caller invokes this oracle only for a restricted
 /// root — an unrestricted root's `Owned` argument copies the payload, so a
 /// staying consumer reads the persistent place correctly.
-fn owned_consumers_relocate(
-    evidence: &PlanEvidence<'_>,
-    root: PlaceId,
-    relocating: &std::collections::BTreeSet<ValueId>,
-    relocating_roots: &std::collections::BTreeSet<PlaceId>,
-) -> bool {
-    let mut extended = relocating_roots.clone();
-    extended.insert(root);
-    for block in &evidence.function.blocks {
-        for node in &block.nodes {
-            if !crate::validation::place_observations::owned_argument_roots(&node.operation)
-                .contains(&root)
-            {
-                continue;
-            }
-            if !evidence.component.members.contains(&block.id)
-                || admit_member_node(evidence, block.id, node, relocating, &extended).is_none()
-            {
-                return false;
-            }
-        }
-    }
-    true
-}
 
 pub(super) fn component_plan(
     session: &VerifiedPsiOptimizationSession,
