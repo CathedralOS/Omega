@@ -2,9 +2,12 @@
 //! on the wire.
 
 use crate::sections::semantic_module::CodecError;
+use super::super::structural_signature_wire::{
+    decode_structural_access, encode_structural_access,
+};
 use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted};
 use terminal_psi::{
-    StructuralAccess, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
+    TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalReborrowRestorationClass,
     TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
     TerminalReborrowSharedCohortMember,
@@ -150,24 +153,7 @@ fn decode_place(reader: &mut Reader<'_>) -> Result<TerminalBorrowPlace, CodecErr
     })
 }
 
-fn encode_borrow_access(writer: &mut Writer, access: StructuralAccess) {
-    writer.u8(match access {
-        StructuralAccess::Owned => 1,
-        StructuralAccess::SharedBorrow => 2,
-        StructuralAccess::MutableBorrow => 3,
-        StructuralAccess::WriteOnlyBorrow => 4,
-    });
-}
 
-fn decode_borrow_access(reader: &mut Reader<'_>) -> Result<StructuralAccess, CodecError> {
-    match reader.u8()? {
-        1 => Ok(StructuralAccess::Owned),
-        2 => Ok(StructuralAccess::SharedBorrow),
-        3 => Ok(StructuralAccess::MutableBorrow),
-        4 => Ok(StructuralAccess::WriteOnlyBorrow),
-        tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
-    }
-}
 
 pub(crate) fn encode_reborrow_root_handoff(
     writer: &mut Writer,
@@ -182,7 +168,7 @@ pub(crate) fn encode_reborrow_root_handoff(
     writer.string("reborrow direct owner", &handoff.direct_root_owner_identity)?;
     encode_owner_path(writer, &handoff.direct_root_owner_path)?;
     encode_place(writer, &handoff.direct_root_place)?;
-    encode_borrow_access(writer, handoff.direct_root_access);
+    encode_structural_access(writer, handoff.direct_root_access);
     encode_borrow_boundary(writer, &handoff.direct_root_activation)?;
     encode_borrow_boundary(writer, &handoff.direct_root_weakening)?;
     writer.string(
@@ -195,7 +181,7 @@ pub(crate) fn encode_reborrow_root_handoff(
         encode_owner_path(writer, &step.child_owner_path)?;
         encode_place(writer, &step.child_place)?;
         encode_place_segments(writer, &step.projection_remainder)?;
-        encode_borrow_access(writer, step.child_access);
+        encode_structural_access(writer, step.child_access);
         encode_borrow_boundary(writer, &step.child_activation)?;
         encode_borrow_boundary(writer, &step.formation_boundary)?;
         encode_borrow_boundary(writer, &step.child_weakening)?;
@@ -213,7 +199,7 @@ pub(crate) fn decode_reborrow_root_handoff(
         direct_root_owner_identity: reader.string("reborrow direct owner")?,
         direct_root_owner_path: decode_owner_path(reader)?,
         direct_root_place: decode_place(reader)?,
-        direct_root_access: decode_borrow_access(reader)?,
+        direct_root_access: decode_structural_access(reader)?,
         direct_root_activation: decode_borrow_boundary(reader)?,
         direct_root_weakening: decode_borrow_boundary(reader)?,
         direct_root_lifetime_identity: reader.string("reborrow direct-root lifetime")?,
@@ -223,7 +209,7 @@ pub(crate) fn decode_reborrow_root_handoff(
                 child_owner_path: decode_owner_path(reader)?,
                 child_place: decode_place(reader)?,
                 projection_remainder: decode_place_segments(reader)?,
-                child_access: decode_borrow_access(reader)?,
+                child_access: decode_structural_access(reader)?,
                 child_activation: decode_borrow_boundary(reader)?,
                 formation_boundary: decode_borrow_boundary(reader)?,
                 child_weakening: decode_borrow_boundary(reader)?,
@@ -268,7 +254,7 @@ pub(crate) fn encode_reborrow_restored_call_use(
     encode_owner_path(writer, &use_row.child_owner_path)?;
     encode_place(writer, &use_row.child_place)?;
     encode_place_segments(writer, &use_row.projection_remainder)?;
-    encode_borrow_access(writer, use_row.child_access);
+    encode_structural_access(writer, use_row.child_access);
     encode_borrow_boundary(writer, &use_row.child_activation)?;
     encode_borrow_boundary(writer, &use_row.formation_boundary)?;
     encode_borrow_boundary(writer, &use_row.child_weakening)?;
@@ -280,7 +266,7 @@ pub(crate) fn encode_reborrow_restored_call_use(
         )?;
         encode_owner_path(writer, &member.child_owner_path)?;
         encode_place(writer, &member.child_place)?;
-        encode_borrow_access(writer, member.child_access);
+        encode_structural_access(writer, member.child_access);
         encode_borrow_boundary(writer, &member.child_activation)?;
         encode_borrow_boundary(writer, &member.child_weakening)?;
     }
@@ -317,7 +303,7 @@ pub(crate) fn decode_reborrow_restored_call_use(
         child_owner_path: decode_owner_path(reader)?,
         child_place: decode_place(reader)?,
         projection_remainder: decode_place_segments(reader)?,
-        child_access: decode_borrow_access(reader)?,
+        child_access: decode_structural_access(reader)?,
         child_activation: decode_borrow_boundary(reader)?,
         formation_boundary: decode_borrow_boundary(reader)?,
         child_weakening: decode_borrow_boundary(reader)?,
@@ -326,7 +312,7 @@ pub(crate) fn decode_reborrow_restored_call_use(
                 child_owner_identity: reader.string("restored-use cohort child owner")?,
                 child_owner_path: decode_owner_path(reader)?,
                 child_place: decode_place(reader)?,
-                child_access: decode_borrow_access(reader)?,
+                child_access: decode_structural_access(reader)?,
                 child_activation: decode_borrow_boundary(reader)?,
                 child_weakening: decode_borrow_boundary(reader)?,
             })
