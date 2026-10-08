@@ -32,6 +32,9 @@ pub(in crate::lowering) fn lower_field_store(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
+    let unsupported = || {
+        LoweringError::UnsupportedOperationInUnitFunction(function.machine)
+    };
     let AbstractOperation::StructuralScalarFieldStore {
         psi_operation,
         destination,
@@ -55,9 +58,7 @@ pub(in crate::lowering) fn lower_field_store(
                 || !destination.qualifications.is_empty()
                 || !destination.projected_qualifications.is_empty()
             {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ));
+                return Err(unsupported());
             }
             if function.structural_parameters.contains(destination) {
                 let parameter = parameters_by_place
@@ -70,9 +71,7 @@ pub(in crate::lowering) fn lower_field_store(
                             && parameter.projected_qualifications
                                 == destination.projected_qualifications
                     })
-                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ))?;
+                    .ok_or(unsupported())?;
                 (
                     abstract_operations::StructuralScalarStoreDestination::Parameter(
                         destination.clone(),
@@ -90,9 +89,7 @@ pub(in crate::lowering) fn lower_field_store(
                         block.structural_parameters.contains(destination)
                             && destination.access == StructuralAccess::MutableBorrow
                     })
-                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ))?;
+                    .ok_or(unsupported())?;
                 (
                     abstract_operations::StructuralScalarStoreDestination::Parameter(
                         destination.clone(),
@@ -108,9 +105,7 @@ pub(in crate::lowering) fn lower_field_store(
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
             if let Some(resolved) = reference_destination.as_ref() {
                 if resolved.producer != *producer || resolved.result != *result {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
+                    return Err(unsupported());
                 }
                 (
                     destination.clone(),
@@ -123,14 +118,10 @@ pub(in crate::lowering) fn lower_field_store(
                 let home = structural_homes
                     .get(&result.place)
                     .filter(|home| home.operation_result() == Some((*producer, result)))
-                    .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ))?;
+                    .ok_or(unsupported())?;
                 if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty()
                 {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
+                    return Err(unsupported());
                 }
                 (
                     destination.clone(),
@@ -159,16 +150,12 @@ pub(in crate::lowering) fn lower_field_store(
                         } if owner == block && declaration == parameter
                     )
                 })
-                .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ))?;
+                .ok_or(unsupported())?;
             if parameter.access != StructuralAccess::Owned
                 || !home.qualifications().is_empty()
                 || !home.projected_qualifications().is_empty()
             {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ));
+                return Err(unsupported());
             }
             (
                 destination.clone(),
@@ -188,9 +175,7 @@ pub(in crate::lowering) fn lower_field_store(
         .map(|reference| (reference.referent, reference.path.as_slice()))
         .unwrap_or((destination.structural_type(), path.as_slice()));
     if !terminal_psi::is_structural_scalar_store_path(projection_path) {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
+        return Err(unsupported());
     }
     let destination_shape = super::super::structural_layout::structural_shape(
         projection_root,
@@ -238,9 +223,7 @@ pub(in crate::lowering) fn lower_field_store(
         || source.source_value() != value.value
         || source.scalar_type() != value.scalar_type
     {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
+        return Err(unsupported());
     }
     // The carrier composes fields and literal or runtime elements in any
     // order: static steps fold into the offset, and each runtime element is
