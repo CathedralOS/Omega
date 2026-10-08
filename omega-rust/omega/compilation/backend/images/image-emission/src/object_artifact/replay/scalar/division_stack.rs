@@ -73,31 +73,7 @@ pub(crate) fn validate_linear_scalar_division_stack(
                 offset: branch.branch_offset,
             });
         }
-        let conditional = decode_exact_x86_instruction(
-            machine,
-            bytes,
-            branch.branch_offset,
-            branch.branch_byte_count,
-        )?;
-        let join = decode_exact_x86_instruction(
-            machine,
-            bytes,
-            branch.join_offset,
-            branch.join_byte_count,
-        )?;
-        if conditional.mnemonic() != iced_x86::Mnemonic::Jne
-            || conditional.flow_control() != iced_x86::FlowControl::ConditionalBranch
-            || usize::try_from(conditional.near_branch_target()).ok()
-                != Some(branch.ordinary_arm_offset)
-            || join.mnemonic() != iced_x86::Mnemonic::Jmp
-            || join.flow_control() != iced_x86::FlowControl::UnconditionalBranch
-            || usize::try_from(join.near_branch_target()).ok() != Some(branch.merge_offset)
-        {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            });
-        }
+        validate_scalar_division_branch_instructions(machine, bytes, branch)?;
         replay_x86_scalar_linear_region(
             machine,
             bytes,
@@ -206,6 +182,43 @@ pub(crate) fn decode_exact_x86_instruction(
     }
     Ok(instruction)
 }
+
+/// Validates one branch's decoded instruction pair: the conditional must be
+/// `Jne` targeting the ordinary arm, the join must be `Jmp` targeting the
+/// merge.
+fn validate_scalar_division_branch_instructions(
+    machine: MachineId,
+    bytes: &[u8],
+    branch: &ScalarDivisionBranchEvidence,
+) -> Result<(), ObjectError> {
+    let conditional = decode_exact_x86_instruction(
+        machine,
+        bytes,
+        branch.branch_offset,
+        branch.branch_byte_count,
+    )?;
+    let join = decode_exact_x86_instruction(
+        machine,
+        bytes,
+        branch.join_offset,
+        branch.join_byte_count,
+    )?;
+    if conditional.mnemonic() != iced_x86::Mnemonic::Jne
+        || conditional.flow_control() != iced_x86::FlowControl::ConditionalBranch
+        || usize::try_from(conditional.near_branch_target()).ok()
+            != Some(branch.ordinary_arm_offset)
+        || join.mnemonic() != iced_x86::Mnemonic::Jmp
+        || join.flow_control() != iced_x86::FlowControl::UnconditionalBranch
+        || usize::try_from(join.near_branch_target()).ok() != Some(branch.merge_offset)
+    {
+        return Err(ObjectError::InvalidScalarConditionalEvidence {
+            machine,
+            offset: branch.branch_offset,
+        });
+    }
+    Ok(())
+}
+
 fn replay_x86_scalar_linear_region(
     machine: MachineId,
     bytes: &[u8],
@@ -351,31 +364,7 @@ pub(crate) fn replay_x86_scalar_division_region(
                 offset: branch.branch_offset,
             });
         }
-        let conditional = decode_exact_x86_instruction(
-            machine,
-            bytes,
-            branch.branch_offset,
-            branch.branch_byte_count,
-        )?;
-        let join = decode_exact_x86_instruction(
-            machine,
-            bytes,
-            branch.join_offset,
-            branch.join_byte_count,
-        )?;
-        if conditional.mnemonic() != iced_x86::Mnemonic::Jne
-            || conditional.flow_control() != iced_x86::FlowControl::ConditionalBranch
-            || usize::try_from(conditional.near_branch_target()).ok()
-                != Some(branch.ordinary_arm_offset)
-            || join.mnemonic() != iced_x86::Mnemonic::Jmp
-            || join.flow_control() != iced_x86::FlowControl::UnconditionalBranch
-            || usize::try_from(join.near_branch_target()).ok() != Some(branch.merge_offset)
-        {
-            return Err(ObjectError::InvalidScalarConditionalEvidence {
-                machine,
-                offset: branch.branch_offset,
-            });
-        }
+        validate_scalar_division_branch_instructions(machine, bytes, branch)?;
         replay_x86_scalar_linear_region(
             machine,
             bytes,

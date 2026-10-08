@@ -335,37 +335,19 @@ pub(crate) fn replay_scalar_conditional_region(
                     continue;
                 }
                 if instruction.mnemonic() == iced_x86::Mnemonic::Call {
-                    let call = call_sites
-                        .remove(&offset)
-                        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    match call.owner {
-                        CallSiteOwner::Operation(operation) if !allow_calls => {
-                            return Err(ObjectError::ScalarConditionalCallOutsideArm {
-                                machine,
-                                operation,
-                                offset,
-                            });
-                        }
-                        CallSiteOwner::Operation(_) if allow_calls => {}
-                        CallSiteOwner::CleanupAction { edge, .. }
-                            if allow_calls
-                                && scalar_affine_cleanup
-                                    .is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
-                        _ => {
-                            return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
-                        }
-                    }
-                    let validated = scalar_call_stack_at(
+                    validate_conditional_call_site(
                         architecture,
                         machine,
                         bytes,
-                        call,
+                        call_sites,
+                        offset,
+                        allow_calls,
                         evidence,
                         depth,
+                        &mut peak,
+                        validated_calls,
                         scalar_affine_cleanup,
                     )?;
-                    peak = peak.max(validated.caller_live_bytes);
-                    validated_calls.push(validated);
                     continue;
                 }
                 if instruction.flow_control() != iced_x86::FlowControl::Next {
@@ -416,37 +398,19 @@ pub(crate) fn replay_scalar_conditional_region(
                     continue;
                 }
                 if encoded == 0x9400_0000 {
-                    let call = call_sites
-                        .remove(&offset)
-                        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
-                    match call.owner {
-                        CallSiteOwner::Operation(operation) if !allow_calls => {
-                            return Err(ObjectError::ScalarConditionalCallOutsideArm {
-                                machine,
-                                operation,
-                                offset,
-                            });
-                        }
-                        CallSiteOwner::Operation(_) if allow_calls => {}
-                        CallSiteOwner::CleanupAction { edge, .. }
-                            if allow_calls
-                                && scalar_affine_cleanup
-                                    .is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
-                        _ => {
-                            return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
-                        }
-                    }
-                    let validated = scalar_call_stack_at(
+                    validate_conditional_call_site(
                         architecture,
                         machine,
                         bytes,
-                        call,
+                        call_sites,
+                        offset,
+                        allow_calls,
                         evidence,
                         depth,
+                        &mut peak,
+                        validated_calls,
                         scalar_affine_cleanup,
                     )?;
-                    peak = peak.max(validated.caller_live_bytes);
-                    validated_calls.push(validated);
                     continue;
                 }
                 if aarch64_control_flow_instruction(encoded) {
@@ -468,4 +432,55 @@ pub(crate) fn replay_scalar_conditional_region(
         return Err(ObjectError::MissingBalancedScalarReturn(machine));
     }
     Ok(peak)
+}
+
+/// Validates one claimed call site against the arm policy and folds its
+/// measured caller-live bytes into the running peak. Shared by the x86 and
+/// AArch64 walk arms, which differ only in call-instruction recognition.
+#[expect(clippy::too_many_arguments)]
+fn validate_conditional_call_site(
+    architecture: Architecture,
+    machine: MachineId,
+    bytes: &[u8],
+    call_sites: &mut std::collections::BTreeMap<usize, machine_code::InternalCallRelocation>,
+    offset: usize,
+    allow_calls: bool,
+    evidence: &ScalarStackEvidence,
+    depth: u32,
+    peak: &mut u32,
+    validated_calls: &mut Vec<ObjectScalarCallStack>,
+    scalar_affine_cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
+) -> Result<(), ObjectError> {
+    let call = call_sites
+        .remove(&offset)
+        .ok_or(ObjectError::UntypedScalarInternalCall { machine, offset })?;
+    match call.owner {
+        CallSiteOwner::Operation(operation) if !allow_calls => {
+            return Err(ObjectError::ScalarConditionalCallOutsideArm {
+                machine,
+                operation,
+                offset,
+            });
+        }
+        CallSiteOwner::Operation(_) if allow_calls => {}
+        CallSiteOwner::CleanupAction { edge, .. }
+            if allow_calls
+                && scalar_affine_cleanup
+                    .is_some_and(|cleanup| cleanup.psi_edge == edge) => {}
+        _ => {
+            return Err(ObjectError::UntypedScalarInternalCall { machine, offset });
+        }
+    }
+    let validated = scalar_call_stack_at(
+        architecture,
+        machine,
+        bytes,
+        call,
+        evidence,
+        depth,
+        scalar_affine_cleanup,
+    )?;
+    *peak = (*peak).max(validated.caller_live_bytes);
+    validated_calls.push(validated);
+    Ok(())
 }
