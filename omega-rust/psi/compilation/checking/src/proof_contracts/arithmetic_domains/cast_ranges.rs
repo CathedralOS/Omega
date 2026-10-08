@@ -296,6 +296,19 @@ pub fn plain_exact_widening_cast(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> bool {
+    unannotated_exact_cast(cast)
+        && matches!(
+            program
+                .type_reference_table
+                .type_reference(cast.target_type),
+            typed_trees::types::TypeReferenceNode::Named { .. }
+        )
+}
+
+/// Whether `cast` is an Exact cast carrying no annotation payload: not a
+/// recast, no semantic-domain attachment, and no distinct result type.
+/// Target-shape requirements stay with each caller.
+pub fn unannotated_exact_cast(cast: &typed_trees::expression::TableCastExpression) -> bool {
     !cast.form.is_recast()
         && cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
         && cast.semantic_domain.is_empty()
@@ -303,10 +316,4 @@ pub fn plain_exact_widening_cast(
         && !cast.semantic_domain_symbol.is_valid()
         && !cast.semantic_domain_id.is_valid()
         && !(cast.result_type.is_valid() && cast.result_type != cast.target_type)
-        && matches!(
-            program
-                .type_reference_table
-                .type_reference(cast.target_type),
-            typed_trees::types::TypeReferenceNode::Named { .. }
-        )
 }

@@ -310,14 +310,7 @@ impl ReturnReader<'_, '_> {
             return None;
         }
         if let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression) {
-            if cast.form.is_recast()
-                || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
-                || !cast.semantic_domain.is_empty()
-                || !cast.semantic_domain_arguments.is_empty()
-                || cast.semantic_domain_symbol.is_valid()
-                || cast.semantic_domain_id.is_valid()
-                || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
-            {
+            if !crate::proof_contracts::arithmetic_domains::unannotated_exact_cast(cast) {
                 return None;
             }
             let (source, bounds) = self.returned_carrier_bounds(cast.value, before, depth + 1)?;

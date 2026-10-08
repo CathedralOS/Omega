@@ -1193,13 +1193,7 @@ impl<'program> Engine<'program> {
         if self.strict_symbol_bindings.is_none()
             || !self.exact_argument_widening
             || self.proof_integer_formation
-            || cast.form.is_recast()
-            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
-            || !cast.semantic_domain.is_empty()
-            || !cast.semantic_domain_arguments.is_empty()
-            || cast.semantic_domain_symbol.is_valid()
-            || cast.semantic_domain_id.is_valid()
-            || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+            || !crate::proof_contracts::arithmetic_domains::unannotated_exact_cast(cast)
         {
             return false;
         }

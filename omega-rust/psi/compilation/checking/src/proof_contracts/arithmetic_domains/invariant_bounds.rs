@@ -451,20 +451,9 @@ fn bounds(
             // A total exact widening changes the carrier, not the value or
             // its established interval. It cannot erase the operand's own
             // operation meaning, qualify a domain, or reinterpret a policy.
-            if cast.form.is_recast()
-                || cast.domain != ArithmeticDomain::Exact
-                || !cast.semantic_domain.is_empty()
-                || !cast.semantic_domain_arguments.is_empty()
-                || cast.semantic_domain_symbol.is_valid()
-                || cast.semantic_domain_id.is_valid()
-                || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
-                || !matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(cast.target_type),
-                    TypeReferenceNode::Named { .. }
-                )
-            {
+            if !crate::proof_contracts::arithmetic_domains::plain_exact_widening_cast(
+                program, cast,
+            ) {
                 return None;
             }
             let source = bounds(program, machine, state, cast.value, declared_mutable_leaves)?;
