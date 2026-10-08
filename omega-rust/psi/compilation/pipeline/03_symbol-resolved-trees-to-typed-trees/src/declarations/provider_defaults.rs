@@ -66,9 +66,10 @@ fn provider_default_call_occurrences(
         for statement in typed.statement_table.statements(state.statement_nodes) {
             match statement {
                 typed_trees::statement::StatementNode::Call(call)
-                    if BuildOperation::from_call_target(call.target.as_str())
-                        == Some(BuildOperation::ProviderSelection)
-                        && !call.target_symbol.is_valid() =>
+                    if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
+                        call.target.as_str(),
+                        call.target_symbol,
+                    ) =>
                 {
                     occurrences.extend(call.authored_call_selection);
                 }

@@ -235,6 +235,16 @@ pub enum BuildOperation {
     /// `BuildLog::write_line`.
     LogWriteLine,
 }
+/// The call's target names [`BuildOperation::ProviderSelection`] and carries
+/// no resolved symbol — the authored, still-unresolved form every consumer
+/// gates on before treating it as a provider-selection site.
+pub fn is_unresolved_provider_selection_call(
+    target: &str,
+    target_symbol: symbols::SymbolHandle,
+) -> bool {
+    BuildOperation::from_call_target(target) == Some(BuildOperation::ProviderSelection)
+        && !target_symbol.is_valid()
+}
 
 impl BuildOperation {
     /// Every toolchain-owned build operation. Adding a variant without its

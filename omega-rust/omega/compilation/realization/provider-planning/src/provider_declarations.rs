@@ -9,7 +9,6 @@
 use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity};
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::BuildOperation;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 
@@ -102,9 +101,10 @@ pub fn collect_executed_provider_selections(
                 checked_interpreter::ExecutedProviderSelectionSite::Statement(handle) => {
                     match typed.statement_table.statement(handle) {
                         typed_trees::statement::StatementNode::Call(call)
-                            if BuildOperation::from_call_target(call.target.as_str())
-                                == Some(BuildOperation::ProviderSelection)
-                                && !call.target_symbol.is_valid() =>
+                            if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
+                                call.target.as_str(),
+                                call.target_symbol,
+                            ) =>
                         {
                             Some(ProviderSelectionCall {
                                 target: call.target.as_str(),
@@ -124,9 +124,10 @@ pub fn collect_executed_provider_selections(
                 checked_interpreter::ExecutedProviderSelectionSite::Expression(handle) => {
                     match typed.expression_table.expression(handle) {
                         typed_trees::expression::ExpressionNode::Call(call)
-                            if BuildOperation::from_call_target(call.target.as_str())
-                                == Some(BuildOperation::ProviderSelection)
-                                && !call.target_symbol.is_valid() =>
+                            if language_semantics::declaration_selection::is_unresolved_provider_selection_call(
+                                call.target.as_str(),
+                                call.target_symbol,
+                            ) =>
                         {
                             Some(ProviderSelectionCall {
                                 target: call.target.as_str(),
