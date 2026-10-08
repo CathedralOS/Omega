@@ -696,6 +696,42 @@ pub(super) fn substitute_scalar_term_values(
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> ScalarTerm {
     let recurse = |term: &ScalarTerm| substitute_scalar_term_values(term, substitutions);
+    macro_rules! typed_binary_body {
+        ($variant:ident, $scalar_type:ident, $left:ident, $right:ident) => {
+            ScalarTerm::$variant {
+                scalar_type: *$scalar_type,
+                left: Box::new(recurse($left)),
+                right: Box::new(recurse($right)),
+            }
+        };
+    }
+    macro_rules! typed_unary_body {
+        ($variant:ident, $scalar_type:ident, $operand:ident) => {
+            ScalarTerm::$variant {
+                scalar_type: *$scalar_type,
+                operand: Box::new(recurse($operand)),
+            }
+        };
+    }
+    macro_rules! shift_body {
+        ($variant:ident, $value_type:ident, $count_type:ident, $value:ident, $count:ident) => {
+            ScalarTerm::$variant {
+                value_type: *$value_type,
+                count_type: *$count_type,
+                value: Box::new(recurse($value)),
+                count: Box::new(recurse($count)),
+            }
+        };
+    }
+    macro_rules! cast_body {
+        ($variant:ident, $source_type:ident, $target_type:ident, $operand:ident) => {
+            ScalarTerm::$variant {
+                source_type: *$source_type,
+                target_type: *$target_type,
+                operand: Box::new(recurse($operand)),
+            }
+        };
+    }
     match term {
         ScalarTerm::Value { id, .. } => substitutions
             .get(id)
@@ -715,28 +751,17 @@ pub(super) fn substitute_scalar_term_values(
         ScalarTerm::IntegerBitwiseNot {
             scalar_type,
             operand,
-        } => ScalarTerm::IntegerBitwiseNot {
-            scalar_type: *scalar_type,
-            operand: Box::new(recurse(operand)),
-        },
+        } => typed_unary_body!(IntegerBitwiseNot, scalar_type, operand),
         ScalarTerm::IntegerWiden {
             source_type,
             target_type,
             operand,
-        } => ScalarTerm::IntegerWiden {
-            source_type: *source_type,
-            target_type: *target_type,
-            operand: Box::new(recurse(operand)),
-        },
+        } => cast_body!(IntegerWiden, source_type, target_type, operand),
         ScalarTerm::IntegerExactCast {
             source_type,
             target_type,
             operand,
-        } => ScalarTerm::IntegerExactCast {
-            source_type: *source_type,
-            target_type: *target_type,
-            operand: Box::new(recurse(operand)),
-        },
+        } => cast_body!(IntegerExactCast, source_type, target_type, operand),
         ScalarTerm::BooleanEqual { left, right } => ScalarTerm::BooleanEqual {
             left: Box::new(recurse(left)),
             right: Box::new(recurse(right)),
@@ -745,235 +770,143 @@ pub(super) fn substitute_scalar_term_values(
             scalar_type,
             left,
             right,
-        } => ScalarTerm::IntegerEqual {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(IntegerEqual, scalar_type, left, right),
         ScalarTerm::IntegerLessThan {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::IntegerLessThan {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(IntegerLessThan, scalar_type, left, right),
         ScalarTerm::IntegerLessOrEqual {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::IntegerLessOrEqual {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(IntegerLessOrEqual, scalar_type, left, right),
         ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::IntegerBitwiseAnd {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(IntegerBitwiseAnd, scalar_type, left, right),
         ScalarTerm::IntegerBitwiseOr {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::IntegerBitwiseOr {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(IntegerBitwiseOr, scalar_type, left, right),
         ScalarTerm::IntegerBitwiseXor {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::IntegerBitwiseXor {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(IntegerBitwiseXor, scalar_type, left, right),
         ScalarTerm::WrappingIntegerShiftLeft {
             value_type,
             count_type,
             value,
             count,
-        } => ScalarTerm::WrappingIntegerShiftLeft {
-            value_type: *value_type,
-            count_type: *count_type,
-            value: Box::new(recurse(value)),
-            count: Box::new(recurse(count)),
-        },
+        } => shift_body!(
+            WrappingIntegerShiftLeft,
+            value_type,
+            count_type,
+            value,
+            count
+        ),
         ScalarTerm::WrappingIntegerShiftRight {
             value_type,
             count_type,
             value,
             count,
-        } => ScalarTerm::WrappingIntegerShiftRight {
-            value_type: *value_type,
-            count_type: *count_type,
-            value: Box::new(recurse(value)),
-            count: Box::new(recurse(count)),
-        },
+        } => shift_body!(
+            WrappingIntegerShiftRight,
+            value_type,
+            count_type,
+            value,
+            count
+        ),
         ScalarTerm::ExactIntegerShiftRight {
             value_type,
             count_type,
             value,
             count,
-        } => ScalarTerm::ExactIntegerShiftRight {
-            value_type: *value_type,
-            count_type: *count_type,
-            value: Box::new(recurse(value)),
-            count: Box::new(recurse(count)),
-        },
+        } => shift_body!(ExactIntegerShiftRight, value_type, count_type, value, count),
         ScalarTerm::ExactIntegerShiftLeft {
             value_type,
             count_type,
             value,
             count,
-        } => ScalarTerm::ExactIntegerShiftLeft {
-            value_type: *value_type,
-            count_type: *count_type,
-            value: Box::new(recurse(value)),
-            count: Box::new(recurse(count)),
-        },
+        } => shift_body!(ExactIntegerShiftLeft, value_type, count_type, value, count),
         ScalarTerm::ExactIntegerAdd {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::ExactIntegerAdd {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(ExactIntegerAdd, scalar_type, left, right),
         ScalarTerm::ExactIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::ExactIntegerSubtract {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(ExactIntegerSubtract, scalar_type, left, right),
         ScalarTerm::ExactIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::ExactIntegerMultiply {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(ExactIntegerMultiply, scalar_type, left, right),
         ScalarTerm::ExactIntegerDivide {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::ExactIntegerDivide {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(ExactIntegerDivide, scalar_type, left, right),
         ScalarTerm::ExactIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::ExactIntegerRemainder {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(ExactIntegerRemainder, scalar_type, left, right),
         ScalarTerm::WrappingIntegerDivide {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::WrappingIntegerDivide {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(WrappingIntegerDivide, scalar_type, left, right),
         ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::WrappingIntegerRemainder {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(WrappingIntegerRemainder, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerDivide {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::SaturatingIntegerDivide {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(SaturatingIntegerDivide, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::SaturatingIntegerRemainder {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(SaturatingIntegerRemainder, scalar_type, left, right),
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::WrappingIntegerAdd {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(WrappingIntegerAdd, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerAdd {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::SaturatingIntegerAdd {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(SaturatingIntegerAdd, scalar_type, left, right),
         ScalarTerm::WrappingIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::WrappingIntegerSubtract {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(WrappingIntegerSubtract, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerSubtract {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::SaturatingIntegerSubtract {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(SaturatingIntegerSubtract, scalar_type, left, right),
         ScalarTerm::WrappingIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::WrappingIntegerMultiply {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(WrappingIntegerMultiply, scalar_type, left, right),
         ScalarTerm::SaturatingIntegerMultiply {
             scalar_type,
             left,
             right,
-        } => ScalarTerm::SaturatingIntegerMultiply {
-            scalar_type: *scalar_type,
-            left: Box::new(recurse(left)),
-            right: Box::new(recurse(right)),
-        },
+        } => typed_binary_body!(SaturatingIntegerMultiply, scalar_type, left, right),
     }
 }
 
