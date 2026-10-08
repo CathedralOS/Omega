@@ -549,6 +549,52 @@ pub(in crate::symbols) fn build_operand_route(
 /// The marker's static arguments are exact declaration paths, not executable
 /// machine selections. The first may denote one boundary trait, one explicit
 /// top-level boundary requirement, or an entire same-path boundary-operator
+/// A bound selection argument (already carrying a type reference, evidence,
+/// const, or application payload) takes no symbol; unbound ones render their
+/// qualified path for name resolution.
+fn selection_argument_rendered_path(
+    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+) -> Option<String> {
+    if argument.type_reference.is_valid()
+        || argument.evidence_projection.is_some()
+        || argument.const_literal.is_some()
+        || argument.application.is_some()
+    {
+        argument.symbol = SymbolHandle::invalid();
+        return None;
+    }
+    Some(
+        argument
+            .path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::"),
+    )
+}
+
+/// Fallback resolution through descendant paths for selection arguments: the
+/// source reference still gates visibility of the found descendant.
+fn descendant_selection_symbol(
+    symbols: &SymbolTable,
+    argument: &symbol_resolved_trees::expression::StaticMachineArgument,
+    kinds: &[SymbolKind],
+) -> SymbolHandle {
+    let reference = argument.path.last().map(|name| name.source_span());
+    symbols
+        .find_descendant_by_path(
+            symbols.root(),
+            argument.path.iter().map(|member| member.as_str()),
+        )
+        .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
+        .filter(|symbol| {
+            reference.is_none_or(|reference| {
+                symbols.source_reference_can_see_symbol(reference, *symbol)
+            })
+        })
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
 /// family; build harvesting reifies and validates the exact declaration after
 /// typed lowering.
 pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
@@ -556,20 +602,9 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
     allow_operator_family: bool,
 ) {
-    if argument.type_reference.is_valid()
-        || argument.evidence_projection.is_some()
-        || argument.const_literal.is_some()
-        || argument.application.is_some()
-    {
-        argument.symbol = SymbolHandle::invalid();
+    let Some(rendered) = selection_argument_rendered_path(argument) else {
         return;
-    }
-    let rendered = argument
-        .path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    };
     let kinds: &[SymbolKind] = if allow_operator_family {
         &[
             SymbolKind::Trait,
@@ -605,27 +640,18 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     argument.symbol = if exact.is_valid() {
         exact
     } else {
-        let reference = argument.path.last().map(|name| name.source_span());
-        symbols
-            .find_descendant_by_path(
-                symbols.root(),
-                argument.path.iter().map(|member| member.as_str()),
-            )
-            .filter(|symbol| {
-                matches!(
-                    symbols.get(*symbol).kind,
-                    SymbolKind::Trait
-                        | SymbolKind::Operator
-                        | SymbolKind::Data
-                        | SymbolKind::BuiltinType
-                )
-            })
-            .filter(|symbol| {
-                reference.is_none_or(|reference| {
-                    symbols.source_reference_can_see_symbol(reference, *symbol)
-                })
-            })
-            .unwrap_or_else(SymbolHandle::invalid)
+        // The descendant fallback admits only lexical declarations: machine
+        // and operator-family members resolve through the top-level lookup.
+        descendant_selection_symbol(
+            symbols,
+            argument,
+            &[
+                SymbolKind::Trait,
+                SymbolKind::Operator,
+                SymbolKind::Data,
+                SymbolKind::BuiltinType,
+            ],
+        )
     };
 }
 
@@ -636,20 +662,9 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
     argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
     opaque_argument: bool,
 ) {
-    if argument.type_reference.is_valid()
-        || argument.evidence_projection.is_some()
-        || argument.const_literal.is_some()
-        || argument.application.is_some()
-    {
-        argument.symbol = SymbolHandle::invalid();
+    let Some(rendered) = selection_argument_rendered_path(argument) else {
         return;
-    }
-    let rendered = argument
-        .path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    };
     let kinds = if opaque_argument {
         &[SymbolKind::Data][..]
     } else {
@@ -677,19 +692,7 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
         symbols.find_product_declaration_from_source(&rendered, occurrence, candidates)
     });
     argument.symbol = exact.unwrap_or_else(|| {
-        let reference = argument.path.last().map(|name| name.source_span());
-        symbols
-            .find_descendant_by_path(
-                symbols.root(),
-                argument.path.iter().map(|member| member.as_str()),
-            )
-            .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
-            .filter(|symbol| {
-                reference.is_none_or(|reference| {
-                    symbols.source_reference_can_see_symbol(reference, *symbol)
-                })
-            })
-            .unwrap_or_else(SymbolHandle::invalid)
+        descendant_selection_symbol(symbols, argument, kinds)
     });
 }
 
