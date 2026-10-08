@@ -31,14 +31,7 @@ pub(super) fn validate(
     ))?;
     for projection in array.projections {
         if let Some(selected) = checked.facts.operators.expression_use(projection)
-            && (selected.spelling != language_core::OperatorSpelling::Index
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                ))
+            && !selected.resolved_through_builtin_fallback(language_core::OperatorSpelling::Index)
         {
             return unsupported("array constructor indexing selection changed");
         }

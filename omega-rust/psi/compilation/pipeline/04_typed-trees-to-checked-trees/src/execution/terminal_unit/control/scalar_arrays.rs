@@ -17,14 +17,7 @@ pub(in crate::execution::terminal_unit) fn elements(
     let leaves = validation::scalar_array_elements(program, machine, expression, expected)?;
     for projection in leaves.projections {
         if let Some(selected) = facts.operators.expression_use(projection)
-            && (selected.spelling != language_core::OperatorSpelling::Index
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                ))
+            && !selected.resolved_through_builtin_fallback(language_core::OperatorSpelling::Index)
         {
             return None;
         }

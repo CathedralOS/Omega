@@ -642,14 +642,7 @@ pub(crate) fn replay(
     }
     if checked.facts.operators.uses.iter().any(|(_, selected)| {
         selected.expression == operation
-            && (selected.spelling != language_core::OperatorSpelling::Range
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                ))
+            && !selected.resolved_through_builtin_fallback(language_core::OperatorSpelling::Range)
     }) || !validation::has_builtin_subslice_meaning(
         &checked.typed,
         machine,

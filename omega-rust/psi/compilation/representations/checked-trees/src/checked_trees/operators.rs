@@ -95,6 +95,20 @@ pub enum CheckedOperatorOccurrence {
 }
 
 impl CheckedOperatorUseFact {
+    /// Whether this use kept its authored spelling through the built-in
+    /// fallback: no selected operator symbol, no candidates, and a missing
+    /// or builtin-fallback status.
+    pub fn resolved_through_builtin_fallback(&self, spelling: OperatorSpelling) -> bool {
+        self.spelling == spelling
+            && !self.selected_operator_symbol.is_valid()
+            && self.candidate_count == 0
+            && matches!(
+                self.status,
+                CheckedOperatorResolutionStatus::Missing
+                    | CheckedOperatorResolutionStatus::BuiltinFallback
+            )
+    }
+
     pub fn application_site(&self) -> CheckedBoundaryOperatorApplicationUseSite {
         match self.occurrence {
             CheckedOperatorOccurrence::Expression => {
