@@ -243,54 +243,10 @@ impl<'input> ValueEqualities<'input> {
         // intact; this judgment assumes no arithmetic equation beyond premises.
         let mut transported = original.clone();
         match &mut transported {
-            ScalarTerm::BooleanNot { operand }
-            | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. }
-            | ScalarTerm::IntegerExactCast { operand, .. } => {
+            super::scalar_term_unary_operand!(operand) => {
                 **operand = self.scalar(operand, budget, depth + 1, active)?;
             }
-            ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-            | ScalarTerm::WrappingIntegerShiftLeft {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::WrappingIntegerShiftRight {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::ExactIntegerShiftLeft {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::ExactIntegerShiftRight {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            super::scalar_term_binary_operands!(left, right) => {
                 **left = self.scalar(left, budget, depth + 1, active)?;
                 **right = self.scalar(right, budget, depth + 1, active)?;
             }

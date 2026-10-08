@@ -133,52 +133,8 @@ impl Budget {
             | ScalarTerm::IeeeFloatField { path, .. }
             | ScalarTerm::ViewExtent { path, .. }
             | ScalarTerm::ByteSequencePredicate { path, .. } => self.count(path.len())?,
-            ScalarTerm::BooleanNot { operand }
-            | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. }
-            | ScalarTerm::IntegerExactCast { operand, .. } => self.scalar(operand, depth + 1)?,
-            ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-            | ScalarTerm::WrappingIntegerShiftLeft {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::WrappingIntegerShiftRight {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::ExactIntegerShiftLeft {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::ExactIntegerShiftRight {
-                value: left,
-                count: right,
-                ..
-            }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+            super::scalar_term_unary_operand!(operand) => self.scalar(operand, depth + 1)?,
+            super::scalar_term_binary_operands!(left, right) => {
                 self.scalar(left, depth + 1)?;
                 self.scalar(right, depth + 1)?;
             }
