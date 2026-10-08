@@ -32,6 +32,7 @@ pub use machine_calls::calls::{
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
 };
+pub use machine_calls::reference_result_custody::fixed_half_open_range;
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
     static_machine_template_reach_contract_bytes,
