@@ -153,10 +153,7 @@ fn complete_carriers(
             .iter()
             .flat_map(|block| &block.structural_parameters)
             .filter(|parameter| {
-                parameter.access == StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                parameter.is_unqualified_owned_affine()
                     && !affine.contains(&parameter.place)
                     && scheduled.contains(&parameter.place)
                     && whole_transfers.contains(&parameter.place)

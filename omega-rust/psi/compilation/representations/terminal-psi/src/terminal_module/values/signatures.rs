@@ -111,6 +111,16 @@ impl StructuralParameterDeclaration {
             && self.projected_qualifications.is_empty()
     }
 
+    /// Whether the parameter is an owned affine root carrying no declared or
+    /// projected qualifications — the shape affine cleanup and transfer
+    /// witnesses admit directly.
+    pub fn is_unqualified_owned_affine(&self) -> bool {
+        self.access == StructuralAccess::Owned
+            && self.multiplicity == StructuralMultiplicity::Affine
+            && self.qualifications.is_empty()
+            && self.projected_qualifications.is_empty()
+    }
+
     /// Whether a scalar read at the given path may use this parameter: an
     /// unrestricted multiplicity, or an affine one once the path projects
     /// below the root, with no residual qualifications.
