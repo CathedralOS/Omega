@@ -82,6 +82,20 @@ impl CheckingInput for TypedTrees {
     }
 }
 
+/// One sorted, deduplicated `(symbol, OnceLock)` memo row set — the row
+/// table shape every query memo in this crate builds over its symbol list.
+pub(crate) fn once_lock_rows<T>(
+    symbols: impl Iterator<Item = symbols::SymbolHandle>,
+) -> Vec<(symbols::SymbolHandle, OnceLock<T>)> {
+    let mut symbols: Vec<_> = symbols.collect();
+    symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    symbols.dedup();
+    symbols
+        .into_iter()
+        .map(|symbol| (symbol, OnceLock::new()))
+        .collect()
+}
+
 impl CheckingInput for typed_trees::FrozenTypedTrees {
     fn typed_program(&self) -> &TypedTrees {
         self.as_ref()

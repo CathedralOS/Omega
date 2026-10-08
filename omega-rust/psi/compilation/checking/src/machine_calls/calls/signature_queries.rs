@@ -13,19 +13,13 @@ pub(crate) struct CallDestinationQueries {
 
 impl CallDestinationQueries {
     fn of(program: &dyn crate::CheckingInput) -> Self {
-        let mut symbols: Vec<_> = program
+        let symbols = program
             .machines()
             .iter()
             .flat_map(|machine| program.machine_states(machine))
-            .map(|state| state.symbol)
-            .collect();
-        symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        symbols.dedup();
+            .map(|state| state.symbol);
         Self {
-            rows: symbols
-                .into_iter()
-                .map(|symbol| (symbol, OnceLock::new()))
-                .collect(),
+            rows: crate::frozen_program::once_lock_rows(symbols),
         }
     }
 }

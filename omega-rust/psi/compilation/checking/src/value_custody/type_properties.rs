@@ -58,18 +58,12 @@ pub(crate) struct EstablishmentQueries {
 
 impl EstablishmentQueries {
     fn of(program: &dyn crate::CheckingInput) -> Self {
-        let mut symbols: Vec<_> = program
+        let symbols = program
             .data_definitions()
             .iter()
-            .map(|definition| definition.symbol)
-            .collect();
-        symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        symbols.dedup();
+            .map(|definition| definition.symbol);
         Self {
-            rows: symbols
-                .into_iter()
-                .map(|symbol| (symbol, OnceLock::new()))
-                .collect(),
+            rows: crate::frozen_program::once_lock_rows(symbols),
         }
     }
 }
