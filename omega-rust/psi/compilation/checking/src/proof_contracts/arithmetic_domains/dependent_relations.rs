@@ -1,5 +1,5 @@
 use super::{
-    ExpressionHandle, ExpressionNode, Interval, Machine, State, TypeConstraintNode,
+    ExpressionHandle, ExpressionNode, Interval, Machine, State,
     TypeReferenceHandle,
 };
 use language_core::place_label;

@@ -130,7 +130,7 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
 
 use crate::value_custody::places::declared_place_type_raw;
