@@ -132,9 +132,20 @@ pub(super) fn complete(
                     successors.push((edge.target, branch));
                 }
             }
-            Terminator::StructuralCase { source, cases } => {
-                if frontier.iter().any(|root| root.place == *source) {
-                    return unsupported("case inspection consumes a partially transferred root");
+            Terminator::StructuralCase {
+                source,
+                path,
+                cases,
+            } => {
+                // Inspection does not consume its carrier. Only transferred
+                // regions overlapping the selected sum invalidate this read.
+                if frontier.iter().any(|root| {
+                    root.place == *source
+                        && root.paths.iter().any(|moved| {
+                            terminal_semantics::structural_paths_may_overlap(moved, path)
+                        })
+                }) {
+                    return unsupported("case inspection overlaps a transferred subtree");
                 }
                 for edge in cases {
                     let mut branch = frontier.clone();

@@ -13,7 +13,8 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_affine_cleanup_action, encode_affine_cleanup_action,
 };
 use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_arguments, encode_structural_arguments,
+    decode_structural_arguments, decode_structural_path, encode_structural_arguments,
+    encode_structural_path,
 };
 use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 use terminal_psi::{CrashCause, ExternalCompletionKind, StructuralCaseSuccessorEdge, Terminator};
@@ -139,9 +140,14 @@ pub(super) fn encode_terminator(
                 encode_successor_edge(writer, edge)?;
             }
         }
-        Terminator::StructuralCase { source, cases } => {
+        Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } => {
             writer.u8(16);
             writer.id(*source);
+            encode_structural_path(writer, "structural case subject path", path)?;
             writer.len("structural case successors", cases.len())?;
             for case in cases {
                 writer.id(case.edge);
@@ -265,6 +271,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
         },
         16 => {
             let source = reader.id("PlaceId")?;
+            let path = decode_structural_path(reader)?;
             let cases = decode_counted(reader, |reader| {
                 Ok(StructuralCaseSuccessorEdge {
                     edge: reader.id("EdgeId")?,
@@ -274,7 +281,11 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                     cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
                 })
             })?;
-            Terminator::StructuralCase { source, cases }
+            Terminator::StructuralCase {
+                source,
+                path,
+                cases,
+            }
         }
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     })

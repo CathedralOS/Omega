@@ -12,14 +12,18 @@ pub(super) fn project(
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
-    let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
+    let AbstractOperation::StructuralCase {
+        source,
+        path,
+        cases,
+    } = &node.operation
+    else {
         return Err(Error::custody());
     };
+    let (selected, byte_offset, root_shape, layout) =
+        scalar_graph_input::structural_case::dispatch_projection(function, *source, path, plan)?;
     let source = scalar_graph_input::structural_case::case_source(function, *source)?;
-    let layout =
-        scalar_graph_input::aggregate_results::sum_type_layout(source.structural_type(), plan)?;
-    let declaration = plan.structural_type(source.structural_type())
-        .ok_or(Error::custody())?;
+    let declaration = plan.structural_type(selected).ok_or(Error::custody())?;
     let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Sum { cases }
         | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
@@ -55,7 +59,9 @@ pub(super) fn project(
                 .ok_or(Error::custody())?;
             payloads.push(LegalizedStructuralCasePayload {
                 field: payload.field,
-                field_byte_offset: layout.cases[case_position].fields[field_position].byte_offset,
+                field_byte_offset: byte_offset
+                    .checked_add(layout.cases[case_position].fields[field_position].byte_offset)
+                    .ok_or(Error::custody())?,
                 parameter: LegalizedValueDefinition {
                     value: parameter.value,
                     scalar_type: parameter.scalar_type,
@@ -76,6 +82,9 @@ pub(super) fn project(
     }
     Ok(LegalizedScalarTerminator::StructuralCase {
         source,
+        path: path.clone(),
+        root_shape,
+        byte_offset,
         layout,
         cases: successors,
         effect: node.effect,

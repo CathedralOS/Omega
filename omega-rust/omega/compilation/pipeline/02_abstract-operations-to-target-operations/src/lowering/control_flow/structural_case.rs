@@ -7,8 +7,7 @@ use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
-    TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralHomeLayout,
-    TargetStructuralParameter,
+    TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralParameter,
 };
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
@@ -106,15 +105,13 @@ fn case_source(
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let layout = crate::lowering::structural_layout::structural_sum_layout(
+        let layout = super::aggregate_results::value_home_layout(
             parameter.structural_type,
             structural_types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?;
         return Ok(TargetStructuralCaseSource::BorrowedBlockParameter {
             parameter: parameter.clone(),
-            layout: TargetStructuralHomeLayout::Sum(layout),
+            layout,
         });
     }
     let parameter = parameter_root(prepared, source)
@@ -138,12 +135,8 @@ fn case_source(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let layout = crate::lowering::structural_layout::structural_sum_layout(
-        parameter.structural_type,
-        structural_types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
+    let layout =
+        super::aggregate_results::value_home_layout(parameter.structural_type, structural_types)?;
     if borrowed {
         // The parameter's shape is the pointer carrier, not the referent's;
         // the sum layout describes the referent the dispatch reads through it.
@@ -152,15 +145,15 @@ fn case_source(
         }
         return Ok(TargetStructuralCaseSource::BorrowedParameter {
             parameter: parameter.clone(),
-            layout: TargetStructuralHomeLayout::Sum(layout),
+            layout,
         });
     }
-    if layout.shape != parameter.shape {
+    if layout.shape() != parameter.shape {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralCaseSource::Parameter {
         parameter: parameter.clone(),
-        layout: TargetStructuralHomeLayout::Sum(layout),
+        layout,
     })
 }
 
@@ -222,12 +215,25 @@ pub(super) fn lower(
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
-    let AbstractOperation::StructuralCase { source, cases } = operation else {
+    let AbstractOperation::StructuralCase {
+        source,
+        path,
+        cases,
+    } = operation
+    else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let home = case_source(function, prepared, live, structural_types, *source)?;
+    let (selected_type, _, byte_offset) =
+        crate::lowering::structural_layout::resolve_structural_projection_path(
+            home.structural_type(),
+            path,
+            structural_types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?;
     let declaration = structural_types
-        .get(&home.structural_type())
+        .get(&selected_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (StructuralTypeShape::Sum {
         cases: declared_cases,
@@ -239,10 +245,12 @@ pub(super) fn lower(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let layout = home
-        .layout()
-        .sum()
-        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+    let layout = crate::lowering::structural_layout::structural_sum_layout(
+        selected_type,
+        structural_types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
     if cases.len() != declared_cases.len() || cases.len() != layout.cases.len() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -301,7 +309,9 @@ pub(super) fn lower(
             }
             payloads.push(TargetControlCasePayload {
                 field: payload.field,
-                field_byte_offset: field_layout.byte_offset,
+                field_byte_offset: byte_offset
+                    .checked_add(field_layout.byte_offset)
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
                 parameter: TargetScalarBlockValue {
                     block: target.block,
                     value: parameter.value,
@@ -325,6 +335,9 @@ pub(super) fn lower(
         .extend(cases.iter().map(|case| case.psi_edge));
     Ok(TargetControlTerminator::StructuralCase {
         source: home,
+        path: path.clone(),
+        byte_offset,
+        layout,
         cases: lowered,
     })
 }

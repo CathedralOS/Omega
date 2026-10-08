@@ -48,6 +48,14 @@ pub(super) fn establish(
         if actual != scalar {
             return Err(SelectedInstructionError::custody());
         }
+        let (element_pointer, displacement) = super::memory_pointer(
+            builder,
+            row,
+            established.place,
+            pointer,
+            offset,
+            u32::from(width),
+        )?;
         memory(
             builder,
             row,
@@ -58,7 +66,7 @@ pub(super) fn establish(
         )?;
         builder.emit(
             SelectedInstructionKind::Store {
-                byte_offset: offset,
+                byte_offset: displacement,
                 byte_size: width,
             },
             builder
@@ -66,7 +74,7 @@ pub(super) fn establish(
                 .keys
                 .store
                 .ok_or_else(|| SelectedInstructionError::custody())?,
-            &[pointer, value],
+            &[element_pointer, value],
             SelectedInstructionProvenance {
                 values: vec![element],
                 ..provenance(row)

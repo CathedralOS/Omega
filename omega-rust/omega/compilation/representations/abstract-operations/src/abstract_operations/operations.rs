@@ -645,6 +645,7 @@ pub enum AbstractOperation {
     /// scalar payload fields to its target block parameters.
     StructuralCase {
         source: PlaceId,
+        path: Vec<StructuralPathSegment>,
         cases: Vec<AbstractStructuralCaseSuccessor>,
     },
     Return {
@@ -822,6 +823,7 @@ impl AbstractOperation {
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
             | Self::StructuralCaseMembership { path, .. }
+            | Self::StructuralCase { path, .. }
             | Self::StructuralByteSequenceFieldByteStore { path, .. }
             | Self::StructuralByteSequenceFieldStore { path, .. }
             | Self::StructuralByteViewFieldStore { path, .. }

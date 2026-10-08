@@ -70,10 +70,9 @@ pub(super) fn home_available(
             block: owner,
             declaration,
         } => {
-            let Some(original) = optimized.block(*owner)
-                .and_then(|candidate| {
-                    candidate.structural_parameter(expected_source)
-                })
+            let Some(original) = optimized
+                .block(*owner)
+                .and_then(|candidate| candidate.structural_parameter(expected_source))
             else {
                 return false;
             };
@@ -81,9 +80,7 @@ pub(super) fn home_available(
                 .blocks
                 .iter()
                 .find(|candidate| candidate.block == *owner)
-                .and_then(|candidate| {
-                    candidate.structural_parameter(expected_source)
-                })
+                .and_then(|candidate| candidate.structural_parameter(expected_source))
             else {
                 return false;
             };
@@ -131,7 +128,7 @@ fn parameter_available(
             .ok()
             .as_ref()
             == Some(layout)
-        && layout.sum().is_some_and(|sum| sum.shape == parameter.shape)
+        && layout.shape() == parameter.shape
 }
 
 /// A readable borrow's referent stays caller-owned, so there is no block home
@@ -159,12 +156,11 @@ fn borrowed_parameter_available(
         && parameter_corresponds(graph, optimized, parameter, declaration, expected_source)
         // The carrier is the pointer; the layout describes the referent.
         && parameter.shape.class == calling_conventions::ValueClass::BorrowedReference
-        && super::super::super::aggregate_results::sum_type_layout(
+        && super::super::super::aggregate_results::type_home_layout(
             parameter.structural_type,
             plan,
         )
         .ok()
-        .map(target_operations::TargetStructuralHomeLayout::Sum)
         .as_ref()
             == Some(layout)
 }
@@ -175,6 +171,9 @@ pub(super) fn matches(
     plan: &AbstractOperationPlan,
     block: BlockId,
     source: &TargetStructuralCaseSource,
+    path: &[terminal_psi::StructuralPathSegment],
+    byte_offset: u32,
+    layout: &calling_conventions::ConventionalSumLayout,
     cases: &[TargetControlCaseSuccessor],
     expected_source: PlaceId,
     expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
@@ -212,12 +211,11 @@ pub(super) fn matches(
                 && parameter.access == declaration.access
                 && parameter.multiplicity == declaration.multiplicity
                 && parameter.projected_qualifications.is_empty()
-                && super::super::super::aggregate_results::sum_type_layout(
+                && super::super::super::aggregate_results::type_home_layout(
                     parameter.structural_type,
                     plan,
                 )
                 .ok()
-                .map(target_operations::TargetStructuralHomeLayout::Sum)
                 .as_ref()
                     == Some(layout)
         }
@@ -225,10 +223,21 @@ pub(super) fn matches(
     if !available {
         return false;
     }
-    let Some(declaration) = terminal_psi::find_structural_type(
-        &graph.structural_types,
-        source.structural_type(),
-    )
+    let Ok((selected, expected_offset, _, expected_layout)) =
+        super::super::super::structural_case::dispatch_projection(
+            optimized,
+            expected_source,
+            path,
+            plan,
+        )
+    else {
+        return false;
+    };
+    if expected_offset != byte_offset || expected_layout != *layout {
+        return false;
+    }
+    let Some(declaration) =
+        terminal_psi::find_structural_type(&graph.structural_types, selected)
     else {
         return false;
     };
@@ -236,9 +245,6 @@ pub(super) fn matches(
         terminal_psi::StructuralTypeShape::Sum { cases }
         | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return false,
-    };
-    let Some(layout) = source.layout().sum() else {
-        return false;
     };
     if cases.len() != expected_cases.len()
         || cases.len() != declared_cases.len()
@@ -300,7 +306,8 @@ pub(super) fn matches(
                         && fields[field_position].field_type.scalar_type()
                             == Some(expected.scalar_type)
                         && scalar_shape(expected.scalar_type) == Some(field_layout.shape)
-                        && actual.field_byte_offset == field_layout.byte_offset
+                        && byte_offset.checked_add(field_layout.byte_offset)
+                            == Some(actual.field_byte_offset)
                 })
         })
 }

@@ -28,6 +28,21 @@ does not itself dispose anything. Cleanup belongs to a real exit or explicit
 discard. Selected scalar operands materialize before structural cleanup and
 successor binding commit.
 
+`StructuralCase` observes the sum selected by a structural path from its live
+root place. An empty path selects the whole root. The complete declared case
+roster determines its successors independently of case count; a one-case sum
+needs no discriminator branch. Selected payload fields become scalar parameters
+on that case's edge before cleanup. Observing a projection does not consume its
+carrier or prevent forwarding a surviving root loan. Every enclosing `Case`
+segment still requires unchanged active-case evidence at that exact root and
+path; byte layout alone does not grant payload access.
+
+Native realization keeps the root's custody and full storage extent distinct
+from the selected sum's layout. Tag and payload coordinates include the subject
+projection, including fixed-array elements and nonzero record-field offsets.
+Native displacement staging changes the encoded address, not those semantic
+coordinates.
+
 ## Safety and progress
 
 A productive component may remain unranked and execute indefinitely. Safety

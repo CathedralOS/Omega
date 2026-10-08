@@ -356,6 +356,12 @@ pub(super) fn validate_current_ownership_cfg(
                                     )
                                 })
                             }
+                            O::StructuralCase { path: observed, .. }
+                            | O::StructuralCaseMembership { path: observed, .. } => {
+                                consumed.iter().any(|path| {
+                                    terminal_semantics::structural_paths_may_overlap(path, observed)
+                                })
+                            }
                             _ => true,
                         });
                 if signature.access == StructuralAccess::Owned

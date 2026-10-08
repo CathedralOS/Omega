@@ -1,6 +1,8 @@
 //! Case terminators inspect exact sums. An owned subject is consumed and its
 //! disposal obligation retained; a shared or mutable loan parameter is read in
 //! place and stays the caller's.
+//! A field or fixed-index subject observes a subtree of that same carrier;
+//! it neither transfers the carrier nor turns a one-case sum into a guard.
 //!
 //! The dispatched sum is a parameter, an earlier immutable local, or a
 //! computed call subject. A computed subject's call is planned once at the
@@ -53,20 +55,18 @@ pub(super) fn build(
         return None;
     };
     let (expression, _) = crate::proof::exact_outcome_case_test(program, guard)?;
-    let dispatch = match validation::contextual_canonical_place_from_expression(
+    let subject_place = validation::contextual_canonical_place_from_expression(
         program,
         state.symbol,
         transition_start,
         expression,
-    ) {
+    );
+    let dispatch = match subject_place.as_ref() {
         Some(place) => {
-            let facts::PlaceRoot::Symbol(result_symbol) = place.root else {
+            let facts::PlaceRoot::Symbol(_) = place.root else {
                 return None;
             };
-            if !place.segments.is_empty() {
-                return None;
-            }
-            DispatchSubject::Place(result_symbol)
+            DispatchSubject::Place(place)
         }
         None => DispatchSubject::Computed(dispatch_subjects::evaluated_case_subject(
             program,
@@ -74,7 +74,7 @@ pub(super) fn build(
             transition_start,
         )?),
     };
-    let (subject, type_reference, expected_provenance) =
+    let (mut subject, mut type_reference, expected_provenance) =
         if let DispatchSubject::Computed(subject_expression) = dispatch {
             trace.phase("state graph: terminator: case subject call");
             trace.statement(u32::try_from(transition_start).ok());
@@ -190,6 +190,24 @@ pub(super) fn build(
                 },
             )
         };
+    if let DispatchSubject::Place(place) = dispatch
+        && !place.segments.is_empty()
+    {
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+            program,
+            state.symbol,
+            transition_start,
+            place,
+        )?;
+        subject.path = path;
+        subject.type_identity =
+            crate::execution::terminal_unit::types::base_type_identity(program, projected, &[])?;
+        // Dispatch observes a subtree, not an owned move of its enclosing
+        // record. Ordinary selected-edge cleanup still owns that root.
+        subject.access = CheckedStructuralAccess::SharedBorrow;
+        type_reference = projected;
+        shapes.add_type(projected, &[], &[])?;
+    }
     if !validation::has_contents(
         program,
         type_reference,
@@ -509,7 +527,8 @@ pub(super) fn build(
                         shapes,
                         trace,
                     )?;
-                    if successor.transfers.iter().any(|transfer| {
+                    if subject.access == CheckedStructuralAccess::Owned
+                        && successor.transfers.iter().any(|transfer| {
                         match (&subject.source, &transfer.source) {
                             (
                                 CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -629,6 +648,11 @@ pub(super) fn build(
             continue;
         }
         // Other locals use the ordinary graph's result-custody accounting.
+        if !subject.path.is_empty() {
+            // This root remains available to the selected arm. Its authored
+            // disposition is retained by the common edge-cleanup planner.
+            continue;
+        }
         if !needs_discard
             || event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
@@ -650,6 +674,7 @@ pub(super) fn build(
     }
     Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum {
         subject,
+        subject_type: type_reference,
         subject_kind: match dispatch {
             DispatchSubject::Place(_) => checked_trees::CheckedClosedSumSubjectKind::Place,
             DispatchSubject::Computed(_) => checked_trees::CheckedClosedSumSubjectKind::Computed,
@@ -660,9 +685,9 @@ pub(super) fn build(
 
 /// The sum a closed dispatch inspects.
 #[derive(Clone, Copy)]
-enum DispatchSubject {
+enum DispatchSubject<'place> {
     /// A parameter or an earlier immutable local, named by every arm.
-    Place(symbols::SymbolHandle),
+    Place(&'place validation::CanonicalPlace),
     /// One authored call. The parser copies the dispatch subject into every
     /// arm's guard and payload read; each copy keeps the one authored call's
     /// selection occurrence. The dispatch evaluates that call once, at the
@@ -671,9 +696,9 @@ enum DispatchSubject {
     Computed(typed_trees::expression::ExpressionHandle),
 }
 
-impl DispatchSubject {
+impl DispatchSubject<'_> {
     fn is_symbol(self, symbol: symbols::SymbolHandle) -> bool {
-        matches!(self, Self::Place(subject) if subject == symbol)
+        matches!(self, Self::Place(subject) if subject.root == facts::PlaceRoot::Symbol(symbol))
     }
 
     fn is_symbol_root(self, root: facts::PlaceRoot) -> bool {
@@ -681,7 +706,7 @@ impl DispatchSubject {
     }
 
     fn is_symbol_place(self, place: &validation::CanonicalPlace) -> bool {
-        self.is_symbol_root(place.root) && place.segments.is_empty()
+        matches!(self, Self::Place(subject) if subject == place)
     }
 
     /// Whether `expression` names this subject at `statement_index`.
@@ -721,7 +746,7 @@ impl DispatchSubject {
         subject_reads: &mut Vec<typed_trees::expression::ExpressionHandle>,
     ) -> Option<Option<&'program typed_trees::data::DataField>> {
         match self {
-            Self::Place(_) => {
+            Self::Place(subject) => {
                 let Some(place) = validation::contextual_canonical_place_from_expression(
                     program,
                     state.symbol,
@@ -730,13 +755,13 @@ impl DispatchSubject {
                 ) else {
                     return Some(None);
                 };
-                if !self.is_symbol_root(place.root) {
+                if place.root != subject.root || !place.segments.starts_with(&subject.segments) {
                     return Some(None);
                 }
                 let [
                     facts::PlaceSegment::Case { variant: selected },
                     facts::PlaceSegment::Field { symbol },
-                ] = place.segments.as_slice()
+                ] = &place.segments[subject.segments.len()..]
                 else {
                     return None;
                 };

@@ -93,10 +93,16 @@ pub(super) fn validate_successor_bindings(
     blocks: &BTreeMap<BlockId, &optimization_unit::OptimizationBlock>,
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    if let O::StructuralCase { source, cases } = &node.operation {
+    if let O::StructuralCase {
+        source,
+        path,
+        cases,
+    } = &node.operation
+    {
         return super::structural_cases::validate(
             function,
             *source,
+            path,
             cases,
             blocks,
             structural_types,

@@ -1104,12 +1104,19 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
         }
         LegalizedScalarTerminator::StructuralCase {
             source,
+            path,
+            root_shape,
+            byte_offset,
             layout,
             cases,
             effect,
-            ownership} => {
+            ownership,
+        } => {
             bytes.push(3);
             encode_structural_source(bytes, source);
+            super::structural_types::encode_structural_path(bytes, path);
+            super::calling::encode_shape(bytes, *root_shape);
+            bytes.extend_from_slice(&byte_offset.to_le_bytes());
             super::read_byte::encode_layout(bytes, layout);
             encode_len(bytes, cases.len());
             for case in cases {

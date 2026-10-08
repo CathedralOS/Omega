@@ -530,6 +530,27 @@ fn memory_pointer(
     byte_offset: u32,
     byte_size: u32,
 ) -> Result<(VirtualRegisterId, u32), SelectedInstructionError> {
+    displaced_memory_pointer(
+        builder,
+        place,
+        pointer,
+        byte_offset,
+        byte_size,
+        provenance(row),
+    )
+}
+
+/// Prepare an encodable address without changing the semantic memory offset.
+/// Terminator observations have no operation provenance; operation observations
+/// retain their own provenance through the same address-staging mechanism.
+pub(super) fn displaced_memory_pointer(
+    builder: &mut Builder<'_>,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    byte_offset: u32,
+    byte_size: u32,
+    provenance: SelectedInstructionProvenance,
+) -> Result<(VirtualRegisterId, u32), SelectedInstructionError> {
     if builder
         .environment
         .admits_pointer_displacement(byte_offset, byte_size)
@@ -545,7 +566,7 @@ fn memory_pointer(
             .address_offset
             .ok_or(SelectedInstructionError::custody())?,
         &[pointer, address],
-        provenance(row),
+        provenance,
     )?;
     Ok((address, 0))
 }

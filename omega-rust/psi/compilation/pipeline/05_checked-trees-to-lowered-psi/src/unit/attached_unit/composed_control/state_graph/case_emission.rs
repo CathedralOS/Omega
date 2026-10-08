@@ -19,6 +19,8 @@ pub(super) struct PreparedCase<'a> {
 
 pub(super) struct PreparedCases<'a> {
     pub source: PlaceId,
+    pub path: Vec<terminal_psi::StructuralPathSegment>,
+    pub payload_path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     pub discard_subject: bool,
     pub cases: Vec<PreparedCase<'a>>,
 }
@@ -36,12 +38,9 @@ pub(super) fn prepare<'a>(
     else {
         return Ok(None);
     };
-    // `cases::validate` admitted the subject: whole owned custody, or a
-    // shared or mutable loan parameter the dispatch only inspects.
+    // `cases::validate` admitted the original carrier. Its path selects the
+    // inspected sum without transferring that carrier's ownership or loan.
     let owned = subject.access == checked_trees::CheckedStructuralAccess::Owned;
-    if !subject.path.is_empty() {
-        return unsupported("Unit graph case subject is not a whole root");
-    }
     let subject_position = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             Some(
@@ -81,11 +80,27 @@ pub(super) fn prepare<'a>(
         }
         _ => return unsupported("Unit graph case subject source unsupported"),
     };
-    let declaration = crate::structural_types::declaration(
-            &catalogs.structural_types[..],
+    let prepared_path =
+        crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+            &subject.path,
             structural_type,
-        )
-        .ok_or(LoweringError::Unsupported("Unit graph case type missing"))?;
+            &catalogs.structural_types,
+        )?;
+    let path = prepared_path
+        .into_iter()
+        .map(|segment| match segment {
+            crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static(segment) => Ok(segment),
+            _ => unsupported("case dispatch runtime projection requires a selector evidence owner"),
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let (payload_path, declaration) = terminal_semantics::canonical_static_projection(
+        catalogs.structural_types.iter(),
+        structural_type,
+        &path,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "Unit graph case projection has no exact declared carrier",
+    ))?;
     let StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
         return unsupported("Unit graph case subject is not a sum");
     };
@@ -175,9 +190,11 @@ pub(super) fn prepare<'a>(
                     continue;
                 };
                 let mut reads = Vec::new();
-                scalars::flat_case_payload_reads(expression, &mut reads);
-                for (position, case_name, field_name) in reads {
-                    if Some(position) != subject_position || case_name != declared.identity.as_str()
+                scalars::case_payload_reads(expression, &mut reads);
+                for (position, prefix, case_name, field_name) in reads {
+                    if Some(position) != subject_position
+                        || prefix != subject.path
+                        || case_name != declared.identity.as_str()
                     {
                         continue;
                     }
@@ -211,6 +228,8 @@ pub(super) fn prepare<'a>(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok(Some(PreparedCases {
         source: place,
+        path,
+        payload_path,
         discard_subject: owned && multiplicity == StructuralMultiplicity::Affine,
         cases,
     }))

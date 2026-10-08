@@ -1,4 +1,4 @@
-//! Active-case evidence for call-scoped payload loans in the current CFG.
+//! Active-case evidence for payload loans and projected dispatch in the current CFG.
 //! Layout selects bytes; only an unchanged observation on every arrival may
 //! authorize interpreting those bytes as the requested case's payload.
 
@@ -18,15 +18,8 @@ pub(super) fn validate(
 ) -> Result<(), OptimizationUnitValidationError> {
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
-            let O::CallStructural {
-                structural_arguments,
-                ..
-            } = &node.operation
-            else {
-                continue;
-            };
-            for argument in structural_arguments {
-                for (position, segment) in argument.path.iter().enumerate() {
+            let validate_projection = |root, path: &[StructuralPathSegment]| {
+                for (position, segment) in path.iter().enumerate() {
                     let StructuralPathSegment::Case(case) = segment else {
                         continue;
                     };
@@ -35,13 +28,28 @@ pub(super) fn validate(
                         types,
                         predecessors,
                         (block_position, node_position),
-                        argument.place,
-                        &argument.path[..position],
+                        root,
+                        &path[..position],
                         *case,
                     ) {
                         return Err(catalog_mismatch(function));
                     }
                 }
+                Ok(())
+            };
+            match &node.operation {
+                O::CallStructural {
+                    structural_arguments,
+                    ..
+                } => {
+                    for argument in structural_arguments {
+                        validate_projection(argument.place, &argument.path)?;
+                    }
+                }
+                O::StructuralCase { source, path, .. } => {
+                    validate_projection(*source, path)?;
+                }
+                _ => {}
             }
         }
     }
@@ -77,7 +85,10 @@ fn active_on_every_path(
     else {
         return false;
     };
-    let Some((_, declaration)) = terminal_semantics::canonical_static_projection(
+    // The roster depends on the declared endpoint type, not a canonical fact
+    // key. Reference crossings and runtime selectors retain their exact path
+    // in the freshness judgment rather than gaining canonical storage identity.
+    let Some(declaration) = terminal_semantics::runtime_structural_path_tip(
         types.values().copied(),
         source.structural_type,
         path,
@@ -132,9 +143,13 @@ fn membership_on_every_path(
             if result.place == root && path.is_empty() && (*result_case == case) == expected)
         },
         |site, operation, edge, before| match operation {
-            O::StructuralCase { source, cases } => {
+            O::StructuralCase {
+                source,
+                path: selected_path,
+                cases,
+            } => {
                 *source == before
-                    && path.is_empty()
+                    && path == selected_path
                     && cases.iter().any(|candidate| {
                         candidate.psi_edge == edge.psi_edge && (candidate.case == case) == expected
                     })

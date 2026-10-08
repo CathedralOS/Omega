@@ -423,21 +423,34 @@ pub(super) fn validate(
                     }
             }
             (
-                TargetControlTerminator::StructuralCase { source, cases },
+                TargetControlTerminator::StructuralCase {
+                    source,
+                    path,
+                    byte_offset,
+                    layout,
+                    cases,
+                },
                 AbstractOperation::StructuralCase {
                     source: expected_source,
+                    path: expected_path,
                     cases: expected_cases,
                 },
-            ) => structural_cases::matches(
-                graph,
-                optimized,
-                plan,
-                block.block,
-                source,
-                cases,
-                *expected_source,
-                expected_cases,
-            ),
+            ) => {
+                path == expected_path
+                    && structural_cases::matches(
+                        graph,
+                        optimized,
+                        plan,
+                        block.block,
+                        source,
+                        path,
+                        *byte_offset,
+                        layout,
+                        cases,
+                        *expected_source,
+                        expected_cases,
+                    )
+            }
             (
                 TargetControlTerminator::Return {
                     psi_edge,

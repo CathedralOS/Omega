@@ -342,6 +342,7 @@ impl Evaluation {
             // parameters.
             bound.push(EstablishedCasePayload {
                 source,
+                path: Vec::new(),
                 case,
                 field: field.id,
                 position: source_types.len() + bound.len(),

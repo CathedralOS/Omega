@@ -1077,7 +1077,7 @@ pub(super) fn apply_operation(
                 },
             )?;
         }
-        O::StructuralCase { source, .. } => {
+        O::StructuralCase { source, path, .. } => {
             check_observation_access(
                 function,
                 structural_types,
@@ -1085,7 +1085,7 @@ pub(super) fn apply_operation(
                 node,
                 live,
                 *source,
-                &[],
+                path,
                 |_| false,
             )?;
         }

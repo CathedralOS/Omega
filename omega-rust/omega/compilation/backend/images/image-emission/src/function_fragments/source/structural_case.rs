@@ -1,4 +1,5 @@
-//! Account for case observations already checked by mandatory selected-source replay.
+//! Join semantic case edges to the selected payload coordinates. Root identity
+//! alone does not identify a sum nested in a sibling field or array element.
 use abstract_operations::{AbstractBlockEntry, AbstractStructuralCaseSuccessor};
 use selected_instructions::{
     LocalStorageSlotId, SelectedFunction, SelectedSuccessorRole, SelectedTerminator,
@@ -10,11 +11,51 @@ pub(super) fn retained(
     function: &SelectedFunction,
     source_blocks: &[AbstractBlockEntry],
     source_parameters: &[StructuralParameterDeclaration],
+    target: &target_operations::TargetFunction,
     source: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
     cases: &[AbstractStructuralCaseSuccessor],
 ) -> bool {
+    let Some(first) = cases.first() else {
+        return false;
+    };
+    let mut matching = target.graph.blocks.iter().filter_map(|block| {
+        let target_operations::TargetControlTerminator::StructuralCase {
+            source: root,
+            path: projection,
+            cases: successors,
+            ..
+        } = &block.terminator
+        else {
+            return None;
+        };
+        (root.place() == source
+            && projection == path
+            && successors
+                .iter()
+                .any(|case| case.psi_edge == first.psi_edge))
+        .then_some(successors)
+    });
+    let Some(target_cases) = matching.next() else {
+        return false;
+    };
+    if matching.next().is_some() || target_cases.len() != cases.len() {
+        return false;
+    }
     !cases.is_empty()
         && cases.iter().all(|case| {
+            let mut target_rows = target_cases
+                .iter()
+                .filter(|row| row.psi_edge == case.psi_edge);
+            let Some(target_case) = target_rows.next() else {
+                return false;
+            };
+            if target_rows.next().is_some()
+                || target_case.case != case.case
+                || target_case.target != case.target
+            {
+                return false;
+            }
             // A tested case leaves a tag branch; the last case of a dispatch
             // with no test before it (a one-case sum) leaves an unconditional
             // jump. Either way the semantic edge appears exactly once.
@@ -45,22 +86,27 @@ pub(super) fn retained(
                 && successor.source_target == case.target
                 && source_slot_matches(&retained.source, source, source_blocks, source_parameters)
                 && retained.case == case.case
+                && retained.case_tag == target_case.case_tag
                 && retained.cleanup_actions == case.cleanup_actions
                 && retained.payloads.len() == case.payloads.len()
+                && retained.payloads.len() == target_case.payloads.len()
                 && retained
                     .payloads
                     .iter()
                     .zip(&case.payloads)
-                    .all(|(retained, expected)| {
+                    .zip(&target_case.payloads)
+                    .all(|((retained, expected), physical)| {
                         retained.semantic.field == expected.field
+                            && physical.field == expected.field
+                            && retained.semantic.field_byte_offset == physical.field_byte_offset
                             && retained.semantic.parameter.value == expected.parameter
                             && retained.semantic.parameter.scalar_type == expected.scalar_type
                     })
         })
 }
 
-// Mandatory selected-source replay validates the complete realization. This
-// roster join still distinguishes an operation result from a destination-owned
+// Full instruction correspondence belongs to selected-source replay. This
+// publication roster join distinguishes an operation result from a destination-owned
 // arrival; equal place numbers cannot substitute a different block's home.
 // A function's owned parameter can use an entry-retained local slot or the
 // address of its ABI value copy; a readable loan uses its referent pointer.

@@ -130,13 +130,13 @@ impl StructuralFieldBindings {
     pub(crate) fn established_payload(
         &self,
         source: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         case: StructuralCaseId,
         field: StructuralFieldId,
     ) -> Result<Option<usize>, LoweringError> {
-        let mut rows = self
-            .established_payloads
-            .iter()
-            .filter(|row| row.source == source && row.case == case && row.field == field);
+        let mut rows = self.established_payloads.iter().filter(|row| {
+            row.source == source && row.path == path && row.case == case && row.field == field
+        });
         let position = rows.next().map(|row| row.position);
         if rows.next().is_some() {
             return unsupported("case payload has duplicate established values");
@@ -171,9 +171,10 @@ enum CasePayloadAccess {
 
 /// One payload field bound by a dominating `StructuralCase` successor, at its
 /// dense position in the scalar namespace of the code it dominates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct EstablishedCasePayload {
     pub(crate) source: PlaceId,
+    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     pub(crate) case: StructuralCaseId,
     pub(crate) field: StructuralFieldId,
     pub(crate) position: usize,
@@ -203,15 +204,18 @@ pub(crate) fn establish_case_payloads(
 ) {
     // Locals and parameters share the selected edge's value namespace. A
     // temporary subject need not have a parameter-root binding to retain it.
-    fields
-        .established_payloads
-        .retain(|prior| !established.iter().any(|row| row.source == prior.source));
+    fields.established_payloads.retain(|prior| {
+        !established
+            .iter()
+            .any(|row| row.source == prior.source && row.path == prior.path)
+    });
     fields.established_payloads.extend_from_slice(established);
     for field in &mut fields.roots {
-        let rows = established
+        let rows = fields
+            .established_payloads
             .iter()
             .filter(|row| row.source == field.source)
-            .copied()
+            .cloned()
             .collect::<Vec<_>>();
         if !rows.is_empty() {
             field.case_payloads = CasePayloadAccess::Established(rows);
@@ -423,6 +427,18 @@ fn resolved_field_read(
     scalar_type: ScalarType,
     crosses_reference: bool,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    if let Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) =
+        canonical_path.split_last()
+        && let CasePayloadAccess::Established(rows) = &binding.case_payloads
+        && let Some(row) = rows
+            .iter()
+            .find(|row| row.path == prefix && row.case == *case && row.field == field)
+    {
+        return Ok(LoweredDirectExpression::Parameter {
+            position: row.position,
+            scalar_type,
+        });
+    }
     if crosses_reference {
         let (explicit, _) = observation_paths::explicit_path(
             binding.structural_type,
@@ -628,7 +644,7 @@ pub(crate) fn resolve_case_payload(
         }),
         CasePayloadAccess::Established(rows) => rows
             .iter()
-            .find(|row| row.case == case.id && row.field == field)
+            .find(|row| row.path.is_empty() && row.case == case.id && row.field == field)
             .map(|row| CasePayloadRead::Established {
                 position: row.position,
             })

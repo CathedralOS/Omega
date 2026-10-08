@@ -398,6 +398,7 @@ fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
     let (_, mut source) = fixture();
     source.operations[2] = AbstractOperation::StructuralCase {
         source: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        path: Vec::new(),
         cases: [10, 11]
             .into_iter()
             .map(

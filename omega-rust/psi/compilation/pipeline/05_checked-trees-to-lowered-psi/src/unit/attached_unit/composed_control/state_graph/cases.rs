@@ -77,7 +77,11 @@ fn result_source<'a>(
     ),
     LoweringError,
 > {
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } = &state.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+        subject,
+        subject_type,
+        ..
+    } = &state.terminator
     else {
         return unsupported("Unit case has no structural subject");
     };
@@ -91,10 +95,8 @@ fn result_source<'a>(
             return unsupported("Unit case subject is a write-only loan");
         }
     };
-    if !subject.path.is_empty() {
-        return unsupported("Unit case subject is not a whole root");
-    }
     if inspected
+        && subject.path.is_empty()
         && !matches!(
             subject.source,
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
@@ -114,7 +116,7 @@ fn result_source<'a>(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case source parameter missing",
                 ))?;
-            let reference = if inspected {
+            let reference = if inspected && subject.path.is_empty() {
                 let TypeReferenceNode::Reference { referee, .. } = checked
                     .type_reference_table
                     .type_reference(parameter.type_reference)
@@ -172,6 +174,11 @@ fn result_source<'a>(
             )
         }
         _ => return unsupported("Unit case subject has unsupported ownership"),
+    };
+    let reference = if subject.path.is_empty() {
+        reference
+    } else {
+        *subject_type
     };
     let TypeReferenceNode::Named {
         symbol: type_symbol,
@@ -286,6 +293,15 @@ pub(super) fn validate(
             "Unit case exit cleanup is inconsistent",
         ))?
     {
+        if !subject.path.is_empty()
+            && dispatch_subject
+                .place()
+                .is_some_and(|symbol| event.root == facts::PlaceRoot::Symbol(symbol))
+        {
+            // A projected observation leaves this owner's disposition to the
+            // ordinary selected-edge cleanup plan.
+            continue;
+        }
         if dispatch_subject
             .place()
             .is_none_or(|symbol| event.root != facts::PlaceRoot::Symbol(symbol))
@@ -400,7 +416,7 @@ pub(super) fn validate(
                 None
             }
         };
-        if successor_plan.is_some_and(|successor| {
+        if subject.access == checked_trees::CheckedStructuralAccess::Owned && successor_plan.is_some_and(|successor| {
             successor.transfers.iter().any(|transfer| {
                 match (&subject.source, &transfer.source) {
                     (

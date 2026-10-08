@@ -1,0 +1,24 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }
+data Holder { pair: Pair; }
+data Main { console: Binding<Console>; }
+
+machine total(holder: &Holder) -> u64 in Wrapping {
+    transition holder.pair {
+        Pair::Both { a, b } -> value(a + b)
+    }
+    state value(result: u64 in Wrapping) -> u64 in Wrapping { result }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let holder: Holder = Holder { pair: Pair::Both { a: 30, b: 40 } };
+    let result: u64 in Wrapping = total(&holder);
+    transition result == 70 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
+}

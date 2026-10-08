@@ -158,10 +158,42 @@ fn source_identity(
     Ok(parameter.structural_type)
 }
 
-/// Resolve the exact nominal case under the independently validated root
-/// access: its tag, the tag's static byte offset, and each runtime element the
-/// path selects through (`items[i]`), rebuilt from declarations as the
-/// element's selector, obligation, stride and extent.
+/// Resolve a static dispatch projection under the root's existing custody.
+/// The carrier's extent bounds the selected sum, but is not its sum layout:
+/// sibling fields and array elements keep distinct absolute byte coordinates.
+#[allow(clippy::type_complexity)]
+pub(in crate::legalization) fn dispatch_projection(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+    path: &[StructuralPathSegment],
+    plan: &AbstractOperationPlan,
+) -> Result<
+    (
+        StructuralTypeId,
+        u32,
+        calling_conventions::ValueShape,
+        calling_conventions::ConventionalSumLayout,
+    ),
+    LegalizationError,
+> {
+    let root = source_identity(function, source)?;
+    let (selected, byte_offset) = crate::structural_inputs::structural_reference_input::project(
+        root,
+        path,
+        &plan.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
+    let root_shape = super::aggregate_results::type_home_layout(root, plan)?.shape();
+    let layout = super::aggregate_results::sum_type_layout(selected, plan)?;
+    if byte_offset
+        .checked_add(layout.shape.byte_size)
+        .is_none_or(|end| end > root_shape.byte_size)
+    {
+        return Err(LegalizationError::custody());
+    }
+    Ok((selected, byte_offset, root_shape, layout))
+}
+
 #[allow(clippy::type_complexity)]
 pub(in crate::legalization) fn membership_layout(
     function: &PsiOptimizationFunction,
@@ -374,7 +406,7 @@ pub(super) fn validate(
     function: &PsiOptimizationFunction,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
-    let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
+    let AbstractOperation::StructuralCase { source, cases, .. } = &node.operation else {
         return Err(LegalizationError::custody());
     };
     case_source(function, *source)?;

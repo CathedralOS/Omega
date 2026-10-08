@@ -1293,12 +1293,11 @@ fn observe(
         path
     });
 
-    if home.path.is_empty()
-        && !crosses_reference
-        && let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
-            binding.path.as_slice()
+    if !crosses_reference
+        && let Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) =
+            canonical_path.as_deref().and_then(|path| path.split_last())
         && let Some(payload) =
-            bindings.established_case_payload(source, *case, binding.field, scalar_type)?
+            bindings.established_case_payload(source, prefix, *case, binding.field, scalar_type)?
     {
         return Ok(payload);
     }

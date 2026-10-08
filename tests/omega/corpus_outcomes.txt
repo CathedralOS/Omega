@@ -2809,7 +2809,10 @@ pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit check
 pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 924ms check-target:macos_arm64 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_shared_loan_exit checked 1648ms check-target:macos_arm64
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms check-target:macos_arm64 @ca8c127c90c5
+pass/control_flow/runtime_projected_case_large_offset_exit checked 4437ms check-target:macos_arm64 @441e8f33f8c7+wt
+pass/control_flow/runtime_projected_case_payload_forwarding_exit checked 1329ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/control_flow/runtime_projected_float_case_payload_exit checked 4970ms check-target:macos_arm64 @a800cc9ab970
+pass/control_flow/runtime_projected_single_case_payload_exit checked 976ms check-target:macos_arm64 @441e8f33f8c7+wt
 pass/control_flow/runtime_ranked_state_cycle_borrowed_record_exit checked 2446ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_ranked_state_cycle_owned_record_exit checked 2437ms check-target:macos_arm64 @64c766216f02+wt
 pass/control_flow/runtime_root_float_case_payload_exit checked 4046ms check-target:macos_arm64 @a800cc9ab970

@@ -63,28 +63,60 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
     }
 }
 
-/// Direct payload reads in one successor argument: each `[Case, Field]` path
-/// binds `(parameter position, case name, field name)` so the case edge can
-/// stage the field as a block formal the expression reads back. Longer paths
-/// are the nested walker below's shape; other shapes stay on the ordinary
-/// observation path.
-pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<'a>(
+/// Direct payload reads in a successor argument retain their complete subject
+/// prefix before `[Case, Field]`. The selected edge stages only fields from
+/// that exact projection; same-type siblings do not share a payload namespace.
+/// Nested payload-carrier reads keep the ordinary observation path below.
+pub(in crate::unit::attached_unit::composed_control) fn case_payload_reads<'a>(
     expression: &'a checked_trees::CheckedScalarExpression,
-    reads: &mut Vec<(u32, &'a str, &'a str)>,
+    reads: &mut Vec<(
+        u32,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        &'a str,
+        &'a str,
+    )>,
 ) {
     use checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
         CheckedStructuralPredicatePathSegment as Segment,
     };
-    fn flat(path: &[Segment]) -> Option<(&str, &str)> {
-        let [Segment::Case(case), Segment::Field(field)] = path else {
+    fn flat(
+        path: &[Segment],
+    ) -> Option<(
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        &str,
+        &str,
+    )> {
+        let [prefix @ .., Segment::Case(case), Segment::Field(field)] = path else {
             return None;
         };
-        Some((case.as_str(), field.as_str()))
+        let prefix = prefix
+            .iter()
+            .map(|segment| match segment {
+                Segment::Field(field) => {
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(field.clone())
+                }
+                Segment::Case(case) => {
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(case.clone())
+                }
+                Segment::FixedIndex(index) => {
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(*index)
+                }
+                Segment::RuntimeIndex(index) => {
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone())
+                }
+            })
+            .collect();
+        Some((prefix, case.as_str(), field.as_str()))
     }
     fn scalar<'a>(
         expression: &'a checked_trees::CheckedScalarExpression,
-        reads: &mut Vec<(u32, &'a str, &'a str)>,
+        reads: &mut Vec<(
+            u32,
+            Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+            &'a str,
+            &'a str,
+        )>,
     ) {
         match expression {
             Scalar::StructuralParameterField {
@@ -92,8 +124,8 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
                 path,
                 ..
             } => {
-                if let Some((case, field)) = flat(path) {
-                    reads.push((*parameter_position, case, field));
+                if let Some((prefix, case, field)) = flat(path) {
+                    reads.push((*parameter_position, prefix, case, field));
                 }
             }
             Scalar::IntegerBinary { left, right, .. } => {
@@ -125,15 +157,20 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
     }
     fn boolean<'a>(
         expression: &'a checked_trees::CheckedBooleanExpression,
-        reads: &mut Vec<(u32, &'a str, &'a str)>,
+        reads: &mut Vec<(
+            u32,
+            Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+            &'a str,
+            &'a str,
+        )>,
     ) {
         match expression {
             Boolean::StructuralParameterField {
                 parameter_position,
                 path,
             } => {
-                if let Some((case, field)) = flat(path) {
-                    reads.push((*parameter_position, case, field));
+                if let Some((prefix, case, field)) = flat(path) {
+                    reads.push((*parameter_position, prefix, case, field));
                 }
             }
             Boolean::Not(operand) => boolean(operand, reads),

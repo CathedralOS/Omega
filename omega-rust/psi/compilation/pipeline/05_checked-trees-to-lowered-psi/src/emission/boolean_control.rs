@@ -522,6 +522,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 block_parameters,
                 Terminator::StructuralCase {
                     source: dispatch.source,
+                    path: Vec::new(),
                     cases,
                 },
             ));

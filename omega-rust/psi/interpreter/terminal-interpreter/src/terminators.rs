@@ -166,17 +166,29 @@ impl TerminalExecution<'_> {
         terminator: &Terminator,
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
-        let Terminator::StructuralCase { source, cases } = terminator else {
+        let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = terminator
+        else {
             unreachable!("dispatched settle_structural_case")
         };
+        // A case step selects an overlaid payload namespace, so authenticate
+        // each enclosing discriminator before resolving storage beneath it.
+        for (position, segment) in path.iter().enumerate() {
+            if let StructuralPathSegment::Case(case) = segment
+                && self.observe_structural_case(*source, &path[..position])? != *case
+            {
+                return Err(malformed());
+            }
+        }
         // Every established case owns one placed discriminator and payload.
         // An opaque host identity alone cannot establish either contents.
-        let active_case = self.observe_structural_case(*source, &[])?;
-        let payload_root = self
-            .structural_values
-            .get(source)
-            .map(crate::values::StructuralRuntimePlace::from)
-            .ok_or_else(malformed)?;
+        let active_case = self.observe_structural_case(*source, path)?;
+        let projected =
+            self.resolve_live_projection(*source, path, StructuralAccess::SharedBorrow)?;
+        let payload_root = crate::values::StructuralRuntimePlace::from(&projected);
         let successor = cases
             .iter()
             .find(|successor| successor.case == active_case)

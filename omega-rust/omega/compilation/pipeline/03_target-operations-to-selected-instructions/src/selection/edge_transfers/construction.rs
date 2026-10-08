@@ -19,6 +19,7 @@ pub(in crate::selection) fn prepare(
     function: &mut SelectedFunction,
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     mut cleanups: Vec<super::EdgeCleanup>,
 ) -> Result<(), SelectedInstructionError> {
     let source_count = function.blocks.len();
@@ -61,6 +62,7 @@ pub(in crate::selection) fn prepare(
                     &mut next_instruction,
                     constraints,
                     catalog,
+                    environment,
                     cleanup,
                 )? {
                     bridges.push(bridge);

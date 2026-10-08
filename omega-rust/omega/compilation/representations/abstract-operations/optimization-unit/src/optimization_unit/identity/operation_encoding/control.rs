@@ -4,7 +4,7 @@ use super::super::AbstractSuccessor;
 use super::{AbstractOperation, CanonicalBytes};
 use crate::optimization_unit::identity::carrier_encoding::{
     encode_binding, encode_ids, encode_scalar_type, encode_structural_argument,
-    encode_structural_binding,
+    encode_structural_binding, encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::structural_encoding::{
     encode_cleanup, encode_crash_cause, encode_crash_predicate, encode_place_declaration,
@@ -37,9 +37,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_successor(bytes, when_true);
             encode_successor(bytes, when_false);
         }
-        O::StructuralCase { source, cases } => {
+        O::StructuralCase {
+            source,
+            path,
+            cases,
+        } => {
             bytes.u8(48);
             bytes.id(*source);
+            bytes.slice(path, encode_structural_path_segment);
             bytes.len(cases.len());
             for case in cases {
                 bytes.id(case.psi_edge);

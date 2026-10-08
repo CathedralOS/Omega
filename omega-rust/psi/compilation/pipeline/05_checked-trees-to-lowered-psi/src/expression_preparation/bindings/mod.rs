@@ -1348,13 +1348,14 @@ impl ScalarBindings {
     pub(crate) fn established_case_payload(
         &self,
         source: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         Ok(self
             .structural_fields
-            .established_payload(source, case, field)?
+            .established_payload(source, path, case, field)?
             .map(|position| LoweredDirectExpression::Parameter {
                 position,
                 scalar_type,

@@ -30,6 +30,8 @@ pub(super) fn build(
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
     let LegalizedScalarTerminator::StructuralCase {
         source: subject,
+        root_shape,
+        byte_offset,
         layout,
         cases,
         ..
@@ -101,7 +103,7 @@ pub(super) fn build(
             selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place: declaration.place,
                 pointer,
-                byte_size: layout.shape.byte_size,
+                byte_size: root_shape.byte_size,
             }
         }
     };
@@ -113,8 +115,8 @@ pub(super) fn build(
                 .iter()
                 .filter(|candidate| {
                     candidate.id == slot
-                        && candidate.byte_size == layout.shape.byte_size
-                        && candidate.alignment == layout.shape.alignment
+                        && candidate.byte_size == root_shape.byte_size
+                        && candidate.alignment == root_shape.alignment
                 })
                 .count()
                 != 1
@@ -162,21 +164,31 @@ pub(super) fn build(
             block.id,
             subject.place(),
             slot,
-            layout.shape.byte_size,
+            root_shape.byte_size,
         )?,
         selected_instructions::SelectedCaseDispatchSource::Borrowed { pointer, .. } => pointer,
     };
-    let tag = register(builder, subject.place(), 0, 32, true)?;
+    let (pointer, displacement) = super::structural::displaced_memory_pointer(
+        builder,
+        subject.place(),
+        pointer,
+        *byte_offset,
+        4,
+        Default::default(),
+    )?;
+    let tag = register(builder, subject.place(), *byte_offset, 32, true)?;
     memory(
         builder,
         block.id,
         subject.place(),
-        0,
+        *byte_offset,
         4,
         SelectedMemoryAccessRole::ReadPlace,
     )?;
     builder.emit(
-        SelectedInstructionKind::Load32 { byte_offset: 0 },
+        SelectedInstructionKind::Load32 {
+            byte_offset: displacement,
+        },
         builder.constraints.keys.load32.ok_or_else(|| invalid())?,
         &[pointer, tag],
         Default::default(),

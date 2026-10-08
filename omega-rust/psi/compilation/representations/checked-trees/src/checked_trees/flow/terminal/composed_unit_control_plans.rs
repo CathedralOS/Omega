@@ -270,6 +270,7 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     /// value's producer instead of a transfer.
     ClosedSum {
         subject: CheckedUnitStructuralArgumentPlan,
+        subject_type: crate::types::TypeReferenceHandle,
         /// Whether `subject` names a place or the dispatch's one computed call.
         subject_kind: CheckedClosedSumSubjectKind,
         cases: Vec<CheckedClosedSumCasePlan>,

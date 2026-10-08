@@ -9,8 +9,8 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeMap;
 use terminal_psi::{
-    Operation, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    Operation, StructuralAccess, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// Initialized payloadless case contents below one structural entry argument.
@@ -300,10 +300,13 @@ impl TerminalExecution<'_> {
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<StructuralCaseId, TerminalInterpretError> {
-        let root = self.structural_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
-        let selected = project_structural_value(&self.program.structural_types(), root, path)?;
+        if !self.structural_values.contains_key(&source) {
+            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                source,
+            ));
+        }
+        let selected =
+            self.resolve_live_projection(source, path, StructuralAccess::SharedBorrow)?;
         let contents = self
             .structural_cases
             .get(&StructuralRuntimePlace::from(&selected))

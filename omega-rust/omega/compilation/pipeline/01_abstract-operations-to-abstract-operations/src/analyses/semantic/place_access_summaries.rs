@@ -608,8 +608,8 @@ fn scan_operation(
         O::StructuralCaseMembership { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }
-        O::StructuralCase { source, .. } => {
-            pending.attribute(context, *source, Vec::new(), AccessKind::Read);
+        O::StructuralCase { source, path, .. } => {
+            pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }
         O::StructuralLeafCopy { source, path, .. } => {
             let view = match path {

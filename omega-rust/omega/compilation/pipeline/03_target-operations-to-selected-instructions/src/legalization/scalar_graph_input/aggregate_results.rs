@@ -774,8 +774,24 @@ pub(in crate::legalization) fn home_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
+    let layout = type_home_layout(result.structural_type, plan)?;
+    // Geometry extraction is also used for borrowed roots. A result home
+    // retains the existing sum-custody admission, independently of geometry.
+    if matches!(
+        layout,
+        target_operations::TargetStructuralHomeLayout::Sum(_)
+    ) {
+        sum_layout(result, plan)?;
+    }
+    Ok(layout)
+}
+
+pub(in crate::legalization) fn type_home_layout(
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    plan: &AbstractOperationPlan,
+) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
     if plan.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
+        declaration.id == structural_type
             && matches!(
                 declaration.shape,
                 StructuralTypeShape::Record { .. }
@@ -790,12 +806,12 @@ pub(in crate::legalization) fn home_layout(
         // evidence; the layout is the carrier's physical shape alone.
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
             crate::structural_inputs::structural_reference_input::primitive_array_shape(
-                result.structural_type,
+                structural_type,
                 &plan.structural_types,
             )
             .or_else(|| {
                 crate::structural_inputs::structural_reference_input::shape(
-                    result.structural_type,
+                    structural_type,
                     &plan.structural_types,
                 )
             })
@@ -803,6 +819,6 @@ pub(in crate::legalization) fn home_layout(
         ));
     }
     Ok(target_operations::TargetStructuralHomeLayout::Sum(
-        sum_layout(result, plan)?,
+        sum_type_layout(structural_type, plan)?,
     ))
 }

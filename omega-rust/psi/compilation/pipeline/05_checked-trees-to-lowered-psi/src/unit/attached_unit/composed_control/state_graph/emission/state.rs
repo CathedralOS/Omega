@@ -710,6 +710,7 @@ impl StateGraphEmission<'_, '_> {
                             .enumerate()
                             .map(|(ordinal, field)| EstablishedCasePayload {
                                 source: prepared.source,
+                                path: prepared.payload_path.clone(),
                                 case: case.identity,
                                 field: *field,
                                 position: values.len() + ordinal,
@@ -1245,6 +1246,7 @@ impl StateGraphEmission<'_, '_> {
                                     .map(|(ordinal, ((_, _), field))| {
                                         crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
                                             source: prepared.source,
+                                            path: prepared.payload_path.clone(),
                                             case: case.identity,
                                             field: *field,
                                             position: values.len() + ordinal,
@@ -1276,6 +1278,7 @@ impl StateGraphEmission<'_, '_> {
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 Terminator::StructuralCase {
                     source: prepared.source,
+                    path: prepared.path.clone(),
                     cases,
                 }
             }

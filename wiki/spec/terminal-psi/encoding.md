@@ -552,7 +552,7 @@ A terminator row is a `u8` tag followed by its fields.
 | 6 | ReturnStructural | edge id + source place id + counted claim ids + counted trivial discards |
 | 7 | ReturnUnitPartialAffine | edge id + counted trivial discards + counted residual discards |
 | 8 | ReturnUnitNominalAffine | edge id + counted cleanups (place id + structural type id + cleanup machine id + optional receiver place id + obligation id list) |
-| 9 | StructuralCase | source place id + counted case successors (edge id + target block id + case id + counted field ids + counted trivial discards) |
+| 16 | StructuralCase | source place id + structural subject path + counted case successors (edge id + target block id + case id + counted field ids + counted affine cleanup actions) |
 
 A Jump with no residual affine discards uses tag 1; a nonempty residual list
 uses tag 10. Both have the same jump semantics. Tag 10 with an empty list is
@@ -1670,7 +1670,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 123 | yes |
+| semantic module | `PSITERM\0` | 124 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

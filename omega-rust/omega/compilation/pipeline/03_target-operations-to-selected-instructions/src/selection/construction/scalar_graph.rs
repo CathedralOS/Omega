@@ -543,6 +543,7 @@ fn select_function(
         &mut selected,
         constraints,
         catalog,
+        environment,
         edge_cleanups,
     )?;
     Ok(selected)

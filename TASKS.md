@@ -2543,23 +2543,24 @@ crash and native exit behavior.
   revision, with no timeout replacing the actual diagnostic. Native execution
   remains the owning capability task's acceptance.
 
-- **PROJECTED-CASE-DISPATCH.** (new-scope) A one-case dispatch whose subject
-  is a projected place does not lower:
-  `transition holder.pair { Pair::Both { a, b } -> value(a + b) }` over
-  `data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }` is refused
-  in stage 04 with "state graph: terminator: unsupported tail: single guarded
-  transition". Whole-root subjects, owned or borrowed, lower through the
-  closed-sum dispatch (`state_graph/closed_sum.rs`), whose Terminal
-  `StructuralCase` terminator names a whole root `PlaceId`. A projected subject
-  lowers instead as a guard chain that reads payloads in place below each
-  membership test's true edge; a one-case sum's test has no false outcome to
-  route, so the chain has nothing to lower. Dispatch over two or more cases of
-  a projected subject runs (`pass/control_flow/projected_field_exhaustive_case_dispatch_exit`).
-  Generalize `StructuralCase` to a projected path whose root the verifier
-  proves live and whose payload parameters its case dominance establishes,
-  rather than special-casing one-case chains. Acceptance: one-case and n-case
-  projected dispatch with payload forwarding run natively; the existing
-  projected-dispatch fixtures are unchanged.
+- **PROJECTED-CASE-DISPATCH.** (new-scope) Retire the remaining projected-subject
+  guard route. Runtime-index subjects still take membership/guard dispatch
+  (`pass/control_flow/runtime_indexed_case_dispatch_exit`). Its ordinary hoist
+  already has an `EstablishReference` plan; stage 04 `state_graph/closed_sum.rs`
+  declines because the affine carrier's multiplicity differs from the source
+  reference type, then treats the reference shell as the inspected sum. Reuse
+  that actual carrier with a referent projection; do not replay its initializer.
+  Extend the ordinary capture owner for evaluated/local selectors where needed.
+  Stage 05 must bind payload snapshots to the captured subject and end its
+  temporary loan after capture, before arm execution.
+  Omega must resolve the retained reference's backing sum, not interpret the
+  descriptor's byte extent as the sum's storage. Preserve outer-case dominance,
+  original-root custody and exact selector evaluation. No synthetic operation
+  may stand in for a missing selector-evidence owner.
+  Acceptance: one-case and n-case runtime-projected dispatch with payload
+  forwarding run through `omega run --both`; existing field/fixed-index,
+  large-offset, borrowed and computed-subject dispatch fixtures retain their
+  authored results, and invalid case/ownership controls still reject.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the remaining `regressed-from:` rows in

@@ -24,6 +24,7 @@ pub(super) fn prepare(
     next_instruction: &mut usize,
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
     mut cleanup: Vec<selected_instructions::SelectedInstruction>,
 ) -> Result<Option<SelectedBlock>, SelectedInstructionError> {
     let invalid = || super::super::invalid(function);
@@ -74,35 +75,11 @@ pub(super) fn prepare(
         let shape =
             crate::selection::scalar_call_abi::scalar_shape(payload.semantic.parameter.scalar_type)
                 .ok_or_else(invalid)?;
-        let (load_kind, load_key, byte_count) = match shape.byte_size {
-            1 => (
-                SelectedInstructionKind::Load8 {
-                    byte_offset: payload.semantic.field_byte_offset,
-                },
-                constraints.keys.load8,
-                1,
-            ),
-            2 => (
-                SelectedInstructionKind::Load16 {
-                    byte_offset: payload.semantic.field_byte_offset,
-                },
-                constraints.keys.load16,
-                2,
-            ),
-            4 => (
-                SelectedInstructionKind::Load32 {
-                    byte_offset: payload.semantic.field_byte_offset,
-                },
-                constraints.keys.load32,
-                4,
-            ),
-            8 => (
-                SelectedInstructionKind::Load64 {
-                    byte_offset: payload.semantic.field_byte_offset,
-                },
-                constraints.keys.load64,
-                8,
-            ),
+        let (load_key, byte_count) = match shape.byte_size {
+            1 => (constraints.keys.load8, 1),
+            2 => (constraints.keys.load16, 2),
+            4 => (constraints.keys.load32, 4),
+            8 => (constraints.keys.load64, 8),
             _ => return Err(invalid()),
         };
         if destination.scalar_type != payload.semantic.parameter.scalar_type
@@ -178,6 +155,60 @@ pub(super) fn prepare(
                 }
                 pointer
             }
+        };
+        // Preserve the root-relative semantic footprint while staging an
+        // address only when this target cannot encode the load displacement.
+        let (pointer, displacement) = if environment
+            .admits_pointer_displacement(payload.semantic.field_byte_offset, byte_count)
+        {
+            (pointer, payload.semantic.field_byte_offset)
+        } else {
+            let input = registers
+                .get(pointer.0 as usize)
+                .cloned()
+                .ok_or_else(invalid)?;
+            let address_instruction =
+                SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
+            *next_instruction += 1;
+            let address = VirtualRegisterId(registers.len().try_into().map_err(|_| invalid())?);
+            registers.push(VirtualRegister {
+                id: address,
+                scalar_type: input.scalar_type,
+                class: input.class,
+                origin: VirtualRegisterOrigin::AbiTransport {
+                    instruction: address_instruction,
+                    place,
+                    byte_offset: payload.semantic.field_byte_offset,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+            instructions.push(crate::selection::constraints::instruction(
+                address_instruction,
+                SelectedInstructionKind::AddressOffset {
+                    byte_offset: payload.semantic.field_byte_offset,
+                },
+                constraints.keys.address_offset.ok_or_else(invalid)?,
+                &[pointer, address],
+                provenance(),
+                catalog,
+            )?);
+            (address, 0)
+        };
+        let load_kind = match byte_count {
+            1 => SelectedInstructionKind::Load8 {
+                byte_offset: displacement,
+            },
+            2 => SelectedInstructionKind::Load16 {
+                byte_offset: displacement,
+            },
+            4 => SelectedInstructionKind::Load32 {
+                byte_offset: displacement,
+            },
+            8 => SelectedInstructionKind::Load64 {
+                byte_offset: displacement,
+            },
+            _ => return Err(invalid()),
         };
         let load_instruction =
             SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);

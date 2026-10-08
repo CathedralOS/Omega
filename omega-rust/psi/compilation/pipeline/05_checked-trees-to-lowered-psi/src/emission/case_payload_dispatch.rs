@@ -193,6 +193,7 @@ fn plan_decision<'a>(
                     namespace.push(*value);
                     EstablishedCasePayload {
                         source,
+                        path: Vec::new(),
                         case: selected,
                         field: *field,
                         position: namespace.len() - 1,
@@ -276,6 +277,7 @@ fn established_on_true(
                 rows.extend(dispatch.payloads.iter().map(|(field, value)| {
                     EstablishedCasePayload {
                         source: dispatch.source,
+                        path: Vec::new(),
                         case: dispatch.selected,
                         field: *field,
                         position: namespace
@@ -332,12 +334,14 @@ fn bound_position(
     let PrimitiveReadSource::Place(source) = source else {
         return None;
     };
-    let [CanonicalStructuralPathSegment::Case(case)] = path else {
+    let Some((CanonicalStructuralPathSegment::Case(case), prefix)) = path.split_last() else {
         return None;
     };
     bound
         .iter()
-        .find(|row| row.source == *source && row.case == *case && row.field == field)
+        .find(|row| {
+            row.source == *source && row.path == prefix && row.case == *case && row.field == field
+        })
         .map(|row| row.position)
 }
 

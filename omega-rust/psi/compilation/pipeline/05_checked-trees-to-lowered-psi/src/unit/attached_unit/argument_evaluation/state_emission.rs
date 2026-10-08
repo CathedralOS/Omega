@@ -538,6 +538,7 @@ pub(super) fn emit_state(
             }
             Terminator::StructuralCase {
                 source: *source,
+                path: Vec::new(),
                 cases: case_edges,
             }
         }
@@ -678,6 +679,7 @@ pub(super) fn emit_state(
             }
             Terminator::StructuralCase {
                 source: *source,
+                path: Vec::new(),
                 cases: case_edges,
             }
         }

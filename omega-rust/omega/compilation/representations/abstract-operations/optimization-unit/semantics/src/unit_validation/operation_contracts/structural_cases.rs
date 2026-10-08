@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
     source: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
     successors: &[abstract_operations::AbstractStructuralCaseSuccessor],
     blocks: &BTreeMap<BlockId, &optimization_unit::OptimizationBlock>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -20,7 +21,13 @@ pub(super) fn validate(
     if signature.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return Err(invalid());
     }
-    let declaration = types.get(&signature.structural_type).ok_or_else(invalid)?;
+    let selected = crate::unit_validation::structural_catalog::structural_projection_type(
+        types.values().copied(),
+        signature.structural_type,
+        path,
+    )
+    .ok_or_else(invalid)?;
+    let declaration = types.get(&selected).ok_or_else(invalid)?;
     let cases = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Sum { cases }
         | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,

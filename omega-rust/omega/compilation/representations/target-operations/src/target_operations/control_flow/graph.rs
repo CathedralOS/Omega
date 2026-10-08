@@ -86,6 +86,9 @@ pub enum TargetControlTerminator {
     },
     StructuralCase {
         source: TargetStructuralCaseSource,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        byte_offset: u32,
+        layout: calling_conventions::ConventionalSumLayout,
         cases: Vec<TargetControlCaseSuccessor>,
     },
     Return {

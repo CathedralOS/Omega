@@ -1190,6 +1190,9 @@ pub enum LegalizedScalarTerminator {
     },
     StructuralCase {
         source: LegalizedStructuralCaseSource,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        root_shape: calling_conventions::ValueShape,
+        byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
         cases: Vec<super::LegalizedStructuralCaseSuccessor>,
         effect: EffectLink,

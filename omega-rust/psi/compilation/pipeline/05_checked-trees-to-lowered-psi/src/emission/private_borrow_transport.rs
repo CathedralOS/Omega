@@ -130,7 +130,7 @@ pub(crate) fn forward_private_state_borrows(
                 }
                 vec![when_true.target, when_false.target]
             }
-            Terminator::StructuralCase { source, cases } => {
+            Terminator::StructuralCase { source, cases, .. } => {
                 observe(*source, StructuralAccess::SharedBorrow);
                 cases.iter().map(|case| case.target).collect()
             }
@@ -264,7 +264,7 @@ pub(crate) fn forward_private_state_borrows(
             } => {
                 remap_cleanup_actions(cleanup_actions, names);
             }
-            Terminator::StructuralCase { source, cases } => {
+            Terminator::StructuralCase { source, cases, .. } => {
                 *source = mapped(names, *source);
                 for case in cases {
                     if namespaces

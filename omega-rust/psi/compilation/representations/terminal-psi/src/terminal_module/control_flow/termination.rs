@@ -50,9 +50,12 @@ pub enum Terminator {
     },
     /// Inspect one closed structural sum and select its exact active case.
     /// Payload fields become target-block parameters only on the matching
-    /// edge, before that edge consumes the affine source place.
+    /// edge, before that edge's cleanup. Inspection itself consumes no custody.
     StructuralCase {
         source: PlaceId,
+        /// Select the inspected sum within the original live storage. Payload
+        /// capture precedes edge cleanup; a projection never consumes its root.
+        path: Vec<crate::StructuralPathSegment>,
         cases: Vec<StructuralCaseSuccessorEdge>,
     },
     /// Bind a scalar result, then perform the exact ordered affine cleanup
@@ -213,10 +216,14 @@ impl Terminator {
             Self::Return { value, .. } => {
                 *value = map(*value);
             }
-            Self::StructuralCase { .. }
-            | Self::ReturnUnit { .. }
-            | Self::ReturnStructural { .. }
-            | Self::Crash { .. } => {}
+            Self::StructuralCase { path, .. } => {
+                for segment in path {
+                    if let crate::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                        *index = map(*index);
+                    }
+                }
+            }
+            Self::ReturnUnit { .. } | Self::ReturnStructural { .. } | Self::Crash { .. } => {}
         }
     }
     /// Structural-argument rosters this terminator binds into successor

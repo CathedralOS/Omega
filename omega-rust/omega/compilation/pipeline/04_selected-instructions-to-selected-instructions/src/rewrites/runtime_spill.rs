@@ -165,6 +165,7 @@
 //! windows share it.
 
 mod admission;
+mod case_payload_address;
 mod rewrite;
 mod slot;
 mod validation;
@@ -1918,22 +1919,31 @@ pub(super) fn parameter_definitions(
                     {
                         return Err(RuntimeSpillError::UnsupportedValue);
                     }
-                    // The field load must be the idiom the case bridge itself
-                    // emits: a 32-bit payload through `Load32`, a 64-bit one
-                    // through `Load64`, each at the declared field offset.
-                    let load_kind = match payload.semantic.parameter.scalar_type {
-                        ScalarType::Integer(integer) if integer.bits() == 32 => {
-                            SelectedInstructionKind::Load32 { byte_offset }
-                        }
-                        ScalarType::Integer(integer) if integer.bits() == 64 => {
-                            SelectedInstructionKind::Load64 { byte_offset }
-                        }
-                        _ => return Err(RuntimeSpillError::UnsupportedValue),
-                    };
                     let (owner, load) = physical_definition(function, argument)?;
+                    let (byte_count, displacement) =
+                        match (payload.semantic.parameter.scalar_type, load.kind) {
+                            (
+                                ScalarType::Integer(integer),
+                                SelectedInstructionKind::Load32 { byte_offset },
+                            ) if integer.bits() == 32 => (4, byte_offset),
+                            (
+                                ScalarType::Integer(integer),
+                                SelectedInstructionKind::Load64 { byte_offset },
+                            ) if integer.bits() == 64 => (8, byte_offset),
+                            _ => return Err(RuntimeSpillError::UnsupportedValue),
+                        };
                     if owner != block_index
                         || load.id != instruction
-                        || load.kind != load_kind
+                        || !case_payload_address::case_payload_address_corresponds(
+                            function,
+                            block_index,
+                            load,
+                            case.source,
+                            successor.psi_edge,
+                            byte_offset,
+                            byte_count,
+                            displacement,
+                        )
                         || !load.operands.iter().any(|operand| {
                             operand.virtual_register == argument
                                 && operand.access == RegisterOperandAccess::Def

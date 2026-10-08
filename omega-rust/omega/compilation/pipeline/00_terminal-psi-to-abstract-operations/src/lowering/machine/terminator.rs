@@ -118,7 +118,11 @@ pub(super) fn lower_terminator(
                 when_false: lower_successor(when_false)?,
             });
         }
-        Terminator::StructuralCase { source, cases } => {
+        Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } => {
             let cases = cases
                 .iter()
                 .map(|successor| {
@@ -158,6 +162,7 @@ pub(super) fn lower_terminator(
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             operations.push(AbstractOperation::StructuralCase {
                 source: *source,
+                path: path.clone(),
                 cases,
             });
         }
