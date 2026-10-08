@@ -174,7 +174,7 @@ pub(super) fn read_request(
     })
 }
 
-pub(super) fn into_authored(request: CanonicalDependencySourceRequest) -> DependencySourceRequest {
+pub(crate) fn into_authored(request: CanonicalDependencySourceRequest) -> DependencySourceRequest {
     match request {
         CanonicalDependencySourceRequest::Path {
             explicit_alias,

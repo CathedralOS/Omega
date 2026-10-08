@@ -14,7 +14,7 @@ use super::source::{
 };
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::{
-    DependencyProjections, DependencyPurpose, DependencySourceRequest, PackageSelection,
+    DependencyProjections, DependencyPurpose, PackageSelection,
     ProjectedDependencies,
 };
 use crate::declarations::{AliasName, PackageName};
@@ -162,35 +162,13 @@ fn decode_dependency_scope(
     let request_count = decoder.count(limits.maximum_dependency_requests)?;
     let mut requests = Vec::with_capacity(request_count);
     for _ in 0..request_count {
-        requests.push(dependency_request(decode_dependency_request(
+        requests.push(crate::resolution::graph::subject::text::into_authored(decode_dependency_request(
             decoder, limits,
         )?));
     }
     Ok(ProjectedDependencies::from(requests))
 }
 
-fn dependency_request(request: CanonicalDependencySourceRequest) -> DependencySourceRequest {
-    match request {
-        CanonicalDependencySourceRequest::Path {
-            explicit_alias,
-            location,
-        } => DependencySourceRequest::Path {
-            explicit_alias,
-            location,
-        },
-        CanonicalDependencySourceRequest::Git {
-            explicit_alias,
-            repository,
-            revision,
-            selection,
-        } => DependencySourceRequest::Git {
-            explicit_alias,
-            repository,
-            revision,
-            selection,
-        },
-    }
-}
 
 fn encode_root_selection(
     encoder: &mut Encoder,
