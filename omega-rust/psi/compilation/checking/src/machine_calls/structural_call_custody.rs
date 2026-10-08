@@ -79,12 +79,9 @@ pub fn restates_structural_parameter_qualification(
     else {
         return false;
     };
-    let mut reference = parameter.type_reference;
-    if let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *referee;
-    }
+    let reference = program
+        .type_reference_table
+        .dereferenced_type_reference(parameter.type_reference);
     if program.primitive_type_reference(reference).is_some() {
         return false;
     }
@@ -122,12 +119,9 @@ pub fn structural_state_contract_scalar_predicates(
                 parameter: parameter.symbol,
             });
         }
-        let mut reference = parameter.type_reference;
-        if let TypeReferenceNode::Reference { referee, .. } =
-            program.type_reference_table.type_reference(reference)
-        {
-            reference = *referee;
-        }
+        let reference = program
+            .type_reference_table
+            .dereferenced_type_reference(parameter.type_reference);
         if program.primitive_type_reference(reference).is_some() {
             if !parameter.is_mutable {
                 expected.extend(

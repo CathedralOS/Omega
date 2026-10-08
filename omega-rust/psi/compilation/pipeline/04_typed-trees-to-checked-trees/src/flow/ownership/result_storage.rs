@@ -125,12 +125,10 @@ pub(super) fn is_private_result_place(
 
 fn unconstrained_type(
     program: &dyn ::validation::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     reference.is_valid().then_some(reference)
 }

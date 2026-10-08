@@ -5,16 +5,7 @@ use super::{
     StructuralAccess, StructuralMultiplicity, TerminalModule, checked_unit_boundary_identity,
     content_conservation, unsupported,
 };
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-fn unconstrained_type(checked: &CheckedTrees, mut ty: TypeReferenceHandle) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        checked.type_reference_table.type_reference(ty)
-    {
-        ty = *base_type;
-    }
-    ty
-}
+use checked_trees::types::TypeReferenceNode;
 
 fn lower_projection(
     checked: &CheckedTrees,
@@ -93,7 +84,9 @@ fn lower_custody(
     {
         return unsupported("retained-borrow source place or access does not replay");
     }
-    let source_ty = unconstrained_type(checked, parameter.type_reference);
+    let source_ty = checked
+            .type_reference_table
+            .unconstrained_type_reference(parameter.type_reference);
     let TypeReferenceNode::Reference {
         access: language_core::ReferenceAccess::Shared,
         lifetime: Some(_),
@@ -112,7 +105,9 @@ fn lower_custody(
     {
         return unsupported("retained-borrow result place does not replay");
     }
-    let result_ty = unconstrained_type(checked, signature.return_type);
+    let result_ty = checked
+            .type_reference_table
+            .unconstrained_type_reference(signature.return_type);
     let TypeReferenceNode::Generic {
         base_symbol,
         lifetime_arguments,

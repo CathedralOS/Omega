@@ -291,6 +291,18 @@ impl TypeReferenceTable {
         self.type_references.get(handle)
     }
 
+    /// `handle` followed through every `Reference` node — the referee the
+    /// declared alias chain names.
+    pub fn dereferenced_type_reference(
+        &self,
+        mut handle: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        while let TypeReferenceNode::Reference { referee, .. } = self.type_reference(handle) {
+            handle = *referee;
+        }
+        handle
+    }
+
     /// `handle` with every outer `Constrained` shell removed — the carrier
     /// type the constraint set annotates.
     pub fn unconstrained_type_reference(

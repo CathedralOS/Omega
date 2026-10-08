@@ -151,18 +151,6 @@ pub(super) fn height(
     })
 }
 
-fn unconstrained(
-    program: &dyn ::validation::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    reference
-}
-
 /// A field chain may pass through owned records, but never another reference.
 /// The final qualified value must itself be isolated from referenced storage.
 fn owned_projection(
@@ -171,19 +159,23 @@ fn owned_projection(
     mut reference: TypeReferenceHandle,
     segments: &[facts::PlaceSegment],
 ) -> bool {
-    reference = unconstrained(program, reference);
-    if let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *referee;
-    }
+    reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    reference = program
+        .type_reference_table
+        .dereferenced_type_reference(reference);
     for segment in segments {
         let facts::PlaceSegment::Field { symbol } = segment else {
             return false;
         };
         let TypeReferenceNode::Named { symbol: owner, .. } = program
             .type_reference_table
-            .type_reference(unconstrained(program, reference))
+            .type_reference(
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(reference),
+            )
         else {
             return false;
         };

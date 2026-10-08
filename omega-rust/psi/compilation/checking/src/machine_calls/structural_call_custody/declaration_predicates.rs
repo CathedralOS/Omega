@@ -130,7 +130,7 @@ fn parameter_data_definition<'program>(
         arguments,
         ..
     } = program.type_reference_table.type_reference(
-        crate::value_custody::type_shapes::unconstrained_base(program, referee),
+        program.type_reference_table.unconstrained_type_reference(referee),
     )
     else {
         return None;
@@ -225,7 +225,7 @@ impl RowEmitter<'_, '_> {
         visited: &mut Vec<SymbolHandle>,
     ) {
         let carrier =
-            crate::value_custody::type_shapes::unconstrained_base(self.program, type_reference);
+            self.program.type_reference_table.unconstrained_type_reference(type_reference);
         match self.program.type_reference_table.type_reference(carrier) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -409,7 +409,7 @@ fn field_consequence_primitive(
     field: &DataField,
 ) -> Option<PrimitiveType> {
     let carrier =
-        crate::value_custody::type_shapes::unconstrained_base(program, field.type_reference);
+        program.type_reference_table.unconstrained_type_reference(field.type_reference);
     let leaf = match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
         _ => carrier,
@@ -459,10 +459,7 @@ fn owned_storage_fields<'program>(
                 && !field.relevance.is_erased()
                 && !matches!(
                     program.type_reference_table.type_reference(
-                        crate::value_custody::type_shapes::unconstrained_base(
-                            program,
-                            field.type_reference
-                        )
+                        program.type_reference_table.unconstrained_type_reference(field.type_reference)
                     ),
                     TypeReferenceNode::Reference { .. }
                 )
@@ -477,7 +474,7 @@ fn storage_carries_rows(
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<SymbolHandle>,
 ) -> bool {
-    let carrier = crate::value_custody::type_shapes::unconstrained_base(program, type_reference);
+    let carrier = program.type_reference_table.unconstrained_type_reference(type_reference);
     match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray {
             element_type,
@@ -514,7 +511,7 @@ fn owned_data_definition(
     type_reference: TypeReferenceHandle,
 ) -> Option<&DataDefinition> {
     match program.type_reference_table.type_reference(
-        crate::value_custody::type_shapes::unconstrained_base(program, type_reference),
+        program.type_reference_table.unconstrained_type_reference(type_reference),
     ) {
         // Array traversal revisits these owners at each exact index. Reuse the
         // program's revision-checked first-match index instead of rescanning

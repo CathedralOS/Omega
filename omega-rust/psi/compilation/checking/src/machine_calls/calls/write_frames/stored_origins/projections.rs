@@ -450,12 +450,10 @@ pub(in crate::machine_calls::calls::write_frames) fn projected_storage_type(
 
 fn unconstrained_type(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     reference.is_valid().then_some(reference)
 }
