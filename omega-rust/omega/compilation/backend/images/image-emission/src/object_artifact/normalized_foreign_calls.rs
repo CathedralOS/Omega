@@ -429,7 +429,7 @@ fn durable_home_offsets(
 
 /// The selected instruction a scalar-home producer roster row emits, found by
 /// the home's defining operation over the caller's scalar call rosters.
-fn producer_instruction(
+pub fn producer_instruction(
     function: &selected_instructions::SelectedFunction,
     operation: semantic_vocabulary::OperationId,
     source_value: semantic_vocabulary::ValueId,
@@ -1374,7 +1374,7 @@ where
 /// a foreign producer must record exactly this home as its result, and the
 /// producer instruction defines the home's source value as its own
 /// instruction result.
-fn scalar_call_result_producer(
+pub fn scalar_call_result_producer(
     function: &selected_instructions::SelectedFunction,
     home: &target_operations::TargetUnitScalarHomeRequirement,
 ) -> bool {

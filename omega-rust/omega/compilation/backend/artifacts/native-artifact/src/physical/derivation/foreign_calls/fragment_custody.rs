@@ -9,8 +9,7 @@ use crate::physical::derivation::foreign_calls::{fixed_scalar_shape, floating_co
 use crate::physical::fragment_publication::FragmentPublicationBinding;
 use calling_conventions::ValueLocation;
 use image_emission::{
-    foreign_result_operand_count, fragment_instruction_span, scalar_observation_producer,
-    structural_result_capture,
+    foreign_result_operand_count, fragment_instruction_span, structural_result_capture,
 };
 use semantic_vocabulary::ScalarType;
 
@@ -502,7 +501,7 @@ fn fragment_scalar_argument_custody_rejoin(
                         register_operand,
                         physical,
                     )
-                    && fragment_scalar_call_result_producer(function, &home)
+                    && image_emission::scalar_call_result_producer(function, &home)
             }
             _ => false,
         };
@@ -842,36 +841,11 @@ fn fragment_durable_home_offsets(
             if let target_operations::TargetUnitScalarArgumentSource::Home(requirement) =
                 argument.source
             {
-                let Some(instruction) = function
-                    .calls
-                    .iter()
-                    .filter_map(|contract| {
-                        contract
-                            .owner
-                            .operation()
-                            .map(|operation| (operation, contract.instruction))
-                    })
-                    .chain(
-                        function
-                            .normalized_foreign_calls
-                            .iter()
-                            .filter_map(|record| {
-                                record
-                                    .invocation_site
-                                    .operation()
-                                    .map(|operation| (operation, record.instruction))
-                            }),
-                    )
-                    .find(|(operation, _)| *operation == requirement.defining_operation)
-                    .map(|(_, instruction)| instruction)
-                    .or_else(|| {
-                        scalar_observation_producer(
-                            function,
-                            requirement.defining_operation,
-                            requirement.source_value,
-                        )
-                    })
-                else {
+                let Some(instruction) = image_emission::producer_instruction(
+                    function,
+                    requirement.defining_operation,
+                    requirement.source_value,
+                ) else {
                     continue;
                 };
                 producers.push((
@@ -900,64 +874,4 @@ fn fragment_durable_home_offsets(
     offsets
 }
 
-/// The producing call one scalar-call-result `Home` names: exactly one
-/// internal or foreign call roster row claims the home's defining operation,
-/// a foreign producer must record exactly this home as its result, and the
-/// producer instruction defines the home's source value as its own
-/// instruction result.
-fn fragment_scalar_call_result_producer(
-    function: &selected_instructions::SelectedFunction,
-    home: &target_operations::TargetUnitScalarHomeRequirement,
-) -> bool {
-    let mut internal = function
-        .calls
-        .iter()
-        .filter(|contract| contract.owner.operation() == Some(home.defining_operation));
-    let mut foreign = function
-        .normalized_foreign_calls
-        .iter()
-        .filter(|record| record.invocation_site.operation() == Some(home.defining_operation));
-    let (producer, result_home) = match (internal.next(), foreign.next()) {
-        (Some(contract), None) if internal.next().is_none() => (contract.instruction, None),
-        (None, Some(record)) if foreign.next().is_none() => {
-            (record.instruction, Some(record.call.result.scalar_home()))
-        }
-        (None, None) => {
-            // Observation-produced homes live outside the call rosters: a
-            // field, byte, or membership read defines the value in its own
-            // instruction. The roster tail still re-proves the result origin.
-            let Some(producer) =
-                scalar_observation_producer(function, home.defining_operation, home.source_value)
-            else {
-                return false;
-            };
-            (producer, None)
-        }
-        _ => return false,
-    };
-    if let Some(recorded) = result_home
-        && recorded != Some(home)
-    {
-        return false;
-    }
-    let Some(producer) = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .find(|instruction| instruction.id == producer)
-    else {
-        return false;
-    };
-    producer.operands.iter().any(|operand| {
-        function
-            .virtual_registers
-            .get(operand.virtual_register.0 as usize)
-            .is_some_and(|register| {
-                register.origin
-                    == (selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                        instruction: producer.id,
-                        source_value: home.source_value,
-                    })
-            })
-    })
-}
+
