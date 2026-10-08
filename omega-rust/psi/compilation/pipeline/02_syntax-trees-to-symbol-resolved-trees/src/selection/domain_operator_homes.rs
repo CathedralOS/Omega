@@ -449,13 +449,7 @@ fn collect_type_domain_homes(
                 matches,
             );
         }
-        TypeReference::FixedArray(_)
-        | TypeReference::Slice(_)
-        | TypeReference::Generic(_)
-        | TypeReference::ConstExpression(_)
-        | TypeReference::DynamicTrait { .. }
-        | TypeReference::Named { .. }
-        | TypeReference::Unit => {}
+        super::leaf_carrier_type_reference_pattern!() => {}
     }
 }
 
