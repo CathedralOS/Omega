@@ -90,9 +90,6 @@ pub(super) fn declaration<'catalog>(
     ) {
         return Ok(Cow::Borrowed(base));
     }
-    let invalid = || MachineEffectError::ConstraintEffectMismatch {
-        instruction: instruction.id,
-    };
     let record =
         selected_instructions::calls::constraints::foreign_call_record(function, instruction)
             .ok_or_else(invalid)?;
