@@ -1,5 +1,6 @@
 //! Required durable homes, primitive store sources and ABI parameter locations.
 
+use crate::TargetStructuralArgumentSource;
 use calling_conventions::MachineRegister;
 use calling_conventions::{ConventionalSumLayout, ValueShape};
 use semantic_vocabulary::{
@@ -112,6 +113,25 @@ impl TargetStructuralHomeRequirement {
         match &self.origin {
             TargetStructuralHomeOrigin::OperationResult { .. } => StructuralAccess::Owned,
             TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => declaration.access,
+        }
+    }
+
+    /// The argument source this home presents to a receiving structural call:
+    /// a producer operation keeps its identity, while a block arrival names
+    /// its own bound declaration.
+    pub const fn argument_source(&self) -> TargetStructuralArgumentSource {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { operation, .. } => {
+                TargetStructuralArgumentSource::StructuralHome {
+                    psi_operation: *operation,
+                }
+            }
+            TargetStructuralHomeOrigin::BlockParameter { block, declaration } => {
+                TargetStructuralArgumentSource::BlockParameter {
+                    block: *block,
+                    place: declaration.place,
+                }
+            }
         }
     }
 

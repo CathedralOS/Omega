@@ -91,20 +91,7 @@ pub(super) fn argument(
         // A join owns its destination storage, not any incoming producer's
         // home. Every admitted loan access addresses that same owned backing;
         // the block origin does not attenuate its exclusive permission.
-        let source = match &home.origin {
-            target_operations::TargetStructuralHomeOrigin::OperationResult {
-                operation, ..
-            } => target_operations::TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: *operation,
-            },
-            target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                block,
-                declaration,
-            } => target_operations::TargetStructuralArgumentSource::BlockParameter {
-                block: *block,
-                place: declaration.place,
-            },
-        };
+        let source = home.argument_source();
         (home.structural_type(), source)
     } else {
         let parameter = prepared

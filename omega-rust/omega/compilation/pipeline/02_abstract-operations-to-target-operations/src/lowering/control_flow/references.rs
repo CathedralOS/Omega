@@ -309,20 +309,7 @@ pub(super) fn reference_call_argument(
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let source = match &home.origin {
-            target_operations::TargetStructuralHomeOrigin::OperationResult {
-                operation, ..
-            } => target_operations::TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: *operation,
-            },
-            target_operations::TargetStructuralHomeOrigin::BlockParameter {
-                block,
-                declaration,
-            } => target_operations::TargetStructuralArgumentSource::BlockParameter {
-                block: *block,
-                place: declaration.place,
-            },
-        };
+        let source = home.argument_source();
         (home.structural_type(), source)
     } else {
         let parameter = prepared
