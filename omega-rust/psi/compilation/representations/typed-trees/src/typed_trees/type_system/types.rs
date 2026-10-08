@@ -1054,6 +1054,24 @@ impl PrimitiveType {
         })
     }
 
+    /// A signed or unsigned fixed-width integer — the `I*`/`U*` carriers,
+    /// excluding `Addr` and `Selector`, which are pointer-width but never
+    /// integer-typed.
+    #[inline]
+    pub fn is_integer(&self) -> bool {
+        matches!(
+            self,
+            Self::I8
+                | Self::I16
+                | Self::I32
+                | Self::I64
+                | Self::U8
+                | Self::U16
+                | Self::U32
+                | Self::U64
+        )
+    }
+
     #[inline]
     pub fn from_name(name: &str) -> Option<Self> {
         // Every primitive and atomic spelling starts with one of these bytes;

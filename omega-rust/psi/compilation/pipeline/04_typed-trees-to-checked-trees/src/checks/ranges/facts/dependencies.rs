@@ -343,7 +343,7 @@ impl<'field> RangeFacts<'field> {
         symbol: SymbolHandle,
         label: &str,
     ) {
-        use typed_trees::{statement::StatementNode, types::PrimitiveType};
+        use typed_trees::statement::StatementNode;
         let Some(StatementNode::LocalData(local)) = program
             .statement_table
             .statement_at(state, self.statement_index)
@@ -356,19 +356,9 @@ impl<'field> RangeFacts<'field> {
             || local.name.as_str() != label
             || program.symbols.get(symbol).kind != symbols::SymbolKind::Local
             || program.symbols.get(symbol).parent != state.symbol
-            || !matches!(
-                program.primitive_type_reference(local.type_reference),
-                Some(
-                    PrimitiveType::I8
-                        | PrimitiveType::I16
-                        | PrimitiveType::I32
-                        | PrimitiveType::I64
-                        | PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                )
-            )
+            || !program
+                .primitive_type_reference(local.type_reference)
+                .is_some_and(|primitive| primitive.is_integer())
         {
             return;
         }

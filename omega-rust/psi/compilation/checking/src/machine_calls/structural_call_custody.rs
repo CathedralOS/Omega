@@ -313,20 +313,10 @@ fn retain_declared_integer_ranges(
     parameter: &typed_trees::signature::StateParameter,
     predicates: &mut Vec<StateScalarContractRow>,
 ) -> Option<()> {
-    use typed_trees::types::PrimitiveType;
-    if !matches!(
-        program.primitive_type_reference(parameter.type_reference),
-        Some(
-            PrimitiveType::I8
-                | PrimitiveType::I16
-                | PrimitiveType::I32
-                | PrimitiveType::I64
-                | PrimitiveType::U8
-                | PrimitiveType::U16
-                | PrimitiveType::U32
-                | PrimitiveType::U64
-        )
-    ) {
+    if !program
+        .primitive_type_reference(parameter.type_reference)
+        .is_some_and(|primitive| primitive.is_integer())
+    {
         return Some(());
     }
     for (minimum, maximum, end_inclusive) in
