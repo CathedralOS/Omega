@@ -9,11 +9,12 @@ use crate::selection::byte_view_homes::ByteViewHomes;
 use crate::selection::element_view_homes::ElementViewHomes;
 use calling_conventions::IndirectPointerLocation;
 use legalized_operations::LegalizedScalarInstruction;
+use optimization_core::AcceptedObligationFactIdentity;
 use selected_instructions::{
     SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
 };
-use semantic_vocabulary::{IntegerType, PlaceId};
+use semantic_vocabulary::{IntegerType, IntegerValue, ObligationId, OperationId, PlaceId, ValueId};
 use terminal_psi::StructuralAccess;
 
 mod block_views;
@@ -104,6 +105,77 @@ pub(super) fn transport_register(
         entry_fixed_view: None,
     });
     Ok(id)
+}
+
+/// The byte offset of element `index` inside `place`'s view home:
+/// i * K <= L * K <= R * K <= root bytes, so the element-to-byte scaling of a
+/// checked in-bounds index cannot overflow. When the view carries a byte
+/// offset O, only O + i * K <= O + L * K <= R * K, so only that byte-offset
+/// sum is claimed exact.
+pub(super) fn scaled_element_index(
+    builder: &mut Builder<'_>,
+    place: PlaceId,
+    stride: u32,
+    index_register: VirtualRegisterId,
+    index: ValueId,
+    length: ValueId,
+    obligation: ObligationId,
+    accepted_fact: AcceptedObligationFactIdentity,
+    operation: OperationId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let view = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == place)
+        .copied();
+    let stride_register = transport_register(builder, place, 0)?;
+    let scaled_index = transport_register(builder, place, 0)?;
+    builder.emit(
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(u128::from(stride)),
+        },
+        builder.constraints.keys.materialize_i64,
+        &[stride_register],
+        SelectedInstructionProvenance {
+            operations: vec![operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    builder.emit(
+        SelectedInstructionKind::WrappingMultiplyI64,
+        builder.constraints.keys.multiply_i64,
+        &[index_register, stride_register, scaled_index],
+        SelectedInstructionProvenance {
+            operations: vec![operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    let physical_index = if let Some(view) = view {
+        let offset = transport_register(builder, place, 0)?;
+        builder.emit(
+            SelectedInstructionKind::ExactAddI64 {
+                obligation,
+                accepted_fact,
+            },
+            builder.constraints.keys.add_i64,
+            &[view.byte_offset, scaled_index, offset],
+            SelectedInstructionProvenance {
+                operations: vec![operation],
+                values: vec![index, length, view.root_length],
+                obligations: vec![obligation],
+                ..Default::default()
+            },
+        )?;
+        offset
+    } else {
+        scaled_index
+    };
+    Ok(physical_index)
 }
 
 /// Resolve the durable root pointer for `place` and offset it into a fresh

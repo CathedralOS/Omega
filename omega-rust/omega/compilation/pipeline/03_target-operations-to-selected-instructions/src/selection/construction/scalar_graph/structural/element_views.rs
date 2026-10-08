@@ -7,8 +7,8 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::scaled_element_index;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use semantic_vocabulary::IntegerValue;
 use terminal_psi::StructuralTypeShape;
 
 /// The byte stride of the view's element. A derived view home already carries
@@ -133,62 +133,17 @@ fn element_view_read(
         return Err(invalid());
     }
     let pointer = element_backing_pointer(builder, row, source)?;
-    let view = builder
-        .transport
-        .element_views
-        .iter()
-        .find(|view| view.place == source)
-        .copied();
-    // i * K <= L * K <= R * K <= root bytes, so the element-to-byte scaling of
-    // a checked in-bounds index cannot overflow.
-    let stride_register = transport_register(builder, source, 0)?;
-    let scaled_index = transport_register(builder, source, 0)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(stride)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[stride_register],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
+    let physical_index = scaled_element_index(
+        builder,
+        source,
+        stride,
+        index_register,
+        index,
+        length,
+        obligation,
+        accepted_fact,
+        row.operation,
     )?;
-    builder.emit(
-        SelectedInstructionKind::WrappingMultiplyI64,
-        builder.constraints.keys.multiply_i64,
-        &[index_register, stride_register, scaled_index],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
-    )?;
-    let physical_index = if let Some(view) = view {
-        let offset = transport_register(builder, source, 0)?;
-        // O + i * K <= O + L * K <= R * K, so only this byte-offset sum is
-        // claimed exact.
-        builder.emit(
-            SelectedInstructionKind::ExactAddI64 {
-                obligation,
-                accepted_fact,
-            },
-            builder.constraints.keys.add_i64,
-            &[view.byte_offset, scaled_index, offset],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![index, length, view.root_length],
-                obligations: vec![obligation],
-                ..Default::default()
-            },
-        )?;
-        offset
-    } else {
-        scaled_index
-    };
     let output = builder.register(
         definition.value,
         definition.definition_site,
