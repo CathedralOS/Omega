@@ -4725,6 +4725,12 @@ wait for Cathedral's instruction coverage. The interpreter is
     `fail/build/package_local_calling_copy` do not exercise the loose route.
     Open: what the negative should pin once loose roots carry owners (for
     example, a policy built from copied types must not select as `std::calling`).
+  - Nontransitive imports for ordinary names: the Rust resolver binds a
+    declaration only another module's `use` reached (`data A` in `m::a`,
+    named in `main.omg` that imports only `m::b`, which imports `m::a`).
+    modules.md and the product resolver (`source/psi/resolve/imports.omg`)
+    reject it; `source/psi/parse/{types,data}.omg` relied on it for
+    `SourceSpan` before importing `psi::source::source`.
   - Indexed constraints and operator homes through typed/checked/Terminal:
     extend normalization and exact declaration selection in
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/`,
@@ -5821,8 +5827,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64,
   `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
-  `tests/psi/parser/test-parser.sh` passes all 236 parser cases, and
-  `tests/psi/resolver/test-resolver.sh` passes all 92 resolver cases; each
+  `tests/psi/parser/test-parser.sh` passes all 237 parser cases, and
+  `tests/psi/resolver/test-resolver.sh` passes all 93 resolver cases; each
   gate builds its harness natively in several minutes.
   `tests/product/request/test-request.sh` builds the product entry and passes
   all 36 OCREQ cases, D's request vectors among them; a well-formed request
@@ -5841,10 +5847,12 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   module, and binds every expression name by the language's resolution order
   (locals, arm binders, the body's own parameters, then states, machines, data
   and cases by position). The parser harness reads all 19 product sources
-  whole. Next: let the psi package resolve itself as one source set through
-  the resolver gate, which needs the shared syntax tables sized for its 17
-  units; then package aliases, with `pub` narrowing imports across packages,
-  until requests reach Psi; then typing. Size the parser tables to the request
+  whole. The resolver gate resolves the whole psi package, its 17 units, as
+  one source set; the shared syntax tables hold 1,024 roots, 16,384 path
+  members and type references, 8,192 parameters and statements, 4,096 states
+  and 32,768 expressions, over a 65,536-token unit. Next: package aliases,
+  with `pub` narrowing imports across packages, so the product entry and its
+  library imports resolve; then typing. Size the parser tables to the request
   contract's scalar-resource rows (roots and states 4,096; path members, data
   members, type nodes, statements and expressions 16,384) and publish their
   refusals as those provisions; aarch64 frames past 16 MiB now realize. The

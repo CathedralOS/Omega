@@ -140,10 +140,10 @@ pub data LexDiagnostic [copy] {
 
 pub data TokenStream
 where
-    token_count <= 32768,
+    token_count <= 65536,
     decoded_length <= 131072,
 {
-    tokens: [Token; 32768] in Trapping;
+    tokens: [Token; 65536] in Trapping;
     token_count: u64;
     decoded: [u8; 131072] in Trapping;
     decoded_length: u64;
@@ -182,7 +182,7 @@ machine TokenStream::push(
     token: Token
 ) {
     token_stream.last_retained = false;
-    transition token_stream.token_count < 32768 {
+    transition token_stream.token_count < 65536 {
         true -> retain(token_stream, token)
         _ -> full(token_stream)
     }

@@ -18,7 +18,7 @@ use psi::syntax::syntax;
 pub data Resolver {
     output: NameResolution;
     // Name-resolution scratch: what each expression's position lets it name.
-    name_roles: [NameRole; 8192];
+    name_roles: [NameRole; 32768];
 }
 
 pub machine Resolver::initialize(resolver: &mut Resolver) {
@@ -494,7 +494,7 @@ crashes Trap
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
-        transition row < 4096 {
+        transition row < 16384 {
             true -> store(resolver, sources, row, type_reference, binding)
             _ -> invalid()
         }
@@ -515,7 +515,7 @@ crashes Trap
     }
 
     state unqualified(resolver: &mut Resolver, row: u64 in Trapping) {
-        transition row < 4096 {
+        transition row < 16384 {
             true -> unqualified_store(resolver, row)
             _ -> invalid()
         }
@@ -636,7 +636,7 @@ machine Resolver::bind_domain(
     domain: IdentifierSpan
 )
 // The caller binds only references it has bounded by the syntax table.
-requires reference < 4096
+requires reference < 16384
 crashes Trap
 {
     let matched: bool = SourceSet::span_spells(sources, domain.source_span, "Wrapping");
@@ -1328,7 +1328,7 @@ crashes Trap
     }
 
     state bounded(resolver: &Resolver, left: u64 in Trapping, right: u64 in Trapping) {
-        transition left < 4096 && right < 4096 {
+        transition left < 16384 && right < 16384 {
             true -> compare(resolver, left, right)
             _ -> different()
         }

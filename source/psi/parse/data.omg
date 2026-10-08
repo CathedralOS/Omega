@@ -3,6 +3,7 @@ use psi::parse::generics;
 use psi::parse::input;
 use psi::parse::parser;
 use psi::parse::types;
+use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
@@ -22,7 +23,7 @@ crashes Trap
 {
     parser.data_item_start = item_start;
     parser.data_is_public = is_public;
-    transition parser.output.root_count < 256 {
+    transition parser.output.root_count < 1024 {
         true -> capacity(parser, input)
         _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
     }
@@ -430,7 +431,7 @@ crashes Trap
 
     state close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
-        transition parser.output.data_count < 256 && parser.output.root_count < 256 {
+        transition parser.output.data_count < 256 && parser.output.root_count < 1024 {
             true -> retain(parser)
             _ -> reject(parser, input, ParseDiagnosticCode::DataCapacityExceeded)
         }

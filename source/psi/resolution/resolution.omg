@@ -113,13 +113,13 @@ pub data ResolveDiagnostic [copy] {
 
 pub data NameResolution
 where
-    binding_count <= 4096,
-    value_binding_count <= 8192,
+    binding_count <= 16384,
+    value_binding_count <= 32768,
 {
-    type_bindings: [TypeBinding; 4096];
-    domain_bindings: [DomainBinding; 4096];
+    type_bindings: [TypeBinding; 16384];
+    domain_bindings: [DomainBinding; 16384];
     binding_count: u64;
-    value_bindings: [ValueBinding; 8192];
+    value_bindings: [ValueBinding; 32768];
     value_binding_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;

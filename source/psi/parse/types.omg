@@ -1,5 +1,6 @@
 use psi::parse::input;
 use psi::parse::parser;
+use psi::source::source;
 use psi::syntax::syntax;
 use psi::tokens::tokens;
 
@@ -195,7 +196,7 @@ crashes Trap
     }
 
     state append(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
-        transition parser.output.type_reference_count < 4096 {
+        transition parser.output.type_reference_count < 16384 {
             true -> appended(parser, input, row)
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }
@@ -296,7 +297,7 @@ crashes Trap
         element: u64 in Trapping,
         kind: TypeReferenceKind
     ) {
-        transition parser.output.type_reference_count < 4096 {
+        transition parser.output.type_reference_count < 16384 {
             true -> length_appended(parser, input, frame, element,
                 Parser::type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end))
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)

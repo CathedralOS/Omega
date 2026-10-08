@@ -7,6 +7,7 @@ import struct
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 # Observation tags, mirrored from the harness's serialization tables.
 UNRESOLVED_IMPORT = 1
@@ -810,6 +811,21 @@ def main() -> None:
         1,
         b"g",
     )
+
+    # The product's own psi package resolves as one source set: each module
+    # under source/psi as `psi::<directory>::<file>`. Its build file belongs
+    # to the build context, not the package's product sources.
+    psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"
+    psi_units = tuple(
+        (("psi::" + "::".join(path.relative_to(psi_root).with_suffix("").parts)).encode(), path.read_bytes())
+        for path in sorted(psi_root.rglob("*.omg"))
+        if path.parent != psi_root
+    )
+    status, payload = run_units(program, psi_units)
+    assert status == 0, f"psi-package: status {status}"
+    package = decode(payload)
+    assert package.accepted and package.diagnostic == 0, f"psi-package: {package.diagnostic} {package.diagnostic_span}"
+    assert len(psi_units) >= 17 and len(package.bindings) > 0 and len(package.value_bindings) > 0, "psi-package"
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)

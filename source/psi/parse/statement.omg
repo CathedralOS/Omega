@@ -324,7 +324,7 @@ crashes Trap
     }
 
     state store(parser: &mut Parser, input: &TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
-        transition parser.output.statement_count < 4096 {
+        transition parser.output.statement_count < 8192 {
             true -> store_bounded(parser, input, unsupported, statement)
             _ -> reject(parser, input, ParseDiagnosticCode::StatementCapacityExceeded)
         }

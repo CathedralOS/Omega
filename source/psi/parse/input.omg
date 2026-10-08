@@ -18,14 +18,14 @@ machine Parser::load_current(parser: &mut Parser, input: &TokenStream) {
     }
 
     state array_bound(parser: &mut Parser, candidate: u64) {
-        transition candidate < 32768 {
+        transition candidate < 65536 {
             true -> present(parser, candidate)
             _ -> absent(parser)
         }
     }
 
     state present(parser: &mut Parser, retained: u64)
-    requires retained <= 32767
+    requires retained <= 65535
     {
         parser.current_index = retained;
         parser.current_present = true;

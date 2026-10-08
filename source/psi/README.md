@@ -119,7 +119,7 @@ resolves the set, and observes the diagnostic and every type, domain and value
 binding. Lexical or parse rejection exits without an observation.
 
 On macOS ARM64 both gates build their harnesses natively from a fresh CLI: all
-236 parser cases and all 92 resolver cases pass. Each gate counts each
+237 parser cases and all 93 resolver cases pass. Each gate counts each
 distinct source it runs as one case. No cached executable may stand in for
 that run. Linux and Windows hosts have run neither gate.
 
