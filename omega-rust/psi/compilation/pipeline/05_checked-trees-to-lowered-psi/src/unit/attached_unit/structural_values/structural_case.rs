@@ -30,15 +30,7 @@ impl emission::Emission<'_, '_, '_> {
         else {
             return unsupported("structural case producer missing");
         };
-        let fields = self
-            .checked
-            .facts
-            .values
-            .structural_values
-            .record_fields
-            .span(fields)
-            .ok_or(LoweringError::Unsupported("case fields are stale"))?
-            .to_vec();
+        let fields = self.structural_value_fields(fields, "case fields are stale")?;
         let owner = self
             .checked
             .data_definitions()
@@ -171,17 +163,7 @@ impl emission::Emission<'_, '_, '_> {
                 },
             ));
         }
-        // Private control flow remaps saved scalar values. Read their final slots
-        // only after every later field evaluation has completed.
-        for (field, position) in scalar_positions {
-            let terminal_psi::RecordFieldValue::Scalar { value, .. } =
-                &mut initialized[field].1.value
-            else {
-                unreachable!()
-            };
-            *value = self.values[position].id;
-        }
-        self.values.truncate(source_count);
+        self.remap_saved_scalar_fields(scalar_positions, &mut initialized, source_count);
         // Case construction zero-initializes every common field the literal
         // leaves unnamed. The zero is an ordinary constant after every
         // authored operand, so no later evaluation can move it; a bounded

@@ -33,15 +33,7 @@ impl emission::Emission<'_, '_, '_> {
         else {
             return unsupported("record producer missing");
         };
-        let fields = self
-            .checked
-            .facts
-            .values
-            .structural_values
-            .record_fields
-            .span(fields)
-            .ok_or(LoweringError::Unsupported("record fields are stale"))?
-            .to_vec();
+        let fields = self.structural_value_fields(fields, "record fields are stale")?;
         // A literal with every member omitted has no authored operand: each
         // minted child is a zeroed structural mint whose value lowers as one
         // whole-record EstablishZeroedStructural over the record's own type.
@@ -201,17 +193,7 @@ impl emission::Emission<'_, '_, '_> {
                 },
             ));
         }
-        // Private control flow remaps saved scalar values. Read their final slots
-        // only after every later field evaluation has completed.
-        for (field, position) in scalar_positions {
-            let terminal_psi::RecordFieldValue::Scalar { value, .. } =
-                &mut initialized[field].1.value
-            else {
-                unreachable!()
-            };
-            *value = self.values[position].id;
-        }
-        self.values.truncate(source_count);
+        self.remap_saved_scalar_fields(scalar_positions, &mut initialized, source_count);
         initialized.sort_by_key(|(position, _)| *position);
         // An affine record contributes no claim of its own; each owned member
         // brings the claims it already holds, rebased under its field. A

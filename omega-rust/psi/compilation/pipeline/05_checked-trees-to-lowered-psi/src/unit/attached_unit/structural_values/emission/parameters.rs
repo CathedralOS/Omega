@@ -117,14 +117,7 @@ impl Emission<'_, '_, '_> {
         path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         leaf_type_identity: String,
     ) -> Result<ProjectedMove, LoweringError> {
-        let node = self
-            .checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(source)
-            .clone();
+        let node = self.structural_value_node(source);
         let mut root_alias_path = Vec::new();
         let (root, root_type_identity, root_source) = match node.kind {
             CheckedStructuralValueKind::Place(argument) => {

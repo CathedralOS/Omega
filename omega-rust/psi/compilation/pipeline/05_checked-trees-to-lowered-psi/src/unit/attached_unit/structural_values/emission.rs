@@ -20,7 +20,10 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::source_custody::structural as source_custody;
-use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
+use arena::HandleSpan;
+use checked_trees::{
+    CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
+};
 
 mod completed_storage;
 mod completions;
@@ -958,14 +961,7 @@ impl Emission<'_, '_, '_> {
         value: CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<StructuralArgument, LoweringError> {
-        let node = self
-            .checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(value)
-            .clone();
+        let node = self.structural_value_node(value);
         if let CheckedStructuralValueKind::Projection {
             source,
             path,
@@ -1008,19 +1004,62 @@ impl Emission<'_, '_, '_> {
         })
     }
 
-    pub(super) fn value(
-        &mut self,
+    pub(super) fn structural_value_node(
+        &self,
         value: CheckedStructuralValueHandle,
-        continuation: Option<&ValueContinuation>,
-    ) -> Result<PlaceId, LoweringError> {
-        let node = self
-            .checked
+    ) -> CheckedStructuralValue {
+        self.checked
             .facts
             .values
             .structural_values
             .nodes
             .get(value)
-            .clone();
+            .clone()
+    }
+
+    /// Every structured literal's member list lives in the same record-field
+    /// span; each caller names its own staleness.
+    pub(super) fn structural_value_fields(
+        &self,
+        fields: HandleSpan<checked_trees::CheckedStructuralRecordField>,
+        stale: &'static str,
+    ) -> Result<Vec<checked_trees::CheckedStructuralRecordField>, LoweringError> {
+        Ok(self
+            .checked
+            .facts
+            .values
+            .structural_values
+            .record_fields
+            .span(fields)
+            .ok_or(LoweringError::Unsupported(stale))?
+            .to_vec())
+    }
+
+    /// Private control flow remaps saved scalar values. Read their final slots
+    /// only after every later field evaluation has completed.
+    pub(super) fn remap_saved_scalar_fields(
+        &mut self,
+        scalar_positions: Vec<(usize, usize)>,
+        initialized: &mut [(usize, terminal_psi::RecordFieldInitializer)],
+        source_count: usize,
+    ) {
+        for (field, position) in scalar_positions {
+            let terminal_psi::RecordFieldValue::Scalar { value, .. } =
+                &mut initialized[field].1.value
+            else {
+                unreachable!()
+            };
+            *value = self.values[position].id;
+        }
+        self.values.truncate(source_count);
+    }
+
+    pub(super) fn value(
+        &mut self,
+        value: CheckedStructuralValueHandle,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let node = self.structural_value_node(value);
         match node.kind {
             // A borrowed `&[T]` view lowers to `EstablishElementView` and a
             // `&mut [T]` view to `EstablishMutableElementView`: the collection
