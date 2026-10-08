@@ -955,8 +955,7 @@ pub(crate) fn direct_scalar_field_type(
     field: StructuralFieldId,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let (StructuralTypeShape::Record { fields, .. } | StructuralTypeShape::Mixed { fields, .. }) =
-        &declaration.shape
+    let Some(fields) = declaration.shape.direct_fields()
     else {
         return None;
     };
