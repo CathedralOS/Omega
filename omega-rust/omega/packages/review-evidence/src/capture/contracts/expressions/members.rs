@@ -402,93 +402,43 @@ pub(crate) fn checked_contract_member_path(
     use facts::{FactPayload, FactPlace};
 
     if let Some(domain_symbol) = context.domain_symbol {
-        let mut candidates = Vec::new();
-        for (_, record) in compilation
-            .facts
-            .semantic
-            .domain_definition_facts
-            .iter()
-            .filter(|(_, record)| {
-                record.domain_symbol == domain_symbol && record.fact == checked_fact
-            })
-        {
-            for dependency in record
-                .dependencies
+        return select_checked_dependency_member(
+            compilation,
+            context,
+            root,
+            source_members,
+            compilation
+                .facts
+                .semantic
+                .domain_definition_facts
                 .iter()
+                .filter(|(_, record)| {
+                    record.domain_symbol == domain_symbol && record.fact == checked_fact
+                })
+                .flat_map(|(_, record)| record.dependencies.iter())
                 .filter(|dependency| dependency.expression == expression)
-            {
-                let Some((_, place)) = compilation
-                    .facts
-                    .semantic
-                    .places
-                    .iter()
-                    .find(|(handle, _)| *handle == dependency.place)
-                else {
-                    continue;
-                };
-                if place.root != root {
-                    continue;
-                }
-                if let Some(selected) =
-                    checked_member_segments(compilation, place.segments, source_members)
-                {
-                    candidates.push(selected);
-                }
-            }
-        }
-        let [selected] = candidates.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract member path resolves to {} exact checked dependency records; expected one",
-                context.subject_kind,
-                context.subject_name,
-                candidates.len()
-            ))]);
-        };
-        return Ok(selected.clone());
+                .map(|dependency| dependency.place),
+        );
     }
 
     if let Some(data_symbol) = context.data_symbol {
-        let mut candidates = Vec::new();
-        for (_, record) in compilation
-            .facts
-            .semantic
-            .data_definition_facts
-            .iter()
-            .filter(|(_, record)| record.data_symbol == data_symbol && record.fact == checked_fact)
-        {
-            for dependency in record
-                .dependencies
+        return select_checked_dependency_member(
+            compilation,
+            context,
+            root,
+            source_members,
+            compilation
+                .facts
+                .semantic
+                .data_definition_facts
                 .iter()
+                .filter(|(_, record)| {
+                    record.data_symbol == data_symbol && record.fact == checked_fact
+                })
+                .flat_map(|(_, record)| record.dependencies.iter())
                 .filter(|dependency| dependency.expression == expression)
-            {
-                let Some((_, place)) = compilation
-                    .facts
-                    .semantic
-                    .places
-                    .iter()
-                    .find(|(handle, _)| *handle == dependency.place)
-                else {
-                    continue;
-                };
-                if place.root != root {
-                    continue;
-                }
-                if let Some(selected) =
-                    checked_member_segments(compilation, place.segments, source_members)
-                {
-                    candidates.push(selected);
-                }
-            }
-        }
-        let [selected] = candidates.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` contract member path resolves to {} exact checked dependency records; expected one",
-                context.subject_kind,
-                context.subject_name,
-                candidates.len()
-            ))]);
-        };
-        return Ok(selected.clone());
+                .map(|dependency| dependency.place),
+        );
     }
 
     let (point, origin) = points::contract_point(compilation, context, checked_fact)?;
@@ -524,6 +474,44 @@ pub(crate) fn checked_contract_member_path(
     let [selected] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract member path resolves to {} exact checked place rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            candidates.len()
+        ))]);
+    };
+    Ok(selected.clone())
+}
+
+fn select_checked_dependency_member(
+    compilation: &PackageReviewInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    root: facts::PlaceRoot,
+    source_members: &[typed_trees::name::Identifier],
+    places: impl Iterator<Item = facts::PlaceHandle>,
+) -> Result<Vec<(Option<SymbolHandle>, SymbolHandle)>, Vec<Diagnostic>> {
+    let mut candidates = Vec::new();
+    for dependency_place in places {
+        let Some((_, place)) = compilation
+            .facts
+            .semantic
+            .places
+            .iter()
+            .find(|(handle, _)| *handle == dependency_place)
+        else {
+            continue;
+        };
+        if place.root != root {
+            continue;
+        }
+        if let Some(selected) =
+            checked_member_segments(compilation, place.segments, source_members)
+        {
+            candidates.push(selected);
+        }
+    }
+    let [selected] = candidates.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contract member path resolves to {} exact checked dependency records; expected one",
             context.subject_kind,
             context.subject_name,
             candidates.len()
