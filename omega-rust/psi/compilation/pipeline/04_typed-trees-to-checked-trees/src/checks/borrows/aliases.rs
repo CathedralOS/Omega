@@ -17,30 +17,6 @@ pub(in crate::checks::borrows) struct ResolvedPlace {
     pub(in crate::checks::borrows) local_loan: Handle<BorrowLoanFact>,
 }
 
-pub(in crate::checks::borrows) fn resolve_receiver(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
-    place: CapturedPlace,
-) -> Option<ResolvedAlias> {
-    let resolved = resolve_place(program, facts, state_flow, entry_constraints, place)?;
-    let lineage = if resolved.local_loan.is_valid() {
-        let state = facts.borrow.states.iter().find_map(|(_, state)| {
-            (state.machine_symbol == state_flow.machine_symbol
-                && state.state_symbol == state_flow.state_symbol)
-                .then_some(state)
-        })?;
-        retained_lineage(&facts.borrow, state, resolved.local_loan)?
-    } else {
-        Vec::new()
-    };
-    Some(ResolvedAlias {
-        place: resolved.place,
-        lineage,
-    })
-}
-
 pub(in crate::checks::borrows) fn resolve_place(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -48,6 +24,17 @@ pub(in crate::checks::borrows) fn resolve_place(
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<ResolvedPlace> {
+    let mut places = resolve_places(program, facts, state_flow, entry_constraints, place)?;
+    (places.len() == 1).then(|| places.remove(0))
+}
+
+pub(in crate::checks::borrows) fn resolve_places(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedPlace>> {
     let state = program.state_by_symbol(state_flow.state_symbol)?;
     let reference_local = program
         .statement_table
@@ -60,10 +47,10 @@ pub(in crate::checks::borrows) fn resolve_place(
                         TypeReferenceNode::Reference { .. }))
         });
     if !reference_local {
-        return Some(ResolvedPlace {
+        return Some(vec![ResolvedPlace {
             place,
             local_loan: Handle::invalid(),
-        });
+        }]);
     }
 
     let borrow = &facts.borrow;
@@ -72,35 +59,36 @@ pub(in crate::checks::borrows) fn resolve_place(
             && state.state_symbol == state_flow.state_symbol)
             .then_some(state)
     })?;
-    let mut candidates = facts
+    let candidates = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
         .filter(|handle| {
             borrow.state_owns_loan(state_borrow, *handle)
                 && borrow.loans.get(*handle).owner_symbol == place.root_symbol
         });
-    let handle = candidates.next()?;
-    if candidates.next().is_some() {
-        return None;
-    }
-    let loan = borrow.loans.get(handle);
-    if !loan.owner_path.is_empty() || !loan.root_symbol.is_valid() {
-        return None;
-    }
-    let mut segments = borrow.loan_segments(loan).to_vec();
-    // Formation already rebased this loan to original storage. Append only
-    // the current operand's suffix, retaining dynamic selectors as selectors.
-    segments.extend(place.segments);
-    Some(ResolvedPlace {
-        place: CapturedPlace {
-            root_symbol: loan.root_symbol,
-            segments,
-        },
-        local_loan: handle,
-    })
+    let places: Vec<_> = candidates
+        .map(|handle| {
+            let loan = borrow.loans.get(handle);
+            if !loan.owner_path.is_empty() || !loan.root_symbol.is_valid() {
+                return None;
+            }
+            let mut segments = borrow.loan_segments(loan).to_vec();
+            // The selected descriptor retains every possible backing, not its
+            // private storage slot. Formation already captured each exact root.
+            segments.extend_from_slice(&place.segments);
+            Some(ResolvedPlace {
+                place: CapturedPlace {
+                    root_symbol: loan.root_symbol,
+                    segments,
+                },
+                local_loan: handle,
+            })
+        })
+        .collect::<Option<_>>()?;
+    (!places.is_empty()).then_some(places)
 }
 
-fn retained_lineage(
+pub(in crate::checks::borrows) fn retained_lineage(
     borrow: &BorrowFacts,
     state: &StateBorrowFact,
     mut handle: Handle<BorrowLoanFact>,

@@ -11,8 +11,7 @@ use typed_trees::{machine::Machine, statement::StatementNode};
 mod result_candidates;
 
 pub(crate) use result_candidates::{
-    call_result_sources, reference_expression_storage_places,
-    reference_result_candidates_before_statement,
+    reference_expression_storage_places, reference_result_candidates_before_statement,
 };
 
 /// The expression whose place a reference-typed local currently refers to:

@@ -1,6 +1,10 @@
 //! Reference-carrier custody through control-flow lowering. A carrier owns
 //! loan permission, never its referent's storage; every origin and parent is
 //! reconstructed from operations and signatures, never from pointer bits.
+//! A selected descriptor is one permission with a finite backing roster and
+//! all possible immediate parents. A further reborrow names that descriptor,
+//! not its grandparents; movement preserves the roster, and release waits for
+//! every child. Choosing one parent here would detach the unselected lineage.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
@@ -115,8 +119,8 @@ pub(super) struct ReferenceCustody {
     /// Referent root resolved through custody: a primitive place directly, or
     /// an owned ingress parameter's leaf path when custody entered owned.
     pub(super) root: ReferenceRoot,
-    /// Immediate parent leaf identity when this loan descends from a carrier.
-    pub(super) parent: Option<(PlaceId, Vec<StructuralPathSegment>)>,
+    /// All possible immediate parent identities; selection suspends each parent.
+    pub(super) parents: Vec<(PlaceId, Vec<StructuralPathSegment>)>,
     /// The operation that formed this leaf's carrier identity, when the leaf
     /// descends from a body operation rather than an ingress parameter.
     pub(super) operation: Option<OperationId>,
@@ -213,7 +217,7 @@ fn materialized_mutable_record_projection(
         || live
             .references
             .values()
-            .any(|child| child.parent.as_ref() == Some(&leaf.identity))
+            .any(|child| child.parents.contains(&leaf.identity))
         || leaf.result.place != carrier
         || leaf.result.multiplicity != StructuralMultiplicity::Affine
         || !leaf.result.qualification_establishments.is_empty()
@@ -290,7 +294,7 @@ pub(super) fn reference_call_argument(
     if live
         .references
         .values()
-        .any(|child| child.parent.as_ref() == Some(&leaf.identity))
+        .any(|child| child.parents.contains(&leaf.identity))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
@@ -902,7 +906,7 @@ fn normalized_source(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
-) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
+) -> Result<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
     let Some(origins) = live.borrowed_reference_sources.get(&source.place) else {
         return normalized_direct_source(function, live, types, source);
     };
@@ -935,7 +939,7 @@ fn normalized_direct_source(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
-) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
+) -> Result<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
     if let Some(crossing) = source
         .path
         .iter()
@@ -973,7 +977,7 @@ fn normalized_direct_source(
                     }) {
                         return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
-                    Ok((root, None))
+                    Ok((root, Vec::new()))
                 }
                 None => Err(LoweringError::unsupported_control_flow(function.machine)),
             };
@@ -985,12 +989,12 @@ fn normalized_direct_source(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         if live.references.iter().any(|((carrier, path), child)| {
-            child.parent.as_ref() == Some(&leaf.identity)
+            child.parents.contains(&leaf.identity)
                 && !shared_source_compatible(function, live, types, carrier, path, source.access)
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        Ok((leaf.root.clone(), Some(leaf.identity.clone())))
+        Ok((leaf.root.clone(), vec![leaf.identity.clone()]))
     } else if source.path.is_empty() {
         if live.references.iter().any(|((carrier, path), reference)| {
             reference.root.contains_place(source.place)
@@ -998,7 +1002,7 @@ fn normalized_direct_source(
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        Ok((ReferenceRoot::Place(source.place), None))
+        Ok((ReferenceRoot::Place(source.place), Vec::new()))
     } else if storage_projection_type(function, live, types, source).is_some() {
         let root = ReferenceRoot::Ingress(source.place, source.path.clone());
         if live.references.iter().any(|((carrier, path), leaf)| {
@@ -1007,7 +1011,7 @@ fn normalized_direct_source(
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        Ok((root, None))
+        Ok((root, Vec::new()))
     } else {
         Err(LoweringError::unsupported_control_flow(function.machine))
     }
@@ -1162,7 +1166,7 @@ pub(super) fn owned_transfer_is_suspended(
                     .references
                     .iter()
                     .any(|((child_carrier, child_path), child)| {
-                        child.parent.as_ref() == Some(&leaf.identity)
+                        child.parents.contains(&leaf.identity)
                             && !selected(*child_carrier, child_path)
                     })
         })
@@ -1382,7 +1386,7 @@ pub(super) fn call_arguments(
                 if live
                     .references
                     .values()
-                    .any(|child| child.parent.as_ref() == Some(&leaf.identity))
+                    .any(|child| child.parents.contains(&leaf.identity))
                     || (argument.access == StructuralAccess::Owned
                         && moved
                             .insert((argument.place, carrier_path), leaf.clone())
@@ -1569,11 +1573,11 @@ pub(super) fn establish(
     // EstablishReference always borrows, including a projection through an
     // owned record. Moving a stored descriptor uses the checked owned-value
     // projection/transfer operation, not an ingress-shape reinterpretation.
-    let (root, parent) = normalized_source(function, live, types, source)?;
+    let (root, parents) = normalized_source(function, live, types, source)?;
     let custody = ReferenceCustody {
         identity: (result.place, Vec::new()),
         root,
-        parent,
+        parents,
         operation: Some(*psi_operation),
         result: result.clone(),
         referent,
@@ -1633,7 +1637,7 @@ pub(super) fn release(
     if live
         .references
         .values()
-        .any(|child| child.parent.as_ref() == Some(&leaf.identity))
+        .any(|child| child.parents.contains(&leaf.identity))
     {
         live.references.insert(key, leaf);
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1693,7 +1697,7 @@ pub(super) fn discard_subtree(
             .get(&(source, selected_path.clone()))
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         if live.references.values().any(|child| {
-            child.parent.as_ref() == Some(&leaf.identity) && !released.contains(&child.identity)
+            child.parents.contains(&leaf.identity) && !released.contains(&child.identity)
         }) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -1873,11 +1877,11 @@ pub(super) fn call_results(
                     .cloned()
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
             } else {
-                let (root, parent) = normalized_source(function, live, types, &source)?;
+                let (root, parents) = normalized_source(function, live, types, &source)?;
                 ReferenceCustody {
                     identity: (result.place, mapping.path.clone()),
                     root,
-                    parent,
+                    parents,
                     operation: Some(psi_operation),
                     result: result.clone(),
                     referent: expected,
@@ -1926,40 +1930,41 @@ fn combine_alternatives(
     let mut leaf = candidates
         .next()
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let mut origins = vec![(leaf.root.clone(), leaf.parent.clone())];
+    let mut origins = vec![(leaf.root.clone(), leaf.parents.clone())];
     for candidate in candidates {
         if leaf.referent != candidate.referent {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        origins.push((candidate.root, candidate.parent));
+        origins.push((candidate.root, candidate.parents));
     }
-    (leaf.root, leaf.parent) = combine_candidate_origins(function, origins)?;
+    (leaf.root, leaf.parents) = combine_candidate_origins(function, origins)?;
     Ok(leaf)
 }
 
 fn combine_candidate_origins(
     function: &AbstractFunction,
-    candidates: Vec<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>)>,
-) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
+    candidates: Vec<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>)>,
+) -> Result<(ReferenceRoot, Vec<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
     let mut candidates = candidates.into_iter();
-    let (root, parent) = candidates
+    let (root, parents) = candidates
         .next()
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     if candidates.len() == 0 {
-        return Ok((root, parent));
+        return Ok((root, parents));
     }
     let mut origins = Vec::new();
-    for (root, parent) in std::iter::once((root, parent)).chain(candidates) {
-        // Independently rooted alternatives can join only after their owned
-        // descriptors transfer. A live external parent must not be detached.
-        if parent.is_some() {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
+    let mut immediate_parents = Vec::new();
+    for (root, parents) in std::iter::once((root, parents)).chain(candidates) {
+        // Selection produces one permission, but every possible immediate
+        // parent remains suspended until that permission and its children end.
         origins.extend(root.origins());
+        immediate_parents.extend(parents);
     }
     origins.sort();
     origins.dedup();
-    Ok((ReferenceRoot::Alternatives(origins), None))
+    immediate_parents.sort();
+    immediate_parents.dedup();
+    Ok((ReferenceRoot::Alternatives(origins), immediate_parents))
 }
 
 /// A structural return whose source carries reference leaves must match the
@@ -2011,11 +2016,11 @@ pub(super) fn return_custody(
             root => declared(root),
         };
         if !admitted
-            || leaf.parent.is_some()
+            || !leaf.parents.is_empty()
             || live
                 .references
                 .values()
-                .any(|child| child.parent.as_ref() == Some(&leaf.identity))
+                .any(|child| child.parents.contains(&leaf.identity))
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -2133,7 +2138,7 @@ pub(super) fn entry(
                 ReferenceCustody {
                     identity,
                     root: ReferenceRoot::Ingress(parameter.place, path.clone()),
-                    parent: None,
+                    parents: Vec::new(),
                     operation: None,
                     result: StructuralOperationResult {
                         qualification_establishments: Vec::new(),

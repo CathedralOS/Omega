@@ -74,7 +74,7 @@ pub(super) fn lower_operation(
                     && !live
                         .references
                         .values()
-                        .any(|child| child.parent.as_ref() == Some(&custody.identity))
+                        .any(|child| child.parents.contains(&custody.identity))
                     && structural_types
                         .get(&custody.result.structural_type)
                         .is_some_and(|declaration| {

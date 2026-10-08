@@ -32,6 +32,7 @@ pub(crate) mod view_link;
 pub(crate) use last_uses::{owner_path_overlaps_place_segments, place_is_used_after_statement};
 pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
+pub(crate) use loans::call_reference_sources;
 pub(crate) use loans::owner_segment_matches_place_segment;
 pub(crate) use loans::returned_value_loans;
 pub(crate) use loans::store_destination_places;

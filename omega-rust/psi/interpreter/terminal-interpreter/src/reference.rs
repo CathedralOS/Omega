@@ -143,6 +143,21 @@ impl TerminalExecution {
     ) -> Result<(), TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let (referent_type, access) = self.reference_contract(result.structural_type)?;
+        // Reference-source provenance ends with a borrowed-leaf marker even
+        // for non-reference storage. Only a real descriptor has pointer bytes
+        // to cross; formation at ordinary storage captures that exact place.
+        let mut normalized_source = source.clone();
+        if let Some((StructuralPathSegment::Referent, prefix)) = source.path.split_last()
+            && terminal_semantics::runtime_structural_path_tip(
+                self.program.structural_types.values(),
+                self.live_structural_type(source.place)?,
+                prefix,
+            )
+            .is_some_and(|tip| !matches!(tip.shape, StructuralTypeShape::Reference { .. }))
+        {
+            normalized_source.path.pop();
+        }
+        let source = &normalized_source;
         // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
         // carrier; it never establishes ownership of the carrier's contents.

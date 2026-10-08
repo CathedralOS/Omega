@@ -145,7 +145,7 @@ pub(super) fn access_reference_custody(
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 if leaf.referent != referent
                     || live.references.iter().any(|((carrier, path), child)| {
-                        child.parent.as_ref() == Some(&leaf.identity)
+                        child.parents.contains(&leaf.identity)
                             && !shared_source_compatible(
                                 function,
                                 live,

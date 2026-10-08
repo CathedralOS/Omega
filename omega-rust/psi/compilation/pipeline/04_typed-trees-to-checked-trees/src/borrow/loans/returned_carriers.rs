@@ -18,12 +18,50 @@ use crate::borrow::view_link::ViewReturnSource;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
+/// The same completed lifetime frontier drives loan attribution and access
+/// ancestry. Body reconstruction may refine a candidate's projection, but may
+/// not erase an input named by the declaration's shared output lifetime.
+pub(crate) fn call_reference_sources(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    call: &checked_trees::expression::TableCallExpression,
+) -> Option<Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)>> {
+    let fields = match call_view_return_source_at(program, state_symbol, call) {
+        ViewReturnSource::Fields { fields } => fields,
+        ViewReturnSource::Parameter { parameter_index } => {
+            let (parameters, return_type, _) = call_view_signature(program, call.target_symbol)?;
+            vec![ViewReturnFieldSource {
+                owner_path: Vec::new(),
+                source_path: Vec::new(),
+                source_type: parameters.get(parameter_index)?.type_reference,
+                parameter_index,
+                kind: reference_borrow_access_kind(program, return_type)?,
+            }]
+        }
+        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => return None,
+    };
+    Some(completed_sources(program, call.target_symbol, fields))
+}
+
+pub(super) fn completed_sources(
+    program: &dyn ::validation::CheckingInput,
+    target: SymbolHandle,
+    fields: Vec<ViewReturnFieldSource>,
+) -> Vec<(ViewReturnFieldSource, Vec<facts::PlaceSegment>)> {
+    completed_field_sources(program, target, &fields).unwrap_or_else(|| {
+        fields
+            .into_iter()
+            .map(|field| (field, Vec::new()))
+            .collect()
+    })
+}
+
 /// Refine declaration-level lifetime candidates with the checked body's
 /// complete returned-leaf relation. Descriptor selection in an owned input
 /// stays separate from a projection beneath a borrowed input. A declaration
 /// without a reconstructible body retains its conservative lifetime footprint;
 /// executable custody still requires an exact returned-origin replay.
-pub(super) fn completed_field_sources(
+fn completed_field_sources(
     program: &dyn ::validation::CheckingInput,
     target: SymbolHandle,
     fields: &[ViewReturnFieldSource],

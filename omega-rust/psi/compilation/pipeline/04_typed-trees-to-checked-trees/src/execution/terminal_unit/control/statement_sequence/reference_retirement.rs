@@ -95,6 +95,22 @@ impl Retirement<'_> {
     ) -> bool {
         let parent = self.facts.borrow.loans.get(parent);
         self.operations.iter().any(|operation| {
+            if let Some(call) = operation.call() {
+                // The call's retained loan group names each captured source.
+                // This is a disposal dependency, not permission to skip an
+                // immediate parent in the source resource judgment.
+                return call.structural_custody().is_some_and(|custody| {
+                    self.facts
+                        .borrow
+                        .loans_contain(custody.reference_loans, child)
+                        && self.facts.borrow.loans.get(child).source_owner_symbol
+                            == parent.owner_symbol
+                        && call
+                            .structural_arguments
+                            .iter()
+                            .any(|source| self.source_captures_holder(source, parent))
+                });
+            }
             let CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } =
                 operation
             else {
@@ -111,68 +127,76 @@ impl Retirement<'_> {
             {
                 return false;
             }
-            let source_holder = match source.source {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                    self.results.iter().find(|(result, root)| {
-                        result.binding_ordinal == binding_ordinal
-                            && result.statement_index as usize == parent.statement_index
-                            && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
-                    })
-                }
-                _ => source.structural_storage_root().and_then(|source_root| {
-                    self.results.iter().find(|(result, root)| {
-                        *root == source_root
-                            && result.statement_index as usize == parent.statement_index
-                            && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
-                    })
-                }),
-            };
-            if source_holder.is_none() {
-                return false;
-            }
-            let owner_path = self.facts.borrow.loan_owner_path(parent);
-            // Only storage before the first reference crossing belongs to the
-            // supplying holder. A borrow of an enclosing subtree pins all of
-            // its contained descriptor slots; disjoint sibling captures do not.
-            let prefix = source
-                .path
-                .iter()
-                .position(|segment| *segment == CheckedUnitStructuralPathSegment::Referent)
-                .unwrap_or(source.path.len());
-            let compared = owner_path.len().min(prefix);
-            let Some((_, local)) = self
-                .program
-                .state_local_declaration(self.state, parent.owner_symbol)
-            else {
-                return true; // A registered holder with unresolved geometry stays live.
-            };
-            let Some(segments) = validation::reference_result_custody::loan_place_segments(
-                self.program,
-                local.type_reference,
-                &source.path[..compared],
-            ) else {
-                return true;
-            };
-            owner_path
-                .iter()
-                .zip(segments)
-                .all(|(owner, selected)| match (owner, selected) {
-                    (
-                        checked_trees::BorrowLoanOwnerSegment::Field(owner),
-                        facts::PlaceSegment::Field { symbol },
-                    ) => *owner == symbol,
-                    (
-                        checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner),
-                        facts::PlaceSegment::FixedIndex { index },
-                    ) => *owner == index,
-                    (
-                        checked_trees::BorrowLoanOwnerSegment::Case(owner),
-                        facts::PlaceSegment::Case { variant },
-                    ) => *owner == variant,
-                    (checked_trees::BorrowLoanOwnerSegment::DynamicIndex, _) => true,
-                    _ => false,
-                })
+            self.source_captures_holder(source, parent)
         })
+    }
+
+    fn source_captures_holder(
+        &self,
+        source: &CheckedUnitStructuralArgumentPlan,
+        parent: &BorrowLoanFact,
+    ) -> bool {
+        let source_holder = match source.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                self.results.iter().find(|(result, root)| {
+                    result.binding_ordinal == binding_ordinal
+                        && result.statement_index as usize == parent.statement_index
+                        && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
+                })
+            }
+            _ => source.structural_storage_root().and_then(|source_root| {
+                self.results.iter().find(|(result, root)| {
+                    *root == source_root
+                        && result.statement_index as usize == parent.statement_index
+                        && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
+                })
+            }),
+        };
+        if source_holder.is_none() {
+            return false;
+        }
+        let owner_path = self.facts.borrow.loan_owner_path(parent);
+        // Only storage before the first reference crossing belongs to the
+        // supplying holder. A borrow of an enclosing subtree pins all of
+        // its contained descriptor slots; disjoint sibling captures do not.
+        let prefix = source
+            .path
+            .iter()
+            .position(|segment| *segment == CheckedUnitStructuralPathSegment::Referent)
+            .unwrap_or(source.path.len());
+        let compared = owner_path.len().min(prefix);
+        let Some((_, local)) = self
+            .program
+            .state_local_declaration(self.state, parent.owner_symbol)
+        else {
+            return true; // A registered holder with unresolved geometry stays live.
+        };
+        let Some(segments) = validation::reference_result_custody::loan_place_segments(
+            self.program,
+            local.type_reference,
+            &source.path[..compared],
+        ) else {
+            return true;
+        };
+        owner_path
+            .iter()
+            .zip(segments)
+            .all(|(owner, selected)| match (owner, selected) {
+                (
+                    checked_trees::BorrowLoanOwnerSegment::Field(owner),
+                    facts::PlaceSegment::Field { symbol },
+                ) => *owner == symbol,
+                (
+                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner),
+                    facts::PlaceSegment::FixedIndex { index },
+                ) => *owner == index,
+                (
+                    checked_trees::BorrowLoanOwnerSegment::Case(owner),
+                    facts::PlaceSegment::Case { variant },
+                ) => *owner == variant,
+                (checked_trees::BorrowLoanOwnerSegment::DynamicIndex, _) => true,
+                _ => false,
+            })
     }
 
     pub(super) fn holder_retired(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {

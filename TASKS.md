@@ -3240,9 +3240,8 @@ deletions, which the commit lists.
 
   Carry backing and encoding through joins, returns, recursion and stored
   references in native and both interpreters without losing the original
-  endpoint or authored storage codec. Recursive transport and joins with live
-  external loan parents still need complete lineage; selecting an origin must
-  not detach those parents. Runtime encoding choices cannot be solved by
+  endpoint or authored storage codec. Recursive transport still needs complete
+  lineage. Runtime encoding choices cannot be solved by
   specialization; raw carrier-width pointers and delayed copy-out are not
   substitutes. Foreign pointers need compatible checked adapters.
 
@@ -3256,6 +3255,10 @@ deletions, which the commit lists.
   across encoded-byte and ordinary-integer backing. Its overflow control
   `layouts/callee_integer_at_multi_origin_reference_requires_fit` and
   `borrows/multi_origin_returned_reference_live_source_write` must reject.
+  Preserve every immediate parent through selection and nested reborrow in
+  `layouts/runtime_selected_reference_parent_restoration_exit` and
+  `borrows/runtime_selected_reference_nested_restoration_exit`; both live-parent
+  write controls under `borrows/selected_reference_live_*_parent_write` reject.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:

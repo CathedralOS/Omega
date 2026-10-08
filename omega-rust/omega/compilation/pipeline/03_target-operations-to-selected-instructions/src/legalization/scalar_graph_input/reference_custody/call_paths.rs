@@ -95,7 +95,7 @@ pub(super) fn call_reference_custody(
                 .ok_or(invalid())?;
             if leaf.referent != referent
                 || custody.leaves.iter().any(|((carrier, path), child)| {
-                    child.parent.as_ref() == Some(&leaf.identity)
+                    child.parents.contains(&leaf.identity)
                         && !shared_source_compatible(
                             function,
                             custody,

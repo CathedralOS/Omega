@@ -287,14 +287,7 @@ pub(in crate::borrow) fn helper_call_aggregate_borrow_loans(
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut carried_arguments = Vec::new();
 
-    let sources =
-        super::returned_carriers::completed_field_sources(program, call.target_symbol, &fields)
-            .unwrap_or_else(|| {
-                fields
-                    .into_iter()
-                    .map(|field| (field, Vec::new()))
-                    .collect()
-            });
+    let sources = super::returned_carriers::completed_sources(program, call.target_symbol, fields);
     sources
         .into_iter()
         .flat_map(|(field, projection)| {

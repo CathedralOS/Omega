@@ -80,15 +80,13 @@ pub(super) fn replaces_binding(
         return Some(false);
     }
     let reference = source_root_type(program, state, index, target.root)?;
-    Some(
-        type_reference_is_reference(program, reference)
-            && local_aliases::expression_may_rebind_mutable_alias(
-                program,
-                machine,
-                state,
-                assignment.value,
-            ),
-    )
+    Some(reference_value_replaces_binding(
+        program,
+        machine,
+        state,
+        reference,
+        assignment.value,
+    ))
 }
 
 /// Reference-valued assignment replaces the selected carrier; value-shaped
@@ -113,15 +111,29 @@ pub(super) fn replaces_reference_binding(
         Some(state),
         assignment.target,
     )?;
-    Some(
-        type_reference_is_reference(program, reference)
-            && local_aliases::expression_may_rebind_mutable_alias(
-                program,
-                machine,
-                state,
-                assignment.value,
-            ),
-    )
+    Some(reference_value_replaces_binding(
+        program,
+        machine,
+        state,
+        reference,
+        assignment.value,
+    ))
+}
+
+fn reference_value_replaces_binding(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    reference: TypeReferenceHandle,
+    value: ExpressionHandle,
+) -> bool {
+    crate::reference_shell(program, reference).is_some_and(|shell| {
+        // Shared permission cannot write its referent. Assignment to that
+        // reference-valued slot replaces its descriptor, including implicit
+        // static views (string literals) with no borrowed backing to infer.
+        shell.access == language_semantics::ReferenceAccess::Shared
+            || local_aliases::expression_may_rebind_mutable_alias(program, machine, state, value)
+    })
 }
 
 pub(super) fn local_origin(

@@ -149,15 +149,15 @@ pub(crate) fn reference_expression_storage_places(
     Some(candidates)
 }
 
-/// The actual carrying a returned reference, before rebasing through caller
-/// locals. Borrow checking needs that local identity to recover parent loans;
-/// a storage-only candidate cannot grant an ancestry exemption.
-pub(crate) struct ReferenceResultSource {
-    pub(crate) actual: ExpressionHandle,
-    pub(crate) segments: Vec<PlaceSegment>,
+/// A checked body's actual storage route, before rebasing through caller
+/// locals. This value-origin query is not the lifetime/authority frontier:
+/// declarations can retain inputs absent from the body's actual return paths.
+struct ReferenceResultSource {
+    actual: ExpressionHandle,
+    segments: Vec<PlaceSegment>,
 }
 
-pub(crate) fn call_result_sources(
+fn call_result_sources(
     program: &dyn ::validation::CheckingInput,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,

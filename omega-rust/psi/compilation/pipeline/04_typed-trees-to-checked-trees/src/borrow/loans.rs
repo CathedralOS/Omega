@@ -51,6 +51,7 @@ mod aggregate;
 mod mutable_view_results;
 mod owner_paths;
 mod returned_carriers;
+pub(crate) use returned_carriers::call_reference_sources;
 mod stored_calls;
 pub(crate) mod types;
 

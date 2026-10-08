@@ -421,7 +421,7 @@ pub(super) fn lower(
                     || live
                         .references
                         .values()
-                        .any(|child| child.parent.as_ref() == Some(&custody.identity))
+                        .any(|child| child.parents.contains(&custody.identity))
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }

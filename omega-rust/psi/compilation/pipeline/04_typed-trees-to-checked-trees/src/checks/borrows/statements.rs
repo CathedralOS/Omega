@@ -94,6 +94,14 @@ pub(super) fn check_statement_borrows<'p>(
             facts.borrow.state_owns_loan(borrow_state, *handle)
                 && loan.statement_index == statement.statement_index
         }) {
+            let supplying_accesses = super::access_sources::resolve_all(
+                program,
+                facts,
+                state_flow,
+                statement,
+                loan.formation_expression,
+                call_frames,
+            );
             for active_loan_handle in facts
                 .flow
                 .borrow_loan_constraints(statement.entry_constraints)
@@ -109,6 +117,20 @@ pub(super) fn check_statement_borrows<'p>(
                 );
                 if compatibility.non_interfering
                     || carried_authority(loan, active_loan_handle, active_loan, &compatibility)
+                    || supplying_accesses.as_ref().is_some_and(|sources| {
+                        // A source-derived selected result retains each exact
+                        // input lineage. Reborrowing it cannot skip those
+                        // parents merely because its captured roots are joined.
+                        active_loan.kind.is_exclusive()
+                            && active_loan
+                                .kind
+                                .direct_reborrow_effect(&loan.kind)
+                                .is_some()
+                            && sources.iter().any(|source| {
+                                source.place == compatibility.left
+                                    && source.lineage.contains(&active_loan_handle)
+                            })
+                    })
                 {
                     continue;
                 }
@@ -213,20 +235,67 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
+        let typed_trees::statement::StatementNode::Assignment(assignment) = statement_node else {
+            continue;
+        };
+        let mut owned_frames = None;
+        let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
+        let binding_replacement = frames.is_some_and(|frames| {
+            frames.assignment_replaces_reference_binding(machine, statement_node) == Some(true)
+        });
+        let destinations = if binding_replacement {
+            let facts::PlaceRoot::Symbol(root_symbol) = mutated_place.root else {
+                continue;
+            };
+            Some(vec![super::aliases::ResolvedAlias {
+                place: checked_trees::CapturedPlace {
+                    root_symbol,
+                    segments: mutated_place.segments.clone(),
+                },
+                lineage: Vec::new(),
+            }])
+        } else {
+            super::access_sources::resolve_all(
+                program,
+                facts,
+                state_flow,
+                statement,
+                assignment.target,
+                call_frames,
+            )
+        };
+        let Some(destinations) = destinations else {
+            diagnostics.push(Diagnostic::error(format!(
+                "statement {} cannot resolve the complete borrowed destination of `{}`",
+                statement.statement_index,
+                mutated_place.label(program),
+            )));
+            continue;
+        };
+        // Storage identity and authority are separate: compare every captured
+        // backing, exempting only the destination's authenticated loan lineage.
+        // A write through an unselected parent still conflicts with the child.
         for loan_handle in facts
             .flow
             .borrow_loan_constraints(statement.entry_constraints)
         {
             let loan = facts.borrow.loans.get(loan_handle);
-            let compatibility = canonical_place_loan_compatibility(
-                program,
-                &mutated_place,
-                loan,
-                &facts.borrow,
-                stated_premises,
-                bound_lookup,
-            );
-            if compatibility.non_interfering {
+            if destinations.iter().all(|destination| {
+                destination.lineage.contains(&loan_handle)
+                    || super::overlap::captured_place_compatibility(
+                        program,
+                        &destination.place,
+                        &checked_trees::BorrowAccessKind::Mutable,
+                        &checked_trees::CapturedPlace {
+                            root_symbol: loan.root_symbol,
+                            segments: facts.borrow.loan_segments(loan).to_vec(),
+                        },
+                        &loan.kind,
+                        stated_premises,
+                        bound_lookup,
+                    )
+                    .non_interfering
+            }) {
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
