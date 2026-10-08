@@ -102,6 +102,7 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("measure"),
+        &[],
     )
     .expect("lower measure");
     let semantic =

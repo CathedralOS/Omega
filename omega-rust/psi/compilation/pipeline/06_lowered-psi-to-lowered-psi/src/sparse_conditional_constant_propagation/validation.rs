@@ -108,7 +108,12 @@ pub fn validate_sparse_conditional_constant_propagation(
                 }
                 // A static reach binder position is semantic call evidence
                 // carried by the operation row, never a fold candidate.
-                if operation.static_reach_binding.is_some() {
+                if operation.static_reach_binding.is_some()
+                    || crate::retained_identities::has_boundary_application(
+                        &before.boundary_application_demands,
+                        operation.id,
+                    )
+                {
                     continue;
                 }
                 let Some(literal) = terminal_semantics::constant_goal_free_scalar_leaf(

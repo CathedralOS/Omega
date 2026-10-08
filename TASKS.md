@@ -1959,7 +1959,9 @@ crash and native exit behavior.
     feature repair.
   - Remove the remaining source joins beside Terminal: publication now transfers
     its semantic module, and provider installation/runtime borrow it directly,
-    but `LoweredSourceCustody` and checked receipts still feed native settlement.
+    and exact boundary application demands are canonical producer output, but
+    selected realizations/comparisons, source-call result policies and callback
+    settlement still consume `LoweredSourceCustody` and checked receipts.
     Carry their required meaning in the canonical producer output and delete
     those source-dependent inputs. External package/artifact ingress decodes
     once; it is not an internal handoff API.

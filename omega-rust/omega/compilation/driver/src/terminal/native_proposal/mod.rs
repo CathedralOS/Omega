@@ -50,6 +50,7 @@ fn produce_callback_thunk_artifact(
     let mut production_timings = artifacts::compile_timings::CompileTimings::default();
     let produced = terminal_production::TerminalProductionRequest {
         checked: &checked.execution().program,
+        exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         machine: terminal_production::TerminalMachineSelection::Symbol(placement.selected_machine),
         optimization_selections: psi_optimizations.selections().clone(),
     }

@@ -38,6 +38,9 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     // value: proof projections and retained suspension frontiers survive
     // publication unchanged.
     let mut retained_values = BTreeSet::new();
+    retained_values.extend(crate::retained_identities::boundary_application_results(
+        &before.semantic_module,
+    ));
     for projection in &before.semantic_module.float_meaning_projections {
         match &projection.source {
             terminal_psi::FloatMeaningSource::DirectOperationResult(result) => {

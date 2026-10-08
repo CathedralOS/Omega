@@ -1,5 +1,6 @@
 //! Bodyless requirements, service reach, and realization candidates.
 
+mod applications;
 mod conformances;
 mod declarations;
 mod dynamic_dispatch;
@@ -7,6 +8,10 @@ mod providers;
 mod reach_applications;
 mod services;
 
+pub use applications::{
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
+    BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
+};
 pub use conformances::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,

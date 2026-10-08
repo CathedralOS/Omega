@@ -592,9 +592,9 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 122 + `u16` vocabulary
-marker 118 + the entry machine id, followed by the module's counted tables in
-the declaration order below and ending with the target-family roster.
+Module bytes are `PSITERM\0` + `u16` format marker 123 + `u16` vocabulary
+marker 119 + the entry machine id, followed by the module's counted tables in
+the declaration order below and ending with boundary-application demands.
 
 <!-- module-table-order -->
 | # | Module table | Row |
@@ -610,20 +610,32 @@ the declaration order below and ending with the target-family roster.
 | 9 | reborrow restored call uses | counted restored-use rows |
 | 10 | boundary machines | counted boundary machine declarations |
 | 11 | provider candidates | counted provider candidate rows |
-| 12 | float-meaning projections | counted projection rows |
-| 13 | float-meaning equalities | counted equality rows |
-| 14 | proposition declarations | counted proposition declaration rows |
-| 15 | proposition applications | counted proposition application rows |
-| 16 | evidence terms | counted evidence term rows |
-| 17 | evidence contract lanes | counted evidence lane rows |
-| 18 | proof-output invocations | counted proof-output call rows |
-| 19 | proof recursive components | counted recursive component rows |
-| 20 | closed conformance applications | counted conformance application rows |
-| 21 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 22 | scalar block invariants | the counted invariant rows above |
-| 23 | operation crash contracts | counted operation crash contract rows |
-| 24 | machines | counted machine rows |
-| 25 | target-machine families | counted family rows |
+| 12 | dynamic dispatch | counted interfaces and implementation tables |
+| 13 | float-meaning projections | counted projection rows |
+| 14 | float-meaning equalities | counted equality rows |
+| 15 | proposition declarations | counted proposition declaration rows |
+| 16 | proposition applications | counted proposition application rows |
+| 17 | evidence terms | counted evidence term rows |
+| 18 | evidence contract lanes | counted evidence lane rows |
+| 19 | proof-output invocations | counted proof-output call rows |
+| 20 | proof recursive components | counted recursive component rows |
+| 21 | closed conformance applications | counted conformance application rows |
+| 22 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 23 | scalar block invariants | the counted invariant rows above |
+| 24 | operation crash contracts | counted operation crash contract rows |
+| 25 | machines | counted machine rows |
+| 26 | target-machine families | counted family rows |
+| 27 | boundary application demands | counted exact requirement/application rows |
+
+A boundary-application row carries its nonzero operation id, counted UTF-8
+exact-owner declaration identity, counted overload identity, and counted static
+arguments. No arguments is the canonical empty application. Each argument has a
+`u8` category and `u32` binder ordinal: tag `1` carries one exact-owner type
+identity; tag `2` carries the declared carrier identity, value type identity and
+canonical value encoding as counted UTF-8 strings. Identities and constant
+encodings are nonempty. Rows are strictly ordered by operation id, each naming
+one existing operation; arguments have contiguous zero-based binder ordinals.
+The roster is semantic input, not a provider-selection or realization receipt.
 
 A family row carries its canonical callable and counted members ordered by
 the exact authored deployment tag. A callable is a `u8` tag (`1` machine,
@@ -1651,14 +1663,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (118). A
+debug map envelopes then carry the shared `u16` vocabulary marker (119). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 122 | yes |
+| semantic module | `PSITERM\0` | 123 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

@@ -36,7 +36,7 @@ pub(super) fn replay(
                     candidate == expression
                         && target == source.source_target
                         && policy != CheckedArithmeticPolicyAdapter::None
-                        && super::named_call_origin_matches(checked, origin, source)
+                        && source.matches_checked_origin(checked, origin)
                 })
         })
         .count();
@@ -77,8 +77,7 @@ pub(super) fn replay(
                     .operators
                     .resolved_expression_selections()
                     .filter(|(candidate, origin, _, _)| {
-                        *candidate == expression
-                            && super::named_call_origin_matches(checked, *origin, source)
+                        *candidate == expression && source.matches_checked_origin(checked, *origin)
                     });
                 let Some((_, _, target, policy)) = selections.next() else {
                     if typed_trees::operator::declaration_by_symbol(

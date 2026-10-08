@@ -10,7 +10,10 @@ use std::collections::BTreeMap;
 use terminal_psi::{OperationKind, TerminalMachine};
 use terminal_semantics::ScalarLeafLiteral;
 
-pub(super) fn fold(machine: &mut TerminalMachine) {
+pub(super) fn fold(
+    machine: &mut TerminalMachine,
+    demands: &[terminal_psi::TerminalBoundaryApplicationDemand],
+) {
     // Ranking evidence is stated over this machine's exact execution rows;
     // leave it unchanged rather than reason about evidence outside its terms.
     if machine.ranked_scc.is_some() {
@@ -59,7 +62,9 @@ pub(super) fn fold(machine: &mut TerminalMachine) {
                 }
                 // A static reach binder position is semantic call evidence
                 // carried by the operation row, never a fold candidate.
-                if operation.static_reach_binding.is_some() {
+                if operation.static_reach_binding.is_some()
+                    || crate::retained_identities::has_boundary_application(demands, operation.id)
+                {
                     continue;
                 }
                 let Some(literal) = terminal_semantics::constant_goal_free_scalar_leaf(

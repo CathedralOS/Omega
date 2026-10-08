@@ -17,14 +17,20 @@ pub use psi_terminal_production::{
 /// Checked source and exact machine selection for product compilation.
 pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
+    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
     pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
 impl<'a> TerminalProductionRequest<'a> {
-    pub fn new(checked: &'a CheckedTrees, machine: TerminalMachineSelection<'a>) -> Self {
+    pub fn new(
+        checked: &'a CheckedTrees,
+        machine: TerminalMachineSelection<'a>,
+        exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
+    ) -> Self {
         Self {
             checked,
+            exact_toolchain_sources,
             machine,
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
@@ -43,6 +49,7 @@ impl<'a> TerminalProductionRequest<'a> {
         } = custody;
         let produced = psi_terminal_production::TerminalProductionRequest {
             checked: self.checked,
+            exact_toolchain_sources: self.exact_toolchain_sources,
             machine: self.machine,
             optimization_selections: self.optimization_selections,
         }

@@ -52,8 +52,8 @@ use wire::{Reader, Writer, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// The trailing family roster retains target-tagged callable membership.
-pub(crate) const FORMAT_MARKER: u16 = 122;
+// Closed boundary application demands follow the target-family roster.
+pub(crate) const FORMAT_MARKER: u16 = 123;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

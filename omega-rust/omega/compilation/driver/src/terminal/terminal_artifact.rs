@@ -99,6 +99,7 @@ pub(crate) fn produce_retained_terminal_artifact(
     let production_started = std::time::Instant::now();
     let produced = terminal_production::TerminalProductionRequest {
         checked: &checked.execution().program,
+        exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         machine: terminal_production::TerminalMachineSelection::Symbol(entry_machine_symbol),
         optimization_selections: psi_optimizations.selections().clone(),
     }

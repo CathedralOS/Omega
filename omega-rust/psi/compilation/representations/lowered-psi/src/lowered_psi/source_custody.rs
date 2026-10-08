@@ -4,6 +4,38 @@ pub use semantic_vocabulary::BoundaryInvocationSite as LoweredSourceCallSite;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use terminal_psi::ValueDeclaration;
 
+impl LoweredSourceCallOccurrence {
+    /// Resolve nested expression provenance to this call's statement owner.
+    pub fn matches_checked_origin(
+        &self,
+        checked: &checked_trees::CheckedTrees,
+        mut origin: checked_trees::CheckedValueOrigin,
+    ) -> bool {
+        let mut parents = Vec::new();
+        while let checked_trees::CheckedValueOrigin::NestedExpression { parent } = origin {
+            if parents.contains(&parent) {
+                return false;
+            }
+            parents.push(parent);
+            let mut origins = checked
+                .facts
+                .values
+                .expression_values(parent)
+                .map(|(_, value)| value.origin);
+            let Some(parent_origin) = origins.next() else {
+                return false;
+            };
+            if origins.any(|candidate| candidate != parent_origin) {
+                return false;
+            }
+            origin = parent_origin;
+        }
+        matches!(origin, checked_trees::CheckedValueOrigin::StateStatement {
+        state_symbol, statement_index, ..
+    } if state_symbol == self.source_state && statement_index == self.statement_index)
+    }
+}
+
 /// Exact selected source comparison joined to one emitted operation. Provider
 /// authority is independently rejoined by Omega before execution is admitted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

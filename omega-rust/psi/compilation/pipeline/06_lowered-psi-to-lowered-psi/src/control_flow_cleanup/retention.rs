@@ -51,6 +51,12 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     machines: impl IntoIterator<Item = &'machine terminal_psi::TerminalMachine>,
 ) -> BlockLocalEvidence {
     let mut evidence = BlockLocalEvidence::default();
+    evidence.operations.extend(
+        module
+            .boundary_application_demands
+            .iter()
+            .map(|demand| demand.terminal_operation()),
+    );
     fn retain_proposition(
         proposition: &semantic_vocabulary::Proposition,
         evidence: &mut BlockLocalEvidence,

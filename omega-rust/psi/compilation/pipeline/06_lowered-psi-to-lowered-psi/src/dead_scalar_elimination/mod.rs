@@ -25,6 +25,9 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
     // value: proof projections and retained suspension frontiers survive
     // publication unchanged.
     let mut retained_values = Vec::new();
+    retained_values.extend(crate::retained_identities::boundary_application_results(
+        &before.semantic_module,
+    ));
     for projection in &before.semantic_module.float_meaning_projections {
         match &projection.source {
             terminal_psi::FloatMeaningSource::DirectOperationResult(result) => {

@@ -12,6 +12,7 @@
 //! joins the checked callback coordinate onto the module's entry machine.
 //! Unsupported source constructs fail closed.
 
+mod boundary_applications;
 pub(crate) mod bounded_callbacks;
 pub(crate) mod debug_map;
 pub(crate) mod float_meanings;
@@ -47,9 +48,13 @@ use crate::unit::attached_unit;
 pub fn lower_machine(
     checked: &CheckedTrees,
     machine: TerminalMachineSelection<'_>,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<LoweredPsi, LoweringError> {
     let selection = select_terminal_machine(checked, machine)?;
-    lower_terminal_selection(checked, selection)
+    let mut lowered = lower_terminal_selection(checked, selection)?;
+    boundary_applications::retain(checked, exact_toolchain_sources, &mut lowered)
+        .map_err(LoweringError::Unsupported)?;
+    Ok(lowered)
 }
 
 /// The exact source declaration designates this callable's cleanup role;

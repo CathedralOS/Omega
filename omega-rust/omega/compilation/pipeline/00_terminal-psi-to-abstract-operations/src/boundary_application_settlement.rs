@@ -8,7 +8,6 @@
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
-use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
 /// Evidence needed to settle boundary applications for one selected target.
 /// No compiler coordinator or mutable checking context is retained.
@@ -36,7 +35,14 @@ impl BoundaryApplicationSettlement<'_> {
         checked_scope
             .validate_for_artifact(artifact)
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        let demands = project_terminal_boundary_application_demands(self, artifact, checked_scope)?;
+        let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
+            artifact.manifest().semantic(),
+            artifact
+                .semantic_module()
+                .boundary_application_demands
+                .clone(),
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
         let realizations =
             project_terminal_boundary_application_realizations(self, checked_scope, &demands)?;
         let opaque_applications = project_opaque_applications(self.calling_plan_realizations)
@@ -313,124 +319,6 @@ fn project_compiler_intrinsic_application_realization(
     ))
 }
 
-fn project_terminal_boundary_application_demands(
-    settlement: &BoundaryApplicationSettlement<'_>,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    checked_scope: &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-) -> Result<boundary_applications::TerminalBoundaryApplicationDemands, Vec<Diagnostic>> {
-    let mut rows = Vec::with_capacity(checked_scope.occurrences().len());
-    for occurrence in checked_scope.occurrences() {
-        let application = checked_scope
-            .applications()
-            .get(occurrence.application_index())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "Terminal boundary application occurrence names an absent checked demand",
-                )]
-            })?;
-        // The demand names a boundary operator or a top-level boundary
-        // requirement; the coverage row keys on the same declaration identity
-        // and overload coordinate for either species.
-        let requirement_view = provider_planning::IntrinsicRequirement::by_symbol(
-            &settlement.checked.typed,
-            application.requirement_symbol,
-        )
-        .filter(|view| {
-            view.kind != provider_planning::IntrinsicRequirementKind::Operator
-                || view.as_operator().is_some_and(|operator| operator.is_boundary)
-        })
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Terminal boundary application demand names no boundary operator or top-level boundary requirement",
-            )]
-        })?;
-        let declaration = canonical_boundary_nominal_identity(
-            settlement,
-            application.requirement_symbol,
-            "operator requirement",
-        )?;
-        let overload = requirement_view.requirement_identity.clone();
-        let requirement =
-            boundary_applications::BoundaryOperatorRequirement::new(declaration, overload)
-                .map_err(|message| vec![Diagnostic::error(message)])?;
-        let projected_application = project_boundary_application(settlement, application)?;
-        rows.push(
-            boundary_applications::TerminalBoundaryApplicationDemand::new(
-                occurrence.terminal_operation(),
-                requirement,
-                projected_application,
-            ),
-        );
-    }
-    boundary_applications::TerminalBoundaryApplicationDemands::new(
-        artifact.manifest().semantic(),
-        rows,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])
-}
-
-fn project_boundary_application(
-    settlement: &BoundaryApplicationSettlement<'_>,
-    application: &checked_trees::CheckedBoundaryOperatorApplicationDemand,
-) -> Result<boundary_applications::BoundaryApplication, Vec<Diagnostic>> {
-    if application.arguments.is_empty() {
-        return Ok(boundary_applications::BoundaryApplication::Empty);
-    }
-    let mut arguments = Vec::with_capacity(application.arguments.len());
-    for (ordinal, argument) in application.arguments.iter().enumerate() {
-        let expected_ordinal = u32::try_from(ordinal).map_err(|_| {
-            vec![Diagnostic::error(
-                "Terminal boundary application exceeds the supported ordinal range",
-            )]
-        })?;
-        match argument {
-            checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
-                binder_owner,
-                binder_ordinal,
-                type_reference,
-                ..
-            } if *binder_owner == application.requirement_symbol
-                && *binder_ordinal == expected_ordinal =>
-            {
-                arguments.push(
-                    boundary_applications::BoundaryApplicationArgument::type_argument(
-                        *binder_ordinal,
-                        canonical_boundary_type_identity(settlement, *type_reference)?,
-                    ),
-                );
-            }
-            checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
-                binder_owner,
-                binder_ordinal,
-                declared_carrier,
-                value,
-                ..
-            } if *binder_owner == application.requirement_symbol
-                && *binder_ordinal == expected_ordinal =>
-            {
-                // Checking admitted `value` against `declared_carrier` before
-                // it recorded the application; the recorded value is final.
-                arguments.push(
-                    boundary_applications::BoundaryApplicationArgument::const_argument(
-                        *binder_ordinal,
-                        canonical_boundary_type_identity(settlement, *declared_carrier)?,
-                        value.type_name.clone(),
-                        value.encoding.clone(),
-                    )
-                    .map_err(|message| vec![Diagnostic::error(message)])?,
-                );
-            }
-            _ => {
-                return Err(vec![Diagnostic::error(
-                    "Terminal boundary application does not rejoin its binder owner, category, and ordinal",
-                )]);
-            }
-        }
-    }
-    boundary_applications::BoundaryApplication::exact(arguments)
-        .map_err(|message| vec![Diagnostic::error(message)])
-}
-
 fn canonical_boundary_nominal_identity(
     settlement: &BoundaryApplicationSettlement<'_>,
     symbol: symbols::SymbolHandle,
@@ -445,27 +333,6 @@ fn canonical_boundary_nominal_identity(
             ))]
         })?;
     boundary_applications::BoundaryNominalIdentity::new(identity.into_string())
-        .map_err(|message| vec![Diagnostic::error(message)])
-}
-
-fn canonical_boundary_type_identity(
-    settlement: &BoundaryApplicationSettlement<'_>,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> Result<boundary_applications::BoundaryTypeIdentity, Vec<Diagnostic>> {
-    let identity = settlement
-        .checked
-        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
-            type_reference,
-            binders: &[],
-            substitutions: &[],
-            exact_toolchain_sources: settlement.exact_toolchain_sources,
-        })
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Terminal boundary application type has no exact package or toolchain owner",
-            )]
-        })?;
-    boundary_applications::BoundaryTypeIdentity::new(identity.into_string())
         .map_err(|message| vec![Diagnostic::error(message)])
 }
 

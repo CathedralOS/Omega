@@ -18,17 +18,12 @@ nominal cleanup. This is a separate source-aware judgment, not part of canonical
 sealing or a grant of native entry authority.
 
 [Boundary-operator custody](src/boundary_operator_custody.rs) binds
-a checked demand roster to that exact artifact. Its entrypoint reads the
-artifact's own module, checks occurrences, enforces one-to-one application/operation joins
-and complete retained FMA coverage, then constructs the private receipt.
-
-The replay mechanisms have distinct authored roles:
-
-- [Source-call occurrences](src/boundary_operator_custody.rs)
-  join retained calls to their exact source applications and Terminal operations.
-- [Float comparisons](src/boundary_operator_custody/float_comparisons.rs)
-  check the complete Terminal comparison roster, selected meaning, operand
-  format and exact application, including implicit match-arm comparisons.
+producer-retained checked application indices to that artifact. Exact requirement
+and argument rows already live in canonical Terminal semantics; publication does
+not reconstruct them or replay comparison emission. The source-index companion
+remains temporary input to native provider realization. The separate
+[result-policy check](src/boundary_operator_custody/result_policies.rs) still
+checks source-call/adapter correspondence and has not migrated to portable input.
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The product coordinator in

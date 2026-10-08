@@ -8,8 +8,8 @@
 
 mod lowered_psi;
 pub use lowered_psi::{
-    CallbackTerminalLoweringReceipt, LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
-    LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
-    LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence, LoweredSourceCallSite,
-    LoweredSourceCustody,
+    CallbackTerminalLoweringReceipt, LoweredBoundaryApplicationOccurrence, LoweredPsi,
+    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
+    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceCustody,
 };

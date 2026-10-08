@@ -73,6 +73,14 @@ The subordinate owners follow the work:
   ordered bindings, structural effects, transfers, and their contract.
 - [Operation emission](src/emission/operation_emission.rs) dispatches a scalar
   binding to expression, store, selected comparison, or call emission.
+
+[Boundary applications](src/machine_lowering/boundary_applications.rs) joins
+those emitted operations to checked applications while both are owned by Psi.
+It publishes exact-owner requirements and closed arguments in the semantic
+module before optimization. The lowering request supplies exact toolchain source
+identities alongside checked input; native realization does not reconstruct this
+roster. Temporary checked application indices remain only for the selected
+realization migration.
 - [Operation proofs](src/proofs/operation_proofs.rs) reconstructs obligations
   from the completed module and fills missing evidence in deterministic order.
 - [Evidence lowering](src/proofs/evidence_lowering.rs) retains proof subjects.

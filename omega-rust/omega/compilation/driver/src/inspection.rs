@@ -19,6 +19,7 @@ pub fn inspect_terminal(
     TerminalProductionRequest::new(
         &checked.execution().program,
         TerminalMachineSelection::Name(machine),
+        checked.sources().exact_toolchain_sources(),
     )
     .produce(TerminalProductionCustody {
         entry_identity: None,

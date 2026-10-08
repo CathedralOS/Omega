@@ -29,6 +29,15 @@ or obligations has a closed static identity. Author-declared hardware geometry
 remains semantic; target-selected layout, ABI classes, registers, storage regions,
 and instructions are later realization facts.
 
+Selected boundary-operator applications belong to these portable semantics.
+Each demand names its Terminal operation, exact-owner requirement identity,
+overload coordinate and declaration-ordered closed type/constant arguments.
+Psi produces the rows before optimization; their canonical encoding participates
+in the program identity. Optimizers preserve the selected operation and its
+demand unless they can transport the complete relationship. Provider choice,
+selected-plan commitments and executable realizations remain Omega inputs;
+they do not determine or reconstruct the program's demand roster.
+
 The reference interpreter executes the portable semantics directly. Native
 code realizes the same semantics. Differential agreement is evidence about
 implementations, not a definition of the language.

@@ -12,7 +12,9 @@ pub(super) fn validate_boundary_application_coverage(
     physical_evidence_scope: &NativePhysicalEvidenceScope,
 ) -> Result<(), &'static str> {
     let Some(coverage) = coverage else {
-        if physical_evidence_scope.requires_boundary_application_coverage() {
+        if !module.boundary_application_demands.is_empty()
+            || physical_evidence_scope.requires_boundary_application_coverage()
+        {
             return Err(
                 "native artifact claims an exact empty D29 scope without retained coverage",
             );
@@ -20,6 +22,9 @@ pub(super) fn validate_boundary_application_coverage(
         return Ok(());
     };
     coverage.validate_for_terminal(terminal)?;
+    if coverage.demands().rows() != module.boundary_application_demands {
+        return Err("native boundary coverage does not match canonical Terminal demands");
+    }
     for reference in coverage.references() {
         let matching_operations = module
             .machines

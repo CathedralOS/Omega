@@ -77,6 +77,10 @@ pub fn validate_global_value_numbering(
                 .ok_or(GlobalValueNumberingRewriteError::ChangedProgramStructure)?;
             for operation in &old_block.operations {
                 let eligible = operation.static_reach_binding.is_none()
+                    && !crate::retained_identities::has_boundary_application(
+                        &before.boundary_application_demands,
+                        operation.id,
+                    )
                     && operation.result.scalar().is_some()
                     && terminal_semantics::is_unconditionally_total_scalar(&operation.kind);
                 if surviving.contains(&operation.id) {

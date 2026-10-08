@@ -1,8 +1,8 @@
 //! Source-free D29 boundary-operator application data retained beside one
 //! canonical Terminal artifact.
 //!
-//! `demands` owns the demand vocabulary: exact-owner identities, the operator
-//! requirement, the closed tagged application, and the ordered demand rows.
+//! Terminal owns exact-owner requirements and closed application rows.
+//! `demands` binds those portable rows to their artifact identity.
 //! `realization` owns the role-specific companion selected for each demand.
 //! `coverage` joins them into reconstructible identity references.
 //! `ieee_float_comparisons` and `integer_comparisons` retain selected comparison

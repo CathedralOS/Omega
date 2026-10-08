@@ -20,15 +20,21 @@ use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 pub struct TerminalProductionRequest<'a> {
     pub checked: &'a CheckedTrees,
+    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub machine: TerminalMachineSelection<'a>,
     pub optimization_selections: optimization::PsiOptimizationSelections,
 }
 
 impl<'a> TerminalProductionRequest<'a> {
     /// Select the identity optimization phase by default.
-    pub fn new(checked: &'a CheckedTrees, machine: TerminalMachineSelection<'a>) -> Self {
+    pub fn new(
+        checked: &'a CheckedTrees,
+        machine: TerminalMachineSelection<'a>,
+        exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
+    ) -> Self {
         Self {
             checked,
+            exact_toolchain_sources,
             machine,
             optimization_selections: optimization::PsiOptimizationSelections::default(),
         }
@@ -131,7 +137,7 @@ impl<'a> TerminalProductionRequest<'a> {
     {
         let lowered = observer
             .record_result(TerminalProductionStage::Lowering, || {
-                lower_machine(self.checked, self.machine)
+                lower_machine(self.checked, self.machine, self.exact_toolchain_sources)
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         let unoptimized = retain_unoptimized.then(|| lowered.clone());

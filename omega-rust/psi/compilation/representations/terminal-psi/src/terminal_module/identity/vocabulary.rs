@@ -18,7 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Target families retain all checked and opaque members.
-        118
+        // Closed boundary application demands are part of the portable program.
+        119
     }
 }

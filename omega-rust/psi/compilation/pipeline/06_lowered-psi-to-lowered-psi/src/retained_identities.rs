@@ -12,6 +12,32 @@
 pub(crate) mod proof_values;
 pub(crate) mod ranked_coverage;
 
+/// Selected boundary operations retain their meaning until Omega supplies
+/// the realization. The sorted portable demand roster is the authority here,
+/// not a checked-source occurrence list.
+pub(crate) fn has_boundary_application(
+    demands: &[terminal_psi::TerminalBoundaryApplicationDemand],
+    operation: semantic_vocabulary::OperationId,
+) -> bool {
+    demands
+        .binary_search_by_key(&operation, |demand| demand.terminal_operation())
+        .is_ok()
+}
+
+pub(crate) fn boundary_application_results(
+    module: &terminal_psi::TerminalModule,
+) -> impl Iterator<Item = semantic_vocabulary::ValueId> + '_ {
+    module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            has_boundary_application(&module.boundary_application_demands, operation.id)
+        })
+        .filter_map(|operation| operation.result.scalar().map(|result| result.id))
+}
+
 /// Unsealed source custody names either an ordinary operation or a terminal
 /// invocation edge. Their namespaces remain distinct, even at equal markers.
 pub(crate) fn contains_source_call(

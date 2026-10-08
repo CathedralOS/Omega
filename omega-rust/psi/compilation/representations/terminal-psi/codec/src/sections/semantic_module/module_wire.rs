@@ -13,6 +13,7 @@
 //! `operation_crash_contract_wire`) or in a sibling wire module.
 
 mod borrow_wire;
+mod boundary_application_wire;
 mod carry_and_suspension_wire;
 mod recursive_component_wire;
 
@@ -202,6 +203,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for family in &module.target_machine_families {
         target_family_wire::encode_family(&mut writer, family)?;
     }
+    writer.len(
+        "boundary application demands",
+        module.boundary_application_demands.len(),
+    )?;
+    for demand in &module.boundary_application_demands {
+        boundary_application_wire::encode_demand(&mut writer, demand)?;
+    }
     Ok(writer.finish())
 }
 
@@ -271,6 +279,8 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         machines.push(super::machine_wire::decode_machine(reader)?);
     }
     let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
+    let boundary_application_demands =
+        decode_counted(reader, boundary_application_wire::decode_demand)?;
     Ok(TerminalModule {
         scalar_qualifications,
         scalar_block_invariants,
@@ -304,5 +314,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         suspension_call_plans,
         machines,
         target_machine_families,
+        boundary_application_demands,
     })
 }

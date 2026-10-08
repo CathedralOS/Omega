@@ -35,6 +35,7 @@ use terminal_psi::{
 /// prove qualifications, reach closure, or claim dataflow.
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     validate_target_families(module)?;
+    validate_boundary_application_operations(module)?;
     require_unique_nonempty_identities(
         module
             .structural_types
@@ -94,9 +95,36 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     Ok(())
 }
 
-/// Membership is data, not authorization to redirect an executable call.
-/// Every referenced callable retains its independently checked body/contract;
-/// a realization must admit its selected entry and provider relationships.
+/// Demand rows name current operations, never provider-selected replacements.
+fn validate_boundary_application_operations(module: &TerminalModule) -> Result<(), CodecError> {
+    let demands = &module.boundary_application_demands;
+    if demands.is_empty() {
+        return Ok(());
+    }
+    // The canonical demand roster is already sorted. Mark only its requested
+    // operations while streaming the program; do not build another program index.
+    let mut found = vec![false; demands.len()];
+    for operation in module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+    {
+        if let Ok(ordinal) =
+            demands.binary_search_by_key(&operation.id, |demand| demand.terminal_operation())
+        {
+            if found[ordinal] {
+                return malformed("boundary application names a repeated operation");
+            }
+            found[ordinal] = true;
+        }
+    }
+    if found.iter().any(|found| !found) {
+        return malformed("boundary application names an absent operation");
+    }
+    Ok(())
+}
+
 fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
     use terminal_psi::{TargetMachineCallable, TargetMachineSupply};
 

@@ -20,6 +20,46 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
+            .boundary_application_demands
+            .iter()
+            .map(|demand| demand.terminal_operation()),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "boundary application demands by operation",
+        ));
+    }
+    for demand in &module.boundary_application_demands {
+        match demand.application() {
+            terminal_psi::BoundaryApplication::Empty => {}
+            terminal_psi::BoundaryApplication::Exact(arguments) => {
+                if arguments.is_empty() {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "nonempty boundary application has no arguments",
+                    ));
+                }
+                for (ordinal, argument) in arguments.iter().enumerate() {
+                    if usize::try_from(argument.binder_ordinal()).ok() != Some(ordinal) {
+                        return Err(CodecError::NonCanonicalOrder(
+                            "boundary application binders",
+                        ));
+                    }
+                    if let terminal_psi::BoundaryApplicationArgument::Const {
+                        value_type,
+                        value_encoding,
+                        ..
+                    } = argument
+                        && (value_type.is_empty() || value_encoding.is_empty())
+                    {
+                        return Err(CodecError::MalformedStructuralFoundation(
+                            "boundary const application has an empty canonical value identity",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    if !strictly_increasing(
+        module
             .target_machine_families
             .iter()
             .map(|family| family.canonical),

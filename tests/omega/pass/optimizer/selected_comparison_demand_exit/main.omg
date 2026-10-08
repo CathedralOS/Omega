@@ -1,0 +1,21 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+use omega::language::core::float_operations;
+
+data Main { console: Binding<Console>; }
+
+// Selected comparisons retain their requirement even when all operands are
+// constants, a result is unused, or two calls compute the same result.
+machine Main::main(context: &mut Main) reaches Console {
+    let left: f64 = 2.0;
+    let right: f64 = 3.0;
+    let unused: bool = left < right;
+    let first: bool = left < right;
+    let second: bool = left < right;
+    transition first && second {
+        true -> good(context)
+        _ -> bad(context)
+    }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
+}

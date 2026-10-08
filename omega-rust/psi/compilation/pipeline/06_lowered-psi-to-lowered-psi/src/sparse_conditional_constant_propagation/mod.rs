@@ -33,7 +33,10 @@ use validation::validate_sparse_conditional_constant_propagation;
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let mut after = before.clone();
     for machine in &mut after.semantic_module.machines {
-        folding::fold(machine);
+        folding::fold(
+            machine,
+            &before.semantic_module.boundary_application_demands,
+        );
     }
     if let Err(error) = validate_sparse_conditional_constant_propagation(
         &before.semantic_module,

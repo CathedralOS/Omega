@@ -16,18 +16,20 @@ pub mod types;
 pub mod values;
 
 pub use boundary::{
-    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult,
-    BoundaryParameterKind, BoundaryStructuralResultDeclaration, ClosedConformanceApplication,
-    ClosedConformanceApplicationCommitment, ClosedConformanceCallableResult,
-    ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
-    ClosedConformanceRealizationCallable, ClosedConformanceRow, ClosedReachApplication,
-    ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication, ClosedReachMachineBinding,
-    ClosedReachParameter, ClosedReachSchema, ContentConservationGuarantee,
-    InstallationReachDependency, ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
-    ProviderParameterRefinement, ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
-    ServiceDeclaration, StructuralDomainRequirement, TerminalDynamicDispatchCatalog,
-    TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicStructuralFormal,
-    TerminalDynamicTable, TerminalRootServiceReach, closed_conformance_application_commitment,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryContentGuarantee,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryNominalIdentity,
+    BoundaryOperatorRequirement, BoundaryParameterKind, BoundaryStructuralResultDeclaration,
+    BoundaryTypeIdentity, ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
+    ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
+    ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
+    ContentConservationGuarantee, InstallationReachDependency, ProgramLocalRootIntroductionSchema,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, ServiceDeclaration, StructuralDomainRequirement,
+    TerminalBoundaryApplicationDemand, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
+    TerminalDynamicSlot, TerminalDynamicStructuralFormal, TerminalDynamicTable,
+    TerminalRootServiceReach, closed_conformance_application_commitment,
     closed_conformance_application_report_fingerprint,
     program_local_root_introduction_compatibility_report_identity,
 };
@@ -194,6 +196,9 @@ pub struct TerminalModule {
     /// All target-scoped callable members, including unreachable bodies and
     /// opaque declarations. Selection belongs to subsequent realization.
     pub target_machine_families: Vec<TargetMachineFamily>,
+    /// Exact source-free operator requirements and closed applications for
+    /// surviving operations. Provider choices belong to Omega, not this roster.
+    pub boundary_application_demands: Vec<TerminalBoundaryApplicationDemand>,
 }
 
 impl TerminalModule {
@@ -233,6 +238,7 @@ impl TerminalModule {
             suspension_call_plans: Vec::new(),
             machines: Vec::new(),
             target_machine_families: Vec::new(),
+            boundary_application_demands: Vec::new(),
         }
     }
 }
