@@ -1,6 +1,8 @@
 //! Source-selected codecs operate on the retained endpoint. Byte-array reads
 //! and writes touch exactly the selected footprint; scalar cells retain their
 //! original semantic representation and must satisfy the same stored range.
+//! Captured region projection retains extent and scalar codec together. A
+//! projected logical type cannot recover the ancestor's authored field storage.
 
 use super::{PrimitiveLoan, PrimitiveStorage, PrimitiveStorageEndpoint};
 use crate::errors::{TerminalInterpretError, malformed};
@@ -10,6 +12,12 @@ use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{
     IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, PlaceId, ScalarType,
 };
+
+#[derive(PartialEq, Eq)]
+struct ReferenceByteRegionProjection {
+    region: crate::reference::ReferenceByteRegion,
+    scalar: Option<(ScalarType, ScalarType)>,
+}
 
 /// A replacement must fit the retained codec before any boundary publication.
 pub(crate) fn scalar_fits_storage(stored: ScalarType, scalar: TerminalScalarValue) -> bool {
@@ -26,41 +34,26 @@ impl TerminalExecution {
         backing_view: &crate::values::TerminalStructuralValue,
         view: &crate::values::TerminalStructuralValue,
     ) -> Result<Option<(PrimitiveStorage, ScalarType)>, TerminalInterpretError> {
-        let Some(region) = self.reference_byte_region(backing_view)? else {
-            return Ok(None);
-        };
-        if view.opaque_identity != backing_view.opaque_identity {
-            return Err(malformed());
-        }
-        let path = view
-            .path
-            .strip_prefix(backing_view.path.as_slice())
-            .ok_or_else(malformed)?;
-        let projection = terminal_semantics::reference_storage_projection(
-            self.program.structural_types.values(),
-            backing_view.structural_type,
-            path,
-        )
-        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-            "captured byte-region projection has no contiguous scalar geometry",
-        ))?;
-        let width = usize::from(
-            terminal_semantics::reference_storage_byte_width(projection.stored_scalar)
-                .ok_or_else(malformed)?,
-        );
-        let offset = usize::try_from(projection.byte_offset).map_err(|_| malformed())?;
-        if offset
-            .checked_add(width)
-            .is_none_or(|end| end > region.byte_length)
+        if view.opaque_identity != backing_view.opaque_identity
+            || !view.path.starts_with(&backing_view.path)
         {
             return Err(malformed());
         }
+        let Some(projected) = self.project_reference_byte_region(backing_view, &view.path)? else {
+            return Ok(None);
+        };
+        let (logical_scalar, stored_scalar) =
+            projected
+                .scalar
+                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "captured byte-region projection has no contiguous scalar geometry",
+                ))?;
         Ok(Some((
             PrimitiveStorage {
-                endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
-                stored_scalar: Some(projection.stored_scalar),
+                endpoint: projected.region.endpoint,
+                stored_scalar: Some(stored_scalar),
             },
-            projection.logical_scalar,
+            logical_scalar,
         )))
     }
 
@@ -71,6 +64,19 @@ impl TerminalExecution {
         &self,
         view: &crate::values::TerminalStructuralValue,
     ) -> Result<Option<crate::reference::ReferenceByteRegion>, TerminalInterpretError> {
+        Ok(self
+            .project_reference_byte_region(view, &view.path)?
+            .map(|projected| projected.region))
+    }
+
+    /// Keep the codec chosen along the captured ancestor's complete path.
+    /// Starting again at a projected i64 would lose its IntegerAt byte width.
+    /// Formation and access share this endpoint, extent and codec selection.
+    fn project_reference_byte_region(
+        &self,
+        view: &crate::values::TerminalStructuralValue,
+        projected_path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<Option<ReferenceByteRegionProjection>, TerminalInterpretError> {
         let mut selected = None;
         for captured in self.reference_referents.values() {
             let Some(region) = &captured.byte_region else {
@@ -92,7 +98,10 @@ impl TerminalExecution {
             {
                 continue;
             }
-            let (offset, length) = terminal_semantics::reference_storage_region(
+            let path = projected_path
+                .strip_prefix(captured.view.path.as_slice())
+                .ok_or_else(malformed)?;
+            let geometry = terminal_semantics::reference_storage_region(
                 self.program.structural_types.values(),
                 captured.view.structural_type,
                 path,
@@ -100,17 +109,24 @@ impl TerminalExecution {
             .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
                 "captured byte region has no contiguous geometry",
             ))?;
-            let offset = usize::try_from(offset).map_err(|_| malformed())?;
-            let length = usize::try_from(length).map_err(|_| malformed())?;
+            let offset = usize::try_from(geometry.byte_offset).map_err(|_| malformed())?;
+            let length = usize::try_from(geometry.byte_length).map_err(|_| malformed())?;
             if offset
                 .checked_add(length)
                 .is_none_or(|end| end > region.byte_length)
             {
                 return Err(malformed());
             }
-            let projected = crate::reference::ReferenceByteRegion {
-                endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
-                byte_length: length,
+            let projected = ReferenceByteRegionProjection {
+                region: crate::reference::ReferenceByteRegion {
+                    endpoint: shifted_byte_endpoint(&region.endpoint, offset)?,
+                    byte_length: length,
+                },
+                // The endpoint already incorporates the ancestor-relative
+                // offset. Equal endpoints compare codecs, not path origins.
+                scalar: geometry
+                    .scalar
+                    .map(|scalar| (scalar.logical_scalar, scalar.stored_scalar)),
             };
             if selected
                 .as_ref()

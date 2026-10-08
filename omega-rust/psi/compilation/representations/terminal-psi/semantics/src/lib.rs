@@ -34,8 +34,8 @@ mod record_field;
 mod reference_storage_geometry;
 mod reference_views;
 pub use reference_storage_geometry::{
-    ReferenceStorageProjection, reference_storage_layout, reference_storage_projection,
-    reference_storage_region, reference_storage_size,
+    ReferenceStorageProjection, ReferenceStorageRegion, reference_storage_layout,
+    reference_storage_projection, reference_storage_region, reference_storage_size,
 };
 mod scalar_array;
 mod scalar_field_requirements;

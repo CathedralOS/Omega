@@ -15,6 +15,15 @@ pub struct ReferenceStorageProjection {
     pub stored_scalar: ScalarType,
 }
 
+/// Geometry and any scalar codec selected by the same complete source path.
+/// A projected logical carrier alone cannot reconstruct authored storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceStorageRegion {
+    pub byte_offset: u64,
+    pub byte_length: u64,
+    pub scalar: Option<ReferenceStorageProjection>,
+}
+
 fn align(offset: u64, alignment: u64) -> Option<u64> {
     offset
         .checked_add(alignment.checked_sub(1)?)
@@ -109,13 +118,7 @@ pub fn reference_storage_projection<'types>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ReferenceStorageProjection> {
-    let projection = storage_path(types, root, path)?;
-    let (logical_scalar, stored_scalar) = projection.scalar?;
-    Some(ReferenceStorageProjection {
-        byte_offset: projection.byte_offset,
-        logical_scalar,
-        stored_scalar,
-    })
+    reference_storage_region(types, root, path)?.scalar
 }
 
 /// A selected scalar or aggregate's complete contiguous byte region. This is
@@ -124,13 +127,23 @@ pub fn reference_storage_region<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-) -> Option<(u64, u64)> {
+) -> Option<ReferenceStorageRegion> {
     let projection = storage_path(types.clone(), root, path)?;
     let size = match projection.scalar {
         Some((_, stored)) => scalar_geometry(stored)?.0,
         None => reference_storage_size(types, projection.carrier)?,
     };
-    Some((projection.byte_offset, size))
+    Some(ReferenceStorageRegion {
+        byte_offset: projection.byte_offset,
+        byte_length: size,
+        scalar: projection.scalar.map(|(logical_scalar, stored_scalar)| {
+            ReferenceStorageProjection {
+                byte_offset: projection.byte_offset,
+                logical_scalar,
+                stored_scalar,
+            }
+        }),
+    })
 }
 
 struct StoragePathProjection {

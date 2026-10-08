@@ -3238,7 +3238,7 @@ deletions, which the commit lists.
   checking diagnostics instead, without weakening other check outcomes.
 
 - **ENCODED-STORAGE-REFERENCE-TRANSPORT.** (new-scope) Restore exact source-fit
-  geometry and Terminal scalar endpoint execution for encoded references.
+  geometry for multi-origin encoded references.
   This is representation and ABI work, independent of PCC retirement.
 
   On macOS AArch64 at `0919e048c9f`,
@@ -3251,12 +3251,6 @@ deletions, which the commit lists.
   `checking/.../stored_integer_writes.rs`; do not pick one possible backing
   or infer an encoding from the formal's logical carrier.
 
-  The Native leg runs the callee, returned, stored-returned, parent-restoration
-  and recursive encoded-reference fixtures below, but Terminal declines them
-  with `VerifiedOperationMalformed` on the same base. Trace captured scalar
-  endpoints through `terminal-interpreter/src/{reference,primitive_storage}.rs`.
-  Native execution or the checked-tree oracle cannot stand in for Terminal.
-
   Reproduce the source frontier with `python tools/corpus_gate.py --filter
   layouts/runtime_multi_origin_encoded_reference_exit,layouts/callee_integer_at_multi_origin_reference_requires_fit`.
   Acceptance: these two fixtures reach their authored success/fit rejection.
@@ -3266,8 +3260,9 @@ deletions, which the commit lists.
   `layouts/runtime_stored_returned_encoded_reference_exit`,
   `layouts/runtime_multi_origin_encoded_reference_exit`,
   `layouts/runtime_selected_reference_parent_restoration_exit`,
-  `borrows/runtime_selected_reference_nested_restoration_exit` and
-  `layouts/runtime_recursive_encoded_reference_exit`; every execution exits 0
+  `borrows/runtime_selected_reference_nested_restoration_exit`,
+  `layouts/runtime_recursive_encoded_reference_exit` and
+  `layouts/runtime_offset_encoded_reference_exit`; every execution exits 0
   and preserves the authored original backing and neighboring byte 85.
   Live-parent writes under `borrows/selected_reference_live_*_parent_write`,
   `borrows/multi_origin_returned_reference_live_source_write` and the later
