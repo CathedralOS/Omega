@@ -748,12 +748,21 @@ impl TerminalExecution<'_> {
             StructuralAccess::Owned => StructuralAccess::MutableBorrow,
             access => access,
         };
-        let parent = self.resolve_live_projection(destination, path, projection_access)?;
-        let declaration = self
-            .program
-            .structural_types()
-            .get(&parent.structural_type)
-            .ok_or_else(malformed)?;
+        let (parent, view) =
+            self.resolve_live_view_projection(destination, path, projection_access)?;
+        // A store through an aggregate re-view names the view's field; the
+        // backing field at the same position holds the cell.
+        let declared_parent = match view {
+            None => parent.structural_type,
+            Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
+                if backing == parent.structural_type =>
+            {
+                view
+            }
+            Some(_) => return Err(malformed()),
+        };
+        let types = self.program.structural_types();
+        let declaration = types.get(&declared_parent).ok_or_else(malformed)?;
         let (StructuralTypeShape::Record { fields, .. }
         | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
         else {
@@ -769,6 +778,40 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        let (member, source) = if declared_parent == parent.structural_type {
+            (member, source)
+        } else {
+            let (translated, tip) = crate::reference::translate_aggregate_view_path(
+                &types,
+                declared_parent,
+                parent.structural_type,
+                &[StructuralPathSegment::Field(member.identity.clone())],
+            )
+            .ok_or_else(malformed)?;
+            let (
+                [StructuralPathSegment::Field(identity)],
+                crate::reference::AggregateViewTip::Scalar { backing, .. },
+            ) = (translated.as_slice(), tip)
+            else {
+                return Err(malformed());
+            };
+            let backing_member = types
+                .get(&parent.structural_type)
+                .and_then(|declaration| declaration.shape.direct_fields())
+                .and_then(|fields| {
+                    fields.iter().find(|candidate| {
+                        candidate.identity == *identity && !candidate.relevance.is_erased()
+                    })
+                })
+                .ok_or_else(malformed)?;
+            let source = if backing == source.scalar_type() {
+                source
+            } else {
+                crate::primitive_storage::scalar_reference_observation(source, backing)?
+            };
+            (backing_member, source)
+        };
+        let field = member.id;
         let mut leaf = parent.clone();
         leaf.path
             .push(StructuralPathSegment::Field(member.identity.clone()));
@@ -1434,7 +1477,29 @@ impl TerminalExecution<'_> {
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
-        let structural_value = self.observation_root(source)?;
+        let (structural_value, view) = self.observation_view_root(source)?;
+        // An observation through an aggregate re-view names the view's
+        // fields; the backing fields at the same positions hold the cells.
+        let translated;
+        let (path, field) = match view {
+            None => (path, field),
+            Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
+                if backing == structural_value.structural_type =>
+            {
+                let (backing_path, backing_field) =
+                    crate::reference::translate_aggregate_view_field(
+                        &self.program.structural_types(),
+                        view,
+                        backing,
+                        path,
+                        field,
+                    )
+                    .ok_or_else(malformed)?;
+                translated = backing_path;
+                (translated.as_slice(), backing_field)
+            }
+            Some(_) => return Err(malformed()),
+        };
         let mut parent = StructuralRuntimePlace::from(&structural_value);
         if let Some(carrier) = terminal_semantics::case_payload_carrier(
             self.program.structural_types().values(),
@@ -1498,10 +1563,17 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_scalar_structural_field")
         };
         let result = operation.result.expect_scalar();
-        let structural_value = self.observation_root(source)?;
+        // Behind an aggregate re-view the observation is declared by the
+        // view; its backing cell may carry the leaf differently.
+        let (structural_value, view) = self.observation_view_root(source)?;
+        let declared_root = match view {
+            Some(crate::reference::AggregateViewTip::Aggregate { view, .. }) => view,
+            Some(crate::reference::AggregateViewTip::Scalar { .. }) => return Err(malformed()),
+            None => structural_value.structural_type,
+        };
         if terminal_semantics::observed_field_declaration(
             self.program.structural_types().values(),
-            structural_value.structural_type,
+            declared_root,
             path,
             field,
         )
@@ -1511,11 +1583,15 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let cell = self.observed_field_cell(source, path, field)?;
-        let value = self
+        let mut value = self
             .structural_scalar_fields
             .get(&cell)
             .copied()
             .ok_or(TerminalInterpretError::StructuralScalarFieldMissing { source, field })?;
+        if view.is_some() && value.scalar_type() != result.scalar_type {
+            value =
+                crate::primitive_storage::scalar_reference_observation(value, result.scalar_type)?;
+        }
         if value.scalar_type() != result.scalar_type {
             return Err(malformed());
         }

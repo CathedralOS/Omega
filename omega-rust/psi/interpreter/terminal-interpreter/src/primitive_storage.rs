@@ -325,7 +325,15 @@ impl TerminalExecution<'_> {
             };
             // Resolve the captured pointer before applying the primitive
             // suffix. Its descriptor home is never the referent's storage.
-            let referent = self.resolve_live_projection(place, &path[..=crossing], access)?;
+            let (referent, view) =
+                self.resolve_live_view_projection(place, &path[..=crossing], access)?;
+            if let Some(view) = view {
+                return self.aggregate_view_primitive_access(
+                    &referent,
+                    view,
+                    &path[crossing + 1..],
+                );
+            }
             let suffix = &path[crossing + 1..];
             // A retained byte region selects its scalar interpretation from
             // the authored catalog, not canonical primitive-place grammar.
@@ -395,6 +403,57 @@ impl TerminalExecution<'_> {
             path,
         )
         .ok_or_else(malformed)
+    }
+
+    /// A scalar leaf observed through an aggregate re-view lives in the
+    /// backing cell at the same position. When the two declarations carry
+    /// it differently (`i16` seen as `u16`), the view's carrier becomes the
+    /// stored interpretation, so reads take the modular image and writes
+    /// store the image of the view's value through the existing codec.
+    fn aggregate_view_primitive_access(
+        &self,
+        referent: &TerminalStructuralValue,
+        view: crate::reference::AggregateViewTip,
+        suffix: &[StructuralPathSegment],
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        let types = self.program.structural_types();
+        let crate::reference::AggregateViewTip::Aggregate { view, backing } = view else {
+            return Err(malformed());
+        };
+        if backing != referent.structural_type {
+            return Err(malformed());
+        }
+        let (suffix, tip) =
+            crate::reference::translate_aggregate_view_path(&types, view, backing, suffix)
+                .ok_or_else(malformed)?;
+        let primitive = |structural_type: StructuralTypeId| match types
+            .get(&structural_type)
+            .map(|declaration| &declaration.shape)
+        {
+            Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)) => Some(*scalar),
+            _ => None,
+        };
+        let (observed, stored) = match tip {
+            crate::reference::AggregateViewTip::Scalar { view, backing } => (view, backing),
+            crate::reference::AggregateViewTip::Aggregate { view, backing } => (
+                primitive(view).ok_or_else(malformed)?,
+                primitive(backing).ok_or_else(malformed)?,
+            ),
+        };
+        let canonical =
+            terminal_semantics::canonical_primitive_path(types.values(), backing, &suffix)
+                .ok_or_else(malformed)?;
+        let (mut storage, _, shared_view) =
+            self.primitive_view_access(referent, canonical.as_slice(), stored, false)?;
+        if observed != stored {
+            if storage.stored_scalar.is_some()
+                || !terminal_semantics::scalar_reference_view_is_total(stored, observed)
+            {
+                return Err(malformed());
+            }
+            storage.stored_scalar = Some(observed);
+        }
+        Ok((storage, observed, shared_view))
     }
 
     pub(crate) fn capture_primitive_home(
@@ -1051,8 +1110,41 @@ impl TerminalExecution<'_> {
         let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
             return Ok(None);
         };
-        let record =
-            self.resolve_live_projection(source, carrier, StructuralAccess::SharedBorrow)?;
+        let (record, view) =
+            self.resolve_live_view_projection(source, carrier, StructuralAccess::SharedBorrow)?;
+        // Through an aggregate re-view the field is the view's; its backing
+        // field at the same position holds the cell under its own carrier.
+        let translated;
+        let (identity, stored_type) = match view {
+            None => (identity, scalar_type),
+            Some(crate::reference::AggregateViewTip::Aggregate { view, backing })
+                if backing == record.structural_type =>
+            {
+                let (path, tip) = crate::reference::translate_aggregate_view_path(
+                    &self.program.structural_types(),
+                    view,
+                    backing,
+                    &path[path.len() - 1..],
+                )
+                .ok_or_else(malformed)?;
+                let (
+                    [StructuralPathSegment::Field(backing_identity)],
+                    crate::reference::AggregateViewTip::Scalar {
+                        view: observed,
+                        backing: stored,
+                    },
+                ) = (path.as_slice(), tip)
+                else {
+                    return Ok(None);
+                };
+                if observed != scalar_type {
+                    return Err(malformed());
+                }
+                translated = backing_identity.clone();
+                (&translated, stored)
+            }
+            Some(_) => return Err(malformed()),
+        };
         let Some(fields) = self
             .program
             .structural_types()
@@ -1075,7 +1167,7 @@ impl TerminalExecution<'_> {
         let Some(declared) = field.field_type.scalar_type() else {
             return Ok(None);
         };
-        if field.relevance.is_erased() || declared != scalar_type {
+        if field.relevance.is_erased() || declared != stored_type {
             return Err(malformed());
         }
         let mut leaf = record.clone();
@@ -1090,14 +1182,17 @@ impl TerminalExecution<'_> {
         }
         let cell =
             StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&record), field.id);
-        let value = self.structural_scalar_fields.get(&cell).copied().ok_or(
+        let mut value = self.structural_scalar_fields.get(&cell).copied().ok_or(
             TerminalInterpretError::StructuralScalarFieldMissing {
                 source,
                 field: field.id,
             },
         )?;
-        if value.scalar_type() != scalar_type {
+        if value.scalar_type() != stored_type {
             return Err(malformed());
+        }
+        if stored_type != scalar_type {
+            value = scalar_reference_observation(value, scalar_type)?;
         }
         Ok(Some(value))
     }
@@ -1429,7 +1524,7 @@ impl TerminalExecution<'_> {
     }
 }
 
-fn scalar_reference_observation(
+pub(crate) fn scalar_reference_observation(
     stored: TerminalScalarValue,
     target: ScalarType,
 ) -> Result<TerminalScalarValue, TerminalInterpretError> {
