@@ -48,7 +48,8 @@ mod dead_scalar_elimination;
 mod global_value_numbering;
 mod sparse_conditional_constant_propagation;
 
-// Beneath the passes: what a rewrite must preserve, and how it refuses.
+// Beneath the passes: edge arguments, retained identities, and refusals.
+mod edge_arguments;
 mod optimization_error;
 mod retained_identities;
 

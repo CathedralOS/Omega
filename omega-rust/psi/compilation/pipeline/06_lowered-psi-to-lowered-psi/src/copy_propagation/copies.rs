@@ -15,6 +15,7 @@
 //! every edge happens to share), the named parameter stays retained rather
 //! than rewriting the question into one the scope would reject.
 
+use crate::edge_arguments::drop_removed_positions;
 use crate::retained_identities::proof_values::{
     call_erased_arguments, crash_continuations, retain_crash_routes, retain_erased_arguments,
     retain_proposition,
@@ -252,14 +253,17 @@ pub(super) fn propagate(
         match &mut block.terminator {
             Terminator::Jump {
                 target, arguments, ..
-            } => drop_positions(arguments, removed_positions.get(target)),
+            } => drop_removed_positions(arguments, removed_positions.get(target)),
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
             } => {
                 for edge in [when_true, when_false] {
-                    drop_positions(&mut edge.arguments, removed_positions.get(&edge.target));
+                    drop_removed_positions(
+                        &mut edge.arguments,
+                        removed_positions.get(&edge.target),
+                    );
                 }
             }
             _ => {}
@@ -308,15 +312,4 @@ fn resolve_in(
     visiting.remove(&value);
     memo.insert(value, result);
     result
-}
-
-/// Drop the listed old positions from one edge's scalar arguments.
-fn drop_positions(arguments: &mut Vec<ValueId>, removed: Option<&Vec<usize>>) {
-    let Some(removed) = removed else { return };
-    let mut position = 0;
-    arguments.retain(|_| {
-        let retained = !removed.contains(&position);
-        position += 1;
-        retained
-    });
 }

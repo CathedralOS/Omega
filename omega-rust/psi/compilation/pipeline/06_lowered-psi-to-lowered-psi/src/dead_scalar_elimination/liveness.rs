@@ -2,6 +2,7 @@
 //! Block parameters are demand sites, not uses: an edge argument is live only
 //! when the parameter it feeds is live.
 
+use crate::edge_arguments::drop_removed_positions;
 use semantic_vocabulary::{BlockId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{OperationKind as O, TerminalMachine, Terminator};
@@ -149,30 +150,22 @@ pub(super) fn eliminate(
         match &mut block.terminator {
             Terminator::Jump {
                 target, arguments, ..
-            } => drop_removed(arguments, removed_positions.get(target)),
+            } => drop_removed_positions(arguments, removed_positions.get(target)),
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
             } => {
                 for edge in [when_true, when_false] {
-                    drop_removed(&mut edge.arguments, removed_positions.get(&edge.target));
+                    drop_removed_positions(
+                        &mut edge.arguments,
+                        removed_positions.get(&edge.target),
+                    );
                 }
             }
             _ => {}
         }
     }
-}
-
-/// Drop the listed old positions from one edge's scalar arguments.
-fn drop_removed(arguments: &mut Vec<ValueId>, removed: Option<&Vec<usize>>) {
-    let Some(removed) = removed else { return };
-    let mut position = 0;
-    arguments.retain(|_| {
-        let retained = !removed.contains(&position);
-        position += 1;
-        retained
-    });
 }
 
 /// False means the operand inventory is indirect and the machine is retained.
