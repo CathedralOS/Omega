@@ -11,26 +11,18 @@ use super::OperationFrame;
 use super::calls::CallInputs;
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::unit::{
-    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
-    ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported, value_id,
+    LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration, allocate_dense,
+    terminal_scalar_type, unsupported, value_id,
 };
-use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult};
 
 impl OperationFrame<'_, '_> {
     pub(super) fn dynamic_call(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
+        interface_identity: &str,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
-        let Some(call) = operation.call() else {
-            return unsupported("selector call custody drifted before emission");
-        };
-        let CheckedUnitCallRoute::Dynamic {
-            interface_identity, ..
-        } = call.route()
-        else {
-            return unsupported("selector call lost its dispatch route");
-        };
         let Some((selector, data)) = inputs
             .evaluated_scalar_arguments
             .and_then(|evaluated| evaluated.split_first())

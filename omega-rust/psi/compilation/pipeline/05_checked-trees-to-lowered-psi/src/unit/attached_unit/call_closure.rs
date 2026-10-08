@@ -3,8 +3,8 @@
 use super::super::CheckedTerminalSignatureEligibility;
 use super::bodies::UnitPlans;
 use super::{
-    CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, LoweringError, UnitBody, unsupported,
+    CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
+    UnitBody, unsupported,
 };
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 pub(crate) fn checked_unit_call_closure_including(
@@ -91,20 +91,6 @@ pub(crate) fn checked_unit_call_closure_including(
 }
 
 pub(super) use crate::scalar_lowering::call_closure::embedded::checked_scalar_call_closure_with_structural_roots;
-
-pub(crate) fn unique_unit_machine(
-    plans: UnitPlans<'_>,
-    symbol: symbols::SymbolHandle,
-) -> Result<&CheckedUnitEffectMachinePlan, LoweringError> {
-    let mut matches = plans.machines().filter(|plan| plan.machine == symbol);
-    let plan = matches.next().ok_or(LoweringError::Unsupported(
-        "attached Unit closure is missing a checked transitive machine plan",
-    ))?;
-    if matches.next().is_some() {
-        return unsupported("attached Unit closure contains duplicate checked machine plans");
-    }
-    Ok(plan)
-}
 
 pub(super) fn unique_unit_boundary(
     plans: UnitPlans<'_>,

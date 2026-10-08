@@ -205,6 +205,9 @@ fn apply_fact_pruning(
         .placed_view_inputs
         .retain(|row| retained.contains(&row.machine));
     facts
+        .provider_closed_requirements
+        .retain(|row| retained.contains(&row.provider));
+    facts
         .operators
         .symbolic_boundary_applications
         .retain(|row| retained.contains(&row.machine_symbol));

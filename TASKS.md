@@ -1990,7 +1990,6 @@ crash and native exit behavior.
   that product and target-keyed Build rows. This DRI owns integration and
   acceptance across **PSI-TARGET-FAMILIES**, **BUILD-EVALUATES-ONCE**,
   **PROVIDER-SELECTION-AFTER-TERMINAL**, **ONE-DRIVER-PER-STAGE**,
-  **STAGE05-PLAN-REVALIDATION-DELETED**,
   **ONE-TRANSITION-LOWERING**, **ONE-CALL-LOWERING** and the route-retirement
   items. Contributors may own those slices; a slice landing or an architecture
   lint alone does not close this outcome.
@@ -2617,32 +2616,6 @@ routes in dependency order. New capability work
 (**STATE-LOCAL-VALUE-FRONTIER** and others) uses shared operations,
 never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
-
-- **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Delete stage 05's
-  validation of the plan it receives. Ordinary-body admission now only collects the boundary
-  roster, and composed admission admits edges and closed-sum arms from the
-  plan (`edges::admit_transfers`, `cases::validate`). What remains:
-  - every refusal whose message asserts a stage 04 invariant ("disagrees
-    with its checked …", "omits or duplicates", "declared more than once",
-    "not canonical source order", "substituted", "rejoin"). The standalone
-    `if <pure condition> { return unsupported(..) }` forms are gone; 50 remain
-    in 29 files as lookup refusals (`ok_or(..)?`), `let … else` patterns or
-    conditions with effects, each needing its value traced before removal.
-    Of the "drifted", "changed its", "differs from its" and "exchanged its"
-    refusals, 39 remain in 21 files: 33 produce a value emission uses
-    (lookups, `let … else` bindings, route-selecting fallbacks, for example
-    the partial-affine cleanup lookups in `unit_cleanup/partial.rs`), 3
-    refuse a shape stage 05 has no route for, 1 has a real effect
-    (`place_observations.rs`), and 2 compare backing homes stage 05 allocates
-    itself (`loan_chains.rs`, `successor_edge.rs`).
-
-  A plan that violates an invariant is a stage 04 bug, found by the corpus.
-  Refusals for genuinely unsupported constructs stay until the route items
-  below remove them. Acceptance: a source-scanning
-  guard rejects new refusal messages matching those phrasings; the full check
-  corpus and the native corpus are unchanged.
-
-
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Stage 05 lowers successor
   transitions with parameter transfer only through the composed route,

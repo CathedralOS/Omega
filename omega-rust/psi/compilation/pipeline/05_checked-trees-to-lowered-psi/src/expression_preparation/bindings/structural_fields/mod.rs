@@ -9,7 +9,6 @@
 //! ordinary primitive read. This keeps case authority at the copy operation;
 //! the primitive path does not acquire an unchecked case projection grammar.
 
-use terminal_psi::live_field;
 use super::super::{
     CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
     StructuralTypeShape,
@@ -21,6 +20,7 @@ use super::{
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use semantic_vocabulary::StructuralCaseId;
+use terminal_psi::live_field;
 
 mod observation_paths;
 
@@ -464,17 +464,21 @@ fn canonical_field_read(
 
 /// Preserve the Boolean AST's field and primitive-read distinctions: its
 /// field node emits BooleanStructuralField and carries canonical proof identity.
+/// Any other Boolean read (a representation view, for example) is a scalar
+/// observation of its own carrier.
 pub(crate) fn boolean_observation(
     observation: LoweredDirectExpression,
-) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+) -> LoweredBooleanReturnExpression {
     match observation {
-        LoweredDirectExpression::Boolean { expression } => Ok(*expression),
+        LoweredDirectExpression::Boolean { expression } => *expression,
         LoweredDirectExpression::PrimitiveRead {
             source,
             path,
             scalar_type: ScalarType::Boolean,
-        } => Ok(LoweredBooleanReturnExpression::PrimitiveRead { source, path }),
-        _ => unsupported("Boolean field observation changed its declared scalar type"),
+        } => LoweredBooleanReturnExpression::PrimitiveRead { source, path },
+        operand => LoweredBooleanReturnExpression::ScalarObservation {
+            operand: Box::new(operand),
+        },
     }
 }
 

@@ -265,6 +265,8 @@ fn check_program(
     // generated bodies; lowering must not repair an incomplete table itself.
     facts.resolved_types = crate::facts::resolved_types::resolve_program_types(&finalized);
     facts.state_locals = crate::facts::state_locals::record_state_locals(&finalized);
+    facts.provider_closed_requirements =
+        crate::facts::provider_closed_requirements::record_provider_closed_requirements(&finalized);
     drop(finalized);
 
     let checked = CheckedTrees::with_roots(program, facts);

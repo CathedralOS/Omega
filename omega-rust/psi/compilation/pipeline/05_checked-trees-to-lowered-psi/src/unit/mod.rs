@@ -15,9 +15,8 @@ use checked_trees::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility, CheckedTrees,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    CheckedUnitPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
@@ -80,9 +79,7 @@ use crate::terminal_identities::{
     lookup_service_id, lookup_type_id, machine_id, obligation_id, place_id, service_id,
     structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
-use crate::unit::attached_unit::{
-    lower_composed_unit_control_machine, lower_unit_closure, unique_unit_machine,
-};
+use crate::unit::attached_unit::{lower_composed_unit_control_machine, lower_unit_closure};
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };

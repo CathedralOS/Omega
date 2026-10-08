@@ -429,8 +429,10 @@ impl LoanChains {
         })
     }
 
-    /// Record the home a lending edge lends into a lender-home chain. Every
-    /// lending edge of the one lender names the same place.
+    /// Record the home a lending edge lends into a lender-home chain. The
+    /// lender-home backing retains one place; a lender whose edges lend the
+    /// local from different edge-current places (a value selection on one
+    /// edge) needs transferred storage, which this chain was not planned as.
     pub(super) fn lend(
         &mut self,
         position: usize,
@@ -448,7 +450,7 @@ impl LoanChains {
             && *recorded.get_or_insert(home) != home
         {
             return Err(LoweringError::Unsupported(
-                "Unit graph state loan chain changed its backing home",
+                "Unit graph state loan chain lender lends from two homes",
             ));
         }
         Ok(())

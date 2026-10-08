@@ -56,14 +56,13 @@ pub enum ClosedScalarContractValue {
     FloatRange(ClosedFloatRangeRequirement),
     /// One authored `FloatMeaning` equality clause over float-semantics
     /// catalog results. `expression` keeps the authored `==` contract node
-    /// verbatim; `equality` starts empty and the lowering preparation rejoins
-    /// it to the checked float-meaning equality roster — recording the dense
-    /// row coordinate the clause discharges through — before the contract
-    /// lowers to a terminal proposition. It may only appear in the ensures
-    /// tail.
+    /// verbatim; `equality` is the dense row of the checked float-meaning
+    /// equality roster the clause discharges through, which its terminal
+    /// proposition cites. A clause with no checked row is not published in
+    /// this shape. It may only appear in the ensures tail.
     FloatMeaningEquality {
         expression: typed_trees::expression::ExpressionHandle,
-        equality: Option<crate::CheckedProofPropositionId>,
+        equality: crate::CheckedProofPropositionId,
     },
 }
 
@@ -165,7 +164,6 @@ impl ClosedScalarValueContractPlan {
     pub fn ensures(&self) -> &[Option<ClosedScalarContractValue>] {
         &self.ensures
     }
-
 
     pub const fn has_crash_clauses(&self) -> bool {
         self.has_crash_clauses

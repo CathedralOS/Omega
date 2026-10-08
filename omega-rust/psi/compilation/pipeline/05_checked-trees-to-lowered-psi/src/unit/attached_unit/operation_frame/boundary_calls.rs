@@ -35,15 +35,10 @@ struct BoundaryOperands {
 impl OperationFrame<'_, '_> {
     pub(super) fn boundary_call(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        call: &checked_trees::CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
-        let Some(call) = operation.call().filter(|call| {
-            call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-        }) else {
-            return unsupported("boundary Unit call custody drifted before emission");
-        };
-        let operands = self.boundary_operands(operation, inputs)?;
+        let operands = self.boundary_operands(call, inputs)?;
         if let semantic_vocabulary::BoundaryCompletion::External(kind) = call.completion() {
             if self.operations.external_completion.is_some() {
                 return unsupported("one evaluation path cannot have two external completions");
@@ -85,19 +80,13 @@ impl OperationFrame<'_, '_> {
 
     pub(super) fn boundary_scalar_call(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        call: &checked_trees::CheckedUnitCallPlan,
+        result: &checked_trees::CheckedUnitScalarResultBindingPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let Some((call, result)) = operation
-            .call()
-            .filter(|call| call.is_boundary())
-            .and_then(|call| Some((call, call.scalar_result()?)))
-        else {
-            return unsupported("boundary scalar call custody drifted before emission");
-        };
         let target_machine = &call.target.machine;
         unique_unit_boundary(self.callees.plans, *target_machine)?;
-        let operands = self.boundary_operands(operation, inputs)?;
+        let operands = self.boundary_operands(call, inputs)?;
         let value = ValueDeclaration {
             qualifications: Default::default(),
             id: value_id(allocate_dense(self.next_value)?),
@@ -135,22 +124,12 @@ impl OperationFrame<'_, '_> {
     pub(super) fn boundary_structural_call(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
+        call: &checked_trees::CheckedUnitCallPlan,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        discard_result_on_return: bool,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
-        let Some((
-            call,
-            checked_trees::CheckedUnitCallResult::Structural {
-                binding: result,
-                discard_result_on_return,
-            },
-        )) = operation
-            .call()
-            .filter(|call| call.is_boundary())
-            .map(|call| (call, call.result()))
-        else {
-            return unsupported("boundary structural call custody drifted before emission");
-        };
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
         let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
@@ -162,7 +141,7 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("Unit structural result target is not a structural boundary");
         };
-        let operands = self.boundary_operands(operation, inputs)?;
+        let operands = self.boundary_operands(call, inputs)?;
         let id = self.operations.allocate();
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
         let result_place = place_id(allocate_dense(self.next_place)?);
@@ -230,7 +209,7 @@ impl OperationFrame<'_, '_> {
             operation,
             result,
             result_declaration,
-            *discard_result_on_return,
+            discard_result_on_return,
         )
     }
 
@@ -238,12 +217,9 @@ impl OperationFrame<'_, '_> {
     /// boundary and lower its scalar, structural and receipt operands.
     fn boundary_operands(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        call: &checked_trees::CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<BoundaryOperands, LoweringError> {
-        let Some(call) = operation.call().filter(|call| call.is_boundary()) else {
-            return unsupported("boundary call custody drifted before emission");
-        };
         let target_machine = call.target.machine;
         let scalar_arguments = &call.scalar_arguments;
         let structural_arguments = &call.structural_arguments;

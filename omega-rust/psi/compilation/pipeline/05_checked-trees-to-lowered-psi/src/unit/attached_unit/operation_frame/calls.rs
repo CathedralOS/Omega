@@ -24,7 +24,7 @@ use crate::unit::{
     lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
     value_id,
 };
-use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
 /// The completed operands one call hands the frame. Each route evaluates
 /// them on its own schedule before the call.
@@ -63,31 +63,63 @@ impl OperationFrame<'_, '_> {
                 self.private_places,
             )?;
         }
+        // The route and result select the emitter; each receives the call
+        // plan and the result binding this match already destructured.
         match (call.route(), call.result()) {
             (
                 CheckedUnitCallRoute::Module { .. },
                 CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
             ) => {
-                self.unit_call(operation, &inputs)?;
+                self.unit_call(operation, call, &inputs)?;
                 Ok(())
             }
-            (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
-                let value = self.scalar_call(operation, &inputs)?;
+            (
+                CheckedUnitCallRoute::Module {
+                    erased_scalar_arguments,
+                    erased_proof_arguments,
+                    ..
+                },
+                CheckedUnitCallResult::Scalar(result),
+            ) => {
+                let value = self.scalar_call(
+                    call,
+                    result,
+                    erased_scalar_arguments,
+                    erased_proof_arguments,
+                    &inputs,
+                )?;
                 self.bind_scalar_result(call.coordinate, value)
             }
             (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
-                self.boundary_call(operation, &inputs)?;
+                self.boundary_call(call, &inputs)?;
                 Ok(())
             }
-            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(_)) => {
-                let value = self.boundary_scalar_call(operation, &inputs)?;
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(result)) => {
+                let value = self.boundary_scalar_call(call, result, &inputs)?;
                 self.bind_scalar_result(call.coordinate, value)
             }
-            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Structural { .. }) => {
-                self.boundary_structural_call(operation, &inputs)?;
+            (
+                CheckedUnitCallRoute::Boundary,
+                CheckedUnitCallResult::Structural {
+                    binding,
+                    discard_result_on_return,
+                },
+            ) => {
+                self.boundary_structural_call(
+                    operation,
+                    call,
+                    binding,
+                    *discard_result_on_return,
+                    &inputs,
+                )?;
                 Ok(())
             }
-            (CheckedUnitCallRoute::Dynamic { .. }, _) => self.dynamic_call(operation, &inputs),
+            (
+                CheckedUnitCallRoute::Dynamic {
+                    interface_identity, ..
+                },
+                _,
+            ) => self.dynamic_call(call, interface_identity, &inputs),
         }
     }
 
@@ -293,16 +325,10 @@ impl OperationFrame<'_, '_> {
     fn unit_call(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
-        // An ordinary call with a Unit or structural result.
-        let Some(call) = operation
-            .call()
-            .filter(|call| call.is_module() && call.scalar_result().is_none())
-        else {
-            return unsupported("internal Unit call custody drifted before emission");
-        };
         let coordinate = &call.coordinate;
         let target_machine = &call.target.machine;
         let target_state = &call.target.state;
@@ -586,17 +612,13 @@ impl OperationFrame<'_, '_> {
     /// structural scalar call shape.
     fn scalar_call(
         &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
+        result: &checked_trees::CheckedUnitScalarResultBindingPlan,
+        erased_scalar_arguments: &[checked_trees::CheckedCallScalarArgument],
+        erased_proof_arguments: &[checked_trees::CheckedProofTerm],
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let checked = self.checked;
-        let Some((call, result)) = operation
-            .call()
-            .filter(|call| call.is_module())
-            .and_then(|call| Some((call, call.scalar_result()?)))
-        else {
-            return unsupported("Unit scalar call custody drifted before emission");
-        };
         let coordinate = &call.coordinate;
         let realization_machine = &call.target.machine;
         let realization_state = &call.target.state;
@@ -638,61 +660,51 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("Unit scalar call target formals disagree with its signature");
         }
-        let (arguments, erased_arguments, erased_proof_arguments) = match (
-            call.erased_scalar_arguments(),
-            call.erased_proof_arguments(),
-        ) {
-            (Some(erased_scalar_arguments), Some(erased_proof_arguments)) => {
-                // The checked plan keeps the proof-only lanes apart from the
-                // retained operands, in the target's erased-formal order, as
-                // for a Unit call: erased actuals are pure terms over the
-                // caller's namespace and never runtime operands.
-                let arguments = argument_evaluation::validated_values(
-                    inputs.evaluated_scalar_arguments,
-                    &expected_parameter_types,
-                )?;
-                if erased_scalar_arguments.len() != target.erased_parameters().len() {
-                    return unsupported("scalar call erased lane disagrees with its target roster");
-                }
-                let erased_arguments = erased_scalar_arguments
-                    .iter()
-                    .map(|argument| {
-                        let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument
-                        else {
-                            return unsupported(
-                                "scalar call erased actual must be a pure checked expression",
-                            );
-                        };
-                        crate::proofs::crash_routes::checked_scalar_term(
-                            expression,
-                            self.values,
-                            self.caller.erased_scalar_parameters,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?;
-                // Caller `Formal` occurrences resolve against this body's
-                // erased-proof roster.
-                let erased_proof_arguments = erased_proof_arguments
-                    .iter()
-                    .map(|term| {
-                        crate::scalar_lowering::contracts::checked_proof_term(
-                            checked,
-                            term,
-                            self.caller.erased_proof_parameters,
-                        )
-                        .and_then(|term| {
-                            crate::scalar_lowering::contracts::lowered_proof_term(
-                                &term,
-                                self.values,
-                                self.caller.erased_scalar_parameters,
-                            )
-                        })
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?;
-                (arguments, erased_arguments, erased_proof_arguments)
-            }
-            _ => return unsupported("Unit scalar call custody drifted before emission"),
-        };
+        // The checked plan keeps the proof-only lanes apart from the retained
+        // operands, in the target's erased-formal order, as for a Unit call:
+        // erased actuals are pure terms over the caller's namespace and never
+        // runtime operands.
+        let arguments = argument_evaluation::validated_values(
+            inputs.evaluated_scalar_arguments,
+            &expected_parameter_types,
+        )?;
+        if erased_scalar_arguments.len() != target.erased_parameters().len() {
+            return unsupported("scalar call erased lane disagrees with its target roster");
+        }
+        let erased_arguments = erased_scalar_arguments
+            .iter()
+            .map(|argument| {
+                let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
+                    return unsupported(
+                        "scalar call erased actual must be a pure checked expression",
+                    );
+                };
+                crate::proofs::crash_routes::checked_scalar_term(
+                    expression,
+                    self.values,
+                    self.caller.erased_scalar_parameters,
+                )
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        // Caller `Formal` occurrences resolve against this body's erased-proof
+        // roster.
+        let erased_proof_arguments = erased_proof_arguments
+            .iter()
+            .map(|term| {
+                crate::scalar_lowering::contracts::checked_proof_term(
+                    checked,
+                    term,
+                    self.caller.erased_proof_parameters,
+                )
+                .and_then(|term| {
+                    crate::scalar_lowering::contracts::lowered_proof_term(
+                        &term,
+                        self.values,
+                        self.caller.erased_scalar_parameters,
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
         if checked
             .facts
             .contract_plans

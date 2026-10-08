@@ -140,7 +140,6 @@ impl StateGraphEmission<'_, '_> {
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
                             super::super::guarded::complete_structural_return(
-                                checked,
                                 state,
                                 super::super::cleanup::coordinate(
                                     state,
@@ -246,7 +245,6 @@ impl StateGraphEmission<'_, '_> {
                     ))?;
             let exit = super::super::cleanup::coordinate(state, statement_ordinal as usize, false)?;
             let selected_cleanup = super::super::cleanup::for_exit(
-                checked,
                 state,
                 exit,
                 self.catalogs,

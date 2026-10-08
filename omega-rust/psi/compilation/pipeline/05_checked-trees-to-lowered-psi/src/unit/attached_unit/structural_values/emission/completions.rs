@@ -137,7 +137,7 @@ impl Emission<'_, '_, '_> {
                     projected.path.as_slice(),
                     projected.leaf_type_identity.as_str(),
                 )];
-                crate::unit::unit_cleanup::checked_partial_affine_residuals(
+                super::residual_complement::complement(
                     &self
                         .checked
                         .facts

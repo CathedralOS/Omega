@@ -163,9 +163,9 @@ pub struct MachineContractPlan {
     /// values (`Boolean`/`Integer`), `Predicate`s over the entry scalar
     /// parameters (an ensures clause may also name the result),
     /// requires-tail `FloatRange` windows, and ensures-only
-    /// `FloatMeaningEquality` rows — the one shape that retains its typed
-    /// `==` expression handle until the lowering rejoin resolves it. A
-    /// derived parameter-range tail follows the authored requires prefix.
+    /// `FloatMeaningEquality` rows, which cite their checked float-meaning
+    /// equality row beside the typed `==` expression handle. A derived
+    /// parameter-range tail follows the authored requires prefix.
     /// An unbound clause outside the vocabulary keeps its row as `None`,
     /// so consumers fail closed without reopening typed proof expressions.
     /// Named-witness lanes produce no row at all — the evidence contract

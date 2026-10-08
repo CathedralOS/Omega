@@ -109,8 +109,8 @@ impl Emission<'_, '_, '_> {
 
     /// The once-evaluated root carrying a projected move: an established local
     /// keeps its emitted place; a structural product emits its producing call.
-    /// Returns the root place, the root's checked type identity for residual
-    /// reconstruction, and its argument source plan for stamped evidence.
+    /// Returns the root place, the root's checked type identity and argument
+    /// source for the residual complement.
     pub(super) fn projected_root(
         &mut self,
         source: CheckedStructuralValueHandle,
@@ -131,7 +131,7 @@ impl Emission<'_, '_, '_> {
                 // parameter's signature place; both arrive under
                 // `StructuralLocal`/`Parameter` source plans that
                 // `parameter_source` and the local namespace resolve exactly.
-                let place = match &root_source {
+                let place = match &argument.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
                     } => match self
@@ -181,29 +181,17 @@ impl Emission<'_, '_, '_> {
                 if matching.next().is_some() {
                     return unsupported("projected selection operand call is duplicated");
                 }
-                let Some(result) = call
-                    .operation()
-                    .call()
-                    .filter(|planned| planned.is_module())
-                    .and_then(checked_trees::CheckedUnitCallPlan::structural_result)
-                else {
-                    return unsupported(
-                        "projected selection call drifted from its structural producer",
-                    );
-                };
+                let result = call.structural_result();
                 let root_type_identity = result.type_identity.clone();
-                let binding_ordinal = result.binding_ordinal;
+                let root_source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    };
                 let declaration = self.emit_operand_call(call)?;
                 let StructuralPlaceKind::OperationResult { .. } = declaration.kind else {
                     return unsupported("projected selection call has no result place");
                 };
-                (
-                    declaration.id,
-                    root_type_identity,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    },
-                )
+                (declaration.id, root_type_identity, root_source)
             }
             _ => {
                 return unsupported("projected selection requires a place or call root");

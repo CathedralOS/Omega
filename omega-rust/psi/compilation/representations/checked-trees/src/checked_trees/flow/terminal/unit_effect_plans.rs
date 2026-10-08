@@ -518,6 +518,15 @@ impl CheckedStructuralValueCall {
     pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
         &self.operation
     }
+
+    /// The value's result binding. `with_operands` admits only a call that
+    /// produces one, so every published row answers.
+    pub fn structural_result(&self) -> &CheckedUnitStructuralResultBindingPlan {
+        self.operation
+            .call()
+            .and_then(CheckedUnitCallPlan::structural_result)
+            .expect("a published structural value call produces a structural result")
+    }
 }
 
 impl CheckedUnitEffectOperationPlan {

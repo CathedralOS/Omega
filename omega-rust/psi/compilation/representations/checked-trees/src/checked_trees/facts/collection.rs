@@ -64,6 +64,9 @@ pub struct CheckFacts {
     /// Every declared state's `let` locals, recorded beside its reference
     /// custody so lowering never scans a state's statements for them.
     pub state_locals: crate::StateLocalFacts,
+    /// The closed boundary requirement each concrete provider refines through
+    /// a conformance naming a generic top-level requirement template.
+    pub provider_closed_requirements: Vec<crate::CheckedProviderClosedRequirement>,
     /// Every type reference's ownership and content classification,
     /// classified once over the frozen type table. Lowering reads these rows
     /// instead of re-running checking's recursive contents walk at each of

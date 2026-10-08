@@ -213,9 +213,6 @@ impl Expansion<'_> {
             self.machine,
             source.target_symbol,
         )?;
-        if signature.machine != target_machine || signature.state != target_state {
-            return unsupported("computed call target differs from its retained signature");
-        }
         let plans = &self.checked.facts.values.scalar_computations;
         let structural =
             plans

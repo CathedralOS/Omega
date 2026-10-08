@@ -47,7 +47,6 @@ impl StateGraphEmission<'_, '_> {
             mut next_block,
             mut next_edge,
         } = frame;
-        let checked = self.checked;
         let plan = self.plan;
         let state = &plan.states[position];
         // Producing a value does not dispose of the remaining entry owners.
@@ -77,7 +76,6 @@ impl StateGraphEmission<'_, '_> {
                 };
                 let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
                 *cleanup_actions = super::super::cleanup::for_exit(
-                    checked,
                     state,
                     exit,
                     self.catalogs,

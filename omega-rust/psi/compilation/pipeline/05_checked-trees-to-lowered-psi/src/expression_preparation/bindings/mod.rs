@@ -1015,45 +1015,17 @@ impl ScalarBindings {
             u32,
             crate::emission::operation_emission::buffer::StructuralBinding,
         )],
-        types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
         let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
             return self.owned_argument(argument);
         };
-        let mut prepared = results
-            .iter()
-            .filter(|(candidate, _)| *candidate == ordinal);
-        let Some((_, binding)) = prepared.next() else {
-            let source = self.owned_argument(argument)?;
-            let local = self
-                .structural_locals
-                .iter()
-                .find(|row| row.result_binding_ordinal == Some(ordinal))
-                .ok_or(LoweringError::Unsupported(
-                    "owned result lost its published carrier",
-                ))?;
-            if !types.iter().any(|declaration| {
-                declaration.id == local.structural_type
-                    && declaration.identity == argument.type_identity
-            }) {
-                return unsupported("owned result substituted its published carrier");
-            }
-            return Ok(source);
+        let Some((_, binding)) = results.iter().find(|(candidate, _)| *candidate == ordinal) else {
+            return self.owned_argument(argument);
         };
-        if prepared.next().is_some()
-            || self
-                .structural_locals
-                .iter()
-                .any(|row| row.result_binding_ordinal == Some(ordinal))
-            || !argument.path.is_empty()
-            || argument.access != checked_trees::CheckedStructuralAccess::Owned
-            || !binding.claims().is_empty()
-            || !types.iter().any(|declaration| {
-                declaration.id == binding.structural_type()
-                    && declaration.identity == argument.type_identity
-            })
-        {
-            return unsupported("owned operand substituted its prepared structural result");
+        // A prepared result is consumed whole; this lane has no route for an
+        // owned projection out of it.
+        if !argument.path.is_empty() {
+            return unsupported("computed owned operand cannot project a prepared call result");
         }
         Ok(StructuralArgument {
             place: binding.place(),

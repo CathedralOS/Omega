@@ -209,23 +209,23 @@ pub(crate) fn validate(
                 }
                 reference = *base_type;
             }
+            // This lane establishes a domain-qualified bounded byte owner;
+            // checking bounded the literal by the array's capacity.
             TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(capacity),
+                length: FixedArrayLength::Literal(_),
             } if !domains.is_empty()
-                && checked
-                    .type_reference_table
-                    .contains_type_reference(*element_type)
-                && checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
-                && bytes.len() <= *capacity
-                && validation::structural_type_identity(&checked.typed, expected, &[], &[])
-                    == argument.type_identity =>
+                && checked.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
             {
                 domains.sort_by_key(|domain| domain.0);
                 domains.dedup();
                 return Ok(domains);
             }
-            _ => return unsupported("record byte literal changed its bounded owned carrier"),
+            _ => {
+                return unsupported(
+                    "record byte literal carrier is not a domain-qualified byte array",
+                );
+            }
         }
     }
 }

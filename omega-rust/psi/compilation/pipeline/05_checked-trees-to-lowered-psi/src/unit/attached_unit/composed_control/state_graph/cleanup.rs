@@ -37,7 +37,6 @@ pub(super) fn destination(
 /// Preparing action identities does not discharge their prerequisites; complete
 /// graph proof production observes the selected path and outgoing call effects.
 pub(super) fn scalar_returns(
-    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
     parameters: &[StructuralParameterDeclaration],
@@ -59,13 +58,7 @@ pub(super) fn scalar_returns(
                 })?,
                 is_continuation: cleanup.exit.kind == FlowClaimJoinExitKind::TransitionContinuation,
             };
-            if self::destination(checked, state, &destination)? != cleanup.exit {
-                return Err(LoweringError::Unsupported(
-                    "scalar return cleanup coordinate drifted",
-                ));
-            }
             let mut actions = for_exit(
-                checked,
                 state,
                 cleanup.exit,
                 catalogs,
@@ -256,7 +249,6 @@ fn deferred_carrier_releases(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit(
-    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: FlowClaimJoinExit,
     catalogs: &mut catalogs::ComposedCatalogs<'_>,
@@ -316,7 +308,7 @@ pub(super) fn for_exit(
                     &cleanup.path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
                 )?;
                 Ok(TerminalAffineCleanupAction::InvokeNominal(crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                    checked, cleanup, place, structural_type, path, &catalogs.type_ids,
+                    cleanup, place, structural_type, path,
                     &catalogs.scalar_calls.machine_ids, &receivers, &catalogs.scalar_calls.requirement_counts,
                     &mut catalogs.scalar_calls.next_call_obligation,
                 )?))

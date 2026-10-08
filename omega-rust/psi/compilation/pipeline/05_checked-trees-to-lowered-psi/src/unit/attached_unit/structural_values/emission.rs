@@ -32,6 +32,7 @@ mod dispatch;
 mod element_views;
 mod parameters;
 mod reference;
+mod residual_complement;
 
 pub(super) type StructuralOperandEmitter<'a> = dyn FnMut(
         &CheckedUnitEffectOperationPlan,
@@ -420,14 +421,7 @@ pub(crate) fn emit(
         .iter()
         .position(|item| item.id == place)
         .map(|position| emission.temporary_places.remove(position));
-    let mut published = emission
-        .published_places
-        .iter()
-        .filter(|row| row.id == place);
-    let published_declaration = published.next();
-    if published.next().is_some() || (declaration.is_some() && published_declaration.is_some()) {
-        return unsupported("structural value place was declared more than once");
-    }
+    let published_declaration = emission.published_places.iter().find(|row| row.id == place);
     let completed_declaration =
         declaration
             .as_ref()
@@ -754,7 +748,7 @@ pub(super) struct ValueContinuation {
 /// One projected affine child moved on a selected edge. The root place keeps
 /// its once-evaluated owner, `path` is the exact checked field/fixed-index
 /// projection, and the two identities let the edge argument carry the moved
-/// leaf type while residual reconstruction replays the root's complement.
+/// leaf type while `residual_complement` derives the root's untouched subtrees.
 pub(super) struct ProjectedMove {
     pub(super) root: PlaceId,
     /// The already lowered walk from `root`'s storage to the checked source

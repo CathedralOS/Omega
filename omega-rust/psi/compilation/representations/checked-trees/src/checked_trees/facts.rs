@@ -30,10 +30,12 @@ mod termination;
 
 // Calls and selected machines: fact-call projections, intrinsic calls and
 // boundary adapter dispatch, nominal machine uses, generic requirement-call
-// specializations, and dynamic conformance selections.
+// specializations, dynamic conformance selections, and the closed
+// requirement each provider refines.
 mod calls;
 mod dynamic_conformances;
 mod nominal_machine_uses;
+mod provider_closed_requirements;
 mod requirement_call_specializations;
 
 // Carry, domains and placement: carry policy, domain dependency and element
@@ -108,6 +110,7 @@ pub use nominal_machine_uses::{
     CheckedNominalMachineUse, NominalMachineUseFacts, NominalMachineUseSite,
 };
 pub use placement::CheckedPlacedViewInput;
+pub use provider_closed_requirements::CheckedProviderClosedRequirement;
 pub use qualifications::{
     CheckedValueQualification, MachineQualifications, QualificationFacts, VacuousQualificationUse,
 };

@@ -906,12 +906,8 @@ pub(super) fn emit(
         },
         &mut next_call_obligation,
     )?;
-    let nominal_cleanup_subject = crate::machine_lowering::nominal_cleanup_subject(
-        checked,
-        plan.machine,
-        attachment,
-        type_ids,
-    )?;
+    let nominal_cleanup_subject =
+        crate::machine_lowering::nominal_cleanup_subject(checked, plan.machine, type_ids)?;
     let attachment = attachment.or(nominal_cleanup_subject);
     let machine = TerminalMachine {
         closed_reach_application: None,
@@ -1145,7 +1141,6 @@ fn establish_call_literals(
             crate::emission::structural_byte_sequence_store::emit_call_literal(
                 argument.byte_sequence_literal().ok_or(LoweringError::Unsupported("literal call payload is absent"))?,
                 lookup_type_id(type_ids, &argument.type_identity)?,
-                argument.access,
                 qualifications,
                 structural_types,
                 &mut operand_places,

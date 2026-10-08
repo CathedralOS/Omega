@@ -386,9 +386,6 @@ impl Preparation<'_> {
                 self.types,
                 place,
             )?;
-            if slot.structural_type != declaration.id {
-                return unsupported("computed case changed its expected carrier");
-            }
             let fields =
                 crate::expression_preparation::computation_graph::fields(self.checked, subject)?;
             if fields.len() != slot.fields.len()
@@ -408,9 +405,6 @@ impl Preparation<'_> {
                     self.bindings,
                     &self.prefix,
                 )?;
-                if result_type.scalar_type != reserved.scalar_type {
-                    return unsupported("computed case field changed its scalar carrier");
-                }
                 completed.push(reserved.completed(LoweredDirectExpression::Parameter {
                     position: self.prefix.len(),
                     scalar_type: result_type.scalar_type,
@@ -545,13 +539,9 @@ impl Preparation<'_> {
         // Field identities are declaration-local: common members and case
         // payloads have separate namespaces. Join each roster to its source
         // symbols before scheduling operands, then share one evaluation path.
-        let (kind, common, payload) = match (&node.kind, &declaration.shape) {
-            (
-                CheckedStructuralValueKind::Record { .. },
-                StructuralTypeShape::Record { fields, .. },
-            ) => (AggregateKind::Record, fields.as_slice(), None),
-            (CheckedStructuralValueKind::StructuralCase { case, .. }, shape) => {
-                let (common, cases) = match shape {
+        let (kind, common, payload) = match &node.kind {
+            CheckedStructuralValueKind::StructuralCase { case, .. } => {
+                let (common, cases) = match &declaration.shape {
                     StructuralTypeShape::Sum { cases } => (&[][..], cases),
                     StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
                     _ => return unsupported("case construction has a non-sum shape"),
@@ -583,7 +573,13 @@ impl Preparation<'_> {
                     Some((variant, selected)),
                 )
             }
-            _ => return unsupported("aggregate changed its structural shape"),
+            // A record, the only other aggregate kind admitted above.
+            _ => {
+                let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+                    return unsupported("record construction has a non-record shape");
+                };
+                (AggregateKind::Record, fields.as_slice(), None)
+            }
         };
         let mut declared_fields = Vec::new();
         for target in common {
@@ -652,9 +648,6 @@ impl Preparation<'_> {
                         self.bindings,
                         &self.prefix,
                     )?;
-                    if target.field_type.scalar_type() != Some(result_type.scalar_type) {
-                        return unsupported("aggregate operand changed its scalar carrier");
-                    }
                     let field_ordinal = u32::try_from(ordinal).map_err(|_| {
                         LoweringError::Unsupported("aggregate field ordinal exceeds u32")
                     })?;
@@ -686,23 +679,11 @@ impl Preparation<'_> {
                     }
                 }
                 CheckedStructuralRecordFieldValue::Structural(child) => {
-                    let child_type =
-                        crate::unit::attached_unit::structural_values::field_carrier::resolve(
-                            self.checked,
-                            self.types,
-                            &target.field_type,
-                            field.type_reference,
-                        )?;
-                    if carrier_declaration(self.checked, self.types, field.type_reference)?.id
-                        != child_type
-                    {
-                        return unsupported("nested record substituted its structural carrier");
-                    }
                     let mut child_path = claim_path.to_vec();
-                    if let AggregateKind::Case(case) = kind {
-                        if !declared_fields[position].2 {
-                            child_path.push(terminal_psi::StructuralPathSegment::Case(case));
-                        }
+                    if let AggregateKind::Case(case) = kind
+                        && !declared_fields[position].2
+                    {
+                        child_path.push(terminal_psi::StructuralPathSegment::Case(case));
                     }
                     child_path.push(terminal_psi::StructuralPathSegment::Field(
                         target.identity.clone(),

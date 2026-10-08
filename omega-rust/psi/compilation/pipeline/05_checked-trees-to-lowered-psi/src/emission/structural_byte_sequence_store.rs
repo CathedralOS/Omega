@@ -61,40 +61,20 @@ pub(crate) fn existing_literal_view_type(
     Ok(declaration.id)
 }
 
-/// Rejoin a retained result ordinal to the already emitted authored call.
+/// The completed result the call emitted for a retained result ordinal.
 /// Carrier shape and the permission to consume it remain the caller's checks.
 pub(crate) fn completed_call_result(
     operations: &OperationBuffer,
-    state: symbols::SymbolHandle,
-    statement_index: u32,
     binding_ordinal: u32,
 ) -> Result<&terminal_psi::StructuralOperationResult, LoweringError> {
-    let mut bindings = operations
+    let (_, binding) = operations
         .structural_values
         .iter()
-        .filter(|(ordinal, _)| *ordinal == binding_ordinal);
-    let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-        "byte call result has no completed binding",
-    ))?;
-    let produced = binding.operation_result()?;
-    let mut occurrences = operations.source_calls.iter().filter(|occurrence| {
-        occurrence.source_state == state
-            && occurrence.statement_index == statement_index as usize
-            && occurrence.call_ordinal == 0
-    });
-    let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
-        "byte call result has no completed authored occurrence",
-    ))?;
-    if bindings.next().is_some()
-        || occurrences.next().is_some()
-        || !operations.operations.iter().any(|operation| {
-            occurrence.terminal_site.operation() == Some(operation.id)
-                && operation.result.structural() == Some(produced)
-        })
-    {
-        return unsupported("byte call result substituted its completed occurrence");
-    }
-    Ok(produced)
+        .find(|(ordinal, _)| *ordinal == binding_ordinal)
+        .ok_or(LoweringError::Unsupported(
+            "byte call result has no completed binding",
+        ))?;
+    binding.operation_result()
 }
 
 /// Generated owned carriers are shared by capacity, independently of live extent.
@@ -745,7 +725,6 @@ pub(crate) fn emit_owned_literal(
 pub(crate) fn emit_call_literal(
     bytes: &[u8],
     structural_type: StructuralTypeId,
-    access: checked_trees::CheckedStructuralAccess,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     structural_types: &[StructuralTypeDeclaration],
     places: &mut Vec<StructuralPlaceDeclaration>,
@@ -758,13 +737,12 @@ pub(crate) fn emit_call_literal(
         .iter()
         .find(|row| row.id == structural_type)
         .map(|row| &row.shape);
-    let declaration = match (access, shape) {
-        (
-            checked_trees::CheckedStructuralAccess::Owned,
-            Some(StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-            )),
-        ) => {
+    // The formal's carrier selects the materialization; stage 04 pairs an
+    // owned formal with a bounded owner and a shared one with a view.
+    let declaration = match shape {
+        Some(StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+        )) => {
             emit_owned_literal(
                 bytes,
                 structural_type,
@@ -778,12 +756,9 @@ pub(crate) fn emit_call_literal(
             )?
             .0
         }
-        (
-            checked_trees::CheckedStructuralAccess::SharedBorrow,
-            Some(StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-            )),
-        ) => {
+        Some(StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+        )) => {
             let declaration = StructuralPlaceDeclaration {
                 id: place_id(allocate_dense(next_place)?),
                 kind: StructuralPlaceKind::ByteSequenceLiteral {
@@ -801,7 +776,11 @@ pub(crate) fn emit_call_literal(
             );
             declaration
         }
-        _ => return unsupported("literal call access differs from its storage carrier"),
+        _ => {
+            return unsupported(
+                "literal call argument carrier is neither a bounded owner nor a borrowed view",
+            );
+        }
     };
     places.push(declaration);
     Ok(declaration)
@@ -1045,17 +1024,11 @@ impl ValueEmitter<'_> {
                 unsupported("descriptor value is not an owned byte-content snapshot")
             }
             ByteValue::CallResult {
-                state,
-                statement_index,
                 binding_ordinal,
                 capacity,
+                ..
             } => {
-                let produced = completed_call_result(
-                    self.emission.operations,
-                    *state,
-                    *statement_index,
-                    *binding_ordinal,
-                )?;
+                let produced = completed_call_result(self.emission.operations, *binding_ordinal)?;
                 if produced.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                     || !produced.projected_qualifications.is_empty()
                     || !produced.claims.is_empty()

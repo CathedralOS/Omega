@@ -290,9 +290,12 @@ fn collect_closed_conformance_applications(
                                 )
                                 .atom(),
                             ),
+                            // Nothing substitutes a caller's const binder
+                            // into a retained application, and Terminal's
+                            // telescope names only evaluated values.
                             Some(ClosedConformanceConstArgument::CallerBinder { .. }) => {
                                 return Err(LoweringError::Unsupported(
-                                    "closed conformance application reaches Terminal with an unsubstituted const binder",
+                                    "closed conformance application has an open const binder argument",
                                 ));
                             }
                             None => None,

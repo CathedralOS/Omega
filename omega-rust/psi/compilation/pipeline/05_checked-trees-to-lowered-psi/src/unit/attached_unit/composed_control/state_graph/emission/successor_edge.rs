@@ -550,12 +550,16 @@ impl StateGraphEmission<'_, '_> {
                                     edge_evaluation.current_structural_place(home.place()),
                                 )
                             }));
+                        // Each edge lends the local at its edge-current place;
+                        // a value selection on one edge can move it to a join
+                        // place. The entry route retains one home per local,
+                        // so it has no route for a local lent from two places.
                         for (binding, home) in homes {
                             if let Some(previous) = self.loaned_local_homes.insert(binding, home)
                                 && previous != home
                             {
                                 return unsupported(
-                                    "Unit graph local loan changed its backing home",
+                                    "Unit graph local loan is lent from two entry homes",
                                 );
                             }
                         }
@@ -679,7 +683,6 @@ impl StateGraphEmission<'_, '_> {
         let exit =
             super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
         let mut cleanup_actions = super::super::cleanup::for_exit(
-            checked,
             state,
             exit,
             self.catalogs,

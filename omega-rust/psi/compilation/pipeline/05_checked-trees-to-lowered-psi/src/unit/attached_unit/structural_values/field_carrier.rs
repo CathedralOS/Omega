@@ -6,9 +6,7 @@
 use crate::LoweringError;
 use checked_trees::{CheckedTrees, types::TypeReferenceHandle};
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{
-    ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration};
 
 pub(crate) fn resolve(
     checked: &CheckedTrees,
@@ -20,21 +18,16 @@ pub(crate) fn resolve(
         return Ok(*identity);
     }
     match field.byte_sequence_carrier() {
-        Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) => {
+        Some(ByteSequenceCarrier::BoundedOwned { .. }) => {
             let identity =
                 validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-            let declaration = declarations
+            declarations
                 .iter()
                 .find(|declaration| declaration.identity == identity)
+                .map(|declaration| declaration.id)
                 .ok_or(LoweringError::Unsupported(
                     "byte member has no retained carrier",
-                ))?;
-            if declaration.shape != StructuralTypeShape::ByteSequence(carrier) {
-                return Err(LoweringError::Unsupported(
-                    "byte member changed its declared carrier",
-                ));
-            }
-            Ok(declaration.id)
+                ))
         }
         Some(ByteSequenceCarrier::BorrowedView { .. }) => {
             // The field embeds a shared descriptor contract, not a nominal

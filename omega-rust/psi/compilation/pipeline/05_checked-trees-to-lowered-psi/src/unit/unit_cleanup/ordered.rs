@@ -2,8 +2,8 @@
 //! Signature contexts and return-action finalization are shared with members.
 
 use super::{
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, lower_unit_closure, unsupported,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitStructuralTypeShape,
+    LoweredPsi, LoweringError, lower_unit_closure, unsupported,
 };
 use crate::unit::attached_unit::UnitClosureRequest;
 use crate::unit::attached_unit::bodies::UnitPlans;
@@ -18,14 +18,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     if parameter_count == 0 || nominal.cleanups.len() != parameter_count {
         return unsupported("ordered nominal cleanup requires matched actions");
     }
-    let [
-        CheckedUnitEffectOperationPlan::Complete {
-            statement_index: 0, ..
-        },
-    ] = plan.operations.as_slice()
-    else {
-        return unsupported("ordered nominal cleanup caller operation sequence drifted");
-    };
 
     // Stage 04 adopted the nominal lane's shapes into the ordinary roster's
     // one type namespace, rejecting any conflicting registration there.
@@ -59,7 +51,6 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
 
     let mut roots = Vec::new();
     for cleanup in &nominal.cleanups {
-        super::checked_hook_entry(checked, cleanup)?;
         let contract = checked
             .facts
             .contract_plans

@@ -49,8 +49,6 @@ pub(crate) struct TargetSignature<'source> {
     pub parameters: &'source [StateParameter],
     pub return_type: TypeReferenceHandle,
     pub boundary: bool,
-    pub machine: SymbolHandle,
-    pub state: SymbolHandle,
     parameter_coordinates: ParameterCoordinates,
 }
 
@@ -94,8 +92,6 @@ pub(crate) fn target_signature(
             parameters: &slot.parameters,
             return_type: slot.return_type,
             boundary: false,
-            machine: slot.symbol,
-            state: slot.symbol,
             parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
@@ -129,8 +125,6 @@ pub(crate) fn target_signature(
             // its authored body as an ordinary callee; only the bodyless
             // declaration is a boundary edge.
             boundary: machine.supply_mode.is_boundary_declaration() && !machine.body_is_present,
-            machine: machine.symbol,
-            state: state.symbol,
             parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
@@ -143,8 +137,6 @@ pub(crate) fn target_signature(
             parameters: program.operator_parameters(operator),
             return_type: operator.return_type,
             boundary: true,
-            machine: operator.symbol,
-            state: operator.symbol,
             parameter_coordinates: ParameterCoordinates::Authored,
         });
     }
@@ -174,8 +166,6 @@ pub(crate) fn target_signature(
         parameters: program.state_signature_parameters(signature),
         return_type: signature.return_type,
         boundary: true,
-        machine: signature.symbol,
-        state: signature.symbol,
         parameter_coordinates: ParameterCoordinates::ServiceOperands,
     })
 }

@@ -24,7 +24,6 @@ pub(crate) struct ByteOverlayIndex {
 #[derive(Clone)]
 pub(crate) struct ByteOverlaySource {
     pub(crate) referee: typed_trees::types::TypeReferenceHandle,
-    pub(crate) remaining_bytes: Option<u64>,
 }
 
 impl ByteOverlaySource {
@@ -64,12 +63,15 @@ impl ByteOverlaySource {
         scalar_type: ScalarType,
     ) -> Result<ByteOverlayField, LoweringError> {
         let mut field = self.projection(geometry.projection, scalar_type)?;
-        for index in geometry.indices {
-            let Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector)) =
-                path.get(index.path_index)
-            else {
-                return unsupported("record byte overlay substituted its runtime coordinate");
-            };
+        // The geometry carries one entry per runtime-index segment of `path`,
+        // in path order.
+        let selectors = path.iter().filter_map(|segment| match segment {
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector) => {
+                Some(selector)
+            }
+            _ => None,
+        });
+        for (index, selector) in geometry.indices.into_iter().zip(selectors) {
             field.indices.push(ByteOverlayIndex {
                 selector: selector.clone(),
                 stride: u64::try_from(index.stride)
@@ -81,18 +83,14 @@ impl ByteOverlaySource {
         Ok(field)
     }
 
+    /// Checking's recast judgment bounds the record's footprint by the bytes
+    /// remaining at the overlay's offset, and Terminal re-proves each byte
+    /// read; the projection supplies only the field's geometry.
     pub(crate) fn projection(
         &self,
         projection: validation::RecastScalarProjection,
         scalar_type: ScalarType,
     ) -> Result<ByteOverlayField, LoweringError> {
-        if terminal_scalar_type(projection.primitive)? != scalar_type
-            || self.remaining_bytes.is_some_and(|remaining| {
-                u64::try_from(projection.footprint).map_or(true, |footprint| footprint > remaining)
-            })
-        {
-            return unsupported("record byte overlay changed its carrier or footprint");
-        }
         Ok(ByteOverlayField {
             offset: u64::try_from(projection.offset).map_err(|_| {
                 LoweringError::Unsupported("record byte overlay offset exceeds u64")

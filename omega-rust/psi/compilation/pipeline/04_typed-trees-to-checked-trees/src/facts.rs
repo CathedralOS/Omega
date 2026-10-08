@@ -32,6 +32,7 @@ pub(crate) use integer_writes::obligations::integer_write_obligation;
 mod machine_facts;
 pub(crate) mod operator_crashes;
 mod placed_views_and_uses;
+pub(crate) mod provider_closed_requirements;
 pub(crate) mod qualification_evidence;
 mod qualification_facts;
 mod requirement_call_specializations;
@@ -376,6 +377,7 @@ pub(crate) fn build_check_facts(
         &validation_facts.exact_integer_casts,
         &values.scalar_expressions,
         &values.scalar_computations,
+        &proof.float_meaning_equalities,
         call_frames.as_ref(),
     )?;
     let nominal_machine_uses = build_nominal_machine_use_facts(

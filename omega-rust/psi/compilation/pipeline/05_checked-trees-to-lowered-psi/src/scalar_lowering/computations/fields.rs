@@ -386,10 +386,10 @@ fn captured_place_subject(
     let mut runtime_index = None;
     let mut view_container = false;
     let mut runtime_split = None;
-    // The last literal index step and the array extent it selected inside —
-    // set only when that index ends the prefix (`a[i]` cannot extend into a
-    // `u8` element's members, so a byte-carrier prefix always ends there).
-    let mut tail = None;
+    // Whether a literal fixed-array index ends the prefix (`a[i]` cannot
+    // extend into a `u8` element's members, so a byte-carrier prefix always
+    // ends there).
+    let mut literal_index_tail = false;
     let mut primitive_field = None;
     let segment_count = loan.path.len();
     for (segment_ordinal, segment) in loan.path.iter().enumerate() {
@@ -423,7 +423,7 @@ fn captured_place_subject(
                     carrier_path.push(terminal_psi::StructuralPathSegment::Field(
                         selected.identity.clone(),
                     ));
-                    tail = None;
+                    literal_index_tail = false;
                     break;
                 }
                 let StructuralFieldType::Structural(nested) = selected.field_type else {
@@ -435,7 +435,7 @@ fn captured_place_subject(
                 carrier_path.push(terminal_psi::StructuralPathSegment::Field(
                     selected.identity.clone(),
                 ));
-                tail = None;
+                literal_index_tail = false;
                 declaration = types
                     .iter()
                     .find(|declaration| declaration.id == nested)
@@ -453,11 +453,11 @@ fn captured_place_subject(
                         if index >= *length {
                             return unsupported("record loan's captured index is out of bounds");
                         }
-                        tail = Some((index, *length));
+                        literal_index_tail = true;
                         *element
                     }
                     StructuralTypeShape::ElementView { element } => {
-                        tail = None;
+                        literal_index_tail = false;
                         *element
                     }
                     _ => {
@@ -497,7 +497,7 @@ fn captured_place_subject(
                 };
                 runtime_index = Some(selector.clone());
                 runtime_split = Some(path.len());
-                tail = None;
+                literal_index_tail = false;
                 declaration = types
                     .iter()
                     .find(|declaration| declaration.id == element)
@@ -519,7 +519,7 @@ fn captured_place_subject(
     let mut terminal = declaration.id;
     let mut byte_overlay = None;
     let referee_identity = carrier_identity(checked, owner, referee)?;
-    if (tail.is_some() || runtime_index.is_some())
+    if (literal_index_tail || runtime_index.is_some())
         && matches!(
             &declaration.shape,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -532,10 +532,7 @@ fn captured_place_subject(
         })
     {
         terminal = overlay.id;
-        byte_overlay = Some(ByteOverlaySource {
-            referee,
-            remaining_bytes: tail.and_then(|(index, length)| length.checked_sub(index)),
-        });
+        byte_overlay = Some(ByteOverlaySource { referee });
     }
     // A record-as-record recast keeps the source declaration as the
     // namespace; each read rejoins its view field to the source leaf. A
@@ -988,7 +985,7 @@ pub(crate) fn prepare(
                         }
                         _ => {
                             return unsupported(
-                                "scalar observation endpoint differs from its declared referee",
+                                "scalar observation endpoint is not a referenced primitive of its scalar type",
                             );
                         }
                     }

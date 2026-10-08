@@ -1,8 +1,7 @@
 //! Lower ordinary calls retained by scalar evaluation using their checked custody.
 //! Unit effects and structural values share argument admission and call emission.
 use super::{
-    CheckedTrees, LoweringError, Multiplicity, QualifiedScalarType, storage, terminal_scalar_type,
-    unsupported,
+    CheckedTrees, LoweringError, QualifiedScalarType, storage, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -116,34 +115,10 @@ pub(super) fn prepare(
             None,
         ) => {}
         (
-            checked_trees::CheckedControlResultPlan::Structural(expected),
-            checked_trees::CheckedUnitCallResult::Structural { binding, .. },
-            Some(result),
-        ) => {
-            let declaration = structural_types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
-                .ok_or(LoweringError::Unsupported(
-                    "effect call result has no declared carrier",
-                ))?;
-            if expected.type_identity != binding.type_identity
-                || expected.multiplicity != binding.multiplicity
-                || declaration.identity != binding.type_identity
-                || result.multiplicity
-                    != match binding.multiplicity {
-                        Multiplicity::Unrestricted => {
-                            terminal_psi::StructuralMultiplicity::Unrestricted
-                        }
-                        Multiplicity::Affine => terminal_psi::StructuralMultiplicity::Affine,
-                        Multiplicity::Linear => terminal_psi::StructuralMultiplicity::Linear,
-                    }
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.claims.is_empty()
-            {
-                return unsupported("effect call substituted its structural result carrier");
-            }
-        }
+            checked_trees::CheckedControlResultPlan::Structural(_),
+            checked_trees::CheckedUnitCallResult::Structural { .. },
+            Some(_),
+        ) => {}
         _ => return unsupported("effect call disagrees with its target result"),
     }
     if target.state != *target_state
@@ -159,7 +134,6 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit call disagrees with its exact target custody");
     }
-    let authored = crate::call_sites::locate(checked, state.state, *coordinate)?;
     let (_, callee_state) = crate::declarations::state_declaration(checked, *target_state)?;
     if !checked
         .facts
@@ -234,7 +208,7 @@ pub(super) fn prepare(
             return unsupported("scalar Unit argument does not retain a plain primitive borrow");
         }
         if argument.access == checked_trees::CheckedStructuralAccess::Owned {
-            let source = bindings.owned_call_argument(argument, results, structural_types)?;
+            let source = bindings.owned_call_argument(argument, results)?;
             lowered_arguments.push(source);
             continue;
         }
@@ -267,11 +241,6 @@ pub(super) fn prepare(
         .iter()
         .map(|parameter| terminal_scalar_type(parameter.primitive_type))
         .collect::<Result<Vec<_>, _>>()?;
-    for ((_, actual), expected) in authored.scalar_arguments.iter().zip(&argument_types) {
-        if terminal_scalar_type(*actual)? != *expected {
-            return unsupported("scalar Unit argument substituted its formal carrier");
-        }
-    }
     Ok(Prepared {
         call: LoweredEffectCall {
             result,
@@ -333,6 +302,9 @@ fn emit_call(
         erased_proof_formals: Vec::new(),
         bindings: Vec::new(),
         structural_effects: vec![LoweredScalarEffect::Call(call)],
-        terminator: LoweredScalarBranchTerminator::jump(target, super::computations::parameters(output_types)),
+        terminator: LoweredScalarBranchTerminator::jump(
+            target,
+            super::computations::parameters(output_types),
+        ),
     })
 }

@@ -97,7 +97,7 @@ use call_closure::{
     unique_unit_boundary,
 };
 pub(crate) use call_closure::{
-    checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
+    checked_unit_boundary_identity, checked_unit_call_closure_including,
 };
 pub(crate) use catalog::lower_root_service_reach;
 use catalog::require_valid_service_row;

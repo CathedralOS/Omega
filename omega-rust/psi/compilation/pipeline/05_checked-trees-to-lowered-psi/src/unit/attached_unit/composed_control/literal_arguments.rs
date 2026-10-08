@@ -264,7 +264,6 @@ fn establish(
     let declaration = crate::emission::structural_byte_sequence_store::emit_call_literal(
         bytes,
         structural_type,
-        argument.access,
         qualifications,
         &catalogs.structural_types,
         &mut catalogs.temporary_places,

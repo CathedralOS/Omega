@@ -472,7 +472,6 @@ impl StateGraphEmission<'_, '_> {
                 // its counter snapshot. Proofs are produced from the completed
                 // graph, where the selected arm and result effects are known.
                 let cleanups = super::super::cleanup::scalar_returns(
-                    checked,
                     state,
                     self.catalogs,
                     &state_parameters,
@@ -832,19 +831,9 @@ impl StateGraphEmission<'_, '_> {
                 let [cleanup] = state.normal_exit_cleanups.as_slice() else {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
-                let exit = super::super::cleanup::coordinate(
-                    state,
-                    cleanup.exit.statement_index,
-                    cleanup.exit.kind
-                        == checked_trees::FlowClaimJoinExitKind::TransitionContinuation,
-                )?;
-                if exit != cleanup.exit {
-                    return unsupported("ordinary return cleanup coordinate drifted");
-                }
                 Some(super::super::cleanup::for_exit(
-                    checked,
                     state,
-                    exit,
+                    cleanup.exit,
                     self.catalogs,
                     &state_parameters,
                     &evaluation,

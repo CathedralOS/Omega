@@ -13,11 +13,10 @@ use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, MachineId, NominalAffineCleanup,
-    PlaceId, PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralFieldType,
-    StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator, lookup_machine_id,
-    lookup_type_id, lower_unit_closure, obligation_id, unique_unit_machine, unsupported,
+    PlaceId, PrimitiveType, Proposition, ScalarTerm, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, Terminator, lookup_machine_id, lookup_type_id, lower_unit_closure,
+    obligation_id, unsupported,
 };
-use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
@@ -25,28 +24,6 @@ mod custody;
 mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
-pub(crate) use partial::checked_partial_affine_residuals;
-
-/// Cleanup invokes the complete ordinary callable body. Authenticate the same
-/// entry that closure traversal emits, without requiring an operation sequence
-/// instead of a state graph or manufacturing a synthetic single-state hook.
-pub(super) fn checked_hook_entry<'checked>(
-    checked: &'checked CheckedTrees,
-    cleanup: &CheckedUnitNominalAffineCleanupPlan,
-) -> Result<checked_trees::CheckedUnitCallableEntry<'checked>, LoweringError> {
-    let entry = UnitBody::find(
-        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-        cleanup.cleanup_machine,
-    )?
-    .entry()?;
-    if !entry.returns_unit
-        || entry.state != cleanup.cleanup_state
-        || entry.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
-    {
-        return unsupported("nominal cleanup callable entry differs from its selected body");
-    }
-    Ok(entry)
-}
 
 /// Lower a nominal affine Unit cleanup machine. One route serves any number
 /// of structural parameters: each root owns exactly one cleanup action, and
@@ -141,10 +118,7 @@ pub(crate) fn selected_cleanups(
                 .iter()
                 .flat_map(|machine| continuation_cleanups(&machine.operations)),
         )
-        .chain(
-            composed_states()
-                .flat_map(|state| continuation_cleanups(&state.operations)),
-        )
+        .chain(composed_states().flat_map(|state| continuation_cleanups(&state.operations)))
         .chain(
             composed_states()
                 .flat_map(|state| &state.normal_exit_cleanups)
@@ -162,21 +136,15 @@ pub(crate) fn selected_cleanups(
 /// Materialize one checked normal-cleanup operation in the shared closure namespace.
 /// The caller owns return value custody; this operation only borrows its exact owner.
 pub(crate) fn lower_nominal_cleanup_action(
-    checked: &CheckedTrees,
     cleanup: &CheckedUnitNominalAffineCleanupPlan,
     place: PlaceId,
     structural_type: StructuralTypeId,
     path: Vec<terminal_psi::StructuralPathSegment>,
-    type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
     requirement_counts: &[(SymbolHandle, usize)],
     next_obligation: &mut u64,
 ) -> Result<NominalAffineCleanup, LoweringError> {
-    checked_hook_entry(checked, cleanup)?;
-    if lookup_type_id(type_ids, &cleanup.type_identity)? != structural_type {
-        return unsupported("nominal cleanup receiver type differs from its checked subject");
-    }
     materialize_nominal_cleanup_action(
         cleanup,
         place,
@@ -338,7 +306,6 @@ pub(super) fn finalize_nominal_cleanup_actions(
         let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
             continue;
         };
-        checked_hook_entry(checked, cleanup)?;
         let owner = lookup_type_id(type_ids, &cleanup.type_identity)?;
         let emitted = machines
             .iter_mut()
@@ -353,7 +320,6 @@ pub(super) fn finalize_nominal_cleanup_actions(
         emitted.nominal_cleanup_subject = crate::machine_lowering::nominal_cleanup_subject(
             checked,
             cleanup.cleanup_machine,
-            emitted.attachment,
             type_ids,
         )?;
     }
@@ -402,10 +368,52 @@ fn finalize_nominal_cleanup_machine(
     if let Some(identity) = plan.attachment_type_identity.as_deref() {
         lookup_type_id(type_ids, identity)?;
     }
+    // Every Unit return of the dispatcher disposes of each parameter through
+    // its selected hook; each edge's actions own their obligation identities.
+    let TerminalMachine {
+        structural_parameters,
+        entry_claims,
+        blocks,
+        ..
+    } = machine;
+    for block in blocks.iter_mut() {
+        let Terminator::ReturnUnit { edge, .. } = block.terminator else {
+            continue;
+        };
+        let cleanups = nominal_cleanup_return_actions(
+            nominal,
+            structural_parameters,
+            entry_claims,
+            machine_ids,
+            receivers,
+            requirement_counts,
+            next_obligation,
+        )?;
+        block.terminator = Terminator::ReturnUnit {
+            edge,
+            cleanup_actions: cleanups
+                .into_iter()
+                .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
+                .collect(),
+        };
+    }
+    Ok(())
+}
+
+/// One return edge's hook invocations, one per cleanup row, each consuming
+/// the entry claims its parameter carries.
+fn nominal_cleanup_return_actions(
+    nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
+    structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
+    entry_claims: &[terminal_psi::EntryClaim],
+    machine_ids: &[(SymbolHandle, MachineId)],
+    receivers: &[(SymbolHandle, PlaceId)],
+    requirement_counts: &[(SymbolHandle, usize)],
+    next_obligation: &mut u64,
+) -> Result<Vec<NominalAffineCleanup>, LoweringError> {
     let mut cleanups = Vec::with_capacity(nominal.cleanups.len());
     for cleanup in &nominal.cleanups {
-        let parameter = machine
-            .structural_parameters
+        let parameter = structural_parameters
             .get(
                 cleanup
                     .source_parameter_index()
@@ -417,19 +425,16 @@ fn finalize_nominal_cleanup_machine(
                 "nominal cleanup member parameter is absent from its terminal signature",
             ))?;
         let mut action = lower_nominal_cleanup_action(
-            checked,
             cleanup,
             parameter.place,
             parameter.structural_type,
             Vec::new(),
-            type_ids,
             machine_ids,
             receivers,
             requirement_counts,
             next_obligation,
         )?;
-        action.consumed_claims = machine
-            .entry_claims
+        action.consumed_claims = entry_claims
             .iter()
             .filter(|claim| claim.input == parameter.place)
             .map(|claim| claim.claim)
@@ -437,18 +442,7 @@ fn finalize_nominal_cleanup_machine(
         action.consumed_claims.sort_unstable();
         cleanups.push(action);
     }
-    let [block] = machine.blocks.as_mut_slice() else {
-        return unsupported("nominal affine Unit member terminal control drifted");
-    };
-    let edge = block.terminator.edge();
-    block.terminator = Terminator::ReturnUnit {
-        edge,
-        cleanup_actions: cleanups
-            .into_iter()
-            .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
-            .collect(),
-    };
-    Ok(())
+    Ok(cleanups)
 }
 
 pub(crate) fn lower_partial_affine_unit_cleanup_machine(

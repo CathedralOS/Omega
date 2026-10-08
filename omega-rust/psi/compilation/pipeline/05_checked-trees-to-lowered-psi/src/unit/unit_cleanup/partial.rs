@@ -1,169 +1,21 @@
-//! Partial-affine cleanup lowering and maximal residual reconstruction.
-use super::super::{
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, StructuralAffineDiscard, lower_structural_path,
-};
+//! Partial-affine cleanup lowering: the ordinary closure's Unit returns carry
+//! the residual complement stage 04 published for the partially moved owned
+//! parameter.
+use super::super::{StructuralAffineDiscard, lower_structural_path};
 use super::{
-    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, Terminator, lookup_type_id, unique_unit_machine,
-    unsupported,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, LoweringError, Terminator,
+    lookup_type_id, unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
-
-mod residuals;
+use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 pub(super) fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
     let plan = &partial.machine;
-    if checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .machines
-        .iter()
-        .any(|candidate| candidate.machine == plan.machine)
-    {
-        return unsupported("partial affine Unit machine is also published in the root-only lane");
-    }
-    // The general route carries ordinary bodies whose calls projected an
-    // owned structural parameter — residual rows rooted at the parameter or
-    // an empty complement when the projections covered it — while
-    // result-local and anonymous roots keep their structural-result sources
-    // on the dedicated path.
-    if plan
-        .operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-        .any(|operation| {
-            // Only an ordinary Unit call projects an owned parameter here.
-            let Some(call) = operation.call().filter(|call| {
-                call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-            }) else {
-                return false;
-            };
-            call.structural_arguments.iter().any(|argument| {
-                argument.access == CheckedStructuralAccess::Owned
-                    && !argument.path.is_empty()
-                    && matches!(
-                        argument.source,
-                        CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-                    )
-            })
-        })
-    {
-        return lower_general_partial_affine_unit_cleanup_machine(checked, partial);
-    }
-    let Some((return_operation, call_operations)) = plan.operations.split_last() else {
-        return unsupported("partial affine Unit cleanup operation sequence drifted");
-    };
-    let CheckedUnitEffectOperationPlan::Complete { .. } = return_operation else {
-        return unsupported("partial affine Unit cleanup operation sequence drifted");
-    };
-    if call_operations.is_empty() {
-        return unsupported("partial affine Unit cleanup requires projected calls");
-    }
-    // A call with a structural result, ordinary or boundary, produces the
-    // partial root; otherwise the root is the one structural parameter.
-    let producer = call_operations[0].call().and_then(|call| {
-        Some((
-            call.coordinate,
-            call.structural_result()?,
-            call.discard_result_on_return()?,
-        ))
-    });
-    let (root_source, root_type, producer_count, anonymous) = match producer {
-        Some((coordinate, result, _)) => (
-            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            },
-            result.type_identity.as_str(),
-            1,
-            coordinate.call_ordinal == 1,
-        ),
-        None => {
-            let [parameter] = plan.structural_parameters.as_slice() else {
-                return unsupported(
-                    "partial affine Unit cleanup requires one structural parameter",
-                );
-            };
-            (
-                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
-                parameter.type_identity.as_str(),
-                0,
-                false,
-            )
-        }
-    };
-    let projected_calls = &call_operations[producer_count..];
-    if projected_calls.is_empty() {
-        return unsupported("partial affine Unit cleanup requires projected calls");
-    }
-    let mut moved_paths = Vec::<(
-        &[CheckedUnitStructuralPathSegment],
-        &str,
-        symbols::SymbolHandle,
-    )>::new();
-    for operation in projected_calls {
-        // Each projected move is an ordinary Unit call.
-        let Some(call) = operation.call().filter(|call| {
-            call.is_module() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
-        }) else {
-            return unsupported("partial affine Unit cleanup operation sequence drifted");
-        };
-        let target_machine = &call.target.machine;
-        let structural_arguments = &call.structural_arguments;
-        let [argument] = structural_arguments.as_slice() else {
-            return unsupported("partial affine Unit cleanup requires one structural argument");
-        };
-        if !checked_partial_affine_path(&argument.path) {
-            return unsupported("partial affine Unit transfer is not an exact field path");
-        }
-        moved_paths.push((
-            argument.path.as_slice(),
-            argument.type_identity.as_str(),
-            *target_machine,
-        ));
-    }
-    if partial
-        .residual_affine_discards
-        .iter()
-        .any(|residual| !checked_partial_affine_path(&residual.path))
-    {
-        return unsupported("partial affine Unit cleanup is not an exact field path");
-    }
-    if anonymous && plan.statement_count != 1 {
-        return unsupported(
-            "anonymous projected result must die at its enclosing call continuation",
-        );
-    }
-
-    // The partial lane's shapes live in the ordinary roster's one type
-    // namespace, where stage 04 adopted them.
-    let partial_plans = &checked.facts.flow.terminal_unit_effects.structural_types;
-    checked_partial_affine_residuals(
-        partial_plans,
-        &root_source,
-        root_type,
-        &moved_paths
-            .iter()
-            .map(|(path, moved_type, _)| (*path, *moved_type))
-            .collect::<Vec<_>>(),
-    )?;
-    let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
-    for (_, _, target_machine) in &moved_paths {
-        let target = unique_unit_machine(published, *target_machine)?;
-        let [_] = target.structural_parameters.as_slice() else {
-            return unsupported("partial affine Unit target signature drifted");
-        };
-    }
-
-    // Reuse the ordinary closure lowerer only after validating the separate
-    // checked lane: the lane's dispatcher joins the ordinary roster for this
-    // closure.
+    // The lane's dispatcher joins the ordinary roster for this closure.
     let mut source_mapped = lower_unit_closure(
         checked,
         &UnitClosureRequest {
@@ -171,296 +23,59 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
         },
     )?;
-    let lowered = &mut source_mapped.terminal;
-    let entry = find_entry_machine(
-            &mut lowered.semantic_module.machines,
-            lowered.semantic_module.entry,
-        )?;
-    let root_place = match &root_source {
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => entry
-            .structural_parameters
-            .get(*parameter_index as usize)
-            .map(|parameter| parameter.place),
-        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => entry
-            .blocks
-            .first()
-            .and_then(|block| block.operations.first())
-            .and_then(|operation| operation.result.structural())
-            .map(|result| result.place),
-        _ => None,
-    }
-    .ok_or(LoweringError::Unsupported(
-        "partial affine Unit terminal root drifted",
-    ))?;
-    let [block] = entry.blocks.as_mut_slice() else {
-        return unsupported("partial affine Unit terminal control drifted");
-    };
-    let Terminator::ReturnUnit {
-        edge,
-        cleanup_actions: lowered_cleanup,
-    } = &block.terminator
-    else {
-        return unsupported("partial affine Unit terminal return drifted");
-    };
-    if !lowered_cleanup.is_empty() {
-        return unsupported("partial affine Unit return acquired root-only cleanup");
-    }
+    // A root fully consumed by its projections publishes no residual row and
+    // keeps the ordinary return edge.
     if partial.residual_affine_discards.is_empty() {
         return Ok(source_mapped);
     }
-    let terminal_type_ids = lowered
-        .semantic_module
-        .structural_types
-        .iter()
-        .map(|declaration| (declaration.identity.clone(), declaration.id))
-        .collect::<Vec<_>>();
-    let residual_affine_discards = partial
-        .residual_affine_discards
-        .iter()
-        .map(|residual| {
-            Ok(StructuralAffineDiscard {
-                place: root_place,
-                path: lower_structural_path(&residual.path)?,
-                structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    block.terminator = Terminator::ReturnUnit {
-        edge: *edge,
-        cleanup_actions: residual_affine_discards
-            .into_iter()
-            .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual)
-            .collect(),
-    };
-    Ok(source_mapped)
-}
-
-/// The general route: residual rows rooted at one structural parameter of an
-/// ordinary checked body. Unlike the dedicated lane, the body keeps its full
-/// operation sequence and may carry other whole-root discards on the same
-/// return edge; validation re-derives the moved paths from the checked call
-/// arguments and requires every residual row to name the same parameter
-/// root, matching the producer's one-partial-root rule.
-fn lower_general_partial_affine_unit_cleanup_machine(
-    checked: &CheckedTrees,
-    partial: &CheckedPartialAffineUnitCleanupMachinePlan,
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let plan = &partial.machine;
-    let mut residual_roots = std::collections::BTreeSet::new();
-    for residual in &partial.residual_affine_discards {
-        if !checked_partial_affine_path(&residual.path) {
-            return unsupported("partial affine Unit cleanup is not an exact field path");
-        }
-        let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            residual.source
-        else {
-            return unsupported("general partial affine residual is not parameter-rooted");
-        };
-        residual_roots.insert(parameter_index);
-    }
-    if residual_roots.len() > 1 {
-        return unsupported("general partial affine cleanup has more than one residual root");
-    }
-    // A fully consumed parameter publishes no residual row: every projected
-    // root is then validated as fully covered and the ordinary terminator
-    // stays.
-    let parameter_index = residual_roots.iter().next().copied();
-    if let Some(parameter_index) = parameter_index
-        && plan
-            .structural_parameters
-            .get(parameter_index as usize)
-            .is_none()
-    {
-        return unsupported("general partial affine residual root is not a parameter");
-    }
-    let mut moved_paths = Vec::<(&[CheckedUnitStructuralPathSegment], &str)>::new();
-    let mut other_root_moves =
-        std::collections::BTreeMap::<u32, Vec<(&[CheckedUnitStructuralPathSegment], &str)>>::new();
-    for operation in plan
-        .operations
-        .iter()
-        .flat_map(|operation| operation.with_value_calls())
-    {
-        if let Some(call) = operation.call() {
-            for argument in &call.structural_arguments {
-                if argument.access != CheckedStructuralAccess::Owned {
-                    continue;
-                }
-                if let Some(index) = argument.source_parameter_index() {
-                    if argument.path.is_empty() {
-                        if parameter_index == Some(index) {
-                            // A residual root also passed whole is fully
-                            // consumed and cannot owe a complement.
-                            return unsupported("general partial affine residual root moved whole");
-                        }
-                    } else if parameter_index == Some(index) {
-                        moved_paths
-                            .push((argument.path.as_slice(), argument.type_identity.as_str()));
-                    } else {
-                        let sibling = other_root_moves.entry(index).or_default();
-                        sibling.push((argument.path.as_slice(), argument.type_identity.as_str()));
-                    }
-                } else if !argument.path.is_empty()
-                    && argument
-                        .source_structural_result_binding_ordinal()
-                        .is_none()
-                {
-                    return unsupported(
-                        "general partial affine projected argument has no residual lane",
-                    );
-                }
-            }
-        } else if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
-            && !source.path.is_empty()
-            && parameter_index == source.source_parameter_index()
-        {
-            return unsupported(
-                "general partial affine residual root moved whole through a reference",
-            );
-        }
-    }
-    // The partial lane's shapes live in the ordinary roster's one type
-    // namespace, where stage 04 adopted them.
-    let partial_plans = &checked.facts.flow.terminal_unit_effects.structural_types;
-    // Any other projected parameter must be fully consumed by its moves;
-    // a nonempty complement would be a second residual root this terminator
-    // cannot name.
-    for (other_index, other_paths) in &other_root_moves {
-        let Some(other_parameter) = plan.structural_parameters.get(*other_index as usize) else {
-            return unsupported("general partial affine projected parameter drifted");
-        };
-        let other_residuals = checked_partial_affine_residuals(
-            partial_plans,
-            &CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: *other_index,
-            },
-            &other_parameter.type_identity,
-            other_paths,
-        )?;
-        if !other_residuals.is_empty() {
-            return unsupported("general partial affine cleanup has a second residual root");
-        }
-    }
-    if let Some(parameter_index) = parameter_index {
-        let root_parameter = plan
-            .structural_parameters
-            .get(parameter_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "general partial affine residual root is not a parameter",
-            ))?;
-        checked_partial_affine_residuals(
-            partial_plans,
-            &CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-            &root_parameter.type_identity,
-            &moved_paths,
-        )?;
-    }
-    let mut source_mapped = lower_unit_closure(
-        checked,
-        &UnitClosureRequest {
-            plans: UnitPlans::with_staged(&checked.facts.flow.terminal_unit_effects, plan),
-            ..UnitClosureRequest::unit(checked, plan.machine, &[plan.machine])
-        },
-    )?;
     let lowered = &mut source_mapped.terminal;
-    let entry = find_entry_machine(
-            &mut lowered.semantic_module.machines,
-            lowered.semantic_module.entry,
-        )?;
-    // Ordinary bodies can lower to several terminal blocks — a shared
-    // continuation on a dying temporary, for example — so the residual
-    // swap targets the unique ordinary return edge rather than assuming a
-    // single-block shape.
-    let mut return_blocks = entry
-        .blocks
-        .iter_mut()
-        .filter(|block| matches!(block.terminator, Terminator::ReturnUnit { .. }));
-    let (Some(block), None) = (return_blocks.next(), return_blocks.next()) else {
-        return unsupported("partial affine Unit terminal control drifted");
-    };
-    let Some(parameter_index) = parameter_index else {
-        // Every projected root was covered: the ordinary terminator stays.
-        return Ok(source_mapped);
-    };
-    let root_place = entry
-        .structural_parameters
-        .get(parameter_index as usize)
-        .map(|parameter| parameter.place)
-        .ok_or(LoweringError::Unsupported(
-            "general partial affine terminal root drifted",
-        ))?;
-    let Terminator::ReturnUnit {
-        edge,
-        cleanup_actions: lowered_cleanup,
-    } = &block.terminator
-    else {
-        return unsupported("partial affine Unit terminal return drifted");
-    };
     let terminal_type_ids = lowered
         .semantic_module
         .structural_types
         .iter()
         .map(|declaration| (declaration.identity.clone(), declaration.id))
         .collect::<Vec<_>>();
-    let residual_affine_discards = partial
-        .residual_affine_discards
-        .iter()
-        .map(|residual| {
-            Ok(StructuralAffineDiscard {
-                place: root_place,
-                path: lower_structural_path(&residual.path)?,
-                structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    block.terminator = Terminator::ReturnUnit {
-        edge: *edge,
-        // Preserve the existing whole-root schedule before the checked
-        // residual tail, exactly as the previous return partition executed.
-        cleanup_actions: lowered_cleanup
-            .iter()
-            .cloned()
-            .chain(
-                residual_affine_discards
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-            )
-            .collect(),
-    };
-    Ok(source_mapped)
-}
-
-pub(crate) fn checked_partial_affine_residuals(
-    types: &[CheckedUnitStructuralTypePlan],
-    source: &CheckedUnitStructuralArgumentSourcePlan,
-    root_type: &str,
-    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
-) -> Result<Vec<CheckedUnitPartialAffineDiscardPlan>, LoweringError> {
-    residuals::reconstruct(types, source, root_type, moved_paths)
-}
-
-fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    !path.is_empty()
-        && path.iter().all(|segment| {
-            matches!(
-                segment,
-                CheckedUnitStructuralPathSegment::Field(_)
-                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
-            )
-        })
-}
-
-/// The entry machine the partial lowering produced — the residual edits all
-/// attach to it. Field-granular borrow: callers still read the module's
-/// structural types while holding the entry machine.
-fn find_entry_machine<'m>(
-    machines: &'m mut [terminal_psi::TerminalMachine],
-    entry: semantic_vocabulary::MachineId,
-) -> Result<&'m mut terminal_psi::TerminalMachine, LoweringError> {
-    machines
+    let entry = lowered
+        .semantic_module
+        .machines
         .iter_mut()
-        .find(|machine| machine.id == entry)
+        .find(|machine| machine.id == lowered.semantic_module.entry)
         .ok_or(LoweringError::Unsupported(
             "partial affine Unit entry machine was not lowered",
-        ))
+        ))?;
+    // Stage 04 publishes the complement of one partially moved owned
+    // parameter; its structural parameters lower in plan order, so the
+    // row's dense index names the entry's place.
+    let residual_affine_discards = partial
+        .residual_affine_discards
+        .iter()
+        .map(|residual| {
+            let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+                residual.source
+            else {
+                return unsupported(
+                    "partial affine residual rooted outside a structural parameter has no return-edge route",
+                );
+            };
+            Ok(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                StructuralAffineDiscard {
+                    place: entry.structural_parameters[parameter_index as usize].place,
+                    path: lower_structural_path(&residual.path)?,
+                    structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
+                },
+            ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    // An ordinary body is one operation sequence, so every Unit return follows
+    // all of its projected moves and owes the same complement. The residual
+    // tail follows the whole-root schedule the return edge already carries.
+    for block in &mut entry.blocks {
+        if let Terminator::ReturnUnit {
+            cleanup_actions, ..
+        } = &mut block.terminator
+        {
+            cleanup_actions.extend(residual_affine_discards.iter().cloned());
+        }
+    }
+    Ok(source_mapped)
 }

@@ -24,7 +24,6 @@ use super::{
     lookup_machine_id, unique_unit_boundary, unsupported,
 };
 use checked_trees::machine::{Machine, TraitConformance};
-use validation::{TopLevelSymbols, resolve_closed_requirement_application};
 
 mod named;
 
@@ -55,25 +54,24 @@ enum CatalogRequirement<'a> {
 }
 
 /// A closed requirement keeps its authored conformance coordinate on the
-/// provider. Rejoin through checked applications, never through equal runtime
-/// signatures: two const tuples may have identical layouts and still name
-/// different boundary obligations.
-fn satisfies_requirement<'program>(
-    checked: &'program CheckedTrees,
+/// provider. Join through the closed application checking selected, never
+/// through equal runtime signatures: two const tuples may have identical
+/// layouts and still name different boundary obligations.
+fn satisfies_requirement(
+    checked: &CheckedTrees,
     machine: &Machine,
     conformance: &TraitConformance,
-    requirement: CatalogRequirement<'program>,
-    symbols: &mut Option<TopLevelSymbols<'program>>,
-) -> Result<bool, LoweringError> {
+    requirement: CatalogRequirement<'_>,
+) -> bool {
     if conformance.external_binding.is_some() {
-        return Ok(false);
+        return false;
     }
     let requirement = match requirement {
         CatalogRequirement::Trait {
             definition,
             signature,
         } => {
-            return Ok(conformance.symbol == definition.symbol
+            return conformance.symbol == definition.symbol
                 && if conformance.requirement_symbol.is_valid() {
                     conformance.requirement_symbol == signature.symbol
                 } else {
@@ -81,58 +79,37 @@ fn satisfies_requirement<'program>(
                         .requirement
                         .as_ref()
                         .is_some_and(|name| name == &signature.name)
-                });
+                };
         }
         CatalogRequirement::Operator(operator) => {
             // The settled satisfaction edge is mandatory. Equal signatures
             // or names from another package cannot donate a candidate.
-            return Ok(conformance.requirement_symbol == operator.symbol
+            return conformance.requirement_symbol == operator.symbol
                 && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
                     &checked.typed,
                     machine,
                     conformance,
                 )
-                .is_some_and(|resolved| resolved.symbol == operator.symbol));
+                .is_some_and(|resolved| resolved.symbol == operator.symbol);
         }
         CatalogRequirement::TopLevel(requirement) => requirement,
     };
     if conformance.symbol == requirement.symbol
         && conformance.requirement_symbol == requirement.symbol
     {
-        return Ok(true);
+        return true;
     }
-    if conformance.symbol != conformance.requirement_symbol
-        || !checked.typed.machine_type_parameters(machine).is_empty()
-    {
-        return Ok(false);
-    }
-    let Some(template) = checked.machines().iter().find(|candidate| {
-        candidate.symbol == conformance.symbol
-            && candidate.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && !checked.typed.machine_type_parameters(candidate).is_empty()
-    }) else {
-        return Ok(false);
-    };
-    // Start at the authored satisfaction edge, not the optional receipt
-    // roster. Deleting a closed requirement's receipt must fail its join
-    // rather than silently turning a checked candidate into an absent one.
-    if symbols.is_none() {
-        let mut diagnostics = Vec::new();
-        *symbols = Some(TopLevelSymbols::build(&checked.typed, &mut diagnostics));
-        if !diagnostics.is_empty() {
-            return unsupported("provider catalog contains invalid declaration identities");
-        }
-    }
-    let Some(symbols) = symbols.as_ref() else {
-        return unsupported("provider catalog has no declaration identities");
-    };
-    let closed = resolve_closed_requirement_application(&checked.typed, machine, template, symbols)
-        .map_err(|_| {
-            LoweringError::Unsupported(
-                "provider catalog cannot rejoin the exact closed requirement application",
-            )
-        })?;
-    Ok(closed.symbol == requirement.symbol)
+    // A conformance naming a generic template satisfies the closed instance
+    // its specialization receipt selected.
+    checked
+        .facts
+        .provider_closed_requirements
+        .iter()
+        .any(|row| {
+            row.provider == machine.symbol
+                && row.template == conformance.symbol
+                && row.closed_requirement == requirement.symbol
+        })
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -159,7 +136,6 @@ pub(super) fn checked_unit_provider_candidates(
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     boundary_symbols.dedup();
     let mut output = Vec::new();
-    let mut symbols = None;
     for boundary_symbol in boundary_symbols {
         let boundary = unique_unit_boundary(plans, boundary_symbol)?;
         let exact_requirements = checked
@@ -234,13 +210,7 @@ pub(super) fn checked_unit_provider_candidates(
             let mut providers = named::provider_identities(checked, machine, requirement)?;
             if machine.attached_data.is_some() {
                 for conformance in checked.typed.machine_trait_conformances(machine) {
-                    if satisfies_requirement(
-                        checked,
-                        machine,
-                        conformance,
-                        requirement,
-                        &mut symbols,
-                    )? {
+                    if satisfies_requirement(checked, machine, conformance, requirement) {
                         providers.push(checked.typed.attached_data_path(machine).ok_or(
                             LoweringError::Unsupported(
                                 "provider candidate has no attached data path",

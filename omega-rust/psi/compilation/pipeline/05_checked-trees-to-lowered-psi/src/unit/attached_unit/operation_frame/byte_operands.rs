@@ -35,12 +35,7 @@ impl OperationFrame<'_, '_> {
             if !source.path.is_empty() {
                 return unsupported("stored call descriptor changes its completed projection");
             }
-            let produced = byte_store::completed_call_result(
-                self.operations,
-                self.state,
-                store.statement_index,
-                binding_ordinal,
-            )?;
+            let produced = byte_store::completed_call_result(self.operations, binding_ordinal)?;
             if produced.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !produced.claims.is_empty()
                 || !produced.projected_qualifications.is_empty()

@@ -610,16 +610,17 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             None => None,
                         }
                     }
+                    // A bounded byte owner reads at its current home, which a
+                    // rebinding may have replaced since the view registry
+                    // recorded its establishment.
                     checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
-                        if let Some(local) = view_locals.iter().find(|local| local.symbol == symbol)
-                        {
-                            let source = owned_local_observation(structural_locals, symbol)?;
-                            if local.place != source || local.carrier != ViewCarrier::Bytes {
-                                return unsupported(
-                                    "owned byte read changed its established carrier",
-                                );
-                            }
-                            Some((source, ViewCarrier::Bytes))
+                        if view_locals.iter().any(|local| {
+                            local.symbol == symbol && local.carrier == ViewCarrier::Bytes
+                        }) {
+                            Some((
+                                owned_local_observation(structural_locals, symbol)?,
+                                ViewCarrier::Bytes,
+                            ))
                         } else {
                             None
                         }
@@ -718,10 +719,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             match whole_carrier {
-                Some((view_source, ViewCarrier::Elements { .. })) => {
-                    if view_source != source || !path.is_empty() {
-                        return unsupported("element read changed its live descriptor");
-                    }
+                Some((_, ViewCarrier::Elements { .. })) => {
                     Ok(LoweredDirectExpression::ElementViewRead {
                         source,
                         index,
@@ -953,7 +951,7 @@ fn lower_checked_boolean_expression_with_parameters(
                         ScalarType::Boolean,
                     )? {
                         CasePayloadRead::Observation { expression } =>
-                            crate::expression_preparation::bindings::structural_fields::boolean_observation(expression)?,
+                            crate::expression_preparation::bindings::structural_fields::boolean_observation(expression),
                         CasePayloadRead::Established { position } => {
                             LoweredBooleanReturnExpression::Parameter { position }
                         }
@@ -984,7 +982,11 @@ fn lower_checked_boolean_expression_with_parameters(
                         path,
                         ScalarType::Boolean,
                     )?;
-                return crate::expression_preparation::bindings::structural_fields::boolean_observation(observation);
+                return Ok(
+                    crate::expression_preparation::bindings::structural_fields::boolean_observation(
+                        observation,
+                    ),
+                );
             }
             let path = path
                 .iter()

@@ -114,9 +114,6 @@ fn result_source<'a>(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case source parameter missing",
                 ))?;
-            if retained.access != subject.access {
-                return unsupported("Unit case subject access differs from its parameter");
-            }
             let reference = if inspected {
                 let TypeReferenceNode::Reference { referee, .. } = checked
                     .type_reference_table

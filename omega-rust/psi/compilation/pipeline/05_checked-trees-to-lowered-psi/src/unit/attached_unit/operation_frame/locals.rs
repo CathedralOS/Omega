@@ -769,9 +769,6 @@ impl OperationFrame<'_, '_> {
                 return unsupported("borrowed-window repair value is not a whole owned result");
             }
         };
-        if repair.structural_type != lookup_type_id(self.type_ids, &value.type_identity)? {
-            return unsupported("replacement value changed its declared structural type");
-        }
         Ok(repair)
     }
 
@@ -872,12 +869,10 @@ impl OperationFrame<'_, '_> {
                 checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
                     terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
                         crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                            self.checked,
                             cleanup,
                             place,
                             structural_type,
                             path,
-                            self.type_ids,
                             self.calls.machine_ids,
                             self.calls.cleanup_receivers,
                             self.calls.requirement_counts,

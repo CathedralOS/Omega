@@ -259,8 +259,7 @@ pub(super) fn emit_return(
         operations,
     )?;
     complete_structural_return(
-        checked, state, exit, operation, catalogs, parameters, evaluation, next_block, next_edge,
-        operations,
+        state, exit, operation, catalogs, parameters, evaluation, next_block, next_edge, operations,
     )
 }
 
@@ -268,7 +267,6 @@ pub(super) fn emit_return(
 /// cleanup order and the current places established by operand preparation.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_structural_return(
-    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     exit: checked_trees::FlowClaimJoinExit,
     operation: &CheckedUnitEffectOperationPlan,
@@ -301,9 +299,8 @@ pub(super) fn complete_structural_return(
     // The returned value carries every claim it holds; the caller binds them
     // by path.
     returned_claims.sort();
-    let cleanup_actions = super::cleanup::for_exit(
-        checked, state, exit, catalogs, parameters, evaluation, operations,
-    )?;
+    let cleanup_actions =
+        super::cleanup::for_exit(state, exit, catalogs, parameters, evaluation, operations)?;
     let completion = Terminator::ReturnStructural {
         edge: edge_id(allocate_dense(next_edge)?),
         source,

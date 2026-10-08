@@ -6,7 +6,7 @@
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralTypeShape, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm,
-    ScalarType, StructuralFieldType, StructuralTypeShape, SymbolHandle, unsupported,
+    StructuralTypeShape, SymbolHandle, unsupported,
 };
 use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration};
 
@@ -105,19 +105,19 @@ pub(crate) fn field_clause(
     identity: &str,
     expected: bool,
 ) -> Result<Proposition, LoweringError> {
+    // `validate_requirements` admitted a relevant Boolean field of this
+    // parameter's record; resolve its identity to the lowered field.
     let field = types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)
         .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields, .. } => fields.iter().find(|field| {
-                field.identity == identity
-                    && !field.relevance.is_erased()
-                    && field.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
-            }),
+            StructuralTypeShape::Record { fields, .. } => {
+                fields.iter().find(|field| field.identity == identity)
+            }
             _ => None,
         })
         .ok_or(LoweringError::Unsupported(
-            "contextual nominal cleanup terminal field identity drifted",
+            "contextual nominal cleanup requirement names an unlowered field",
         ))?;
     Ok(Proposition::Equal(
         ScalarTerm::boolean(expected),
@@ -178,7 +178,6 @@ pub(crate) fn prepare_signature(
         if nominal.is_some() {
             return unsupported("nominal cleanup dispatcher is its own hook");
         }
-        super::checked_hook_entry(checked, hook)?;
         let contract =
             checked
                 .facts

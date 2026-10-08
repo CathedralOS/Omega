@@ -62,13 +62,11 @@ pub fn lower_machine(
 pub(crate) fn nominal_cleanup_subject(
     checked: &CheckedTrees,
     source: symbols::SymbolHandle,
-    attachment: Option<semantic_vocabulary::StructuralTypeId>,
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
     nominal_cleanup_subject_from_types(
         checked,
         source,
-        attachment,
         type_ids
             .iter()
             .map(|(identity, id)| (identity.as_str(), *id)),
@@ -78,8 +76,7 @@ pub(crate) fn nominal_cleanup_subject(
 fn nominal_cleanup_subject_from_types<'types>(
     checked: &CheckedTrees,
     source: symbols::SymbolHandle,
-    attachment: Option<semantic_vocabulary::StructuralTypeId>,
-    types: impl Iterator<Item = (&'types str, semantic_vocabulary::StructuralTypeId)>,
+    mut types: impl Iterator<Item = (&'types str, semantic_vocabulary::StructuralTypeId)>,
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
     let Some(owner) = validation::nominal_cleanup_owner(&checked.typed, source) else {
         return Ok(None);
@@ -105,13 +102,11 @@ fn nominal_cleanup_subject_from_types<'types>(
                 "cleanup owner has no normalized nominal identity",
             ))?
     };
-    let mut matches = types.filter(|(candidate, _)| *candidate == identity.as_str());
-    let (_, subject) = matches.next().ok_or(LoweringError::Unsupported(
-        "owner-designated cleanup lost its exact structural declaration",
-    ))?;
-    if matches.next().is_some() || attachment.is_some_and(|attachment| attachment != subject) {
-        return unsupported("cleanup attachment substituted its exact owner type");
-    }
+    let (_, subject) = types
+        .find(|(candidate, _)| *candidate == identity.as_str())
+        .ok_or(LoweringError::Unsupported(
+            "owner-designated cleanup lost its exact structural declaration",
+        ))?;
     Ok(Some(subject))
 }
 
@@ -134,7 +129,6 @@ fn retain_nominal_cleanup_roles(
         let expected = nominal_cleanup_subject_from_types(
             checked,
             *source,
-            machine.attachment,
             module
                 .structural_types
                 .iter()

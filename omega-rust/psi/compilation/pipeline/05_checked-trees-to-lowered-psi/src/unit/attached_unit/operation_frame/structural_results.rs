@@ -137,20 +137,14 @@ impl StructuralResults<'_> {
                         // already owns the join's type and custody; rejoin it
                         // to the exact declared place rather than requiring a
                         // second operation to manufacture the same value.
-                        let mut bindings = operations
+                        let (_, binding) = operations
                             .structural_values
                             .iter()
-                            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
-                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
-                            "borrowed-window repair join has no completed binding",
-                        ))?;
-                        let result = binding.operation_result()?;
-                        if bindings.next().is_some() || result.place != declaration.id {
-                            return unsupported(
-                                "borrowed-window repair join substituted its completed place",
-                            );
-                        }
-                        result.structural_type
+                            .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                            .ok_or(LoweringError::Unsupported(
+                                "borrowed-window repair join has no completed binding",
+                            ))?;
+                        binding.operation_result()?.structural_type
                     }
                     _ => {
                         return unsupported(

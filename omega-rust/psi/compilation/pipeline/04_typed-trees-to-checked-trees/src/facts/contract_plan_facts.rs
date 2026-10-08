@@ -28,6 +28,7 @@ pub(crate) fn build_contract_plans(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
+    float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
@@ -118,8 +119,12 @@ pub(crate) fn build_contract_plans(
             ),
         };
         let published_termination = declared_termination(program, &termination.interface, &binders);
-        let closed_scalar_values =
-            build_closed_scalar_value_contract_plan(program, machine, operators);
+        let closed_scalar_values = build_closed_scalar_value_contract_plan(
+            program,
+            machine,
+            operators,
+            float_meaning_equalities,
+        );
         let identity = checked_trees::contract_identity(
             machine.supply_mode,
             &published_service_names,
@@ -348,6 +353,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     operators: &checked_trees::CheckedOperatorFacts,
+    float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
 ) -> checked_trees::ClosedScalarValueContractPlan {
     use typed_trees::{
         domain::ProofFact,
@@ -423,7 +429,11 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             // a predicate, so it stays on the single-fact spelling.
             if let [ProofFact::Expression(expression)] = facts
                 && contract.kind == SignatureContractKind::Ensures
-                && let Some(clause) = lower_float_meaning_equality_clause(program, *expression)
+                && let Some(clause) = lower_float_meaning_equality_clause(
+                    program,
+                    *expression,
+                    float_meaning_equalities,
+                )
             {
                 return Some(clause);
             }
@@ -521,12 +531,15 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
 /// operands each resolve to a sealed float-semantics catalog declaration
 /// producing the proof-only `FloatMeaning` carrier — a `Float::meaning*`
 /// projection or a `FloatSemantics::*` application whose catalog row's
-/// result is `Meaning`. The clause keeps the authored expression verbatim;
-/// lowering preparation rejoins it to the checked float-meaning equality
-/// roster rather than approximating a scalar predicate.
+/// result is `Meaning`. The clause keeps the authored expression verbatim
+/// and cites the checked float-meaning equality row the float-meaning binding
+/// minted for that exact `==` declaration occurrence, rather than
+/// approximating a scalar predicate. A clause without that row publishes no
+/// float-meaning shape.
 fn lower_float_meaning_equality_clause(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
+    float_meaning_equalities: &[checked_trees::CheckedFloatMeaningEqualityProposition],
 ) -> Option<checked_trees::ClosedScalarContractValue> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
@@ -558,10 +571,16 @@ fn lower_float_meaning_equality_clause(
                 },
             )
     };
-    (operand_produces_meaning(binary.left) && operand_produces_meaning(binary.right)).then_some(
+    if !(operand_produces_meaning(binary.left) && operand_produces_meaning(binary.right)) {
+        return None;
+    }
+    let equality = float_meaning_equalities
+        .iter()
+        .find(|row| row.use_site.is_none() && row.source_expression == expression)?;
+    Some(
         checked_trees::ClosedScalarContractValue::FloatMeaningEquality {
             expression,
-            equality: None,
+            equality: equality.id,
         },
     )
 }

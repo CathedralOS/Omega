@@ -347,12 +347,6 @@ pub(crate) fn storage(
         }
         _ => return unsupported("range collection is neither backing nor its exact descriptor"),
     };
-    if let Some(element) = collection_element {
-        terminal_semantics::collection_backing(declarations.iter(), collection.id, element).ok_or(
-            LoweringError::Unsupported("range backing changed its exact collection element"),
-        )?;
-        validate_element(element, view, range.family, declarations)?;
-    }
     Ok(RangeStorage {
         symbol,
         root: range.root,
@@ -362,34 +356,6 @@ pub(crate) fn storage(
         collection_element,
         access: argument.access,
     })
-}
-
-fn validate_element(
-    element: StructuralTypeId,
-    view: &terminal_psi::StructuralTypeDeclaration,
-    family: ViewFamily,
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
-) -> Result<(), LoweringError> {
-    let matches = match (family, &view.shape) {
-        (
-            ViewFamily::Elements,
-            terminal_psi::StructuralTypeShape::ElementView { element: expected },
-        ) => *expected == element,
-        (ViewFamily::Bytes, shape) if shape.is_borrowed_byte_view() => {
-            let byte = crate::emission::scalar_types::terminal_scalar_type(
-                checked_trees::types::PrimitiveType::U8,
-            )?;
-            declarations.iter().any(|declaration| {
-                declaration.id == element
-                    && declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte)
-            })
-        }
-        _ => false,
-    };
-    if !matches {
-        return unsupported("range backing element disagrees with its view type");
-    }
-    Ok(())
 }
 
 pub(crate) fn establish(
