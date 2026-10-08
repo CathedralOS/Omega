@@ -219,10 +219,7 @@ pub(super) fn validate(
     let mut records = artifact.relocations.records();
     for field in fields {
         let (call, locator) = call_for_import_field(&import_calls, field)?;
-        let function = artifact
-            .functions
-            .iter()
-            .find(|function| function.machine == field.caller)
+        let function = artifact.function_on_machine(field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
         let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
         for callback in &call.callback_addresses {

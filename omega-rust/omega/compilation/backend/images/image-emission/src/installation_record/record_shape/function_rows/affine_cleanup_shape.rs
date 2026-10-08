@@ -563,10 +563,7 @@ fn exact_nominal_body(
     if nominal.cleanup_receiver.is_some() || !nominal.requirement_obligations.is_empty() {
         return None;
     }
-    let target = record
-        .functions
-        .iter()
-        .find(|candidate| candidate.machine == nominal.cleanup_machine)?;
+    let target = record.function(nominal.cleanup_machine)?;
     let calls = record
         .internal_unit_calls
         .iter()

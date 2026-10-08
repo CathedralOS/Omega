@@ -152,7 +152,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
             let fragment = section
                 .functions
                 .iter()
-                .find(|fragment| fragment.machine == occurrence.machine())
+                .find(|function| function.machine == occurrence.machine())
                 .ok_or("kernel entry has no placed caller")?;
             let span = fragment
                 .instructions()

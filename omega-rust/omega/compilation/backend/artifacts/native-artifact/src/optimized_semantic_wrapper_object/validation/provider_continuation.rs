@@ -21,10 +21,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
     if selected.functions.len() != 2 {
         return Err(Error::FunctionRosterMismatch);
     }
-    let Some(entry) = selected
-        .functions
-        .iter()
-        .find(|function| function.machine == selected.entry)
+    let Some(entry) = selected.function(selected.entry)
     else {
         return Err(Error::FunctionRosterMismatch);
     };
@@ -93,10 +90,7 @@ pub fn validate_installed_program_storage_continuation_evidence(
     if !entry_claims_match_parameters(entry) {
         return Err(Error::EntryClaimMismatch);
     }
-    let Some(provider_function) = selected
-        .functions
-        .iter()
-        .find(|function| function.machine == provider.candidate)
+    let Some(provider_function) = selected.function(provider.candidate)
     else {
         return Err(Error::ProviderFunctionMismatch);
     };

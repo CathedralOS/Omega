@@ -21,10 +21,7 @@ impl InternalUnitCall<'_> {
                 .arguments
                 .iter()
                 .any(|argument| !argument.path.is_empty())
-            && record
-                .functions
-                .iter()
-                .find(|callee| callee.machine == custody.target)
+            && record.function(custody.target)
                 .is_none_or(|callee| {
                     callee.scalar_abi.is_some()
                         || function.unit_affine_cleanup.as_ref().is_none_or(|cleanup| {

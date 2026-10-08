@@ -47,10 +47,7 @@ pub(super) fn reconstruct(
     let call = evaluate_call_plan(calling_policy, &signature)
         .map_err(|_| OptimizedOrdinaryCallableEntryError::AbiPlan)?;
     let selected = route.selected_plan();
-    let selected_function = selected
-        .functions
-        .iter()
-        .find(|function| function.machine == machine.id)
+    let selected_function = selected.function(machine.id)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingEntry)?;
     let homes = route.register_homes();
     let home_function = homes

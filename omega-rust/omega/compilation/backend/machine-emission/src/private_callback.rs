@@ -73,10 +73,7 @@ pub fn materialize_private_callback_function(
             "a private callback thunk cannot call outside its own machine",
         ));
     }
-    let targeted = target_plan
-        .functions
-        .iter()
-        .find(|function| function.machine == placed.machine)
+    let targeted = target_plan.function(placed.machine)
         .ok_or_else(|| reject("emitted thunk machine is absent from its target operations"))?;
     let boundary_signature = &request.boundary_entry_plan.call;
     let Some(emitted_signature) = targeted.scalar_abi.as_ref() else {

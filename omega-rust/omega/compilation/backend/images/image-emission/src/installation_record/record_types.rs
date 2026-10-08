@@ -176,6 +176,16 @@ impl InstallationRecord {
         &self.functions
     }
 
+    /// The installed function for `machine`, when the record carries it.
+    pub fn function(
+        &self,
+        machine: semantic_vocabulary::MachineId,
+    ) -> Option<&InstalledFunction> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }
+
     /// Compiler-private functions remain a namespace disjoint from semantic
     /// program functions even when their artifact-local `MachineId`s happen
     /// to have the same numeric value.

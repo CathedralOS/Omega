@@ -65,10 +65,7 @@ pub(super) fn validate_scalar_affine_cleanup_shape(
         let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal) = action else {
             continue;
         };
-        let target = record
-            .functions
-            .iter()
-            .find(|target| target.machine == nominal.cleanup_machine)
+        let target = record.function(nominal.cleanup_machine)
             .ok_or_else(invalid)?;
         let executable = record
             .internal_unit_calls

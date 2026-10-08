@@ -14,10 +14,7 @@ pub(super) fn check(
             && fragments.functions.len() == selected.functions.len(),
     )?;
     for (source, claimed) in selected.functions.iter().zip(&fragments.functions) {
-        let resolved = layout
-            .functions
-            .iter()
-            .find(|row| row.machine == source.machine)
+        let resolved = layout.function(source.machine)
             .ok_or(ResolvedFragmentEmissionError::MissingFunction(
                 source.machine,
             ))?;

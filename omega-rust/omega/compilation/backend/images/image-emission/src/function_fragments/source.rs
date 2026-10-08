@@ -876,7 +876,7 @@ pub(super) fn fragment_metadata(
     Error,
 > {
     let plan = fragments(source);
-    if let Some(function) = plan.functions.iter().find(|row| row.machine == machine) {
+    if let Some(function) = plan.function(machine) {
         return Ok((
             function.attachment,
             function.nominal_cleanup_subject,

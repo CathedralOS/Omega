@@ -55,10 +55,7 @@ pub(super) fn validate_targets(
         })?;
         for (slot, machine) in declaration.rows.iter().enumerate() {
             let expected_target = if let Some(machine) = machine {
-                let function = artifact
-                    .functions
-                    .iter()
-                    .find(|function| function.machine == *machine)
+                let function = artifact.function_on_machine(*machine)
                     .ok_or_else(|| Diagnostic::error("final implementation row has no function"))?;
                 section_address(output.final_image_layout.text_address, function.text_offset)?
             } else {

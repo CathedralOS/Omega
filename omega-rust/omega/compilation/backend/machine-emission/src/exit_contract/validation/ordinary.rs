@@ -46,10 +46,7 @@ pub(super) fn check(
                 && claimed.entry_block == function.entry_block
                 && claimed.body_stack_delta == 0,
         )?;
-        let machine_function = machine
-            .functions
-            .iter()
-            .find(|row| row.machine == claimed.machine)
+        let machine_function = machine.function(claimed.machine)
             .ok_or(WholeFunctionExitContractError::FunctionRosterMismatch(
                 claimed.machine,
             ))?;

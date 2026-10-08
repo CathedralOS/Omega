@@ -36,10 +36,7 @@ pub fn admit_executable_entry_receiver(
         program_entry.source().receiver(),
         program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
     );
-    let lowered_entry = plan
-        .functions
-        .iter()
-        .find(|function| function.machine == plan.entry);
+    let lowered_entry = plan.function(plan.entry);
     let terminal_entry = terminal.machine(terminal.entry);
     let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
     let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);

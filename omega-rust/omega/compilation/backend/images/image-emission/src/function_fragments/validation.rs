@@ -103,10 +103,7 @@ fn validate(
         .zip(layout.symbols.iter())
     {
         let (abstracted, targeted) = source::function(source, placed.machine)?;
-        let fragment = fragments
-            .functions
-            .iter()
-            .find(|fragment| fragment.machine == placed.machine)
+        let fragment = fragments.function(placed.machine)
             .ok_or(Error::Mismatch("missing current fragment"))?;
         let (attachment, nominal_cleanup_subject, provenance) =
             source::fragment_metadata(source, placed.machine)?;

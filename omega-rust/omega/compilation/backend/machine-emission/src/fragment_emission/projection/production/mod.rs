@@ -27,10 +27,7 @@ pub(super) fn emit(
         return Err(ResolvedFragmentEmissionError::RootMismatch);
     }
     for function in &selected.functions {
-        let resolved = layout
-            .functions
-            .iter()
-            .find(|row| row.machine == function.machine)
+        let resolved = layout.function(function.machine)
             .ok_or(ResolvedFragmentEmissionError::MissingFunction(
                 function.machine,
             ))?;

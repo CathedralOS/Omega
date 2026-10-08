@@ -182,9 +182,7 @@ impl installation_evidence::ObjectEvidence for ObjectArtifact {
     }
 
     fn function_text_offset(&self, machine: MachineId) -> Option<usize> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function_on_machine(machine)
             .map(|function| function.text_offset)
     }
 }

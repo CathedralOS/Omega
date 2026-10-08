@@ -135,10 +135,7 @@ fn installed_provider_row_check(
     plan: &MachineCodePlan,
 ) -> Result<Vec<InstalledProviderUnitScalarCallRecord>, ObjectError> {
     let artifact = build_object_artifact(plan)?;
-    Ok(artifact
-        .functions
-        .iter()
-        .find(|function| function.machine == plan.functions[0].machine)
+    Ok(artifact.function_on_machine(plan.functions[0].machine)
         .map(|function| function.installed_provider_unit_scalar_calls.clone())
         .unwrap_or_default())
 }

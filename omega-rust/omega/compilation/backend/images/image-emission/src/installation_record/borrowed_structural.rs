@@ -373,10 +373,7 @@ pub(super) fn call_is_exact(
     installed: &InstalledInternalUnitCall,
 ) -> bool {
     let call = &installed.custody;
-    let Some(callee) = record
-        .functions
-        .iter()
-        .find(|candidate| candidate.machine == call.target)
+    let Some(callee) = record.function(call.target)
     else {
         return false;
     };
