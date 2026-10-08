@@ -38,8 +38,7 @@ pub fn has_builtin_parameter_bound_expression_meaning(
                 if binary.operator == BinaryOperator::CaseMembership {
                     return false;
                 }
-                let spelling = spelled_binary_operator(binary.operator);
-                if let Some(spelling) = spelling {
+                if let Some(spelling) = spelled_binary_operator(binary.operator) {
                     let operands = [binary.left, binary.right].map(|operand| {
                         crate::parameter_expression_result_type_reference(
                             program,

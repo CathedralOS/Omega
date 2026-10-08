@@ -25,13 +25,12 @@ pub(super) fn parse_membership_expression_handle<'tokens, 'source>(
                 .append_identifier_path_member(member)
         })?;
         input = rest;
-        let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+        expression = syntax_trees.expressions.insert(ExpressionNode::Membership(
             TableMembershipExpression {
                 value: expression,
                 domain,
             },
         ));
-        expression = membership;
 
         while input.at_punctuation(PunctuationKind::Ampersand)
             || input.at_punctuation(PunctuationKind::Pipe)

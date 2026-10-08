@@ -22,10 +22,9 @@ pub(super) fn parse_measure_definition<'tokens, 'source>(
 
     if input.at_contextual("lexicographic") {
         let input = input.take_contextual("lexicographic")?;
-        let (components, mut input) = parse_lexicographic_components(syntax_trees, input)?;
+        let (components, input) = parse_lexicographic_components(syntax_trees, input)?;
         let token_count = body_start_tokens.saturating_sub(input.tokens.len());
         // Trailing semicolons are not required for measures; nothing to consume.
-        let _ = &mut input;
         return Ok((
             MeasureDefinition {
                 name,

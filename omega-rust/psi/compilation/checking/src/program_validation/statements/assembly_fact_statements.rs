@@ -18,13 +18,12 @@ pub(super) fn validate(
         program,
         machine,
         state_name,
-        current_state,
+        current_state: state,
         symbols,
         writable_roots,
         ..
     } = *scope;
     let diagnostics = &mut *outputs.diagnostics;
-    let state = current_state;
     if let Some(state) = state {
         crate::value_custody::locals::StateValueScope {
             program,
