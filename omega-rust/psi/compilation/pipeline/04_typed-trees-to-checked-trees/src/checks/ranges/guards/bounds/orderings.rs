@@ -1,4 +1,4 @@
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;

@@ -2,7 +2,7 @@
 
 use super::*;
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;

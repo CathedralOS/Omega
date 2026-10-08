@@ -1,5 +1,5 @@
 use language_semantics::declaration_selection::CollectionMeasure;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle};
 
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;

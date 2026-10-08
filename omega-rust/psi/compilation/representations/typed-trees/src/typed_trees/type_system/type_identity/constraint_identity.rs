@@ -2,7 +2,7 @@
 //! identities and array lengths into canonical atoms.
 
 use crate::TypedTrees;
-use crate::expression::{ExpressionHandle, ExpressionNode};
+use crate::expression::{ExpressionHandle};
 use crate::type_identity::substitution;
 use crate::typed_trees::type_system::type_identity::NormalizedDomainTerm;
 use crate::typed_trees::type_system::type_identity::identity_context::{

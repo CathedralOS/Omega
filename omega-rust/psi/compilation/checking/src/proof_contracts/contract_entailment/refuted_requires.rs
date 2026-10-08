@@ -7,7 +7,7 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_term, structural_term_in_scope, structural_term_pair,
 };
 use diagnostics::Diagnostic;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 

@@ -287,7 +287,7 @@ fn normalize_open_index_expression_operations(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     use language_core::operator_spelling::OperatorSpelling;
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::expression::{BinaryOperator};
 
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return;

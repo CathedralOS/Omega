@@ -13,7 +13,7 @@ use super::super::{
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventSource,
+    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource,
     ScalarCalleeClosure, ShapeCollector, Signature, StatementNode, TransitionExit,
     TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, returns, terminal_calls,
 };

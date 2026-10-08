@@ -550,7 +550,7 @@ fn proven_predicates_grant_domain(
     else {
         return false;
     };
-    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    let Some((_machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return false;
     };
@@ -861,7 +861,7 @@ fn incoming_guard_proves_requires(
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    let Some((_machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return false;
     };

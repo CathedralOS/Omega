@@ -3,7 +3,7 @@ use super::super::caller_aliases::{
     CallOriginContext, CallWriteOrigins, CallerWriteSite, LocalWriteSource, caller_statement_owner,
     with_caller_origin_context,
 };
-use super::{CallFrameResolver, ExpressionHandle, ExpressionNode, Machine, TableCall};
+use super::{CallFrameResolver, ExpressionHandle, Machine, TableCall};
 use crate::machine_calls::calls::write_frames as frames;
 
 impl<'program> CallFrameResolver<'program> {

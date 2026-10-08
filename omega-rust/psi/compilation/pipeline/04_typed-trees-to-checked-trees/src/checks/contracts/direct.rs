@@ -277,7 +277,6 @@ fn projected_formal_leaf_value(
     arguments: &[typed_trees::expression::ExpressionHandle],
     leaf: typed_trees::expression::ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
-    use typed_trees::expression::ExpressionNode;
 
     // `room.exits.len` selects no storage: `len` on a fixed array is the
     // declared type's literal extent, so the receiver only has to be the

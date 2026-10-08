@@ -3,7 +3,7 @@
 //! Each conjunct may use a different existing proof route. No child is installed
 //! as a premise: all queries keep the same substituted operands and live context.
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
 use super::super::places::expression_is_boolean_place_like;
 use super::super::prover::{

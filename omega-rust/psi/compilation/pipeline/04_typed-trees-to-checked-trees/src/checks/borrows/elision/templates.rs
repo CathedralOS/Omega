@@ -3,7 +3,7 @@
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
-    expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument},
+    expression::{ExpressionHandle, StaticMachineArgument},
     statement::{StatementNode, TransitionTargetNode},
 };
 

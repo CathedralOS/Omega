@@ -3,7 +3,7 @@
 use super::{Machine, Shape, State, primitive};
 use typed_trees::{
     TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
+    expression::{BinaryOperator, ExpressionHandle},
     types::{PrimitiveType, TypeReferenceHandle},
 };
 

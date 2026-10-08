@@ -161,7 +161,6 @@ fn is_parameter_domain_premise(
     contract: &typed_trees::signature::SignatureContract,
 ) -> bool {
     use typed_trees::domain::ProofFact;
-    use typed_trees::expression::ExpressionNode;
     use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
 
     if contract.keyword_source_span.is_some() || contract.binding.is_some() {

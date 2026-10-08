@@ -1,7 +1,7 @@
 //! A bound established by the remainder value captured at this statement.
 
 use checked_trees::CheckedOperatorResolutionStatus;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
