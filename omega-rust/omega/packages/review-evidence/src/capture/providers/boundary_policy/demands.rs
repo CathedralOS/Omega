@@ -16,9 +16,7 @@ pub(super) fn project(
     let mut rows = Vec::new();
     for demand in &compilation.facts.operators.symbolic_boundary_applications {
         let machine = compilation
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == demand.machine_symbol)
+            .machine(demand.machine_symbol)
             .ok_or_else(|| rejected("a symbolic producer without its exact machine"))?;
         if !machine.is_public
             || !reviewed_package_owns(&nominal_identity(compilation, machine.symbol)?, package)?

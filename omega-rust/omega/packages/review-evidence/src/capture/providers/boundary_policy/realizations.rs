@@ -165,9 +165,7 @@ fn project_requirement_coordinate(
 ) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
     let machine = compilation
         .typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == requirement)
+        .machine(requirement)
         .ok_or_else(|| rejected("a closed application without its requirement machine"))?;
     let overload = compilation.typed.machine_callable_identity(machine);
     if !overload.is_valid() {

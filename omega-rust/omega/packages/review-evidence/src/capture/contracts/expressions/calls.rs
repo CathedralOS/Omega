@@ -168,9 +168,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         ))]);
     };
     let target = compilation
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == projection.target_machine)
+        .machine(projection.target_machine)
         .and_then(|machine| compilation.state_in_machine(machine, projection.target_state));
     if target.is_none_or(|state| state.return_type != projection.result_type) {
         return Err(vec![Diagnostic::error(format!(

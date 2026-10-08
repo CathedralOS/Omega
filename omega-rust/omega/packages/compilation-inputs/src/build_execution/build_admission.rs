@@ -60,15 +60,11 @@ pub fn admit_build_machine(
     filesystem_scope: &BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
     let typed = prepared.typed();
-    let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "prepared Build program lost its selected entry",
-            )]
-        })?;
+    let machine = typed.machine(machine_symbol).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "prepared Build program lost its selected entry",
+        )]
+    })?;
     let machine_name = machine.name.as_str().to_owned();
     let machine_entry = prepared.entry(machine_symbol).map_err(|reason| {
         vec![Diagnostic::error(format!(
