@@ -328,6 +328,18 @@ impl TypeReferenceTable {
         handle
     }
 
+    /// The declared symbol of the carrier behind every `Constrained` shell —
+    /// `unconstrained_type_reference` followed by the `Named` node check.
+    pub fn unconstrained_named_symbol(
+        &self,
+        handle: TypeReferenceHandle,
+    ) -> Option<SymbolHandle> {
+        match self.type_reference(self.unconstrained_type_reference(handle)) {
+            TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+            _ => None,
+        }
+    }
+
     /// The declared head symbol behind a `Named` or `Generic` reference —
     /// the base nominal, whether or not arguments are supplied.
     pub fn type_head_symbol(&self, handle: TypeReferenceHandle) -> Option<SymbolHandle> {

@@ -921,16 +921,13 @@ pub(super) fn collect_record_paths(
         paths.push(Vec::new());
     }
     for_each_record_field_path(program, from, paths, |program, field| {
-        let TypeReferenceNode::Named { symbol: next, .. } = program
-            .type_reference_table
-            .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
-        else {
+        let Some(next) = program.type_reference_table.unconstrained_named_symbol(field.type_reference) else {
             return (false, None);
         };
         // A step landing on the target records its own path even when the
         // record is already crossed -- `x` and `x.y` both landing on the
         // target are genuinely two readings.
-        (*next == to, Some(*next))
+        (next == to, Some(next))
     });
 }
 
@@ -953,13 +950,9 @@ pub(super) fn collect_leaf_paths(
         } else {
             // A reference boundary or a scalar leaf ends the descent, matching
             // `for_parameter`'s chain resolution.
-            let descend = match program
+            let descend = program
                 .type_reference_table
-                .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
-            {
-                TypeReferenceNode::Named { symbol: next, .. } => Some(*next),
-                _ => None,
-            };
+                .unconstrained_named_symbol(field.type_reference);
             (false, descend)
         }
     });

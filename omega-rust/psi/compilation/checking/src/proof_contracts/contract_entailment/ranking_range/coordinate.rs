@@ -8,7 +8,7 @@ use super::fields::{
     declared_field, member_coordinate_parts, nested_arrival_chain, record_referent,
 };
 use super::{
-    Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, exact_integer_parameter,
+    Polynomial, PrimitiveType, RankingRangeState, State, exact_integer_parameter,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
@@ -34,16 +34,10 @@ impl CoordinateKind {
         match self {
             Self::Field => record_referent(program, field.type_reference).map(|(next, _)| next),
             Self::Length => {
-                let TypeReferenceNode::Named { symbol: next, .. } =
-                    program.type_reference_table.type_reference(
-                        program
-                            .type_reference_table
-                            .unconstrained_type_reference(field.type_reference),
-                    )
-                else {
+                let Some(next) = program.type_reference_table.unconstrained_named_symbol(field.type_reference) else {
                     return None;
                 };
-                Some(*next)
+                Some(next)
             }
         }
     }

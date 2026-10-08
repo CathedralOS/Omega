@@ -356,13 +356,10 @@ pub fn measure_body_shape(
         let field = exact_record_field(program, owner, step.member_symbol, &step.member)?;
         // An intermediate step must itself be an exact declared record so the
         // next member resolves against one nominal owner.
-        let TypeReferenceNode::Named { symbol: next, .. } = program
-            .type_reference_table
-            .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
-        else {
+        let Some(next) = program.type_reference_table.unconstrained_named_symbol(field.type_reference) else {
             return None;
         };
-        if !crate::declarations::data_queries::data_definition_by_symbol(program, *next).is_some() {
+        if !crate::declarations::data_queries::data_definition_by_symbol(program, next).is_some() {
             return None;
         }
         path.push(ProjectionStep {
@@ -370,7 +367,7 @@ pub fn measure_body_shape(
             field_symbol: field.symbol,
             owner,
         });
-        owner = *next;
+        owner = next;
     }
     let field = exact_record_field(program, owner, last.member_symbol, &last.member)?;
     // Returning a field with another carrier does not establish a u64 measure.
