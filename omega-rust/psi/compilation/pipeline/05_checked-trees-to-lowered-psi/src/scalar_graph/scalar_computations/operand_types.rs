@@ -14,12 +14,7 @@ pub(crate) fn type_roots(
     let mut types = super::cases::type_roots(checked, &[machine])?;
     types.extend(super::fields::type_roots(checked, machine)?);
     let plans = &checked.facts.values.scalar_computations;
-    let roots = plans
-        .roots
-        .iter()
-        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
-        .collect::<Vec<_>>();
-    for handle in super::reachable_nodes(checked, &roots)? {
+    for handle in super::machine_computation_handles(checked, machine)? {
         match &plans.nodes.get(handle).kind {
             Computation::Call {
                 structural_arguments,

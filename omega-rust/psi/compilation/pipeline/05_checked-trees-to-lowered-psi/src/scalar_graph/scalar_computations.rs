@@ -807,3 +807,17 @@ pub(crate) fn parameters(types: &[QualifiedScalarType]) -> Vec<LoweredDirectExpr
         .map(|(position, scalar_type)| parameter(position, scalar_type))
         .collect()
 }
+
+/// Every scalar-computation node reachable from `machine`'s roots.
+pub(super) fn machine_computation_handles(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<checked_trees::CheckedScalarComputationHandle>, LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans
+        .roots
+        .iter()
+        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .collect::<Vec<_>>();
+    reachable_nodes(checked, &roots)
+}
