@@ -35,6 +35,13 @@ impl SelectedFunction {
         self.blocks.iter().position(|block| block.id == id)
     }
 
+    /// The virtual register keyed `register`, when the function declares it.
+    pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
+        self.virtual_registers
+            .iter()
+            .find(|row| row.id == register)
+    }
+
     /// Every block's instructions, in block order.
     pub fn instructions(&self) -> impl Iterator<Item = &super::SelectedInstruction> + '_ {
         self.blocks.iter().flat_map(|block| &block.instructions)
@@ -95,6 +102,14 @@ pub enum SelectedBlockOrigin {
 }
 
 impl SelectedBlock {
+    /// The instruction keyed `instruction`, when the block carries it.
+    pub fn instruction(
+        &self,
+        instruction: super::SelectedInstructionId,
+    ) -> Option<&SelectedInstruction> {
+        self.instructions.iter().find(|row| row.id == instruction)
+    }
+
     /// Semantic anchor; an implementation block anchors its destination.
     pub const fn source_block(&self) -> BlockId {
         match self.origin {

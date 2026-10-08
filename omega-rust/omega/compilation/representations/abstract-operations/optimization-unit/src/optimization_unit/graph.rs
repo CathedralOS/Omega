@@ -215,6 +215,13 @@ impl PsiOptimizationFunction {
         self.blocks.iter_mut().find(|row| row.id == block)
     }
 
+    /// The structural place keyed `place`, when the function declares it.
+    pub fn structural_place(&self, place: PlaceId) -> Option<&StructuralPlaceDeclaration> {
+        self.structural_places
+            .iter()
+            .find(|row| row.id == place)
+    }
+
     /// Every block's nodes, in block order.
     pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
         self.blocks.iter().flat_map(|block| &block.nodes)

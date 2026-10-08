@@ -26,6 +26,18 @@ pub struct LegalizedStructuralContract {
     pub published_service_ceiling: Vec<ServiceId>,
 }
 
+impl LegalizedStructuralContract {
+    /// The structural place keyed `place`, when the contract declares it.
+    pub fn structural_place(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Option<&StructuralPlaceDeclaration> {
+        self.structural_places
+            .iter()
+            .find(|row| row.id == place)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedBoundarySettlement {
     pub operation: OperationId,
