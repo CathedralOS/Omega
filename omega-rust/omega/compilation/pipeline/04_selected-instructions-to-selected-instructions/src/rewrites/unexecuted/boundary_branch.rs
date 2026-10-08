@@ -70,7 +70,10 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity, SelectedTerminator,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::fold_selected_boundary_branch;
@@ -134,3 +137,76 @@ impl std::fmt::Display for BoundaryBranchError {
 }
 
 impl std::error::Error for BoundaryBranchError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Outcome {
+    /// The predicate is decided for every surviving operand value: the
+    /// terminator becomes the target's `Jump` to `when_less` when the
+    /// ordering holds, `when_not_less` when it does not.
+    Constant(bool),
+    /// The predicate holds exactly off the near pole: `0 <u x`,
+    /// `x <u u64::MAX`, `i64::MIN <s x`, and `x <s i64::MAX` each coincide
+    /// with the nonzero condition (`left != right`) on the same published
+    /// flag state, so the terminator becomes `ConditionalBranch` carrying
+    /// `ConditionalBranchNonZero` with the arms republished
+    /// `when_nonzero`/`when_zero`.
+    NonZero,
+}
+
+/// The branch/kind pairings admission accepts and the carrier domain their
+/// predicate orders over: `true` selects the signed poles, `false` the
+/// unsigned. `ConditionalBranch` carrying `ConditionalBranchNonZero` reads
+/// the equality condition — `left != right` varies with every unknown
+/// side, so no single operand pole can fix it — and stays refused.
+pub(super) fn branch_domain(
+    terminator: &SelectedTerminator,
+    instruction: &SelectedInstruction,
+) -> Option<bool> {
+    match (terminator, instruction.kind) {
+        (
+            SelectedTerminator::ConditionalBranchU64LessThan { .. },
+            SelectedInstructionKind::ConditionalBranchU64LessThan,
+        ) => Some(false),
+        (
+            SelectedTerminator::ConditionalBranchI64LessThan { .. },
+            SelectedInstructionKind::ConditionalBranchI64LessThan,
+        ) => Some(true),
+        _ => None,
+    }
+}
+
+/// The boundary decision over the compare's resolved operand poles for a
+/// strict less-than in `signed`'s domain. The far poles decide the
+/// predicate false without consulting the other side — `x < 0` unsigned
+/// and `x < i64::MIN` signed can never hold, and neither can a strict
+/// less-than issued from the domain maximum. Two known operands decide the
+/// predicate outright, matching the constant family's table. The near
+/// poles leave a predicate that coincides with the nonzero condition on
+/// the same flag state — `0 <u x` is `x != 0`, `x <u u64::MAX` is `x !=
+/// u64::MAX`, `i64::MIN <s x` is `x != i64::MIN`, `x <s i64::MAX` is `x !=
+/// i64::MAX` — so the branch collapses to `ConditionalBranchNonZero` with
+/// `when_less` serving `when_nonzero`. Decided outcomes take precedence
+/// where two rules could fire: `(0, u64::MAX)` under `U64LessThan` is
+/// `true` rather than a collapse that computes the same selection.
+pub(super) fn outcome(signed: bool, left: Option<u64>, right: Option<u64>) -> Option<Outcome> {
+    let (minimum, maximum) = if signed {
+        (i64::MIN as u64, i64::MAX as u64)
+    } else {
+        (0, u64::MAX)
+    };
+    if right == Some(minimum) || left == Some(maximum) {
+        return Some(Outcome::Constant(false));
+    }
+    if let (Some(left), Some(right)) = (left, right) {
+        let holds = if signed {
+            (left as i64) < (right as i64)
+        } else {
+            left < right
+        };
+        return Some(Outcome::Constant(holds));
+    }
+    if left == Some(minimum) || right == Some(maximum) {
+        return Some(Outcome::NonZero);
+    }
+    None
+}

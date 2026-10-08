@@ -28,32 +28,17 @@ use selected_instructions::{
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
-use super::{BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch};
+use super::{
+    BoundaryBranchError, BoundaryBranchReceipt, Outcome,
+    ValidatedBoundaryBranch, branch_domain, outcome,
+};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at};
+use crate::rewrites::block_edges::function_at;
 use crate::rewrites::condition_state::{
-    ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
+    adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
 };
 
-/// What the resolved operand poles force on the branch's strict ordering
-/// over `left - right`, in the validator's own record: the same two
-/// outcomes the contract defines, re-decided here so a wrong boundary
-/// decision inside the producer's `outcome` cannot pass validation.
-#[derive(Clone, Copy)]
-enum Outcome {
-    /// The predicate is decided for every surviving operand value: the
-    /// terminator becomes the target's `Jump` to `when_less` when the
-    /// ordering holds, `when_not_less` when it does not.
-    Constant(bool),
-    /// The predicate holds exactly off the near pole: `0 <u x`,
-    /// `x <u u64::MAX`, `i64::MIN <s x`, and `x <s i64::MAX` each coincide
-    /// with the nonzero condition (`left != right`) on the same published
-    /// flag state, so the terminator becomes `ConditionalBranch` carrying
-    /// `ConditionalBranchNonZero` with the arms republished
-    /// `when_nonzero`/`when_zero`.
-    NonZero,
-}
 
 /// The validator's own reconstruction of the fold the contract permits:
 /// the admitted branch's block, identity, and emitted provenance, the
@@ -77,83 +62,12 @@ struct Reconstructed<'source> {
     compare_defs: usize,
 }
 
-/// The branch/kind pairings the validator admits and the carrier domain
-/// their predicate orders over: `true` selects the signed poles, `false`
-/// the unsigned. `ConditionalBranch` carrying `ConditionalBranchNonZero`
-/// reads the equality condition — `left != right` varies with every
-/// unknown side, so no single operand pole can fix it — and stays
-/// refused. The validator re-decides the pairings itself: a wrong
-/// admission inside shared producer code would decide both sides
-/// identically.
-fn branch_domain(
-    terminator: &SelectedTerminator,
-    instruction: &SelectedInstruction,
-) -> Option<bool> {
-    match (terminator, instruction.kind) {
-        (
-            SelectedTerminator::ConditionalBranchU64LessThan { .. },
-            SelectedInstructionKind::ConditionalBranchU64LessThan,
-        ) => Some(false),
-        (
-            SelectedTerminator::ConditionalBranchI64LessThan { .. },
-            SelectedInstructionKind::ConditionalBranchI64LessThan,
-        ) => Some(true),
-        _ => None,
-    }
-}
 
-/// The boundary decision over the compare's resolved operand poles for a
-/// strict less-than in `signed`'s domain. The far poles decide the
-/// predicate false without consulting the other side — `x < 0` unsigned
-/// and `x < i64::MIN` signed can never hold, and neither can a strict
-/// less-than issued from the domain maximum. Two known operands decide
-/// the predicate outright, matching the constant family's table. The
-/// near poles leave a predicate that coincides with the nonzero
-/// condition on the same flag state — `0 <u x` is `x != 0`, `x <u
-/// u64::MAX` is `x != u64::MAX`, `i64::MIN <s x` is `x != i64::MIN`,
-/// `x <s i64::MAX` is `x != i64::MAX` — so the branch collapses to
-/// `ConditionalBranchNonZero` with `when_less` serving `when_nonzero`.
-/// Decided outcomes take precedence where two rules could fire:
-/// `(0, u64::MAX)` under `U64LessThan` is `true` rather than a collapse
-/// that computes the same selection. This table is the fold's legality
-/// decision: it lives here, not in `admission`, because a wrong boundary
-/// rule in shared producer code would certify the proposal its own bug
-/// emitted.
-fn pole_outcome(signed: bool, left: Option<u64>, right: Option<u64>) -> Option<Outcome> {
-    let (minimum, maximum) = if signed {
-        (i64::MIN as u64, i64::MAX as u64)
-    } else {
-        (0, u64::MAX)
-    };
-    if right == Some(minimum) || left == Some(maximum) {
-        return Some(Outcome::Constant(false));
-    }
-    if let (Some(left), Some(right)) = (left, right) {
-        let holds = if signed {
-            (left as i64) < (right as i64)
-        } else {
-            left < right
-        };
-        return Some(Outcome::Constant(holds));
-    }
-    if left == Some(minimum) || right == Some(maximum) {
-        return Some(Outcome::NonZero);
-    }
-    None
-}
 
 /// The family's own mapping of a shared condition-state rejection onto
 /// its error vocabulary. The producer's `From` implementation lives in
 /// `admission`; the validator maps each site itself so a changed producer
 /// mapping cannot relabel its refusal.
-fn condition_error(error: ConditionStateError) -> BoundaryBranchError {
-    match error {
-        ConditionStateError::Use => BoundaryBranchError::UnsupportedUse,
-        ConditionStateError::Producer | ConditionStateError::Literal => {
-            BoundaryBranchError::UnsupportedLiteral
-        }
-    }
-}
 
 /// Reconstruct the legality of folding `branch` from first principles:
 /// locate the terminator-carried instruction, verify the emitted
@@ -261,7 +175,7 @@ fn reconstruct<'source>(
             read_position,
             *unit,
         )
-        .map_err(condition_error)?;
+        .map_err(BoundaryBranchError::from)?;
         if compare_site.is_some_and(|site| site != event) {
             return Err(BoundaryBranchError::UnsupportedUse);
         }
@@ -281,9 +195,9 @@ fn reconstruct<'source>(
         return Err(BoundaryBranchError::UnsupportedUse);
     }
     let (left, right) =
-        boundary_operands(function, compare_instruction).map_err(condition_error)?;
+        boundary_operands(function, compare_instruction).map_err(BoundaryBranchError::from)?;
     let outcome =
-        pole_outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
+        outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
     let row = match outcome {
         Outcome::Constant(_) => {
             // The rebuilt terminator publishes the jump row's surface
