@@ -274,6 +274,7 @@ impl TerminalExecution<'_> {
         let mut scalar_arrays = BTreeMap::new();
         let mut primitive_loans = BTreeMap::new();
         let mut array_loans = BTreeMap::new();
+        let mut byte_loans = BTreeMap::new();
         let mut local_array_roots = BTreeMap::new();
         let mut identity_cursor = self.local_structural_identities.cursor();
         let mut owned_sources = BTreeSet::new();
@@ -330,6 +331,40 @@ impl TerminalExecution<'_> {
                         .iter()
                         .any(|entry| entry.place == parameter.place)
                     || array_loans.insert(parameter.place, loan).is_some()
+                {
+                    return Err(malformed());
+                }
+                resolved_arguments.push(referent);
+                if contains_payloads {
+                    descriptor_parameters.push(parameter.clone());
+                    descriptor_arguments.push(argument.clone());
+                }
+                continue;
+            }
+            // A byte loan lends exactly what the same argument lends a call:
+            // an array presented as a view, a bounded owner, a view field.
+            if parameter.access != StructuralAccess::Owned
+                && matches!(
+                    self.program
+                        .structural_types()
+                        .get(&parameter.structural_type)
+                        .ok_or_else(malformed)?
+                        .shape,
+                    StructuralTypeShape::ByteSequence(_)
+                )
+                && let Some((referent, binding)) = self.prepare_byte_sequence_loan(
+                    parameter,
+                    argument,
+                    &mut identity_cursor,
+                    &mut local_array_roots,
+                )?
+            {
+                if !self.block_parameter_is_declared(target, parameter)
+                    || self.live_affine_frontier.iter().any(|entry| {
+                        entry.place == parameter.place
+                            || (entry.place == argument.place && !entry.path.is_empty())
+                    })
+                    || byte_loans.insert(parameter.place, binding).is_some()
                 {
                     return Err(malformed());
                 }
@@ -629,15 +664,49 @@ impl TerminalExecution<'_> {
         } else {
             structural_arguments
         };
+        // Prepared byte loans are already bound. Direct descriptor rebindings
+        // and owned byte copies keep their exact checks; owned record fields
+        // are keyed by runtime referent identity, not SSA place.
+        let mut byte_sequences = if byte_loans.is_empty() {
+            self.bind_byte_sequence_arguments(
+                descriptor_parameters,
+                descriptor_arguments,
+                &resolved_arguments,
+            )?
+        } else {
+            let mut parameters = Vec::new();
+            let mut arguments = Vec::new();
+            let mut values = Vec::new();
+            for ((parameter, argument), value) in descriptor_parameters
+                .iter()
+                .zip(descriptor_arguments)
+                .zip(&resolved_arguments)
+            {
+                if !byte_loans.contains_key(&parameter.place) {
+                    parameters.push(parameter.clone());
+                    arguments.push(argument.clone());
+                    values.push(value.clone());
+                }
+            }
+            self.bind_byte_sequence_arguments(&parameters, &arguments, &values)?
+        };
+        for (place, binding) in byte_loans {
+            if byte_sequences.insert(place, binding).is_some() {
+                return Err(malformed());
+            }
+        }
+        // An owned byte copy was just checked against every domain its formal
+        // names, so the destination holds the copy under those domains, exactly
+        // as an ordinary call's owned copy.
+        for (parameter, value) in descriptor_parameters.iter().zip(&mut resolved_arguments) {
+            if parameter.access == StructuralAccess::Owned
+                && byte_sequences.contains_key(&parameter.place)
+            {
+                value.absorb_qualifications(&parameter.qualifications);
+            }
+        }
         let mut structural = bind_structural_arguments(descriptor_parameters, &resolved_arguments)?;
         let affine_destinations = bind_affine_frontier(descriptor_parameters, &structural)?;
-        // Existing borrowed-byte bindings retain their exact checks. Owned
-        // record fields are keyed by runtime referent identity, not SSA place.
-        let byte_sequences = self.bind_byte_sequence_arguments(
-            descriptor_parameters,
-            descriptor_arguments,
-            &resolved_arguments,
-        )?;
         let mut element_views = self.bind_element_view_arguments(
             descriptor_parameters,
             descriptor_arguments,

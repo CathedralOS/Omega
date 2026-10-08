@@ -332,18 +332,7 @@ impl TerminalExecution<'_> {
                 resolved.element_views.push(Some(loan));
                 continue;
             }
-            if let Some((referent, binding)) =
-                self.prepare_shared_descriptor_argument(parameter, argument)?
-            {
-                resolved.values.push(referent);
-                resolved.byte_sequences.push(Some(binding));
-                resolved.element_views.push(None);
-                continue;
-            }
-            // Reuse the ordinary call's exact initialized-array binding. It can
-            // enter a checked provider and be forwarded again. External staging
-            // lends its exact range, never field-replacement authority.
-            if let Some((referent, binding)) = self.prepare_array_view_argument_staged(
+            if let Some((referent, binding)) = self.prepare_byte_sequence_loan(
                 parameter,
                 argument,
                 &mut resolved.local_identity_cursor,
@@ -354,127 +343,152 @@ impl TerminalExecution<'_> {
                 resolved.element_views.push(None);
                 continue;
             }
-            let declaration = self
-                .program
-                .structural_types()
-                .get(&parameter.structural_type)
-                .ok_or_else(malformed)?;
-            if declaration.shape.is_bounded_owned_byte_sequence()
-                && matches!(
-                    parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                )
-            {
-                if argument.access != parameter.access
-                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.projected_qualifications.is_empty()
-                {
-                    return Err(malformed());
-                }
-                let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
-                let ByteSequenceBinding::MutableField { referent, .. } = &binding else {
-                    return Err(malformed());
-                };
-                resolved.values.push(referent.clone());
-                resolved.byte_sequences.push(Some(binding));
-                resolved.element_views.push(None);
-            } else if parameter.access == StructuralAccess::SharedBorrow
-                && declaration.shape.is_bounded_owned_byte_sequence()
-            {
-                if argument.access != StructuralAccess::SharedBorrow
-                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.projected_qualifications.is_empty()
-                {
-                    return Err(malformed());
-                }
-                let (referent, binding) = self.resolve_shared_owner_binding(parameter, argument)?;
-                resolved.values.push(referent);
-                resolved.byte_sequences.push(Some(binding));
-                resolved.element_views.push(None);
-            } else if parameter.access == StructuralAccess::SharedBorrow
-                && declaration.shape.is_borrowed_byte_view()
-                && !argument.path.is_empty()
-            {
-                if argument.access != StructuralAccess::SharedBorrow
-                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.projected_qualifications.is_empty()
-                {
-                    return Err(malformed());
-                }
-                let (referent, binding) =
-                    self.resolve_shared_boundary_binding(parameter, argument)?;
-                // A lent view field must satisfy every domain the formal
-                // names (`text: &[u8] in Utf8` from `main.name`). As for a
-                // whole shared descriptor, execution checks the bytes the
-                // formal observes rather than the field's declaration.
-                if !terminal_semantics::byte_literal_qualifications_hold_in(
-                    self.program.catalogs.structural_domains.iter(),
-                    parameter.structural_type,
-                    &parameter.qualifications,
-                    binding.immutable()?.bytes(),
-                ) {
-                    return Err(malformed());
-                }
-                resolved.values.push(referent);
-                resolved.byte_sequences.push(Some(binding));
-                resolved.element_views.push(None);
-            } else if parameter.access == StructuralAccess::MutableBorrow
-                && declaration.shape.is_borrowed_byte_view()
-            {
-                if argument.access != StructuralAccess::MutableBorrow
-                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty()
-                {
-                    return Err(malformed());
-                }
-                let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
-                let ByteSequenceBinding::MutableField {
-                    field: destination,
-                    capacity,
-                    referent,
-                    ..
-                } = &binding
-                else {
-                    return Err(malformed());
-                };
-                let bytes = self
-                    .structural_byte_sequence_fields
-                    .get(destination)
-                    .ok_or_else(malformed)?
-                    .bytes();
-                if bytes.len() as u128 > u128::from(*capacity) {
-                    return Err(malformed());
-                }
-                resolved.values.push(referent.clone());
-                resolved.byte_sequences.push(Some(binding));
-                resolved.element_views.push(None);
-            } else {
-                let values = resolve_structural_arguments(
-                    &self.program.structural_types(),
-                    &self.structural_values,
-                    std::slice::from_ref(argument),
-                )?;
-                let mut bytes = self.bind_byte_sequence_arguments(
-                    std::slice::from_ref(parameter),
-                    std::slice::from_ref(argument),
-                    &values,
-                )?;
-                let binding = bytes.remove(&parameter.place);
-                resolved.byte_sequences.push(binding);
-                let mut element_views = self.bind_element_view_arguments(
-                    std::slice::from_ref(parameter),
-                    std::slice::from_ref(argument),
-                    &values,
-                )?;
-                resolved
-                    .element_views
-                    .push(element_views.remove(&parameter.place));
-                resolved.values.extend(values);
-            }
+            let values = resolve_structural_arguments(
+                &self.program.structural_types(),
+                &self.structural_values,
+                std::slice::from_ref(argument),
+            )?;
+            let mut bytes = self.bind_byte_sequence_arguments(
+                std::slice::from_ref(parameter),
+                std::slice::from_ref(argument),
+                &values,
+            )?;
+            let binding = bytes.remove(&parameter.place);
+            resolved.byte_sequences.push(binding);
+            let mut element_views = self.bind_element_view_arguments(
+                std::slice::from_ref(parameter),
+                std::slice::from_ref(argument),
+                &values,
+            )?;
+            resolved
+                .element_views
+                .push(element_views.remove(&parameter.place));
+            resolved.values.extend(values);
         }
         Ok(resolved)
     }
+
+    /// One borrowed byte argument's exact referent and binding: a shared
+    /// descriptor, an array presented as a byte view, a bounded owner lent
+    /// shared or exclusively, or a view field. Calls, checked providers and
+    /// state edges lend through this same preparation. `None` leaves the
+    /// argument to the direct descriptor rebinding every binder applies last.
+    pub(crate) fn prepare_byte_sequence_loan(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+        local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+    ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+    {
+        if let Some(prepared) = self.prepare_shared_descriptor_argument(parameter, argument)? {
+            return Ok(Some(prepared));
+        }
+        // Reuse the ordinary call's exact initialized-array binding. It can
+        // enter a checked provider and be forwarded again. External staging
+        // lends its exact range, never field-replacement authority.
+        if let Some(prepared) = self.prepare_array_view_argument_staged(
+            parameter,
+            argument,
+            identity_cursor,
+            local_array_roots,
+        )? {
+            return Ok(Some(prepared));
+        }
+        let declaration = self
+            .program
+            .structural_types()
+            .get(&parameter.structural_type)
+            .ok_or_else(malformed)?;
+        if declaration.shape.is_bounded_owned_byte_sequence()
+            && matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+        {
+            if argument.access != parameter.access
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(malformed());
+            }
+            let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
+            let ByteSequenceBinding::MutableField { referent, .. } = &binding else {
+                return Err(malformed());
+            };
+            return Ok(Some((referent.clone(), binding)));
+        }
+        if parameter.access == StructuralAccess::SharedBorrow
+            && declaration.shape.is_bounded_owned_byte_sequence()
+        {
+            if argument.access != StructuralAccess::SharedBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(malformed());
+            }
+            return self
+                .resolve_shared_owner_binding(parameter, argument)
+                .map(Some);
+        }
+        if parameter.access == StructuralAccess::SharedBorrow
+            && declaration.shape.is_borrowed_byte_view()
+            && !argument.path.is_empty()
+        {
+            if argument.access != StructuralAccess::SharedBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(malformed());
+            }
+            let (referent, binding) = self.resolve_shared_boundary_binding(parameter, argument)?;
+            // A lent view field must satisfy every domain the formal
+            // names (`text: &[u8] in Utf8` from `main.name`). As for a
+            // whole shared descriptor, execution checks the bytes the
+            // formal observes rather than the field's declaration.
+            if !terminal_semantics::byte_literal_qualifications_hold_in(
+                self.program.catalogs.structural_domains.iter(),
+                parameter.structural_type,
+                &parameter.qualifications,
+                binding.immutable()?.bytes(),
+            ) {
+                return Err(malformed());
+            }
+            return Ok(Some((referent, binding)));
+        }
+        if parameter.access == StructuralAccess::MutableBorrow
+            && declaration.shape.is_borrowed_byte_view()
+        {
+            if argument.access != StructuralAccess::MutableBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(malformed());
+            }
+            let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
+            let ByteSequenceBinding::MutableField {
+                field: destination,
+                capacity,
+                referent,
+                ..
+            } = &binding
+            else {
+                return Err(malformed());
+            };
+            let bytes = self
+                .structural_byte_sequence_fields
+                .get(destination)
+                .ok_or_else(malformed)?
+                .bytes();
+            if bytes.len() as u128 > u128::from(*capacity) {
+                return Err(malformed());
+            }
+            return Ok(Some((referent.clone(), binding)));
+        }
+        Ok(None)
+    }
+
     fn resolve_mutable_boundary_binding(
         &self,
         parameter: &StructuralParameterDeclaration,
