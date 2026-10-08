@@ -304,12 +304,9 @@ fn report_nested_runtime_indexed_read(
     let base_is_runtime_indexed = loop {
         match program.expression_table.expression(collection) {
             ExpressionNode::Indexed(inner) => {
-                let mut inner_index = inner.index;
-                while let ExpressionNode::Borrow(next) =
-                    program.expression_table.expression(inner_index)
-                {
-                    inner_index = next.target;
-                }
+                let inner_index = program
+                    .expression_table
+                    .peeled_expression_handle(inner.index);
                 if !matches!(
                     program.expression_table.expression(inner_index),
                     ExpressionNode::Integer(_) | ExpressionNode::Range(_)
@@ -392,12 +389,9 @@ fn double_indexed_machine_read_is_lowerable(
     loop {
         match program.expression_table.expression(place) {
             ExpressionNode::Indexed(below) => {
-                let mut below_index = below.index;
-                while let ExpressionNode::Borrow(next) =
-                    program.expression_table.expression(below_index)
-                {
-                    below_index = next.target;
-                }
+                let below_index = program
+                    .expression_table
+                    .peeled_expression_handle(below.index);
                 if !matches!(
                     program.expression_table.expression(below_index),
                     ExpressionNode::Integer(_)

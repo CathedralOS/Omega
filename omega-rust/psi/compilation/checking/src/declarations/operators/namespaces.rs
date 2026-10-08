@@ -42,8 +42,7 @@ pub(crate) fn expression_call_has_operator_namespace(
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     let table = &program.expression_table;
-    let typed_trees::expression::ExpressionNode::Name(path) = table.expression(call.receiver)
-    else {
+    let Some(path) = table.name_path_node(call.receiver) else {
         return false;
     };
     let receiver_symbols: Vec<_> = [path.head_symbol, path.symbol]
