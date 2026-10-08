@@ -206,20 +206,11 @@ pub(crate) fn emit(
         structural_types,
         type_ids,
         domain_ids,
-        type_reference: checked
-            .facts
-            .values
-            .structural_values
+        type_reference: structural_values(checked)
             .root_for_expression(
                 state,
                 result.statement_index,
-                checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .get(*value)
-                    .expression,
+                structural_values(checked).nodes.get(*value).expression,
             )
             .map(|root| root.type_reference)
             .unwrap_or_default(),
@@ -264,22 +255,9 @@ pub(crate) fn emit(
             source,
             path,
             type_identity,
-        } = checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(*value)
-            .kind
-            .clone()
+        } = structural_values(checked).nodes.get(*value).kind.clone()
         && matches!(
-            checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(source)
-                .kind,
+            structural_values(checked).nodes.get(source).kind,
             CheckedStructuralValueKind::Place(_)
         )
     {
@@ -388,36 +366,24 @@ pub(crate) fn emit(
         return Ok(None);
     }
     let place = if emission.sources.is_empty()
-        && let Some((source, region, loan)) = match &checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(*value)
-            .kind
-        {
-            CheckedStructuralValueKind::BorrowedSliceView { source, region }
-                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
-            {
-                Some((source, region, LoanAccess::Shared))
-            }
-            CheckedStructuralValueKind::MutableSliceView { source, region }
-                if source.access == checked_trees::CheckedStructuralAccess::MutableBorrow =>
-            {
-                Some((source, region, LoanAccess::Mutable))
-            }
-            _ => None,
-        } {
+        && let Some((source, region, loan)) =
+            match &structural_values(checked).nodes.get(*value).kind {
+                CheckedStructuralValueKind::BorrowedSliceView { source, region }
+                    if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
+                {
+                    Some((source, region, LoanAccess::Shared))
+                }
+                CheckedStructuralValueKind::MutableSliceView { source, region }
+                    if source.access == checked_trees::CheckedStructuralAccess::MutableBorrow =>
+                {
+                    Some((source, region, LoanAccess::Mutable))
+                }
+                _ => None,
+            } {
         emission.direct_element_view(
             source,
             region,
-            checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(*value)
-                .expression,
+            structural_values(checked).nodes.get(*value).expression,
             loan,
         )?
     } else {
@@ -425,13 +391,8 @@ pub(crate) fn emit(
         // A moved place is materialized into the result binding; a copied
         // parameter is already a fresh operation result.
         if emission.sources.is_empty()
-            && let CheckedStructuralValueKind::Place(argument) = &checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(*value)
-                .kind
+            && let CheckedStructuralValueKind::Place(argument) =
+                &structural_values(checked).nodes.get(*value).kind
             && emission.copied_parameter(argument)?.is_none()
             && !matches!(
                 argument.source,
@@ -499,6 +460,11 @@ pub(crate) fn emit(
         emission.operations,
     )?;
     Ok(declaration)
+}
+
+/// The structural-value plans recorded for the checked unit.
+fn structural_values(checked: &CheckedTrees) -> &checked_trees::CheckedStructuralValuePlans {
+    &checked.facts.values.structural_values
 }
 
 fn prepare_owners(
@@ -1007,13 +973,7 @@ impl Emission<'_, '_, '_> {
             type_identity,
         } = node.kind
             && matches!(
-                self.checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .get(source)
-                    .kind,
+                structural_values(self.checked).nodes.get(source).kind,
                 CheckedStructuralValueKind::Place(_) | CheckedStructuralValueKind::Call { .. }
             )
         {
@@ -1060,13 +1020,7 @@ impl Emission<'_, '_, '_> {
         &self,
         value: CheckedStructuralValueHandle,
     ) -> CheckedStructuralValue {
-        self.checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(value)
-            .clone()
+        structural_values(self.checked).nodes.get(value).clone()
     }
 
     /// Every structured literal's member list lives in the same record-field
@@ -1076,11 +1030,7 @@ impl Emission<'_, '_, '_> {
         fields: HandleSpan<checked_trees::CheckedStructuralRecordField>,
         stale: &'static str,
     ) -> Result<Vec<checked_trees::CheckedStructuralRecordField>, LoweringError> {
-        Ok(self
-            .checked
-            .facts
-            .values
-            .structural_values
+        Ok(structural_values(self.checked)
             .record_fields
             .span(fields)
             .ok_or(LoweringError::Unsupported(stale))?
@@ -1172,14 +1122,7 @@ impl Emission<'_, '_, '_> {
                 // the owned transfer requires a structural continuation.
                 if let CheckedStructuralValueKind::CopiedStructuralPlace {
                     source: copied, ..
-                } = &self
-                    .checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .get(source)
-                    .kind
+                } = &structural_values(self.checked).nodes.get(source).kind
                 {
                     // A projection of a copy observes the selected subtree of
                     // its original backing. It neither transfers the root nor
@@ -1199,13 +1142,7 @@ impl Emission<'_, '_, '_> {
                 ))?;
                 let projected = self.projected_root(source, path, type_identity)?;
                 if matches!(
-                    self.checked
-                        .facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(source)
-                        .kind,
+                    structural_values(self.checked).nodes.get(source).kind,
                     CheckedStructuralValueKind::Place(_)
                 ) && !self
                     .sources
