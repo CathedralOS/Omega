@@ -190,15 +190,7 @@ fn validate_boundary_state_plan(
             "saved machine state is not part of the interrupted state".into(),
         ));
     }
-    if !plan
-        .state
-        .saved_state
-        .contains_all(plan.state.restored_state)
-        || !plan
-            .state
-            .restored_state
-            .contains_all(plan.state.saved_state)
-    {
+    if plan.state.saved_state != plan.state.restored_state {
         return Err(PlanDiagnostic(
             "entry plan must restore exactly the machine state it saves".into(),
         ));

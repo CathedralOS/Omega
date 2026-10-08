@@ -448,13 +448,7 @@ fn encode_string(
     bytes: &mut Vec<u8>,
     value: &str,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
-    bytes.extend_from_slice(
-        &u64::try_from(value.len())
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::LengthOverflow)?
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(value.as_bytes());
-    Ok(())
+    encode_bytes(bytes, value.as_bytes())
 }
 
 fn encode_bytes(

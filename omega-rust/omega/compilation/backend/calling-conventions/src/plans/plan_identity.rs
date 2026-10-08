@@ -261,8 +261,6 @@ impl Fnv1a {
     }
 
     fn register(&mut self, register: MachineRegister) {
-        let code = register_code(register);
-        self.u8((code >> 8) as u8);
-        self.u8(code as u8);
+        self.bytes(&register_code(register).to_be_bytes());
     }
 }
