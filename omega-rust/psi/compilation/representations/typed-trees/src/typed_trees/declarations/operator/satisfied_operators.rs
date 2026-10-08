@@ -306,11 +306,7 @@ pub fn boundary_operator_requirement_identity(
     operator: &OperatorDefinition,
 ) -> String {
     let path = program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .operator_path_string(operator.name);
     let parameters = program
         .operator_parameters(operator)
         .iter()

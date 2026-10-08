@@ -563,11 +563,7 @@ impl TypedTrees {
         operator: &crate::operator::OperatorDefinition,
     ) -> callable_identity::CallableIdentityParts {
         let path = self
-            .operator_path_members(operator.name)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+            .operator_path_string(operator.name);
         let flags = self
             .operator_parameters(operator)
             .iter()

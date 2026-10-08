@@ -264,11 +264,7 @@ pub fn validate_named_operator_application(
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Result<Option<Vec<ClosedOperatorApplicationArgument>>, Diagnostic> {
     let operator_name = program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .operator_path_string(operator.name);
     let parameters = program.operator_type_parameters(operator);
 
     if !operator.lifetime_parameters.is_empty()
@@ -555,11 +551,7 @@ pub fn validate_closed_operator_application(
     application: &[ClosedOperatorApplicationArgument],
 ) -> Result<(), Diagnostic> {
     let operator_name = program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .operator_path_string(operator.name);
     let parameters = program.operator_type_parameters(operator);
     if parameters.len() != application.len() {
         return Err(Diagnostic::error(format!(

@@ -190,11 +190,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                         );
                         if returns_non_unit && !call.discards_result {
                             let path = program
-                                .operator_path_members(operator.name)
-                                .iter()
-                                .map(|member| member.as_str())
-                                .collect::<Vec<_>>()
-                                .join("::");
+                                .operator_path_string(operator.name);
                             diagnostics.push(Diagnostic::error(format!(
                                 "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
                                 program.display_type_reference_with_constraints(operator.return_type)

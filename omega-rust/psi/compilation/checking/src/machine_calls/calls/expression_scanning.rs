@@ -800,11 +800,7 @@ fn validate_named_float_to_integer_call(
         return;
     }
     let path = program
-        .operator_path_members(operator.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .operator_path_string(operator.name);
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` cannot prove unqualified `{}` operand `{}` is finite and truncates into `{}`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `{} in Trapping` or `{} in Saturating`",
         current_machine.name,

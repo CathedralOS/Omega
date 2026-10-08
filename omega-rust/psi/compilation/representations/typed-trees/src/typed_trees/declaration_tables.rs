@@ -529,4 +529,13 @@ impl TypedTrees {
     ) -> &[crate::name::Identifier] {
         self.operator_path_members.span_or_empty(span)
     }
+
+    /// The operator's `::`-joined path string for diagnostics and lookups.
+    pub fn operator_path_string(&self, span: HandleSpan<crate::name::Identifier>) -> String {
+        self.operator_path_members(span)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::")
+    }
 }
