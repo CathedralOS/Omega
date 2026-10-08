@@ -370,6 +370,43 @@ pub(crate) fn prepare(
 /// continuation, and completes through exit_group with the value-free Unit
 /// result published as status zero. `ud2` fails closed if the nonreturning
 /// supervisor call ever returned.
+/// Install an x86-64 receiver shim's text and relocation fields and return
+/// the prepared entry record. Every hosted x86-64 bridge ends with the same
+/// tail: its instruction bytes land as one text record, the destinations it
+/// patches each become a `Relative32` materialization, and the entry shim
+/// variant carries the installed symbol and offset.
+fn finish_receiver_shim(
+    artifact: &crate::ObjectArtifact,
+    object: object_file::ObjectPlan,
+    bytes: &[u8],
+    name: &'static str,
+    fields: &[(usize, object_file::ObjectSymbolHandle)],
+    shim: impl Fn(object_file::ObjectSymbolHandle, usize) -> crate::hosted_unit_entry::EntryShim,
+) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
+    let (object, text, symbol, offset) = install_entry_text(object, artifact, bytes, name)?;
+    let mut relocations = artifact.relocations.clone();
+    for &(field_offset, destination) in fields {
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Materialization {
+                object_symbol_handle: symbol,
+            },
+            section: SectionKind::Text,
+            offset: offset + field_offset,
+            byte_width: 4,
+            symbol_handle: destination,
+            addend: 0,
+            kind: RelocationKind::X86_64Relative32,
+        });
+    }
+    Ok(crate::hosted_unit_entry::PreparedEntry {
+        object,
+        text,
+        relocations,
+        shim: shim(symbol, offset),
+    })
+}
+
 fn prepare_linux_x86_64(
     artifact: &crate::ObjectArtifact,
     _binding: &HostedReceiverBinding,
@@ -388,37 +425,18 @@ fn prepare_linux_x86_64(
     bytes.extend([0x0f, 0x05]); // syscall
     bytes.extend([0x0f, 0x0b]); // ud2 if the nonreturning call ever returned
     debug_assert_eq!(bytes.len(), LINUX_X86_64_RECEIVER_SHIM_BYTES);
-    let (object, text, symbol, offset) = install_entry_text(
-        object,
+    finish_receiver_shim(
         artifact,
+        object,
         &bytes,
         "omega_linux_x86_64_hosted_receiver_entry",
-    )?;
-    let mut relocations = artifact.relocations.clone();
-    for (field_offset, destination) in [
-        (3, storage.scratch),
-        (10, storage.stack_top),
-        (17, storage.receiver),
-        (22, entry.symbol),
-    ] {
-        relocations.push_record(RelocationRecord {
-            origin: RelocationOrigin::Materialization {
-                object_symbol_handle: symbol,
-            },
-            section: SectionKind::Text,
-            offset: offset + field_offset,
-            byte_width: 4,
-            symbol_handle: destination,
-            addend: 0,
-            kind: RelocationKind::X86_64Relative32,
-        });
-    }
-    Ok(crate::hosted_unit_entry::PreparedEntry {
-        object,
-        text,
-        relocations,
-        shim: crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
-    })
+        &[
+            (3, storage.scratch),
+            (10, storage.stack_top),
+            (17, storage.receiver),
+        ],
+        |symbol, offset| crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
+    )
 }
 
 /// Fixed Linux ARM64 hosted-receiver bridge byte width: fifteen A64
@@ -465,38 +483,20 @@ fn prepare_macos_x86_64(
     bytes.extend([0x31, 0xc0]); // xor eax, eax: Unit -> physical i32 zero
     bytes.extend([0xc3]); // ret to exact saved loader continuation
     debug_assert_eq!(bytes.len(), MACOS_X86_64_RECEIVER_SHIM_BYTES);
-    let (object, text, symbol, offset) = install_entry_text(
-        object,
+    finish_receiver_shim(
         artifact,
+        object,
         &bytes,
         "omega_macos_x86_64_hosted_receiver_entry",
-    )?;
-    let mut relocations = artifact.relocations.clone();
-    for (field_offset, destination) in [
-        (3, storage.scratch),
-        (10, storage.stack_top),
-        (17, storage.receiver),
-        (22, entry.symbol),
-        (29, storage.scratch),
-    ] {
-        relocations.push_record(RelocationRecord {
-            origin: RelocationOrigin::Materialization {
-                object_symbol_handle: symbol,
-            },
-            section: SectionKind::Text,
-            offset: offset + field_offset,
-            byte_width: 4,
-            symbol_handle: destination,
-            addend: 0,
-            kind: RelocationKind::X86_64Relative32,
-        });
-    }
-    Ok(crate::hosted_unit_entry::PreparedEntry {
-        object,
-        text,
-        relocations,
-        shim: crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
-    })
+        &[
+            (3, storage.scratch),
+            (10, storage.stack_top),
+            (17, storage.receiver),
+            (22, entry.symbol),
+            (29, storage.scratch),
+        ],
+        |symbol, offset| crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
+    )
 }
 
 fn prepare_linux_arm64(
@@ -609,38 +609,20 @@ fn prepare_windows_x86_64(
     bytes.extend([0x48, 0x8b, 0x25, 0, 0, 0, 0]); // mov rsp, [rip+scratch]
     bytes.extend([0xc3]); // ret -> loader continuation maps eax to exit code
     debug_assert_eq!(bytes.len(), WINDOWS_X86_64_RECEIVER_SHIM_BYTES);
-    let (object, text, symbol, offset) = install_entry_text(
-        object,
+    finish_receiver_shim(
         artifact,
+        object,
         &bytes,
         "omega_windows_x86_64_hosted_receiver_entry",
-    )?;
-    let mut relocations = artifact.relocations.clone();
-    for (field_offset, destination) in [
-        (3, storage.scratch),
-        (10, storage.stack_top),
-        (21, storage.receiver),
-        (26, entry.symbol),
-        (35, storage.scratch),
-    ] {
-        relocations.push_record(RelocationRecord {
-            origin: RelocationOrigin::Materialization {
-                object_symbol_handle: symbol,
-            },
-            section: SectionKind::Text,
-            offset: offset + field_offset,
-            byte_width: 4,
-            symbol_handle: destination,
-            addend: 0,
-            kind: RelocationKind::X86_64Relative32,
-        });
-    }
-    Ok(crate::hosted_unit_entry::PreparedEntry {
-        object,
-        text,
-        relocations,
-        shim: crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
-    })
+        &[
+            (3, storage.scratch),
+            (10, storage.stack_top),
+            (21, storage.receiver),
+            (26, entry.symbol),
+            (35, storage.scratch),
+        ],
+        |symbol, offset| crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
+    )
 }
 
 /// Bind the exact hosted receiver bridge the admitted settlement selected.
