@@ -19,6 +19,7 @@ pub(crate) mod signature_free_requirements;
 
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 
 /// The kinds a top-level source name may resolve to — the lookup list
 /// selection checks share when they accept any visible declaration.
@@ -146,11 +147,7 @@ pub(super) fn authored_nominal_requirement<'parameter>(
     else {
         return None;
     };
-    let rendered = requirement
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let rendered = requirement.joined_path();
     Some((requirement, trait_arguments, rendered))
 }
 

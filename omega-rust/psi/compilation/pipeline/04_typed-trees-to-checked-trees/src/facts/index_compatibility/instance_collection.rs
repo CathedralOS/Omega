@@ -8,6 +8,7 @@ use checked_trees::{
 };
 use facts::ProgramPoint;
 use language_semantics::SemanticDomainId;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -328,12 +329,7 @@ pub(super) fn append_call_result_ensured_instances(
         {
             continue;
         }
-        let name = program
-            .domain_path_members(membership.domain)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let name = program.domain_path_members(membership.domain).joined_path();
         let label = domain_label(program, &name, &arguments);
         instances.push(IndexedInstance {
             family: membership.domain_symbol,

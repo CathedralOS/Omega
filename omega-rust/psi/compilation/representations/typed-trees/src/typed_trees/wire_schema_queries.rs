@@ -3,6 +3,7 @@
 use crate::typed_trees::TypedTrees;
 use crate::{types, wire};
 use arena::HandleSpan;
+use symbols::JoinedPath;
 
 impl TypedTrees {
     /// Record a schema's derived wire plan: placements land contiguously in
@@ -123,11 +124,7 @@ impl TypedTrees {
                 .find(|schema| self.symbols.display_path(schema.symbol, "::") == declaration_path);
         }
         let members = self.statement_table.name_path_members(call.receiver);
-        let authored_path = members
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let authored_path = members.joined_path();
         if authored_path.is_empty() {
             return None;
         }

@@ -1,5 +1,6 @@
 use diagnostics::Diagnostic;
 use flow_effects::{CallOperational, OperationalPlan};
+use symbols::JoinedPath;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
@@ -155,10 +156,7 @@ fn validate_statement(
                         let target_name = program
                             .statement_table
                             .name_path_members(path.members)
-                            .iter()
-                            .map(|member| member.as_str())
-                            .collect::<Vec<_>>()
-                            .join("::");
+                            .joined_path();
                         // Named transfers reserve a parent coordinate even
                         // when internal control flow has no operational call.
                         validate_call(

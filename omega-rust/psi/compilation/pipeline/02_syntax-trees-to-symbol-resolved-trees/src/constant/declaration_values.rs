@@ -7,6 +7,7 @@ use diagnostics::Diagnostic;
 use source::{SourceSpan, Span};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionHandle;
+use symbols::JoinedPath;
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstDefinition, DataMember, Item};
@@ -378,11 +379,7 @@ pub(crate) fn selected_expression_constant(
         first.source_span().source_id,
         Span::new(first.source_span().span.start, last.source_span().span.end),
     );
-    let name = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let name = members.joined_path();
     let selected = program
         .symbols
         .find_top_level_by_name_and_kinds_from_source(&name, &[SymbolKind::Const], reference)?;

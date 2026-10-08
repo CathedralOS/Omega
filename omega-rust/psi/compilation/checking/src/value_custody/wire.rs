@@ -21,6 +21,7 @@
 //! and repeated field checks both call validators share.
 
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 
 mod compatibility;
 mod decode_call;
@@ -127,11 +128,7 @@ fn ambiguous_schema_receiver(
     if candidates.len() < 2 {
         return false;
     }
-    let authored = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let authored = members.joined_path();
     diagnostics.push(Diagnostic::error(format!(
         "codec call receiver `{authored}` is ambiguous between wire schemas {}; qualify the receiver path",
         candidates.join(", ")

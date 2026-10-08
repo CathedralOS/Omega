@@ -1,6 +1,7 @@
 use crate::labels::semantic_contract_fact_kind;
 use checked_trees::ContractProofFact;
 use facts::FactPayload;
+use symbols::JoinedPath;
 
 pub(super) fn semantic_contract_payload(
     program: &dyn ::validation::CheckingInput,
@@ -17,12 +18,7 @@ pub(super) fn semantic_contract_payload(
             }
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
-            let carry_permission = program
-                .domain_path_members(membership.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let carry_permission = program.domain_path_members(membership.domain).joined_path();
             if let Some(permission) =
                 language_semantics::CarryPermission::from_name(&carry_permission)
             {

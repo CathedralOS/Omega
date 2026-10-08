@@ -1,6 +1,6 @@
 use language_semantics::byte_predicates::ByteSequencePredicate;
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_membership_symbol;
 use super::lookup::diagnostic_path_source_span;
@@ -31,11 +31,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         .iter()
                         .map(|constituent| {
                             let members = program.domain_path_members(constituent.domain);
-                            let name = members
-                                .iter()
-                                .map(|member| member.as_str())
-                                .collect::<Vec<_>>()
-                                .join("::");
+                            let name = members.joined_path();
                             resolve_domain_symbol(
                                 symbols,
                                 &domain_symbols,
@@ -197,11 +193,7 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         membership.value,
                     );
                     let members = domain_path_members.span_or_empty(membership.domain);
-                    let name = members
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::");
+                    let name = members.joined_path();
                     membership.domain_symbol = resolve_domain_symbol(
                         symbols,
                         &domain_symbols,
@@ -642,14 +634,7 @@ fn assign_proof_expression_symbols(
             );
             let (name, reference_span) = {
                 let members = expression_table.name_path_members(membership.domain);
-                (
-                    members
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                    diagnostic_path_source_span(members),
-                )
+                (members.joined_path(), diagnostic_path_source_span(members))
             };
             // Proof expressions live in the shared body-expression table, but
             // are not visited by the ordinary machine-expression resolver.

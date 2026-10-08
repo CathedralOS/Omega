@@ -10,6 +10,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use arena::HandleSpan;
+use symbols::JoinedPath;
 use syntax_trees::expression::UnaryOperator;
 
 use crate::preparation::generic_data::const_evaluation::validate_anonymous_remainder;
@@ -80,11 +81,7 @@ fn evaluate_const_fact_expression_at(
         ExpressionNode::Boolean(value) => Ok(Some(ConstFactValue::Boolean(*value))),
         ExpressionNode::Name(path) => {
             let members = syntax.expressions.identifier_path_members(*path);
-            let name = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = members.joined_path();
             if let Some(subject) = subject.filter(|subject| subject.matches(syntax, expression)) {
                 return Ok(subject.scalar().map(ConstScalarValue::into_fact_value));
             }
@@ -276,11 +273,7 @@ pub(crate) fn evaluate_const_membership_fact(
         return Ok(None);
     };
     let members = syntax.items.identifier_path_members(membership.domain);
-    let domain_path = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let domain_path = members.joined_path();
     evaluate_named_const_domain(
         syntax,
         &domain_path,
@@ -671,11 +664,7 @@ fn evaluate_selected_domain_facts(
                 let Some(first) = members.first() else {
                     return Ok(None);
                 };
-                let path = members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let path = members.joined_path();
                 match evaluate_named_const_domain(
                     syntax,
                     &path,
@@ -724,11 +713,7 @@ fn evaluate_selected_domain_facts(
                         return Ok(None);
                     };
                     let members = syntax.items.identifier_path_members(membership.domain);
-                    let path = members
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::");
+                    let path = members.joined_path();
                     let reference = members
                         .first()
                         .map(|member| member.source_span())
@@ -1595,11 +1580,7 @@ fn evaluate_const_domain_expression(
             let members = syntax
                 .expressions
                 .identifier_path_members(membership.domain);
-            let path = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let path = members.joined_path();
             evaluate_named_const_domain(
                 syntax,
                 &path,

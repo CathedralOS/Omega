@@ -4,6 +4,7 @@
 use crate::typed_trees::{TypedTrees, proof_fact_source_span_index};
 use crate::{data, domain, measure, proposition, signature};
 use arena::{Handle, HandleSpan};
+use symbols::JoinedPath;
 
 impl TypedTrees {
     pub fn retain_authored_declaration_selections(
@@ -164,7 +165,7 @@ impl TypedTrees {
         })
     }
 
-        /// The `Variant` member `definition` declares as `symbol`, if any.
+    /// The `Variant` member `definition` declares as `symbol`, if any.
     pub fn data_variant(
         &self,
         definition: &data::DataDefinition,
@@ -178,7 +179,7 @@ impl TypedTrees {
         })
     }
 
-        /// The `Field` member `definition` declares under `name`, if any.
+    /// The `Field` member `definition` declares under `name`, if any.
     pub fn data_field_named(
         &self,
         definition: &data::DataDefinition,
@@ -204,7 +205,7 @@ impl TypedTrees {
         })
     }
 
-        pub fn push_data_payload_field(
+    pub fn push_data_payload_field(
         &mut self,
         variant: &mut data::DataVariant,
         field: data::DataField,
@@ -532,10 +533,6 @@ impl TypedTrees {
 
     /// The operator's `::`-joined path string for diagnostics and lookups.
     pub fn operator_path_string(&self, span: HandleSpan<crate::name::Identifier>) -> String {
-        self.operator_path_members(span)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::")
+        self.operator_path_members(span).joined_path()
     }
 }

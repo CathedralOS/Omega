@@ -48,6 +48,7 @@ use language_semantics::declaration_selection::{
 };
 use source::SourceSpan;
 use std::ops::{Deref, DerefMut};
+use symbols::JoinedPath;
 use symbols::SymbolTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -611,11 +612,7 @@ impl SymbolResolvedTrees {
 
     /// The operator's `::`-joined path string for diagnostics and lookups.
     pub fn operator_path_string(&self, span: HandleSpan<crate::name::DiagnosticName>) -> String {
-        self.operator_path_members(span)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::")
+        self.operator_path_members(span).joined_path()
     }
 
     pub fn operator_definitions(

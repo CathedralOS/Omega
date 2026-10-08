@@ -3,6 +3,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use std::collections::HashMap;
 use std::fmt;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
@@ -56,10 +57,7 @@ pub(crate) fn validate_indexed_qualification_arguments(
     let domain_name = program
         .expression_table
         .name_path_members(cast.semantic_domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .joined_path();
     let owner = format!("machine `{}` indexed qualification", machine.name);
     validate_indexed_domain_argument_pack(
         program,
@@ -287,7 +285,7 @@ fn normalize_open_index_expression_operations(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     use language_core::operator_spelling::OperatorSpelling;
-    use typed_trees::expression::{BinaryOperator};
+    use typed_trees::expression::BinaryOperator;
 
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return;
@@ -601,10 +599,7 @@ fn validate_open_index_expression(
             let name = program
                 .expression_table
                 .name_path_members(path.members)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+                .joined_path();
             if let Some(value) = CanonicalConstValue::from_atom(&name) {
                 let expected_name = const_index_type_label(program, expected);
                 if value.type_name != expected_name {

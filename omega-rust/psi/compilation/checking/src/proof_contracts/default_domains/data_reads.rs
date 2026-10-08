@@ -16,6 +16,7 @@ use crate::proof_contracts::default_domains::place_queries::{
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
 use language_core::place_label;
+use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -201,11 +202,7 @@ fn scan_expression_use(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members.len() > 1 {
-                let receiver_spelling = members[..members.len() - 1]
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join(".");
+                let receiver_spelling = members[..members.len() - 1].joined_path_with(".");
                 if let Some(place) = tracked
                     .iter()
                     .find(|place| place_spelling_covers(&place.spelling, &receiver_spelling))

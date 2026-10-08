@@ -2,6 +2,7 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
+use symbols::JoinedPath;
 use typed_trees::TypedTrees;
 
 /// Harvest namespace-qualified acceptances from the admitted build machine.
@@ -37,12 +38,7 @@ pub fn harvest_root_grants(
                         "boundary acceptance requires one declaration",
                     ));
                 };
-                let selector = argument
-                    .path
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let selector = argument.path.joined_path();
                 record(
                     &selector,
                     authored_root_grant_expression_span(typed, *expression)?,

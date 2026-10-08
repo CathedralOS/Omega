@@ -5,6 +5,7 @@
 //! the judge can compare soundly; every other expression remains opaque or
 //! unsupported.
 
+use symbols::JoinedPath;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 
 use super::{StructuralTerm, is_arm_pattern_marker};
@@ -166,14 +167,7 @@ pub(super) fn structural_call_machine_name(
         machine_environment
             .iter()
             .find(|(_, parameter, _)| parameter == &name)
-            .map(|(_, _, selected)| {
-                selected
-                    .path
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::")
-            })
+            .map(|(_, _, selected)| selected.path.joined_path())
             .unwrap_or(name)
     };
     let target = substitute(target.to_owned());
@@ -183,12 +177,7 @@ pub(super) fn structural_call_machine_name(
     let selected: Vec<String> = machine_arguments
         .iter()
         .map(|argument| {
-            let name = argument
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = argument.path.joined_path();
             substitute(name)
         })
         .collect();

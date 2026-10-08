@@ -1,5 +1,6 @@
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbols::JoinedPath;
 use typed_trees::TypedTrees;
 use typed_trees::domain::DomainDefinition;
 use typed_trees::name::Identifier;
@@ -181,13 +182,7 @@ fn normalize_constraint_span(
                     .map(crate::lowerer::name::lower_name)
                     .unwrap_or_else(|| Identifier::generated(""))
             } else {
-                Identifier::generated(
-                    atom.path
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                )
+                Identifier::generated(atom.path.joined_path())
             };
             let declaration = typed_trees::domain::domain_by_symbol(program, atom.symbol);
             let subject = if atom.symbol.is_valid() {

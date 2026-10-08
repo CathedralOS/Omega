@@ -1,6 +1,6 @@
 use arena::{Arena, Handle, HandleSpan};
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::{
     diagnostic_path_source_span, top_level_symbol_for_source, top_level_type_symbol_for_source,
@@ -133,12 +133,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     &type_parameters,
                     &mut quotient.carrier,
                 );
-                let relation_name = quotient
-                    .relation
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let relation_name = quotient.relation.joined_path();
                 quotient.relation_symbol = symbols
                     .find_top_level_by_name_and_kinds_from_source(
                         &relation_name,
@@ -147,12 +142,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     )
                     .unwrap_or_else(SymbolHandle::invalid);
                 if let Some(selection) = &mut quotient.equivalence {
-                    let relation_name = selection
-                        .relation
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::");
+                    let relation_name = selection.relation.joined_path();
                     selection.relation_symbol = symbols
                         .find_top_level_by_name_and_kinds_from_source(
                             &relation_name,

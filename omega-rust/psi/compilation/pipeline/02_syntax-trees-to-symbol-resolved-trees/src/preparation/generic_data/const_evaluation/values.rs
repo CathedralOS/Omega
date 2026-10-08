@@ -17,7 +17,8 @@ use super::super::{
 };
 
 use crate::preparation::declaration_selection::{
-    ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument, substituted_generic_arguments,
+    ConstantSelection, GenericApplicationSubstitution, resolved_generic_argument,
+    substituted_generic_arguments,
 };
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstFactValue;

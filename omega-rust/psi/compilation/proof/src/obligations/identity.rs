@@ -30,6 +30,7 @@ use crate::obligations::plan::{
 };
 use arena::HandleSpan;
 use std::fmt;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, FloatLiteral, MatchPattern,
@@ -844,15 +845,7 @@ fn static_argument_identity(
             } else {
                 "type:none".to_owned()
             },
-            atom(
-                "path",
-                argument
-                    .path
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::"),
-            ),
+            atom("path", argument.path.joined_path()),
             argument
                 .application
                 .as_deref()

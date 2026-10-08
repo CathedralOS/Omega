@@ -3,6 +3,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
 use language_semantics::wire::{WireCompatibilityDemand, WireCompatibilityFact};
+use symbols::JoinedPath;
 use typed_trees::TypedTrees;
 
 /// Only a classified operation on the toolchain Build namespace contributes a
@@ -42,14 +43,7 @@ pub fn harvest_wire_compatibility_demands(
                 {
                     return None;
                 }
-                Some(
-                    argument
-                        .path
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                )
+                Some(argument.path.joined_path())
             })
             .collect::<Option<Vec<_>>>();
         let Some(parts) = parts.filter(|parts| parts.len() >= 5) else {

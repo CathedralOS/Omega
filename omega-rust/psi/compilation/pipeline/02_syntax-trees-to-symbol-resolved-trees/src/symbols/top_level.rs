@@ -341,9 +341,9 @@ impl SignatureSymbolTables<'_> {
                 (parameter.symbol, parameter.kind.clone())
             };
             let resolved_kind = match kind {
-                symbol_resolved_trees::data::TypeParameterKind::Const {
-                    mut type_reference,
-                } if resolve_reference_arms => {
+                symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference }
+                    if resolve_reference_arms =>
+                {
                     crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         self.child_type_references,
@@ -353,9 +353,9 @@ impl SignatureSymbolTables<'_> {
                     );
                     symbol_resolved_trees::data::TypeParameterKind::Const { type_reference }
                 }
-                symbol_resolved_trees::data::TypeParameterKind::Value {
-                    mut type_reference,
-                } if resolve_reference_arms => {
+                symbol_resolved_trees::data::TypeParameterKind::Value { mut type_reference }
+                    if resolve_reference_arms =>
+                {
                     crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                         symbols,
                         self.child_type_references,

@@ -5,7 +5,7 @@
 //! absence so competing authored declarations cannot fall back to an intrinsic.
 
 use language_semantics::declaration_selection::BuildOperation;
-use symbols::{SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolLookup, SymbolTable};
 
 use crate::symbols::lookup::{
     call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
@@ -416,11 +416,7 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         return resolve_free_machine_entry_state_symbol(symbols, target);
     }
 
-    let owner = owner
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let owner = owner.joined_path();
     let rendered = format!("{owner}::{}", target.as_str());
     for kinds in [
         &[SymbolKind::Const][..],
@@ -563,14 +559,7 @@ fn selection_argument_rendered_path(
         argument.symbol = SymbolHandle::invalid();
         return None;
     }
-    Some(
-        argument
-            .path
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::"),
-    )
+    Some(argument.path.joined_path())
 }
 
 /// Fallback resolution through descendant paths for selection arguments: the
@@ -588,9 +577,8 @@ fn descendant_selection_symbol(
         )
         .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
         .filter(|symbol| {
-            reference.is_none_or(|reference| {
-                symbols.source_reference_can_see_symbol(reference, *symbol)
-            })
+            reference
+                .is_none_or(|reference| symbols.source_reference_can_see_symbol(reference, *symbol))
         })
         .unwrap_or_else(SymbolHandle::invalid)
 }
@@ -691,9 +679,8 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
             .collect::<Vec<_>>();
         symbols.find_product_declaration_from_source(&rendered, occurrence, candidates)
     });
-    argument.symbol = exact.unwrap_or_else(|| {
-        descendant_selection_symbol(symbols, argument, kinds)
-    });
+    argument.symbol =
+        exact.unwrap_or_else(|| descendant_selection_symbol(symbols, argument, kinds));
 }
 
 /// Resolve a proof-static proposition-family binder argument. Unlike an

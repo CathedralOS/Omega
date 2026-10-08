@@ -9,6 +9,7 @@ use crate::type_reference::domain_constraints::normalize_domain_constraints_from
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbols::JoinedPath;
 use typed_trees::TypedTrees;
 
 mod seeded_local_instances;
@@ -1440,12 +1441,7 @@ fn exact_extension_nominal_machine_parameter(
             == 1
         && exact_flat_trait_definition(source, trait_definition)
         && !trait_path.is_empty()
-        && trait_path
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::")
-            == trait_definition.name.as_str()
+        && trait_path.joined_path() == trait_definition.name.as_str()
         && requirement_name.as_str() == requirement.name.as_str()
         && exact_flat_trait_requirement(
             source,

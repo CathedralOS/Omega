@@ -4,6 +4,7 @@ use crate::name::Identifier;
 use crate::type_identity::TypeIdentityRequest;
 use crate::types::TypeReferenceHandle;
 use arena::HandleSpan;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 mod constructor_values;
@@ -987,12 +988,7 @@ fn display_binder_argument(argument: &PropositionBinderArgument) -> String {
     if let Some(projection) = &argument.evidence_projection {
         return format!("{}.{}", projection.term, projection.member);
     }
-    argument
-        .path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    argument.path.joined_path()
 }
 
 fn render_expression(

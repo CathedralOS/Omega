@@ -11,6 +11,7 @@ use crate::proof_contracts::quotients::equivalence_selection::{
 use crate::proof_contracts::quotients::relation_plan;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
+use symbols::JoinedPath;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::proof_only::ProofOnlyClassification;
 
@@ -25,12 +26,7 @@ pub(crate) fn collect_validated_quotient_formations(
             continue;
         };
         let diagnostics_before = diagnostics.len();
-        let relation_name = quotient
-            .relation
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let relation_name = quotient.relation.joined_path();
 
         let Some(carrier_symbol) = base_data_symbol(program, quotient.carrier) else {
             diagnostics.push(Diagnostic::error(format!(

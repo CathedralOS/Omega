@@ -15,6 +15,7 @@ use crate::lowering::trait_definition::lower_trait_definition;
 use crate::lowering::type_reference::lower_child_type_references;
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_item(
@@ -139,10 +140,7 @@ fn lower_item_with_exposure(
                         let realization_name = syntax_trees
                             .items
                             .identifier_path_members(*target)
-                            .iter()
-                            .map(|member| member.as_str())
-                            .collect::<Vec<_>>()
-                            .join("::");
+                            .joined_path();
                         let target_members = syntax_trees.items.identifier_path_members(*target);
                         let authored_realization_source_span = target_members
                             .first()

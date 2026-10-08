@@ -12,6 +12,7 @@
 
 use crate::program_validation::{ExpressionInterval, expression_interval};
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 
@@ -47,11 +48,7 @@ fn judge_qualification_cast(
     let members = program
         .expression_table
         .name_path_members(cast.semantic_domain);
-    let base_name = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let base_name = members.joined_path();
     let mut name = base_name.clone();
     if !cast.semantic_domain_arguments.is_empty() {
         let arguments = program
@@ -218,8 +215,7 @@ fn literal_mint_discharges(
             ExpressionNode::Boolean(false) => return MintJudgment::FactFalse,
             _ => {}
         }
-        let Some(binary) = program.expression_table.binary_node(*expression)
-        else {
+        let Some(binary) = program.expression_table.binary_node(*expression) else {
             return MintJudgment::NotProved;
         };
         if !crate::has_builtin_domain_decomposed_guard_meaning(program, domain, *expression) {
@@ -278,8 +274,7 @@ fn interval_mint_judgment(
             ExpressionNode::Boolean(false) => return Some(MintJudgment::FactFalse),
             _ => {}
         }
-        let Some(binary) = program.expression_table.binary_node(*expression)
-        else {
+        let Some(binary) = program.expression_table.binary_node(*expression) else {
             return None;
         };
         if !crate::has_builtin_domain_decomposed_guard_meaning(program, domain, *expression) {

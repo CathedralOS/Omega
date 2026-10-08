@@ -15,6 +15,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::DomainDefinition;
 
 use crate::symbols::NamespaceDeclarations;
+use symbols::JoinedPath;
 use symbols::same_semantic_name;
 
 /// Logical module/import custody available before the final symbol table is
@@ -33,13 +34,7 @@ impl NamespaceScope {
             let Some(first) = path.first() else {
                 continue;
             };
-            source_modules.insert(
-                first.source_span().source_id,
-                path.iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::"),
-            );
+            source_modules.insert(first.source_span().source_id, path.joined_path());
         }
         let mut source_imports: HashMap<SourceId, Vec<String>> = HashMap::new();
         for path in &namespaces.imports {
@@ -49,12 +44,7 @@ impl NamespaceScope {
             source_imports
                 .entry(first.source_span().source_id)
                 .or_default()
-                .push(
-                    path.iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
-                );
+                .push(path.joined_path());
         }
         Self {
             source_modules,
@@ -203,11 +193,7 @@ pub(crate) fn normalize_domain_operator_homes(
             .map(|member| member.source_span().source_id)
             .unwrap_or_default();
         let reference_module = scope.module_of_source(program, reference_source);
-        let explicit_owner = owner_path
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let explicit_owner = owner_path.joined_path();
         let explicit_matches = explicit_domain_homes(
             program,
             &scope,

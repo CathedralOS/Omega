@@ -8,6 +8,7 @@ use super::inference::{
     member_target_in_environment,
 };
 use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironment};
+use symbols::JoinedPath;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
@@ -305,11 +306,7 @@ pub(super) fn exact_static_data_receiver(
     // checked finalization. Rejoin the authored qualifier only to nominal
     // identities supplied by this exact owner environment. The text narrows
     // that closed identity set; it never performs a program-wide name lookup.
-    let authored_path = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let authored_path = members.joined_path();
     let mut retained = None;
     for inferred in environment
         .self_type

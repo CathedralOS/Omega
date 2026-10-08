@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 pub(crate) fn validate_package_type_identity_input(
@@ -226,11 +227,7 @@ fn validate_package_index_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            let spelling = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let spelling = members.joined_path();
             if !path.symbol.is_valid()
                 && (language_semantics::const_value::CanonicalConstValue::from_atom(&spelling)
                     .is_some()

@@ -1,5 +1,6 @@
 //! Canonical place paths and their overlap.
 
+use symbols::JoinedPath;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(crate) fn canonical_path_pair(left: String, right: String) -> (String, String) {
@@ -39,13 +40,7 @@ pub(crate) fn place_path(
             if members.is_empty() {
                 return None;
             }
-            Some(
-                members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("."),
-            )
+            Some(members.joined_path_with("."))
         }
         ExpressionNode::Member(member) => {
             let receiver = place_path(program, member.receiver)?;

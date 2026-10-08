@@ -1,5 +1,5 @@
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::expression_paths::{
     needs_declared_projection, resolve_expression_table_call_target_symbol,
@@ -311,12 +311,7 @@ pub(in crate::symbols) fn assign_membership_symbol(
     domain: arena::HandleSpan<symbol_resolved_trees::name::DiagnosticName>,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) {
-    let name = expression_table
-        .name_path_members(domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let name = expression_table.name_path_members(domain).joined_path();
     let members = expression_table.name_path_members(domain);
     let reference_span = diagnostic_path_source_span(members);
     let selected = crate::symbols::membership_selection(symbols, &name, reference_span);
@@ -505,11 +500,7 @@ fn normalize_qualified_case_value(
     if members.len() < 2 {
         return false;
     }
-    let name = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let name = members.joined_path();
     let source_span = diagnostic_path_source_span(members);
     let (owner, case_symbol, case) =
         match crate::symbols::qualified_payload_free_case_type(symbols, &name, source_span) {

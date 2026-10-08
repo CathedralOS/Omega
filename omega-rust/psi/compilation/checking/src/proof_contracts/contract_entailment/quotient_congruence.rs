@@ -4,6 +4,7 @@
 //! by the quotient's exact retained relation premise, never by ambient proof
 //! discovery or the generic arithmetic/structural fallback tiers.
 
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -142,12 +143,7 @@ pub(super) fn quotient_equality_names(
     let quotient = definition.quotient.as_ref()?;
     Some((
         definition.name.as_str().to_owned(),
-        quotient
-            .relation
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::"),
+        quotient.relation.joined_path(),
     ))
 }
 

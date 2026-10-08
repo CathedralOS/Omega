@@ -15,6 +15,7 @@ use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_const_index_type;
 use crate::preparation::generic_data::validate_syntax_integer_range;
+use symbols::JoinedPath;
 
 pub(in crate::preparation::generic_data) fn integer_literal_value(
     value: &IntegerLiteral,
@@ -264,11 +265,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_indices(
             let members = syntax
                 .expressions
                 .identifier_path_members(cast.semantic_domain);
-            let name = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = members.joined_path();
             let mut reference = members.first()?.source_span();
             for member in members.iter().skip(1) {
                 if member.source_span().source_id != reference.source_id {

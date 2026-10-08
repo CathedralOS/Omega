@@ -14,6 +14,7 @@ use checked_trees::{
     CheckedOperatorCandidateFact, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
     CheckedOperatorUseFact, CheckedValueOrigin,
 };
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
@@ -177,10 +178,7 @@ fn cast_selects_domain(
     let authored = program
         .expression_table
         .name_path_members(cast.semantic_domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .joined_path();
     domain.name.as_str() == authored
         || domain
             .name

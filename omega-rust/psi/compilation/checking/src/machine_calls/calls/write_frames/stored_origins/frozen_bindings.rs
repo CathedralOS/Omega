@@ -9,6 +9,7 @@ use crate::machine_calls::calls::write_frames::{
     FrameInference, FrameSourcePlace, TopLevelSymbols, coarse_place_path, split_place_root,
 };
 use facts::PlaceSegment;
+use symbols::JoinedPath;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::TableAssignment;
 
@@ -52,10 +53,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
     let receiver = program
         .statement_table
         .name_path_members(call.receiver)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join(".");
+        .joined_path_with(".");
     let receiver = (!receiver.is_empty()).then_some(FramePlaceOrigin {
         path: receiver,
         precision: FramePathPrecision::Exact,

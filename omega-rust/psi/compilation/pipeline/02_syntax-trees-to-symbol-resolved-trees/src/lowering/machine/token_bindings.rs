@@ -53,7 +53,7 @@ use symbol_resolved_trees::data::TypeParameter;
 use symbol_resolved_trees::machine::Machine;
 use symbol_resolved_trees::signature::StateParameter;
 use symbol_resolved_trees::types::TypeReference;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use syntax_trees::operator_spelling::OperatorSpelling;
 
 /// Reject every direct machine whose operand tuple omits its semantic home,
@@ -385,11 +385,7 @@ fn operator_token_binding<'program>(
 ) -> TokenBinding<'program> {
     let members = program.operator_path_members(operator.name);
     let leaf = members.last();
-    let name = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let name = members.joined_path();
     let name_span = members.first().map_or_else(SourceSpan::default, |first| {
         let first = first.source_span();
         let last = leaf.expect("nonempty members").source_span();
@@ -414,11 +410,7 @@ fn operator_token_binding<'program>(
                     BindingOwner::Module(program.symbols.symbol_module(operator.symbol)),
                 )
             } else {
-                let owner_spelling = owner_members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let owner_spelling = owner_members.joined_path();
                 let owner = program
                     .symbols
                     .find_top_level_by_name_and_kinds_from_source(

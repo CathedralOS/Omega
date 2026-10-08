@@ -1,6 +1,7 @@
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeSet;
+use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
@@ -546,10 +547,5 @@ fn membership_domain_label(
     program: &dyn crate::CheckingInput,
     domain: arena::HandleSpan<typed_trees::name::Identifier>,
 ) -> String {
-    program
-        .domain_path_members(domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    program.domain_path_members(domain).joined_path()
 }

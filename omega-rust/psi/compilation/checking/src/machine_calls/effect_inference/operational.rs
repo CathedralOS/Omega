@@ -17,6 +17,7 @@
 //! and requirement targets contribute to the ordinary recursive summaries.
 
 use arena::HandleSpan;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::state::State;
@@ -141,7 +142,8 @@ fn collect_state_calls(
     let mut calls = Vec::new();
 
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
         // Call-site identity is (state, statement, ordinal-within-statement),
         // shared with borrow, flow, contracts, and diagnostics.
@@ -295,10 +297,7 @@ fn collect_transition_target_expression_calls(
                 let target_name = program
                     .statement_table
                     .name_path_members(path.members)
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                    .joined_path();
                 push_call(
                     signature_effects,
                     program,

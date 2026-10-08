@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbols::JoinedPath;
 
 mod symbol_table;
 
@@ -50,16 +51,12 @@ pub(crate) fn normalize_static_module_calls(
     )],
 ) {
     use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-    use symbols::{SymbolHandle, SymbolKind};
+    use symbols::{JoinedPath, SymbolHandle, SymbolKind};
     for (expression, path) in calls {
         let Some((target, receiver)) = path.split_last() else {
             continue;
         };
-        let receiver_name = receiver
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let receiver_name = receiver.joined_path();
         let reference = lookup::diagnostic_path_source_span(path);
         let name = format!("{receiver_name}::{}", target.as_str());
         // The fixed `core::*` mathematical declarations own their exact
@@ -188,11 +185,7 @@ pub(crate) fn normalize_static_module_calls(
             let Some((target, receiver)) = path.split_last() else {
                 return;
             };
-            let receiver_name = receiver
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let receiver_name = receiver.joined_path();
             let reference = lookup::diagnostic_path_source_span(path);
             let namespace = symbols.find_top_level_by_name_and_kinds_from_source(
                 &receiver_name,
@@ -245,11 +238,7 @@ impl NamespaceDeclarations {
             let (Some(first), Some(last)) = (path.first(), path.last()) else {
                 continue;
             };
-            let name = path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = path.joined_path();
             let Some(target) = program
                 .symbols
                 .source_module_import_target(first.source_span().source_id, &name)
@@ -306,11 +295,7 @@ impl NamespaceDeclarations {
             let Some(first) = path.first() else {
                 continue;
             };
-            let name = path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = path.joined_path();
             symbols.register_source_import(first.source_span().source_id, &name);
         }
         Ok(())
@@ -325,11 +310,7 @@ impl NamespaceDeclarations {
             let Some(first) = path.first() else {
                 continue;
             };
-            let name = path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = path.joined_path();
             symbols
                 .validate_source_module_import(first.source_span().source_id, &name)
                 .map_err(|message| {

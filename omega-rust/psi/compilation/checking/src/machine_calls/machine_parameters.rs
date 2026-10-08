@@ -23,7 +23,7 @@ use nominal_admission::validate_nominal_machine_selection;
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use typed_trees::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::machine::Machine;
@@ -442,12 +442,7 @@ fn validate_call_selection(
     for (static_machine_ordinal, ((parameter, requirement), selected)) in
         requirements.into_iter().zip(machine_arguments).enumerate()
     {
-        let rendered = selected
-            .path
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let rendered = selected.path.joined_path();
         if selected.application.is_some() {
             diagnostics.push(Diagnostic::error(format!(
                 "static machine argument `{rendered}` for `{}` is a nested machine application; recursive specialization identity is not yet supported",

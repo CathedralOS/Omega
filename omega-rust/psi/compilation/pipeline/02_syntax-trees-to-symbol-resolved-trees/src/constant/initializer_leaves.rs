@@ -6,6 +6,7 @@ use crate::preparation::declaration_selection::{
     type_mentions_parameters,
 };
 use source::{SourceSpan, Span};
+use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember};
 use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -494,11 +495,7 @@ fn name_selects_const(
         first.source_span().source_id,
         Span::new(first.source_span().span.start, last.source_span().span.end),
     );
-    let name = members
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let name = members.joined_path();
     selection.selects_const(&syntax_trees::identifier::Identifier::new(name, reference))
 }
 
@@ -654,7 +651,8 @@ fn pending_aggregate_placeholder_at(
                         .to_owned(),
                 );
             }
-            let next_substitution = substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
+            let next_substitution =
+                substituted_generic_arguments(syntax, parameters, &argument_handles, substitution)?;
             // The member list is cloned so the declaration borrow ends before
             // recursive placeholder construction inserts into the same forest.
             let members = syntax.items.data_members(declared.members).to_vec();

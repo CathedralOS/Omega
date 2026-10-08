@@ -1,5 +1,5 @@
 use arena::{Arena, HandleSpan};
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::{
     assign_expression_span_symbols, assign_statement_expression_symbols,
@@ -138,11 +138,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
     // fallback the target stayed invalid and downstream ownership/call facts
     // silently treated the arguments as non-transferring.
     if path.len() >= 2 {
-        let owner = path[..path.len() - 1]
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let owner = path[..path.len() - 1].joined_path();
         let target_symbol = call_target_for_attached_data(
             symbols,
             owner.as_str(),

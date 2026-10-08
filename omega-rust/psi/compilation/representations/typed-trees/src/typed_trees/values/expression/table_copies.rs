@@ -625,7 +625,8 @@ impl ExpressionTable {
         member_symbols: HandleSpan<SymbolHandle>,
         offset: u32,
     ) -> &SymbolHandle {
-        self.name_path_member_symbols.get(member_symbols.handle_at(offset))
+        self.name_path_member_symbols
+            .get(member_symbols.handle_at(offset))
     }
 
     pub fn copy_name_path_members_with_member_suffix(

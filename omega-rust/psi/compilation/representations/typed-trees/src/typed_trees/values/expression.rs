@@ -15,6 +15,7 @@ use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 use std::ops::Deref;
 use std::sync::Arc;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 mod display;
@@ -444,7 +445,9 @@ impl ExpressionTable {
         offset: u32,
         expression: ExpressionHandle,
     ) {
-        *self.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
+        *self
+            .expression_handles
+            .get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn push_expression_handle(
@@ -528,7 +531,9 @@ impl ExpressionTable {
         offset: u32,
         member_symbol: SymbolHandle,
     ) {
-        *self.name_path_member_symbols.get_mut(member_symbols.handle_at(offset)) = member_symbol;
+        *self
+            .name_path_member_symbols
+            .get_mut(member_symbols.handle_at(offset)) = member_symbol;
     }
 
     pub fn expression_handle_at_offset(
@@ -611,17 +616,14 @@ impl ExpressionTable {
     /// `None` at the 128-level recursion ceiling or on a dangling handle, so
     /// the caller's `match` only ever sees a live node.
     /// The `Borrow` node at `handle`, if the expression is a borrow.
-    pub fn borrow_expression(
-        &self,
-        handle: ExpressionHandle,
-    ) -> Option<&TableBorrowExpression> {
+    pub fn borrow_expression(&self, handle: ExpressionHandle) -> Option<&TableBorrowExpression> {
         let ExpressionNode::Borrow(borrow) = self.expression(handle) else {
             return None;
         };
         Some(borrow)
     }
 
-        pub fn expression_at_depth(
+    pub fn expression_at_depth(
         &self,
         handle: ExpressionHandle,
         depth: usize,
@@ -656,11 +658,7 @@ impl ExpressionTable {
     /// The name path's `::`-joined spelling for diagnostics and identity
     /// strings; the table's members stay the identity.
     pub fn name_path_string(&self, span: HandleSpan<Identifier>) -> String {
-        self.name_path_members(span)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::")
+        self.name_path_members(span).joined_path()
     }
 
     pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {

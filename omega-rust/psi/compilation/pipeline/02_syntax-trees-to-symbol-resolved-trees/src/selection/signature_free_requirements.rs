@@ -9,6 +9,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::signature::StateSignature;
 use symbol_resolved_trees::trait_definition::TraitDefinition;
+use symbols::JoinedPath;
 
 /// One exact trait-requirement row selected by a path that carries no call
 /// signature. Domain establishment routes and nominal static-machine binders
@@ -37,11 +38,7 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
         return Err(SignatureFreeRequirementResolutionError::InvalidPath);
     }
 
-    let trait_name = trait_path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let trait_name = trait_path.joined_path();
     let use_span = requirement_name.source_span();
     let matching_traits = signature_free_trait_candidates(program, &trait_name, use_span);
     let [trait_definition] = matching_traits.as_slice() else {
@@ -85,11 +82,7 @@ pub(crate) fn resolve_signature_free_machine<'program>(
     program: &'program SymbolResolvedTrees,
     path: &[DiagnosticName],
 ) -> Result<ExactSignatureFreeMachine<'program>, SignatureFreeMachineResolutionError> {
-    let machine_name = path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let machine_name = path.joined_path();
     let use_span = path
         .last()
         .expect("establishment route paths are nonempty")
@@ -200,11 +193,7 @@ pub(crate) fn validate_signature_free_requirement_compatibility(
             {
                 continue;
             }
-            let rendered = route
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let rendered = route.joined_path();
             collect_ambiguous_use(
                 program,
                 route,
@@ -271,11 +260,7 @@ fn collect_ambiguous_use(
     let [trait_path @ .., requirement_name] = path else {
         return;
     };
-    let trait_name = trait_path
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let trait_name = trait_path.joined_path();
     let matching_traits =
         signature_free_trait_candidates(program, &trait_name, requirement_name.source_span());
     let [trait_definition] = matching_traits.as_slice() else {

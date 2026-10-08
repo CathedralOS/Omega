@@ -12,6 +12,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 use facts::FactPlan;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
@@ -164,8 +165,7 @@ pub(crate) fn build(
             diagnostics.push(invalid());
             continue;
         };
-        let Some(call) = program.expression_table.call_node(named_use.expression)
-        else {
+        let Some(call) = program.expression_table.call_node(named_use.expression) else {
             diagnostics.push(invalid());
             continue;
         };
@@ -239,10 +239,7 @@ pub(crate) fn build(
                     "statement call to named operator `{}` carries crash routes no checked site can cover",
                     program
                         .operator_path_members(operator.name)
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
+                        .joined_path(),
                 )));
             }
         }

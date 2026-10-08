@@ -13,6 +13,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::IntegerLiteral;
 use std::collections::{HashMap, HashSet};
+use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
@@ -233,11 +234,7 @@ fn collect_closed_const_arguments(
             for member in members.iter().skip(1) {
                 reference.span.end = member.source_span().span.end;
             }
-            let name = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = members.joined_path();
             let Some(parameters) =
                 unique_domain_index_parameters(syntax, selection, &name, reference)
             else {

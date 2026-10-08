@@ -3,6 +3,7 @@
 use crate::proof_contracts::quotients::CORE_EQUIVALENCE_SOURCE;
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
@@ -32,16 +33,10 @@ pub(crate) fn validate_equivalence_selection(
             definition.name,
             selection
                 .relation
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::"),
+                .joined_path(),
             quotient
                 .relation
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::"),
+                .joined_path(),
         )));
     }
     if !is_sealed_core_equivalence(program, selection.trait_symbol, &selection.trait_name) {

@@ -2,6 +2,7 @@ use crate::StateSignatureOwner;
 use diagnostics::Diagnostic;
 use facts::FactPlan;
 use std::fmt;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -687,8 +688,7 @@ fn self_member_name(
 ) -> Option<&str> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
-            let Some(path) = program.expression_table.name_path_node(member.receiver)
-            else {
+            let Some(path) = program.expression_table.name_path_node(member.receiver) else {
                 return None;
             };
             matches!(
@@ -852,10 +852,7 @@ fn domain_path_label(
         return "<unknown>".to_owned();
     }
 
-    path.iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    path.joined_path()
 }
 
 pub(crate) fn string_literal_grants_domain(
@@ -899,9 +896,7 @@ pub(crate) fn ensures_facts<'a>(
 ) -> impl Iterator<Item = &'a ProofFact> + 'a {
     contracts
         .iter()
-        .filter(|contract| {
-            contract.kind == typed_trees::signature::SignatureContractKind::Ensures
-        })
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
 }
 

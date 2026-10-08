@@ -9,7 +9,7 @@
 use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity};
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 
 /// Static target-default declarations have their own admission path. Authored
@@ -211,12 +211,7 @@ fn collect_provider_selections<'a>(
         };
         let project_identity = |argument: &typed_trees::expression::StaticMachineArgument,
                                 is_provider: bool| {
-            let authored_path = argument
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let authored_path = argument.path.joined_path();
             let symbol = if product_operands {
                 validation::compiler_operations::resolve_product_operand(
                     typed,

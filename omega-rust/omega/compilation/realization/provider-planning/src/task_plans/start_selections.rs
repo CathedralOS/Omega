@@ -3,6 +3,7 @@
 use crate::task_plans::{StableHash, entry_report_fingerprint};
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use task_plans::TaskStartOperation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,12 +184,7 @@ fn append_task_start_selection(
         Err(TaskActivationTargetError::MissingEntry) => {
             diagnostics.push(Diagnostic::error(format!(
                 "TaskRuntime requirement `{target_name}` selects an unresolved static target `{}`",
-                target
-                    .path
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::")
+                target.path.joined_path()
             )));
             return;
         }

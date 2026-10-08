@@ -19,6 +19,7 @@ use crate::value_custody::type_references::{
 };
 use diagnostics::Diagnostic;
 use facts::FactPlan;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 pub(crate) fn validate_domain_definitions(
@@ -148,10 +149,7 @@ fn validate_domain_aliases(
         for constituent in &alias.constituents {
             let label = program
                 .domain_path_members(constituent.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+                .joined_path();
             if label == "Carry::Portable"
                 || language_semantics::CarryPermission::from_name(&label).is_some()
             {

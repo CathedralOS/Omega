@@ -2,6 +2,7 @@
 
 use source::{SourceId, SourceSpan};
 use std::collections::HashMap;
+use symbols::JoinedPath;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{ConstDefinition, Item};
@@ -68,11 +69,7 @@ pub(crate) fn reject_module_constant_selection(
             {
                 return false;
             }
-            let path = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let path = members.joined_path();
             let imports_declaration =
                 path == full_name || path.ends_with(&format!("::{full_name}"));
             if imports_declaration && (spelling == definition.name.as_str() || spelling == path) {
@@ -105,12 +102,6 @@ pub(crate) fn module_path(syntax: &SyntaxTrees, source: SourceId) -> Option<Stri
         members
             .first()
             .filter(|member| member.source_span().source_id == source)?;
-        Some(
-            members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::"),
-        )
+        Some(members.joined_path())
     })
 }

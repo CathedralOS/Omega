@@ -1,5 +1,5 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolKind, SymbolNameRef};
+use symbols::{JoinedPath, SymbolKind, SymbolNameRef};
 
 pub(super) type SymbolSeed<'name> = (SymbolKind, SymbolNameRef<'name>);
 
@@ -88,12 +88,7 @@ pub(super) fn measure_symbol_name(
     program: &SymbolResolvedTrees,
     measure: &symbol_resolved_trees::measure::MeasureDefinition,
 ) -> String {
-    program
-        .measure_path_members(measure.name)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::")
+    program.measure_path_members(measure.name).joined_path()
 }
 
 pub(super) fn measure_symbol_seed<'name>(

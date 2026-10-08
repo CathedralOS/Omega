@@ -5,6 +5,7 @@ use super::super::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::preparation::generic_data::eligibility::base_is_fully_monomorphizable;
+use symbols::JoinedPath;
 
 use crate::preparation::generic_data::ConstScalarSpelling;
 use crate::preparation::generic_data::GenericData;
@@ -459,11 +460,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
             }),
         ExpressionNode::Name(path) => {
             let members = syntax.expressions.identifier_path_members(*path);
-            let name = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let name = members.joined_path();
             if let Some(value) = parameter_values.get(&name) {
                 Ok(EvaluatedConst::Concrete(*value))
             } else if symbolic_parameters.contains(&name) {

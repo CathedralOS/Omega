@@ -7,6 +7,7 @@ use crate::type_reference::domain_aliases::expand_domain_reference;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use symbols::JoinedPath;
 use typed_trees as typed;
 
 pub(crate) fn lower_proof_facts(
@@ -86,10 +87,7 @@ pub(crate) fn lower_proof_facts(
                     let alias = lowerer
                         .source_trees
                         .domain_path_members(membership.domain)
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::");
+                        .joined_path();
                     return Err(with_optional_source_span(
                         Diagnostic::error(format!(
                             "domain alias `{alias}` does not take index arguments"

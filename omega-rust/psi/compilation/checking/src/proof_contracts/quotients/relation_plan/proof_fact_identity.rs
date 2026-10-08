@@ -6,6 +6,7 @@
 //! identities and the complete static application.
 
 use super::{RepresentativeStaticApplication, RepresentativeStaticBinding};
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
@@ -491,11 +492,7 @@ fn expression_symbol_trace(
                 "name:{:?}:{:?}:[{}]",
                 path.head_symbol,
                 path.symbol,
-                members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::")
+                members.joined_path()
             )
         }
         ExpressionNode::Call(call) => format!(
@@ -645,15 +642,7 @@ fn static_argument_identity(argument: &StaticMachineArgument) -> String {
     let head = if argument.symbol.is_valid() {
         format!("symbol:{:?}", argument.symbol)
     } else {
-        format!(
-            "path:{}",
-            argument
-                .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
-        )
+        format!("path:{}", argument.path.joined_path())
     };
     let application = argument
         .application

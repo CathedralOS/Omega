@@ -2,6 +2,7 @@ use crate::TypedTrees;
 use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::machine::Machine;
 use crate::state::State;
+use symbols::JoinedPath;
 
 /// Exact typed-expression custody for one machine's private ranking witness.
 ///
@@ -92,10 +93,7 @@ pub fn witness_expression_text(program: &TypedTrees, expression: ExpressionHandl
         ExpressionNode::Name(path) => program
             .expression_table
             .name_path_members(path.members)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("."),
+            .joined_path_with("."),
         ExpressionNode::Member(member) => format!(
             "{}.{}",
             witness_expression_text(program, member.receiver),

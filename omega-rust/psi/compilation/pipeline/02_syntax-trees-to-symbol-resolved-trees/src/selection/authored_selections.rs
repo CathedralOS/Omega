@@ -21,7 +21,7 @@ use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
 };
-use symbols::{SymbolHandle, SymbolLookup};
+use symbols::{JoinedPath, SymbolHandle, SymbolLookup};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CandidateTarget {
@@ -248,11 +248,7 @@ fn normalize_case_membership_facts(
         let membership = *membership;
         let members = program.domain_path_members(membership.domain);
         let source_span = path_span(members, SourceSpan::default());
-        let name = members
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let name = members.joined_path();
         // A prior declared-domain receipt does not authorize hiding a competing
         // case. Proof and executable membership share the same selection rules.
         let selected =
@@ -1047,11 +1043,7 @@ fn expression_candidates(
         ExpressionNode::Membership(membership) => {
             let members = expressions.name_path_members(membership.domain);
             if !membership.domain_symbol.is_valid() && !membership.case_type_symbol.is_valid() {
-                let name = members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let name = members.joined_path();
                 let reference = path_span(members, expression_span);
                 let _ = crate::symbols::membership_selection(&program.symbols, &name, reference)
                     .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
@@ -1091,11 +1083,7 @@ fn expression_candidates(
         ExpressionNode::Name(path) => {
             let members = expressions.name_path_members(path.members);
             if !path.head_symbol.is_valid() && members.len() > 1 {
-                let name = members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let name = members.joined_path();
                 let reference = path_span(members, expression_span);
                 let _ = crate::symbols::qualified_payload_free_case_type(
                     &program.symbols,

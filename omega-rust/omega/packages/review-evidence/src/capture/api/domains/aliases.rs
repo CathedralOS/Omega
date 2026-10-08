@@ -4,6 +4,7 @@ use crate::capture::semantics::declarations::{
 };
 use crate::record::{PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentRoute};
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_domain_alias_expansion(
@@ -43,10 +44,7 @@ pub(crate) fn project_domain_alias_expansion(
         for constituent in &alias.constituents {
             let label = compilation
                 .domain_path_members(constituent.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+                .joined_path();
             if !constituent.domain_symbol.is_valid() && label == "Carry::Portable" {
                 atoms.extend(
                     language_semantics::CarryPermission::ALL

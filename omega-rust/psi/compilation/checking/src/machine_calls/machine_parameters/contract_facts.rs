@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use symbols::JoinedPath;
 use typed_trees::data::TypeParameter;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
@@ -191,12 +192,7 @@ fn normalized_facts(
                 ProofFact::Membership(membership) => format!(
                     "{} in {}{}",
                     program.expression_table.display_name(membership.value),
-                    program
-                        .domain_path_members(membership.domain)
-                        .iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::"),
+                    program.domain_path_members(membership.domain).joined_path(),
                     if membership.domain_arguments.is_empty() {
                         String::new()
                     } else {
@@ -218,14 +214,7 @@ fn normalized_facts(
                     let binders = application
                         .binder_arguments
                         .iter()
-                        .map(|argument| {
-                            argument
-                                .path
-                                .iter()
-                                .map(|member| member.as_str())
-                                .collect::<Vec<_>>()
-                                .join("::")
-                        })
+                        .map(|argument| argument.path.joined_path())
                         .collect::<Vec<_>>();
                     let arguments = program
                         .expression_table

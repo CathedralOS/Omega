@@ -14,6 +14,7 @@ use crate::typed_trees::type_system::type_identity::open_index_identity::{
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::cell::Cell;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 #[derive(Default)]
@@ -320,11 +321,7 @@ pub(crate) fn normalize_index_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            let fallback = members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let fallback = members.joined_path();
             if let Some(identity) = substitution::index(program, path.symbol, &fallback, context) {
                 return identity;
             }

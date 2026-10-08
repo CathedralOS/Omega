@@ -279,7 +279,10 @@ impl StatementTable {
         offset: u32,
         expression: crate::expression::ExpressionHandle,
     ) {
-        *self.paths.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
+        *self
+            .paths
+            .expression_handles
+            .get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {

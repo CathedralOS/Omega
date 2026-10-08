@@ -1,4 +1,5 @@
 //! Fresh instance storage, lexical symbol remapping, and retained source custody.
+use symbols::JoinedPath;
 use validation::collect_statement_expression_trees;
 
 use super::{
@@ -99,10 +100,7 @@ pub(super) fn clone_specialized_machine(
                 .as_ref()
                 .expect("complete specialization")
                 .path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
+                .joined_path()
         })
         .collect();
     let evidence_paths = candidate_conformance_fingerprint_arguments(candidate);
@@ -1112,7 +1110,9 @@ fn realized_receiver_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Borrow(inner) => {
             realized_receiver_type(program, state, realized, inner.target, depth + 1)

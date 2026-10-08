@@ -242,7 +242,10 @@ impl TypeReferenceTable {
         offset: u32,
         constraint: TypeConstraintNode,
     ) {
-        *self.spans.constraints.get_mut(constraints.handle_at(offset)) = constraint;
+        *self
+            .spans
+            .constraints
+            .get_mut(constraints.handle_at(offset)) = constraint;
     }
 
     fn insert_type_reference_handle_span_from_trees(

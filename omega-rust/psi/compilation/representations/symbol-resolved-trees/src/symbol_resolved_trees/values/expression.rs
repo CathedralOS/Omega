@@ -298,7 +298,10 @@ impl ExpressionTable {
         offset: u32,
         expression: ExpressionHandle,
     ) {
-        *self.spans.expression_handles.get_mut(expressions.handle_at(offset)) = expression;
+        *self
+            .spans
+            .expression_handles
+            .get_mut(expressions.handle_at(offset)) = expression;
     }
 
     pub fn push_expression_handle(
@@ -363,7 +366,10 @@ impl ExpressionTable {
         offset: u32,
         member: DiagnosticName,
     ) {
-        *self.spans.name_path_members.get_mut(members.handle_at(offset)) = member;
+        *self
+            .spans
+            .name_path_members
+            .get_mut(members.handle_at(offset)) = member;
     }
 
     pub fn reserve_name_path_member_symbols(&mut self, count: u32) -> HandleSpan<SymbolHandle> {
@@ -411,7 +417,9 @@ impl ExpressionTable {
         expressions: HandleSpan<ExpressionHandle>,
         offset: u32,
     ) -> &ExpressionHandle {
-        self.spans.expression_handles.get(expressions.handle_at(offset))
+        self.spans
+            .expression_handles
+            .get(expressions.handle_at(offset))
     }
 
     pub fn struct_fields(

@@ -6,6 +6,7 @@
 
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::name::DiagnosticName;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 /// One call the traversal offers to a decision.
@@ -197,14 +198,7 @@ fn retarget_transition_target(
                 .bodies
                 .statements
                 .name_path_members(path.members);
-            let spelling = DiagnosticName::new(
-                members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::"),
-                source_span,
-            );
+            let spelling = DiagnosticName::new(members.joined_path(), source_span);
             let site = CallSite {
                 target_symbol: path.symbol,
                 target: &spelling,

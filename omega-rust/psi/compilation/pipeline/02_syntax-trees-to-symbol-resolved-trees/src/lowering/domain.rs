@@ -10,6 +10,7 @@ use diagnostics::Diagnostic;
 use symbol_resolved_trees::domain::{
     DomainAliasConstituent, DomainAliasDefinition, DomainDefinition, ProofFact, ProofMembershipFact,
 };
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -141,13 +142,7 @@ fn declared_module_path(syntax_trees: &SyntaxTrees, source: source::SourceId) ->
             return None;
         };
         let members = syntax_trees.items.identifier_path_members(module.path);
-        (members.first()?.source_span().source_id == source).then(|| {
-            members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
-        })
+        (members.first()?.source_span().source_id == source).then(|| members.joined_path())
     })
 }
 

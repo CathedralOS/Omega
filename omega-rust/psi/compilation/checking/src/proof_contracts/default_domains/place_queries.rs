@@ -4,6 +4,7 @@
 //! engine and reader hypotheses. They do not own flow state or diagnostics.
 
 use language_core::{is_rooted_at, is_self_receiver};
+use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -22,13 +23,7 @@ pub(super) fn self_place_spelling(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             members.first()?;
-            Some(
-                members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("."),
-            )
+            Some(members.joined_path_with("."))
         }
         ExpressionNode::Member(member) => {
             let receiver = self_place_spelling(program, member.receiver)?;

@@ -19,6 +19,7 @@ use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::signature::{SignatureContract, SignatureContractKind};
 use symbol_resolved_trees::types::TypeReference;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 use crate::selection::signature_free_requirements::{
@@ -111,11 +112,7 @@ fn collect_authored_requirement_routes(
             )));
         }
         for path in &domain.authored_routes {
-            let rendered = path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let rendered = path.joined_path();
             let requirement = resolve_signature_free_requirement(program, path);
             let machine = resolve_signature_free_machine(program, path);
             let resolved = match (requirement, machine) {
@@ -194,10 +191,7 @@ fn collect_authored_requirement_routes(
                 return Err(Diagnostic::error(format!(
                     "domain `{}` authorizes `{}` but that requirement does not name the domain on its exact result or an exact non-self external-root parameter",
                     domain.name,
-                    path.iter()
-                        .map(|member| member.as_str())
-                        .collect::<Vec<_>>()
-                        .join("::")
+                    path.joined_path()
                 )));
             }
             let route = if trait_definition.is_boundary {

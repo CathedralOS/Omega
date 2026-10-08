@@ -3,7 +3,7 @@ use symbol_resolved_trees::data::{TypeParameter, TypeParameterKind};
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use symbol_resolved_trees::proposition::PropositionBody;
 use symbol_resolved_trees::types::TypeReference;
-use symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use symbols::{JoinedPath, SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
 use super::lookup::{child_symbol_by_kinds, top_level_symbol_for_source};
@@ -223,11 +223,7 @@ pub(super) fn assign_expression_symbols(
                 // installed declaration, the same law call targets and type
                 // references apply — so a same-spelled authored declaration
                 // never claims it.
-                let name = members
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::");
+                let name = members.joined_path();
                 symbols::FixedCoreDeclaration::from_name(&name)
                     .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
                     .unwrap_or_else(SymbolHandle::invalid)

@@ -1,5 +1,6 @@
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use symbols::JoinedPath;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ExpandedDomainReference {
@@ -21,11 +22,7 @@ pub(crate) fn expand_domain_reference(
         path: Vec<resolved::name::DiagnosticName>,
         stack: &mut Vec<symbols::SymbolHandle>,
     ) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
-        let name = path
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let name = path.joined_path();
         if name == "Carry::Portable" {
             return Ok(language_semantics::CarryPermission::ALL
                 .into_iter()

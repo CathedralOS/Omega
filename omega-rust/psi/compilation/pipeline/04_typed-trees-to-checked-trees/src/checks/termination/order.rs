@@ -5,6 +5,7 @@
 
 use language_semantics::RankingViewId;
 use language_semantics::declaration_selection::CollectionMeasure;
+use symbols::JoinedPath;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
@@ -12,7 +13,6 @@ use typed_trees::measure::MeasureDefinition;
 use validation::{
     MeasureBodyShape, ProjectionStep, declared_scalar_view, find_declared_measure,
     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-    
 };
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
@@ -305,11 +305,15 @@ impl RankingOrder {
                         && subject_path.head_symbol == subject_path.symbol
                 })?;
                 let root = path.first().map_or(owner, |step| step.owner);
-                let mut reference = program.type_reference_table.unconstrained_type_reference(subject.type_reference);
+                let mut reference = program
+                    .type_reference_table
+                    .unconstrained_type_reference(subject.type_reference);
                 if let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
                     program.type_reference_table.type_reference(reference)
                 {
-                    reference = program.type_reference_table.unconstrained_type_reference(*referee);
+                    reference = program
+                        .type_reference_table
+                        .unconstrained_type_reference(*referee);
                 }
                 if !matches!(program.type_reference_table.type_reference(reference),
                     typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == root)
@@ -441,14 +445,7 @@ fn declared_measures_for_type(
                     .is_some_and(|owner| owner.as_str() == type_name),
             }
         })
-        .map(|measure| {
-            program
-                .measure_path_members(measure.name)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::")
-        })
+        .map(|measure| program.measure_path_members(measure.name).joined_path())
         .collect()
 }
 
@@ -479,9 +476,11 @@ fn decreasing_value_kind(
     // its constraints in brackets, which the bracket probe below would
     // misread as a slice element type (`[Entry]`). Slices render with a
     // bracketed element type; nat-like scalars render as their bare name.
-    let type_name = program
-        .type_reference_table
-        .display_name(program.type_reference_table.unconstrained_type_reference(parameter.type_reference));
+    let type_name = program.type_reference_table.display_name(
+        program
+            .type_reference_table
+            .unconstrained_type_reference(parameter.type_reference),
+    );
     if type_name.contains('[') {
         return Some(DecreasingValueKind::Slice);
     }
@@ -608,9 +607,11 @@ fn state_parameter_type_name(
                 || fallback_name.is_some_and(|name| parameter.name.as_str() == name)
         })
         .map(|parameter| {
-            program
-                .type_reference_table
-                .display_name(program.type_reference_table.unconstrained_type_reference(parameter.type_reference))
+            program.type_reference_table.display_name(
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(parameter.type_reference),
+            )
         })
 }
 

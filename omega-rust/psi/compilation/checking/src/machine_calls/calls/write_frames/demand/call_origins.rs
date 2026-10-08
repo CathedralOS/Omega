@@ -5,6 +5,7 @@ use super::super::caller_aliases::{
 };
 use super::{CallFrameResolver, ExpressionHandle, Machine, TableCall};
 use crate::machine_calls::calls::write_frames as frames;
+use symbols::JoinedPath;
 
 impl<'program> CallFrameResolver<'program> {
     pub fn call_write_origins(
@@ -107,8 +108,7 @@ impl<'program> CallFrameResolver<'program> {
                 program.statement_table.expression_handles(call.arguments),
             ),
             CallerWriteSite::Expression(expression) => {
-                let Some(call) = program.expression_table.call_node(expression)
-                else {
+                let Some(call) = program.expression_table.call_node(expression) else {
                     return None;
                 };
                 (
@@ -367,12 +367,7 @@ impl<'program> CallFrameResolver<'program> {
                     return None;
                 }
                 source.segments.extend_from_slice(suffix);
-                let suffix_names = members
-                    .get(longest + 1..)?
-                    .iter()
-                    .map(|member| member.as_str())
-                    .collect::<Vec<_>>()
-                    .join(".");
+                let suffix_names = members.get(longest + 1..)?.joined_path_with(".");
                 if !suffix_names.is_empty() {
                     source.path =
                         frames::append_place_suffix(&source.path, &format!(".{suffix_names}"));
@@ -398,11 +393,7 @@ impl<'program> CallFrameResolver<'program> {
             segments,
             representation: None,
             collection_coarse: false,
-            path: members
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("."),
+            path: members.joined_path_with("."),
         }])
     }
 }

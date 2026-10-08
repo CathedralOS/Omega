@@ -4,6 +4,7 @@ use facts::{FactPayload, QualificationEvidence};
 use language_semantics::{
     DomainEstablishmentRoute, MachineSupplyMode, QualificationEvidenceOrigin,
 };
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
@@ -330,12 +331,7 @@ fn carry_permission_from_path(
     program: &dyn ::validation::CheckingInput,
     domain: arena::HandleSpan<typed_trees::name::Identifier>,
 ) -> Option<language_semantics::CarryPermission> {
-    let name = program
-        .domain_path_members(domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+    let name = program.domain_path_members(domain).joined_path();
     language_semantics::CarryPermission::from_name(&name)
 }
 

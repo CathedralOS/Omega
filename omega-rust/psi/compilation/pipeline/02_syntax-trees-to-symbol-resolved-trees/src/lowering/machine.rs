@@ -26,6 +26,7 @@ use symbol_resolved_trees::machine::{
     GenericConformanceBound, Machine, MachineBodyStatus, MachineStorage, TraitConformance,
 };
 use symbol_resolved_trees::state::State;
+use symbols::JoinedPath;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -556,10 +557,7 @@ fn render_ranked_subject(
         syntax::expression::ExpressionNode::Name(path) => syntax_trees
             .expressions
             .identifier_path_members(*path)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("."),
+            .joined_path_with("."),
         syntax::expression::ExpressionNode::Member(member) => format!(
             "{}.{}",
             render_ranked_subject(syntax_trees, member.receiver),
@@ -602,11 +600,7 @@ fn elaborate_ranking_view(
         .items
         .identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
-        let path = order
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
+        let path = order.joined_path();
         let id = RankingViewId::canonical(&path).unwrap_or(RankingViewId::NULL);
         return (id, path);
     }

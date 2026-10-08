@@ -6,8 +6,7 @@ use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::scope::{LexicalRequirements, MachineScope};
 use crate::symbols::top_level::{
-    SignatureSymbolTables, next_child_of_kind,
-    trait_parameter_tables,
+    SignatureSymbolTables, next_child_of_kind, trait_parameter_tables,
 };
 use crate::symbols::type_references::{
     assign_machine_declaration_identity_argument_symbols,

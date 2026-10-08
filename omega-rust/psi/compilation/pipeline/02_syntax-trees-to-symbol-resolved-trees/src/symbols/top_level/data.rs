@@ -1,9 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::top_level::{
-    SignatureSymbolTables, next_child_of_kind,
-};
+use crate::symbols::top_level::{SignatureSymbolTables, next_child_of_kind};
 
 pub(super) fn assign_data_symbols(
     program: &mut SymbolResolvedTrees,
@@ -57,13 +55,17 @@ pub(super) fn assign_data_symbols(
                     continue;
                 };
                 SignatureSymbolTables {
-    symbols,
-    data_type_parameters,
-    state_parameters,
-    child_type_references,
-    type_constraints,
-}
-.assign_parameter_contract_symbols(&mut contract, parameter_symbol, &local_type_parameters);
+                    symbols,
+                    data_type_parameters,
+                    state_parameters,
+                    child_type_references,
+                    type_constraints,
+                }
+                .assign_parameter_contract_symbols(
+                    &mut contract,
+                    parameter_symbol,
+                    &local_type_parameters,
+                );
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters)[index]
                     .kind = symbol_resolved_trees::data::TypeParameterKind::Machine { contract };
             }
