@@ -58,16 +58,10 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
     let (Some((ordinal, record)), None) = (records.next(), records.next()) else {
         return Err("normalized foreign D41 child cannot rejoin one selected call");
     };
-    let mut instructions = function.blocks.iter().flat_map(|block| {
-        block
-            .instructions
-            .iter()
-            .filter(move |instruction| instruction.id == record.instruction)
-            .map(move |instruction| (block, instruction))
-    });
-    let (Some((block, instruction)), None) = (instructions.next(), instructions.next()) else {
-        return Err("normalized foreign D41 roster row names an absent instruction");
-    };
+    let (block, instruction) =
+        image_emission::unique_block_instruction(function, record.instruction).ok_or(
+            "normalized foreign D41 roster row names an absent instruction",
+        )?;
     if !image_emission::foreign_invocation_provenance_matches(
         &instruction.provenance,
         record.invocation_site,

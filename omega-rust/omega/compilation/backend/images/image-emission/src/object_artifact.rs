@@ -38,6 +38,6 @@ pub use normalized_foreign_calls::{
     transported_span_end,
     producer_instruction, scalar_call_result_producer,
     foreign_result_operand_count, fragment_instruction_span, scalar_observation_producer,
-    structural_result_capture,
+    structural_result_capture, unique_block_instruction,
 };
 pub(crate) use private_functions::validate_private_functions;

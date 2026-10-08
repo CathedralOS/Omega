@@ -76,17 +76,8 @@ pub fn derive_normalized_foreign_call_custody(
             {
                 return Err(invalid());
             }
-            let mut instructions = function.blocks.iter().flat_map(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .filter(move |instruction| instruction.id == record.instruction)
-                    .map(move |instruction| (block, instruction))
-            });
-            let (Some((block, instruction)), None) = (instructions.next(), instructions.next())
-            else {
-                return Err(invalid());
-            };
+            let (block, instruction) =
+                unique_block_instruction(function, record.instruction).ok_or_else(invalid)?;
             if !foreign_invocation_provenance_matches(
                 &instruction.provenance,
                 record.invocation_site,
@@ -385,6 +376,28 @@ pub fn transported_span_end(
 /// result's normalization output — so no frame slot exists for them. The
 /// records still name each home by its offset in the caller's dense
 /// durable-home area: every scalar-producing call row is one producer, its
+/// The unique `(block, instruction)` site a roster row's instruction id
+/// names, or `None` when it resolves to zero or several sites.
+pub fn unique_block_instruction<'a>(
+    function: &'a selected_instructions::SelectedFunction,
+    instruction: selected_instructions::SelectedInstructionId,
+) -> Option<(
+    &'a selected_instructions::SelectedBlock,
+    &'a selected_instructions::SelectedInstruction,
+)> {
+    let mut instructions = function.blocks.iter().flat_map(|block| {
+        block
+            .instructions
+            .iter()
+            .filter(move |candidate| candidate.id == instruction)
+            .map(move |candidate| (block, candidate))
+    });
+    let (Some(pair), None) = (instructions.next(), instructions.next()) else {
+        return None;
+    };
+    Some(pair)
+}
+
 /// slot 8-aligned and sized by the home shape. Argument `Home` sources and
 /// `scalar_result` records share this map so a consumer rejoins the exact
 /// producer slot.
