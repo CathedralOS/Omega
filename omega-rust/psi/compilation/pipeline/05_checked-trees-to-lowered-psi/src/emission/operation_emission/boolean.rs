@@ -126,14 +126,10 @@ pub(crate) fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after a Boolean literal");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, ScalarType::Boolean),
-                kind: OperationKind::BooleanConstant { value: *value },
-            });
+            operations.push_leaf(
+                scalar_result_declaration(id, ScalarType::Boolean),
+                OperationKind::BooleanConstant { value: *value },
+            );
             id
         }
         LoweredBooleanReturnExpression::IntegerComparison { kind, left, right } => {
@@ -143,14 +139,10 @@ pub(crate) fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after integer comparison");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, ScalarType::Boolean),
-                kind: kind.operation(left, right),
-            });
+            operations.push_leaf(
+                scalar_result_declaration(id, ScalarType::Boolean),
+                kind.operation(left, right),
+            );
             id
         }
         LoweredBooleanReturnExpression::Parameter { position }
@@ -219,18 +211,14 @@ pub(crate) fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after a structural Boolean load");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, ScalarType::Boolean),
-                kind: OperationKind::BooleanStructuralField {
+            operations.push_leaf(
+                scalar_result_declaration(id, ScalarType::Boolean),
+                OperationKind::BooleanStructuralField {
                     source,
                     path: path.clone(),
                     field: *field,
                 },
-            });
+            );
             id
         }
         LoweredBooleanReturnExpression::ByteSequencePredicate {
@@ -291,14 +279,10 @@ pub(crate) fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after Boolean negation");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, ScalarType::Boolean),
-                kind: OperationKind::BooleanNot { operand },
-            });
+            operations.push_leaf(
+                scalar_result_declaration(id, ScalarType::Boolean),
+                OperationKind::BooleanNot { operand },
+            );
             id
         }
         LoweredBooleanReturnExpression::Equal { left, right } => {
@@ -308,14 +292,10 @@ pub(crate) fn emit_boolean_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after Boolean equality");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, ScalarType::Boolean),
-                kind: OperationKind::BooleanEqual { left, right },
-            });
+            operations.push_leaf(
+                scalar_result_declaration(id, ScalarType::Boolean),
+                OperationKind::BooleanEqual { left, right },
+            );
             id
         }
         LoweredBooleanReturnExpression::And { .. } | LoweredBooleanReturnExpression::Or { .. } => {

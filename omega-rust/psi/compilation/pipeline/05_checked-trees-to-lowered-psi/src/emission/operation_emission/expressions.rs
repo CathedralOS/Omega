@@ -324,14 +324,7 @@ pub(crate) fn emit_scalar_leaf(
     *next_value_identity = next_value_identity
         .checked_add(1)
         .expect("generated value identity advances after a scalar leaf");
-    let operation = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: scalar_result_declaration(id, scalar_type),
-        kind,
-    });
+    operations.push_leaf(scalar_result_declaration(id, scalar_type), kind);
     id
 }
 
@@ -858,14 +851,10 @@ pub(crate) fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after bitwise complement");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::IntegerBitwiseNot { operand },
-            });
+            operations.push_leaf(
+                scalar_result_declaration(id, *scalar_type),
+                OperationKind::IntegerBitwiseNot { operand },
+            );
             id
         }
         LoweredDirectExpression::IntegerWiden {
@@ -878,14 +867,10 @@ pub(crate) fn emit_direct_expression(
             *next_value_identity = next_value_identity
                 .checked_add(1)
                 .expect("generated value identity advances after integer widening");
-            let operation = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: scalar_result_declaration(id, *scalar_type),
-                kind: OperationKind::IntegerWiden { operand },
-            });
+            operations.push_leaf(
+                scalar_result_declaration(id, *scalar_type),
+                OperationKind::IntegerWiden { operand },
+            );
             id
         }
         LoweredDirectExpression::IntegerExactCast {

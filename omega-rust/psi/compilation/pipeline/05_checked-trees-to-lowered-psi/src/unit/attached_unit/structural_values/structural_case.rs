@@ -260,17 +260,13 @@ pub(crate) fn emit_completed(
     fields: Vec<terminal_psi::RecordFieldInitializer>,
     operations: &mut OperationBuffer,
 ) -> StructuralPlaceDeclaration {
-    let operation = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation,
-        result: structural_result_declaration(place, structural_type, multiplicity),
-        kind: OperationKind::EstablishStructuralCase {
+    let operation = operations.push_leaf(
+        structural_result_declaration(place, structural_type, multiplicity),
+        OperationKind::EstablishStructuralCase {
             result_case,
             fields,
         },
-    });
+    );
     StructuralPlaceDeclaration {
         id: place,
         kind: StructuralPlaceKind::OperationResult {
