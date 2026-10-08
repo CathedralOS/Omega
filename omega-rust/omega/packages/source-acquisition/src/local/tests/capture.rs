@@ -4,7 +4,6 @@ use super::{
     open_captured_directory, read_capability_file_bounded, temp_root,
 };
 #[cfg(unix)]
-#[cfg(unix)]
 #[test]
 fn local_capture_does_not_follow_replaced_regular_leaf() {
     let root = temp_root("nofollow-replaced-file");

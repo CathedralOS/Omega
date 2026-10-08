@@ -1,19 +1,13 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use arena::HandleSpan;
-use source::SourceMap;
-use source::SourceSpan;
+use source::{SourceMap, SourceSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::ExpressionNode;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::DataMember;
-use syntax_trees::item::Machine;
+use syntax_trees::item::{DataMember, Machine};
 use syntax_trees::statement::StatementNode;
-use syntax_trees::types::FixedArrayLength;
-use syntax_trees::types::TypeReferenceHandle;
-use syntax_trees::types::TypeReferenceNode;
+use syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 /// Scalar wire members the compact_binary codecs carry. `u8`/`u16`/`i8`/`i16`
 /// are excluded deliberately: the interpreter's byte-size-keyed table reads a

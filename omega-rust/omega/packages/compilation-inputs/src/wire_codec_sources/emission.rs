@@ -3,8 +3,7 @@ use std::fmt::Write;
 
 use source::SourceMap;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::types::TypeReferenceHandle;
-use syntax_trees::types::TypeReferenceNode;
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::analysis::{
     DomainPredicate, MemberShape, ScalarKind, SliceElement, StoreFacts, StorePredicate,

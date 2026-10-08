@@ -1,14 +1,10 @@
 use super::BuildStagedOutputTree;
-use crate::materialization::retained_native_path;
-use crate::materialization::validate_retained_tree;
-use crate::portable_paths::canonical_symlink_target;
-use crate::portable_paths::reserve_path_bytes;
-use crate::staged_output_tree::MAX_STAGED_OUTPUT_ENTRIES;
-use crate::staged_output_tree::MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES;
-use crate::staged_output_tree::RetainedStagedOutputEntry;
-use crate::staged_output_tree::RetainedStagedOutputEntryKind;
-use crate::staged_output_tree::commitment_for_retained_entries;
-use crate::staged_output_tree::diagnostics;
+use crate::materialization::{retained_native_path, validate_retained_tree};
+use crate::portable_paths::{canonical_symlink_target, reserve_path_bytes};
+use crate::staged_output_tree::{
+    MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES, RetainedStagedOutputEntry,
+    RetainedStagedOutputEntryKind, commitment_for_retained_entries, diagnostics,
+};
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};

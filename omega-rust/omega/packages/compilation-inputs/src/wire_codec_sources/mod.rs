@@ -51,12 +51,9 @@
 mod analysis;
 mod emission;
 
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use source::DependencyScope;
-use source::SourceMap;
-use source::SourceOrigin;
+use source::{DependencyScope, SourceMap, SourceOrigin};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceHandle;

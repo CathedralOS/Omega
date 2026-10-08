@@ -12,11 +12,8 @@ mod domains;
 mod traits;
 
 pub(crate) use dependency_trust::{
-    encode_boundary_shape_graph, encode_opaque_occurrence, encode_representation_target,
-};
-
-pub(crate) use dependency_trust::{
-    calling_policy_tag, encode_machine_register, encode_value_placement,
+    calling_policy_tag, encode_boundary_shape_graph, encode_machine_register,
+    encode_opaque_occurrence, encode_representation_target, encode_value_placement,
 };
 
 pub(crate) use conformances::encode_conformance_bound;
