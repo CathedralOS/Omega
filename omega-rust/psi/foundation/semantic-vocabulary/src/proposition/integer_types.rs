@@ -24,6 +24,35 @@ pub struct IntegerType {
     bits: u16,
 }
 
+macro_rules! wrapping_arith {
+    ($( $(#[$m:meta])* $name:ident : $op:ident ; )+) => {$(
+        $(#[$m])*
+        pub fn $name(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
+            self.admits_both(left, right)?;
+            let mask = if self.bits == 128 {
+                u128::MAX
+            } else {
+                (1_u128 << self.bits) - 1
+            };
+            self.dispatch_sign(
+                left,
+                right,
+                |left, right| Some(IntegerValue::Unsigned(left.$op(right) & mask)),
+                |left, right| {
+                    let bits = (left as u128).$op(right as u128) & mask;
+                    let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
+                        bits as i128
+                    } else {
+                        (bits | !mask) as i128
+                    };
+                    Some(IntegerValue::Signed(value))
+                },
+            )
+        }
+    )+}
+}
+use wrapping_arith;
+
 impl IntegerType {
     /// Exact subtraction preserves address/count roles. Address offsets consume
     /// u64 counts; two addresses produce a u64 distance. Width equality alone
@@ -328,6 +357,7 @@ impl IntegerType {
         self,
         left: i128,
         right: i128,
+
         op: impl Fn(i128, i128) -> Option<i128>,
         on_overflow: IntegerValue,
     ) -> Option<IntegerValue> {
@@ -340,32 +370,13 @@ impl IntegerType {
         }
     }
 
-    /// Add two admitted values modulo this exact integer width.
-    ///
-    /// Signed results use two's-complement interpretation of the reduced bit
-    /// pattern. A sign/value mismatch or out-of-range input is rejected rather
-    /// than silently reinterpreted.
-    pub fn wrapping_add(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let mask = if self.bits == 128 {
-            u128::MAX
-        } else {
-            (1_u128 << self.bits) - 1
-        };
-        self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.wrapping_add(right) & mask)),
-            |left, right| {
-                let bits = (left as u128).wrapping_add(right as u128) & mask;
-                let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
-                    bits as i128
-                } else {
-                    (bits | !mask) as i128
-                };
-                Some(IntegerValue::Signed(value))
-            },
-        )
+    wrapping_arith! {
+        /// Add two admitted values modulo this exact integer width.
+        ///
+        /// Signed results use two's-complement interpretation of the reduced bit
+        /// pattern. A sign/value mismatch or out-of-range input is rejected rather
+        /// than silently reinterpreted.
+        wrapping_add : wrapping_add ;
     }
 
     /// Add two admitted values when their mathematical sum remains admitted.
@@ -514,60 +525,22 @@ impl IntegerType {
         )
     }
 
-    /// Subtract two admitted values modulo this exact integer width.
-    ///
-    /// Signed results use two's-complement interpretation of the reduced bit
-    /// pattern. A sign/value mismatch or out-of-range input is rejected rather
-    /// than silently reinterpreted.
-    pub fn wrapping_sub(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let mask = if self.bits == 128 {
-            u128::MAX
-        } else {
-            (1_u128 << self.bits) - 1
-        };
-        self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.wrapping_sub(right) & mask)),
-            |left, right| {
-                let bits = (left as u128).wrapping_sub(right as u128) & mask;
-                let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
-                    bits as i128
-                } else {
-                    (bits | !mask) as i128
-                };
-                Some(IntegerValue::Signed(value))
-            },
-        )
+    wrapping_arith! {
+        /// Subtract two admitted values modulo this exact integer width.
+        ///
+        /// Signed results use two's-complement interpretation of the reduced bit
+        /// pattern. A sign/value mismatch or out-of-range input is rejected rather
+        /// than silently reinterpreted.
+        wrapping_sub : wrapping_sub ;
     }
 
-    /// Multiply two admitted values modulo this exact integer width.
-    ///
-    /// Signed results use two's-complement interpretation of the reduced bit
-    /// pattern. A sign/value mismatch or out-of-range input is rejected rather
-    /// than silently reinterpreted.
-    pub fn wrapping_mul(self, left: IntegerValue, right: IntegerValue) -> Option<IntegerValue> {
-        self.admits_both(left, right)?;
-        let mask = if self.bits == 128 {
-            u128::MAX
-        } else {
-            (1_u128 << self.bits) - 1
-        };
-        self.dispatch_sign(
-            left,
-            right,
-            |left, right| Some(IntegerValue::Unsigned(left.wrapping_mul(right) & mask)),
-            |left, right| {
-                let bits = (left as u128).wrapping_mul(right as u128) & mask;
-                let value = if self.bits == 128 || bits & (1_u128 << (self.bits - 1)) == 0 {
-                    bits as i128
-                } else {
-                    (bits | !mask) as i128
-                };
-                Some(IntegerValue::Signed(value))
-            },
-        )
+    wrapping_arith! {
+        /// Multiply two admitted values modulo this exact integer width.
+        ///
+        /// Signed results use two's-complement interpretation of the reduced bit
+        /// pattern. A sign/value mismatch or out-of-range input is rejected rather
+        /// than silently reinterpreted.
+        wrapping_mul : wrapping_mul ;
     }
 
     /// Shift an admitted value left after reducing the count modulo this
