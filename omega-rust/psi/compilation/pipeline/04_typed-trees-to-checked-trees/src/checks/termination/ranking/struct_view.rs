@@ -66,7 +66,7 @@ pub(super) fn state_has_proven_self_loop(
             let mut literal_owner = path.first().map_or(owner, |step| step.owner);
             let mut current = argument;
             for step in path {
-                let Some(value) = unique_literal_field(
+                let Some(value) = validation::unique_literal_field(
                     program,
                     current,
                     literal_owner,
@@ -82,7 +82,7 @@ pub(super) fn state_has_proven_self_loop(
                     .nth(1)
                     .map_or(owner, |next| next.owner);
             }
-            let Some(value) = unique_literal_field(program, current, owner, field_symbol, field)
+            let Some(value) = validation::unique_literal_field(program, current, owner, field_symbol, field)
             else {
                 return false;
             };
@@ -217,30 +217,6 @@ fn exact_projection(
     }
 }
 
-/// The value of the unique `field` entry of a plain literal of exactly `owner`.
-fn unique_literal_field(
-    program: &dyn ::validation::CheckingInput,
-    literal: ExpressionHandle,
-    owner: SymbolHandle,
-    field_symbol: SymbolHandle,
-    field: &Identifier,
-) -> Option<ExpressionHandle> {
-    let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(literal)
-    else {
-        return None;
-    };
-    if literal.type_symbol != owner || literal.case_symbol.is_some() || literal.case_name.is_some()
-    {
-        return None;
-    }
-    let mut fields = program
-        .expression_table
-        .struct_fields(literal.fields)
-        .iter()
-        .filter(|candidate| candidate.field_symbol == field_symbol && candidate.name == *field);
-    let value = fields.next()?;
-    fields.next().is_none().then_some(value.value)
-}
 
 /// Declared bounds remain valid only while every input path survives the prefix.
 /// Step inputs may change on arrival; they are not invocation-fixed endpoints.

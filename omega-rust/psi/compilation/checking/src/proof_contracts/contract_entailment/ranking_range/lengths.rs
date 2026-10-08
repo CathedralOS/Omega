@@ -633,7 +633,7 @@ impl<'program> Coordinate<'program> {
                     .through_carrier_at(program, carrier, &prefix, owner, depth)
                     .map(|coordinate| coordinate.value());
             }
-            leaf = unique_literal_field(program, leaf, owner, field)?;
+            leaf = unique_literal_field(program, leaf, owner, field.symbol, &field.name)?;
             if let TypeReferenceNode::Named { symbol, .. } = program
                 .type_reference_table
                 .type_reference(unwrap_constraint_shells(program, field.type_reference))

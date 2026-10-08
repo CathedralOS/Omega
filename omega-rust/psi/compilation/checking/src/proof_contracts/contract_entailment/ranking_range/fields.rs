@@ -446,7 +446,7 @@ impl<'program> Coordinate<'program> {
                     .through_carrier_at(program, carrier, &prefix, owner, depth)
                     .map(|coordinate| coordinate.value());
             }
-            current = unique_literal_field(program, current, owner, field)?;
+            current = unique_literal_field(program, current, owner, field.symbol, &field.name)?;
             if let Some((next, _)) = record_referent(program, field.type_reference) {
                 owner = next;
             }
@@ -545,7 +545,7 @@ impl<'program> Coordinate<'program> {
                     .install_hypotheses(coordinate.field_comparisons(program))
                     .then(|| coordinate.value());
             }
-            current = unique_literal_field(program, current, owner, field)?;
+            current = unique_literal_field(program, current, owner, field.symbol, &field.name)?;
             if let Some((next, _)) = record_referent(program, field.type_reference) {
                 owner = next;
             }
@@ -765,11 +765,12 @@ pub(super) fn declared_field(
 }
 
 /// The value of the unique `field` entry of a plain literal of exactly `owner`.
-pub(super) fn unique_literal_field(
+pub fn unique_literal_field(
     program: &dyn crate::CheckingInput,
     literal: ExpressionHandle,
     owner: SymbolHandle,
-    field: &DataField,
+    field_symbol: SymbolHandle,
+    field_name: &typed_trees::name::Identifier,
 ) -> Option<ExpressionHandle> {
     let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(literal)
     else {
@@ -783,7 +784,7 @@ pub(super) fn unique_literal_field(
         .expression_table
         .struct_fields(literal.fields)
         .iter()
-        .filter(|candidate| candidate.field_symbol == field.symbol && candidate.name == field.name);
+        .filter(|candidate| candidate.field_symbol == field_symbol && candidate.name == *field_name);
     let value = fields.next()?.value;
     fields.next().is_none().then_some(value)
 }

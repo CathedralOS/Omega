@@ -13,6 +13,7 @@ mod calls;
 mod coordinate;
 mod field_coordinates;
 mod fields;
+pub use fields::unique_literal_field;
 mod lengths;
 mod meanings;
 mod projections;

@@ -125,7 +125,7 @@ pub use ranking_range::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
     find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, unwrap_constraint_shells,
+    measure_constraints_cover_subject, unique_literal_field, unwrap_constraint_shells,
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
