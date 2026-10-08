@@ -2,7 +2,7 @@
 
 use super::super::super::super::{BTreeMap, BTreeSet};
 use semantic_vocabulary::IntegerValue;
-use semantic_vocabulary::{BlockId, ValueId};
+use semantic_vocabulary::ValueId;
 
 use super::super::{
     CycleComponentEdge, OptimizerCycleComponent, OptimizerUnsignedCountdownRankingCertificate,
