@@ -175,30 +175,12 @@ impl InternalUnitCall<'_> {
                                 .locals
                                 .iter()
                                 .find(|(establishment, place, structural_type)| {
-                                    place.id == argument.place
-                                        && argument.path.is_empty()
-                                        && argument.access == terminal_psi::StructuralAccess::Owned
-                                        && argument.root_structural_type == structural_type.id
-                                        && argument.structural_type == structural_type.id
-                                        && argument.shape == ValueShape::integer(0, 1)
-                                        && source_placement.shape == argument.shape
-                                        && source_placement.locations.is_empty()
-                                        && argument.destination.shape == argument.shape
-                                        && argument.destination.locations.is_empty()
-                                        && argument.source_location.stack_byte_offset() == Some(0)
-                                        && matches!(
-                                            place.kind,
-                                            semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
-                                                structural_type: local_type,
-                                                construction: None,
-                                                ..
-                                            } if local_type == structural_type.id
-                                        )
-                                        && matches!(
-                                            structural_type.shape,
-                                            terminal_psi::StructuralTypeShape::Record { ref fields, .. }
-                                                if fields.is_empty()
-                                        )
+                                    crate::object_artifact::replay::unit::call_custody::argument_custody::argument_is_established_local_source(
+                                        argument,
+                                        place,
+                                        structural_type,
+                                        source_placement,
+                                    )
                                         && record.semantic_code_attribution.iter().any(|row| {
                                             row.machine == installed.machine
                                                 && row.attribution.site

@@ -32,6 +32,41 @@ struct ArgumentSources {
 /// argument reads its whole placement; a projected one is an exact borrowed or
 /// owned projection, a fixed-index element, a two-level fixed-index element, or
 /// a field path aligned inside the placement.
+/// Whether one trivial-affine local's establishment record is the exact
+/// owned source of this internal call argument: a fresh empty record the
+/// cleanup materializes in place.
+pub(crate) fn argument_is_established_local_source(
+    argument: &machine_code::InternalUnitCallArgumentRecord,
+    place: &terminal_psi::StructuralPlaceDeclaration,
+    structural_type: &terminal_psi::StructuralTypeDeclaration,
+    source_placement: &calling_conventions::ValuePlacement,
+) -> bool {
+    place.id == argument.place
+        && argument.path.is_empty()
+        && argument.access == terminal_psi::StructuralAccess::Owned
+        && argument.root_structural_type == structural_type.id
+        && argument.structural_type == structural_type.id
+        && argument.shape == ValueShape::integer(0, 1)
+        && source_placement.shape == argument.shape
+        && source_placement.locations.is_empty()
+        && argument.destination.shape == argument.shape
+        && argument.destination.locations.is_empty()
+        && argument.source_location.stack_byte_offset() == Some(0)
+        && matches!(
+            place.kind,
+            semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                structural_type: local_type,
+                construction: None,
+                ..
+            } if local_type == structural_type.id
+        )
+        && matches!(
+            structural_type.shape,
+            terminal_psi::StructuralTypeShape::Record { ref fields, .. }
+                if fields.is_empty()
+        )
+}
+
 pub(crate) fn argument_path_is_malformed(
     argument: &machine_code::InternalUnitCallArgumentRecord,
     source_placement: &calling_conventions::ValuePlacement,
@@ -341,32 +376,17 @@ impl InternalUnitCallCustody<'_> {
     });
         let local_source = affine_cleanup
             .and_then(|cleanup| {
-                cleanup.locals.iter().find(|(_, place, structural_type)| {
-                    place.id == argument.place
-                        && argument.path.is_empty()
-                        && argument.access == terminal_psi::StructuralAccess::Owned
-                        && argument.root_structural_type == structural_type.id
-                        && argument.structural_type == structural_type.id
-                        && argument.shape == calling_conventions::ValueShape::integer(0, 1)
-                        && source_placement.shape == argument.shape
-                        && source_placement.locations.is_empty()
-                        && argument.destination.shape == argument.shape
-                        && argument.destination.locations.is_empty()
-                        && argument.source_location.stack_byte_offset() == Some(0)
-                        && matches!(
-                            place.kind,
-                            semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
-                                structural_type: local_type,
-                                construction: None,
-                                ..
-                            } if local_type == structural_type.id
+                cleanup
+                    .locals
+                    .iter()
+                    .find(|(_, place, structural_type)| {
+                        argument_is_established_local_source(
+                            argument,
+                            place,
+                            structural_type,
+                            source_placement,
                         )
-                        && matches!(
-                            structural_type.shape,
-                            terminal_psi::StructuralTypeShape::Record { ref fields, .. }
-                                if fields.is_empty()
-                        )
-                })
+                    })
             })
             .is_some_and(|(establishment, _, _)| {
                 provenance
