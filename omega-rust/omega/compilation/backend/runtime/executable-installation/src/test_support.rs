@@ -43,21 +43,9 @@ pub(super) fn extent_id<T>(
 
 pub(super) fn extent_provider_issuance(seed: u64) -> extents::ExtentProviderIssuance {
     let base = seed * 16;
-    extents::ExtentProviderIssuance::from_normalized_identities([
-        base + 1,
-        base + 2,
-        base + 3,
-        base + 4,
-        base + 5,
-        base + 6,
-        base + 7,
-        base + 8,
-        base + 9,
-        base + 10,
-        base + 11,
-        base + 12,
-        base + 13,
-    ])
+    extents::ExtentProviderIssuance::from_normalized_identities(std::array::from_fn(
+        |identity_index| base + (identity_index as u64 + 1),
+    ))
     .expect("normalized provider issuance")
 }
 
