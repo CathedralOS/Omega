@@ -450,13 +450,10 @@ impl Builder<'_, '_> {
             .or_else(|| validation::match_subject_primitive_type(self.program, &dispatch))?;
             let subject = self.expression(dispatch.subject, subject_type)?;
             self.plans.nodes.get_mut(subject).authored_root = dispatch.subject;
-            self.plans.roots.append(CheckedScalarComputationRoot {
-                machine: self.machine,
-                state: self.state,
-                statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                role: CheckedScalarExpressionRole::StructuralValueSubject { expression },
-                root: subject,
-            });
+            self.push_scalar_root(
+                    CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                    subject,
+                )?;
             let authored = self
                 .program
                 .expression_table
@@ -509,15 +506,12 @@ impl Builder<'_, '_> {
                         }
                         let computation = self.expression(pattern, subject_type)?;
                         self.plans.nodes.get_mut(computation).authored_root = pattern;
-                        self.plans.roots.append(CheckedScalarComputationRoot {
-                            machine: self.machine,
-                            state: self.state,
-                            statement_ordinal: u32::try_from(self.statement_index).ok()?,
-                            role: CheckedScalarExpressionRole::StructuralValuePattern {
+                        self.push_scalar_root(
+                    CheckedScalarExpressionRole::StructuralValuePattern {
                                 source_arm,
                             },
-                            root: computation,
-                        });
+                    computation,
+                )?;
                         checked_trees::CheckedScalarDispatchPattern::Value(computation)
                     }
                 };

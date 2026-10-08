@@ -175,6 +175,24 @@ impl Builder<'_, '_> {
             });
     }
 
+    /// A scalar root inside the current statement names its coordinate once:
+    /// machine and state come from the builder and the ordinal from the
+    /// statement index, so a site supplies only its role and handle.
+    pub(super) fn push_scalar_root(
+        &mut self,
+        role: CheckedScalarExpressionRole,
+        root: CheckedScalarComputationHandle,
+    ) -> Option<()> {
+        self.plans.roots.append(CheckedScalarComputationRoot {
+            machine: self.machine,
+            state: self.state,
+            statement_ordinal: u32::try_from(self.statement_index).ok()?,
+            role,
+            root,
+        });
+        Some(())
+    }
+
     pub(super) fn insert(
         &mut self,
         primitive_type: PrimitiveType,
