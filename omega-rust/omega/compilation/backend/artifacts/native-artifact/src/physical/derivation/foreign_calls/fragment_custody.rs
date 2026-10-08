@@ -527,136 +527,17 @@ fn fragment_immediate_argument_span_rejoin(
     register_operand: usize,
     physical: &machine_code::ForeignCallScalarArgumentRecord,
 ) -> bool {
-    let span = match argument.placement.locations.as_slice() {
-        [
-            calling_conventions::ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            },
-        ] if *byte_size == argument.placement.shape.byte_size => {
-            let Some(operand) = instruction.operands.get(register_operand) else {
-                return false;
-            };
-            if usize::from(operand.operand) != register_operand {
-                return false;
-            }
-            let Some(register_value) = function
-                .virtual_registers
-                .get(operand.virtual_register.0 as usize)
-            else {
-                return false;
-            };
-            let selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                instruction: materialization,
-                source_value,
-            } = register_value.origin
-            else {
-                return false;
-            };
-            if source_value != argument.source.source_value() {
-                return false;
-            }
-            fragment_instruction_span(fragment, materialization)
-        }
-        [
-            calling_conventions::ValueLocation::Stack {
-                stack_byte_offset,
-                value_byte_offset: 0,
-                byte_size,
-                alignment,
-            },
-        ] if *byte_size == argument.placement.shape.byte_size => {
-            let slot = selected_instructions::OutgoingArgumentSlotId {
-                invocation_site: record.invocation_site,
-                argument_index: argument.parameter_index,
-                role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-            };
-            let mut outgoing = function
-                .outgoing_arguments
-                .iter()
-                .filter(|outgoing| outgoing.id == slot);
-            let (Some(outgoing), None) = (outgoing.next(), outgoing.next()) else {
-                return false;
-            };
-            if outgoing.abi_stack_byte_offset != *stack_byte_offset
-                || outgoing.byte_size != (*byte_size)
-                || outgoing.alignment != *alignment
-            {
-                return false;
-            }
-            let source_value = argument.source.source_value();
-            let Ok(stored) = u8::try_from(*byte_size) else {
-                return false;
-            };
-            let Some(address_index) = block.instructions.iter().position(|candidate| {
-                matches!(
-                    candidate.kind,
-                    selected_instructions::SelectedInstructionKind::FrameAddress {
-                        slot: selected_instructions::FrameStorageSlotId::Outgoing(candidate),
-                        byte_offset: 0,
-                    } if candidate == slot
-                ) && image_emission::foreign_invocation_provenance_matches(
-                    &candidate.provenance,
-                    record.invocation_site,
-                ) && candidate.provenance.values.as_slice() == [source_value]
-            }) else {
-                return false;
-            };
-            let address = &block.instructions[address_index];
-            let Some(store) = block.instructions.get(address_index + 1) else {
-                return false;
-            };
-            let selected_instructions::SelectedInstructionKind::Store {
-                byte_offset: 0,
-                byte_size: stored_bytes,
-            } = store.kind
-            else {
-                return false;
-            };
-            if stored_bytes != stored
-                || !image_emission::foreign_invocation_provenance_matches(
-                    &store.provenance,
-                    record.invocation_site,
-                )
-                || store.provenance.values.as_slice() != [source_value]
-            {
-                return false;
-            }
-            let Some(address_operand) = store.operands.first() else {
-                return false;
-            };
-            let Some(address_value) = function
-                .virtual_registers
-                .get(address_operand.virtual_register.0 as usize)
-            else {
-                return false;
-            };
-            if address_value.origin
-                != (selected_instructions::VirtualRegisterOrigin::ScalarAbiAddress {
-                    instruction: address.id,
-                    source_value,
-                })
-            {
-                return false;
-            }
-            let Some((address_offset, address_bytes)) =
-                fragment_instruction_span(fragment, address.id)
-            else {
-                return false;
-            };
-            let Some((store_offset, store_bytes)) = fragment_instruction_span(fragment, store.id)
-            else {
-                return false;
-            };
-            if store_offset != address_offset + address_bytes {
-                return false;
-            }
-            Some((address_offset, address_bytes + store_bytes))
-        }
-        _ => None,
-    };
-    span.is_some_and(|(offset, bytes)| {
+    image_emission::scalar_immediate_span(
+        function,
+        block,
+        fragment,
+        record,
+        instruction,
+        argument,
+        register_operand,
+        &|_: &selected_instructions::SelectedOperand, _: target_operations::MachineRegister| true,
+    )
+    .is_some_and(|(offset, bytes)| {
         usize::try_from(offset) == Ok(physical.code_offset)
             && usize::try_from(bytes) == Ok(physical.byte_count)
     })

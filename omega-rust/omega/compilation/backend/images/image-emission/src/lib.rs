@@ -53,7 +53,7 @@ pub use object_artifact::{
     build_feature_required_x86_fma_object_artifact, build_object_artifact,
     build_object_artifact_with_private_functions, derive_normalized_foreign_call_custody,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
-    durable_home_offsets, producer_instruction, transported_span_end, scalar_call_result_producer, scalar_observation_producer,
+    durable_home_offsets, producer_instruction, scalar_immediate_span, transported_span_end, scalar_call_result_producer, scalar_observation_producer,
     structural_result_capture,
 };
 

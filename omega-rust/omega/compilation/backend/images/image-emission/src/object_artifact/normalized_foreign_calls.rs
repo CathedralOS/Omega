@@ -1266,7 +1266,7 @@ fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueSha
 /// copy whose result feeds the call operand, or the contiguous outgoing-slot
 /// `FrameAddress`/`Store` pair this call's argument transport owns.
 #[allow(clippy::too_many_arguments)]
-fn scalar_immediate_span<F>(
+pub fn scalar_immediate_span<F>(
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
     fragment: &machine_code::PlacedFunctionFragment,
