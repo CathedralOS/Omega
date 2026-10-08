@@ -120,6 +120,16 @@ impl OptimizedBoundaryOccurrence {
     pub const fn identity(&self) -> OptimizedBoundaryOccurrenceIdentity {
         self.identity
     }
+
+    /// The gap-report spelling of this occurrence's four identity fields —
+    /// every boundary-occurrence gap names its site the same way before its
+    /// own reason clause.
+    pub fn label(&self) -> String {
+        format!(
+            "boundary occurrence on machine {} site {} boundary {} ordinal {}",
+            self.machine, self.invocation_site, self.boundary, self.operation_ordinal
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -926,34 +936,13 @@ impl std::fmt::Display for NativePhysicalEvidenceGap {
                 }
             }
             NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence } => {
-                write!(
-                    formatter,
-                    "boundary occurrence on machine {} site {} boundary {} ordinal {} has no supported settlement realization",
-                    occurrence.machine(),
-                    occurrence.invocation_site(),
-                    occurrence.boundary(),
-                    occurrence.operation_ordinal(),
-                )
+                write!(formatter, "{} has no supported settlement realization", occurrence.label())
             }
             NativePhysicalEvidenceGapSubject::UnsupportedNormalizedForeignCall { occurrence } => {
-                write!(
-                    formatter,
-                    "boundary occurrence on machine {} site {} boundary {} ordinal {} declined the normalized-foreign child derivation",
-                    occurrence.machine(),
-                    occurrence.invocation_site(),
-                    occurrence.boundary(),
-                    occurrence.operation_ordinal(),
-                )
+                write!(formatter, "{} declined the normalized-foreign child derivation", occurrence.label())
             }
             NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence { occurrence } => {
-                write!(
-                    formatter,
-                    "boundary occurrence on machine {} site {} boundary {} ordinal {} retained no supported boundary realization",
-                    occurrence.machine(),
-                    occurrence.invocation_site(),
-                    occurrence.boundary(),
-                    occurrence.operation_ordinal(),
-                )
+                write!(formatter, "{} retained no supported boundary realization", occurrence.label())
             }
             NativePhysicalEvidenceGapSubject::UnsupportedOperatorSpan { occurrence } => {
                 write!(
