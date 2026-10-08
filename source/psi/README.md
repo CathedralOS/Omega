@@ -202,10 +202,21 @@ meeting any application. A construction names each of its record's or case's
 fields once; a case pattern names a case of its subject's data and types its
 binders by the payload; a transition target supplies its state's parameters,
 and a terminal call or value meets the body's result (a state without its own
-`-> T` takes its machine's). Floats, static applications, value-position
-matches, memberships, calls to generic machines and equality needing a
-declared conformance reject as unsupported rather than typing partially. Carrier facts beyond the qualifier (unbounded
-`UInt`/`Int` storage, ranges) belong to checking.
+`-> T` takes its machine's). An unsuffixed decimal literal is an anonymous
+float: anonymous arithmetic involving one stays anonymous, and the tree lands
+once, by one rounding, at an `f32` or `f64` destination, where an anonymous
+integer may land too. Float arithmetic, negation and IEEE comparisons take
+one format, so formats never mix, and `as` never converts between floats and
+integers (named conversion machines do). A call to a generic machine binds
+its generic parameters ([`typing/generics.omg`](typing/generics.omg)) from
+explicit static arguments `path<arguments>(...)`, one per non-lifetime
+parameter, and by unifying each parameter's type with its argument's type;
+every parameter must be bound, each argument is admitted at its substituted
+parameter type, and the result is substituted the same way. A construction
+of generic data infers its arguments from its fields' values. Value-position
+matches, memberships and equality needing a declared conformance reject as
+unsupported rather than typing partially. Carrier facts beyond the qualifier (unbounded `UInt`/`Int`
+storage, ranges) belong to checking.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -255,7 +266,7 @@ resolves the set, and observes the diagnostic and every type, domain and value
 binding. Lexical or parse rejection exits without an observation.
 
 On macOS ARM64 the three gates build their harnesses natively from a fresh
-CLI: all 453 parser cases, all 144 resolver cases and all 43 typing cases
+CLI: all 453 parser cases, all 144 resolver cases and all 51 typing cases
 pass. Each gate counts each distinct source it runs as one case. No cached
 executable may stand in for that run. Linux and Windows hosts have run none of
 them.

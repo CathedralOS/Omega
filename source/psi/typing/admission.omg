@@ -42,9 +42,27 @@ crashes Trap
     state different(typer: &Typer, syntax: &SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, actual: u64 in Trapping) -> Admission {
         let wanted: TypeRow = TypeTable::row(&typer.output.types, destination);
         let given: TypeRow = TypeTable::row(&typer.output.types, actual);
+        let float_destination: bool = wanted.kind == TypeKind::Builtin
+            && (wanted.builtin == BuiltinType::F32 || wanted.builtin == BuiltinType::F64);
+        transition actual == typer.output.anonymous || actual == typer.output.anonymous_float {
+            true -> literal(typer, expression, wanted, actual, float_destination)
+            _ -> typed(typer, syntax, wanted, given, actual)
+        }
+    }
+
+    // An anonymous number lands at a float format by one rounding, and an
+    // anonymous integer at a fixed integer it fits.
+    state literal(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow, actual: u64 in Trapping, float_destination: bool) -> Admission {
+        transition float_destination {
+            true -> landed()
+            _ -> integer_literal(typer, expression, wanted, actual)
+        }
+    }
+
+    state integer_literal(typer: &Typer, expression: u64 in Trapping, wanted: TypeRow, actual: u64 in Trapping) -> Admission {
         transition actual == typer.output.anonymous {
             true -> anonymous(typer, expression, wanted)
-            _ -> typed(typer, syntax, wanted, given, actual)
+            _ -> rejected()
         }
     }
 

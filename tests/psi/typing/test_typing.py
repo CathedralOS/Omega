@@ -13,7 +13,7 @@ from pathlib import Path
 # source/psi/resolution/resolution.omg.
 KINDS = (
     "Absent", "Builtin", "Data", "Reference", "Array", "Slice", "GenericParameter",
-    "StaticInteger", "Unit", "AnonymousInteger",
+    "StaticInteger", "Unit", "AnonymousInteger", "AnonymousFloat",
 )
 BUILTIN_SPELLINGS = (
     "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "addr",
@@ -30,7 +30,7 @@ DIAGNOSTICS = (
     "NotCallable", "NotAValue", "UnknownConstructionField",
     "DuplicateConstructionField", "NotConstructible", "CaseOfOtherData", "UnknownPatternField",
     "InvalidCast", "NotAPlace", "TerminalResultMismatch", "AnonymousFraction",
-    "UnsupportedExpression", "TargetArgumentCount",
+    "UnsupportedExpression", "TargetArgumentCount", "UninferredGenericArgument",
 )
 SELECTIONS = ("none", "machine", "state", "field", "length")
 ADAPTATIONS = ("", "landed", "lent")
@@ -97,6 +97,8 @@ class Observation:
             return "()"
         if kind == "AnonymousInteger":
             return "{integer}"
+        if kind == "AnonymousFloat":
+            return "{float}"
         return "absent"
 
 
@@ -419,6 +421,67 @@ def main() -> None:
         selections=((b"g(x)", "machine", 0),),
     )
 
+    accepted(
+        program,
+        "generic-machines-infer-and-apply",
+        b"data Box<T> { value: T; }\n"
+        b"machine id<T>(x: T) -> T { x }\n"
+        b"machine Box::get<T>(b: &Box<T>) -> T { b.value }\n"
+        b"machine f(b: Box<u8>) -> u8 {\n"
+        b"    let a: u8 = id(5u8);\n"
+        b"    let c: u16 = id<u16>(7);\n"
+        b"    Box::get(&b)\n"
+        b"}",
+        (
+            (b"b.value", "G2"),
+            (b"id(5u8)", "u8"),
+            (b"id<u16>(7)", "u16"),
+            (b"7", "u16"),
+            (b"Box::get(&b)", "u8"),
+        ),
+        selections=((b"id(5u8)", "machine", 0), (b"id<u16>(7)", "machine", 0), (b"Box::get(&b)", "machine", 1)),
+    )
+    accepted(
+        program,
+        "generic-data-constructions-and-patterns",
+        b"data Opt<T> { case None; case Some(v: T); }\n"
+        b"data Pair<A, B> { first: A; second: B; }\n"
+        b"machine make(x: u16) -> Pair<u16, bool> { Pair { first: x, second: true } }\n"
+        b"machine h(o: &Opt<u16>) -> u16 {\n"
+        b"    transition o {\n"
+        b"        Opt::Some { v } -> got(v)\n"
+        b"        _ -> got(0)\n"
+        b"    }\n"
+        b"\n"
+        b"    state got(x: u16) -> u16 { x }\n"
+        b"}\n"
+        b"machine wrap(x: u16) -> Opt<u16> { Opt::Some { v: x } }",
+        (
+            (b"Pair { first: x, second: true }", "D1<u16, bool>"),
+            (b"got(v)", "()"),
+            (b"Opt::Some { v: x }", "D0<u16>"),
+        ),
+    )
+    accepted(
+        program,
+        "floats-land-at-their-format",
+        b"machine k(x: f64) -> bool {\n"
+        b"    let y: f32 = 1.5;\n"
+        b"    let z: f64 = 2.0 * 3;\n"
+        b"    let w: f64 = -0.5;\n"
+        b"    x < 2.5\n"
+        b"}",
+        (
+            (b"1.5", "f32"),
+            (b"2.0 * 3", "f64"),
+            (b"2.0", "{float}"),
+            (b"-0.5", "f64"),
+            (b"2.5", "f64"),
+            (b"x < 2.5", "bool"),
+        ),
+        adaptations=((b"1.5", "landed"), (b"2.0 * 3", "landed")),
+    )
+
     rejected(program, "let-mismatch", b"machine f() { let a: u8 = true; }", "MismatchedTypes", b"true")
     rejected(program, "literal-out-of-range", b"machine f() { let a: u8 = 256; }", "LiteralOutOfRange", b"256")
     rejected(
@@ -548,6 +611,41 @@ def main() -> None:
         b"machine f() -> u8 { transition { _ -> {} } }",
         "TerminalResultMismatch",
         b"_ -> {}",
+    )
+    rejected(
+        program,
+        "generic-arguments-must-be-inferable",
+        b"machine id<T>(x: T) -> T { x }\nmachine f() -> u8 { id(5) }",
+        "NoMatchingMachine",
+        b"id(5)",
+    )
+    rejected(
+        program,
+        "explicit-arguments-fit-the-machine",
+        b"machine id<T>(x: T) -> T { x }\nmachine f() -> u8 { id<u8, u8>(5) }",
+        "NoMatchingMachine",
+        b"id<u8, u8>(5)",
+    )
+    rejected(
+        program,
+        "construction-arguments-must-be-inferable",
+        b"data Box<T> { value: T; }\nmachine f() -> Box<u8> { Box { value: 9 } }",
+        "UninferredGenericArgument",
+        b"Box { value: 9 }",
+    )
+    rejected(
+        program,
+        "floats-do-not-cast-to-integers",
+        b"machine f() -> u8 { 1.5 as u8 }",
+        "InvalidCast",
+        b"1.5 as u8",
+    )
+    rejected(
+        program,
+        "float-formats-do-not-mix",
+        b"machine f(a: f32, b: f64) -> f64 { a + b }",
+        "MismatchedTypes",
+        b"b!2",
     )
     rejected(
         program,

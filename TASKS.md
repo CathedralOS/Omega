@@ -5830,10 +5830,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
   453 parser cases, `tests/psi/resolver/test-resolver.sh` all 144 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 43 typing cases; each
-  gate builds its harness natively in 9 to 18 minutes, most of it in
-  register-pressure recovery's whole-plan identity hashing (owned by the
-  spill-recovery cost work).
+  cases, and `tests/psi/typing/test-typing.sh` all 51 typing cases; run
+  together from a CLI with the plan-identity memo (2d73039fbef), the three
+  gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
+  beside a fourth native build.
   `tests/product/request/test-request.sh` builds the product entry and passes
   all 36 OCREQ cases, D's request vectors among them; a well-formed request
   stops at `coverage_request_semantics` until phase 3, which waits on the
@@ -5881,11 +5881,14 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   exactly and lands it once, keeps arithmetic policies from mixing, reads an
   element through a policy-qualified collection under that policy, and
   checks constructions, case patterns, transition targets and terminal
-  results; floats, static applications, value-position matches,
-  memberships, generic machine calls and equality needing a declared
-  conformance reject as unsupported. The typing gate types the whole psi
-  package, its 34 units, as one source set (37,779 expressions, 213 interned
-  types). The parser harness reads all 39 product source files whole and 65
+  results. Anonymous floats land once at `f32` or `f64` and formats never
+  mix; a generic machine call binds its parameters from explicit static
+  arguments and by unifying parameter and argument types, and a generic
+  construction infers its data's arguments from its fields; value-position
+  matches, memberships and equality needing a declared conformance reject as
+  unsupported. The typing gate types the whole psi package, its 35 units, as
+  one source set (39,550 expressions, 217 interned
+  types). The parser harness reads all 40 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
   declarations awaiting library migration, 9 retired range suffixes awaiting
@@ -5896,18 +5899,18 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   requires facts juxtaposed without `,` or `;`. Rank ranges (`terminates by i
   in 0..=n`), range expressions and indexed membership domains (`in
   AtMost<8>`) do not parse yet. The resolver gate resolves the whole psi
-  package, its 34 units, as one source set; the shared syntax tables hold
-  1,024 roots, 32,000 path members (26,385 used by psi),
+  package, its 35 units, as one source set; the shared syntax tables hold
+  1,024 roots, 32,000 path members (26,385 used by psi at 34 units),
   16,384 type references, 1,536 data members, 768 cases, 8,192 parameters and
   statements, 4,096 states and 65,536 expressions, over a 65,536-token unit.
   Next: package aliases, with `pub` narrowing imports across packages, so the
-  product entry and its library imports resolve, and typing's next slice
-  (floats, generic machine calls with argument inference, declared
-  equality); then checking. Size the parser tables to the request contract's scalar-resource
+  product entry and its library imports resolve, and typing's declared
+  equality; then checking. Size the parser tables to the request contract's scalar-resource
   rows (roots and states 4,096; path members, data members, type nodes,
   statements and expressions 16,384) and publish their refusals as those
   provisions; aarch64 frames past 16 MiB now realize. The psi package's own
-  34 sources hold 37,779 expressions and 26,385 path members, so those rows
+  35 sources hold 39,550 expressions (and held 26,385 path members at
+  34 sources), so those rows
   must count per source unit, or grow, before D can compile C; the path
   member table cannot grow past one unit's token bound while its capacity
   edge stays single-unit testable. Run the three gates on Linux and Windows

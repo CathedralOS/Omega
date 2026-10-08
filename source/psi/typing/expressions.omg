@@ -4,6 +4,7 @@ use psi::syntax::syntax;
 use psi::types::types;
 use psi::typing::admission;
 use psi::typing::calls;
+use psi::typing::generics;
 use psi::typing::literals;
 use psi::typing::references;
 use psi::typing::typer;
@@ -74,7 +75,7 @@ crashes Trap
             ExpressionKind::Index -> two(typer, syntax, depth, lowest, expression.left, expression.right)
             ExpressionKind::Binary -> two(typer, syntax, depth, lowest, expression.left, expression.right)
             ExpressionKind::Call -> arguments(typer, syntax, depth, lowest, expression, 0)
-            ExpressionKind::Apply -> arguments(typer, syntax, depth, lowest, expression, 0)
+            ExpressionKind::Apply -> one(typer, syntax, depth, lowest, expression.left)
             ExpressionKind::Construct -> fields(typer, syntax, depth, lowest, expression, 0)
             _ -> pop(typer, syntax, depth, lowest)
         }
@@ -185,10 +186,21 @@ crashes Trap
         ExpressionKind::Cast -> cast(typer, index, expression)
         ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
         ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
-        ExpressionKind::Apply -> unsupported(typer, expression)
+        ExpressionKind::Apply -> application()
         ExpressionKind::Membership -> unsupported(typer, expression)
         ExpressionKind::Match -> unsupported(typer, expression)
-        ExpressionKind::Float -> literal_rejected(typer, expression)
+        ExpressionKind::Float -> float_literal(typer, index)
+    }
+
+    // A static application `path<arguments>` names a machine application
+    // for its call to select; like a callee name it is not a value.
+    state application() {}
+
+    // An unsuffixed decimal literal is anonymous until a float destination
+    // lands it.
+    state float_literal(typer: &mut Typer, index: u64 in Trapping) {
+        let anonymous_float_type: u64 in Trapping = typer.output.anonymous_float;
+        Typing::set_expression_type(&mut typer.output, index, anonymous_float_type);
     }
 
     state named(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, expression: Expression) {
@@ -622,7 +634,9 @@ crashes Trap
     }
 
     state negate(typer: &mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
-        let signed: bool = Typer::signed_type(typer, operand);
+        let signed_integer: bool = Typer::signed_type(typer, operand);
+        let float: bool = Typer::float_like(typer, operand);
+        let signed: bool = signed_integer || float;
         Typing::set_expression_type(&mut typer.output, index, operand);
         transition operand == typer.output.anonymous {
             true -> negate_anonymous(typer, index, expression)
@@ -800,7 +814,34 @@ crashes Trap
         Typing::set_expression_type(&mut typer.output, index, boolean_type);
         transition left_integer && right_integer {
             true -> integer_order(typer, syntax, expression, left, right)
+            _ -> float_comparison(typer, syntax, expression, left, right)
+        }
+    }
+
+    // Floats compare under IEEE order within one format; an anonymous
+    // operand lands at the typed one's format.
+    state float_comparison(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_float: bool = Typer::float_like(typer, left);
+        let right_float: bool = Typer::float_like(typer, right);
+        let left_anonymous: bool = left == typer.output.anonymous || left == typer.output.anonymous_float;
+        let right_anonymous: bool = right == typer.output.anonymous || right == typer.output.anonymous_float;
+        transition (left_float || left_anonymous) && (right_float || right_anonymous) && (left_float || right_float) {
+            true -> float_operands(typer, syntax, expression, left, right, left_anonymous, right_anonymous)
             _ -> unsupported_comparison(typer, expression)
+        }
+    }
+
+    state float_operands(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool, right_anonymous: bool) {
+        transition left_anonymous && right_anonymous {
+            true -> done()
+            _ -> float_landing(typer, syntax, expression, left, right, left_anonymous)
+        }
+    }
+
+    state float_landing(typer: &mut Typer, syntax: &SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
+        transition left_anonymous {
+            true -> admit_left(typer, syntax, expression, right)
+            _ -> admit_right(typer, syntax, expression, left)
         }
     }
 
@@ -853,14 +894,39 @@ crashes Trap
     }
 
     state arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
+        let left_anonymous: bool = left == typer.output.anonymous || left == typer.output.anonymous_float;
+        let right_anonymous: bool = right == typer.output.anonymous || right == typer.output.anonymous_float;
         transition left == typer.output.anonymous && right == typer.output.anonymous {
             true -> fold(typer, index, expression)
-            _ -> typed_arithmetic(typer, syntax, index, expression, left, right)
+            _ -> mixed_arithmetic(typer, syntax, index, expression, left, right, left_anonymous, right_anonymous)
         }
     }
 
-    state typed_arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
-        transition left == typer.output.anonymous {
+    // Anonymous arithmetic involving a decimal stays an anonymous float; its
+    // exact value is evaluation's.
+    state mixed_arithmetic(
+        typer: &mut Typer,
+        syntax: &SyntaxTrees,
+        index: u64 in Trapping,
+        expression: Expression,
+        left: u64 in Trapping,
+        right: u64 in Trapping,
+        left_anonymous: bool,
+        right_anonymous: bool
+    ) {
+        transition left_anonymous && right_anonymous {
+            true -> anonymous_float_result(typer, index)
+            _ -> typed_arithmetic(typer, syntax, index, expression, left, right, left_anonymous)
+        }
+    }
+
+    state anonymous_float_result(typer: &mut Typer, index: u64 in Trapping) {
+        let anonymous_float_type: u64 in Trapping = typer.output.anonymous_float;
+        Typing::set_expression_type(&mut typer.output, index, anonymous_float_type);
+    }
+
+    state typed_arithmetic(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
+        transition left_anonymous {
             true -> typed_carrier(typer, syntax, index, expression, right)
             _ -> typed_carrier(typer, syntax, index, expression, left)
         }
@@ -959,6 +1025,15 @@ crashes Trap
 {
     let integer: bool = Typer::integer_type(typer, handle);
     integer || handle == typer.output.anonymous
+}
+
+// A float format, or an anonymous decimal.
+pub machine Typer::float_like(typer: &Typer, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
+    handle == typer.output.anonymous_float
+        || (row.kind == TypeKind::Builtin && (row.builtin == BuiltinType::F32 || row.builtin == BuiltinType::F64))
 }
 
 // A fixed-integer or float carrier: what builtin arithmetic takes.
@@ -1087,147 +1162,25 @@ crashes Trap
     state done() {}
 }
 
-// `type` with the generic parameters of the data type `owner` replaced by
-// its arguments: a parameter itself, or one under a chain of references,
-// arrays and slices. An unapplied owner (a case value whose arguments its
-// destination supplies) and a type mentioning no parameter stay as written.
+// `handle` with the generic parameters of the data type `owner` replaced by
+// its arguments (generics.omg). An unapplied owner (a case value whose
+// arguments its destination supplies) leaves the type as written.
 pub machine Typer::substitute(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     transition owner.argument_count > 0 {
-        true -> layers(typer, syntax, handle, owner, source_span, handle, 0)
-        _ -> result(handle)
+        true -> applied(typer, syntax, handle, owner, source_span)
+        _ -> unchanged(handle)
     }
 
-    // Walk down the wrapper chain to its base, counting the layers.
-    state layers(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        handle: u64 in Trapping,
-        owner: TypeRow,
-        source_span: SourceSpan,
-        current: u64 in Trapping,
-        depth: u64 in Trapping
-    ) -> u64 in Trapping {
-        let row: TypeRow = TypeTable::row(&typer.output.types, current);
-        transition row.kind == TypeKind::Reference || row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
-            true -> deeper(typer, syntax, handle, owner, source_span, row.inner, depth + 1)
-            _ -> base(typer, syntax, handle, owner, source_span, row, depth)
-        }
+    state applied(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan) -> u64 in Trapping {
+        Typer::begin_bindings(typer);
+        Typer::bind_data_arguments(typer, syntax, owner);
+        let substituted: u64 in Trapping = Typer::substitute_bound(typer, handle, source_span);
+        substituted
     }
 
-    state deeper(
-        typer: &mut Typer,
-        syntax: &SyntaxTrees,
-        handle: u64 in Trapping,
-        owner: TypeRow,
-        source_span: SourceSpan,
-        current: u64 in Trapping,
-        depth: u64 in Trapping
-    ) -> u64 in Trapping {
-        transition depth < 64 {
-            true -> layers(typer, syntax, handle, owner, source_span, current, depth)
-            _ -> result(handle)
-        }
-    }
-
-    state base(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan, row: TypeRow, depth: u64 in Trapping) -> u64 in Trapping {
-        transition row.kind == TypeKind::GenericParameter {
-            true -> parameter(typer, syntax, handle, owner, source_span, row, depth)
-            _ -> result(handle)
-        }
-    }
-
-    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan, row: TypeRow, depth: u64 in Trapping) -> u64 in Trapping {
-        let position: u64 in Trapping = Typer::applied_position(syntax, owner.item, row.item);
-        transition position < owner.argument_count {
-            true -> replaced(typer, handle, owner, source_span, position, depth)
-            _ -> result(handle)
-        }
-    }
-
-    state replaced(typer: &mut Typer, handle: u64 in Trapping, owner: TypeRow, source_span: SourceSpan, position: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let argument: u64 in Trapping = TypeTable::argument(&typer.output.types, owner.first_argument + position);
-        transition { _ -> rebuild(typer, handle, source_span, argument, depth) }
-    }
-
-    // Rebuild the `depth` wrappers of `handle` over the replaced base,
-    // innermost first.
-    state rebuild(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan, built: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        transition depth > 0 && typer.output.accepted {
-            true -> wrap(typer, handle, source_span, built, depth)
-            _ -> result(built)
-        }
-    }
-
-    state wrap(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan, built: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let layer: TypeRow = Typer::wrapper_at(typer, handle, depth - 1);
-        let mut row: TypeRow = layer;
-        row.inner = built;
-        let wrapped: u64 in Trapping = Typer::intern(typer, row, source_span);
-        transition { _ -> rebuild(typer, handle, source_span, wrapped, depth - 1) }
-    }
-
-    state result(handle: u64 in Trapping) -> u64 in Trapping {
+    state unchanged(handle: u64 in Trapping) -> u64 in Trapping {
         handle
-    }
-}
-
-// The wrapper row `depth` layers below `handle`.
-machine Typer::wrapper_at(typer: &Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> TypeRow
-crashes Trap
-{
-    let row: TypeRow = TypeTable::row(&typer.output.types, handle);
-    transition depth > 0 {
-        true -> below(typer, row.inner, depth - 1)
-        _ -> result(row)
-    }
-
-    state below(typer: &Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> TypeRow {
-        let row: TypeRow = TypeTable::row(&typer.output.types, handle);
-        transition depth > 0 {
-            true -> below(typer, row.inner, depth - 1)
-            _ -> result(row)
-        }
-    }
-
-    state result(row: TypeRow) -> TypeRow {
-        row
-    }
-}
-
-// The argument position of generic parameter `parameter` in applications of
-// data `item`: its position among the non-lifetime parameters.
-machine Typer::applied_position(syntax: &SyntaxTrees, item: u64 in Trapping, parameter: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    let data_item: DataItem = SyntaxTrees::data_item(syntax, item);
-    transition { _ -> scan(syntax, data_item, parameter, 0, 0) }
-
-    state scan(syntax: &SyntaxTrees, data_item: DataItem, parameter: u64 in Trapping, offset: u64 in Trapping, position: u64 in Trapping) -> u64 in Trapping {
-        transition offset < data_item.generic_parameter_count {
-            true -> compare(syntax, data_item, parameter, offset, position)
-            _ -> result(18446744073709551615)
-        }
-    }
-
-    state compare(syntax: &SyntaxTrees, data_item: DataItem, parameter: u64 in Trapping, offset: u64 in Trapping, position: u64 in Trapping) -> u64 in Trapping {
-        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, data_item.first_generic_parameter + offset);
-        let handle: u64 in Trapping = data_item.first_generic_parameter + offset;
-        transition handle == parameter {
-            true -> result(position)
-            _ -> advance(syntax, data_item, parameter, offset, position, generic)
-        }
-    }
-
-    state advance(syntax: &SyntaxTrees, data_item: DataItem, parameter: u64 in Trapping, offset: u64 in Trapping, position: u64 in Trapping, generic: GenericParameter) -> u64 in Trapping {
-        transition generic.kind == GenericParameterKind::Lifetime {
-            true -> scan(syntax, data_item, parameter, offset + 1, position)
-            _ -> scan(syntax, data_item, parameter, offset + 1, position + 1)
-        }
-    }
-
-    state result(position: u64 in Trapping) -> u64 in Trapping {
-        position
     }
 }

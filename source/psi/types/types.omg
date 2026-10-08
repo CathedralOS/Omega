@@ -29,6 +29,10 @@ pub data TypeKind [copy] {
     // An integer literal tree that has not landed at a destination yet. Its
     // exact value lives with the expression (`AnonymousValue`).
     case AnonymousInteger;
+    // A decimal literal tree that has not landed at a float format yet.
+    // Landing rounds once (wiki/spec/language/numeric_values.md); the value
+    // is evaluation's, not typing's.
+    case AnonymousFloat;
 }
 
 // Fields a kind does not carry are zero.
@@ -118,6 +122,7 @@ pub data TypeDiagnosticCode [copy] {
     case AnonymousFraction;
     case UnsupportedExpression;
     case TargetArgumentCount;
+    case UninferredGenericArgument;
 }
 
 pub data TypeDiagnostic [copy] {
@@ -148,6 +153,7 @@ where
     unit: u64 in Trapping;
     boolean: u64 in Trapping;
     anonymous: u64 in Trapping;
+    anonymous_float: u64 in Trapping;
     diagnostic: TypeDiagnostic;
     accepted: bool;
 }
