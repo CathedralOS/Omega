@@ -28,6 +28,28 @@ fn latest_loan_release_boundary(
         })
 }
 
+/// A prior constructor or call transfer already moved this descriptor's
+/// custody to another holder.
+fn custody_transferred(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    binding_ordinal: u32,
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Option<bool> {
+    Some(
+        super::reference_retirement::transferred_paths(
+            program,
+            facts,
+            results,
+            binding_ordinal,
+            operations,
+        )?
+        .iter()
+        .any(|path| path.is_empty()),
+    )
+}
+
 fn captured_reference_result<'operation>(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -73,16 +95,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     for operation in operations.iter().rev() {
         let reference_result = captured_reference_result(facts, machine, state, results, operation);
         if let Some((result, loans)) = reference_result {
-            if super::reference_retirement::transferred_paths(
-                program,
-                facts,
-                results,
-                result.binding_ordinal,
-                operations,
-            )?
-            .iter()
-            .any(|path| path.is_empty())
-            {
+            if custody_transferred(program, facts, results, result.binding_ordinal, operations)? {
                 // The receiving constructor or call owns the descriptor now.
                 // Its former holder cannot release that transferred custody.
                 continue;
@@ -305,16 +318,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             // The exit boundary consumes the same current custody as an
             // ordinary statement. A prior constructor/call transfer already
             // moved this descriptor to another holder.
-            if super::reference_retirement::transferred_paths(
-                program,
-                facts,
-                results,
-                result.binding_ordinal,
-                operations,
-            )?
-            .iter()
-            .any(|path| path.is_empty())
-            {
+            if custody_transferred(program, facts, results, result.binding_ordinal, operations)? {
                 continue;
             }
             // Completion transfers this exact carrier and its retained ingress
