@@ -36,14 +36,10 @@ pub(super) fn validate(
     }
 
     let predecessor_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.predecessor.block)
+        .block_index(patch.predecessor.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let target_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.target)
+        .block_index(patch.target)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if target_position != predecessor_position + 1 || function.entry == patch.target {
         return Err(OptimizationUnitValidationError::CandidateReachabilityMismatch);

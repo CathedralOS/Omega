@@ -204,14 +204,8 @@ pub(super) fn non_adjacent_merge_accounting(
     target: BlockId,
     substitutions: &[ScalarSubstitution],
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let predecessor_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == predecessor.block)?;
-    let target_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == target)?;
+    let predecessor_position = function.block_index(predecessor.block)?;
+    let target_position = function.block_index(target)?;
     if target_position == predecessor_position.checked_add(1)? {
         return None;
     }

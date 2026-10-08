@@ -109,8 +109,7 @@ pub(super) fn add_usage(
 fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
+        .flat_map(|function| function.block_nodes())
         .filter(|node| {
             matches!(
                 node.operation,
@@ -145,8 +144,7 @@ fn block_parameter_count(unit: &PsiOptimizationUnit) -> u64 {
 fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
+        .flat_map(|function| function.block_nodes())
         .filter(|node| match &node.operation {
             // Integer arithmetic is total exactly when it carries no
             // obligation.
@@ -181,8 +179,7 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
 fn proof_certified_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
+        .flat_map(|function| function.block_nodes())
         .filter(|node| match &node.operation {
             abstract_operations::AbstractOperation::IntegerArithmetic { arithmetic, .. } => {
                 arithmetic.obligation().is_some()
@@ -285,8 +282,7 @@ pub(super) fn convergence_measure(
 fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
+        .flat_map(|function| function.block_nodes())
         .filter(|node| {
             matches!(
                 node.operation,
@@ -327,7 +323,8 @@ fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
         if !visiting.insert(block) {
             return 0;
         }
-        let resolved = function.block(block)
+        let resolved = function
+            .block(block)
             .and_then(|owner| {
                 let node = owner.nodes.last()?;
                 match &node.operation {

@@ -356,10 +356,7 @@ pub(crate) fn adjacency(function: &SelectedFunction) -> (Vec<Vec<usize>>, Vec<Ve
 /// The index of `function`'s entry block, whose unseeded condition state
 /// bounds every path the walk considers.
 pub(crate) fn entry_index(function: &SelectedFunction) -> Option<usize> {
-    function
-        .blocks
-        .iter()
-        .position(|block| block.id == function.entry_block)
+    function.block_index(function.entry_block)
 }
 
 /// The blocks that can reach `target` through `predecessors` — the cone

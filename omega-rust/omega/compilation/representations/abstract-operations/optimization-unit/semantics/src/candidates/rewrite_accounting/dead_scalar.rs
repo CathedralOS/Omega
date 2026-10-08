@@ -8,10 +8,7 @@ pub(crate) fn reconstruct_dead_scalar_node_accounting(
     function: &PsiOptimizationFunction,
     patch: DeadScalarNodeRewrite,
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let block_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.location.block)?;
+    let block_position = function.block_index(patch.location.block)?;
     let node_position = usize::try_from(patch.location.node).ok()?;
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;

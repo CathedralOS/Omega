@@ -207,9 +207,7 @@ fn audit_dead_unit(
         }
         for successor in terminator_successors(&block.terminator) {
             let target = function
-                .blocks
-                .iter()
-                .position(|block| block.id == successor.block)
+                .block_index(successor.block)
                 .ok_or(DeadCompareError::UnsupportedUse)?;
             frontier.push((target, 0));
         }
@@ -389,7 +387,8 @@ pub(super) fn shifted_boundary_settlements(
     block: SelectedBlockId,
     removed: usize,
 ) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, DeadCompareError> {
-    let body = function.block(block)
+    let body = function
+        .block(block)
         .ok_or(DeadCompareError::SourceMismatch)?
         .instructions
         .len();

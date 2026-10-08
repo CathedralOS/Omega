@@ -106,9 +106,7 @@ fn propose(
                         && row.node == node_index
                 });
                 if live.is_none_or(|row| row.exit.contains(&shape.result))
-                    || effect.is_none_or(|row| {
-                        !row.is_pure_scalar_baseline(unit.identity)
-                    })
+                    || effect.is_none_or(|row| !row.is_pure_scalar_baseline(unit.identity))
                 {
                     continue;
                 }
@@ -165,10 +163,7 @@ pub(super) fn node_elision_accounting(
     removed_location: NodeLocation,
     removed_result: ValueId,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let block_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == removed_location.block)?;
+    let block_position = function.block_index(removed_location.block)?;
     let node_position = usize::try_from(removed_location.node).ok()?;
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;

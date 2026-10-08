@@ -366,10 +366,7 @@ pub(super) fn crossed_window<'function>(
                     edges.push(edge.clone());
                 }
                 if index + 1 < path.len()
-                    && let Some(intermediate) = function
-                        .blocks
-                        .iter()
-                        .position(|block| block.id == edge.successor.block)
+                    && let Some(intermediate) = function.block_index(edge.successor.block)
                 {
                     positions
                         .entry(intermediate)

@@ -92,8 +92,7 @@ fn structural_statistics(
         scalar_uses: count(
             unit.functions
                 .iter()
-                .flat_map(|function| &function.blocks)
-                .flat_map(|block| &block.nodes)
+                .flat_map(|function| function.block_nodes())
                 .map(|node| node.uses.len())
                 .sum(),
         )?,

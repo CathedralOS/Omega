@@ -144,8 +144,7 @@ pub(in crate::legalization) fn validate_native_callback_roster(
         let mut rows = native
             .functions
             .iter()
-            .flat_map(|function| &function.graph.blocks)
-            .flat_map(|block| &block.operations)
+            .flat_map(|function| function.graph.operations())
             .filter(|row| {
                 matches!(
                     row,

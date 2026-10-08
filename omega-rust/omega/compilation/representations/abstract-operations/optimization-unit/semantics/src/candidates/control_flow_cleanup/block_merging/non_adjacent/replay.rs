@@ -34,14 +34,10 @@ pub(super) fn validate(
     }
 
     let predecessor_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.predecessor.block)
+        .block_index(patch.predecessor.block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let target_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.target)
+        .block_index(patch.target)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     if function.entry == patch.target
         || target_position == predecessor_position.saturating_add(1)
@@ -142,15 +138,11 @@ pub(super) fn validate(
         .find(|function| function.machine == patch.predecessor.machine)
         .expect("candidate function exists");
     let output_target_position = output_function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.target)
+        .block_index(patch.target)
         .expect("candidate target exists");
     let mut moved = output_function.blocks.remove(output_target_position);
     let output_predecessor_position = output_function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.predecessor.block)
+        .block_index(patch.predecessor.block)
         .expect("candidate predecessor exists");
     let removed = output_function.blocks[output_predecessor_position]
         .nodes
@@ -200,8 +192,7 @@ pub(super) fn validate(
     for input_block in &function.blocks {
         if input_block.id != patch.target
             && !expected_blocks.contains(&input_block.id)
-            && output_function.block(input_block.id)
-                != Some(input_block)
+            && output_function.block(input_block.id) != Some(input_block)
         {
             return Err(OptimizationUnitValidationError::CandidateOutsideRegionMismatch);
         }

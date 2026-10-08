@@ -491,9 +491,7 @@ pub(crate) fn require_dominated_uses(
     use_blocks: &[usize],
 ) -> Result<(), RuntimeSpillError> {
     let entry = function
-        .blocks
-        .iter()
-        .position(|block| block.id == function.entry_block)
+        .block_index(function.entry_block)
         .ok_or(RuntimeSpillError::SourceMismatch)?;
     for bypass_anchor in [false, true] {
         let mut reached = vec![false; function.blocks.len()];
@@ -509,9 +507,7 @@ pub(crate) fn require_dominated_uses(
                 .flatten()
             {
                 let destination = function
-                    .blocks
-                    .iter()
-                    .position(|block| block.id == successor.block)
+                    .block_index(successor.block)
                     .ok_or(RuntimeSpillError::SourceMismatch)?;
                 pending.push(destination);
             }
@@ -682,9 +678,7 @@ pub(super) fn derive_runtime_spill<'source>(
             // live-in, so its store opens that block and dominates every use
             // without any instruction or incoming edge to lean on.
             let block_index = function
-                .blocks
-                .iter()
-                .position(|block| block.id == function.entry_block)
+                .block_index(function.entry_block)
                 .ok_or(RuntimeSpillError::SourceMismatch)?;
             if !matches!(victim.definition_site,
                 Some(ValueDefinitionSite::FunctionParameter(position))
@@ -704,9 +698,7 @@ pub(super) fn derive_runtime_spill<'source>(
             // parameter row — the declared place at this index — and it
             // carries no source definition site.
             let block_index = function
-                .blocks
-                .iter()
-                .position(|block| block.id == function.entry_block)
+                .block_index(function.entry_block)
                 .ok_or(RuntimeSpillError::SourceMismatch)?;
             if victim.definition_site.is_some()
                 || !function
@@ -735,9 +727,7 @@ pub(super) fn derive_runtime_spill<'source>(
             // proved instruction zero, offset zero, the pinned view, no site,
             // and the declared result place.
             let block_index = function
-                .blocks
-                .iter()
-                .position(|block| block.id == function.entry_block)
+                .block_index(function.entry_block)
                 .ok_or(RuntimeSpillError::SourceMismatch)?;
             (
                 VictimLineage::Structural {

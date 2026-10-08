@@ -13,10 +13,7 @@ pub(super) fn phi_translated_cse_accounting(
     redundant: NodeLocation,
     incoming: &[PhiTranslatedScalarIncoming],
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
-    let block_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == redundant.block)?;
+    let block_position = function.block_index(redundant.block)?;
     let node_position = usize::try_from(redundant.node).ok()?;
     let block = &function.blocks[block_position];
     let removed = block.nodes.get(node_position)?;

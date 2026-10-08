@@ -10,14 +10,8 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
     patch: NonAdjacentBlockMergeRewrite,
     substitutions: &[ScalarSubstitution],
 ) -> Option<(Vec<BlockId>, Vec<optimization_unit::ProvenanceRewrite>)> {
-    let predecessor_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.predecessor.block)?;
-    let target_position = function
-        .blocks
-        .iter()
-        .position(|block| block.id == patch.target)?;
+    let predecessor_position = function.block_index(patch.predecessor.block)?;
+    let target_position = function.block_index(patch.target)?;
     if target_position == predecessor_position.checked_add(1)? {
         return None;
     }

@@ -222,6 +222,11 @@ impl PsiOptimizationFunction {
             .find(|row| row.id == place)
     }
 
+    /// The position of the block keyed `id`, when the function declares it.
+    pub fn block_index(&self, id: BlockId) -> Option<usize> {
+        self.blocks.iter().position(|row| row.id == id)
+    }
+
     /// Every block's nodes, in block order.
     pub fn block_nodes(&self) -> impl Iterator<Item = &OptimizationNode> + '_ {
         self.blocks.iter().flat_map(|block| &block.nodes)
