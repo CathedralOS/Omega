@@ -27,11 +27,9 @@ pub fn root(
         return None;
     }
     let type_reference = program
-        .state_parameters(state)
-        .iter()
+        .state_parameter_by_symbol(state, symbol)
         // A parameter owns its place root outright, so the resolved symbol
         // IS the identity: the spelling beside it adds no discrimination.
-        .find(|parameter| parameter.symbol == symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program

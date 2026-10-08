@@ -383,7 +383,7 @@ impl TypedTrees {
     /// normally at most one; callers decide how duplicates behave.
     pub fn machine_states_named(
         &self,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> impl Iterator<Item = (&machine::Machine, &crate::state::State)> + '_ {
         self.machines().iter().flat_map(move |machine| {
             self.machine_states(machine)
@@ -397,7 +397,7 @@ impl TypedTrees {
     pub fn machine_or_state_symbol(
         &self,
         machine: &machine::Machine,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> bool {
         machine.symbol == symbol
             || self
@@ -410,7 +410,7 @@ impl TypedTrees {
     /// declaring trait.
     pub fn trait_machine_signature(
         &self,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> Option<(
         &trait_definition::TraitDefinition,
         &signature::StateSignature,
@@ -510,7 +510,7 @@ impl TypedTrees {
     pub fn machine_parameter_signature_in(
         &self,
         machine: &machine::Machine,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
         self.machine_type_parameters(machine)
             .iter()
@@ -527,7 +527,7 @@ impl TypedTrees {
     /// callers must also validate the specialization's binder/selection join.
     pub fn retained_static_machine_contract(
         &self,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> Option<data::MachineParameterContractView<'_>> {
         if !symbol.is_valid() {
             return None;
@@ -547,7 +547,7 @@ impl TypedTrees {
     /// target, not the lexical generic scope.
     pub fn machine_parameter_signature(
         &self,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> Option<(&machine::Machine, &signature::StateSignature)> {
         self.machines().iter().find_map(|machine| {
             self.machine_parameter_signature_in(machine, symbol)
@@ -706,7 +706,7 @@ impl TypedTrees {
     pub fn state_in_machine(
         &self,
         machine: &machine::Machine,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> Option<&crate::state::State> {
         self.machine_states(machine)
             .iter()
@@ -791,7 +791,7 @@ impl TypedTrees {
     /// Callers that hold the attachment without the machine record ask here.
     pub fn data_binding_position(
         &self,
-        attached_data_symbol: symbols::SymbolHandle,
+        attached_data_symbol: SymbolHandle,
         parameters: &[signature::StateParameter],
     ) -> Option<usize> {
         if !attached_data_symbol.is_valid() {
@@ -813,7 +813,7 @@ impl TypedTrees {
     pub(crate) fn type_reference_names_attached_data(
         &self,
         type_reference: crate::types::TypeReferenceHandle,
-        attached_data_symbol: symbols::SymbolHandle,
+        attached_data_symbol: SymbolHandle,
     ) -> bool {
         if !type_reference.is_valid() {
             return false;
@@ -842,7 +842,7 @@ impl TypedTrees {
     /// at most one machine can contain a given state symbol.
     pub fn machine_holding_state(
         &self,
-        state_symbol: symbols::SymbolHandle,
+        state_symbol: SymbolHandle,
     ) -> Option<&machine::Machine> {
         if !state_symbol.is_valid() {
             return None;
@@ -887,7 +887,7 @@ impl TypedTrees {
     /// machine's span rather than a whole-program state scan.
     pub fn state_by_symbol(
         &self,
-        state_symbol: symbols::SymbolHandle,
+        state_symbol: SymbolHandle,
     ) -> Option<&crate::state::State> {
         self.machine_holding_state(state_symbol)
             .and_then(|machine| {
@@ -909,6 +909,17 @@ impl TypedTrees {
     #[inline]
     pub fn state_parameters(&self, state: &crate::state::State) -> &[signature::StateParameter] {
         self.state_parameters.span_or_empty(state.parameters)
+    }
+
+    /// `state`'s parameter carrying `symbol`, if any.
+    pub fn state_parameter_by_symbol(
+        &self,
+        state: &crate::state::State,
+        symbol: SymbolHandle,
+    ) -> Option<&signature::StateParameter> {
+        self.state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
     }
 
     /// `state`'s runtime-visible parameters — the non-`const` entries a
@@ -968,7 +979,7 @@ impl TypedTrees {
     pub fn state_local_declaration(
         &self,
         state: &crate::state::State,
-        symbol: symbols::SymbolHandle,
+        symbol: SymbolHandle,
     ) -> Option<(usize, &crate::statement::TableLocalData)> {
         let mut declarations = self
             .statement_table

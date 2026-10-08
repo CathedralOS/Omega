@@ -781,9 +781,7 @@ fn type_reference_for_symbol(
     }
 
     program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
+        .state_parameter_by_symbol(state, symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
@@ -823,9 +821,7 @@ fn type_reference_for_symbol(
             // exact, so a sibling state's same-named param cannot alias.
             program.machine_states(machine).iter().find_map(|other| {
                 program
-                    .state_parameters(other)
-                    .iter()
-                    .find(|parameter| parameter.symbol == symbol)
+                    .state_parameter_by_symbol(other, symbol)
                     .map(|parameter| parameter.type_reference)
             })
         })

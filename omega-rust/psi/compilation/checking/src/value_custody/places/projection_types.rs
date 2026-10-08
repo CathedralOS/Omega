@@ -210,9 +210,7 @@ fn symbol_type_reference_in_state(
 
     if local_candidate {
         program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
+            .state_parameter_by_symbol(state, symbol)
             .map(|parameter| parameter.type_reference)
             .or_else(|| {
                 program

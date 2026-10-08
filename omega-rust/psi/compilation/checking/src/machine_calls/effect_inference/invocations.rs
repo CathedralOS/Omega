@@ -654,9 +654,7 @@ fn type_reference_for_symbol(
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
+        .state_parameter_by_symbol(state, symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
