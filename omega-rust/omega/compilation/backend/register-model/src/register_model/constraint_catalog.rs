@@ -607,11 +607,3 @@ pub fn call_constraint_keys(variants: std::ops::Range<u16>) -> Vec<RegisterConst
         })
         .collect()
 }
-
-/// The constraint row keyed `key` in a constraint row list.
-pub fn find_register_constraint<'rows>(
-    rows: &'rows [RegisterInstructionConstraint],
-    key: RegisterConstraintKey,
-) -> Option<&'rows RegisterInstructionConstraint> {
-    rows.iter().find(|row| row.key == key)
-}
