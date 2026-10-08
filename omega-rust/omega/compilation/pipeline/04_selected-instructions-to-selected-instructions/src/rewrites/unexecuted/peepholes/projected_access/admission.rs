@@ -64,38 +64,13 @@ pub(super) fn admit<'source>(
     effect_catalog: &ValidatedMachineEffectCatalog,
     budget: OptimizationWorkBudget,
 ) -> Result<AdmittedPair<'source>, ProjectedAccessError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(ProjectedAccessError::SourceMismatch);
-    }
-    // The bound catalog must describe this plan's target and this
-    // environment's constraint catalog and selected-key inventory: a
-    // foreign catalog's declarations cannot attest this program's encoded
-    // surfaces even where constraint keys coincide numerically.
-    let catalog = effect_catalog.catalog();
-    if catalog.target != plan.target
-        || catalog.register_constraints != environment.constraints().identity()
-        || catalog.selected_keys != environment.selected_keys()
-    {
-        return Err(ProjectedAccessError::EffectSurfaceMismatch);
-    }
-    let function = function_at(plan, function_index, ProjectedAccessError::SourceMismatch)?;
-    // The consumer is a body instruction: a dereference at a mid-block
-    // position. A terminator's carried instruction is not an access form
-    // the family declares.
-    let (block_index, position, consumer) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .enumerate()
-                .find(|(_, instruction)| instruction.id == access)
-                .map(|(position, instruction)| (block_index, position, instruction))
-        })
-        .ok_or(ProjectedAccessError::UnsupportedConsumer)?;
+    let located =
+        super::locate_access(source, function_index, access, environment, effect_catalog)?;
+    let plan = located.plan;
+    let function = located.function;
+    let block_index = located.block_index;
+    let position = located.position;
+    let consumer = located.consumer;
     if !declared_consumer(consumer.kind) {
         return Err(ProjectedAccessError::UnsupportedConsumer);
     }
