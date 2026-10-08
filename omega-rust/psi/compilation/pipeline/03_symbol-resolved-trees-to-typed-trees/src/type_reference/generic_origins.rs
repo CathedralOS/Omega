@@ -423,9 +423,7 @@ impl Equality<'_, '_> {
             return false;
         }
         (0..left.count()).all(|offset| {
-            let left = left.handle_at(offset);
-            let right = right.handle_at(offset);
-            self.child(left, right)
+            self.child(left.handle_at(offset), right.handle_at(offset))
         })
     }
 

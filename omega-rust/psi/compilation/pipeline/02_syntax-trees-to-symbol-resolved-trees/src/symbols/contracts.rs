@@ -236,12 +236,7 @@ fn assign_contract_span(
                     // machine or trait telescope under first-match lookup.
                     let mut local_type_parameters = signature_type_parameters.to_vec();
                     local_type_parameters.extend_from_slice(machine.type_parameters);
-                    for offset in 0..membership.domain_arguments.count() {
-                        let start = membership.domain_arguments.start();
-                        let handle = arena::Handle::from_parts(
-                            start.arena_index() + offset,
-                            start.generation(),
-                        );
+                    for handle in membership.domain_arguments.handles() {
                         let mut argument = child_type_references.get(handle).clone();
                         crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_constraints(
                             symbols,

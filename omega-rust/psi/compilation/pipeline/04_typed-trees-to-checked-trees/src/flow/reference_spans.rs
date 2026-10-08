@@ -195,10 +195,8 @@ pub(crate) fn filter_flow_references<T: Copy + Default>(
     // Validate the entire source before appending: a stale member invalidates
     // the whole list. Appends cannot change its entries or generations, and
     // reading one handle at a time needs no temporary snapshot across growth.
-    let source_count = references.span_or_empty(source).len() as u32;
     let mut materialized = false;
-    for source_offset in 0..source_count {
-        let source_handle = source.handle_at(source_offset);
+    for source_handle in source.handles() {
         let reference = *references.get(source_handle);
         if !keep(reference) {
             continue;
