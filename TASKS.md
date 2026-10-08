@@ -2788,12 +2788,14 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
   now derives executable tuples without whole-roster static-machine admission.
-  Erased source applications retain original declaration/operand identities in
-  typed arenas; frozen checking judges callable formation once before bodies
+  Erased source applications retain original declaration/operand identities and
+  lexical owners in typed arenas; frozen checking judges authored type/const
+  formation (binder kinds, named carriers, literal landing and structural type
+  scope) and callable formation once before bodies
   and concrete effect ceilings once against the cleanup-complete graph.
   Generic contract entailment and conformance application admission belong to
   immutable checking; private compile-time graphs admit once before execution.
-  Remaining: repeated type/const/evidence bound judgments and authored-template
+  Remaining: inferred type/const/evidence bound judgments and authored-template
   effect/commitment inference inside specialization. The loop also repeats
   `bind_selected_operator_calls` (3 + N runs),
   `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
@@ -2983,9 +2985,13 @@ of a check the same flow already performed, not the check itself.
   **SPECIALIZATION-LOOP-ONCE**, now owned by the preparation stage;
   run each pass once at its required point without losing authored requirement
   identity or call-contract diagnostics. Erased applications and clone
-  correspondence now remain typed input; immutable checking admits their
-  source formation and completed effects, without preparation-granted contract
-  exemptions or repeated selection tables. Keep authored template dependencies separate from instance
+  correspondence now remain typed input; lexical owners survive folding, and
+  data/machine copies substitute the complete copied type graph, including
+  nested static operands. Immutable checking admits authored argument/callable
+  formation and completed effects, without preparation-granted contract
+  exemptions or repeated selection tables. Exact inferred type/const binding
+  handles still need typed custody before the remaining tuple-bound judgments
+  leave specialization. Keep authored template dependencies separate from instance
   effects when completing commitments. Runtime selected-provider choices are
   not a preparation input; source checks every candidate before Omega selection.
 

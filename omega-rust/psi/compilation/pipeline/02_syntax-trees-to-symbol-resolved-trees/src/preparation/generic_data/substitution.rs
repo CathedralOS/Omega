@@ -27,6 +27,33 @@ use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
 
+/// Close the copied type graph in any declaration, including type payloads
+/// nested inside range expressions and static applications. Replacing only
+/// field roots leaves those copied children referring to erased binders.
+pub(super) fn substitute_copied_type_names(
+    syntax: &mut SyntaxTrees,
+    copied_names: impl IntoIterator<Item = (TypeReferenceHandle, String)>,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) {
+    for (handle, name) in copied_names {
+        let Some(argument) = substitution.get(&name) else {
+            continue;
+        };
+        let replacement = syntax.type_references.type_reference(*argument).clone();
+        syntax
+            .type_references
+            .replace_type_reference(handle, replacement);
+        // A closed argument's application remains structural identity, not
+        // merely the copied node's diagnostic spelling.
+        let application = syntax.type_references.generic_application_origin(*argument);
+        if application.is_valid() {
+            syntax
+                .type_references
+                .retain_generic_application_origin(handle, application);
+        }
+    }
+}
+
 /// Clone a member with the type parameters substituted. Only reached for a base
 /// `base_is_fully_monomorphizable` accepted. A field that IS a parameter points
 /// at the argument; a NESTED generic (`a: Box<T>`) becomes a fresh concrete

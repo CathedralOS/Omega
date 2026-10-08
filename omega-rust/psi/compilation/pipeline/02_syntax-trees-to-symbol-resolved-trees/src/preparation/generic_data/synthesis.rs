@@ -14,6 +14,7 @@ use crate::preparation::generic_data::uses::{
     relabel_closed_sum_memberships_from_local_types, relabel_unique_closed_sum_paths,
 };
 
+use super::substitution::substitute_copied_type_names;
 use super::work_domain::{GenericDataWorkDomain, SynthesisWork};
 use crate::preparation::generic_data::consider_generic_spelling;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
@@ -586,6 +587,7 @@ fn synthesize_instance(
     // omit it from the concrete record. Mixed facts retain their field
     // operands and receive the same const substitution as members.
     let snapshot = syntax.clone();
+    let type_watermark = syntax.type_references.node_count();
     let fact_expression_watermark = (syntax.expressions.expression_count() as u32)
         .checked_add(1)
         .expect("expression arena index overflow");
@@ -724,6 +726,8 @@ fn synthesize_instance(
         }
         count += 1;
     }
+    let copied_types = syntax.type_references.named_nodes_from(type_watermark);
+    substitute_copied_type_names(syntax, copied_types, &substitution);
     // Run the const-binder literal rewrite only after member
     // substitution: a carried case `where` fact is copied inside the
     // loop above, so its `const` mentions land in the same rewritten
@@ -821,39 +825,18 @@ fn synthesize_instance(
             type_watermark,
             expression_watermark,
         );
-        for (handle, name) in syntax
+        let copied_types = syntax
             .tables
             .type_references
             .named_nodes_from(type_watermark)
-        {
-            // A value-bound name in a const argument must reach normal
-            // admission, not silently acquire the template's value.
-            // Ordinary type-binder substitution is unchanged.
-            if const_expressions.contains_key(&name)
-                && runtime_captures.captures_type_reference(handle)
-            {
-                continue;
-            }
-            if let Some(argument) = substitution.get(&name) {
-                let replacement = syntax
-                    .tables
-                    .type_references
-                    .type_reference(*argument)
-                    .clone();
-                syntax
-                    .tables
-                    .type_references
-                    .replace_type_reference(handle, replacement);
-                // Substitution of an already closed argument carries
-                // its application, just as ordinary syntax copying does.
-                let application = syntax.type_references.generic_application_origin(*argument);
-                if application.is_valid() {
-                    syntax
-                        .type_references
-                        .retain_generic_application_origin(handle, application);
-                }
-            }
-        }
+            .into_iter()
+            // Runtime subjects must reach ordinary admission, not acquire a
+            // template const value. The same type-copy law still applies.
+            .filter(|(handle, name)| {
+                !const_expressions.contains_key(name)
+                    || !runtime_captures.captures_type_reference(*handle)
+            });
+        substitute_copied_type_names(syntax, copied_types, &substitution);
         for (handle, element_type, name) in syntax
             .tables
             .type_references

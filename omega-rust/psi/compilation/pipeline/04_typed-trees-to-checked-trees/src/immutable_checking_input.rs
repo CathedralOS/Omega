@@ -32,6 +32,10 @@ fn checking_does_not_reopen_typed_preparation() {
         !specialization.contains("validate_static_machine_selections_with_facts("),
         "specialization restored whole-roster admission inside its fixed point"
     );
+    assert!(
+        !specialization.contains("const_arguments::validate_authored("),
+        "specialization restored authored argument admission inside its fixed point"
+    );
     let validation = include_str!("../../../checking/src/program_validation.rs");
     assert!(
         !validation.contains("GenericContracts"),

@@ -14,6 +14,7 @@ use std::collections::HashSet;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub fn children(
     program: &dyn crate::CheckingInput,
@@ -315,6 +316,64 @@ pub fn collect_statement_expression_trees(
             collect_transition_target_expression_trees(program, transition.target, handles);
             collect_transition_target_expression_trees(program, transition.continuation, handles);
         }
+    }
+}
+
+// Follow a declaring type without expanding nominal data into another scope.
+pub fn collect_type_expressions(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    visited: &mut Vec<TypeReferenceHandle>,
+    expressions: &mut Vec<ExpressionHandle>,
+) {
+    if !reference.is_valid() || visited.contains(&reference) {
+        return;
+    }
+    visited.push(reference);
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_expressions(program, *referee, visited, expressions);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            collect_type_expressions(program, *element_type, visited, expressions);
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                collect_type_expressions(program, *argument, visited, expressions);
+            }
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            collect_type_expressions(program, *base_type, visited, expressions);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                match constraint {
+                    TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
+                        collect_expression_tree(program, *minimum, expressions);
+                        collect_expression_tree(program, *maximum, expressions);
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        for argument in &domain.arguments {
+                            collect_type_expressions(program, *argument, visited, expressions);
+                        }
+                    }
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                }
+            }
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            collect_expression_tree(program, *expression, expressions);
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => {}
     }
 }
 

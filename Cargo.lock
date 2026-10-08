@@ -1567,7 +1567,6 @@ dependencies = [
  "source",
  "symbols",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 

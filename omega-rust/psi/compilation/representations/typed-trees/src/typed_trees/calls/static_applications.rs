@@ -4,7 +4,7 @@
 //! state. That rewrite cannot consume the source edge checking must admit. This
 //! carrier holds declaration and operand identities, not an admitted selection
 //! or a trust receipt. Both expression and statement calls refer to these rows
-//! in the shared expression payload arenas; their zero handle means no erased
+//! in the shared expression payload arenas; their zero handle means no retained
 //! application. Copies own fresh rows before lexical and type substitution.
 
 use crate::expression::StaticMachineArgument;
@@ -18,6 +18,9 @@ pub type StaticMachineApplicationHandle = Handle<StaticMachineApplication>;
 pub struct StaticMachineApplication {
     /// The generic source declaration, never its private executable instance.
     pub registration_operation: SymbolHandle,
+    /// The declaration whose type/lifetime scope authored these operands.
+    /// Folding its type root does not transfer that scope to another caller.
+    pub lexical_owner: SymbolHandle,
     /// Diagnostic text only; the symbol above owns declaration identity.
     pub target: Identifier,
     pub arguments: HandleSpan<StaticMachineArgument>,

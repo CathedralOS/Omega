@@ -72,11 +72,13 @@ impl ExpressionTable {
         let arguments = origin
             .static_machine_application_arguments(application)
             .to_vec();
-        self.retain_static_machine_application(
+        let copy = self.retain_static_machine_application(
             declaration.registration_operation,
             declaration.target,
             &arguments,
-        )
+        );
+        self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
+        copy
     }
 
     pub fn copy_from(
@@ -160,6 +162,9 @@ impl ExpressionTable {
             ExpressionNode::Call(call) => {
                 self.remap_symbols_in_inner(call.receiver, symbols, visited);
                 if call.authored_machine_application.is_valid() {
+                    let application =
+                        self.static_machine_application_mut(call.authored_machine_application);
+                    application.lexical_owner = remapped(application.lexical_owner, symbols);
                     for argument in self
                         .static_machine_application_arguments_mut(call.authored_machine_application)
                     {

@@ -255,7 +255,7 @@ impl ExpressionTable {
         self.static_machine_arguments.reset_retain_capacity();
     }
 
-    /// Preserve the source application before removing its executable statics.
+    /// Preserve the source application before folding or specializing its call.
     /// This records operands only; immutable checking still owes admission.
     pub fn retain_static_machine_application(
         &mut self,
@@ -272,6 +272,7 @@ impl ExpressionTable {
         self.static_machine_applications
             .insert(StaticMachineApplication {
                 registration_operation,
+                lexical_owner: SymbolHandle::invalid(),
                 target,
                 arguments,
             })
@@ -282,6 +283,13 @@ impl ExpressionTable {
         application: StaticMachineApplicationHandle,
     ) -> &StaticMachineApplication {
         self.static_machine_applications.get(application)
+    }
+
+    pub fn static_machine_application_mut(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+    ) -> &mut StaticMachineApplication {
+        self.static_machine_applications.get_mut(application)
     }
 
     pub fn static_machine_application_arguments(

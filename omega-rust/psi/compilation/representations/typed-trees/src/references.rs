@@ -36,13 +36,46 @@ pub enum StaticArgumentCall<'call> {
 }
 
 impl<'call> StaticArgumentCall<'call> {
-    /// Source operands survive executable specialization. The live static
-    /// list is used only while no application has been consumed.
-    pub fn arguments(&self, program: &'call TypedTrees) -> &'call [StaticMachineArgument] {
-        let application = match self {
+    /// Retained source operands, or zero while no application has been recorded.
+    pub fn application(&self) -> crate::static_applications::StaticMachineApplicationHandle {
+        match self {
             Self::Expression(call) => call.authored_machine_application,
             Self::Statement(call) => call.authored_machine_application,
-        };
+        }
+    }
+
+    /// Original declaration identity survives retargeting to an executable clone.
+    pub fn registration_operation(&self, program: &TypedTrees) -> SymbolHandle {
+        let application = self.application();
+        if application.is_valid() {
+            return program
+                .expression_table
+                .static_machine_application(application)
+                .registration_operation;
+        }
+        match self {
+            Self::Expression(call) => call.target_symbol,
+            Self::Statement(call) => call.target_symbol,
+        }
+    }
+
+    /// Source scope is retained independently of a folded type or live call.
+    pub fn lexical_owner(&self, program: &TypedTrees) -> SymbolHandle {
+        let application = self.application();
+        if application.is_valid() {
+            program
+                .expression_table
+                .static_machine_application(application)
+                .lexical_owner
+        } else {
+            SymbolHandle::invalid()
+        }
+    }
+
+    /// Source operands survive executable specialization. The live static
+    /// list is used only while no source application has been retained.
+    pub fn arguments(&self, program: &'call TypedTrees) -> &'call [StaticMachineArgument] {
+        let application = self.application();
         if application.is_valid() {
             return program
                 .expression_table

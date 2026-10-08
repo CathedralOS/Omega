@@ -176,7 +176,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         materialize_static_argument_types(program);
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
-        const_arguments::validate_authored(program, &candidates, &callee_states)?;
         if candidates.is_empty() {
             return Ok(());
         }
@@ -187,15 +186,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             &callee_states,
             &contract_expressions,
         );
-        if let Some(selection) = selections
-            .iter()
-            .find(|selection| selection.explicit_argument_overflow)
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "generic machine `{}` has excess explicit static arguments for a parameter kind",
-                candidates[selection.candidate_index].template.template_name
-            ))]);
-        }
+        // An overflowing proposal cannot form an executable tuple. Preserve
+        // its authored call for source admission instead of masking its binder
+        // kind with a derivative grouping error.
+        selections.retain(|selection| !selection.explicit_argument_overflow);
         // A marked bound is an obligation, not a closed type argument. In
         // particular an unused type binder must not disappear into an instance
         // before the bound is evaluated and validated. Keep the original call

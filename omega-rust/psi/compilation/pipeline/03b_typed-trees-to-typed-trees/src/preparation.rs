@@ -141,6 +141,7 @@ pub fn prepare_typed_trees(
     // field endpoint is known. Resolve both call forms before specialization
     // and effect inference, not only when finalizing authored selections.
     crate::receivers::resolve_projected_receiver_calls(&mut program)?;
+    selections::retain_static_argument_contexts(&mut program);
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
     // PDI3 operation/algebra authority is part of the authored generic
@@ -274,10 +275,12 @@ fn normalize_open_index_identities(
 pub fn specialize_static_machine_calls(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    selections::retain_static_argument_contexts(program);
     specialize_machine_calls(program, false)?;
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
+    validation::static_arguments::validate_authored_static_arguments(program)?;
     validation::conformance_applications::validate_conformance_applications(program)?;
     validation::validate_static_machine_selections_with_facts(program)?;
     validation::validate_generic_machine_contract_entailment(program)

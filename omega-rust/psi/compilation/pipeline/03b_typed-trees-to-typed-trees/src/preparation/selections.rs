@@ -14,6 +14,120 @@ use validation::selection_resolution::{
     finalization_diagnostic, push_consistent_resolution,
 };
 
+/// Retain lexical custody before type folding or specialization consumes a
+/// source call. This derives ownership only; checking still judges all operands.
+pub(crate) fn retain_static_argument_contexts(program: &mut TypedTrees) {
+    use symbols::SymbolHandle;
+    use typed_trees::expression::ExpressionHandle;
+    use typed_trees::references::{TypedReferences, visit_declarations, visit_machine};
+    use typed_trees::statement::StatementNode;
+
+    #[derive(Default)]
+    struct SourceCalls {
+        owner: SymbolHandle,
+        data_owners: Vec<SymbolHandle>,
+        visited: Vec<ExpressionHandle>,
+        expressions: Vec<(ExpressionHandle, SymbolHandle)>,
+    }
+
+    impl Extend<SymbolHandle> for SourceCalls {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+    }
+
+    impl TypedReferences for SourceCalls {
+        fn declaration(&mut self, owner: SymbolHandle) -> bool {
+            if !self.data_owners.contains(&owner) {
+                return false;
+            }
+            self.owner = owner;
+            self.visited.clear();
+            true
+        }
+
+        fn expression(&mut self, expression: ExpressionHandle) -> bool {
+            if self.visited.contains(&expression) {
+                return false;
+            }
+            self.visited.push(expression);
+            self.expressions.push((expression, self.owner));
+            true
+        }
+    }
+
+    let mut roots = SourceCalls {
+        data_owners: program
+            .data_definitions()
+            .iter()
+            .map(|data| data.symbol)
+            .collect(),
+        ..SourceCalls::default()
+    };
+    visit_declarations(program, &mut roots);
+    // Only data and machines supply the type/lifetime scopes this admission
+    // uses. Trait and mathematical descriptions keep their own checking law.
+    for machine in program.machines() {
+        roots.owner = machine.symbol;
+        roots.visited.clear();
+        visit_machine(program, &mut roots, machine);
+    }
+    for (expression, owner) in roots.expressions {
+        let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+            continue;
+        };
+        if call.machine_arguments.is_empty() || call.authored_machine_application.is_valid() {
+            continue;
+        }
+        let call = call.clone();
+        let application = program.expression_table.retain_static_machine_application(
+            call.target_symbol,
+            call.target,
+            &call.machine_arguments,
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .lexical_owner = owner;
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            unreachable!("retaining a source application does not replace its call");
+        };
+        call.authored_machine_application = application;
+    }
+    let statement_calls = program
+        .machines()
+        .iter()
+        .flat_map(|machine| {
+            program.machine_states(machine).iter().flat_map(|state| {
+                program
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+                    .filter_map(|(handle, statement)| {
+                        let StatementNode::Call(call) = statement else {
+                            return None;
+                        };
+                        (!call.machine_arguments.is_empty()
+                            && !call.authored_machine_application.is_valid())
+                        .then(|| (handle, machine.symbol, call.clone()))
+                    })
+            })
+        })
+        .collect::<Vec<_>>();
+    for (handle, owner, call) in statement_calls {
+        let application = program.expression_table.retain_static_machine_application(
+            call.target_symbol,
+            call.target,
+            &call.machine_arguments,
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .lexical_owner = owner;
+        let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+            unreachable!("retaining a source application does not replace its call");
+        };
+        call.authored_machine_application = application;
+    }
+}
+
 pub(crate) fn bind_pre_specialization_authored_selections(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {

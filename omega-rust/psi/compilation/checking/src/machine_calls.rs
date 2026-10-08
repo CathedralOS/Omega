@@ -20,5 +20,6 @@ pub(crate) mod machine_parameters;
 pub(crate) mod machine_specialization_identity;
 pub mod reference_result_custody;
 pub(crate) mod result_overloads;
+pub mod static_arguments;
 pub(crate) mod static_machine_call_contracts;
 pub(crate) mod structural_call_custody;
