@@ -210,9 +210,7 @@ fn bounds(
     }
     // The shared interval engine uses i64 endpoints and cannot bound an
     // unrestricted u64 above. Widen to its carrier, never invent a range fact.
-    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(expression)?;
     let parameter = program.state_parameters(state).iter().find(|parameter| {
         (name.symbol.is_valid()
             && name.head_symbol == name.symbol

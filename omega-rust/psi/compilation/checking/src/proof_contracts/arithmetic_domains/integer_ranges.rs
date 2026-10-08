@@ -312,9 +312,7 @@ pub(crate) fn exact_unsigned_widened_multiply_fits(
     right: ExpressionHandle,
 ) -> bool {
     let operand = |expression| -> Option<(i64, PrimitiveType)> {
-        let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
-            return None;
-        };
+        let cast = program.expression_table.cast_node(expression)?;
         if cast.form.is_recast()
             || !cast.semantic_domain.is_empty()
             || cast.domain != ArithmeticDomain::Exact

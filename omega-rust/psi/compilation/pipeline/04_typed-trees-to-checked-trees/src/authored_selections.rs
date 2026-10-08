@@ -37,9 +37,7 @@ pub(crate) fn derive_checked_nominal_call_target(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     validation::expression_owners::checked_machine_call_target_from_exact_owner(
         program,
         &facts.proof.contract_facts,
@@ -110,9 +108,7 @@ pub(crate) fn exact_owner_member_declaration(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     if member.member_symbol.is_valid() {
         return Some(member.member_symbol);
     }

@@ -353,9 +353,7 @@ pub(crate) fn declared_member_field_symbol(
     state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     if member.case_variant.is_some() {
         return None;
     }

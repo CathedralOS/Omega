@@ -60,7 +60,9 @@ pub(crate) fn declared_case_projection_field<'program>(
         _ => {
             let receiver_type = declared_place_type_raw(program, machine, state, member.receiver)?;
             let receiver_type = unwrapped_type_reference(program, receiver_type)?;
-            program.type_reference_table.type_head_symbol(receiver_type)?
+            program
+                .type_reference_table
+                .type_head_symbol(receiver_type)?
         }
     };
     let data = program

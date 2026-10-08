@@ -51,8 +51,7 @@ fn guard_conjunct_proves_dependent_upper(
     max_field: &Identifier,
     max_offset: i64,
 ) -> bool {
-    let Some(binary) = proof_plan.program.expression_table.binary_node(guard)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(guard) else {
         return false;
     };
     let recurse = |handle: ExpressionHandle| {
@@ -287,11 +286,9 @@ fn dependent_field_floor_at(
     max_field: &Identifier,
 ) -> Option<i64> {
     let program = proof_plan.program;
-    let machine = program
-        .machine_by_name_str(machine_name)?;
+    let machine = program.machine_by_name_str(machine_name)?;
     let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definition_by_name_str(attached.as_str())?;
+    let data = program.data_definition_by_name_str(attached.as_str())?;
     let field_type =
         ::validation::field_domains::data_field_type_by_name(program, data, max_field.as_str())?;
     enforced_literal_range_minimum(program, field_type)
@@ -357,8 +354,7 @@ pub(crate) fn obligation_data_binding<'plan>(
     state_name: &str,
 ) -> Option<&'plan str> {
     let program = proof_plan.program;
-    let machine = program
-        .machine_by_name_str(machine_name)?;
+    let machine = program.machine_by_name_str(machine_name)?;
     let state = program
         .machine_states(machine)
         .iter()
@@ -375,9 +371,7 @@ pub(crate) fn state_preserves_field(
     field: &Identifier,
 ) -> bool {
     let program = proof_plan.program;
-    let Some(machine) = program
-        .machine_by_name_str(machine_name)
-    else {
+    let Some(machine) = program.machine_by_name_str(machine_name) else {
         return false;
     };
     let Some(state) = program
@@ -551,8 +545,7 @@ fn sibling_conjunct_proves(
     sibling_label: &str,
     max_offset: i64,
 ) -> bool {
-    let Some(binary) = proof_plan.program.expression_table.binary_node(guard)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(guard) else {
         return false;
     };
     let recurse = |handle: ExpressionHandle| {
@@ -615,9 +608,7 @@ fn len_of_expression_bound(
     let table = &proof_plan.program.expression_table;
     let (len_expr, offset) = match table.expression(bound) {
         ExpressionNode::Binary(binary) => {
-            let ExpressionNode::Integer(literal) = table.expression(binary.right) else {
-                return None;
-            };
+            let literal = table.integer_node(binary.right)?;
             let magnitude = literal.value_i64()?;
             let offset = match binary.operator {
                 BinaryOperator::Add => magnitude,
@@ -628,9 +619,7 @@ fn len_of_expression_bound(
         }
         _ => (bound, 0),
     };
-    let ExpressionNode::Member(member) = table.expression(len_expr) else {
-        return None;
-    };
+    let member = table.member_node(len_expr)?;
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
         != Some(CollectionMeasure::Length)
     {

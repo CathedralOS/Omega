@@ -67,9 +67,7 @@ fn literal_index(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let literal = program.expression_table.integer_node(expression)?;
     if literal.landing().is_some_and(|landing| {
         landing.landed_type == numerics::literals::LandedIntegerType::Addr
             || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact

@@ -125,9 +125,7 @@ fn plain_name(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     (program.expression_table.name_path_is_single_member(path)).then_some(path.symbol)
 }
 

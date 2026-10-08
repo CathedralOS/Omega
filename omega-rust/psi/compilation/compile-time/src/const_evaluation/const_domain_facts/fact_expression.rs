@@ -141,9 +141,7 @@ fn zero_storage_field<'program>(
     data: &DataDefinition,
     expression: ExpressionHandle,
 ) -> Option<&'program DataField> {
-    let ExpressionNode::Name(path) = typed.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = typed.expression_table.name_path_node(expression)?;
     if path.members.count() != 1 || !path.symbol.is_valid() || path.head_symbol != path.symbol {
         return None;
     }

@@ -25,9 +25,7 @@ pub(super) fn caller_binding_type(
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<super::TypeReferenceHandle> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(argument)?;
     let [_] = program.expression_table.name_path_members(name.members) else {
         return None;
     };
@@ -41,9 +39,7 @@ pub(super) fn caller_name_root_type(
     current_machine: &Machine,
     argument: ExpressionHandle,
 ) -> Option<super::TypeReferenceHandle> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(argument) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(argument)?;
     let members = program.expression_table.name_path_members(name.members);
     let member = members.first()?;
     let root = name.head_symbol;

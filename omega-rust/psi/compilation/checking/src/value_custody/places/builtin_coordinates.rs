@@ -73,9 +73,7 @@ pub fn subslice_expression(
         ExpressionNode::Borrow(_) => return None,
         _ => expression,
     };
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(operation)?;
     matches!(
         program.expression_table.expression(indexed.index),
         ExpressionNode::Range(_)

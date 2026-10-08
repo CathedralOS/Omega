@@ -275,9 +275,7 @@ fn expression_frontiers(
             },
         );
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let target = validation::call_target_state(program, call.target_symbol)?;
     let mut frontiers = state_frontiers(program, target, ownership, events, maps, active)?;
     for frontier in &mut frontiers {

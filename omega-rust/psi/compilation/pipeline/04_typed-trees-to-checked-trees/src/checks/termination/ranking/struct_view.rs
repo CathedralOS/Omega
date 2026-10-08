@@ -82,12 +82,12 @@ pub(super) fn state_has_proven_self_loop(
                     .nth(1)
                     .map_or(owner, |next| next.owner);
             }
-            let Some(value) = validation::unique_literal_field(program, current, owner, field_symbol, field)
+            let Some(value) =
+                validation::unique_literal_field(program, current, owner, field_symbol, field)
             else {
                 return false;
             };
-            let Some(subtraction) = program.expression_table.binary_node(value)
-            else {
+            let Some(subtraction) = program.expression_table.binary_node(value) else {
                 return false;
             };
             if subtraction.operator != BinaryOperator::Subtract
@@ -216,7 +216,6 @@ fn exact_projection(
         ),
     }
 }
-
 
 /// Declared bounds remain valid only while every input path survives the prefix.
 /// Step inputs may change on arrival; they are not invocation-fixed endpoints.

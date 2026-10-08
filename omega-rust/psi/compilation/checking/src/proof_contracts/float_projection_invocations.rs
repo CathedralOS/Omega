@@ -59,9 +59,7 @@ fn requested_projection_operation(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<FloatProjectionOperation> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(call.receiver)?;
     let [namespace] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
@@ -85,9 +83,7 @@ pub fn float_static_call_resolution<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(call.receiver)?;
     let [namespace] = program.expression_table.name_path_members(path.members) else {
         return None;
     };

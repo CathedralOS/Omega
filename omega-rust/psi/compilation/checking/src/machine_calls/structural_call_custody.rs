@@ -154,11 +154,7 @@ pub fn structural_state_contract_scalar_predicates(
         for fact in facts {
             match fact {
                 typed_trees::domain::ProofFact::Membership(membership) => {
-                    let ExpressionNode::Name(path) =
-                        program.expression_table.expression(membership.value)
-                    else {
-                        return None;
-                    };
+                    let path = program.expression_table.name_path_node(membership.value)?;
                     let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(
                         program,
                         membership.value,

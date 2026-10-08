@@ -419,9 +419,7 @@ fn bound_leaf_symbol(
     lookup: &ImmutableBoundLookup<'_>,
     base: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(base) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(base)?;
     let members = program.expression_table.name_path_members(path.members);
     if members.len() != 1 {
         return None;
@@ -444,9 +442,7 @@ fn bound_leaf_symbol(
     match normalize_bound(program, lookup, base, &mut Vec::new())? {
         NormalizedBound::LocalValue(symbol) => Some(symbol),
         NormalizedBound::Expression(expression) => {
-            let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-                return None;
-            };
+            let path = program.expression_table.name_path_node(expression)?;
             let members = program.expression_table.name_path_members(path.members);
             (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
                 .then_some(path.symbol)
@@ -469,9 +465,7 @@ pub fn mutable_integer_bound_storage_symbol(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     let members = program.expression_table.name_path_members(path.members);
     let (symbol, is_mutable, type_reference) = single_segment_receiver(lookup, path, members)?;
     if !is_mutable || !symbol.is_valid() {
@@ -499,15 +493,11 @@ fn projected_integer_bound_field<'program>(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, &'program typed_trees::data::DataField, bool)> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     if member.case_variant.is_some() {
         return None;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(member.receiver)?;
     let members = program.expression_table.name_path_members(path.members);
     let (symbol, is_mutable, type_reference) = single_segment_receiver(lookup, path, members)?;
     if !symbol.is_valid() {
@@ -598,9 +588,7 @@ pub fn indexed_integer_bound_root(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let (symbol, mut segments, is_mutable, type_reference) =
         match program.expression_table.expression(indexed.collection) {
             ExpressionNode::Name(path) => {

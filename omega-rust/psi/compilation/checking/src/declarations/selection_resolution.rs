@@ -9,7 +9,6 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
 };
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuthoredSelectionResolution {
@@ -214,9 +213,7 @@ pub fn exact_named_operator_call<'program>(
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     typed_trees::operator::resolve_named_expression_call(program, call).or_else(|| {
-        let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
-            return None;
-        };
+        let path = program.expression_table.name_path_node(call.receiver)?;
         let static_segments = program
             .expression_table
             .name_path_members(path.members)

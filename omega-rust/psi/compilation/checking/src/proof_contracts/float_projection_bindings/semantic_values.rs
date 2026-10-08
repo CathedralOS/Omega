@@ -71,9 +71,7 @@ fn closed_meaning(
     remaining_work: &mut usize,
 ) -> Option<ClosedFloatMeaning> {
     *remaining_work = remaining_work.checked_sub(1)?;
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     if let Some((selected_operator, _, operation, _)) =
         crate::proof_contracts::float_projection_invocations::exact_projection_operation(
@@ -83,8 +81,7 @@ fn closed_meaning(
         let [source] = arguments else { return None };
         let (format, meaning) =
             closed_projection_source(operation, program.expression_table.expression(*source))?;
-        let operator = program
-            .operator_definition_by_symbol(selected_operator)?;
+        let operator = program.operator_definition_by_symbol(selected_operator)?;
         return Some(ClosedFloatMeaning {
             format,
             meaning,

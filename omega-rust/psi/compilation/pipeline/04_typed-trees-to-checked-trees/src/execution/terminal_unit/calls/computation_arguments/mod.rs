@@ -101,9 +101,7 @@ pub(crate) fn structural_computation_argument(
     ) {
         return Some(argument);
     }
-    let ExpressionNode::Name(name) = program.expression_table.expression(named) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(named)?;
     if !name.symbol.is_valid()
         || name.head_symbol != name.symbol
         || program
@@ -195,8 +193,7 @@ pub(crate) fn subslice_computation_argument(
     }
     exact_actual(program, call, expression, target)?;
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
-    let owner = program
-        .machine(machine)?;
+    let owner = program.machine(machine)?;
     let place = validation::canonical_place_from_expression_in_state(
         program,
         state.symbol,

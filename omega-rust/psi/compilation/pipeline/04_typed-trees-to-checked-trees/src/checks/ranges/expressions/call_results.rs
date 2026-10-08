@@ -17,9 +17,7 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(Option<i64>, Option<i64>)> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     // Internal operator shapes are not ordinary machine calls; their target
     // must not borrow a machine contract. A dispatched requirement's private
     // realization is likewise not the public proof interface.
@@ -87,8 +85,7 @@ impl EnsuredResultBounds {
             self.fold_conjunct(program, atomic.value);
             return;
         }
-        let Some(comparison) = program.expression_table.binary_node(conjunct)
-        else {
+        let Some(comparison) = program.expression_table.binary_node(conjunct) else {
             return;
         };
         if comparison.operator == BinaryOperator::And {

@@ -354,10 +354,10 @@ fn argument_contract(
                 return None;
             }
             return Some(CheckedUnitStructuralArgumentPlan::structural_result(
-                    result.binding_ordinal,
-                    target_identity.to_owned(),
-                    access,
-                ));
+                result.binding_ordinal,
+                target_identity.to_owned(),
+                access,
+            ));
         }
         // Keep the common loan's logical root coordinate. Replacing its source
         // with a physical result ordinal would lose the carrier join needed
@@ -764,9 +764,7 @@ fn argument_contract(
             if producers.next().is_some() || producer.call_ordinal <= call.call_ordinal {
                 return None;
             }
-            let ExpressionNode::Call(authored) = program.expression_table.expression(source) else {
-                return None;
-            };
+            let authored = program.expression_table.call_node(source)?;
             let completed = super::super::control::structural_operands::result(
                 program,
                 machine,

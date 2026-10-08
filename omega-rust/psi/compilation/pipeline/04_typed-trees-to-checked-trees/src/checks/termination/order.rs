@@ -294,11 +294,7 @@ impl RankingOrder {
                 // The subject may reach that record through a reference: the
                 // view reads the referent's fields, and the self-loop prover
                 // separately keeps the binding and the ranked path unwritten.
-                let ExpressionNode::Name(subject_path) =
-                    program.expression_table.expression(decreases)
-                else {
-                    return None;
-                };
+                let subject_path = program.expression_table.name_path_node(decreases)?;
                 let subject = program.state_parameters(state).iter().find(|parameter| {
                     (parameter.symbol.is_valid())
                         && parameter.symbol == subject_path.symbol
@@ -503,9 +499,7 @@ fn state_parameter_of_expression<'program>(
     state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     let last = program
         .expression_table
         .name_path_members(path.members)

@@ -546,12 +546,8 @@ fn length_occurrence<'lengths>(
     expression: ExpressionHandle,
     lengths: &'lengths [Length],
 ) -> Option<&'lengths Length> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let ExpressionNode::Name(name) = program.expression_table.expression(member.receiver) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
+    let name = program.expression_table.name_path_node(member.receiver)?;
     if !name.symbol.is_valid()
         || name.symbol != name.head_symbol
         || program

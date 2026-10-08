@@ -208,9 +208,7 @@ pub(super) fn integer_value_identity(
                 bound_lookup,
                 expression,
             )?;
-            let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
-                return None;
-            };
+            let path = program.expression_table.name_path_node(normalized)?;
             Some(path.symbol)
         })?;
     for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {

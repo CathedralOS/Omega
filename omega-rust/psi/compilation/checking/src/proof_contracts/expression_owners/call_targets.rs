@@ -11,7 +11,7 @@ use super::{InferredType, OwnerEnvironmentIndex, OwnerMemberTarget, TypeEnvironm
 use symbols::JoinedPath;
 /// Handle-keyed indexes and reach sets take the integer hasher.
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
+use typed_trees::expression::{ExpressionHandle, TableMemberExpression};
 use typed_trees::types::TypeReferenceHandle;
 
 pub fn checked_member_target_from_exact_owner(
@@ -292,9 +292,7 @@ pub(super) fn exact_static_data_receiver(
     receiver: ExpressionHandle,
     environment: &TypeEnvironment,
 ) -> Option<InferredType> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(receiver) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(receiver)?;
     let members = program.expression_table.name_path_members(path.members);
     let selected =
         crate::resolve_name_path_member_symbol(program, path, members.len().checked_sub(1)?);

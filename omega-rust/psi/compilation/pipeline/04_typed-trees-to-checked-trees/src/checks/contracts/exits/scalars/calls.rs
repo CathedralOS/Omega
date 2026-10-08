@@ -80,9 +80,7 @@ impl ExitScalars<'_, '_> {
         } else {
             return None;
         };
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(formal) else {
-            return None;
-        };
+        let path = self.program.expression_table.name_path_node(formal)?;
         let (position, parameter) = self
             .program
             .state_parameters(call.entry)

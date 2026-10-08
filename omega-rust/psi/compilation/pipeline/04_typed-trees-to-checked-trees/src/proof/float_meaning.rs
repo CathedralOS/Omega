@@ -296,9 +296,7 @@ fn direct_machine_result_source(
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<symbols::SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(fact.source)?;
     let [name] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
@@ -338,9 +336,7 @@ fn direct_machine_parameter_source(
     carriers: &ContractCarriers,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(fact.source)?;
     if program
         .expression_table
         .name_path_members(path.members)
@@ -378,9 +374,7 @@ fn direct_block_parameter_source(
     symbols::SymbolHandle,
     symbols::SymbolHandle,
 )> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(fact.source)?;
     if program
         .expression_table
         .name_path_members(path.members)

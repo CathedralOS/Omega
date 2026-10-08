@@ -206,9 +206,7 @@ pub(super) fn expression_member_name(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, Option<&str>)> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     Some((member.member_symbol, Some(member.member.as_str())))
 }
 

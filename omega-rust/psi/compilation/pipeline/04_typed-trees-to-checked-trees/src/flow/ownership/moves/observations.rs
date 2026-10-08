@@ -80,9 +80,7 @@ pub(super) fn append_indexed_operands(
 ) -> Option<bool> {
     let operator_symbol = selected_operator(sink, state, statement, expression)?;
     let operator = typed_trees::operator::declaration_by_symbol(program, operator_symbol)?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let operands = match program.expression_table.expression(indexed.index) {
         ExpressionNode::Range(range) => [indexed.collection, range.start, range.end],
         _ => [

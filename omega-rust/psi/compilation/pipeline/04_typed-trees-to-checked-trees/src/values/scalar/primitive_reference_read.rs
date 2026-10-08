@@ -2,7 +2,7 @@
 
 use checked_trees::{CheckedBooleanExpression, CheckedScalarExpression};
 use typed_trees::{
-    expression::{ExpressionHandle, ExpressionNode},
+    expression::ExpressionHandle,
     signature::StateParameter,
     types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode},
 };
@@ -31,9 +31,7 @@ pub(super) fn declared(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(expression)?;
     if !name.symbol.is_valid()
         || name.symbol != name.head_symbol
         || program

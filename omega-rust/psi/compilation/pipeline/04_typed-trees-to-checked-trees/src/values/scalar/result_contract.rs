@@ -136,9 +136,7 @@ impl ContractPredicates<'_, '_> {
 
     fn subject(&self, expression: ExpressionHandle) -> Option<(usize, TypeReferenceHandle, bool)> {
         let program = self.program;
-        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-            return None;
-        };
+        let path = program.expression_table.name_path_node(expression)?;
         if let Some((position, parameter)) =
             self.parameters.iter().enumerate().find(|(_, parameter)| {
                 parameter.symbol == path.symbol && path.head_symbol == parameter.symbol

@@ -848,9 +848,7 @@ impl ExpressionTable {
         &mut self,
         indexed: TableIndexedExpression,
     ) -> Option<TableNamePath> {
-        let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
-            return None;
-        };
+        let index = self.integer_node(indexed.index)?;
         // An index beyond i64 cannot name a real element; treat it like any
         // non-constant index (no synthetic const-index path).
         let index = index.value_i64()?;

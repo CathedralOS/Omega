@@ -313,9 +313,7 @@ pub fn borrowed_initializer_source(
         borrow.target,
         MAX_REFERENCE_ORIGIN_DEPTH,
     )?;
-    let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(cursor)?;
     let [name] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
@@ -414,11 +412,7 @@ pub fn borrowed_initializer_source(
                 owner_type = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
-                let ExpressionNode::Integer(index) =
-                    program.expression_table.expression(indexed.index)
-                else {
-                    return None;
-                };
+                let index = program.expression_table.integer_node(indexed.index)?;
                 segments.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(index.value_i64()?).ok()?,
                 ));
@@ -738,11 +732,7 @@ fn aggregate_projection(
                 ) {
                     return None;
                 }
-                let ExpressionNode::Integer(index) =
-                    program.expression_table.expression(indexed.index)
-                else {
-                    return None;
-                };
+                let index = program.expression_table.integer_node(indexed.index)?;
                 let index = usize::try_from(index.value_i64()?).ok()?;
                 let TypeReferenceNode::FixedArray {
                     element_type,
@@ -1608,9 +1598,7 @@ fn call_actual_leaf_loans(
         .expression_table
         .expression_handles(call.arguments)
         .get(position)?;
-    let ExpressionNode::Name(name) = program.expression_table.expression(actual) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(actual)?;
     if name.head_symbol != name.symbol
         || program
             .expression_table
@@ -1959,9 +1947,7 @@ pub fn record_argument(
         return None;
     }
     let projection = aggregate_projection(program, state, expression)?;
-    let ExpressionNode::Name(name) = program.expression_table.expression(projection.root) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(projection.root)?;
     if name.symbol != local.symbol
         || name.head_symbol != local.symbol
         || !matches!(program.expression_table.name_path_members(name.members), [name] if *name == local.name)

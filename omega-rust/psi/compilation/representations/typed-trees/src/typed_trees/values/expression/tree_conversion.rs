@@ -455,9 +455,7 @@ impl ExpressionTable {
     }
 
     fn indexed_expression_path(&self, indexed: &TableIndexedExpression) -> Option<NamePath> {
-        let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
-            return None;
-        };
+        let index = self.integer_node(indexed.index)?;
         let mut path = match self.expression(indexed.collection) {
             ExpressionNode::Name(path) => self.name_path_to_tree(path),
             ExpressionNode::Indexed(inner_indexed) => {

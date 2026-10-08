@@ -118,7 +118,8 @@ pub(super) fn for_each_statement_containing(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let mut expressions = Vec::new();
                 validation::expression_traversal::collect_statement_expression_trees(
@@ -199,9 +200,7 @@ fn member_symbol_from_type_reference(
                 typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_fields(variant)
                     .iter()
-                    .find_map(|field| {
-                        (field.name.as_str() == member_name).then_some(field.symbol)
-                    }),
+                    .find_map(|field| (field.name.as_str() == member_name).then_some(field.symbol)),
                 _ => None,
             })
     })

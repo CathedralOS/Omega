@@ -26,9 +26,7 @@ pub(crate) fn where_fact_interval(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     let definition = data_definition_for_expression(program, machine, state, member.receiver)?;
     field_fact_interval(program, definition, member.member.as_str(), 0)
 }
@@ -212,10 +210,7 @@ fn field_intervals(
         // These intervals are integer facts. A float literal bound is an IEEE
         // comparison whose meaning depends on the field's format, so it does
         // not reduce to one here.
-        let ExpressionNode::Integer(value) = program.expression_table.expression(bound.literal)
-        else {
-            return None;
-        };
+        let value = program.expression_table.integer_node(bound.literal)?;
         let bound_value = value.text().parse::<i64>().ok()?;
         let (low, high) = match bound.operator {
             BinaryOperator::LessOrEqual => (None, Some(bound_value)),
@@ -349,9 +344,7 @@ pub(crate) fn stored_field_where_interval(
     state: &State,
     target: ExpressionHandle,
 ) -> Option<Interval> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(target) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(target)?;
     let definition =
         data_definition_for_expression(program, machine, Some(state), member.receiver)?;
     let field = program
@@ -453,9 +446,7 @@ fn factor_lower_bound(
     definition: &DataDefinition,
     factor: ExpressionHandle,
 ) -> Option<i64> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(factor) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(factor)?;
     let factor_name = program
         .expression_table
         .name_path_members(path.members)

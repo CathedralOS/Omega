@@ -151,9 +151,7 @@ fn operand_interval(
     if !allow_formals {
         return None;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
         return None;
     }

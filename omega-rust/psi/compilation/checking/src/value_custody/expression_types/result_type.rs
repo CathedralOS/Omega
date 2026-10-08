@@ -228,11 +228,7 @@ fn result_type(
             ) =>
         {
             (|| {
-                let ExpressionNode::Range(range) =
-                    program.expression_table.expression(indexed.index)
-                else {
-                    return None;
-                };
+                let range = program.expression_table.range_node(indexed.index)?;
                 if range.end_inclusive {
                     return None;
                 }
@@ -269,7 +265,9 @@ fn result_type(
                 }
                 // A fresh descriptor preserves elements and the source loan's
                 // access, but carries no source collection value predicates.
-                let carrier = program.type_reference_table.unconstrained_type_reference(collection);
+                let carrier = program
+                    .type_reference_table
+                    .unconstrained_type_reference(collection);
                 let (access, carrier) = match program.type_reference_table.type_reference(carrier) {
                     TypeReferenceNode::Reference {
                         access, referee, ..
@@ -279,7 +277,9 @@ fn result_type(
                 if access == language_core::ReferenceAccess::WriteOnly {
                     return None;
                 }
-                let carrier = program.type_reference_table.unconstrained_type_reference(carrier);
+                let carrier = program
+                    .type_reference_table
+                    .unconstrained_type_reference(carrier);
                 let element = match program.type_reference_table.type_reference(carrier) {
                     TypeReferenceNode::Slice { element_type }
                     | TypeReferenceNode::FixedArray { element_type, .. } => *element_type,

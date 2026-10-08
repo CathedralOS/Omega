@@ -521,9 +521,7 @@ impl<'program> Reader<'program> {
                 ));
                 continue;
             }
-            let ExpressionNode::Name(_) = self.program.expression_table.expression(operand) else {
-                return None;
-            };
+            let _ = self.program.expression_table.name_path_node(operand)?;
             let subject = self.subject(operand, depth + 1)?;
             if !subject.path.is_empty() {
                 return None;
@@ -679,8 +677,7 @@ impl<'program> Reader<'program> {
     }
 
     fn parameter(&self, expression: ExpressionHandle, _allow_self: bool) -> Option<usize> {
-        let Some(name) = self.program.expression_table.name_path_node(expression)
-        else {
+        let Some(name) = self.program.expression_table.name_path_node(expression) else {
             return None;
         };
         let [spelling] = self
@@ -708,8 +705,7 @@ impl<'program> Reader<'program> {
         {
             return None;
         }
-        let Some(member) = self.program.expression_table.member_node(expression)
-        else {
+        let Some(member) = self.program.expression_table.member_node(expression) else {
             let position = self.parameter(expression, true)?;
             return Some(FieldPath {
                 parameter_position: position,

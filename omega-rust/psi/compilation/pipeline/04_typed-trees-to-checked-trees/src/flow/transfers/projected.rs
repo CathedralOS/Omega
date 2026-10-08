@@ -22,7 +22,7 @@ use crate::flow::FlowBuildContext;
 use crate::flow::origin_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 use checked_trees::statement::StatementNode;
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use language_semantics::declaration_selection::CollectionViewOperation;
@@ -214,9 +214,7 @@ pub(super) fn collection_view_source_place(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<PlaceHandle> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     if !matches!(
         validation::collection_operations::collection_view_call(program, call),
         Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)

@@ -79,9 +79,7 @@ fn recursive_tail_target(
     path_members: &mut Arena<DiagnosticName>,
     expression: ExpressionHandle,
 ) -> Option<NamedTransitionTarget> {
-    let ExpressionNode::Call(call) = expressions.expression(expression) else {
-        return None;
-    };
+    let call = expressions.call_node(expression)?;
     if !entry_symbol.is_valid()
         || (call.target_symbol != entry_symbol && call.target_symbol != machine.symbol)
         || !call.machine_arguments.is_empty()

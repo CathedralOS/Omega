@@ -20,7 +20,7 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
-use crate::execution::terminal_unit::ExpressionNode;
+
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::StatementNode;
@@ -322,9 +322,7 @@ pub(in crate::execution) fn admit_replayed(
         statement_index,
     )?;
     let operation = validation::subslice_expression(program, expression)?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(operation)?;
     let authored = program.expression_table.range_node(indexed.index)?;
     let statement_ordinal = u32::try_from(statement_index).ok()?;
     let endpoint = |endpoint: ExpressionHandle, role| {
@@ -420,9 +418,7 @@ fn shape_of_kind(
 ) -> Option<ViewRange> {
     let access = borrowed_view_access(program, target, expression)?;
     let expression = validation::subslice_expression(program, expression)?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let type_identity = view_identity(program, kind, target)?;
     if let Some((root, collection, storage)) = array_collection(
         program,
@@ -451,9 +447,9 @@ fn shape_of_kind(
                 type_identity,
             });
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(indexed.collection) else {
-        return None;
-    };
+    let path = program
+        .expression_table
+        .name_path_node(indexed.collection)?;
     if !path.symbol.is_valid()
         || path.head_symbol != path.symbol
         || program

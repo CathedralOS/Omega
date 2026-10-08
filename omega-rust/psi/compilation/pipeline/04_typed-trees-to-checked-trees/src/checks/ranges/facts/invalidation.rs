@@ -93,15 +93,12 @@ impl RangeFacts<'_> {
         state: &State,
         target: typed_trees::expression::ExpressionHandle,
     ) -> Option<(String, Option<i64>, Option<i64>)> {
-        use typed_trees::expression::ExpressionNode;
         if !crate::checks::ranges::indexes::is_builtin_scalar_index(
             program, machine, state, self, target,
         ) {
             return None;
         }
-        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
-            return None;
-        };
+        let indexed = program.expression_table.indexed_node(target)?;
         let Some(name) = program.expression_table.name_path_node(indexed.collection) else {
             return None;
         };

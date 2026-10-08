@@ -774,9 +774,7 @@ pub(super) fn structural_storage_place(
     // root from retained path-member symbols. A parameter observation must
     // authenticate the original occurrence too: stale or foreign head/leaf
     // symbols cannot acquire a formal's authority from that fallback.
-    let ExpressionNode::Name(name) = program.expression_table.expression(authored) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(authored)?;
     let names = program.expression_table.name_path_members(name.members);
     let (storage_root, declared_type, is_mutable) = if matches!(names, [spelling] if spelling.is_self_receiver())
     {
@@ -928,9 +926,7 @@ fn whole_local_binding<'a>(
     symbols::SymbolHandle,
     &'a typed_trees::statement::TableLocalData,
 )> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     if !path.symbol.is_valid()
         || path.head_symbol != path.symbol
         || program

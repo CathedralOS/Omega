@@ -571,9 +571,7 @@ pub fn exact_case_reference_owner(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Name(case) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let case = program.expression_table.name_path_node(expression)?;
     let table = &program.expression_table;
     let members = table.name_path_members(case.members);
     let selected = table.name_path_member_symbols(case.member_symbols);

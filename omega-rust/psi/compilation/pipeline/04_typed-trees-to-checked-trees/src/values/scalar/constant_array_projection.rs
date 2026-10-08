@@ -43,9 +43,7 @@ pub(super) fn selected_leaf(
         else {
             return None;
         };
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(index) else {
-            return None;
-        };
+        let literal = program.expression_table.integer_node(index)?;
         if literal.landing().is_some_and(|landing| {
             landing.landed_type == numerics::literals::LandedIntegerType::Addr
                 || landing.domain != ArithmeticDomain::Exact

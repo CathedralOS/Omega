@@ -26,9 +26,7 @@ pub(super) fn establishes_scalar_predicates(
     let Some(machine) = program.machine(exit.machine_symbol) else {
         return false;
     };
-    let Some(state) =
-        validation::find_state_for_exit(program, exit)
-    else {
+    let Some(state) = validation::find_state_for_exit(program, exit) else {
         return false;
     };
     let proof = ScalarReturnProof {
@@ -297,10 +295,8 @@ impl ScalarReturnProof<'_> {
         &self,
         mut expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<typed_trees::expression::ExpressionHandle> {
-        use typed_trees::expression::ExpressionNode;
         for _ in 0..128 {
-            let Some(cast) = self.program.expression_table.cast_node(expression)
-            else {
+            let Some(cast) = self.program.expression_table.cast_node(expression) else {
                 return Some(expression);
             };
             if cast.form.is_recast() || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
@@ -316,11 +312,7 @@ impl ScalarReturnProof<'_> {
             )
             .and_then(|reference| self.program.primitive_type_reference(reference));
             if source != Some(target) {
-                let ExpressionNode::Integer(literal) =
-                    self.program.expression_table.expression(cast.value)
-                else {
-                    return None;
-                };
+                let literal = self.program.expression_table.integer_node(cast.value)?;
                 if literal.landing().is_some()
                     || validation::land_integer_value(&literal.value_bignum()?, target).is_none()
                 {

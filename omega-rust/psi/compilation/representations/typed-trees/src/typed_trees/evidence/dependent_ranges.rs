@@ -142,9 +142,7 @@ fn bound_anchor_and_offset(
     let ExpressionNode::Binary(binary) = table.expression(bound) else {
         return Some((bound, 0));
     };
-    let ExpressionNode::Integer(literal) = table.expression(binary.right) else {
-        return None;
-    };
+    let literal = table.integer_node(binary.right)?;
     let magnitude = literal.value_i64()?;
     let offset = match binary.operator {
         BinaryOperator::Add => magnitude,
@@ -220,12 +218,8 @@ fn subject_field_name(
     expression: ExpressionHandle,
 ) -> Option<(Identifier, Identifier)> {
     let table = &program.expression_table;
-    let ExpressionNode::Member(member) = table.expression(expression) else {
-        return None;
-    };
-    let ExpressionNode::Name(path) = table.expression(member.receiver) else {
-        return None;
-    };
+    let member = table.member_node(expression)?;
+    let path = table.name_path_node(member.receiver)?;
     let [only] = table.name_path_members(path.members) else {
         return None;
     };
@@ -284,17 +278,13 @@ pub fn sibling_range_maximum(
 /// not hold the subject position (`main.len` is the field class).
 fn bare_name_len(program: &crate::TypedTrees, expression: ExpressionHandle) -> Option<Identifier> {
     let table = &program.expression_table;
-    let ExpressionNode::Member(member) = table.expression(expression) else {
-        return None;
-    };
+    let member = table.member_node(expression)?;
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
         != Some(CollectionMeasure::Length)
     {
         return None;
     };
-    let ExpressionNode::Name(path) = table.expression(member.receiver) else {
-        return None;
-    };
+    let path = table.name_path_node(member.receiver)?;
     let [only] = table.name_path_members(path.members) else {
         return None;
     };
@@ -337,9 +327,7 @@ fn scoped_name_anchor(
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let table = &program.expression_table;
-    let ExpressionNode::Name(path) = table.expression(expression) else {
-        return None;
-    };
+    let path = table.name_path_node(expression)?;
     if table.name_path_members(path.members).len() != 1 {
         return None;
     };

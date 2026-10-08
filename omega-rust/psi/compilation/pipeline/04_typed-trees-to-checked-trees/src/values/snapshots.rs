@@ -166,10 +166,7 @@ pub(crate) fn integer_bounds_from_payloads(
             FactPayload::AssignedValue { value }
                 if program.expression_table.expression_is_valid(value) =>
             {
-                let ExpressionNode::Integer(literal) = program.expression_table.expression(value)
-                else {
-                    return None;
-                };
+                let literal = program.expression_table.integer_node(value)?;
                 let value = literal.value_bignum()?;
                 facts::IntegerRange {
                     minimum: value.clone(),

@@ -132,9 +132,7 @@ fn selected_format_conversion_bounds(
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<FloatInterval> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
     let (source, target) = crate::float_format_conversion_contract(program, operator)?;
     let [operand] = program.expression_table.expression_handles(call.arguments) else {

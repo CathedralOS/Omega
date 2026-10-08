@@ -361,9 +361,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<LoweredCallArguments> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
         return None;
     }

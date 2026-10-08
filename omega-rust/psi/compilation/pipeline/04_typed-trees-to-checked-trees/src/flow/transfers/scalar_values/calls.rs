@@ -7,7 +7,7 @@ use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::transfers::scalar_values::LiveValues;
 use crate::flow::transfers::scalar_values::retains_values_across_unit_call;
 use arena::HandleSpan;
-use checked_trees::expression::ExpressionNode;
+
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowFacts, FlowSemanticContextRef};
 use facts::FactPlan;
@@ -292,11 +292,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
                 )
             }
             StatementNode::Assignment(assignment) => {
-                let ExpressionNode::Name(path) =
-                    program.expression_table.expression(assignment.target)
-                else {
-                    return None;
-                };
+                let path = program.expression_table.name_path_node(assignment.target)?;
                 if !values
                     .storage
                     .iter()

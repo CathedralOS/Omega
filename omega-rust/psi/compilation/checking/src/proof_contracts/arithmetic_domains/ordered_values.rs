@@ -385,12 +385,10 @@ pub(super) fn byte_store_collection(
     if !crate::place_has_builtin_coordinates(program, machine, Some(state), target) {
         return None;
     }
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
-        return None;
-    };
-    let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(target)?;
+    let name = program
+        .expression_table
+        .name_path_node(indexed.collection)?;
     let Some(element_type) =
         crate::mutable_byte_slice_parameter_element(program, state, name.symbol)
     else {

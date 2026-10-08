@@ -51,9 +51,7 @@ pub(super) fn state_rank(
     use checked_trees::CheckedNaturalRankMeasure;
     use typed_trees::types::PrimitiveType;
     let plain = |subject: ExpressionHandle| {
-        let ExpressionNode::Name(_) = program.expression_table.expression(subject) else {
-            return None;
-        };
+        let _ = program.expression_table.name_path_node(subject)?;
         program
             .state_parameters(state)
             .iter()
@@ -165,9 +163,7 @@ pub(super) fn carried_subject<'program>(
     entries: &[symbols::SymbolHandle],
     subject: ExpressionHandle,
 ) -> Option<(usize, &'program typed_trees::signature::StateParameter)> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(subject)?;
     if !name.symbol.is_valid() || name.head_symbol != name.symbol {
         return None;
     }
@@ -224,9 +220,7 @@ pub(super) fn carried_direct_countdown_edge(
     source_entries: &[symbols::SymbolHandle],
     target_entries: &[symbols::SymbolHandle],
 ) -> Option<DirectCountdownEdge> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(decreases) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(decreases)?;
     if !name.symbol.is_valid() || name.head_symbol != name.symbol {
         return None;
     }

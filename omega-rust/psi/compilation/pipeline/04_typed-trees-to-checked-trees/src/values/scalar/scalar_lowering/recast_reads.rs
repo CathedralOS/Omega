@@ -27,9 +27,7 @@ pub(crate) fn recast_view_operand(
     expression = program
         .expression_table
         .peeled_expression_handle(expression);
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let cast = program.expression_table.cast_node(expression)?;
     if !cast.form.is_recast() {
         return None;
     }

@@ -710,9 +710,7 @@ fn immutable_argument_symbol(
     expression: ExpressionHandle,
     bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     if path.head_symbol != path.symbol
         || program
             .expression_table
@@ -729,9 +727,7 @@ fn immutable_argument_symbol(
     let symbol = if let Some(normalized) =
         validation::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
     {
-        let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
-            return None;
-        };
+        let path = program.expression_table.name_path_node(normalized)?;
         path.symbol
     } else {
         validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)?

@@ -11,7 +11,7 @@ use crate::flow::ownership::moves;
 use crate::flow::ownership::type_requires_ownership;
 
 use checked_trees::BorrowCallFact;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
 pub(in crate::flow) fn append_call_ownership_events(
@@ -134,9 +134,7 @@ fn affine_call_result_type(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let (receiver_symbol, receiver_path) = validation::call_receiver_parts(program, call.receiver);
     let target = validation::resolve_state_call_target(
         program,

@@ -559,9 +559,7 @@ pub(in crate::execution::terminal_unit) fn result(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let return_type = crate::values::nested_structural_call_return_type(program, caller, call)?;
     let mut owners = program.machines().iter().filter_map(|owner| {
         let [state] = program.machine_states(owner) else {

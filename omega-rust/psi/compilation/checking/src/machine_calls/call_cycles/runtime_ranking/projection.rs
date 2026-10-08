@@ -1,6 +1,6 @@
 use crate::proof_contracts::contract_entailment::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
-    find_declared_measure, measure_body_shape, 
+    find_declared_measure, measure_body_shape,
 };
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
@@ -280,11 +280,15 @@ impl RankProjection {
                 measure_body_shape(program, measure)
         {
             let root = path.first().map_or(owner, |step| step.owner);
-            let mut reference = program.type_reference_table.unconstrained_type_reference(parameter.type_reference);
+            let mut reference = program
+                .type_reference_table
+                .unconstrained_type_reference(parameter.type_reference);
             if let TypeReferenceNode::Reference { referee, .. } =
                 program.type_reference_table.type_reference(reference)
             {
-                reference = program.type_reference_table.unconstrained_type_reference(*referee);
+                reference = program
+                    .type_reference_table
+                    .unconstrained_type_reference(*referee);
             }
             if !matches!(
                 program.type_reference_table.type_reference(reference),
@@ -357,8 +361,7 @@ impl RankProjection {
             // Lexicographic syntax declares unqualified projections in its
             // exact owner. No arbitrary member expression or global name
             // search can contribute a ranking component.
-            let Some(component) = program.expression_table.name_path_node(*component)
-            else {
+            let Some(component) = program.expression_table.name_path_node(*component) else {
                 return None;
             };
             let [name] = program
@@ -524,9 +527,7 @@ fn entry_parameter<'program>(
         visited.push(cursor);
         cursor = unwrapped(program, member.receiver);
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(cursor)?;
     if !path.symbol.is_valid() {
         return None;
     }
@@ -607,7 +608,9 @@ fn unsigned_carrier_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    reference = program.type_reference_table.unconstrained_type_reference(reference);
+    reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
     matches!(
         primitive,

@@ -41,10 +41,7 @@ pub fn builtin_monotonic_integer_update_bounds(
         BinaryOperator::Add | BinaryOperator::Subtract => (binary.left, binary.right),
         _ => return None,
     };
-    let ExpressionNode::Integer(literal_value) = program.expression_table.expression(literal)
-    else {
-        return None;
-    };
+    let literal_value = program.expression_table.integer_node(literal)?;
     let step = literal_value.value_i64().filter(|step| *step > 0)?;
     let operand_type = declared_place_type_raw(program, machine, Some(state), operand)?;
     let primitive = program.primitive_type_reference(operand_type)?;

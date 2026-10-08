@@ -1278,9 +1278,7 @@ impl EnsuresProjection<'_> {
                 },
             });
         }
-        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-            return None;
-        };
+        let path = program.expression_table.name_path_node(expression)?;
         let [parameter_name] = program.expression_table.name_path_members(path.members) else {
             return None;
         };

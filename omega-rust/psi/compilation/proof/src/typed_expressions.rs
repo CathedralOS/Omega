@@ -134,9 +134,7 @@ fn dehoisted_initializer(
     state: &State,
     operand: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(operand) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(operand)?;
     if !path.symbol.is_valid() {
         return None;
     }

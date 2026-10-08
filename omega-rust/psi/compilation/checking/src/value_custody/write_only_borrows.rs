@@ -1114,9 +1114,7 @@ fn write_only_element_assignment_index(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let (collection_type, direct_byte_slice) =
         if let Some(root) = direct_write_only_root(program, indexed.collection, roots) {
             (root.referee, is_byte_slice(program, root.referee))
@@ -1471,9 +1469,7 @@ fn binding_without_write_authority(
     state: &State,
     target: ExpressionHandle,
 ) -> Option<String> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(target)?;
     if program
         .expression_table
         .name_path_members(path.members)
@@ -1509,9 +1505,7 @@ fn direct_write_only_root<'a>(
     expression: ExpressionHandle,
     roots: &'a [WriteOnlyRoot],
 ) -> Option<&'a WriteOnlyRoot> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     (program
         .expression_table
         .name_path_members(path.members)

@@ -521,9 +521,7 @@ fn constant_local_index(
     state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<usize> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(expression)?;
     let source_state = program.state_by_symbol(state_symbol)?;
     let local = program
         .statement_table
@@ -556,9 +554,7 @@ fn runtime_index_parameter_position(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<u32> {
     let state = program.state_by_symbol(state_symbol)?;
-    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(expression)?;
     let parameters = program.state_parameters(state);
     let authored_position = crate::values::parameter_position(program, name, parameters)?;
     // A mutable selector's live value is storage, not the immutable entry

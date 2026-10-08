@@ -118,9 +118,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         let StatementNode::Expression(expression) = statement else {
             return None;
         };
-        let ExpressionNode::Name(path) = program.expression_table.expression(*expression) else {
-            return None;
-        };
+        let path = program.expression_table.name_path_node(*expression)?;
         if path.head_symbol != path.symbol
             || program
                 .expression_table
@@ -422,7 +420,12 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 });
             let value = if let Some(root) = roots.next() {
                 if roots.next().is_some()
-                    || !computations.is_authored_root(root, machine.symbol, *expression, primitive_type)
+                    || !computations.is_authored_root(
+                        root,
+                        machine.symbol,
+                        *expression,
+                        primitive_type,
+                    )
                     || facts
                         .values
                         .scalar_expressions

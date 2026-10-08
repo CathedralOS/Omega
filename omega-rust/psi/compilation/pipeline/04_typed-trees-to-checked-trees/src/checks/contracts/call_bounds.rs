@@ -311,9 +311,7 @@ fn immutable_capture_bounds(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     if path.head_symbol != path.symbol
         || program
             .expression_table

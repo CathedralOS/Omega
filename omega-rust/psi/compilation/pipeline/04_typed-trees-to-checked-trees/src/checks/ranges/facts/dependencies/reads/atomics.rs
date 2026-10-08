@@ -3,7 +3,7 @@
 
 use validation::CanonicalPlace;
 
-use super::super::{ExpressionHandle, ExpressionNode, Machine, State};
+use super::super::{ExpressionHandle, Machine, State};
 use super::operands::{collect_operand_reads, collect_place_read};
 use super::root_currency::root_is_current;
 use crate::checks::ranges::facts::RangeCallContext;
@@ -211,9 +211,7 @@ pub(super) fn atomic_local_name_symbol(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     if path.members.count() != 1 {
         return None;
     }

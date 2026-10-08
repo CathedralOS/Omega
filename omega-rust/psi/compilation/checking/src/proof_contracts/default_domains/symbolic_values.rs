@@ -157,8 +157,7 @@ pub(super) fn fold_with_valuation(
         ExpressionNode::Member(member)
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
-            let Some(path) = program.expression_table.name_path_node(member.receiver)
-            else {
+            let Some(path) = program.expression_table.name_path_node(member.receiver) else {
                 return None;
             };
             let field = program
@@ -187,8 +186,7 @@ pub(super) fn fold_with_valuation(
                     definition,
                     expression,
                     &|symbol, primitive| {
-                        let field =
-                            program.data_field(definition, symbol)?;
+                        let field = program.data_field(definition, symbol)?;
                         match valuation
                             .iter()
                             .find(|(name, _)| *name == field.name.as_str())
@@ -256,9 +254,7 @@ pub(super) fn expression_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     path.symbol.is_valid().then_some(path.symbol)
 }
 

@@ -8,7 +8,7 @@ use crate::values::scalar::expression_facts::{
 use checked_trees::{CheckedIntegerRange, CheckedScalarExpression};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::literals::{IntegerLanding, LandedIntegerType};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
 /// An anonymous offset beside an address denotes a count, not another address.
@@ -121,9 +121,7 @@ pub(crate) fn construct_integer_cast(
     operand: CheckedScalarExpression,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let cast = program.expression_table.cast_node(expression)?;
     if cast.form.is_recast() || !cast.semantic_domain.is_empty() {
         return None;
     }
@@ -248,19 +246,13 @@ pub(super) fn exact_inline_literal_subslice_length(
     let receiver = program
         .expression_table
         .authored_length_receiver(expression)?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(receiver) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(receiver)?;
     let range = program.expression_table.range_node(indexed.index)?;
     if !range.start.is_valid() || !range.end.is_valid() {
         return None;
     }
-    let ExpressionNode::Integer(start) = program.expression_table.expression(range.start) else {
-        return None;
-    };
-    let ExpressionNode::Integer(end) = program.expression_table.expression(range.end) else {
-        return None;
-    };
+    let start = program.expression_table.integer_node(range.start)?;
+    let end = program.expression_table.integer_node(range.end)?;
     let length = end
         .value_u64()?
         .checked_add(u64::from(range.end_inclusive))?

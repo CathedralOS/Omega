@@ -9,7 +9,7 @@
 use super::source_liveness::{expression_uses_symbol, statement_uses_symbol};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -59,9 +59,7 @@ fn whole_local_target(
     program: &dyn crate::CheckingInput,
     target: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(target) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(target)?;
     (program
         .expression_table
         .name_path_members(path.members)

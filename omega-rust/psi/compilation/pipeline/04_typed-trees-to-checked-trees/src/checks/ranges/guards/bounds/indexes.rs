@@ -46,9 +46,7 @@ fn len_bound_minus_offset(
     if offset < 0 {
         return None;
     }
-    let ExpressionNode::Member(member) = program.expression_table.expression(binary.left) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(binary.left)?;
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
         != Some(CollectionMeasure::Length)
     {

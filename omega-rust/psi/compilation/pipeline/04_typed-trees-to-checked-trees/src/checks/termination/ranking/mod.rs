@@ -147,8 +147,7 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
     let [decreases] = subjects.as_slice() else {
         return None;
     };
-    let Some(decreases_path) = program.expression_table.name_path_node(*decreases)
-    else {
+    let Some(decreases_path) = program.expression_table.name_path_node(*decreases) else {
         return None;
     };
     let OrderResolution::Resolved(RankingOrder::NatDescending) =
@@ -327,8 +326,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
         let [decreases] = subjects.as_slice() else {
             return None;
         };
-        let Some(decreases_path) = program.expression_table.name_path_node(*decreases)
-        else {
+        let Some(decreases_path) = program.expression_table.name_path_node(*decreases) else {
             return None;
         };
         let OrderResolution::Resolved(RankingOrder::NatDescending) =
@@ -695,9 +693,7 @@ fn measure_entry_mappings(
     let DecreaseMeasure::Single(subject) = measure else {
         return None;
     };
-    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(subject)?;
     if !name.symbol.is_valid() || name.head_symbol != name.symbol {
         return None;
     }

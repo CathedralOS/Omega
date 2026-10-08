@@ -558,10 +558,7 @@ fn static_conformance_requirement_return(
                 .trait_requirements(definition.requires)
                 .iter()
                 .filter_map(|required| {
-                    lowerer
-                        .source_trees
-                        .roots
-                        .trait_definition(required.symbol)
+                    lowerer.source_trees.roots.trait_definition(required.symbol)
                 }),
         );
     }
@@ -923,12 +920,8 @@ fn resolved_symbolic_max_bound(
 ) -> Option<(String, i64)> {
     let expressions = &source_trees.tables.bodies.expressions;
     let subject_field = |handle: ExpressionHandle| -> Option<String> {
-        let ExpressionNode::Member(member) = expressions.expression(handle) else {
-            return None;
-        };
-        let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
-            return None;
-        };
+        let member = expressions.member_node(handle)?;
+        let path = expressions.name_path_node(member.receiver)?;
         let [_] = expressions.name_path_members(path.members) else {
             return None;
         };
@@ -939,9 +932,7 @@ fn resolved_symbolic_max_bound(
         ExpressionNode::Member(_) => Some((subject_field(bound)?, 0)),
         ExpressionNode::Binary(binary) => {
             let field = subject_field(binary.left)?;
-            let ExpressionNode::Integer(literal) = expressions.expression(binary.right) else {
-                return None;
-            };
+            let literal = expressions.integer_node(binary.right)?;
             let magnitude = literal.value_i64()?;
             let offset = match binary.operator {
                 resolved::expression::BinaryOperator::Add => magnitude,
@@ -1175,9 +1166,7 @@ fn dependent_product_index_interval(
         return None;
     }
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    let ExpressionNode::Binary(product) = expressions.expression(left) else {
-        return None;
-    };
+    let product = expressions.binary_node(left)?;
     if product.operator != resolved::expression::BinaryOperator::Multiply {
         return None;
     }
@@ -1220,9 +1209,7 @@ fn strict_dependent_param_field(
     expression: ExpressionHandle,
 ) -> Option<String> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    let ExpressionNode::Name(path) = expressions.expression(expression) else {
-        return None;
-    };
+    let path = expressions.name_path_node(expression)?;
     let [only] = expressions.name_path_members(path.members) else {
         return None;
     };
@@ -1287,17 +1274,13 @@ fn resolved_product_conjunct(
     fb: &str,
 ) -> Option<i64> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
-    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
-        return None;
-    };
+    let binary = expressions.binary_node(guard)?;
     use resolved::expression::BinaryOperator;
     match binary.operator {
         BinaryOperator::And => resolved_product_conjunct(lowerer, machine, binary.left, fa, fb)
             .or_else(|| resolved_product_conjunct(lowerer, machine, binary.right, fa, fb)),
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
-            let ExpressionNode::Binary(product) = expressions.expression(binary.left) else {
-                return None;
-            };
+            let product = expressions.binary_node(binary.left)?;
             if product.operator != BinaryOperator::Multiply {
                 return None;
             }
@@ -1307,9 +1290,7 @@ fn resolved_product_conjunct(
             if !matches {
                 return None;
             }
-            let ExpressionNode::Integer(literal) = expressions.expression(binary.right) else {
-                return None;
-            };
+            let literal = expressions.integer_node(binary.right)?;
             let k = literal.value_i64()?;
             if binary.operator == BinaryOperator::Less {
                 k.checked_sub(1)
@@ -1334,9 +1315,7 @@ fn resolved_product_coupling_operand(
     if let Some((field, 0)) = resolved_symbolic_max_bound(lowerer.source_trees, expression) {
         return Some(field);
     }
-    let ExpressionNode::Cast(cast) = expressions.expression(expression) else {
-        return None;
-    };
+    let cast = expressions.cast_node(expression)?;
     if cast.form.is_recast()
         || !cast.semantic_domain.is_empty()
         || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact

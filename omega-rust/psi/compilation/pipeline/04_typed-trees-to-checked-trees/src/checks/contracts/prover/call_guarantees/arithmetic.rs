@@ -480,9 +480,7 @@ fn admitted_wrapping_unsigned_remainder(
     callable: &Callable<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let cast = program.expression_table.cast_node(expression)?;
     if !exact_same_carrier_policy_erasure(program, callable, cast) {
         return None;
     }

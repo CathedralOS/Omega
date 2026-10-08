@@ -276,10 +276,7 @@ fn contract_structural_place(
         ExpressionNode::Indexed(indexed) => {
             let (root, root_symbol, mut segments) =
                 contract_structural_place(program, indexed.collection)?;
-            let ExpressionNode::Integer(index) = program.expression_table.expression(indexed.index)
-            else {
-                return None;
-            };
+            let index = program.expression_table.integer_node(indexed.index)?;
             segments.push(ContentPlaceSegment::FixedIndex(index.value_u64()?));
             Some((root, root_symbol, segments))
         }

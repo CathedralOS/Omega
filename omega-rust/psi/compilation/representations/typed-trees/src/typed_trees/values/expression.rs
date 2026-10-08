@@ -659,6 +659,14 @@ impl ExpressionTable {
         }
     }
 
+    /// The typed `Integer` node, or `None` for every other kind.
+    pub fn integer_node(&self, handle: ExpressionHandle) -> Option<&IntegerLiteral> {
+        match self.expression(handle) {
+            ExpressionNode::Integer(node) => Some(node),
+            _ => None,
+        }
+    }
+
     /// Whether an exact generational handle still names a live expression.
     /// Custody checks must distinguish a real zero literal from dummy storage.
     #[inline]
@@ -696,9 +704,7 @@ impl ExpressionTable {
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
         use language_semantics::declaration_selection::CollectionMeasure;
-        let ExpressionNode::Member(member) = self.expression(expression) else {
-            return None;
-        };
+        let member = self.member_node(expression)?;
         if CollectionMeasure::from_authored_spelling(member.member.as_str())
             != Some(CollectionMeasure::Length)
             || member.member_symbol.is_valid()
@@ -764,9 +770,7 @@ impl ExpressionTable {
         &self,
         expression: ExpressionHandle,
     ) -> Option<(&TableNamePath, &Identifier)> {
-        let ExpressionNode::Name(path) = self.expression(expression) else {
-            return None;
-        };
+        let path = self.name_path_node(expression)?;
         let [name] = self.name_path_members(path.members) else {
             return None;
         };

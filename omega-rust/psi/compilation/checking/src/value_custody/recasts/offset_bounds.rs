@@ -209,10 +209,7 @@ pub(super) fn composite_offset_upper_bound(
             if left_floor < 0 {
                 return None;
             }
-            let ExpressionNode::Integer(shift) = program.expression_table.expression(binary.right)
-            else {
-                return None;
-            };
+            let shift = program.expression_table.integer_node(binary.right)?;
             let factor = 1i64.checked_shl(shift.value_i64()?.try_into().ok()?)?;
             offset_operand_bound(program, machine, state, binary.left, BoundSide::Upper)?
                 .checked_mul(factor)

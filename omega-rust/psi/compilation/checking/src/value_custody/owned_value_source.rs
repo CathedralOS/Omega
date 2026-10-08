@@ -3,7 +3,7 @@
 //! availability and each selected transfer's residual ownership independently.
 
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 /// Resolve a whole local or parameter without erasing a borrow, qualification,
@@ -69,9 +69,7 @@ pub(crate) fn whole_owned_value_source(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     if path.symbol != path.head_symbol
         || program
             .expression_table

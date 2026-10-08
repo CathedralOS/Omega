@@ -26,9 +26,7 @@ pub fn slice_recast_byte_region(
 ) -> Option<SliceRecastByteRegion> {
     let authored = super::slice_recast_source(program, expression)?;
     let source = authored.source;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(source)?;
     let collection_type = crate::value_custody::places::declared_place_type(
         program,
         machine,
@@ -66,9 +64,7 @@ pub(super) fn exact_interior_byte_region_offset(
     state: &typed_trees::state::State,
     source: ExpressionHandle,
 ) -> Option<i64> {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(source)?;
     if let ExpressionNode::Integer(literal) = program.expression_table.expression(indexed.index) {
         return literal.value_i64().filter(|offset| *offset >= 0);
     }

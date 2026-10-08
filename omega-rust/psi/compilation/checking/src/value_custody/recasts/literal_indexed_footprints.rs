@@ -66,9 +66,7 @@ fn literal_indexed_recast_preamble<'program>(
         _ => None,
     };
     let initializer = strip_mutable(program, expression);
-    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
-        return None;
-    };
+    let cast = program.expression_table.cast_node(initializer)?;
     if !cast.form.is_recast() {
         return None;
     }
@@ -91,9 +89,7 @@ fn literal_indexed_recast_preamble<'program>(
     }
 
     let source = strip_mutable(program, cast.value);
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(source)?;
     Some((cast, source, indexed))
 }
 
@@ -157,9 +153,7 @@ pub fn validate_literal_indexed_recast_footprint(
         viewed_type,
         access,
     )?;
-    let ExpressionNode::Integer(offset) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
+    let offset = program.expression_table.integer_node(indexed.index)?;
     let start = usize::try_from(offset.value_i64()?).ok()?;
     let end = if let Some(region) =
         slice_backed_recast_region(program, machine, state, expression, cast, source, indexed)?

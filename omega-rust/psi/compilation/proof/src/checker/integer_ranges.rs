@@ -96,8 +96,7 @@ pub(crate) fn apply_handle_condition_complement(
     {
         return apply_handle_condition(proof_plan, range, argument, unary.operand);
     }
-    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition) else {
         return range;
     };
     if !expressions_equivalent_for_proof(proof_plan, binary.left, argument) {
@@ -142,8 +141,7 @@ fn place_refined_binary_range(
     value: ExpressionHandle,
     narrow: impl FnOnce(&ProofPlan, IntegerRange, ExpressionHandle) -> IntegerRange,
 ) -> IntegerRange {
-    let Some(binary) = proof_plan.program.expression_table.binary_node(value)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(value) else {
         return range;
     };
     let (place, literal, place_is_left) =
@@ -457,8 +455,7 @@ fn guard_narrowed_operand_range(
         }
     }
 
-    let Some(binary) = proof_plan.program.expression_table.binary_node(handle)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(handle) else {
         return (narrowed != neutral_range()).then_some(narrowed);
     };
 
@@ -574,12 +571,8 @@ fn operand_declared_primitive(
 ) -> Option<typed_trees::types::PrimitiveType> {
     // Member place (`self.n`): resolve through the attached data's field.
     let program = proof_plan.program;
-    let ExpressionNode::Member(member) = program.expression_table.expression(handle) else {
-        return None;
-    };
-    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(handle)?;
+    let path = program.expression_table.name_path_node(member.receiver)?;
     let [receiver] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
@@ -590,9 +583,7 @@ fn operand_declared_primitive(
         let Some(attached) = machine.attached_data.as_ref() else {
             continue;
         };
-        let Some(data) = program
-            .data_definition_by_name_str(attached.as_str())
-        else {
+        let Some(data) = program.data_definition_by_name_str(attached.as_str()) else {
             continue;
         };
         if let Some(field_type) = ::validation::field_domains::data_field_type_by_name(

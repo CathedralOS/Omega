@@ -23,8 +23,7 @@ pub fn record_local_disposition(
     state: SymbolHandle,
     ordinal: u32,
 ) -> Option<bool> {
-    let owner = program
-        .machine(machine)?;
+    let owner = program.machine(machine)?;
     let source = program
         .machine_states(owner)
         .iter()
@@ -273,11 +272,7 @@ fn initializer_transfer(
                 {
                     return None;
                 }
-                let ExpressionNode::Name(name) =
-                    program.expression_table.expression(node.expression)
-                else {
-                    return None;
-                };
+                let name = program.expression_table.name_path_node(node.expression)?;
                 if name.symbol != source.symbol
                     || name.head_symbol != source.symbol
                     || name.members.count() != 1

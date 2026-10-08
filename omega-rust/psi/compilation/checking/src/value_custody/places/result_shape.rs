@@ -150,7 +150,9 @@ fn projected_type_is_reference(
             },
         };
     }
-    reference = program.type_reference_table.unconstrained_type_reference(reference);
+    reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     reference.is_valid().then(|| {
         matches!(
             program.type_reference_table.type_reference(reference),

@@ -43,7 +43,6 @@ fn literal_target_mismatch_or_none<T>(
     }
 }
 
-
 use super::static_application::substituted_type_matches;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,9 +184,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
     if !program.machine_type_parameters(machine).is_empty() {
         return Err(RelationPlanError::DirectLiftOwnerRequiresSubstitution);
     }
-    let public_parameters = program
-        .public_state_parameters(state)
-        .collect::<Vec<_>>();
+    let public_parameters = program.public_state_parameters(state).collect::<Vec<_>>();
     let arguments = program.expression_table.expression_handles(call.arguments);
     if arguments.len() != representative.parameters.len()
         || input_relations.len() != arguments.len()
@@ -309,9 +306,7 @@ fn derive_define_position_runtime_correspondence(
     if !program.machine_type_parameters(machine).is_empty() {
         return Err(RelationPlanError::DefineOwnerRequiresSubstitution);
     }
-    let public_parameters = program
-        .public_state_parameters(state)
-        .collect::<Vec<_>>();
+    let public_parameters = program.public_state_parameters(state).collect::<Vec<_>>();
     let arguments = program.expression_table.expression_handles(call.arguments);
     let arity_matches = arguments.len() == representative.parameters.len()
         && input_relations.len() == arguments.len()
@@ -881,10 +876,7 @@ fn canonical_fixed_bytes(
     elements
         .iter()
         .map(|element| {
-            let ExpressionNode::Integer(literal) = program.expression_table.expression(*element)
-            else {
-                return None;
-            };
+            let literal = program.expression_table.integer_node(*element)?;
             let value = literal
                 .value_u64()
                 .and_then(|value| u8::try_from(value).ok())?;
@@ -976,9 +968,7 @@ pub(super) fn direct_public_parameter_symbol(
         ExpressionNode::Borrow(inner) => inner.target,
         _ => expression,
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     (program
         .expression_table
         .name_path_members(path.members)

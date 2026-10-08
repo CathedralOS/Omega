@@ -3,7 +3,7 @@
 use super::exact_data_member_field;
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 
 /// Resolve a direct `self.field` under this machine's exact attached declaration.
@@ -21,14 +21,11 @@ pub fn single_member_receiver_field<'program>(
     receiver_symbol: SymbolHandle,
     member_matches: impl Fn(&typed_trees::name::Identifier) -> bool,
 ) -> Option<&'program DataField> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     if member.case_variant.is_some() {
         return None;
     }
-    let Some(receiver) = program.expression_table.name_path_node(member.receiver)
-    else {
+    let Some(receiver) = program.expression_table.name_path_node(member.receiver) else {
         return None;
     };
     if receiver.symbol != receiver_symbol

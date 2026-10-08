@@ -203,9 +203,7 @@ fn statement_call_target(
     program: &dyn ::validation::CheckingInput,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(assignment.value)?;
     Some(validation::call_target_symbol(program, call))
 }
 

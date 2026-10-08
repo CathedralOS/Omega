@@ -1,8 +1,8 @@
 //! Proposition law conformance and indexed law binder labels.
 
 use crate::proof_contracts::contract_entailment::{
-    BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Machine, StateSignature,
-    StructuralTerm, TraitDefinition,
+    BinaryOperator, Diagnostic, ExpressionHandle, Machine, StateSignature, StructuralTerm,
+    TraitDefinition,
 };
 use typed_trees::proposition::{ProofSubstitutions, PropositionLabels};
 
@@ -153,8 +153,7 @@ pub(crate) fn synthesize_indexed_law_binder_labels(
     requirement: &StateSignature,
     entry_state: &typed_trees::state::State,
 ) -> Option<Vec<String>> {
-    let declaration = program
-        .proposition_definition_by_symbol(instantiated_law.proposition)?;
+    let declaration = program.proposition_definition_by_symbol(instantiated_law.proposition)?;
     let binder_count = program.proposition_binders(declaration).len();
     if binder_count == 0 {
         return Some(Vec::new());
@@ -184,9 +183,7 @@ fn proposition_law_parameter_index(
     argument: ExpressionHandle,
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<usize> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(argument) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(argument)?;
     let name = program
         .expression_table
         .name_path_members(path.members)

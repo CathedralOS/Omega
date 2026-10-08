@@ -513,9 +513,7 @@ pub(crate) fn selected_const_call_result_bounds(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> Option<(TypeReferenceHandle, i64, i64)> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     if call.receiver.is_valid() || !call.selects_only_nominal_route() {
         return None;
     }

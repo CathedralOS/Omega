@@ -135,9 +135,7 @@ fn direct_expression_invocation(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<ReturnedPartitionInvocation> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     Some(ReturnedPartitionInvocation {
         statement_index,
         target_symbol: call.target_symbol,

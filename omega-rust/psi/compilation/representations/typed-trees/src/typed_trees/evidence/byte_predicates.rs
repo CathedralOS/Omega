@@ -10,7 +10,7 @@
 //! TREE-WALKING resolution from domain declarations.
 
 use crate::TypedTrees;
-use crate::expression::{ExpressionHandle, ExpressionNode};
+use crate::expression::ExpressionHandle;
 use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
@@ -26,9 +26,7 @@ pub fn byte_predicate_call(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(ByteSequencePredicate, ExpressionHandle)> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     if call.target_symbol.is_valid() || call.receiver.is_valid() {
         return None;
     }
@@ -85,7 +83,9 @@ pub fn type_reference_domain_predicates(
         if !handle.is_valid() {
             return predicates;
         }
-        handle = program.type_reference_table.dereferenced_type_reference(handle);
+        handle = program
+            .type_reference_table
+            .dereferenced_type_reference(handle);
         match program.type_reference_table.type_reference(handle) {
             TypeReferenceNode::Constrained {
                 base_type,

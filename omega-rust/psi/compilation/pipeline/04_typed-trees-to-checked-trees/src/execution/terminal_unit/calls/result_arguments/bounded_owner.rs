@@ -16,9 +16,8 @@
 //! and presentation independently; lending never changes the owner's invariants.
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralResultBindingPlan,
-    ExpressionNode, Multiplicity, StateParameter, StatementNode, SymbolHandle,
-    exact_structural_argument_access, names_whole_local,
+    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StateParameter,
+    StatementNode, SymbolHandle, exact_structural_argument_access, names_whole_local,
 };
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, byte_sequence_type_identity, structural_access_for_type_reference,
@@ -129,8 +128,8 @@ pub(super) fn loan(
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan::structural_result(
-            result.binding_ordinal,
-            target_identity.to_owned(),
-            access,
-        ))
+        result.binding_ordinal,
+        target_identity.to_owned(),
+        access,
+    ))
 }

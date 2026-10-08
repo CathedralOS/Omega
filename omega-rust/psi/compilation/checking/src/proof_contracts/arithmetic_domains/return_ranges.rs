@@ -13,7 +13,7 @@ use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironm
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
@@ -24,9 +24,7 @@ pub(crate) fn overflow_operand_value_call_target(
     program: &dyn crate::CheckingInput,
     operand: ExpressionHandle,
 ) -> Option<String> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(operand)?;
     let return_type = call_return_type(program, call)?;
     program
         .primitive_type_reference(return_type)

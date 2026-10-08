@@ -114,9 +114,7 @@ pub fn numeric_float_conversion_contract(
             }
             *value
         };
-        let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
-            return None;
-        };
+        let value = program.expression_table.name_path_node(value)?;
         if value.symbol.is_valid() && value.symbol == parameter.symbol {
             Some((source, target))
         } else {
@@ -152,37 +150,33 @@ fn scan_conversion_equalities<'program, R>(
     )>,
     mut judge: impl FnMut(&ConversionEqualityCandidate<'_>) -> Option<R>,
 ) -> Option<R> {
-    for expression in
-        crate::proof_contracts::proof_facts::ensures_expression_facts(
-            program,
-            program.operator_contracts(operator),
-        )
-    {
-        let Some(equality) = program.expression_table.binary_node(expression)
-        else {
+    for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
+        program,
+        program.operator_contracts(operator),
+    ) {
+        let Some(equality) = program.expression_table.binary_node(expression) else {
             continue;
         };
-            if equality.operator != BinaryOperator::Equal {
+        if equality.operator != BinaryOperator::Equal {
+            continue;
+        }
+        for (result, converted) in [
+            (equality.left, equality.right),
+            (equality.right, equality.left),
+        ] {
+            let ExpressionNode::Call(conversion) = program.expression_table.expression(converted)
+            else {
                 continue;
-            }
-            for (result, converted) in [
-                (equality.left, equality.right),
-                (equality.right, equality.left),
-            ] {
-                let ExpressionNode::Call(conversion) =
-                    program.expression_table.expression(converted)
-                else {
-                    continue;
-                };
-                let Some((selected, semantic)) = resolve(program, conversion) else {
-                    continue;
-                };
-                if let Some(verdict) = judge(&ConversionEqualityCandidate {
-                    expression: expression,
-                    result,
-                    conversion,
-                    selected,
-                    semantic,
+            };
+            let Some((selected, semantic)) = resolve(program, conversion) else {
+                continue;
+            };
+            if let Some(verdict) = judge(&ConversionEqualityCandidate {
+                expression: expression,
+                result,
+                conversion,
+                selected,
+                semantic,
             }) {
                 return Some(verdict);
             }
@@ -199,9 +193,7 @@ fn projection(
     PrimitiveType,
     typed_trees::types::TypeReferenceHandle,
 )> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let (selected, primitive, _, _) =
         crate::proof_contracts::float_projection_invocations::exact_projection_operation(
             program, call,
@@ -278,9 +270,7 @@ pub fn float_integer_conversion_contract(
             return None;
         };
         let (value, primitive, _) = projection(program, *value)?;
-        let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
-            return None;
-        };
+        let value = program.expression_table.name_path_node(value)?;
         if primitive == source && value.symbol.is_valid() && value.symbol == parameter.symbol {
             Some((source, semantic))
         } else {

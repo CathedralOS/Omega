@@ -22,7 +22,9 @@ fn expression_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     let child_type = |expression| expression_type(program, parameters, expression, depth + 1);
     let reference = match node {
         ExpressionNode::Name(path) => {

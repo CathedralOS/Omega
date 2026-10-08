@@ -346,12 +346,8 @@ pub(crate) fn lower_closed_integer_literal_guard(
     if !operator_is_builtin(operators, expression) {
         return None;
     }
-    let ExpressionNode::Integer(left) = program.expression_table.expression(binary.left) else {
-        return None;
-    };
-    let ExpressionNode::Integer(right) = program.expression_table.expression(binary.right) else {
-        return None;
-    };
+    let left = program.expression_table.integer_node(binary.left)?;
+    let right = program.expression_table.integer_node(binary.right)?;
     let left = left.value_bignum()?;
     let right = right.value_bignum()?;
     let value = binary.operator.evaluate_comparison(&left, &right)?;

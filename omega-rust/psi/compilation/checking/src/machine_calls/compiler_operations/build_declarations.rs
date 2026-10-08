@@ -37,9 +37,7 @@ pub fn resolve_build_declaration_operand(
     if !is_build_declaration_selection(program, expression) {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let service = BuildOperation::from_call_target(call.target.as_str())
         == Some(BuildOperation::ServiceExclusion);
     let selected = resolve_product_operand(

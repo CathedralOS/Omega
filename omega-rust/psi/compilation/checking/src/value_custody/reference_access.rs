@@ -187,9 +187,7 @@ fn source_place_root(
         };
         root = receiver;
     }
-    let ExpressionNode::Name(path) = program.expression_table.expression(root) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(root)?;
     let [name] = program.expression_table.name_path_members(path.members) else {
         return None;
     };

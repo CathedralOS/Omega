@@ -3,7 +3,7 @@ use crate::flow::FlowBuildContext;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
-use checked_trees::expression::ExpressionNode;
+
 use checked_trees::statement::StatementNode;
 use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
@@ -94,9 +94,7 @@ fn tracked_source_parameter<'a>(
     let mut expression = argument;
     let mut visible = locals.len();
     loop {
-        let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-            return None;
-        };
+        let name = program.expression_table.name_path_node(expression)?;
         if !name.head_symbol.is_valid()
             || name.symbol != name.head_symbol
             || program

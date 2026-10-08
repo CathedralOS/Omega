@@ -69,8 +69,7 @@ pub(crate) fn carried_atomic_operation(
         AtomicOrderingPlan::Load(_) => None,
         AtomicOrderingPlan::Store(ordering) => Some(AtomicAccessOperation::Store(ordering)),
         AtomicOrderingPlan::ReadModifyWrite(ordering) => {
-            let Some(binary) = program.expression_table.binary_node(atomic.value)
-            else {
+            let Some(binary) = program.expression_table.binary_node(atomic.value) else {
                 return None;
             };
             Some(match binary.operator {
@@ -290,9 +289,7 @@ fn same_result_name(
         if !program.expression_table.expression_is_valid(expression) {
             return None;
         }
-        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-            return None;
-        };
+        let path = program.expression_table.name_path_node(expression)?;
         match program.expression_table.name_path_members(path.members) {
             [member] => Some(member.clone()),
             _ => None,

@@ -226,8 +226,7 @@ pub(super) fn parse_counter_relational_upper(
         }
         _ => return None,
     };
-    let Some(member) = program.expression_table.member_node(possible_length)
-    else {
+    let Some(member) = program.expression_table.member_node(possible_length) else {
         return None;
     };
     if CollectionMeasure::from_authored_spelling(member.member.as_str())
@@ -402,9 +401,7 @@ pub(super) fn authored_upper_term(
     arrival: &State,
     expression: ExpressionHandle,
 ) -> Option<UpperTerm> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     let canonical = |place| {
         validation::canonical_storage_label(
             program,

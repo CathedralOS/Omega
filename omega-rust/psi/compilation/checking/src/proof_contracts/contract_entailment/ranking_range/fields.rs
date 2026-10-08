@@ -692,7 +692,9 @@ pub(super) fn record_referent(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, bool)> {
-    let mut reference = program.type_reference_table.unconstrained_type_reference(type_reference);
+    let mut reference = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
     let mut borrowed = false;
     if let TypeReferenceNode::Reference {
         referee, access, ..
@@ -701,7 +703,9 @@ pub(super) fn record_referent(
         if !access.is_readable() {
             return None;
         }
-        reference = program.type_reference_table.unconstrained_type_reference(*referee);
+        reference = program
+            .type_reference_table
+            .unconstrained_type_reference(*referee);
         borrowed = true;
     }
     let TypeReferenceNode::Named { symbol, .. } =
@@ -719,9 +723,7 @@ pub(super) fn parameter<'program>(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     // One member: the subject is a bare binding occurrence, not a chain.
     // Which binding it is comes from the resolved head symbol below.
     let [_] = program.expression_table.name_path_members(path.members) else {
@@ -812,9 +814,12 @@ pub(super) fn nested_arrival_chain(
     let mut boundaries = Vec::with_capacity(steps.len() + 1);
     boundaries.push(root);
     for step in steps {
-        let TypeReferenceNode::Named { symbol: next, .. } = program
-            .type_reference_table
-            .type_reference(program.type_reference_table.unconstrained_type_reference(step.type_reference))
+        let TypeReferenceNode::Named { symbol: next, .. } =
+            program.type_reference_table.type_reference(
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(step.type_reference),
+            )
         else {
             return None;
         };
@@ -921,7 +926,10 @@ pub(super) fn collect_record_paths(
         paths.push(Vec::new());
     }
     for_each_record_field_path(program, from, paths, |program, field| {
-        let Some(next) = program.type_reference_table.unconstrained_named_symbol(field.type_reference) else {
+        let Some(next) = program
+            .type_reference_table
+            .unconstrained_named_symbol(field.type_reference)
+        else {
             return (false, None);
         };
         // A step landing on the target records its own path even when the

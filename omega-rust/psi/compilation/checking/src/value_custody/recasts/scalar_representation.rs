@@ -380,7 +380,7 @@ pub(super) fn narrow_by_field_literal_bounds(
     primitive: PrimitiveType,
     bounds: &[crate::proof_contracts::default_domains::FieldLiteralBound],
 ) -> Option<()> {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::expression::BinaryOperator;
     if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         let mut minimum = FloatEndpoint::NEGATIVE_INFINITY;
         let mut maximum = FloatEndpoint::POSITIVE_INFINITY;
@@ -415,10 +415,7 @@ pub(super) fn narrow_by_field_literal_bounds(
         return None;
     };
     for bound in bounds {
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(bound.literal)
-        else {
-            return None;
-        };
+        let literal = program.expression_table.integer_node(bound.literal)?;
         let literal = literal.text().parse::<i64>().ok()?;
         let (minimum, maximum) = primitive_integer_extent(primitive)?;
         let (minimum, maximum) = match bound.operator {

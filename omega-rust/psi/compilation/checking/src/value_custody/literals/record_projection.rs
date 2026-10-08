@@ -126,11 +126,7 @@ pub(super) fn closed_scalar_projection(
                 else {
                     return None;
                 };
-                let ExpressionNode::Integer(ordinal) =
-                    program.expression_table.expression(indexed.index)
-                else {
-                    return None;
-                };
+                let ordinal = program.expression_table.integer_node(indexed.index)?;
                 if ordinal.landing().is_some_and(|landing| {
                     landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                         || landing.landed_type == numerics::literals::LandedIntegerType::Addr

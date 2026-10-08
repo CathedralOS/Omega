@@ -78,9 +78,7 @@ pub(in crate::checks::ranges) fn expression_name(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Option<&str>)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     Some((
         path.symbol,
         program

@@ -293,9 +293,7 @@ fn container_member_type_position(
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::Operator => {
-            let Some(operator) = program
-                .operator_definition_by_symbol(parent)
-            else {
+            let Some(operator) = program.operator_definition_by_symbol(parent) else {
                 return ContainerOutcome::Unmapped;
             };
             program

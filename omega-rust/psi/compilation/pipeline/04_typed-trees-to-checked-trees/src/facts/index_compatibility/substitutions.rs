@@ -500,9 +500,7 @@ pub(super) fn substituted_root(
     expression: ExpressionHandle,
     substitutions: &[ExpressionSubstitution<'_>],
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     let members = program.expression_table.name_path_members(path.members);
     let [only] = members else {
         return None;

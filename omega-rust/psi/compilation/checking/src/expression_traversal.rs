@@ -138,9 +138,7 @@ pub fn single_member_argument_symbol(
         }
         _ => argument,
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(named) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(named)?;
     (path.symbol.is_valid()
         && program
             .expression_table
@@ -155,9 +153,7 @@ pub fn name_path_last_member<'a>(
     program: &'a dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<&'a str> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(value)?;
     program
         .expression_table
         .name_path_members(path.members)
@@ -234,9 +230,7 @@ pub fn single_segment_name_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     is_single_segment_name_path(program, path).then_some(path.symbol)
 }
 

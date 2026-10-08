@@ -1,7 +1,7 @@
 //! Direct owned projections contribute storage bounds under their exact owner.
 
 use symbols::SymbolKind;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -16,9 +16,7 @@ pub(super) fn type_reference(
     // evaluation. When false, mutable places are opaque.
     declared_mutable_leaves: bool,
 ) -> Option<TypeReferenceHandle> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(expression)?;
     let Some(receiver) = program.expression_table.name_path_node(member.receiver) else {
         return None;
     };

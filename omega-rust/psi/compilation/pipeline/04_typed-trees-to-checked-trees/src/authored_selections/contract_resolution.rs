@@ -50,9 +50,7 @@ pub(super) fn checked_operand_type(
             )
         })
         .or_else(|| {
-            let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
-                return None;
-            };
+            let call = program.expression_table.call_node(operand)?;
             validation::selection_resolution::exact_named_operator_call(program, call)
                 .or_else(|| {
                     checked_named_operator_call(

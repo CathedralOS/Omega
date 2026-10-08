@@ -12,10 +12,10 @@ use super::{
     CheckFacts, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpectedCallValueResult, ExpressionNode,
-    LocalConstructionTrace, Multiplicity, ScalarCalleeClosure, ShapeCollector, StatementNode,
-    SymbolHandle, bind_scalar_call_result, bind_structural_call_result, build_call_operation,
-    consume_results, structural_operands,
+    CheckedUnitStructuralResultBindingPlan, ExpectedCallValueResult, LocalConstructionTrace,
+    Multiplicity, ScalarCalleeClosure, ShapeCollector, StatementNode, SymbolHandle,
+    bind_scalar_call_result, bind_structural_call_result, build_call_operation, consume_results,
+    structural_operands,
 };
 use checked_trees::CheckedUnitPartialAffineDiscardPlan;
 
@@ -119,9 +119,7 @@ pub(super) fn plan(
         _ => None,
     };
     if let Some(expression) = authored_expression {
-        let ExpressionNode::Call(authored) = program.expression_table.expression(expression) else {
-            return None;
-        };
+        let authored = program.expression_table.call_node(expression)?;
         if call.authored_expression != expression
             || call.target_symbol != validation::call_target_symbol(program, authored)
         {

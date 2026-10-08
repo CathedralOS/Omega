@@ -385,9 +385,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
     extent: &(SymbolHandle, typed_trees::name::Identifier),
 ) -> Option<i64> {
     let actual = (|| {
-        let ExpressionNode::Member(member) = program.expression_table.expression(collection) else {
-            return None;
-        };
+        let member = program.expression_table.member_node(collection)?;
         let receiver =
             program
                 .type_reference_table
@@ -595,10 +593,10 @@ fn attached_data_const_parameter_reference(
     let data = program
         .data_definition_by_symbol(machine.attached_data_symbol)
         .or_else(|| {
-            machine.attached_data.as_ref().and_then(|name| {
-                program
-                    .data_definition_by_name(name)
-            })
+            machine
+                .attached_data
+                .as_ref()
+                .and_then(|name| program.data_definition_by_name(name))
         })?;
     program
         .data_type_parameters(data)

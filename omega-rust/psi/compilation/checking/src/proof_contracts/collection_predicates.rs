@@ -90,9 +90,7 @@ pub(crate) fn predicate_application(
         }
         _ => return None,
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(call_expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(call_expression)?;
     if !call.is_ordinary_positional_call() {
         return None;
     }

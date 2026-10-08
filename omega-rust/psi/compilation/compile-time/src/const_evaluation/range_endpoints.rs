@@ -292,8 +292,7 @@ pub(super) fn resolve_endpoint_callee(
             static_application: false,
         });
     }
-    let Some(call) = execution.expression_table.call_node(endpoint.expression)
-    else {
+    let Some(call) = execution.expression_table.call_node(endpoint.expression) else {
         return Err("range endpoint lost its authored static application".to_owned());
     };
     let template = execution
@@ -662,9 +661,7 @@ pub(super) fn selected_endpoint_machine(
     typed: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(&typed_trees::machine::Machine, bool)> {
-    let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = typed.expression_table.call_node(expression)?;
     if !call.evidence_arguments.is_empty()
         || call.static_machine_parameter.is_valid()
         || !call.selects_only_nominal_route()
@@ -685,8 +682,7 @@ pub(super) fn selected_endpoint_machine(
                     symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data
                 )
                 || argument.const_literal.is_some()
-                || typed
-                    .const_declaration_by_symbol(argument.symbol).is_some())
+                || typed.const_declaration_by_symbol(argument.symbol).is_some())
     }) {
         return None;
     }

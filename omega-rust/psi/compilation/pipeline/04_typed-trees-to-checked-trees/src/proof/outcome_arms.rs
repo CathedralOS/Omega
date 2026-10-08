@@ -94,11 +94,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                         if !identity_matches || local.is_mutable {
                             return None;
                         }
-                        let ExpressionNode::Call(call) =
-                            program.expression_table.expression(local.initial_value)
-                        else {
-                            return None;
-                        };
+                        let call = program.expression_table.call_node(local.initial_value)?;
                         Some((index, call))
                     })
                     .collect::<Vec<_>>();
@@ -253,8 +249,7 @@ fn outcome_evidence_interface_scope(
     retained_occurrences: &[typed_trees::expression::ExpressionHandle],
 ) -> Option<checked_trees::OutcomeSpecificEvidenceInterfaceScopeFact> {
     let interface = proposition.evidence_interface.clone()?;
-    let definition = program
-        .proposition_definition_by_symbol(proposition.declaration)?;
+    let definition = program.proposition_definition_by_symbol(proposition.declaration)?;
     let typed_trees::proposition::PropositionBody::Witness { evidence } = definition.body else {
         return None;
     };
@@ -318,9 +313,7 @@ pub(crate) fn exact_outcome_case_test(
         // Validation has checked the exact nominal subject and classifier.
         // Only the left operand is observed; the right operand is not a value
         // to copy, move, or reverse with the subject as ordinary equality can.
-        let ExpressionNode::Name(case) = program.expression_table.expression(binary.right) else {
-            return None;
-        };
+        let case = program.expression_table.name_path_node(binary.right)?;
         return Some((binary.left, case.symbol));
     }
     if binary.operator == BinaryOperator::Equal {

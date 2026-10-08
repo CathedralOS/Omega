@@ -412,9 +412,7 @@ pub(crate) fn lower_scalar_expression(
         validation::closed_record_scalar_projection(program, expression)
     {
         let lowered = if is_integer(primitive) {
-            let ExpressionNode::Integer(literal) = program.expression_table.expression(leaf) else {
-                return None;
-            };
+            let literal = program.expression_table.integer_node(leaf)?;
             CheckedScalarExpression::IntegerLiteral {
                 literal: if literal.landing().is_some() {
                     literal.clone()
@@ -614,8 +612,7 @@ pub(crate) fn lower_scalar_expression(
             // `Implementation as dyn Trait<Args>`: checking admitted the exact
             // named implementation; the selector names its table.
             if target_type == PrimitiveType::Selector {
-                let Some(name) = program.expression_table.name_path_node(cast.value)
-                else {
+                let Some(name) = program.expression_table.name_path_node(cast.value) else {
                     return None;
                 };
                 return Some((

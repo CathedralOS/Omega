@@ -354,9 +354,7 @@ fn data_binding_field_type_reference(
     state_symbol: SymbolHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<TypeReferenceHandle> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(member.receiver)?;
     let (machine, state) = program
         .machine_holding_state(state_symbol)
         .zip(program.state_by_symbol(state_symbol))?;

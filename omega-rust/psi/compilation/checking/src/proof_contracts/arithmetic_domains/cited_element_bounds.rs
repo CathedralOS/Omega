@@ -30,9 +30,7 @@ pub(crate) fn element_place_path(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let index = program
         .expression_table
         .constant_integer_value(indexed.index)?;
@@ -60,13 +58,9 @@ pub(crate) fn stable_element_place_path(
         return Some(path);
     }
     let state = state?;
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let parameter = |operand: ExpressionHandle| {
-        let ExpressionNode::Name(name) = program.expression_table.expression(operand) else {
-            return None;
-        };
+        let name = program.expression_table.name_path_node(operand)?;
         if !name.symbol.is_valid() || name.symbol != name.head_symbol {
             return None;
         }
@@ -171,9 +165,7 @@ struct Substitution<'program> {
 impl Substitution<'_> {
     /// The actual argument bound to the formal a callee-side name reads.
     fn actual(&self, formal: ExpressionHandle) -> Option<ExpressionHandle> {
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(formal) else {
-            return None;
-        };
+        let path = self.program.expression_table.name_path_node(formal)?;
         if !path.symbol.is_valid()
             || self
                 .program

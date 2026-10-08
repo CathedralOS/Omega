@@ -767,9 +767,7 @@ fn ordinary_scalar_call_result_primitive(
     if !program.expression_table.expression_is_valid(value) {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(value)?;
     if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
         return None;
     }

@@ -149,9 +149,7 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
     current_machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     let receiver_members = receiver_member_chain(program, call.receiver)?;
     boundary_trait_signature_and_receiver_inner(
         program,
@@ -427,9 +425,7 @@ fn parameter_boundary_receiver_type(
     let root = match site {
         CallerWriteSite::Call(call) => call.receiver_root_symbol,
         CallerWriteSite::Expression(expression) => {
-            let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-                return None;
-            };
+            let call = program.expression_table.call_node(expression)?;
             let mut receiver = call.receiver;
             let mut root = SymbolHandle::invalid();
             for _ in 0..members.len() {
@@ -644,8 +640,7 @@ fn requirement_signature_for_receiver_path<'program>(
         return None;
     }
     let attached = current_machine.attached_data.as_ref()?;
-    let mut data = program
-        .data_definition_by_name_str(attached.as_str())?;
+    let mut data = program.data_definition_by_name_str(attached.as_str())?;
     for (depth, member) in members.iter().enumerate() {
         let field_type = program
             .data_members(data)

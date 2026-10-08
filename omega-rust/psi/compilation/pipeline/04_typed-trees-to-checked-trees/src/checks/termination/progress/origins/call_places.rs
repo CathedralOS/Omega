@@ -36,11 +36,7 @@ pub(super) fn disagreeing_call_result_subjects(
     let (statement_index, local) = program
         .state_local_declaration(typed_state, root)
         .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
-    let ExpressionNode::Call(initializer) =
-        program.expression_table.expression(local.initial_value)
-    else {
-        return None;
-    };
+    let initializer = program.expression_table.call_node(local.initial_value)?;
     let places = call_result_place(
         program,
         frames,

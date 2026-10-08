@@ -67,9 +67,7 @@ fn resolve_fact_machine<'program>(
     domain: &typed_trees::domain::DomainDefinition,
     expression: ExpressionHandle,
 ) -> Option<(&'program Machine, &'program State)> {
-    let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = typed.expression_table.call_node(expression)?;
     if !is_direct_subject_call(typed, domain, call) {
         return None;
     }

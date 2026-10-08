@@ -4,7 +4,7 @@
 //! exact roots, independently of the destination's spelling. This roster only
 //! accounts for the calls: the store planner and emitter still establish the
 //! destination and evaluate selectors before the value, once in authored order.
-use super::{CheckFacts, ExpressionNode, StatementNode, SymbolHandle};
+use super::{CheckFacts, StatementNode, SymbolHandle};
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_binders};
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -90,9 +90,7 @@ pub(in crate::execution::terminal_unit) fn tail_call<'a>(
     if !program.expression_table.expression_is_valid(*expression) {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(*expression)?;
     Some((*expression, call))
 }
 
@@ -119,9 +117,7 @@ pub(in crate::execution::terminal_unit) fn unit_statement_call<'a>(
     if !program.expression_table.expression_is_valid(*expression) {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(*expression)?;
     validation::unit_statement_call_is_supported(program, machine, state, *expression)
         .then_some((*expression, call))
 }
@@ -144,9 +140,7 @@ pub(super) fn ordered_statement_call<'program>(
     else {
         return None;
     };
-    let ExpressionNode::Call(call) = program.expression_table.expression(*expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(*expression)?;
     if !crate::values::is_scalar_return_call(program, state, *expression) {
         // A final structural call is an ordinary result-producing operation.
         // Its value/claim custody is checked by statement sequencing, not by

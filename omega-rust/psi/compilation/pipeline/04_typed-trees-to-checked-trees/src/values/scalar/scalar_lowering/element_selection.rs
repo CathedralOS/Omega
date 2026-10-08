@@ -37,9 +37,7 @@ pub(in crate::values::scalar) fn selected_element(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<ElementSelection> {
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let indexed = program.expression_table.indexed_node(expression)?;
     let (root, path, collection_type) = structural_fields::structural_storage_place(
         program,
         authored_parameters,

@@ -78,9 +78,7 @@ fn named_parameter_identity(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let path = program.expression_table.name_path_node(expression)?;
     program
         .machine_states(machine)
         .iter()
@@ -95,9 +93,7 @@ fn transparent_relation_fact_matches(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    let Some(relation) = program
-        .proposition_definition_by_symbol(relation_symbol)
-    else {
+    let Some(relation) = program.proposition_definition_by_symbol(relation_symbol) else {
         return false;
     };
     let typed_trees::proposition::PropositionBody::Transparent {

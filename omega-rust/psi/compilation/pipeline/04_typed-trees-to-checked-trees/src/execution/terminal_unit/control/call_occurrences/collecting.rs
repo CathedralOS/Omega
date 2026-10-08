@@ -2,9 +2,7 @@
 //! its per-kind operand walks, plus the dispatch-subject and
 //! statement-computation ownership questions the walk answers.
 
-use super::super::{
-    CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
-};
+use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, SymbolHandle};
 use super::ComputationVisit;
 use crate::execution::terminal_unit::control::structural_operands;
 
@@ -91,8 +89,7 @@ pub(super) fn collect_constructor_calls(
             else {
                 continue;
             };
-            if !plans.is_authored_root(root, machine, expression, primitive_type)
-            {
+            if !plans.is_authored_root(root, machine, expression, primitive_type) {
                 return None;
             }
             collect_root_calls(
@@ -156,7 +153,12 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         });
         if let Some(root) = roots.next() {
             if roots.next().is_some()
-                || !plans.is_authored_root(root, machine, expression, typed_trees::types::PrimitiveType::Bool)
+                || !plans.is_authored_root(
+                    root,
+                    machine,
+                    expression,
+                    typed_trees::types::PrimitiveType::Bool,
+                )
             {
                 return None;
             }
@@ -495,7 +497,12 @@ pub(super) fn collect_range_calls(
         });
         let Some(root) = roots.next() else { continue };
         if roots.next().is_some()
-            || !plans.is_authored_root(root, machine, endpoint, typed_trees::types::PrimitiveType::U64)
+            || !plans.is_authored_root(
+                root,
+                machine,
+                endpoint,
+                typed_trees::types::PrimitiveType::U64,
+            )
         {
             return None;
         }
@@ -794,11 +801,7 @@ pub(super) fn collect(
             if selected != *predicate {
                 return None;
             }
-            let ExpressionNode::Call(authored) =
-                program.expression_table.expression(*source_expression)
-            else {
-                return None;
-            };
+            let authored = program.expression_table.call_node(*source_expression)?;
             let mut occurrences = facts.flow.control.calls.iter().filter(|(_, call)| {
                 call.authored_expression == *source_expression
                     && calls.iter().any(|candidate| std::ptr::eq(candidate, *call))

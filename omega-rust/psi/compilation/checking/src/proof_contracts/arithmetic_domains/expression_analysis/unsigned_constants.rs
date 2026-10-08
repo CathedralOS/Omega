@@ -15,9 +15,7 @@ pub(super) fn integer_literal_primitive(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<PrimitiveType> {
-    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let literal = program.expression_table.integer_node(expression)?;
     PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)
 }
 

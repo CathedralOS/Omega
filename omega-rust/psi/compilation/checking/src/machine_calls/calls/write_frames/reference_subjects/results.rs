@@ -3,8 +3,8 @@
 
 use super::super::{TableCallExpression, machine_state_by_symbol, result_origins};
 use super::{
-    ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
-    Machine, StoredLocalOrigins, TopLevelSymbols, caller_aliases, stored_origins,
+    ExpressionHandle, FrameInference, FramePathPrecision, FramePlaceOrigin, Machine,
+    StoredLocalOrigins, TopLevelSymbols, caller_aliases, stored_origins,
     type_reference_is_reference, value_origins,
 };
 pub(super) fn call_expression(
@@ -14,9 +14,7 @@ pub(super) fn call_expression(
     expression = program
         .expression_table
         .peeled_expression_handle(expression);
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     Some(call)
 }
 

@@ -233,9 +233,7 @@ pub fn integer_embedding_argument(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ExpressionHandle)> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     if !is_exact_embed_call(program, call) || !has_embedding_shape(call) {
         return None;
     }

@@ -67,9 +67,7 @@ fn argument_for(
     call_flow: &FlowCallFact,
     parameter: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(parameter) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(parameter)?;
     if !name.symbol.is_valid()
         || name.symbol != name.head_symbol
         || program

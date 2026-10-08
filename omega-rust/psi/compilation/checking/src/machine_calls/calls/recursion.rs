@@ -102,9 +102,7 @@ fn whole_expression_self_call(
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<String> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(expression)?;
     is_current_entry_call(program, machine, call).then(|| format!("{}(..)", machine.name.as_str()))
 }
 

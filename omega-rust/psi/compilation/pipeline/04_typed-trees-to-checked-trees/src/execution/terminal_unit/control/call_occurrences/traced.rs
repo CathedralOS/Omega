@@ -2,9 +2,7 @@
 //! calls collected from each expression and recorded against the traced
 //! predecessor a later consumer replays.
 
-use super::super::{
-    CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
-};
+use super::super::{CheckFacts, CheckedScalarExpressionRole, StatementNode, SymbolHandle};
 use super::collecting::{
     collect_argument_calls, collect_constructor_calls, collect_owned_root_calls,
     collect_range_calls, collect_root_calls, collect_structural_argument_calls,
@@ -80,7 +78,8 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let control_prefix =
         statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
         .take(statement_end)
     {
         if erased_statement(statement) {
@@ -270,8 +269,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 role,
             ) {
                 let plans = &facts.values.scalar_computations;
-                if !plans.is_authored_root(root, machine, local.initial_value, primitive_type)
-                {
+                if !plans.is_authored_root(root, machine, local.initial_value, primitive_type) {
                     return None;
                 }
                 collect_root_calls(
@@ -358,8 +356,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 }
                 _ => return None,
             };
-            if !plans.is_authored_root(root, machine, expression, primitive)
-            {
+            if !plans.is_authored_root(root, machine, expression, primitive) {
                 return None;
             }
             collect_root_calls(
@@ -493,11 +490,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 {
                     return None;
                 }
-                let ExpressionNode::Call(authored) =
-                    program.expression_table.expression(local.initial_value)
-                else {
-                    return None;
-                };
+                let authored = program.expression_table.call_node(local.initial_value)?;
                 (
                     validation::call_target_symbol(program, authored),
                     program
@@ -511,11 +504,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             StatementNode::Assignment(assignment)
                 if call.authored_expression == assignment.value =>
             {
-                let ExpressionNode::Call(authored) =
-                    program.expression_table.expression(assignment.value)
-                else {
-                    return None;
-                };
+                let authored = program.expression_table.call_node(assignment.value)?;
                 (
                     validation::call_target_symbol(program, authored),
                     program

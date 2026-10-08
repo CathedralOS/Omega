@@ -19,7 +19,7 @@
 //! selector, so re-reading the selector at each arm observes the element the
 //! borrow named. Anything else keeps the ordinary local planning, which
 //! declines a reference local it cannot establish.
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::{StatementNode, TableLocalData, TransitionGuardNode};
 
 /// The borrowed place `local` erases to, when it is a runtime-indexed case
@@ -69,8 +69,7 @@ pub(crate) fn erased_subject(
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {
                 let (subject, _) = crate::proof::exact_outcome_case_test(program, guard)?;
-                let Some(name) = program.expression_table.name_path_node(subject)
-                else {
+                let Some(name) = program.expression_table.name_path_node(subject) else {
                     return None;
                 };
                 if name.symbol != local.symbol {
@@ -89,9 +88,7 @@ pub(crate) fn observed_place(
     state: &typed_trees::state::State,
     subject: ExpressionHandle,
 ) -> Option<(ExpressionHandle, usize)> {
-    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
-        return None;
-    };
+    let name = program.expression_table.name_path_node(subject)?;
     let (index, local) = program.state_local_declaration(state, name.symbol)?;
     erased_subject(program, state, index, local).map(|place| (place, index))
 }

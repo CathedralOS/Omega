@@ -273,7 +273,8 @@ pub(crate) fn collect_checked_statement_selections(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let typed_trees::statement::StatementNode::Call(call) = statement else {
                     continue;

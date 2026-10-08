@@ -750,9 +750,7 @@ fn payload_field_constraints_under_case_guard(
     argument: ExpressionHandle,
     guard: &TransitionGuardNode,
 ) -> Option<ConstraintBuffer> {
-    let ExpressionNode::Member(member) = program.expression_table.expression(argument) else {
-        return None;
-    };
+    let member = program.expression_table.member_node(argument)?;
     let TransitionGuardNode::When(condition) = guard else {
         return None;
     };
@@ -800,11 +798,7 @@ fn case_guard_proven_variant(
             }
             // Case-membership equality: `Equal(receiver, Type::Case)` (the case
             // reference is always lowered to the RIGHT of `value`).
-            let ExpressionNode::Name(case_reference) =
-                program.expression_table.expression(binary.right)
-            else {
-                return None;
-            };
+            let case_reference = program.expression_table.name_path_node(binary.right)?;
             let variant_symbol = case_reference.symbol;
             (variant_symbol.is_valid()
                 && expressions_equivalent_for_precondition(program, binary.left, receiver))

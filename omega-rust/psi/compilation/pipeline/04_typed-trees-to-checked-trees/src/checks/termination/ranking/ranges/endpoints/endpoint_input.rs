@@ -39,9 +39,7 @@ impl<'program> EndpointInput<'program> {
                 _ => return None,
             }
         }
-        let ExpressionNode::Name(name) = program.expression_table.expression(cursor) else {
-            return None;
-        };
+        let name = program.expression_table.name_path_node(cursor)?;
         let [spelling] = program.expression_table.name_path_members(name.members) else {
             return None;
         };

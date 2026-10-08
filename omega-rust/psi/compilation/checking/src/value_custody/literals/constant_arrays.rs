@@ -152,9 +152,7 @@ pub fn closed_constant_array_elements(
         else {
             return None;
         };
-        let ExpressionNode::Integer(literal) = program.expression_table.expression(index) else {
-            return None;
-        };
+        let literal = program.expression_table.integer_node(index)?;
         if literal.landing().is_some_and(|landing| {
             landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                 || landing.landed_type == numerics::literals::LandedIntegerType::Addr
@@ -403,8 +401,7 @@ pub fn declared_constant_array_type(
         let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
             continue;
         };
-        let Some(declaration) = program
-            .const_declaration_by_symbol(selected.selected_symbol())
+        let Some(declaration) = program.const_declaration_by_symbol(selected.selected_symbol())
         else {
             continue;
         };
@@ -507,8 +504,7 @@ pub(super) fn validate_declared_array_destination(
         let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
             continue;
         };
-        let Some(declaration) = program
-            .const_declaration_by_symbol(selected.selected_symbol())
+        let Some(declaration) = program.const_declaration_by_symbol(selected.selected_symbol())
         else {
             continue;
         };
