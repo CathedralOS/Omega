@@ -216,55 +216,12 @@ pub(super) fn measured_steps(
     successors: &[Vec<usize>],
     implicit_uses: usize,
 ) -> Result<usize, BoundaryBooleanError> {
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let edge_count = successors
-        .iter()
-        .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let block_count = function.blocks.len();
-    // The shared walk's setup resolves every edge's target index, fills
-    // the predecessor lists, and marks the backward cone. Each used unit
-    // scans the materialization block's prefix and — on an in-block
-    // miss — every block's stream for its last event, after which
-    // entry-set propagation requeues a block only while its set grows:
-    // a set holds at most one element per event site plus the unknown
-    // marker, so pops stay under `blocks × (elements + 1)` and each pop
-    // visits its out-edges at a bounded union cost.
-    let elements = function_scan
-        .checked_add(1)
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let pops = block_count
-        .checked_mul(
-            elements
-                .checked_add(1)
-                .ok_or(BoundaryBooleanError::IdentityOverflow)?,
-        )
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let widest_out = successors
-        .iter()
-        .map(|targets| targets.len())
-        .max()
-        .unwrap_or(0);
-    let per_unit = function_scan
-        .checked_add(block_count)
-        .and_then(|total| total.checked_add(pops))
-        .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let walk_setup = edge_count
-        .checked_mul(
-            block_count
-                .checked_add(1)
-                .ok_or(BoundaryBooleanError::IdentityOverflow)?,
-        )
-        .and_then(|total| total.checked_add(block_count))
-        .and_then(|total| total.checked_add(edge_count))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
+    let cone = crate::rewrites::cone_propagation(function, successors, || {
+        BoundaryBooleanError::IdentityOverflow
+    })?;
+    let function_scan = cone.function_scan;
+    let per_unit = cone.per_unit_base;
+    let walk_setup = cone.walk_setup_base;
     let reach_scan = implicit_uses
         .checked_mul(per_unit)
         .and_then(|total| total.checked_add(walk_setup))

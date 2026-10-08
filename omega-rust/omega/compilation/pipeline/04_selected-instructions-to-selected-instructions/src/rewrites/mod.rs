@@ -264,6 +264,66 @@ pub(crate) fn charge_steps<E>(
     Ok(())
 }
 
+/// The cone-propagation bound every walked family's measured-step contract
+/// derives from a function and its successor edges — the audits share this
+/// arithmetic verbatim and then add their own per-unit and setup terms.
+pub(crate) struct ConePropagation {
+    pub(crate) function_scan: usize,
+    pub(crate) edge_count: usize,
+    pub(crate) elements: usize,
+    pub(crate) per_unit_base: usize,
+    pub(crate) walk_setup_base: usize,
+}
+
+/// Bound the shared entry-set propagation a cone walk performs: elements
+/// cover every event site plus the unknown marker, pops stay under
+/// `blocks × (elements + 1)`, and each pop visits its out-edges at the
+/// widest terminator's union cost.
+pub(crate) fn cone_propagation<E>(
+    function: &SelectedFunction,
+    successors: &[Vec<usize>],
+    overflow: impl Fn() -> E,
+) -> Result<ConePropagation, E> {
+    let function_scan = function
+        .blocks
+        .iter()
+        .try_fold(0usize, |total, block| {
+            total.checked_add(block.instructions.len())?.checked_add(1)
+        })
+        .ok_or_else(|| overflow())?;
+    let edge_count = successors
+        .iter()
+        .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
+        .ok_or_else(|| overflow())?;
+    let block_count = function.blocks.len();
+    let elements = function_scan.checked_add(1).ok_or_else(|| overflow())?;
+    let pops = block_count
+        .checked_mul(elements.checked_add(1).ok_or_else(|| overflow())?)
+        .ok_or_else(|| overflow())?;
+    let widest_out = successors
+        .iter()
+        .map(|targets| targets.len())
+        .max()
+        .unwrap_or(0);
+    let per_unit_base = function_scan
+        .checked_add(block_count)
+        .and_then(|total| total.checked_add(pops))
+        .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
+        .ok_or_else(|| overflow())?;
+    let walk_setup_base = edge_count
+        .checked_mul(block_count.checked_add(1).ok_or_else(|| overflow())?)
+        .and_then(|total| total.checked_add(block_count))
+        .and_then(|total| total.checked_add(edge_count))
+        .ok_or_else(|| overflow())?;
+    Ok(ConePropagation {
+        function_scan,
+        edge_count,
+        elements,
+        per_unit_base,
+        walk_setup_base,
+    })
+}
+
 /// The plan and the function a family audits, once the plan's target has
 /// matched the environment's — both call sites bind the same pair, with the
 /// family's own `SourceMismatch` marking either refusal.
