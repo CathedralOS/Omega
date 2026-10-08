@@ -295,6 +295,14 @@ impl CandidateFrontier {
     }
 }
 
+macro_rules! retryable_candidate_error {
+    ($error:ident, $binding:ident) => {
+        $binding @ ($error::WorkBudgetExceeded
+            | $error::IdentityOverflow
+            | $error::ReplayMismatch)
+    };
+}
+
 fn is_family_candidate(
     optimization: Optimization,
     position: CandidatePosition,
@@ -579,11 +587,7 @@ fn copy_removal_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (CopyRemovalError::WorkBudgetExceeded
-            | CopyRemovalError::IdentityOverflow
-            | CopyRemovalError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(CopyRemovalError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::CopyRemoval(error));
         }
         Err(_) => declined += 1,
@@ -630,11 +634,7 @@ fn extension_removal_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (RedundantExtensionError::WorkBudgetExceeded
-            | RedundantExtensionError::IdentityOverflow
-            | RedundantExtensionError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(RedundantExtensionError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::RedundantExtension(
                 error,
             ));
@@ -683,11 +683,7 @@ fn address_fold_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (AddressFoldError::WorkBudgetExceeded
-            | AddressFoldError::IdentityOverflow
-            | AddressFoldError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(AddressFoldError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::AddressFold(error));
         }
         Err(_) => declined += 1,
@@ -754,11 +750,7 @@ fn constant_boolean_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (ConstantBooleanError::WorkBudgetExceeded
-            | ConstantBooleanError::IdentityOverflow
-            | ConstantBooleanError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(ConstantBooleanError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error));
         }
         Err(_) => declined += 1,
@@ -824,11 +816,7 @@ fn constant_branch_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (ConstantBranchError::WorkBudgetExceeded
-            | ConstantBranchError::IdentityOverflow
-            | ConstantBranchError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(ConstantBranchError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::ConstantBranch(error));
         }
         Err(_) => declined += 1,
@@ -878,11 +866,7 @@ fn dead_compare_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (DeadCompareError::WorkBudgetExceeded
-            | DeadCompareError::IdentityOverflow
-            | DeadCompareError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(DeadCompareError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::DeadCompare(error));
         }
         Err(_) => declined += 1,
@@ -935,11 +919,7 @@ fn redundant_compare_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (RedundantCompareError::WorkBudgetExceeded
-            | RedundantCompareError::IdentityOverflow
-            | RedundantCompareError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(RedundantCompareError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::RedundantCompare(error));
         }
         Err(_) => declined += 1,
@@ -992,11 +972,7 @@ fn equivalent_compare_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (EquivalentCompareError::WorkBudgetExceeded
-            | EquivalentCompareError::IdentityOverflow
-            | EquivalentCompareError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(EquivalentCompareError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error));
         }
         Err(_) => declined += 1,
@@ -1182,11 +1158,7 @@ fn stored_load_forwarding_candidate(
                 validation_steps,
             });
         }
-        Err(
-            error @ (StoredLoadForwardingError::WorkBudgetExceeded
-            | StoredLoadForwardingError::IdentityOverflow
-            | StoredLoadForwardingError::ReplayMismatch),
-        ) => {
+        Err(retryable_candidate_error!(StoredLoadForwardingError, error)) => {
             return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
                 error,
             ));
@@ -1268,11 +1240,7 @@ fn copied_call_operand_candidate(
                     validation_steps,
                 });
             }
-            Err(
-                error @ (CopiedCallOperandError::WorkBudgetExceeded
-                | CopiedCallOperandError::IdentityOverflow
-                | CopiedCallOperandError::ReplayMismatch),
-            ) => {
+            Err(retryable_candidate_error!(CopiedCallOperandError, error)) => {
                 return Err(OptimizedPreAllocationCustodyError::CopiedCallOperand(error));
             }
             Err(_) => {
