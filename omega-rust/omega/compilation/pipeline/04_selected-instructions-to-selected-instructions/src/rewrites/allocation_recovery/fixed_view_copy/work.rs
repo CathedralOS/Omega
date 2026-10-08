@@ -4,7 +4,7 @@ use optimization_core::OptimizationWorkUsage;
 
 use crate::FixedViewCopyError;
 
-use selected_instructions::{SelectedInstruction, VirtualFixedConstraintSite};
+use selected_instructions::VirtualFixedConstraintSite;
 
 use super::FixedViewCopy;
 

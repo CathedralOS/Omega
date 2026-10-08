@@ -1,14 +1,6 @@
-use crate::rewrites::selected_operands::selected_operand;
-use register_model::{
-    RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-};
-use selected_instructions::{
-    SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
+use register_model::RegisterInstructionConstraint;
 
 use crate::{FixedViewCopy, FixedViewCopyError};
-use selected_instructions::VirtualFixedConstraintSite;
 
 pub(super) fn replay_apply(
     function_index: usize,

@@ -1,13 +1,7 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
-use super::{
-    RegisterInstructionConstraint, ScalarType, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator,
-    VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterOrigin,
-};
+use super::{RegisterInstructionConstraint, ScalarType, SelectedInstructionId, SelectedTerminator};
 use crate::FixedViewCopy;
 use crate::FixedViewCopyError;
-use crate::rewrites::selected_operands::selected_operand;
-use selected_instructions::terminator_instruction_mut;
 
 pub(super) fn apply_copy(
     function_index: usize,

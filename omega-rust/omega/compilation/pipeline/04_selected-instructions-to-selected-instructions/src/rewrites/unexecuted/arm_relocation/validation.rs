@@ -27,9 +27,8 @@ use selected_instructions::{
 
 use super::{ArmRelocationError, ArmRelocationReceipt, ValidatedArmRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::edge_surface;
 use crate::rewrites::sealed;
-use crate::rewrites::window_hazards::{block_scan_surface, register_writes, surface};
+use crate::rewrites::window_hazards::{block_scan_surface, register_writes};
 
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the admitted member's arm and index, the fork head, and the

@@ -311,30 +311,12 @@ pub(super) fn admit<'source>(
 /// copy row supplies the operand interface while the register identity, the
 /// instruction identity, and the extension's provenance stay with the result.
 pub(super) fn rewritten(admitted: &Admission<'_>) -> SelectedInstruction {
-    SelectedInstruction {
-        id: admitted.extension_id,
-        kind: SelectedInstructionKind::CopyI64,
-        constraint: admitted.copy.key,
-        operands: admitted
-            .copy
-            .operands
-            .iter()
-            .zip([admitted.value, admitted.output])
-            .map(
-                |(operand, register)| selected_instructions::SelectedOperand {
-                    operand: operand.operand,
-                    virtual_register: register,
-                    access: operand.access,
-                    class: operand.class,
-                    fixed_view: operand.fixed_view,
-                    tied_to: operand.tied_to,
-                    early_clobber: operand.early_clobber,
-                },
-            )
-            .collect(),
-        implicit_uses: admitted.copy.implicit_uses.clone(),
-        implicit_defs: admitted.copy.implicit_defs.clone(),
-        clobbers: admitted.copy.clobbers.clone(),
-        provenance: admitted.provenance.clone(),
-    }
+    crate::rewrites::selected_operands::copy_shaped(
+        admitted.extension_id,
+        SelectedInstructionKind::CopyI64,
+        admitted.copy,
+        admitted.value,
+        admitted.output,
+        admitted.provenance.clone(),
+    )
 }
