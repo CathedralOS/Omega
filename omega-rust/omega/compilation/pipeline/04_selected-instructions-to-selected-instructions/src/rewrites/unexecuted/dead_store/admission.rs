@@ -892,78 +892,19 @@ fn byte_span_covering(
     if matches!(dead.extent, DeadExtent::SequenceByte(_)) {
         return Err(reject());
     }
-    let mut covering = None;
-    for access in function
-        .memory_accesses
-        .iter()
-        .filter(|access| access.instruction == instruction.id)
-    {
-        if !interferes(dead, access, structural_places, function) {
-            continue;
-        }
-        if covering.is_some() {
-            return Err(reject());
-        }
-        covering = Some(access);
-    }
-    let Some(row) = covering else {
-        return Err(reject());
-    };
-    // The span row names the dynamic extent the copy writes; its byte count
-    // is contractual zero — the runtime `length` is the authoritative reach.
-    let SelectedMemoryAccessRole::WriteByteSpan { length, .. } = row.role else {
-        return Err(reject());
-    };
-    if row.byte_count != 0 {
-        return Err(reject());
-    }
-    // The target's declared `copy_bytes` row pins operand 2 as the count
-    // use, so the register named there is the extent the instruction writes.
-    if environment.selected_keys().copy_bytes != Some(instruction.constraint) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let count = instruction
-        .operands
-        .iter()
-        .find(|operand| operand.operand == 2 && operand.access == RegisterOperandAccess::Use)
-        .ok_or_else(reject)?
-        .virtual_register;
-    // Row-instruction agreement for a dynamic extent: the count register
-    // must carry the `length` value the row claims, so a resolved constant
-    // — or a same-extent dead span naming the value — really is the reach
-    // the instruction writes.
-    let register = function
-        .virtual_registers
-        .iter()
-        .find(|register| register.id == count)
-        .ok_or_else(reject)?;
-    if !super::origin_carries(register.origin, length) {
-        return Err(reject());
-    }
-    // The same-extent route: the dead copy's `length` never resolved, so
-    // its reach is unbounded upward and only a span writing the identical
-    // extent — the same `byte_offset` and the same `length` value — can
-    // provably rewrite all of it.
-    if let DeadExtent::ByteSpan(dead_length) = dead.extent {
-        return if row.byte_offset == dead.byte_offset && length == dead_length {
-            Ok(())
+    super::covering_span_row(
+        instruction,
+        dead.byte_offset,
+        dead.byte_count,
+        if let DeadExtent::ByteSpan(length) = dead.extent {
+            Some(length)
         } else {
-            Err(reject())
-        };
-    }
-    let written = materialized_bits(function, count).map_err(|_| reject())?;
-    if transport_defines(function, count) {
-        return Err(reject());
-    }
-    if row.byte_offset > dead.byte_offset {
-        return Err(reject());
-    }
-    let needed =
-        u64::from(dead.byte_offset) + u64::from(dead.byte_count) - u64::from(row.byte_offset);
-    if written < needed {
-        return Err(reject());
-    }
-    Ok(())
+            None
+        },
+        function,
+        environment,
+        |access| interferes(&dead, access, structural_places, function),
+    )
 }
 
 /// The `WriteByteSequence` covering route for an exact dead range: the row

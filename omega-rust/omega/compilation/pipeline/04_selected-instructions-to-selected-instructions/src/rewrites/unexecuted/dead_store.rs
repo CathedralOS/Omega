@@ -434,3 +434,95 @@ pub(super) fn crossed_successors(
     }
     Ok((cursor != block_index).then_some(cursor_id))
 }
+
+/// The copy's covering row must be the span carrying the reach `length`
+/// names: a single disturbing `WriteByteSpan` row of contractual zero count
+/// on the declared `copy_bytes` instruction, whose operand-2 register
+/// carries `length` — or, when the dead extent never resolved, the
+/// identical span at `byte_offset`.
+pub(super) fn covering_span_row(
+    instruction: &selected_instructions::SelectedInstruction,
+    byte_offset: u32,
+    byte_count: u32,
+    same_extent: Option<semantic_vocabulary::ValueId>,
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    disturbs: impl Fn(&selected_instructions::SelectedMemoryAccess) -> bool,
+) -> Result<(), DeadStoreEliminationError> {
+    let reject = || DeadStoreEliminationError::InterveningAccess;
+    let mut covering = None;
+    for access in function
+        .memory_accesses
+        .iter()
+        .filter(|access| access.instruction == instruction.id)
+    {
+        if !disturbs(access) {
+            continue;
+        }
+        if covering.is_some() {
+            return Err(reject());
+        }
+        covering = Some(access);
+    }
+    let Some(row) = covering else {
+        return Err(reject());
+    };
+    // The span row names the dynamic extent the copy writes; its byte count
+    // is contractual zero — the runtime `length` is the authoritative reach.
+    let selected_instructions::SelectedMemoryAccessRole::WriteByteSpan { length, .. } = row.role
+    else {
+        return Err(reject());
+    };
+    if row.byte_count != 0 {
+        return Err(reject());
+    }
+    // The target's declared `copy_bytes` row pins operand 2 as the count
+    // use, so the register named there is the extent the instruction writes.
+    if environment.selected_keys().copy_bytes != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let count = instruction
+        .operands
+        .iter()
+        .find(|operand| {
+            operand.operand == 2 && operand.access == register_model::RegisterOperandAccess::Use
+        })
+        .ok_or_else(reject)?
+        .virtual_register;
+    // Row-instruction agreement for a dynamic extent: the count register
+    // must carry the `length` value the row claims, so a resolved constant
+    // — or a same-extent dead span naming the value — really is the reach
+    // the instruction writes.
+    let register = function
+        .virtual_registers
+        .iter()
+        .find(|register| register.id == count)
+        .ok_or_else(reject)?;
+    if !origin_carries(register.origin, length) {
+        return Err(reject());
+    }
+    // The same-extent route: the dead copy's `length` never resolved, so
+    // its reach is unbounded upward and only a span writing the identical
+    // extent — the same `byte_offset` and the same `length` value — can
+    // provably rewrite all of it.
+    if let Some(dead_length) = same_extent {
+        return if row.byte_offset == byte_offset && length == dead_length {
+            Ok(())
+        } else {
+            Err(reject())
+        };
+    }
+    let written = crate::rewrites::condition_state::materialized_bits(function, count)
+        .map_err(|_| reject())?;
+    if crate::rewrites::place_storage::transport_defines(function, count) {
+        return Err(reject());
+    }
+    if row.byte_offset > byte_offset {
+        return Err(reject());
+    }
+    let needed = u64::from(byte_offset) + u64::from(byte_count) - u64::from(row.byte_offset);
+    if written < needed {
+        return Err(reject());
+    }
+    Ok(())
+}
