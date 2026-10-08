@@ -2,8 +2,8 @@
 //! proposition family arguments and indexed carrier parameters.
 
 use crate::declarations::traits::conformance::signature_matching::{
-    TraitTypeBinding, TraitTypeBindingTarget, carrier_data_definition_for_argument,
-    required_trait_type_parameter, type_references_match_with_trait_bindings,
+    carrier_data_definition_for_argument, required_trait_type_parameter, trait_type_bindings,
+    type_references_match_with_trait_bindings,
 };
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
@@ -122,15 +122,7 @@ fn validate_proposition_family_arguments(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let parameters = program.trait_type_parameters(applied_trait);
-    let mut bindings = parameters
-        .iter()
-        .zip(applied_arguments)
-        .map(|(parameter, argument)| TraitTypeBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.to_string(),
-            target: TraitTypeBindingTarget::Type(*argument),
-        })
-        .collect::<Vec<_>>();
+    let mut bindings = trait_type_bindings(parameters.iter(), applied_arguments.iter());
 
     for (parameter, argument) in parameters.iter().zip(applied_arguments) {
         let TypeParameterKind::Proposition { contract: expected } = &parameter.kind else {

@@ -3,7 +3,7 @@
 //! conformance declares.
 
 use crate::declarations::traits::conformance::signature_matching::{
-    TraitTypeBinding, TraitTypeBindingTarget, type_references_match_with_trait_bindings,
+    trait_type_bindings, type_references_match_with_trait_bindings,
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
 use crate::declarations::traits::trait_definition_by_symbol;
@@ -28,16 +28,12 @@ pub(crate) fn named_conformance_argument_matches(
     required: TypeReferenceHandle,
     requirement: &GenericBoundRequirement<'_>,
 ) -> bool {
-    let mut bindings = program
-        .trait_type_parameters(requirement.trait_definition)
-        .iter()
-        .zip(requirement.bound.arguments.iter())
-        .map(|(parameter, argument)| TraitTypeBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.to_string(),
-            target: TraitTypeBindingTarget::Type(*argument),
-        })
-        .collect::<Vec<_>>();
+    let mut bindings = trait_type_bindings(
+        program
+            .trait_type_parameters(requirement.trait_definition)
+            .iter(),
+        requirement.bound.arguments.iter(),
+    );
     type_references_match_with_trait_bindings(
         program,
         actual,

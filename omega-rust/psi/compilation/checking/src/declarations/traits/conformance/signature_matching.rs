@@ -600,6 +600,22 @@ pub(crate) enum TraitTypeBindingTarget {
     Parameter(SymbolHandle),
 }
 
+/// `parameter ↔ argument` pairs collected as `TraitTypeBinding`s — the
+/// projection every conformance site builds before matching.
+pub(crate) fn trait_type_bindings<'a>(
+    parameters: impl Iterator<Item = &'a TypeParameter>,
+    arguments: impl Iterator<Item = &'a TypeReferenceHandle>,
+) -> Vec<TraitTypeBinding> {
+    parameters
+        .zip(arguments)
+        .map(|(parameter, argument)| TraitTypeBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name.to_string(),
+            target: TraitTypeBindingTarget::Type(*argument),
+        })
+        .collect()
+}
+
 pub(crate) fn type_references_match_with_trait_bindings(
     program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,

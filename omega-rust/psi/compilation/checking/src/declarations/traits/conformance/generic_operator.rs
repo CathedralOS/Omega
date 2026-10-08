@@ -1,6 +1,5 @@
 //! Token selection from a generic machine's authored conformance requirements.
-use crate::declarations::traits::conformance::signature_matching::TraitTypeBinding;
-use crate::declarations::traits::conformance::signature_matching::TraitTypeBindingTarget;
+use crate::declarations::traits::conformance::signature_matching::trait_type_bindings;
 use crate::declarations::traits::conformance::signature_matching::type_references_match_with_trait_bindings;
 use crate::declarations::traits::trait_definition_by_symbol;
 use language_core::OperatorSpelling;
@@ -32,16 +31,10 @@ pub fn generic_bound_operator_requirement<'program>(
             if parameters.len() != operands.len() {
                 continue;
             }
-            let mut bindings = program
-                .trait_type_parameters(trait_definition)
-                .iter()
-                .zip(&bound.arguments)
-                .map(|(parameter, argument)| TraitTypeBinding {
-                    parameter_symbol: parameter.symbol,
-                    parameter_name: parameter.name.to_string(),
-                    target: TraitTypeBindingTarget::Type(*argument),
-                })
-                .collect::<Vec<_>>();
+            let mut bindings = trait_type_bindings(
+                program.trait_type_parameters(trait_definition).iter(),
+                bound.arguments.iter(),
+            );
             if !operands.iter().zip(parameters).all(|(actual, parameter)| {
                 actual.is_some_and(|actual| {
                     type_references_match_with_trait_bindings(
