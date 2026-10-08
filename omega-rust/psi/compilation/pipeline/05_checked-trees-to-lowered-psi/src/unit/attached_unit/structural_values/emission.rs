@@ -1280,8 +1280,14 @@ impl Emission<'_, '_, '_> {
                 self.completed(place, continuation)
             }
             CheckedStructuralValueKind::ByteLiteralView { bytes } => {
+                // The literal carries the memberships checking established
+                // for this occurrence (`""` into a `&[u8] in Utf8` field);
+                // Terminal replays its byte predicates against the octets.
+                let qualifications =
+                    self.checked_membership_domains(node.qualification_decisions)?;
                 let place = crate::emission::structural_byte_sequence_store::emit_literal_view(
                     &bytes,
+                    qualifications,
                     self.structural_types,
                     self.temporary_places,
                     self.next_place,

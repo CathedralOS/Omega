@@ -599,6 +599,7 @@ pub(crate) fn emit_descriptor_store(
 /// consuming store's lifetime or predicate rules.
 pub(crate) fn emit_literal_view(
     bytes: &[u8],
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     structural_types: &[StructuralTypeDeclaration],
     places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -623,7 +624,7 @@ pub(crate) fn emit_literal_view(
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination: source,
             bytes: bytes.to_vec(),
-            qualifications: Vec::new(),
+            qualifications,
         },
     });
     Ok(source)
@@ -837,6 +838,7 @@ impl ByteEmission<'_> {
     fn literal(&mut self, bytes: &[u8]) -> Result<(ByteSequenceOperand, u64), LoweringError> {
         let source = emit_literal_view(
             bytes,
+            Vec::new(),
             self.structural_types,
             self.places,
             self.next_place,

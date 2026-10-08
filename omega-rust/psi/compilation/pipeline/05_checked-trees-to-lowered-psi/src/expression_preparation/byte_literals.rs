@@ -69,6 +69,21 @@ fn collect_domains(
         match &node.kind {
             CheckedStructuralValueKind::ByteLiteralView { .. } => {
                 requires_literal_view = true;
+                // The view is established with the memberships checking
+                // decided for this occurrence; their theories join the catalog.
+                for decision in checked
+                    .facts
+                    .qualifications
+                    .value_formations
+                    .span(node.qualification_decisions)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte literal view membership decisions are stale",
+                    ))?
+                {
+                    if !domains.contains(&decision.semantic_domain) {
+                        domains.push(decision.semantic_domain);
+                    }
+                }
             }
             CheckedStructuralValueKind::Place(argument)
                 if matches!(

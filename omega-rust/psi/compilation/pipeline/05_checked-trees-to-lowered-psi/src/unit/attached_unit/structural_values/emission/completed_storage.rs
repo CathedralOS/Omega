@@ -27,6 +27,20 @@ impl Emission<'_, '_, '_> {
                 )
             })
             .or_else(|| {
+                // A literal view's establishment names its place and the
+                // memberships it was established with.
+                self.operations
+                    .iter()
+                    .find_map(|operation| match &operation.kind {
+                        terminal_psi::OperationKind::EstablishByteSequenceLiteral {
+                            destination,
+                            qualifications,
+                            ..
+                        } if *destination == place => Some((qualifications.as_slice(), &[][..])),
+                        _ => None,
+                    })
+            })
+            .or_else(|| {
                 self.evaluation
                     .structural_parameters
                     .iter()
@@ -40,6 +54,31 @@ impl Emission<'_, '_, '_> {
                         )
                     })
             })
+    }
+
+    /// The Terminal domains of an occurrence's checked memberships on this
+    /// emission's carrier.
+    pub(super) fn checked_membership_domains(
+        &self,
+        decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+    ) -> Result<Vec<semantic_vocabulary::StructuralDomainId>, LoweringError> {
+        self.checked
+            .facts
+            .qualifications
+            .value_formations
+            .span(decisions)
+            .ok_or(LoweringError::Unsupported(
+                "operand membership decisions are stale",
+            ))?
+            .iter()
+            .map(|decision| {
+                crate::terminal_identities::lookup_domain_id_for_carrier(
+                    self.domain_ids,
+                    decision.semantic_domain,
+                    self.structural_type,
+                )
+            })
+            .collect()
     }
 
     /// Publish checked operand facts without relabeling its producer's ABI

@@ -24,6 +24,7 @@ impl OperationFrame<'_, '_> {
         if let Source::ByteSequenceLiteral { bytes } = &source.source {
             return byte_store::emit_literal_view(
                 bytes,
+                Vec::new(),
                 self.structural_types.declarations(),
                 self.private_places,
                 self.next_place,
