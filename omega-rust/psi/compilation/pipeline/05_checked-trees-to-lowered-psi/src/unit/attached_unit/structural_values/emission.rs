@@ -462,7 +462,22 @@ pub(crate) fn emit(
     Ok(declaration)
 }
 
-/// The structural-value plans recorded for the checked unit.
+/// The structural-value plans recorded for the checked unit./// Allocate a fresh dense id for each carried value declaration.
+fn fresh_value_declarations(
+    next_value: &mut u64,
+    values: &[ValueDeclaration],
+) -> Result<Vec<ValueDeclaration>, LoweringError> {
+    values
+        .iter()
+        .map(|value| {
+            Ok(ValueDeclaration {
+                id: value_id(allocate_dense(next_value)?),
+                ..*value
+            })
+        })
+        .collect()
+}
+
 fn structural_values(checked: &CheckedTrees) -> &checked_trees::CheckedStructuralValuePlans {
     &checked.facts.values.structural_values
 }
@@ -1528,16 +1543,7 @@ impl Emission<'_, '_, '_> {
             self.multiplicity,
             StructuralAccess::Owned,
         ));
-        let parameters = self
-            .values
-            .iter()
-            .map(|value| {
-                Ok(ValueDeclaration {
-                    id: value_id(allocate_dense(self.next_value)?),
-                    ..*value
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let parameters = fresh_value_declarations(self.next_value, self.values)?;
         self.temporary_places.push(StructuralPlaceDeclaration {
             id: place,
             kind: StructuralPlaceKind::BlockParameter { block, position },
@@ -1612,16 +1618,7 @@ impl Emission<'_, '_, '_> {
             self.multiplicity,
             self.result_access,
         )];
-        let parameters = self
-            .values
-            .iter()
-            .map(|value| {
-                Ok(ValueDeclaration {
-                    id: value_id(allocate_dense(self.next_value)?),
-                    ..*value
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let parameters = fresh_value_declarations(self.next_value, self.values)?;
         let continuation = ValueContinuation {
             block: join,
             parameters,
@@ -1981,15 +1978,7 @@ impl Emission<'_, '_, '_> {
         mut remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
     ) -> Result<ValueContinuation, LoweringError> {
         let join = block_id(allocate_dense(self.next_block)?);
-        let joined_values = values
-            .iter()
-            .map(|value| {
-                Ok(ValueDeclaration {
-                    id: value_id(allocate_dense(self.next_value)?),
-                    ..*value
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let joined_values = fresh_value_declarations(self.next_value, &values)?;
         let mut structural_parameters = Vec::new();
         let (pass_through, residuals) = self.partition_owner_continuation(
             join,
