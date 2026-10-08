@@ -80,7 +80,7 @@ impl LoweredMachineProvenance {
         let mut pending = std::collections::VecDeque::from([module.entry]);
         let mut visited = std::collections::BTreeSet::from([module.entry]);
         while let Some(current) = pending.pop_front() {
-            let Some(machine) = module.machines.iter().find(|machine| machine.id == current) else {
+            let Some(machine) = module.machine(current) else {
                 continue;
             };
             for block in &machine.blocks {

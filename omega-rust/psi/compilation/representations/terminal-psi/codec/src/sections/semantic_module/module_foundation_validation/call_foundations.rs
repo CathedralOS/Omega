@@ -124,7 +124,7 @@ pub(super) fn validate_call_dynamic(
         .filter(|table| table.interface == *interface)
         .filter_map(|table| table.rows.get(*slot as usize).copied().flatten())
     {
-        let Some(callee) = module.machines.iter().find(|candidate| candidate.id == row) else {
+        let Some(callee) = module.machine(row) else {
             return malformed("dynamic table row references an unknown machine");
         };
         validate_structural_arguments(

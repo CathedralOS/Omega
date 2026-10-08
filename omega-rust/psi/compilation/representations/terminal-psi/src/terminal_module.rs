@@ -203,6 +203,11 @@ pub struct TerminalModule {
 }
 
 impl TerminalModule {
+    /// The machine keyed `id`, when the module declares it.
+    pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
+        self.machines.iter().find(|machine| machine.id == id)
+    }
+
     /// A module for `entry` with the current vocabulary and every roster
     /// empty. Producers name only the rosters they fill
     /// (`TerminalModule { machines, structural_types, ..TerminalModule::for_entry(entry) }`),
