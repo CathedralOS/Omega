@@ -348,6 +348,49 @@ pub(crate) mod test_support {
         plan_elf_dynamic_tags(descriptors).expect("valid semantic dynamic tags")
     }
 
+    /// The import-call fixture staged through indexed section payloads — the
+    /// shared prefix for the load-layout and section-header assertions.
+    pub(crate) fn import_call_indexed_payloads(
+        mut image: image::FinalImage,
+        symbol_handle: image::FinalImageSymbolHandle,
+        target: TargetProfile,
+    ) -> crate::ValidatedElfIndexedSectionPayloadPlan {
+        use image::{FinalImageRelocation, FinalImageSection};
+        use object_file::RelocationKind;
+        let (offset, kind) = match target {
+            TargetProfile::LinuxX64 => {
+                image.memory.text[0] = 0xe8;
+                (1, RelocationKind::X86_64Relative32)
+            }
+            TargetProfile::LinuxArm64 => {
+                image.memory.text[0..4].copy_from_slice(&[0, 0, 0, 0x94]);
+                (0, RelocationKind::Aarch64Branch26)
+            }
+            _ => unreachable!(),
+        };
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Text,
+                offset,
+                byte_width: 4,
+                symbol_handle,
+                addend: 0,
+                kind,
+            });
+        let linkage = resolved_linkage(image, target);
+        let templates = crate::plan_elf_procedure_linkage_templates(linkage).unwrap();
+        let descriptors = crate::plan_elf_procedure_linkage_section_descriptors(templates).unwrap();
+        let tags = crate::plan_elf_dynamic_tags(descriptors).unwrap();
+        let dynamic = crate::serialize_elf_dynamic_table(tags).unwrap();
+        let descriptor = crate::plan_elf_dynamic_table_section_descriptor(dynamic).unwrap();
+        let names = crate::plan_elf_section_name_table(descriptor).unwrap();
+        let roster = crate::plan_elf_dynamic_section_roster(names).unwrap();
+        let headers = crate::serialize_elf_section_header_table(roster).unwrap();
+        crate::plan_elf_indexed_section_payloads(headers).unwrap()
+    }
+
     /// Extend the import-call fixture through relative payload layout to the
     /// validated load layout — the point where the load-placement and
     /// section-header tests diverge.
