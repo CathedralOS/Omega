@@ -1200,6 +1200,23 @@ pub struct TableNamePath {
 }
 
 impl TableNamePath {
+    /// The name path spelling a resolved name: ordered members with their
+    /// per-member resolution symbols, the head symbol, and the symbol the
+    /// whole path resolves to.
+    pub const fn new(
+        members: HandleSpan<Identifier>,
+        member_symbols: HandleSpan<SymbolHandle>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            members,
+            member_symbols,
+            head_symbol,
+            symbol,
+        }
+    }
+
     /// The symbol this path resolves to: the resolution-authoritative head
     /// symbol when the name resolved, else the whole-path symbol.
     pub fn resolved_symbol(&self) -> Option<SymbolHandle> {

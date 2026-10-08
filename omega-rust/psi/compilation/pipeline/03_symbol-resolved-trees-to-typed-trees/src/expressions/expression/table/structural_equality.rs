@@ -353,12 +353,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let receiver = self
             .target()
             .insert(typed::expression::ExpressionNode::Name(
-                typed::expression::TableNamePath {
+                typed::expression::TableNamePath::new(
                     members,
                     member_symbols,
-                    head_symbol: conformance.symbol,
-                    symbol: conformance.symbol,
-                },
+                    conformance.symbol,
+                    conformance.symbol,
+                ),
             ));
         // Each operand is lowered once in authored order. Shared loans
         // express equality's observation; the ordinary call and borrow
@@ -955,12 +955,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let case_reference = self
             .target()
             .insert(typed::expression::ExpressionNode::Name(
-                typed::expression::TableNamePath {
+                typed::expression::TableNamePath::new(
                     members,
                     member_symbols,
-                    head_symbol: data.symbol,
-                    symbol: variant.symbol,
-                },
+                    data.symbol,
+                    variant.symbol,
+                ),
             ));
         self.target()
             .insert(typed::expression::ExpressionNode::Binary(

@@ -36,12 +36,12 @@ pub(crate) fn build_domain_membership_contract(
             .typed_trees
             .expression_table
             .insert(typed::expression::ExpressionNode::Name(
-                typed::expression::TableNamePath {
+                typed::expression::TableNamePath::new(
                     members,
                     member_symbols,
-                    head_symbol: param_symbol,
-                    symbol: param_symbol,
-                },
+                    param_symbol,
+                    param_symbol,
+                ),
             ));
 
     let mut domain = arena::HandleSpan::empty();

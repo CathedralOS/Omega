@@ -1153,12 +1153,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .push_name_path_member_symbol(&mut member_symbols, initializer.variant_symbol);
         self.target()
             .insert(typed::expression::ExpressionNode::Name(
-                typed::expression::TableNamePath {
+                typed::expression::TableNamePath::new(
                     members,
                     member_symbols,
-                    head_symbol: initializer.type_symbol,
-                    symbol: initializer.variant_symbol,
-                },
+                    initializer.type_symbol,
+                    initializer.variant_symbol,
+                ),
             ))
     }
 

@@ -129,12 +129,12 @@ fn case_membership_test(
     let case_reference = target
         .expression_table
         .insert(typed::expression::ExpressionNode::Name(
-            typed::expression::TableNamePath {
+            typed::expression::TableNamePath::new(
                 members,
                 member_symbols,
-                head_symbol: type_symbol,
-                symbol: case_symbol,
-            },
+                type_symbol,
+                case_symbol,
+            ),
         ));
 
     Some(
