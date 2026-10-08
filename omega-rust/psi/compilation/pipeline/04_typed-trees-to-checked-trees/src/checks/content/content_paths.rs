@@ -94,12 +94,9 @@ pub(crate) fn applicable_projection_plans<'facts>(
     type_reference: TypeReferenceHandle,
     subject: &ContentStructuralPlace,
 ) -> Vec<&'facts ContentProjectionPlan> {
-    if !type_reference.is_valid() {
+    let Some(carrier) = program.unwrapped_type_reference(type_reference) else {
         return Vec::new();
-    }
-    let carrier = program
-        .type_reference_table
-        .peeled_type_reference(type_reference);
+    };
     let carrier_identity = program.normalized_type_identity(carrier).into_string();
     facts
         .qualifications

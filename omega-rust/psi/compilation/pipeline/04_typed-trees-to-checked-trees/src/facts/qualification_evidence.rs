@@ -349,7 +349,7 @@ fn nominal_head_symbol(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let unwrapped = unwrapped_type_reference(program, type_reference)?;
+    let unwrapped = program.unwrapped_type_reference(type_reference)?;
     program
         .type_reference_table
         .closed_nominal_symbol(unwrapped)
@@ -360,22 +360,11 @@ pub(crate) fn unwrapped_type_references_match(
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    let Some(left) = unwrapped_type_reference(program, left) else {
+    let Some(left) = program.unwrapped_type_reference(left) else {
         return false;
     };
-    let Some(right) = unwrapped_type_reference(program, right) else {
+    let Some(right) = program.unwrapped_type_reference(right) else {
         return false;
     };
     program.normalized_type_identity(left) == program.normalized_type_identity(right)
-}
-
-fn unwrapped_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    type_reference.is_valid().then(|| {
-        program
-            .type_reference_table
-            .peeled_type_reference(type_reference)
-    })
 }

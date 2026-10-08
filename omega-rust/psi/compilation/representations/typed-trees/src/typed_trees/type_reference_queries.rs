@@ -22,18 +22,10 @@ impl TypedTrees {
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> Option<types::TypeReferenceHandle> {
-        if !type_reference.is_valid() {
-            return None;
-        }
-        match self.type_reference_table.type_reference(type_reference) {
-            types::TypeReferenceNode::Reference { referee, .. } => {
-                self.unwrapped_type_reference(*referee)
-            }
-            types::TypeReferenceNode::Constrained { base_type, .. } => {
-                self.unwrapped_type_reference(*base_type)
-            }
-            _ => Some(type_reference),
-        }
+        type_reference.is_valid().then(|| {
+            self.type_reference_table
+                .peeled_type_reference(type_reference)
+        })
     }
 
     pub fn display_type_reference(&self, type_reference: types::TypeReferenceHandle) -> String {
