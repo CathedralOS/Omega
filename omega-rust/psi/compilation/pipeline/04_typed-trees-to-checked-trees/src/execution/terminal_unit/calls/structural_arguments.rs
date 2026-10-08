@@ -734,6 +734,7 @@ pub(crate) fn exact_structural_argument_access(
                     .normalized_type_identity(local.type_reference)
                     .into_string(),
                 multiplicity: Multiplicity::Affine,
+                local: Default::default(),
             };
             crate::execution::terminal_unit::reference_results::result_loans(
                 program,

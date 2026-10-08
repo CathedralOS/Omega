@@ -107,6 +107,7 @@ pub(crate) fn checked_copied_result_type(
         binding_ordinal: 0,
         type_identity: shapes.add_type(result_type, binders, &[])?,
         multiplicity: Multiplicity::Unrestricted,
+        local: Default::default(),
     })
 }
 
@@ -136,6 +137,7 @@ pub(crate) fn checked_structural_result_type(
             binding_ordinal: 0,
             type_identity: shapes.add_reference_type(result_type, binders)?,
             multiplicity: Multiplicity::Affine,
+            local: Default::default(),
         });
     }
     // A `&'a V` named view carries its reference shell in the plan and loans
@@ -151,6 +153,7 @@ pub(crate) fn checked_structural_result_type(
                 language_semantics::ReferenceAccess::Shared,
             )?,
             multiplicity: Multiplicity::Affine,
+            local: Default::default(),
         });
     }
     // Shared descriptors are unrestricted; materialized reference carriers
@@ -165,6 +168,7 @@ pub(crate) fn checked_structural_result_type(
                 program,
                 result_type,
             ),
+            local: Default::default(),
         });
     }
     // A `&mut R`/`&mut [T]` exclusive structural view is the exclusive-loan
@@ -183,6 +187,7 @@ pub(crate) fn checked_structural_result_type(
                 language_semantics::ReferenceAccess::Mutable,
             )?,
             multiplicity: Multiplicity::Affine,
+            local: Default::default(),
         });
     }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
@@ -203,6 +208,7 @@ pub(crate) fn checked_structural_result_type(
             binding_ordinal: 0,
             type_identity: shapes.add_type(result_type, binders, &[])?,
             multiplicity,
+            local: Default::default(),
         });
     }
     if is_unit(program, result_type)
@@ -235,5 +241,6 @@ pub(crate) fn checked_structural_result_type(
             program,
             result_type,
         ),
+        local: Default::default(),
     })
 }

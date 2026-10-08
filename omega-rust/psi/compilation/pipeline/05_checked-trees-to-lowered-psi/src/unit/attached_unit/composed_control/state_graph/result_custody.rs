@@ -14,7 +14,6 @@ use super::{
     CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::statement::StatementNode;
 use language_semantics::PermissionEventSource;
 
 /// A call or constructed-value result that no automatic return discard
@@ -177,7 +176,6 @@ fn construction_inputs<'input>(
 /// Shared call admission checks each authored operand before emission.
 fn retired_in_body(
     checked: &CheckedTrees,
-    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<u32>, LoweringError> {
     let completed_operands = state
@@ -270,7 +268,6 @@ fn retired_in_body(
     // checked producer/consumer order to exclude transferred homes from exit
     // cleanup. Source ownership admission already accounted for the move.
     let inputs = construction_inputs(checked, state)?;
-    let statements = checked.statement_table.statements(source.statement_nodes);
     for (producer_index, operation) in state.operations.iter().enumerate() {
         let Some(result) = result(operation) else {
             continue;
@@ -280,27 +277,16 @@ fn retired_in_body(
         {
             continue;
         }
-        let local = operation
-            .statement_structural_result_binding()
-            .and_then(|binding| statements.get(binding.statement_index as usize))
-            .and_then(|statement| match statement {
-                StatementNode::LocalData(local) => Some(local),
-                _ => None,
-            });
+        let local = result.local.symbol;
         let consumers = &state.operations[producer_index + 1..];
-        let local_symbol = local.map(|local| local.symbol).unwrap_or_default();
         let occurrence_end = consumers
             .iter()
-            .position(|consumer| consumer.ends_local_occurrence(local_symbol))
+            .position(|consumer| consumer.ends_local_occurrence(local))
             .map_or(consumers.len(), |position| position + 1);
         let call_transfers = consumers[..occurrence_end]
             .iter()
             .map(|consumer| {
-                consumer.definite_call_transfers(
-                    &checked.facts.values,
-                    operation,
-                    local.map(|local| local.symbol).unwrap_or_default(),
-                )
+                consumer.definite_call_transfers(&checked.facts.values, operation, local)
             })
             .sum::<usize>();
         if call_transfers != 0 {
@@ -309,9 +295,9 @@ fn retired_in_body(
         }
         let uses = inputs.iter().filter(|input| {
             input.argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
-                || local.is_some_and(|local| matches!(input.argument.source,
+                || (result.local.is_named() && matches!(input.argument.source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-                        if symbol == local.symbol))
+                        if symbol == local))
         }).collect::<Vec<_>>();
         let mut moves = uses.iter().filter(|input| {
             input.argument.access == checked_trees::CheckedStructuralAccess::Owned
@@ -346,7 +332,6 @@ fn retired_in_body(
 /// parameter outlives every state of the activation).
 pub(super) fn view_backing(
     checked: &CheckedTrees,
-    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     binding_ordinal: u32,
 ) -> Option<u32> {
@@ -371,13 +356,11 @@ pub(super) fn view_backing(
             binding_ordinal,
         } => Some(binding_ordinal),
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            let statements = checked.statement_table.statements(source.statement_nodes);
-            let mut homes = state.operations.iter().filter_map(result).filter(|home| {
-                matches!(
-                    statements.get(home.statement_index as usize),
-                    Some(StatementNode::LocalData(local)) if local.symbol == symbol
-                )
-            });
+            let mut homes = state
+                .operations
+                .iter()
+                .filter_map(result)
+                .filter(|home| home.local.symbol == symbol);
             let home = homes.next()?;
             homes.next().is_none().then_some(home.binding_ordinal)
         }
@@ -390,30 +373,13 @@ pub(super) fn view_backing(
 /// of the authored occurrences that pass the result's local whole. A copyable
 /// result's operand reads are copies and move nothing.
 fn operand_moves(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    local: Option<&checked_trees::statement::TableLocalData>,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
     edge: &CheckedStructuralControlSuccessorPlan,
-) -> Result<usize, LoweringError> {
+) -> usize {
     if result.multiplicity == Multiplicity::Unrestricted {
-        return Ok(0);
+        return 0;
     }
-    if let Some(local) = local
-        && validation::transition_operand_moves(
-            &checked.typed,
-            &checked.facts,
-            machine,
-            source,
-            edge.statement_ordinal as usize,
-            local.symbol,
-        )
-        .is_none()
-    {
-        return unsupported("Unit graph local operand call lost its authored occurrence");
-    }
-    Ok(edge.operand_result_moves(result.binding_ordinal))
+    edge.operand_result_moves(result.binding_ordinal)
 }
 
 /// Rejoin the owned-selection frontier to one ordinary successor's cleanup
@@ -424,23 +390,20 @@ fn operand_moves(
 pub(super) fn selection_edge_discards(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
     operations: &OperationBuffer,
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
 ) -> Result<Vec<PlaceId>, LoweringError> {
-    let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(checked, source, state)?;
+    let cleanup_discards = retired_in_body(checked, state)?;
     let mut roots = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {
             continue;
         }
-        let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
-        else {
+        if !result.local.is_named() {
             return unsupported("Unit graph edge result has no authored local");
-        };
+        }
         if result.statement_index >= edge.statement_ordinal {
             return unsupported("Unit graph edge precedes local establishment");
         }
@@ -448,11 +411,11 @@ pub(super) fn selection_edge_discards(
         let role = selection_role(
             checked,
             machine,
-            source.symbol,
-            local.symbol,
+            state.state,
+            result.local.symbol,
             result.statement_index,
         );
-        let transferred = operand_moves(checked, machine, source, Some(local), result, edge)?
+        let transferred = operand_moves(result, edge)
             + edge
                 .transfers
                 .iter()

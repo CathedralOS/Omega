@@ -279,6 +279,9 @@ impl OpenWindows {
             binding_ordinal,
             type_identity: type_identity.clone(),
             multiplicity,
+            local: crate::execution::terminal_unit::initialized_locals::initialized_local(
+                program, machine, state, local,
+            ),
         };
         if !self.open.insert((position, path.clone())) {
             return None;
@@ -471,6 +474,7 @@ impl OpenWindows {
                         binding_ordinal: displaced_ordinal,
                         type_identity: produced.type_identity.clone(),
                         multiplicity: produced.multiplicity,
+                        local: Default::default(),
                     },
                     source: place.clone(),
                 }

@@ -152,6 +152,7 @@ mod candidate_closure;
 pub(crate) mod cleanup;
 mod composed_control;
 pub(crate) mod control;
+mod initialized_locals;
 mod local_storage;
 pub(crate) mod plan_gaps;
 mod providers;

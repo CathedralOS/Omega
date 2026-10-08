@@ -612,6 +612,7 @@ fn bound_value_source(
                 binding_ordinal: 0,
                 type_identity: parameter.type_identity.clone(),
                 multiplicity: parameter.multiplicity,
+                local: Default::default(),
             },
             CheckedUnitStructuralArgumentPlan {
                 source: CheckedUnitStructuralArgumentSourcePlan::Parameter {

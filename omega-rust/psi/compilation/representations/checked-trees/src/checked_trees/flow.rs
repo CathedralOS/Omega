@@ -49,7 +49,7 @@ pub use self::terminal::{
     CheckedElementViewWritePlan, CheckedFusedServiceErasureReceipt,
     CheckedFusedServiceParameterReceipt, CheckedGuardedExitPlans, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
-    CheckedIndexedWriteDecisions, CheckedNaturalRankMeasure,
+    CheckedIndexedWriteDecisions, CheckedInitializedLocal, CheckedNaturalRankMeasure,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedNormalCleanupAction, CheckedNormalExitCleanupPlan, CheckedOperandSequence,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,

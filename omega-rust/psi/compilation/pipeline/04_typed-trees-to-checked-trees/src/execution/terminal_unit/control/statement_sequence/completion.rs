@@ -338,6 +338,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 binding_ordinal: u32::try_from(structural_count).ok()?,
                 type_identity: shapes.add_type(state.return_type, binders, &[])?,
                 multiplicity: Multiplicity::Unrestricted,
+                local: Default::default(),
             };
             operations.push(CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source: checked_trees::CheckedArrayConstructionSource::Statement,
@@ -401,6 +402,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 )?
             },
             multiplicity: Multiplicity::Affine,
+            local: Default::default(),
         };
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
             result: binding.clone(),

@@ -104,7 +104,6 @@ impl MachineEmission<'_> {
         if *source == checked_trees::CheckedArrayConstructionSource::Statement {
             structural_values::bind_local(
                 checked,
-                plan.state,
                 operation,
                 declaration,
                 self.structural_types,

@@ -943,6 +943,7 @@ impl OperationFrame<'_, '_> {
                 binding_ordinal: 0,
                 type_identity: store.value.type_identity.clone(),
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
+                local: Default::default(),
             },
         )?;
         // The moved-out leaf is an internal temporary, not an authored
@@ -1150,6 +1151,7 @@ impl OperationFrame<'_, '_> {
                 binding_ordinal: 0,
                 type_identity: store.type_identity.clone(),
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
+                local: Default::default(),
             },
         )?;
         let move_id = last_operation_id(

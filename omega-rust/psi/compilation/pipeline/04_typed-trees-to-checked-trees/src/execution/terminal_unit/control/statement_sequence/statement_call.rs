@@ -49,9 +49,8 @@ pub(super) struct StatementCall {
     pub(super) completes_machine: bool,
     /// The scalar result binding, when the call's result is scalar.
     pub(super) result: Option<CheckedUnitScalarResultBindingPlan>,
-    /// The structural result binding and the local it binds, if any.
-    pub(super) structural_result:
-        Option<(CheckedUnitStructuralResultBindingPlan, Option<SymbolHandle>)>,
+    /// The structural result binding; it names the local it initializes.
+    pub(super) structural_result: Option<CheckedUnitStructuralResultBindingPlan>,
     /// Stores consuming the call's result, run as its continuation.
     pub(super) result_stores: Vec<CheckedUnitEffectOperationPlan>,
     /// Structural bindings those stores mint beyond the call's own result.
@@ -147,7 +146,7 @@ pub(super) fn plan(
         call,
         trace,
     )?;
-    if let Some((result, _)) = &mut structural_result {
+    if let Some(result) = &mut structural_result {
         let binding_ordinal = u32::try_from(*structural_count).ok()?;
         // Assignment planning reserves the result before operand establishment.
         // Copies and nested calls take earlier slots; rebind the store to its
@@ -272,7 +271,7 @@ pub(super) fn plan(
             .or_else(|| {
                 structural_result
                     .as_ref()
-                    .map(|(result, _)| ExpectedCallValueResult::Structural(result))
+                    .map(ExpectedCallValueResult::Structural)
             }),
         structural_results,
         operations,
@@ -280,7 +279,8 @@ pub(super) fn plan(
     )?;
     let coordinate = operation.call()?.coordinate;
     call_phase("statement sequence: call: result binding");
-    if let Some((result, None)) = &structural_result
+    if let Some(result) = &structural_result
+        && !result.local.is_named()
         && !completes_machine
         && call_result_stores.is_empty()
     {
@@ -323,12 +323,13 @@ pub(super) fn plan(
         *structural_count = structural_count.checked_add(1)?;
         return Some(());
     }
-    if let Some((result, symbol)) = structural_result {
+    if let Some(result) = structural_result {
         operation = bind_structural_call_result(operation, result.clone())?;
         if completes_machine {
             *returned_call = Some(result.clone());
         }
-        if let Some(symbol) = symbol {
+        if result.local.is_named() {
+            let symbol = result.local.symbol;
             structural_local_symbols.push(symbol);
             if matches!(statement, StatementNode::LocalData(local)
                 if validation::is_closed_primitive_array_type(program, local.type_reference))

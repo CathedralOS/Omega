@@ -550,7 +550,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     // binding stays anonymous: no local claims it, and the
                     // discard gate below must not retire it before the store
                     // runs as the call's immediate continuation.
-                    structural_result = Some((result, None));
+                    structural_result = Some(result);
                     None
                 }
             },
@@ -584,7 +584,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 local_data::LocalPlan::Planned => continue,
                 local_data::LocalPlan::ScalarCall(result) => Some(result),
                 local_data::LocalPlan::StructuralCall(result) => {
-                    structural_result = Some((result, Some(local.symbol)));
+                    structural_result = Some(result);
                     None
                 }
             },
@@ -609,7 +609,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     result.statement_index = statement_index;
                     // No source local exists for an explicit discard. The call
                     // still produces its own typed result and disposal debt.
-                    structural_result = Some((result, None));
+                    structural_result = Some(result);
                     None
                 } else {
                     None
@@ -631,7 +631,7 @@ pub(in crate::execution::terminal_unit) fn build(
             StatementNode::Expression(_) if completes_machine => {
                 let mut result = checked_structural_result_type(program, shapes, state.return_type, &binders)?;
                 result.statement_index = statement_index;
-                structural_result = Some((result, None));
+                structural_result = Some(result);
                 None
             }
             StatementNode::Expression(_)
@@ -670,7 +670,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         &binders,
                     )?;
                     result.statement_index = statement_index;
-                    structural_result = Some((result, None));
+                    structural_result = Some(result);
                     None
                 } else {
                     None

@@ -1,93 +1,12 @@
-//! Structural referent and view carriers read from authored types: the
-//! referent of a shared borrow or slice view, a mutable view's carrier and a
-//! declared view binding's type. `byte_literals` replays constructor byte
-//! literals against their declared carrier.
+//! A declared view binding's type read from its authored initializer.
+//! `byte_literals` replays constructor byte literals against their declared
+//! carrier.
 
 use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::types::TypeReferenceHandle;
 
 pub(crate) mod byte_literals;
-
-/// The referent of a shared-borrow `&T` result/local type: `T` must be a named
-/// record or a primitive, independently of whether a record contains loans.
-/// A shared borrow observes the referent instead of moving its contents;
-/// contained loans and linear claims stay with the referent's owner and never
-/// become owned obligations of this join. A
-/// primitive referent has no data declaration to resolve; its structural
-/// carrier is the `PrimitiveScalar` shape the type catalog already registers,
-/// and the borrow still denotes the original storage rather than a snapshot.
-/// `None` for owned types, `&mut` carriers (which keep their own
-/// `reference_result_custody` lane), and sums. Shared by source replay and
-/// attached-unit registration, so it lives here rather than in a machine
-/// producer.
-pub(crate) fn shared_borrow_record_referent(
-    checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<checked_trees::types::TypeReferenceHandle> {
-    let checked_trees::types::TypeReferenceNode::Reference {
-        referee, access, ..
-    } = checked.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    if *access != language_semantics::ReferenceAccess::Shared {
-        return None;
-    }
-    if checked.primitive_type_reference(*referee).is_some() {
-        return crate::content_classes::linear_owned_contents(checked, *referee)
-            .then_some(*referee);
-    }
-    // `&[T]` names the slice view itself as the borrowed record: element custody
-    // belongs to the view, so there are no plain owned contents to require.
-    if let checked_trees::types::TypeReferenceNode::Slice { .. } =
-        checked.type_reference_table.type_reference(*referee)
-    {
-        return Some(*referee);
-    }
-    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(*referee)
-    else {
-        return None;
-    };
-    let record = checked
-        .data_definitions()
-        .iter()
-        .find(|record| record.symbol == *symbol)?;
-    if checked
-        .data_members(record)
-        .iter()
-        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-    {
-        return None;
-    }
-    Some(*referee)
-}
-
-/// The carrier a mutable slice binding joins. Both ByteSequence and ElementView
-/// catalogs identify the slice beneath the reference shell; access and affine
-/// descriptor debt are independently retained on its result. Named and primitive
-/// referees keep their reference shell, so this is not generic dereferencing.
-pub(crate) fn mutable_view_carrier(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    validation::slice_view_shell(&checked.typed, reference, &[])
-        .filter(|view| view.access == language_semantics::ReferenceAccess::Mutable)
-        .map(|view| view.slice)
-}
-
-/// The carrier of an actual shared slice view, including byte slices. This
-/// queries source access independently of whether Terminal uses ByteSequence
-/// or ElementView storage; mutable and write-only references cannot lend it.
-pub(crate) fn shared_slice_view_referent(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    validation::slice_view_shell(&checked.typed, reference, &[])
-        .filter(|view| view.access == language_semantics::ReferenceAccess::Shared)
-        .map(|view| view.slice)
-}
 
 /// The type a view-binding `let` declares. Both authored spellings bind the
 /// same slice: `let v: &[u8] = coll[a..b]` names the view directly, while

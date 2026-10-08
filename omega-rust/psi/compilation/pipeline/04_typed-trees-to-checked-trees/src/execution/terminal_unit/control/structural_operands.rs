@@ -324,9 +324,16 @@ pub(in crate::execution::terminal_unit) fn establish_value(
         }
         let mut operation = call.operation().clone();
         let (binding, discard) = operation.call_mut()?.structural_result_mut()?;
-        if *binding != result {
+        // Value planning binds the call before knowing which local it
+        // initializes; the caller's binding names that local.
+        let anonymous = CheckedUnitStructuralResultBindingPlan {
+            local: Default::default(),
+            ..result.clone()
+        };
+        if *binding != anonymous {
             return None;
         }
+        *binding = result;
         *discard = discard_result_on_return;
         operations.extend(call.operands().iter().cloned());
         return Some(operation);
@@ -678,6 +685,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     binding_ordinal: u32::try_from(*structural_count).ok()?,
                     type_identity: shapes.add_type(root.type_reference, &binders, &[])?,
                     multiplicity,
+                    local: Default::default(),
                 };
                 *structural_count = structural_count.checked_add(1)?;
                 structural_results.push((
@@ -710,6 +718,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: target.type_identity,
             multiplicity: target.multiplicity,
+            local: Default::default(),
         };
         let operation = build_call_operation(
             program,

@@ -10,7 +10,6 @@ use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsuppor
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
 use checked_trees::data::DataMember;
-use checked_trees::statement::StatementNode;
 use checked_trees::types::TypeReferenceNode;
 
 /// The sum a Unit case dispatch reads.
@@ -160,21 +159,12 @@ fn result_source<'a>(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case result producer missing",
                 ))?;
-            let Some(StatementNode::LocalData(local)) = checked
-                .statement_table
-                .statements(source.statement_nodes)
-                .get(result.statement_index as usize)
-            else {
+            if !result.local.is_named() {
                 return unsupported("Unit case result local missing");
-            };
-            if local.is_mutable
-                || result.multiplicity != checked.type_multiplicity(local.type_reference)
-            {
-                return unsupported("Unit case local is mutable or has mismatched multiplicity");
             }
             (
-                CaseSubject::Place(local.symbol),
-                local.type_reference,
+                CaseSubject::Place(result.local.symbol),
+                result.local.declared_type,
                 language_semantics::PermissionProvenance::Established {
                     machine_symbol: machine,
                     state_symbol: state.state,

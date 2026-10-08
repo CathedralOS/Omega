@@ -878,6 +878,7 @@ fn subject_call(
         binding_ordinal: u32::try_from(structural_count).ok()?,
         type_identity: shapes.add_type(return_type, &[], &[])?,
         multiplicity: program.type_multiplicity(return_type),
+        local: Default::default(),
     };
     let operation = crate::execution::terminal_unit::calls::build_call_operation(
         program,

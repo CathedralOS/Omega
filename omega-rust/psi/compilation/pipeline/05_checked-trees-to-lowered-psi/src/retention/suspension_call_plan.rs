@@ -91,9 +91,6 @@ pub(crate) fn retain_suspension_call_plans(
 
         let mut live_values = Vec::with_capacity(crossing.live_values.len());
         for live in &crossing.live_values {
-            if !source_origin_is_exact(checked, crossing.state, live.origin) {
-                return unsupported("suspension frontier source value origin is inexact");
-            }
             if !live.claims.is_empty() {
                 return unsupported(
                     "suspension frontier has live claims without an exact Terminal ClaimId join",
@@ -213,53 +210,6 @@ pub(crate) fn retain_suspension_call_plans(
         .collect();
     module.suspension_call_plans = plans;
     Ok(())
-}
-
-fn source_origin_is_exact(
-    checked: &CheckedTrees,
-    state_symbol: symbols::SymbolHandle,
-    origin: checked_trees::SuspensionCrossingValueOrigin,
-) -> bool {
-    let Some(state) = checked
-        .machines()
-        .iter()
-        .flat_map(|machine| checked.machine_states(machine))
-        .find(|state| state.symbol == state_symbol)
-    else {
-        return false;
-    };
-    match origin {
-        checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => checked
-            .state_parameters(state)
-            .iter()
-            .nth(position)
-            .is_some_and(|parameter| parameter.symbol == symbol),
-        checked_trees::SuspensionCrossingValueOrigin::Local {
-            symbol,
-            statement_index,
-            environment_position,
-        } => {
-            let statements = checked.statement_table.statements(state.statement_nodes);
-            let Some(checked_trees::statement::StatementNode::LocalData(local)) =
-                statements.get(statement_index)
-            else {
-                return false;
-            };
-            let preceding_locals = statements[..statement_index]
-                .iter()
-                .filter(|statement| {
-                    matches!(
-                        statement,
-                        checked_trees::statement::StatementNode::LocalData(_)
-                    )
-                })
-                .count();
-            let parameter_count = checked.state_parameters(state).iter().count();
-            local.symbol == symbol
-                && environment_position == parameter_count.saturating_add(preceding_locals)
-        }
-        checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => true,
-    }
 }
 
 fn owning_callable_symbol(

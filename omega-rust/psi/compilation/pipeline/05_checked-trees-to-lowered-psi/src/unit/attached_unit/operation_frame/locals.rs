@@ -213,10 +213,8 @@ impl OperationFrame<'_, '_> {
             };
             let produced = produced.clone();
             self.evaluation.establish_structural_result(
-                self.checked,
                 state.state,
                 result,
-                *source == checked_trees::CheckedArrayConstructionSource::Statement,
                 produced,
                 self.structural_types.declarations(),
                 self.operations,
@@ -229,7 +227,6 @@ impl OperationFrame<'_, '_> {
             if *source == checked_trees::CheckedArrayConstructionSource::Statement {
                 super::super::structural_values::bind_local(
                     self.checked,
-                    self.state,
                     operation,
                     declaration,
                     self.structural_types.declarations(),
@@ -378,10 +375,7 @@ impl OperationFrame<'_, '_> {
         // an authored local. Publish the already admitted detached value to
         // the same current-binding namespace in ordinary and composed bodies.
         self.evaluation.establish_structural_binding(
-            self.checked,
-            self.state,
             result,
-            true,
             produced.into(),
             self.structural_types.declarations(),
             self.operations,
@@ -482,10 +476,7 @@ impl OperationFrame<'_, '_> {
             roster.push((Some(declaration), false));
         }
         self.evaluation.establish_structural_binding(
-            self.checked,
-            self.state,
             result,
-            true,
             StructuralBinding::ByteSequenceLiteral {
                 place: destination,
                 structural_type,
@@ -642,10 +633,8 @@ impl OperationFrame<'_, '_> {
             StructuralResults::StateGraph { places, .. } => places.push(declaration),
         }
         self.evaluation.establish_structural_result(
-            self.checked,
             self.state,
             result,
-            true,
             produced,
             self.structural_types.declarations(),
             self.operations,
@@ -707,10 +696,8 @@ impl OperationFrame<'_, '_> {
                 "structural local established no result",
             ))?;
         self.evaluation.establish_structural_result(
-            self.checked,
             self.state,
             result,
-            true,
             produced,
             self.structural_types.declarations(),
             self.operations,

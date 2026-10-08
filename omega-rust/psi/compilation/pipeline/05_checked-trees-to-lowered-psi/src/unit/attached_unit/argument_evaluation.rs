@@ -5,8 +5,8 @@ use super::super::{
 };
 use super::{
     Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, Multiplicity, Operation, OperationResult, PlaceId, ScalarType,
-    StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
+    LoweringError, Operation, OperationResult, PlaceId, ScalarType, StructuralMultiplicity,
+    StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
@@ -303,14 +303,12 @@ impl Evaluation {
     /// Publish one completed structural result into the state's existing value
     /// and local namespaces. Calls and constructors share the original home;
     /// registration neither copies payload fields nor changes cleanup custody.
-    /// The validated producer identifies whether this is the statement result:
-    /// nested operands share its statement coordinate but own no source local.
+    /// The plan's binding names the local it initializes: nested operands
+    /// share its statement coordinate but own no source local.
     pub(crate) fn establish_structural_result(
         &mut self,
-        checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-        is_statement_result: bool,
         produced: terminal_psi::StructuralOperationResult,
         structural_types: &[StructuralTypeDeclaration],
         operations: &mut OperationBuffer,
@@ -346,25 +344,14 @@ impl Evaluation {
                 return unsupported("linear local lost its exact call result custody");
             }
         }
-        self.establish_structural_binding(
-            checked,
-            state,
-            result,
-            is_statement_result,
-            produced.into(),
-            structural_types,
-            operations,
-        )
+        self.establish_structural_binding(result, produced.into(), structural_types, operations)
     }
 
     /// Bind an already established place to its authored local. Producer-specific
     /// admission happens before this shared namespace and local-symbol step.
     pub(crate) fn establish_structural_binding(
         &mut self,
-        checked: &CheckedTrees,
-        state: symbols::SymbolHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-        is_statement_result: bool,
         produced: StructuralBinding,
         structural_types: &[StructuralTypeDeclaration],
         operations: &mut OperationBuffer,
@@ -383,104 +370,26 @@ impl Evaluation {
         {
             return unsupported("structural value binding was established twice");
         }
-        let (_, source) = crate::declarations::state_declaration(checked, state)?;
-        let local = match checked
-            .statement_table
-            .statements(source.statement_nodes)
-            .get(result.statement_index as usize)
-        {
-            Some(checked_trees::statement::StatementNode::LocalData(local))
-                if is_statement_result =>
+        let local = result.local;
+        if local.is_named() {
+            if self
+                .structural_locals
+                .iter()
+                .any(|binding| binding.root == facts::PlaceRoot::Symbol(local.symbol))
             {
-                Some(local)
+                return unsupported("structural value repeats its local binding");
             }
-            Some(_) => None,
-            None => return unsupported("structural result lost its source statement"),
-        };
-        let mut local_symbol = symbols::SymbolHandle::invalid();
-        if let Some(local) = local {
-            // The element-declared view spelling (`let v: u8 = coll[a..b]`)
-            // binds the subslice's own result type; a declared view keeps its
-            // spelling. Custody and carrier resolve on the bound type.
-            let binding_type =
-                crate::expression_preparation::source_custody::structural::declared_view_binding_type(
-                    checked,
-                    local.type_reference,
-                    local.initial_value,
-                );
             // A `&T` local holds shared-borrow custody of the referent's
-            // storage; its carrier identity is the record `T`, matching the
-            // structural type `add_type` recorded for the result. A `&mut`
-            // view local joins the same referent carrier — the minted binding
-            // is affine loan custody even though the borrow shell's own type
-            // multiplicity spells Unrestricted.
-            let shared_borrow =
-                crate::expression_preparation::source_custody::structural::shared_borrow_record_referent(
-                    checked,
-                    binding_type,
-                );
-            let mutable_borrow =
-                crate::reference_custody::mutable_borrow_parts(checked, binding_type);
-            // A `&mut` slice view's carrier is its element-view carrier
-            // exactly as a `&` view's is: `let slots: &mut [Cell] = ..` binds
-            // the `[Cell]` view — and `&mut Cell` binds the `Cell` record —
-            // the same peel `add_type` applied recording the result identity.
-            // A call result that returns a record `&T` keeps its `&T` shell:
-            // the binding stamps the callee's `ref(named(T))` return
-            // identity, so only a borrow-carrier local peels to its referee.
-            // A `&[T]` view or `&u8` call result still peels — its binding
-            // stamps the view or primitive carrier itself.
+            // storage and a `&mut` view local exclusive loan custody, even
+            // though the borrow shell's own type multiplicity spells
+            // Unrestricted. A materialized Reference carrier instead owns its
+            // descriptor: borrow access belongs to the explicit Referent
+            // crossing, not that home.
+            let access = crate::expression_preparation::bindings::structural_paths::terminal_access(
+                local.access,
+            );
             let reference_carrier =
                 matches!(declaration.shape, StructuralTypeShape::Reference { .. });
-            let record_call_result = shared_borrow.is_some_and(|referent| {
-                matches!(
-                    checked.expression_table.expression(local.initial_value),
-                    checked_trees::expression::ExpressionNode::Call(_)
-                ) && matches!(
-                    checked.type_reference_table.type_reference(referent),
-                    checked_trees::types::TypeReferenceNode::Named { .. }
-                )
-            });
-            let carrier = shared_borrow
-                .filter(|_| !record_call_result && !reference_carrier)
-                .or(
-                    crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-                        checked,
-                        binding_type,
-                    ),
-                )
-                .or(
-                    crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
-                        checked,
-                        binding_type,
-                    ),
-                )
-                .unwrap_or(binding_type);
-            // The plan the binding stamps was registered under the shared
-            // structural identity: a reference carrier under its whole loan,
-            // a bounded byte owner with its qualification.
-            let carrier_identity =
-                validation::stored_structural_type_identity(&checked.typed, carrier, &[], &[]);
-            // A materialized Reference shape always carries affine custody.
-            // Other stored values use the shared recursive custody judgment,
-            // including arrays of references. Source copyability alone cannot
-            // authorize duplicating those captured loan descriptors.
-            let expected_multiplicity = if reference_carrier {
-                Multiplicity::Affine
-            } else {
-                crate::reference_custody::binding_multiplicity(checked, binding_type)
-            };
-            if !local.symbol.is_valid()
-                || carrier_identity != result.type_identity
-                || expected_multiplicity != result.multiplicity
-                || self
-                    .structural_locals
-                    .iter()
-                    .any(|binding| binding.root == facts::PlaceRoot::Symbol(local.symbol))
-            {
-                return unsupported("structural value repeats or substitutes its local binding");
-            }
-            local_symbol = local.symbol;
             self.structural_fields
                 .adopt_declarations(produced.structural_type(), structural_types);
             self.structural_locals.push(
@@ -491,16 +400,10 @@ impl Evaluation {
                     argument: StructuralArgument {
                         place: produced.place(),
                         path: produced.path().to_vec(),
-                        // A reference home owns its descriptor. Borrow access belongs
-                        // to the explicit Referent crossing, not that home.
                         access: if reference_carrier {
                             StructuralAccess::Owned
-                        } else if shared_borrow.is_some() {
-                            StructuralAccess::SharedBorrow
-                        } else if mutable_borrow.is_some() {
-                            StructuralAccess::MutableBorrow
                         } else {
-                            StructuralAccess::Owned
+                            access
                         },
                     },
                 },
@@ -522,13 +425,7 @@ impl Evaluation {
                         place: produced.place(),
                         structural_type: produced.structural_type(),
                         carrier,
-                        access: if mutable_borrow.is_some() {
-                            StructuralAccess::MutableBorrow
-                        } else if shared_borrow.is_some() {
-                            StructuralAccess::SharedBorrow
-                        } else {
-                            StructuralAccess::Owned
-                        },
+                        access,
                     },
                 );
             }
@@ -538,7 +435,7 @@ impl Evaluation {
         // own owner row and its own residual complement.
         if multiplicity == StructuralMultiplicity::Affine && produced.path().is_empty() {
             self.structural_value_owners.push(StructuralValueOwner {
-                symbol: local_symbol,
+                symbol: local.symbol,
                 statement: result.statement_index,
                 value: produced.operation_result()?.clone(),
             });

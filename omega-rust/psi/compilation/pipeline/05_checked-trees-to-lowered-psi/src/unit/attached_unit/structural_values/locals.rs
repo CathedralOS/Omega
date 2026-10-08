@@ -2,7 +2,6 @@
 use super::super::{CheckedUnitEffectOperationPlan, LoweringError, unsupported};
 use super::CheckedTrees;
 use checked_trees::CheckedArrayConstructionSource;
-use checked_trees::statement::StatementNode;
 
 /// Bind only the local whose initializer owns this exact published result.
 /// Nested call/argument values in the same statement have different owners and
@@ -11,62 +10,37 @@ use checked_trees::statement::StatementNode;
 /// this join when its produced type names a view family.
 pub(crate) fn bind_local(
     checked: &CheckedTrees,
-    caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     declaration: terminal_psi::StructuralPlaceDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     locals: &mut Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
 ) -> Result<(), LoweringError> {
-    let (result, expression) = match operation {
+    let result = match operation {
         CheckedUnitEffectOperationPlan::EstablishScalarArray {
             source: CheckedArrayConstructionSource::Statement,
             result,
             ..
-        } => (result, None),
+        } => result,
         // A successful call binds its exact initializer result regardless of
         // whether installation selected the callee through a boundary.
         CheckedUnitEffectOperationPlan::Call(call)
             if let Some(result) = call.structural_result() =>
         {
-            let authored = crate::call_sites::locate(checked, caller_state, call.coordinate)?;
-            let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-                authored.source_site
-            else {
-                return Ok(());
-            };
-            (result, Some(expression))
+            result
         }
         _ => return Ok(()),
     };
-    let (_, state) = crate::declarations::state_declaration(checked, caller_state)?;
-    let Some(StatementNode::LocalData(local)) = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(result.statement_index as usize)
-    else {
+    let local = result.local;
+    if !local.is_named() {
         return Ok(());
-    };
+    }
     // Every readable returned reference publishes the same exact local-to-place
-    // join. Its declared access distinguishes shared from mutable permission;
+    // join. Its binding custody distinguishes shared from mutable permission;
     // omitting shared carriers makes later computations lose their live source.
-    // A shared `&[T]` local borrows its slice referent through the same
-    // SharedBorrow custody the named-referee arms admit — `shared_borrowed_parts`
-    // keeps its named restriction, so the slice view peels separately. Its
-    // published identity is the peeled carrier the call result records.
-    let shared_slice =
-        crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
-            checked,
-            local.type_reference,
-        );
     let borrowed_access =
-        crate::reference_custody::mutable_borrow_parts(checked, local.type_reference)
-            .or_else(|| {
-                crate::reference_custody::shared_borrow_parts(checked, local.type_reference)
-            })
-            .map(|(_, access)| {
-                crate::expression_preparation::bindings::structural_paths::terminal_access(access)
-            })
-            .or_else(|| shared_slice.map(|_| terminal_psi::StructuralAccess::SharedBorrow));
+        (local.access != checked_trees::CheckedStructuralAccess::Owned).then(|| {
+            crate::expression_preparation::bindings::structural_paths::terminal_access(local.access)
+        });
     // The roster's owned-source admission is one storage judgment: an already
     // established owned value whose exact constrained type survives the
     // transfer. It classifies every producer and wrapper (plain arrays,
@@ -78,15 +52,13 @@ pub(crate) fn bind_local(
     let owned_contents =
         validation::has_contents(
             &checked.typed,
-            local.type_reference,
+            local.declared_type,
             validation::ContentsRequirement::CleanupOwned,
         ) || crate::content_classes::plain_owned_with_represented_constraints(
             checked,
-            local.type_reference,
-        ) || crate::content_classes::linear_owned_contents(checked, local.type_reference);
-    if expression.is_some_and(|expression| expression != local.initial_value)
-        || !(borrowed_access.is_some() || owned_contents)
-    {
+            local.declared_type,
+        ) || crate::content_classes::linear_owned_contents(checked, local.declared_type);
+    if !(borrowed_access.is_some() || owned_contents) {
         return Ok(());
     }
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {

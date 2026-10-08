@@ -322,14 +322,11 @@ impl OperationFrame<'_, '_> {
     ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
         let checked = self.checked;
         let machine = self.machine;
-        let (_, state) = crate::declarations::state_declaration(checked, self.state)?;
-        let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(result.statement_index as usize)
-        else {
+        let state = self.state;
+        let local = result.local;
+        if !local.is_named() {
             return unsupported("boundary structural result has no authored local");
-        };
+        }
         let mut claims = checked
             .facts
             .flow
@@ -339,7 +336,7 @@ impl OperationFrame<'_, '_> {
             .map(|(_, event)| event)
             .filter(|event| {
                 event.machine_symbol == machine
-                    && event.state_symbol == state.symbol
+                    && event.state_symbol == state
                     && event.source
                         == language_semantics::PermissionEventSource::Statement {
                             statement_index: result.statement_index as usize,
@@ -354,7 +351,7 @@ impl OperationFrame<'_, '_> {
                 let path = lower_structural_path(
                     &validation::structural_claim_path(
                         &checked.typed,
-                        local.type_reference,
+                        local.declared_type,
                         checked
                             .facts
                             .flow
@@ -364,7 +361,7 @@ impl OperationFrame<'_, '_> {
                     )
                     .map_err(LoweringError::Unsupported)?,
                 )?;
-                self.boundary_result_claim(state.symbol, result, event)
+                self.boundary_result_claim(state, result, event)
                     .map(|claim| terminal_psi::StructuralResultClaimBinding { claim, path })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;

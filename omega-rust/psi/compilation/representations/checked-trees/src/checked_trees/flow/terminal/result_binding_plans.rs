@@ -2,9 +2,12 @@
 //! byte-sequence field stores that receive them.
 
 use crate::CheckedScalarExpression;
-use crate::checked_trees::flow::terminal::CheckedUnitStructuralPathSegment;
+use crate::checked_trees::flow::terminal::{
+    CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
+};
 use language_semantics::Multiplicity;
-use typed_trees::types::PrimitiveType;
+use symbols::SymbolHandle;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// Exact state-local coordinate receiving one primitive boundary result in a
 /// Unit-effect body. The local has no structural place or cleanup action; its
@@ -26,6 +29,45 @@ pub struct CheckedUnitStructuralResultBindingPlan {
     pub binding_ordinal: u32,
     pub type_identity: String,
     pub multiplicity: Multiplicity,
+    /// The `let` this result initializes, recorded where planning pairs the
+    /// result with its home. The zero value marks an anonymous result.
+    pub local: CheckedInitializedLocal,
+}
+
+/// The `let` local whose home a structural result establishes: later reads,
+/// loans, claims and edge disposal of that local name this result. The zero
+/// value (an invalid `symbol`) marks an anonymous result -- a returned
+/// value, a computed dispatch subject, a nested operand, an explicitly
+/// discarded call, a call whose result a store consumes, or the call result
+/// a descriptor local's first store reads after its home is established.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedInitializedLocal {
+    pub symbol: SymbolHandle,
+    /// The local's declared type. Claim paths, closed-sum subjects and byte
+    /// carriers resolve against the declaration, not the stored identity.
+    pub declared_type: TypeReferenceHandle,
+    /// The custody the local's binding holds over its carrier: a shared
+    /// borrow for `&T` over a record, primitive or slice view, an exclusive
+    /// borrow for `&mut T`, otherwise owned. Constraint shells do not change
+    /// custody (`&[u8] in Utf8` is a shared view), and an element-declared
+    /// view (`let v: u8 = bytes[a..b]`) classifies the view it binds.
+    pub access: CheckedStructuralAccess,
+}
+
+impl CheckedInitializedLocal {
+    pub fn is_named(&self) -> bool {
+        self.symbol.is_valid()
+    }
+}
+
+impl Default for CheckedInitializedLocal {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            declared_type: TypeReferenceHandle::invalid(),
+            access: CheckedStructuralAccess::Owned,
+        }
+    }
 }
 
 /// Exact source occurrence of one byte-sequence replacement: bounded owned

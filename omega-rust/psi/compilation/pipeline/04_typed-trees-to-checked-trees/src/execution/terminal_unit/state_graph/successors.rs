@@ -573,6 +573,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     binding_ordinal: u32::try_from(result_count).ok()?,
                     type_identity: target.type_identity.clone(),
                     multiplicity,
+                    local: Default::default(),
                 };
                 let establishment = control::structural_operands::establish_value(
                     facts, result, root.root, calls, None, false, &mut operand_calls,

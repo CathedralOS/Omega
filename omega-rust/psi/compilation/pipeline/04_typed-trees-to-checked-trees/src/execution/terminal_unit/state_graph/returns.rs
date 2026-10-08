@@ -530,6 +530,7 @@ pub(super) fn literal_result_operation(
         binding_ordinal: u32::try_from(*count).ok()?,
         type_identity,
         multiplicity,
+        local: Default::default(),
     };
     let qualifications = parameter_qualifications(program, shapes, state.return_type, &[])?;
     *count = count.checked_add(1)?;
@@ -577,6 +578,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
         binding_ordinal: u32::try_from(*count).ok()?,
         type_identity,
         multiplicity: program.type_multiplicity(state.return_type),
+        local: Default::default(),
     };
     *count = count.checked_add(1)?;
     Some(CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source })
@@ -628,6 +630,7 @@ pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
         binding_ordinal: u32::try_from(*count).ok()?,
         type_identity: type_identity.clone(),
         multiplicity: Multiplicity::Affine,
+        local: Default::default(),
     };
     *count = count.checked_add(1)?;
     Some(CheckedUnitEffectOperationPlan::EstablishReference {

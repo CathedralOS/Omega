@@ -153,7 +153,6 @@ impl OperationFrame<'_, '_> {
         if matches!(self.results, StructuralResults::Dense(_)) {
             structural_values::bind_local(
                 self.checked,
-                self.state,
                 operation,
                 declaration,
                 self.structural_types.declarations(),
@@ -168,13 +167,8 @@ impl OperationFrame<'_, '_> {
                     self.structural_types.declarations(),
                 )
             {
-                let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
-                if let Some(checked_trees::statement::StatementNode::LocalData(local)) = self
-                    .checked
-                    .statement_table
-                    .statements(source.statement_nodes)
-                    .get(result.statement_index as usize)
-                    && local.symbol.is_valid()
+                let local = result.local;
+                if local.is_named()
                     && self
                         .evaluation
                         .structural_locals
@@ -186,30 +180,15 @@ impl OperationFrame<'_, '_> {
                         .iter()
                         .any(|binding| binding.symbol == local.symbol)
                 {
-                    let access = if crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-                        self.checked,
-                        local.type_reference,
-                    )
-                    .is_some()
-                    {
-                        terminal_psi::StructuralAccess::MutableBorrow
-                    } else if crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
-                        self.checked,
-                        local.type_reference,
-                    )
-                    .is_some()
-                    {
-                        terminal_psi::StructuralAccess::SharedBorrow
-                    } else {
-                        terminal_psi::StructuralAccess::Owned
-                    };
                     self.evaluation.view_locals.push(
                         crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
                             symbol: local.symbol,
                             place: declaration.id,
                             structural_type: produced.structural_type,
                             carrier,
-                            access,
+                            access: crate::expression_preparation::bindings::structural_paths::terminal_access(
+                                local.access,
+                            ),
                         },
                     );
                 }
@@ -226,22 +205,6 @@ impl OperationFrame<'_, '_> {
         };
         let authored = crate::call_sites::locate(self.checked, self.state, coordinate)?;
         let (_, source) = crate::declarations::state_declaration(self.checked, self.state)?;
-        // A nested call can have ordinal zero when the initializer itself is
-        // a constructor. Only the exact initializer occurrence owns the local,
-        // and only while the declaration has not already established it: a
-        // mutable view local's declared descriptor home is bound first, and
-        // its call initializer's result is the anonymous source its first
-        // descriptor store consumes, exactly as for a later `view = f(..)`.
-        let is_statement_result = matches!(
-            (self.checked.statement_table.statements(source.statement_nodes)
-                .get(result.statement_index as usize), authored.source_site),
-            (Some(checked_trees::statement::StatementNode::LocalData(local)),
-             Some(checked_trees::NominalMachineUseSite::Expression(expression)))
-                if local.initial_value == expression
-                    && !self.evaluation.structural_locals.iter().any(|binding| {
-                        binding.root == facts::PlaceRoot::Symbol(local.symbol)
-                    })
-        );
         // A computed dispatch owns one anonymous result. Publish its exact
         // source identity after ordinary result registration; copied payload
         // receivers then read this home without running their call again.
@@ -267,10 +230,8 @@ impl OperationFrame<'_, '_> {
         let place = produced.place;
         let structural_type = produced.structural_type;
         self.evaluation.establish_structural_result(
-            self.checked,
             self.state,
             result,
-            is_statement_result,
             produced,
             self.structural_types.declarations(),
             self.operations,

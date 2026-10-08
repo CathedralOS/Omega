@@ -510,7 +510,6 @@ impl StateGraphEmission<'_, '_> {
                             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. } => {
                                 super::super::result_custody::view_backing(
                                     checked,
-                                    self.admitted.authored[position].1,
                                     state,
                                     binding_ordinal,
                                 )
@@ -693,7 +692,6 @@ impl StateGraphEmission<'_, '_> {
             let selected = result_custody::selection_edge_discards(
                 checked,
                 owner,
-                self.admitted.authored[position].1,
                 state,
                 edge,
                 operations,

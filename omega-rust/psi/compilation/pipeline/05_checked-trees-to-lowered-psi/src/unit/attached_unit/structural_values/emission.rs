@@ -74,7 +74,6 @@ pub(crate) fn emit(
         result,
         value,
         calls: operand_calls,
-        operand_source,
         ..
     } = operation
     else {
@@ -152,21 +151,14 @@ pub(crate) fn emit(
     }
     // A `&T` result rejoins borrowed custody at the selection's block
     // parameter instead of transferring a referent owner. The authored local's
-    // declared type pins this: `&T` over a plain-owned record produces a
+    // binding custody pins this: `&T` over a plain-owned record produces a
     // shared-borrow join parameter; every other result stays owned.
-    let result_access = match checked
-        .statement_table
-        .statements(authored_state.statement_nodes)
-        .get(result.statement_index as usize)
-    {
-        Some(checked_trees::statement::StatementNode::LocalData(local))
-            if source_custody::shared_borrow_record_referent(checked, local.type_reference)
-                .is_some() =>
-        {
+    let result_access =
+        if result.local.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
             StructuralAccess::SharedBorrow
-        }
-        _ => StructuralAccess::Owned,
-    };
+        } else {
+            StructuralAccess::Owned
+        };
     if result_access == StructuralAccess::SharedBorrow && !sources.is_empty() {
         return unsupported("borrowed selection cannot carry owned residual custody");
     }
@@ -355,10 +347,7 @@ pub(crate) fn emit(
                 claims: result_claims,
             };
         emission.evaluation.establish_structural_binding(
-            checked,
-            state,
             result,
-            true,
             alias,
             structural_types,
             emission.operations,
@@ -448,13 +437,7 @@ pub(crate) fn emit(
         arrival_claims,
     )?;
     emission.evaluation.establish_structural_binding(
-        checked,
-        state,
         result,
-        !matches!(
-            operand_source,
-            Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
-        ),
         completed.into(),
         structural_types,
         emission.operations,

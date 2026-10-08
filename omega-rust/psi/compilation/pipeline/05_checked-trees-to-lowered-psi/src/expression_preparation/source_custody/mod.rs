@@ -21,7 +21,7 @@ pub(crate) mod structural_places;
 // Selected comparisons: a comparison's Terminal meaning.
 pub(crate) mod comparisons;
 
-// Constructed values: structural view carriers and byte literals.
+// Constructed values: a declared view binding's type and byte literals.
 pub(crate) mod structural;
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {

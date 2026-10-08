@@ -26,6 +26,7 @@ use super::{
     checked_structural_result_type, consume_value_places, is_record_pattern_marker,
     retain_selected_sources, scalar_computation_local_at, structural_operands,
 };
+use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::execution::terminal_unit::types::parameter_qualifications;
 
 /// The sequence state a `let` statement reads and extends.
@@ -132,6 +133,8 @@ pub(super) fn plan(
             local_phase("statement sequence: local data: deferred structural binding");
             establish_declared_home(
                 program,
+                machine,
+                state,
                 shapes,
                 binders,
                 operations,
@@ -171,6 +174,8 @@ pub(super) fn plan(
         local_phase("statement sequence: local data: descriptor local initializer");
         establish_declared_home(
             program,
+            machine,
+            state,
             shapes,
             binders,
             operations,
@@ -221,6 +226,7 @@ pub(super) fn plan(
                     program,
                     local.type_reference,
                 ),
+                local: Default::default(),
             };
             *structural_count = structural_count.checked_add(1)?;
             let binding_ordinal = result.binding_ordinal;
@@ -292,6 +298,7 @@ pub(super) fn plan(
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity,
             multiplicity: Multiplicity::Unrestricted,
+            local: initialized_local(program, machine, state, local),
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
@@ -319,6 +326,7 @@ pub(super) fn plan(
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: shapes.add_type(local.type_reference, binders, &[])?,
             multiplicity: Multiplicity::Unrestricted,
+            local: initialized_local(program, machine, state, local),
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
@@ -478,6 +486,7 @@ pub(super) fn plan(
                 CheckedStructuralAccess::MutableBorrow => Multiplicity::Affine,
                 _ => Multiplicity::Unrestricted,
             },
+            local: initialized_local(program, machine, state, local),
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
@@ -499,6 +508,7 @@ pub(super) fn plan(
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: shapes.add_reference_type(local.type_reference, binders)?,
             multiplicity: Multiplicity::Affine,
+            local: initialized_local(program, machine, state, local),
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
@@ -620,6 +630,7 @@ pub(super) fn plan(
                 program,
                 local.type_reference,
             ),
+            local: initialized_local(program, machine, state, local),
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
@@ -653,6 +664,7 @@ pub(super) fn plan(
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: shapes.add_type(local.type_reference, binders, &[])?,
             multiplicity: Multiplicity::Unrestricted,
+            local: initialized_local(program, machine, state, local),
         };
         local_phase("statement sequence: local data: scalar array: elements");
         let elements = super::super::scalar_arrays::elements(
@@ -796,6 +808,7 @@ pub(super) fn plan(
             checked_structural_result_type(program, shapes, local.type_reference, binders)?;
         result.statement_index = statement_index;
         result.binding_ordinal = u32::try_from(*structural_count).ok()?;
+        result.local = initialized_local(program, machine, state, local);
         Some(LocalPlan::StructuralCall(result))
     }
 }
@@ -1126,6 +1139,8 @@ fn is_call_view_loan_binding(
 #[allow(clippy::too_many_arguments)]
 fn establish_declared_home(
     program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     shapes: &mut ShapeCollector<'_>,
     binders: &[(SymbolHandle, String)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
@@ -1144,6 +1159,7 @@ fn establish_declared_home(
             program,
             local.type_reference,
         ),
+        local: initialized_local(program, machine, state, local),
     };
     *structural_count = structural_count.checked_add(1)?;
     // A descriptor home declares the local's byte domains; every store into

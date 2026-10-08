@@ -44,26 +44,10 @@ pub(crate) fn mutable_borrow_parts(
     custody(checked, reference).mutable_borrow_parts()
 }
 
-/// The named referent beneath a `&'a V` shared-borrowed view.
-pub(crate) fn shared_borrow_parts(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    custody(checked, reference).shared_borrow_parts()
-}
-
 /// Whether closed aggregate construction of this type carries real reference
 /// leaves.
 pub(crate) fn is_reference_record(checked: &CheckedTrees, reference: TypeReferenceHandle) -> bool {
     custody(checked, reference).is_reference_record
-}
-
-/// Custody of a structural binding that denotes the referent directly.
-pub(crate) fn binding_multiplicity(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> Multiplicity {
-    custody(checked, reference).binding_multiplicity
 }
 
 /// Custody of a materialized carrier of this type.

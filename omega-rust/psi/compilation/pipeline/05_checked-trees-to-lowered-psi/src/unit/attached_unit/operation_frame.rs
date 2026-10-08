@@ -451,10 +451,7 @@ impl OperationFrame<'_, '_> {
         // source local alone does not imply the original holder survives.
         self.results.push(declaration, false);
         self.evaluation.establish_structural_binding(
-            self.checked,
-            self.state,
             result,
-            true,
             produced.into(),
             self.structural_types.declarations(),
             self.operations,

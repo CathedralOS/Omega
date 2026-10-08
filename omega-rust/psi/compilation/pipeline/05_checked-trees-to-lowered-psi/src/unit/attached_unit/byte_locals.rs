@@ -20,38 +20,26 @@ pub(crate) fn validate(
     else {
         return unsupported("literal local has no establishment");
     };
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-    let statements = checked.statement_table.statements(authored.statement_nodes);
-    let reference = match statements.get(result.statement_index as usize) {
-        Some(checked_trees::statement::StatementNode::LocalData(local))
-            if local.symbol.is_valid() =>
+    // A named local declares its carrier. A completion literal is either an
+    // owned bounded carrier or a shared byte view -- the view's literal rides
+    // image storage just like a `let s: &[u8] = "ab";` local does.
+    let reference = if result.local.is_named() {
+        result.local.declared_type
+    } else {
+        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+        let shared_view = validation::slice_view_shell(&checked.typed, authored.return_type, &[])
+            .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared);
+        if !shared_view
+            && (crate::content_classes::bounded_byte_capacity(checked, authored.return_type)
+                .is_none()
+                || !crate::content_classes::plain_owned_with_represented_constraints(
+                    checked,
+                    authored.return_type,
+                ))
         {
-            local.type_reference
+            return unsupported("literal completion is not an owned bounded byte result");
         }
-        Some(checked_trees::statement::StatementNode::Expression(_))
-            if result.statement_index as usize + 1 != statements.len() =>
-        {
-            return unsupported("literal return is not the authored completion");
-        }
-        _ => {
-            // A completion literal is either an owned bounded carrier or a
-            // shared byte view — the view's literal rides image storage just
-            // like a `let s: &[u8] = "ab";` local does.
-            let shared_view =
-                validation::slice_view_shell(&checked.typed, authored.return_type, &[])
-                    .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared);
-            if !shared_view
-                && (crate::content_classes::bounded_byte_capacity(checked, authored.return_type)
-                    .is_none()
-                    || !crate::content_classes::plain_owned_with_represented_constraints(
-                        checked,
-                        authored.return_type,
-                    ))
-            {
-                return unsupported("literal completion is not an owned bounded byte result");
-            }
-            authored.return_type
-        }
+        authored.return_type
     };
     let declared_reference = reference;
     let mut reference = reference;
