@@ -690,40 +690,53 @@ pub fn verify_component(
 /// `AssumptionBound` row must name a roster assumption. Declared rows bound
 /// to accepted assumptions are how startup, callback, timer, cleanup, and
 /// retained-provider entries enter the roster.
+macro_rules! check_derived_roster {
+    ($description:expr, $inventory:expr, $rows:ident, $evidence:ident, $unexpected:ident, $missing:ident) => {{
+        let derived: BTreeSet<(u8, &str)> = $inventory
+            .$rows
+            .iter()
+            .map(|row| (row.kind.tag(), row.identity.as_str()))
+            .collect();
+        let mut seen = BTreeSet::new();
+        for row in &$description.$rows {
+            match row.evidence {
+                $evidence::ModuleDerived => {
+                    let key = (row.kind.tag(), row.identity.as_str());
+                    if !derived.contains(&key) {
+                        return Err(ComponentVerificationRejection::$unexpected(
+                            row.identity.clone(),
+                        ));
+                    }
+                }
+                $evidence::AssumptionBound(digest) => {
+                    require_bound_assumption(&$description.assumptions, digest)?;
+                }
+            }
+            seen.insert((row.kind.tag(), row.identity.as_str()));
+        }
+        for (tag, identity) in derived {
+            if !seen.contains(&(tag, identity)) {
+                return Err(ComponentVerificationRejection::$missing(
+                    identity.to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }};
+}
+
 fn check_entries(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
-    let derived: BTreeSet<(u8, &str)> = inventory
-        .entries
-        .iter()
-        .map(|entry| (entry.kind.tag(), entry.identity.as_str()))
-        .collect();
-    let mut seen = BTreeSet::new();
-    for entry in &description.entries {
-        match entry.evidence {
-            EntryEvidence::ModuleDerived => {
-                let key = (entry.kind.tag(), entry.identity.as_str());
-                if !derived.contains(&key) {
-                    return Err(ComponentVerificationRejection::UnexpectedDerivedEntry(
-                        entry.identity.clone(),
-                    ));
-                }
-            }
-            EntryEvidence::AssumptionBound(digest) => {
-                require_bound_assumption(&description.assumptions, digest)?;
-            }
-        }
-        seen.insert((entry.kind.tag(), entry.identity.as_str()));
-    }
-    for (tag, identity) in derived {
-        if !seen.contains(&(tag, identity)) {
-            return Err(ComponentVerificationRejection::MissingComponentEntry(
-                identity.to_string(),
-            ));
-        }
-    }
-    Ok(())
+    check_derived_roster!(
+        description,
+        inventory,
+        entries,
+        EntryEvidence,
+        UnexpectedDerivedEntry,
+        MissingComponentEntry
+    )
 }
 
 /// The exported surface is exactly the module-derived export set.
@@ -957,36 +970,14 @@ fn check_custody(
     description: &ComponentDescription,
     inventory: &crate::component_description::DerivedInventory,
 ) -> Result<(), ComponentVerificationRejection> {
-    let derived: BTreeSet<(u8, &str)> = inventory
-        .custody
-        .iter()
-        .map(|row| (row.kind.tag(), row.identity.as_str()))
-        .collect();
-    let mut seen = BTreeSet::new();
-    for row in &description.custody {
-        match row.evidence {
-            CustodyEvidence::ModuleDerived => {
-                let key = (row.kind.tag(), row.identity.as_str());
-                if !derived.contains(&key) {
-                    return Err(ComponentVerificationRejection::UnexpectedDerivedCustody(
-                        row.identity.clone(),
-                    ));
-                }
-            }
-            CustodyEvidence::AssumptionBound(digest) => {
-                require_bound_assumption(&description.assumptions, digest)?;
-            }
-        }
-        seen.insert((row.kind.tag(), row.identity.as_str()));
-    }
-    for (tag, identity) in derived {
-        if !seen.contains(&(tag, identity)) {
-            return Err(ComponentVerificationRejection::MissingCustodyConstraint(
-                identity.to_string(),
-            ));
-        }
-    }
-    Ok(())
+    check_derived_roster!(
+        description,
+        inventory,
+        custody,
+        CustodyEvidence,
+        UnexpectedDerivedCustody,
+        MissingCustodyConstraint
+    )
 }
 
 /// The service-bound roster must replay the module's retained
