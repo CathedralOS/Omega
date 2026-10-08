@@ -6,7 +6,7 @@
 //! `layout-plans`.
 
 use layout_plans::test_support::{
-    constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context,
+    constrained_post_handoff_plan, deeply_nested_layout, entry, post_handoff_context,
     post_handoff_split_writer_plan, record_layout, recursive_record_array_report, repeated_layout,
     stored_integer_layout, sum_layout, symbolic_path, writer_field_offsets,
 };
@@ -28,12 +28,6 @@ use post_handoff_writer_plan::{
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
     derive_post_handoff_writer,
 };
-
-fn entry() -> RelocationTarget {
-    RelocationTarget::Entry(
-        EntryStubId::from_normalized_identity(0x55aa).expect("nonzero identity"),
-    )
-}
 
 fn data() -> RelocationTarget {
     RelocationTarget::Data(

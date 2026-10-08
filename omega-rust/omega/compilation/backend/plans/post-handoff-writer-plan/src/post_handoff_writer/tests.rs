@@ -1,21 +1,15 @@
-use layout_plans::test_support::{split_layout, stored_integer_layout};
+use layout_plans::test_support::{entry, split_layout, stored_integer_layout};
 
 use super::{
     POST_HANDOFF_WRITER_CONTEXT_ABI_V1, PostHandoffWriterPlan, PostHandoffWriterSource,
     PostHandoffWriterStep, derive_post_handoff_writer, post_handoff_writer_context_byte_len,
 };
 use layout_plans::{
-    ByteOrder, ConsumptionInstant, EntryStubId, LayoutFieldEntryReport,
-    LayoutPlacementReport, LayoutPlanReport, MaterializationAction, MaterializationContext,
-    MaterializationWrite, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
-    SymbolicFieldValue, SymbolicMaterializationPlan, derive_symbolic_materialization,
+    ByteOrder, ConsumptionInstant, EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport,
+    LayoutPlanReport, MaterializationAction, MaterializationContext, MaterializationWrite,
+    PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget, SymbolicFieldValue,
+    SymbolicMaterializationPlan, derive_symbolic_materialization,
 };
-
-fn entry() -> RelocationTarget {
-    RelocationTarget::Entry(
-        EntryStubId::from_normalized_identity(0x55aa).expect("nonzero identity"),
-    )
-}
 
 fn post_handoff_context() -> MaterializationContext {
     MaterializationContext {
