@@ -333,9 +333,10 @@ pub(super) fn emit(
         structural_types,
     );
     evaluation.primitive_storage =
-        crate::expression_preparation::source_custody::primitive_references::bindings(
+        crate::unit::attached_unit::parameters::primitive_reference_storage(
             checked,
             plan.state,
+            &plan.structural_parameters,
             &evaluation.structural_parameters,
         )?;
     evaluation

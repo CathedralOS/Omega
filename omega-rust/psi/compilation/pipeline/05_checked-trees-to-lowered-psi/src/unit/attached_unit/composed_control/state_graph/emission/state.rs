@@ -176,9 +176,10 @@ impl StateGraphEmission<'_, '_> {
         // resolves the loaned scalar. `state_parameters` carry authored
         // positions, not the dense signature index.
         evaluation.primitive_storage =
-            crate::expression_preparation::source_custody::primitive_references::bindings(
+            crate::unit::attached_unit::parameters::primitive_reference_storage(
                 checked,
                 state.state,
+                &state.structural_parameters,
                 &evaluation.structural_parameters,
             )?;
         let mut values = self.state_values[position].clone();

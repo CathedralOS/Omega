@@ -7,8 +7,7 @@
 //!
 //! What remains:
 //!
-//! - `primitive_references` and `structural_places` answer borrow and place
-//!   questions from the authored source.
+//! - `structural_places` answers place questions from the authored source.
 //! - Some children still refuse shapes stage 05 cannot lower. Those refusals
 //!   stay until the route items admit the shapes; the validators that only
 //!   re-confirmed a plan row against its source are gone.
@@ -16,10 +15,8 @@
 use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
-// Reads and borrows: the authored binding, parameter, place or record field
-// a scalar read names, and primitive local borrows at their checked call
-// occurrence.
-pub(crate) mod primitive_references;
+// Reads: the authored binding, parameter, place or record field a scalar
+// read names.
 pub(crate) mod structural_places;
 
 // Selected comparisons: a comparison's Terminal meaning, and the authored

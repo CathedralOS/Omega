@@ -791,3 +791,50 @@ pub(crate) fn lower_projected_qualifications(
         })
         .collect()
 }
+
+/// The primitive storage each borrowed primitive formal lends (`&u8`,
+/// `&mut i64`), as (formal, place, carrier) rows: a bare referent read
+/// resolves the loaned scalar through it, never a snapshot. `plans` and
+/// `parameters` are one formal roster in the same order.
+pub(crate) fn primitive_reference_storage(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    plans: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    parameters: &[(u32, StructuralParameterDeclaration)],
+) -> Result<
+    Vec<(
+        symbols::SymbolHandle,
+        semantic_vocabulary::PlaceId,
+        ScalarType,
+    )>,
+    LoweringError,
+> {
+    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+    let formals = checked.state_parameters(authored);
+    let mut storage = Vec::new();
+    for (plan, (_, parameter)) in plans.iter().zip(parameters) {
+        let Some(primitive) = plan.primitive_referent else {
+            continue;
+        };
+        if primitive == checked_trees::types::PrimitiveType::Addr
+            || !matches!(
+                plan.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+            )
+        {
+            continue;
+        }
+        let formal = formals
+            .get(plan.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "primitive reference formal lost its authored position",
+            ))?;
+        storage.push((
+            formal.symbol,
+            parameter.place,
+            terminal_scalar_type(primitive)?,
+        ));
+    }
+    Ok(storage)
+}
