@@ -1105,26 +1105,13 @@ impl OperationFrame<'_, '_> {
                 self.next_value,
                 self.operations,
             );
-            // The verifier reconstructs the declared range against the final
-            // SSA initializer; a bounded field requests that proof.
-            let range_obligation =
-                if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
-                    Some(crate::terminal_identities::obligation_id(allocate_dense(
-                        &mut self.calls.next_obligation_identity,
-                    )?))
-                } else {
-                    None
-                };
-            initialized.push((
+            push_initialized_scalar_field(
+                &mut initialized,
                 position,
-                terminal_psi::RecordFieldInitializer {
-                    field: target.id,
-                    value: terminal_psi::RecordFieldValue::Scalar {
-                        value,
-                        range_obligation,
-                    },
-                },
-            ));
+                target,
+                value,
+                &mut self.calls.next_obligation_identity,
+            )?;
         }
         // Case construction zero-initializes every common field the literal
         // leaves unnamed.
@@ -1147,24 +1134,13 @@ impl OperationFrame<'_, '_> {
                 self.next_value,
                 self.operations,
             );
-            let range_obligation =
-                if terminal_semantics::scalar_field_requires_evidence(&target.field_type) {
-                    Some(crate::terminal_identities::obligation_id(allocate_dense(
-                        &mut self.calls.next_obligation_identity,
-                    )?))
-                } else {
-                    None
-                };
-            initialized.push((
+            push_initialized_scalar_field(
+                &mut initialized,
                 position,
-                terminal_psi::RecordFieldInitializer {
-                    field: target.id,
-                    value: terminal_psi::RecordFieldValue::Scalar {
-                        value: zero,
-                        range_obligation,
-                    },
-                },
-            ));
+                target,
+                zero,
+                &mut self.calls.next_obligation_identity,
+            )?;
         }
         initialized.sort_by_key(|(position, _)| *position);
         let (copied_place, establishment) = allocate_structural_result(
@@ -1217,4 +1193,35 @@ impl OperationFrame<'_, '_> {
             },
         )
     }
+}
+
+/// Record one scalar field initializer, requesting the bounded-range
+/// obligation the verifier reconstructs against the final SSA initializer.
+fn push_initialized_scalar_field(
+    initialized: &mut Vec<(usize, terminal_psi::RecordFieldInitializer)>,
+    position: usize,
+    target: &terminal_psi::StructuralFieldDeclaration,
+    value: semantic_vocabulary::ValueId,
+    next_obligation_identity: &mut u64,
+) -> Result<(), LoweringError> {
+    let range_obligation = if terminal_semantics::scalar_field_requires_evidence(
+        &target.field_type,
+    ) {
+        Some(crate::terminal_identities::obligation_id(allocate_dense(
+            next_obligation_identity,
+        )?))
+    } else {
+        None
+    };
+    initialized.push((
+        position,
+        terminal_psi::RecordFieldInitializer {
+            field: target.id,
+            value: terminal_psi::RecordFieldValue::Scalar {
+                value,
+                range_obligation,
+            },
+        },
+    ));
+    Ok(())
 }
