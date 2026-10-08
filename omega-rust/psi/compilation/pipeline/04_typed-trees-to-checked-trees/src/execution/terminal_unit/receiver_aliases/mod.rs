@@ -63,7 +63,9 @@ fn formation(
         return None;
     }
     let access = exclusive_access(program, local.type_reference)?;
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
+    let Some(borrow) = program
+        .expression_table
+        .borrow_expression(local.initial_value)
     else {
         return None;
     };

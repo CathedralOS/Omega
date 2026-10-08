@@ -544,7 +544,18 @@ impl ExpressionTable {
     /// The depth-bounded lookup every recursive expression walk opens with:
     /// `None` at the 128-level recursion ceiling or on a dangling handle, so
     /// the caller's `match` only ever sees a live node.
-    pub fn expression_at_depth(
+    /// The `Borrow` node at `handle`, if the expression is a borrow.
+    pub fn borrow_expression(
+        &self,
+        handle: ExpressionHandle,
+    ) -> Option<&TableBorrowExpression> {
+        let ExpressionNode::Borrow(borrow) = self.expression(handle) else {
+            return None;
+        };
+        Some(borrow)
+    }
+
+        pub fn expression_at_depth(
         &self,
         handle: ExpressionHandle,
         depth: usize,
