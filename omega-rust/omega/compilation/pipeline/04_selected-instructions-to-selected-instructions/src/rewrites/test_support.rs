@@ -29,12 +29,3 @@ pub fn measured_step_budget(steps: u64) -> OptimizationWorkBudget {
 
 /// Build a selected instruction from its constraint row and bound registers.
 
-/// Retain a checked run produced with an explicit test register budget.
-pub fn retain_selected_lowering_run(
-    run: crate::StagedSelectedLoweringOptimizationRun,
-) -> Result<crate::SelectedInstructionOptimizationOutput, crate::SelectedInstructionOptimizationError>
-{
-    crate::SelectedInstructionOptimizationOutput::from_evidence(
-        crate::SelectedInstructionOptimizationEvidence::LiteralFolds(run),
-    )
-}

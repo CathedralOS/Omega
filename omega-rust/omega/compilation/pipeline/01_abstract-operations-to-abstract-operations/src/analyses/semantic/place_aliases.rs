@@ -75,15 +75,6 @@ impl PlaceAliasesAnalysis {
 }
 
 impl PlaceAliasFunction {
-    /// Every declared root names a distinct storage site with a known,
-    /// placeable kind — the premise memory rewrites rely on to reason about
-    /// distinct `PlaceId`s without re-deriving the roster.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn declared_roots_disjoint(&self) -> bool {
-        self.roots.iter().all(|root| {
-            matches!(root.kind, Some(kind) if !matches!(kind, StructuralPlaceKind::ProviderAttachment { .. }))
-        })
-    }
 
     /// Provable storage relation between two views. Views reach outside their
     /// root's own extent only through `Referent`, so that crossing is the only

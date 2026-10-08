@@ -80,10 +80,6 @@ impl AnalysisManager {
         self.revision
     }
 
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn cached_kinds(&self) -> impl Iterator<Item = AnalysisKind> + '_ {
-        self.cache.keys().copied()
-    }
 
     #[cfg(any(test, feature = "test-support"))]
     pub fn require(
@@ -111,33 +107,6 @@ impl AnalysisManager {
         Ok(requested.iter().map(|kind| &self.cache[&kind]).collect())
     }
 
-    /// Cold independent computation suitable for validation and parallel
-    /// scheduling. Results are always returned in canonical kind order.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn compute_cold_parallel(
-        unit: &PsiOptimizationUnit,
-        requested: AnalysisSet,
-    ) -> Result<Vec<AnalysisProduct>, AnalysisManagerError> {
-        validate_content_identity(unit)?;
-        let kinds = requested.iter().collect::<Vec<_>>();
-        let mut rows = std::thread::scope(|scope| {
-            let mut handles = Vec::with_capacity(kinds.len());
-            for kind in kinds.iter().copied() {
-                handles.push((kind, scope.spawn(move || compute_analysis(unit, kind))));
-            }
-            handles
-                .into_iter()
-                .map(|(kind, handle)| {
-                    handle
-                        .join()
-                        .map_err(|_| AnalysisManagerError::WorkerPanicked(kind))?
-                        .ok_or(AnalysisManagerError::UnsupportedAnalysis(kind))
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })?;
-        rows.sort_by_key(AnalysisProduct::kind);
-        Ok(rows)
-    }
 
     /// Atomically move to a candidate revision. In pass-validation mode every
     /// supposedly retained cache row is cold-recomputed first; any difference
