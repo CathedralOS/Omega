@@ -38,3 +38,19 @@ pub(crate) fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
         .map(|value| value.as_bytes().to_vec())
         .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
 }
+
+/// Reject the next canonical-metadata row when the walk would cross the
+/// shared row ceiling — both walkers bound `rows + stack + 1` identically.
+pub(crate) fn check_metadata_row_ceiling(rows: usize, stack: usize) -> Result<(), String> {
+    if rows
+        .checked_add(stack)
+        .and_then(|count| count.checked_add(1))
+        .is_none_or(|count| count > filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
+    {
+        return Err(format!(
+            "canonical Source metadata exceeds its {}-row ceiling",
+            filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT
+        ));
+    }
+    Ok(())
+}

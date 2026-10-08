@@ -395,16 +395,7 @@ fn stat_capture(root: &Path) -> Result<BTreeMap<Vec<u8>, StatRow>, String> {
                 let child = child.map_err(|error| {
                     format!("could not enumerate canonical Source metadata entry: {error}")
                 })?;
-                if rows
-                    .len()
-                    .checked_add(stack.len())
-                    .and_then(|count| count.checked_add(1))
-                    .is_none_or(|count| count > CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
-                {
-                    return Err(format!(
-                        "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
-                    ));
-                }
+                crate::canonical_fs::check_metadata_row_ceiling(rows.len(), stack.len())?;
                 let name = os_str_bytes(&child.file_name())?;
                 let mut child_relative = relative_path.clone();
                 if !child_relative.is_empty() {
