@@ -162,6 +162,44 @@ pub(super) struct ParameterStorage {
 /// `let mut` local's establishment dominates the statements after its
 /// declaration. Later reads, stores and borrows name this place; the incoming
 /// value is never read again.
+///
+/// Mint the establishing operation and its declared place for one unrestricted
+/// primitive local: the producing operation and its `OperationResult` place
+/// are minted together so the operation roster and the storage roster agree.
+pub(super) fn push_established_local(
+    next_place: &mut u64,
+    operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+    value: semantic_vocabulary::ValueId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> Result<(semantic_vocabulary::PlaceId, StructuralPlaceDeclaration), LoweringError> {
+    let producer = operations.allocate();
+    let place = place_id(allocate_dense(next_place)?);
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: producer,
+        result: structural_result_declaration(
+            place,
+            structural_type,
+            StructuralMultiplicity::Unrestricted,
+        ),
+        kind: OperationKind::EstablishPrimitiveLocal { value },
+    });
+    Ok((
+        place,
+        StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer,
+                structural_type,
+            },
+        },
+    ))
+}
+
+/// `let mut` local's establishment dominates the statements after its
+/// declaration. Later reads, stores and borrows name this place; the incoming
+/// value is never read again.
 pub(super) fn establish_parameter_storage(
     storage: &[checked_trees::CheckedUnitParameterStoragePlan],
     scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
@@ -194,30 +232,13 @@ pub(super) fn establish_parameter_storage(
             {
                 return unsupported("parameter storage and its incoming value disagree");
             }
-            let producer = operations.allocate();
-            let place = place_id(allocate_dense(next_place)?);
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: producer,
-                result: structural_result_declaration(
-                    place,
-                    structural_type,
-                    StructuralMultiplicity::Unrestricted,
-                ),
-                kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
-            });
+            let (_, declaration) =
+                push_established_local(next_place, operations, value.id, structural_type)?;
             Ok(ParameterStorage {
                 position,
                 local: PrimitiveLocal {
                     symbol: storage.symbol,
-                    declaration: StructuralPlaceDeclaration {
-                        id: place,
-                        kind: StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type,
-                        },
-                    },
+                    declaration,
                 },
                 scalar_type,
             })
@@ -566,26 +587,9 @@ impl super::argument_evaluation::Evaluation {
             }
             return Ok(*place);
         }
-        let producer = operations.allocate();
-        let place = place_id(allocate_dense(next_place)?);
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: producer,
-            result: structural_result_declaration(
-                place,
-                structural_type,
-                StructuralMultiplicity::Unrestricted,
-            ),
-            kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
-        });
-        places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        });
+        let (place, declaration) =
+            push_established_local(next_place, operations, value.id, structural_type)?;
+        places.push(declaration);
         self.primitive_storage
             .push((symbol, place, value.scalar_type));
         Ok(place)

@@ -2,15 +2,11 @@
 //! Primitive loans share the original addressable home. Coordinate snapshots
 //! stay private across joins; later observations cannot overwrite them.
 use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclaration};
-use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::place_observations::LoanedSource;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
-use crate::unit::{StructuralPlaceKind, allocate_dense, place_id};
-use terminal_psi::{
-    Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralTypeShape,
-};
+use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeShape};
 
 impl Evaluation {
     #[allow(clippy::too_many_arguments)]
@@ -146,26 +142,13 @@ impl Evaluation {
                 );
             }
             let value = emit_direct_expression(&selector, values, next_value, operations);
-            let producer = operations.allocate();
-            let place = place_id(allocate_dense(next_place)?);
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: producer,
-                result: structural_result_declaration(
-                    place,
-                    structural_type,
-                    StructuralMultiplicity::Unrestricted,
-                ),
-                kind: OperationKind::EstablishPrimitiveLocal { value },
-            });
-            private_places.push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                },
-            });
+            let (place, declaration) = super::super::primitive_locals::push_established_local(
+                next_place,
+                operations,
+                value,
+                structural_type,
+            )?;
+            private_places.push(declaration);
             std::sync::Arc::make_mut(&mut self.place_observations)[position]
                 .capture
                 .as_mut()

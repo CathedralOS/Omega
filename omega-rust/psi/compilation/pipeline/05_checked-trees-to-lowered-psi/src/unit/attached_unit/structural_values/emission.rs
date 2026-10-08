@@ -1648,7 +1648,6 @@ impl Emission<'_, '_, '_> {
         let Some(fields) = shape.shape.record_fields() else {
             return unsupported("view element copy establishes a nonrecord");
         };
-        let fields = fields.clone();
         if fields.len() != reads.len() {
             return unsupported("view element copy does not read every field once");
         }

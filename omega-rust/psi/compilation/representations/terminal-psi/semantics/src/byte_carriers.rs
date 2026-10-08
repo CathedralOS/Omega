@@ -13,9 +13,7 @@
 //! elements, the host byte order the realized image writes.
 
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
-use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration};
 
 /// One scalar leaf of a byte-carrier record: the declared field identity,
 /// its byte offset inside the overlaid region, and its leaf scalar type.
