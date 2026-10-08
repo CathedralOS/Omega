@@ -62,9 +62,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
         // A token view is the machine's signature, not a second requirement.
         // Its provider identity and satisfaction edges belong to that machine.
         if let Some(requirement) = typed
-            .machines()
-            .iter()
-            .find(|requirement| requirement.symbol == operator.symbol)
+            .machine(operator.symbol)
         {
             return Self::from_requirement(typed, requirement);
         }

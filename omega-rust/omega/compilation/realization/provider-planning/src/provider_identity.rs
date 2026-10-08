@@ -206,9 +206,7 @@ pub fn provider_row_matches(
             return false;
         };
         let Some(realization) = typed
-            .machines()
-            .iter()
-            .find(|realization| realization.symbol == entry.realization_machine)
+            .machine(entry.realization_machine)
         else {
             return false;
         };
