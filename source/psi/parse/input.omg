@@ -300,6 +300,33 @@ crashes Trap
     present
 }
 
+// Whether the token after the current one is the keyword `expected`, leaving
+// the cursor where it was: a target name before `machine`.
+machine Parser::next_is_keyword(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool
+crashes Trap
+{
+    let cursor: u64 in Trapping = parser.cursor;
+    parser.cursor = parser.cursor + 1;
+    let present: bool = Parser::at_keyword(parser, input, expected);
+    parser.cursor = cursor;
+    Parser::load_current(parser, input);
+    present
+}
+
+// Whether the token after the current one is an identifier spelling exactly
+// `spelling`, leaving the cursor where it was: a conformance's name before
+// `satisfies`, or a target name before `boundary`.
+machine Parser::next_is_word(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool
+crashes Trap
+{
+    let cursor: u64 in Trapping = parser.cursor;
+    parser.cursor = parser.cursor + 1;
+    let present: bool = Parser::at_word(parser, input, spelling);
+    parser.cursor = cursor;
+    Parser::load_current(parser, input);
+    present
+}
+
 // Whether the token after the current one is `expected` and starts exactly at
 // `end`, with no source between them.
 machine Parser::next_is_adjacent_punctuation(
@@ -331,10 +358,11 @@ crashes Trap
 }
 
 // Whether the current token begins a declaration rather than an expression:
-// a declaration keyword (`use`, `data`, `machine`, `pub`), or two adjacent
-// names (`boundary trait`, `linux_arm64 machine`, `const N`). No expression
-// begins with two names except a cast `x as T`, a membership `x in D` and an
-// acknowledged call `suspend f()`, `block f()`.
+// a declaration keyword (`use`, `data`, `machine`, `pub`), two adjacent
+// names (`boundary trait`, `linux_arm64 machine`, `const N`), or a domain
+// family's `domain<`. No expression begins with two names except a cast
+// `x as T`, a membership `x in D` and an acknowledged call `suspend f()`,
+// `block f()`.
 machine Parser::at_declaration_head(parser: &mut Parser, input: &TokenStream) -> bool
 crashes Trap
 {
@@ -358,14 +386,16 @@ crashes Trap
     }
 
     state second_name(parser: &mut Parser, input: &TokenStream) {
+        let family: bool = Parser::at_word(parser, input, "domain");
         let cursor: u64 in Trapping = parser.cursor;
         parser.cursor = parser.cursor + 1;
         let named: bool = Parser::at_name(parser, input);
         let cast: bool = Parser::at_keyword(parser, input, KeywordKind::As);
         let membership: bool = Parser::at_word(parser, input, "in");
+        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
         parser.cursor = cursor;
         Parser::load_current(parser, input);
-        named && !cast && !membership
+        named && !cast && !membership || family && generic
     }
 
     state head() {

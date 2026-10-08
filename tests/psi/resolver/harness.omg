@@ -348,6 +348,7 @@ crashes Trap
             ResolveDiagnosticCode::PartialStableIdentities -> diagnostic_tag(resolver_harness, output, 15)
             ResolveDiagnosticCode::DuplicateStableIdentity -> diagnostic_tag(resolver_harness, output, 16)
             ResolveDiagnosticCode::InvalidStableIdentity -> diagnostic_tag(resolver_harness, output, 17)
+            ResolveDiagnosticCode::UnsupportedDeclaration -> diagnostic_tag(resolver_harness, output, 18)
         }
     }
 

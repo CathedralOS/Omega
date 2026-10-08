@@ -76,12 +76,14 @@ blocks;
     state accepted(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
+        ParserHarness::write_declaration_tables(parser_harness, output);
         parser_harness.console.exit_process(0);
     }
 
     state parse_rejected(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
         ParserHarness::write_parse_observation(parser_harness, output);
         ParserHarness::write_machine_tables(parser_harness, output);
+        ParserHarness::write_declaration_tables(parser_harness, output);
         parser_harness.console.exit_process(250);
     }
 
@@ -91,15 +93,16 @@ blocks;
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR10`, version
-// 10, acceptance and diagnostic fields, followed by ordered root, use-item,
+// and count is little-endian u64. The stream begins with `OMGPAR11`, version
+// 11, acceptance and diagnostic fields, followed by ordered root, use-item,
 // path-member, data-item, authored data-member, direct data-field, case-payload
 // field, data-case, type-reference, and generic-parameter tables. Field and
 // case rows carry their stable-identity flag and literal span.
 // Type-reference rows append a qualified flag and the domain coordinates
 // (zeros for bare named types), then the reference access tag (0 none,
 // 1 shared, 2 mutable) and the referee handle (zero unless a reference). Data-item rows end with the item's
-// generic-parameter base and count, and generic-parameter rows carry kind,
+// generic-parameter base and count, its clause range and its boundary flag,
+// and generic-parameter rows carry kind,
 // name, optional type-reference handle, bounds, and span. This is hosted
 // development tooling, not an Omega ABI.
 machine ParserHarness::write_parse_observation(
@@ -113,8 +116,8 @@ machine ParserHarness::write_parse_observation(
     ParserHarness::write_byte(parser_harness, 65);
     ParserHarness::write_byte(parser_harness, 82);
     ParserHarness::write_byte(parser_harness, 49);
-    ParserHarness::write_byte(parser_harness, 48);
-    ParserHarness::write_u64(parser_harness, 10);
+    ParserHarness::write_byte(parser_harness, 49);
+    ParserHarness::write_u64(parser_harness, 11);
     transition output.accepted {
         true -> parse_accepted_header(parser_harness, output)
         _ -> parse_rejected_header(parser_harness, output)
@@ -236,6 +239,53 @@ machine ParserHarness::write_parse_observation(
             ParseDiagnosticCode::DuplicateCallAcknowledgement -> parse_diagnostic(parser_harness, output, 106)
             ParseDiagnosticCode::CallAcknowledgementOrder -> parse_diagnostic(parser_harness, output, 107)
             ParseDiagnosticCode::ExpectedStableIdentity -> parse_diagnostic(parser_harness, output, 108)
+            ParseDiagnosticCode::ExpectedBoundaryDeclaration -> parse_diagnostic(parser_harness, output, 109)
+            ParseDiagnosticCode::RetiredBoundaryRequirement -> parse_diagnostic(parser_harness, output, 110)
+            ParseDiagnosticCode::RetiredOperatorDeclaration -> parse_diagnostic(parser_harness, output, 111)
+            ParseDiagnosticCode::ExpectedTargetScopedMachine -> parse_diagnostic(parser_harness, output, 112)
+            ParseDiagnosticCode::ExpectedBoundaryDataEnd -> parse_diagnostic(parser_harness, output, 113)
+            ParseDiagnosticCode::ExpectedTraitName -> parse_diagnostic(parser_harness, output, 114)
+            ParseDiagnosticCode::ExpectedTraitParent -> parse_diagnostic(parser_harness, output, 115)
+            ParseDiagnosticCode::ExpectedTraitBody -> parse_diagnostic(parser_harness, output, 116)
+            ParseDiagnosticCode::ExpectedTraitMember -> parse_diagnostic(parser_harness, output, 117)
+            ParseDiagnosticCode::ExpectedTraitRequirementEnd -> parse_diagnostic(parser_harness, output, 118)
+            ParseDiagnosticCode::TraitCapacityExceeded -> parse_diagnostic(parser_harness, output, 119)
+            ParseDiagnosticCode::TraitParentCapacityExceeded -> parse_diagnostic(parser_harness, output, 120)
+            ParseDiagnosticCode::ExpectedConformanceSatisfies -> parse_diagnostic(parser_harness, output, 121)
+            ParseDiagnosticCode::ExpectedConformanceTrait -> parse_diagnostic(parser_harness, output, 122)
+            ParseDiagnosticCode::ExpectedConformanceBody -> parse_diagnostic(parser_harness, output, 123)
+            ParseDiagnosticCode::ExpectedConformanceMember -> parse_diagnostic(parser_harness, output, 124)
+            ParseDiagnosticCode::ExpectedConformanceRowEquals -> parse_diagnostic(parser_harness, output, 125)
+            ParseDiagnosticCode::ExpectedConformanceRowTarget -> parse_diagnostic(parser_harness, output, 126)
+            ParseDiagnosticCode::ExpectedConformanceRowEnd -> parse_diagnostic(parser_harness, output, 127)
+            ParseDiagnosticCode::ConformanceCapacityExceeded -> parse_diagnostic(parser_harness, output, 128)
+            ParseDiagnosticCode::ConformanceRowCapacityExceeded -> parse_diagnostic(parser_harness, output, 129)
+            ParseDiagnosticCode::ExpectedDomainCarrier -> parse_diagnostic(parser_harness, output, 130)
+            ParseDiagnosticCode::ExpectedDomainSeparator -> parse_diagnostic(parser_harness, output, 131)
+            ParseDiagnosticCode::ExpectedDomainName -> parse_diagnostic(parser_harness, output, 132)
+            ParseDiagnosticCode::ExpectedDomainSubject -> parse_diagnostic(parser_harness, output, 133)
+            ParseDiagnosticCode::ExpectedDomainSubjectEnd -> parse_diagnostic(parser_harness, output, 134)
+            ParseDiagnosticCode::ExpectedDomainConstituent -> parse_diagnostic(parser_harness, output, 135)
+            ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136)
+            ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137)
+            ParseDiagnosticCode::ExpectedDomainEnd -> parse_diagnostic(parser_harness, output, 138)
+            ParseDiagnosticCode::ExpectedDomainBodyEnd -> parse_diagnostic(parser_harness, output, 139)
+            ParseDiagnosticCode::DomainCapacityExceeded -> parse_diagnostic(parser_harness, output, 140)
+            ParseDiagnosticCode::NamePathCapacityExceeded -> parse_diagnostic(parser_harness, output, 141)
+            ParseDiagnosticCode::ExpectedConstantName -> parse_diagnostic(parser_harness, output, 142)
+            ParseDiagnosticCode::ExpectedConstantColon -> parse_diagnostic(parser_harness, output, 143)
+            ParseDiagnosticCode::ExpectedConstantType -> parse_diagnostic(parser_harness, output, 144)
+            ParseDiagnosticCode::ExpectedConstantEquals -> parse_diagnostic(parser_harness, output, 145)
+            ParseDiagnosticCode::ExpectedConstantValue -> parse_diagnostic(parser_harness, output, 146)
+            ParseDiagnosticCode::ExpectedConstantEnd -> parse_diagnostic(parser_harness, output, 147)
+            ParseDiagnosticCode::ConstantCapacityExceeded -> parse_diagnostic(parser_harness, output, 148)
+            ParseDiagnosticCode::ExpectedPropositionName -> parse_diagnostic(parser_harness, output, 149)
+            ParseDiagnosticCode::ExpectedPropositionBody -> parse_diagnostic(parser_harness, output, 150)
+            ParseDiagnosticCode::ExpectedPropositionEvidence -> parse_diagnostic(parser_harness, output, 151)
+            ParseDiagnosticCode::ExpectedPropositionFact -> parse_diagnostic(parser_harness, output, 152)
+            ParseDiagnosticCode::ExpectedPropositionEnd -> parse_diagnostic(parser_harness, output, 153)
+            ParseDiagnosticCode::PropositionCapacityExceeded -> parse_diagnostic(parser_harness, output, 154)
+            ParseDiagnosticCode::ExpectedConformanceMachineBody -> parse_diagnostic(parser_harness, output, 155)
         }
     }
 
@@ -266,6 +316,11 @@ machine ParserHarness::write_parse_observation(
             RootItemKind::Use -> parse_root_tagged(parser_harness, output, root, index, 1)
             RootItemKind::Data -> parse_root_tagged(parser_harness, output, root, index, 2)
             RootItemKind::Machine -> parse_root_tagged(parser_harness, output, root, index, 3)
+            RootItemKind::Trait -> parse_root_tagged(parser_harness, output, root, index, 4)
+            RootItemKind::Conformance -> parse_root_tagged(parser_harness, output, root, index, 5)
+            RootItemKind::Domain -> parse_root_tagged(parser_harness, output, root, index, 6)
+            RootItemKind::Constant -> parse_root_tagged(parser_harness, output, root, index, 7)
+            RootItemKind::Proposition -> parse_root_tagged(parser_harness, output, root, index, 8)
         }
     }
 
@@ -332,7 +387,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
-    requires index <= 16383
+    requires index <= 24575
     {
         let member: IdentifierSpan = output.members[index];
         ParserHarness::write_source_span(parser_harness, member.source_span);
@@ -344,7 +399,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_member_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
-        transition next < 16384 {
+        transition next < 24576 {
             true -> parse_member(parser_harness, output, next)
             _ -> parse_data_count(parser_harness, output)
         }
@@ -425,6 +480,7 @@ machine ParserHarness::write_parse_observation(
         ParserHarness::write_u64(parser_harness, item.generic_parameter_count as u64 in Trapping);
         ParserHarness::write_u64(parser_harness, item.first_clause);
         ParserHarness::write_u64(parser_harness, item.clause_count);
+        ParserHarness::write_flag(parser_harness, item.is_boundary);
         let next: u64 = index + 1;
         transition next < output.data_count {
             true -> parse_data_bound(parser_harness, output, next)
@@ -831,7 +887,9 @@ machine ParserHarness::write_parse_observation(
 // Machine rows carry the owner flag and span, the name, the generic-parameter
 // range, the parameter range, the return-type flag and handle, the clause
 // range, the entry statement range, the state range, the body flag, the
-// expression range, the visibility flag and the span. Parameter rows carry the name,
+// expression range, the visibility flag, the span, the target flag and span,
+// the boundary flag and the container tag (0 root, 1 trait, 2 conformance).
+// Parameter rows carry the name,
 // type-reference handle and span. State rows carry the name, parameter range,
 // return-type flag and handle, statement range and span.
 machine ParserHarness::write_machine_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
@@ -870,6 +928,18 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, item.expression_count);
         ParserHarness::write_flag(parser_harness, item.is_public);
         ParserHarness::write_source_span(parser_harness, item.source_span);
+        ParserHarness::write_flag(parser_harness, item.has_target);
+        ParserHarness::write_source_span(parser_harness, item.target.source_span);
+        ParserHarness::write_flag(parser_harness, item.is_boundary);
+        transition item.container {
+            MachineContainer::Root -> machine_container(parser_harness, output, index, 0)
+            MachineContainer::Trait -> machine_container(parser_harness, output, index, 1)
+            MachineContainer::Conformance -> machine_container(parser_harness, output, index, 2)
+        }
+    }
+
+    state machine_container(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping, tag: u8) {
+        ParserHarness::write_byte(parser_harness, tag);
         transition { _ -> machine_row(parser_harness, output, index + 1) }
     }
 
@@ -1252,6 +1322,234 @@ crashes Trap
         ParserHarness::write_u64(parser_harness, field.value);
         ParserHarness::write_source_span(parser_harness, field.source_span);
         transition { _ -> pattern_field_row(parser_harness, output, index + 1) }
+    }
+
+    state done() {}
+}
+
+// The declaration tables follow the clauses: name paths (member range,
+// span), traits (name, generic range, parent range, machine range, boundary
+// and visibility flags, span), trait parents (type handles), conformances
+// (name, generic range, trait type handle, machine range, row range,
+// visibility flag, span), conformance rows (requirement and target path
+// handles, span), domains (carrier type handle, name, index argument range,
+// generic range, subject flag and span, clause range, route range, alias
+// flag, constituent range, visibility flag, span), constants (owner flag and
+// span, name, type handle, value handle, visibility flag, span) and
+// propositions (name, generic range, parameter range, body tag 1 primitive,
+// 2 evidence or 3 transparent, evidence type handle, fact handle, visibility
+// flag, span).
+machine ParserHarness::write_declaration_tables(parser_harness: &mut ParserHarness, output: &SyntaxTrees)
+reaches Console
+crashes Trap
+{
+    ParserHarness::write_u64(parser_harness, output.name_path_count as u64 in Trapping);
+    transition { _ -> path_row(parser_harness, output, 0) }
+
+    state path_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.name_path_count {
+            true -> write_path(parser_harness, output, index)
+            _ -> trait_count(parser_harness, output)
+        }
+    }
+
+    state write_path(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let path: NamePath = SyntaxTrees::name_path(output, index);
+        ParserHarness::write_u64(parser_harness, path.first_member);
+        ParserHarness::write_u64(parser_harness, path.member_count);
+        ParserHarness::write_source_span(parser_harness, path.source_span);
+        transition { _ -> path_row(parser_harness, output, index + 1) }
+    }
+
+    state trait_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.trait_count as u64 in Trapping);
+        transition { _ -> trait_row(parser_harness, output, 0) }
+    }
+
+    state trait_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.trait_count {
+            true -> write_trait(parser_harness, output, index)
+            _ -> parent_count(parser_harness, output)
+        }
+    }
+
+    state write_trait(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let item: TraitItem = SyntaxTrees::trait_item(output, index);
+        ParserHarness::write_source_span(parser_harness, item.name.source_span);
+        ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
+        ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
+        ParserHarness::write_u64(parser_harness, item.first_parent);
+        ParserHarness::write_u64(parser_harness, item.parent_count);
+        ParserHarness::write_u64(parser_harness, item.first_machine);
+        ParserHarness::write_u64(parser_harness, item.machine_count);
+        ParserHarness::write_flag(parser_harness, item.is_boundary);
+        ParserHarness::write_flag(parser_harness, item.is_public);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
+        transition { _ -> trait_row(parser_harness, output, index + 1) }
+    }
+
+    state parent_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.trait_parent_count as u64 in Trapping);
+        transition { _ -> parent_row(parser_harness, output, 0) }
+    }
+
+    state parent_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.trait_parent_count {
+            true -> write_parent(parser_harness, output, index)
+            _ -> conformance_count(parser_harness, output)
+        }
+    }
+
+    state write_parent(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let parent: u64 in Trapping = SyntaxTrees::trait_parent(output, index);
+        ParserHarness::write_u64(parser_harness, parent);
+        transition { _ -> parent_row(parser_harness, output, index + 1) }
+    }
+
+    state conformance_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.conformance_count as u64 in Trapping);
+        transition { _ -> conformance_row(parser_harness, output, 0) }
+    }
+
+    state conformance_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.conformance_count {
+            true -> write_conformance(parser_harness, output, index)
+            _ -> reference_row_count(parser_harness, output)
+        }
+    }
+
+    state write_conformance(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let item: ConformanceItem = SyntaxTrees::conformance_item(output, index);
+        ParserHarness::write_source_span(parser_harness, item.name.source_span);
+        ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
+        ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
+        ParserHarness::write_u64(parser_harness, item.trait_type);
+        ParserHarness::write_u64(parser_harness, item.first_machine);
+        ParserHarness::write_u64(parser_harness, item.machine_count);
+        ParserHarness::write_u64(parser_harness, item.first_row);
+        ParserHarness::write_u64(parser_harness, item.row_count);
+        ParserHarness::write_flag(parser_harness, item.is_public);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
+        transition { _ -> conformance_row(parser_harness, output, index + 1) }
+    }
+
+    state reference_row_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.conformance_row_count as u64 in Trapping);
+        transition { _ -> reference_row(parser_harness, output, 0) }
+    }
+
+    state reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.conformance_row_count {
+            true -> write_reference_row(parser_harness, output, index)
+            _ -> domain_count(parser_harness, output)
+        }
+    }
+
+    state write_reference_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let row: ConformanceRow = SyntaxTrees::conformance_row(output, index);
+        ParserHarness::write_u64(parser_harness, row.requirement);
+        ParserHarness::write_u64(parser_harness, row.target);
+        ParserHarness::write_source_span(parser_harness, row.source_span);
+        transition { _ -> reference_row(parser_harness, output, index + 1) }
+    }
+
+    state domain_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.domain_count as u64 in Trapping);
+        transition { _ -> domain_row(parser_harness, output, 0) }
+    }
+
+    state domain_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.domain_count {
+            true -> write_domain(parser_harness, output, index)
+            _ -> constant_count(parser_harness, output)
+        }
+    }
+
+    state write_domain(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let item: DomainItem = SyntaxTrees::domain_item(output, index);
+        ParserHarness::write_u64(parser_harness, item.carrier);
+        ParserHarness::write_source_span(parser_harness, item.name.source_span);
+        ParserHarness::write_u64(parser_harness, item.first_argument);
+        ParserHarness::write_u64(parser_harness, item.argument_count);
+        ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
+        ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
+        ParserHarness::write_flag(parser_harness, item.has_subject);
+        ParserHarness::write_source_span(parser_harness, item.subject.source_span);
+        ParserHarness::write_u64(parser_harness, item.first_clause);
+        ParserHarness::write_u64(parser_harness, item.clause_count);
+        ParserHarness::write_u64(parser_harness, item.first_route);
+        ParserHarness::write_u64(parser_harness, item.route_count);
+        ParserHarness::write_flag(parser_harness, item.is_alias);
+        ParserHarness::write_u64(parser_harness, item.first_constituent);
+        ParserHarness::write_u64(parser_harness, item.constituent_count);
+        ParserHarness::write_flag(parser_harness, item.is_public);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
+        transition { _ -> domain_row(parser_harness, output, index + 1) }
+    }
+
+    state constant_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.constant_count as u64 in Trapping);
+        transition { _ -> constant_row(parser_harness, output, 0) }
+    }
+
+    state constant_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.constant_count {
+            true -> write_constant(parser_harness, output, index)
+            _ -> proposition_count(parser_harness, output)
+        }
+    }
+
+    state write_constant(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let item: ConstantItem = SyntaxTrees::constant_item(output, index);
+        ParserHarness::write_flag(parser_harness, item.has_owner);
+        ParserHarness::write_source_span(parser_harness, item.owner.source_span);
+        ParserHarness::write_source_span(parser_harness, item.name.source_span);
+        ParserHarness::write_u64(parser_harness, item.type_reference);
+        ParserHarness::write_u64(parser_harness, item.value);
+        ParserHarness::write_flag(parser_harness, item.is_public);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
+        transition { _ -> constant_row(parser_harness, output, index + 1) }
+    }
+
+    state proposition_count(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
+        ParserHarness::write_u64(parser_harness, output.proposition_count as u64 in Trapping);
+        transition { _ -> proposition_row(parser_harness, output, 0) }
+    }
+
+    state proposition_row(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < output.proposition_count {
+            true -> write_proposition(parser_harness, output, index)
+            _ -> done()
+        }
+    }
+
+    state write_proposition(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 in Trapping) {
+        let item: PropositionItem = SyntaxTrees::proposition_item(output, index);
+        ParserHarness::write_source_span(parser_harness, item.name.source_span);
+        ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
+        ParserHarness::write_u64(parser_harness, item.generic_parameter_count);
+        ParserHarness::write_u64(parser_harness, item.first_parameter);
+        ParserHarness::write_u64(parser_harness, item.parameter_count);
+        transition item.body {
+            PropositionBody::Primitive -> proposition_body(parser_harness, output, index, item, 1)
+            PropositionBody::Evidence -> proposition_body(parser_harness, output, index, item, 2)
+            PropositionBody::Transparent -> proposition_body(parser_harness, output, index, item, 3)
+        }
+    }
+
+    state proposition_body(
+        parser_harness: &mut ParserHarness,
+        output: &SyntaxTrees,
+        index: u64 in Trapping,
+        item: PropositionItem,
+        tag: u8
+    ) {
+        ParserHarness::write_byte(parser_harness, tag);
+        ParserHarness::write_u64(parser_harness, item.evidence);
+        ParserHarness::write_u64(parser_harness, item.fact);
+        ParserHarness::write_flag(parser_harness, item.is_public);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
+        transition { _ -> proposition_row(parser_harness, output, index + 1) }
     }
 
     state done() {}

@@ -1,10 +1,16 @@
 use psi::parse::clause;
+use psi::parse::conformance;
+use psi::parse::constant;
 use psi::parse::data;
+use psi::parse::domain;
 use psi::parse::expression;
 use psi::parse::generics;
 use psi::parse::input;
 use psi::parse::machine;
+use psi::parse::path;
+use psi::parse::proposition;
 use psi::parse::statement;
+use psi::parse::traits;
 use psi::parse::types;
 use psi::source::source;
 use psi::syntax::syntax;
@@ -40,6 +46,7 @@ where
     data_name_start: u64 in Trapping;
     data_name_end: u64 in Trapping;
     data_is_public: bool;
+    data_is_boundary: bool;
     data_multiplicity: DataMultiplicity;
     data_first_generic: u64 in Trapping;
     data_first_clause: u64 in Trapping;
@@ -79,6 +86,11 @@ where
     committed_type_count: u64 in Trapping;
     machine_start: u64 in Trapping;
     machine_is_public: bool;
+    machine_has_target: bool;
+    machine_target_start: u64 in Trapping;
+    machine_target_end: u64 in Trapping;
+    machine_is_boundary: bool;
+    machine_container: MachineContainer;
     machine_has_owner: bool;
     machine_owner_start: u64 in Trapping;
     machine_owner_end: u64 in Trapping;
@@ -139,6 +151,34 @@ where
     clause_first: u64 in Trapping;
     clause_start: u64 in Trapping;
     clause_first_member: u64 in Trapping;
+    // Declaration scratch for the trait, conformance, domain, constant and
+    // proposition grammars; one root declaration is under way at a time, and
+    // a member machine keeps its own `machine_*` scratch.
+    declaration_start: u64 in Trapping;
+    declaration_is_public: bool;
+    declaration_is_boundary: bool;
+    declaration_has_owner: bool;
+    declaration_owner_start: u64 in Trapping;
+    declaration_owner_end: u64 in Trapping;
+    declaration_name_start: u64 in Trapping;
+    declaration_name_end: u64 in Trapping;
+    declaration_first_generic: u64 in Trapping;
+    declaration_first_parent: u64 in Trapping;
+    declaration_first_machine: u64 in Trapping;
+    declaration_first_row: u64 in Trapping;
+    declaration_type: u64 in Trapping;
+    declaration_first_argument: u64 in Trapping;
+    declaration_argument_count: u64 in Trapping;
+    declaration_has_subject: bool;
+    declaration_subject_start: u64 in Trapping;
+    declaration_subject_end: u64 in Trapping;
+    declaration_first_clause: u64 in Trapping;
+    declaration_clause_count: u64 in Trapping;
+    declaration_first_path: u64 in Trapping;
+    declaration_first_parameter: u64 in Trapping;
+    declaration_parameter_count: u64 in Trapping;
+    // The last completed name path's handle.
+    name_path_result: u64 in Trapping;
 }
 
 // Empty syntax tables for a compilation's source units, which `parse` then
@@ -179,11 +219,18 @@ machine Parser::identifier_span(
     }
 }
 
-// Whole-file sequencing and use-item grammar. Data and machine declarations
-// are delegated to data.omg and machine.omg, the shared type grammar lives in
-// types.omg, and input.omg remains the only token/cursor behavior owner.
-// Bounded array reads carry their collection's Trapping policy, so parsing
-// publishes the same crash route its callees do.
+// Whole-file sequencing and use-item grammar. Every other declaration is
+// delegated to its grammar machine (data.omg, machine.omg, traits.omg,
+// conformance.omg, domain.omg, constant.omg, proposition.omg), the shared type
+// grammar lives in types.omg, and input.omg remains the only token/cursor
+// behavior owner. A root is `[pub]` and then a declaration: `use`, `data`
+// and `machine` by keyword; `boundary`, `trait`, `domain`, `const` and
+// `proposition` by contextual word; and, led by a name, a target-scoped
+// `target [boundary] machine` or a named conformance `Name [<...>]
+// satisfies`. The retired `boundary requirement` and `operator`
+// introducers reject at their word. Bounded array reads carry their
+// collection's Trapping policy, so parsing publishes the same crash route
+// its callees do.
 pub machine Parser::parse(
     parser: &mut Parser,
     source: SourceId,
@@ -212,6 +259,7 @@ crashes Trap
                 token.start,
                 token.end
             )
+            Token::Identifier -> named_root(parser, input, false)
             _ -> unsupported_root(parser, token.start,
                 token.end
             )
@@ -224,10 +272,11 @@ crashes Trap
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
+        let head: MachineHead = Parser::root_machine_head(parser.item_start, false);
         transition keyword {
             KeywordKind::Use -> prepare_use(parser, input)
-            KeywordKind::Data -> dispatch_data(parser, input, false)
-            KeywordKind::Machine -> dispatch_machine(parser, input, false)
+            KeywordKind::Data -> dispatch_data(parser, input, false, false)
+            KeywordKind::Machine -> dispatch_machine(parser, input, head)
             KeywordKind::Pub -> public_item_root(parser, input)
             _ -> unsupported_root(parser, start, end)
         }
@@ -244,32 +293,219 @@ crashes Trap
     state public_item_keyword(parser: &mut Parser, input: &TokenStream) {
         Parser::load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
+        let head: MachineHead = Parser::root_machine_head(parser.item_start, true);
         transition token {
-            Token::Keyword { keyword: KeywordKind::Data } -> dispatch_data(parser, input, true)
-            Token::Keyword { keyword: KeywordKind::Machine } -> dispatch_machine(parser, input, true)
+            Token::Keyword { keyword: KeywordKind::Data } -> dispatch_data(parser, input, true, false)
+            Token::Keyword { keyword: KeywordKind::Machine } -> dispatch_machine(parser, input, head)
+            Token::Identifier -> named_root(parser, input, true)
             _ -> expected_item_after_public(parser, token.start,
                 token.end
             )
         }
     }
 
+    // A root led by a name: a contextual introducer, a target name before
+    // `machine` or `boundary machine`, or a conformance's name.
+    state named_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let crossing: bool = Parser::at_word(parser, input, "boundary");
+        transition crossing {
+            true -> boundary_root(parser, input, is_public)
+            _ -> trait_word(parser, input, is_public)
+        }
+    }
 
-    state dispatch_data(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+    state trait_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let requirements: bool = Parser::at_word(parser, input, "trait");
+        transition requirements {
+            true -> dispatch_trait(parser, input, is_public, false)
+            _ -> domain_word(parser, input, is_public)
+        }
+    }
+
+    state domain_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let classification: bool = Parser::at_word(parser, input, "domain");
+        transition classification {
+            true -> dispatch_domain(parser, input, is_public)
+            _ -> constant_word(parser, input, is_public)
+        }
+    }
+
+    state constant_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let constant: bool = Parser::at_word(parser, input, "const");
+        transition constant {
+            true -> dispatch_constant(parser, input, is_public)
+            _ -> proposition_word(parser, input, is_public)
+        }
+    }
+
+    state proposition_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let proposition: bool = Parser::at_word(parser, input, "proposition");
+        transition proposition {
+            true -> dispatch_proposition(parser, input, is_public)
+            _ -> operator_word(parser, input, is_public)
+        }
+    }
+
+    // A token binds to an ordinary `machine + Name(...)` declaration; there
+    // is no separate `operator` introducer.
+    state operator_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let retired: bool = Parser::at_word(parser, input, "operator");
+        transition retired {
+            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration)
+            _ -> target_machine_word(parser, input, is_public)
+        }
+    }
+
+    state target_machine_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let scoped: bool = Parser::next_is_keyword(parser, input, KeywordKind::Machine);
+        transition scoped {
+            true -> target_machine(parser, input, is_public)
+            _ -> target_boundary_word(parser, input, is_public)
+        }
+    }
+
+    state target_boundary_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let scoped: bool = Parser::next_is_word(parser, input, "boundary");
+        transition scoped {
+            true -> target_boundary(parser, input, is_public)
+            _ -> conformance_word(parser, input, is_public)
+        }
+    }
+
+    state conformance_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let satisfies: bool = Parser::next_is_word(parser, input, "satisfies");
+        let generic: bool = Parser::next_is_punctuation(parser, input, PunctuationKind::Less);
+        transition satisfies || generic {
+            true -> dispatch_conformance(parser, input, is_public)
+            _ -> unnamed_root(parser, input, is_public)
+        }
+    }
+
+    state unnamed_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        transition is_public {
+            true -> reject_here(parser, input, ParseDiagnosticCode::ExpectedItemAfterPub)
+            _ -> reject_here(parser, input, ParseDiagnosticCode::UnsupportedRootItem)
+        }
+    }
+
+    // `boundary data`, `boundary machine` and `boundary trait`. The
+    // carrier-owned `boundary requirement` and the `boundary operator`
+    // introducer are retired; a boundary operation is a requirement of a
+    // boundary trait.
+    state boundary_root(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        Parser::take_current(parser, input);
+        let opaque: bool = Parser::at_keyword(parser, input, KeywordKind::Data);
+        transition opaque {
+            true -> dispatch_data(parser, input, is_public, true)
+            _ -> boundary_machine_word(parser, input, is_public)
+        }
+    }
+
+    state boundary_machine_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let crossing: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        let root_head: MachineHead = Parser::root_machine_head(parser.item_start, is_public);
+        let head: MachineHead = Parser::boundary_machine_head(root_head);
+        transition crossing {
+            true -> dispatch_machine(parser, input, head)
+            _ -> boundary_trait_word(parser, input, is_public)
+        }
+    }
+
+    state boundary_trait_word(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let requirements: bool = Parser::at_word(parser, input, "trait");
+        transition requirements {
+            true -> dispatch_trait(parser, input, is_public, true)
+            _ -> boundary_requirement_word(parser, input)
+        }
+    }
+
+    state boundary_requirement_word(parser: &mut Parser, input: &TokenStream) {
+        let retired: bool = Parser::at_word(parser, input, "requirement");
+        transition retired {
+            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredBoundaryRequirement)
+            _ -> boundary_operator_word(parser, input)
+        }
+    }
+
+    state boundary_operator_word(parser: &mut Parser, input: &TokenStream) {
+        let retired: bool = Parser::at_word(parser, input, "operator");
+        transition retired {
+            true -> reject_here(parser, input, ParseDiagnosticCode::RetiredOperatorDeclaration)
+            _ -> reject_here(parser, input, ParseDiagnosticCode::ExpectedBoundaryDeclaration)
+        }
+    }
+
+    // `target machine ...`: the leading name is the family's target.
+    state target_machine(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        Parser::take_current(parser, input);
+        let root_head: MachineHead = Parser::root_machine_head(parser.item_start, is_public);
+        let head: MachineHead = Parser::target_machine_head(root_head, parser.token_start, parser.token_end);
+        transition { _ -> dispatch_machine(parser, input, head) }
+    }
+
+    state target_boundary(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        Parser::take_current(parser, input);
+        let root_head: MachineHead = Parser::root_machine_head(parser.item_start, is_public);
+        let target_head: MachineHead = Parser::target_machine_head(root_head, parser.token_start, parser.token_end);
+        let head: MachineHead = Parser::boundary_machine_head(target_head);
+        Parser::take_current(parser, input);
+        let crossing: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        transition crossing {
+            true -> dispatch_machine(parser, input, head)
+            _ -> reject_here(parser, input, ParseDiagnosticCode::ExpectedTargetScopedMachine)
+        }
+    }
+
+    state dispatch_data(parser: &mut Parser, input: &TokenStream, is_public: bool, is_boundary: bool) {
         let item_start: u64 in Trapping = parser.item_start;
-        Parser::parse_data(parser, input, item_start, is_public);
+        Parser::parse_data(parser, input, item_start, is_public, is_boundary);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_machine(parser: &mut Parser, input: &TokenStream, head: MachineHead) {
+        Parser::parse_machine(parser, input, head);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_trait(parser: &mut Parser, input: &TokenStream, is_public: bool, is_boundary: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_trait(parser, input, item_start, is_public, is_boundary);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_conformance(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_conformance(parser, input, item_start, is_public);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_domain(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_domain(parser, input, item_start, is_public);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_constant(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_constant(parser, input, item_start, is_public);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state dispatch_proposition(parser: &mut Parser, input: &TokenStream, is_public: bool) {
+        let item_start: u64 in Trapping = parser.item_start;
+        Parser::parse_proposition(parser, input, item_start, is_public);
+        transition { _ -> declared(parser, input) }
+    }
+
+    state declared(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.accepted {
             true -> next_root(parser, input)
             _ -> done()
         }
     }
 
-    state dispatch_machine(parser: &mut Parser, input: &TokenStream, is_public: bool) {
-        let item_start: u64 in Trapping = parser.item_start;
-        Parser::parse_machine(parser, input, item_start, is_public);
-        transition parser.output.accepted {
-            true -> next_root(parser, input)
-            _ -> done()
-        }
+    state reject_here(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
     }
 
     state unsupported_root(
@@ -356,7 +592,7 @@ crashes Trap
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
-        transition parser.output.member_count < 16384 {
+        transition parser.output.member_count < 24576 {
             true -> retain_member_bounded(parser, input, start, end)
             _ -> member_full(parser, start, end)
         }
@@ -497,4 +733,42 @@ crashes Trap
     }
 
     state done() { }
+}
+
+// The head of a root `[pub] machine` declaration starting at `start`; the
+// constructors below add a target name or `boundary`.
+machine Parser::root_machine_head(start: u64 in Trapping, is_public: bool) -> MachineHead {
+    MachineHead {
+        start: start,
+        is_public: is_public,
+        has_target: false,
+        target_start: 0,
+        target_end: 0,
+        is_boundary: false,
+        container: MachineContainer::Root
+    }
+}
+
+machine Parser::target_machine_head(head: MachineHead, start: u64 in Trapping, end: u64 in Trapping) -> MachineHead {
+    MachineHead {
+        start: head.start,
+        is_public: head.is_public,
+        has_target: true,
+        target_start: start,
+        target_end: end,
+        is_boundary: head.is_boundary,
+        container: head.container
+    }
+}
+
+machine Parser::boundary_machine_head(head: MachineHead) -> MachineHead {
+    MachineHead {
+        start: head.start,
+        is_public: head.is_public,
+        has_target: head.has_target,
+        target_start: head.target_start,
+        target_end: head.target_end,
+        is_boundary: true,
+        container: head.container
+    }
 }

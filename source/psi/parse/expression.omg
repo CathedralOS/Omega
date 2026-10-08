@@ -275,7 +275,7 @@ crashes Trap
     }
 
     state path_member(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.member_count < 16384 {
+        transition parser.output.member_count < 24576 {
             true -> path_member_bounded(parser, input)
             _ -> member_full(parser, input)
         }
@@ -413,56 +413,9 @@ crashes Trap
         }
     }
 
-    // Each argument is a type, or an integer static value, staged on the type
-    // argument stack until `>` commits the list to `type_arguments`.
+    // The static argument list (types.omg) commits to `type_arguments`.
     state static_arguments(parser: &mut Parser, input: &TokenStream) {
-        let base: u64 in Trapping = parser.pending_type_argument_count as u64 in Trapping;
-        Parser::take_current(parser, input);
-        transition { _ -> static_argument(parser, input, base) }
-    }
-
-    state static_argument(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
-        Parser::parse_static_argument(parser, input);
-        transition parser.output.accepted {
-            true -> static_argument_staged(parser, input, base)
-            _ -> done()
-        }
-    }
-
-    state static_argument_staged(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
-        let argument: u64 in Trapping = parser.type_result;
-        Parser::push_type_argument(parser, input, argument);
-        let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
-        transition parser.output.accepted && comma {
-            true -> static_comma(parser, input, base)
-            _ -> static_close(parser, input, base)
-        }
-    }
-
-    state static_comma(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
-        Parser::take_current(parser, input);
-        transition { _ -> static_argument(parser, input, base) }
-    }
-
-    state static_close(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
-        transition parser.output.accepted {
-            true -> static_greater(parser, input, base)
-            _ -> done()
-        }
-    }
-
-    state static_greater(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
-        Parser::expect_punctuation(parser, input, PunctuationKind::Greater,
-            ParseDiagnosticCode::ExpectedStaticArgumentEnd
-        );
-        transition parser.output.accepted {
-            true -> static_commit(parser, input, base)
-            _ -> done()
-        }
-    }
-
-    state static_commit(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
-        Parser::commit_type_arguments(parser, input, base);
+        Parser::parse_static_arguments(parser, input);
         transition parser.output.accepted {
             true -> apply_node(parser, input)
             _ -> done()

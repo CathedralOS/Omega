@@ -110,6 +110,10 @@ pub data ResolveDiagnosticCode [copy] {
     case PartialStableIdentities;
     case DuplicateStableIdentity;
     case InvalidStableIdentity;
+    // A declaration kind resolution does not bind yet: a trait, conformance,
+    // domain, constant or proposition, or a target-scoped or boundary
+    // machine. It rejects at its root rather than resolving as if absent.
+    case UnsupportedDeclaration;
 }
 
 pub data ResolveDiagnostic [copy] {

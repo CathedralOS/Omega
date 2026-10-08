@@ -5823,11 +5823,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
 
-  Current state: on macOS ARM64,
-  `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
-  `tests/psi/parser/test-parser.sh` passes all 266 parser cases, and
-  `tests/psi/resolver/test-resolver.sh` passes all 116 resolver cases; each
-  gate builds its harness natively in several minutes.
+  Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
+  OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
+  348 parser cases, and `tests/psi/resolver/test-resolver.sh` passes all 126
+  resolver cases; each gate builds its harness natively in several minutes.
   `tests/product/request/test-request.sh` builds the product entry and passes
   all 36 OCREQ cases, D's request vectors among them; a well-formed request
   stops at `coverage_request_semantics` until phase 3, which waits on the
@@ -5839,37 +5838,46 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `{}`, and expressions including float literals, call acknowledgements and
   static applications; fields, cases and payload fields take stable `#N`
   identities; every type position shares one nested grammar of references,
-  arrays, slices and applied names or paths with `in` domains. Resolution
-  runs over a source set: each unit belongs to the module its path names, a
-  `use` must name a supplied module, and a reference sees its own module and
-  the modules its unit imports, not transitively, with two visible
-  declarations of one spelling ambiguous. It
-  binds data, signature and body types and `in` domains, each in its
-  declaration's generic scope, checks all-or-nothing, distinct stable
-  identities, rejects duplicate generic parameters, parameters, states, and
-  data and overloads within a module, and binds every expression name by the
-  language's resolution order (locals, arm binders, the body's own
-  parameters, value and machine binders, then states, machines, data and
-  cases by position). The parser harness reads all 23 product source files
-  whole and 12 of the 100 `source/library/std` and `core` files; 76 others
-  stop first at root kinds the parser lacks, 6 at retired range suffixes
-  awaiting **CANONICALIZE-SCALAR-RANGE-CONTRACTS** migration, 2 at
-  `where machine` contracts, and one each at an operator-token machine head,
-  `terminates by`, an `in` membership fact and an `as` pattern rename. The
-  resolver gate resolves the whole psi package, its 18 units, as one source
-  set; the shared syntax tables hold 1,024 roots, 16,384 path
-  members and type references, 8,192 parameters and statements, 4,096 states
-  and 32,768 expressions, over a 65,536-token unit. Next: package aliases,
-  with `pub` narrowing imports across packages, so the product entry and its
-  library imports resolve; then typing. Size the parser tables to the request
-  contract's scalar-resource rows (roots and states 4,096; path members, data
-  members, type nodes, statements and expressions 16,384) and publish their
-  refusals as those provisions; aarch64 frames past 16 MiB now realize. The
-  product's own 19 sources hold 19,430 expressions and 13,201 path members, so
-  those rows must count per source unit, or grow, before D can compile C. Run
-  both gates on Linux and Windows hosts. Keep the acceptance/rejection,
-  lexical handoff, structural identity, capacity and determinism controls and
-  range-proven narrowing casts.
+  arrays, slices and applied names or paths with `in` domains. Roots also
+  parse target-scoped and `boundary` machines, opaque `boundary data`, traits
+  with parents and requirement or default member machines, named conformances
+  with checked members and reference rows, domains (predicate, routed, indexed
+  and alias), constants and propositions; the retired `boundary requirement`
+  and `operator` introducers reject at their word. Resolution runs over a
+  source set: each unit belongs to the module its path names, a `use` must
+  name a supplied module, and a reference sees its own module and the modules
+  its unit imports, not transitively, with two visible declarations of one
+  spelling ambiguous. It binds data, signature and body types and `in`
+  domains, each in its declaration's generic scope, checks all-or-nothing,
+  distinct stable identities, rejects duplicate generic parameters,
+  parameters, states, and data and overloads within a module, and binds every
+  expression name by the language's resolution order (locals, arm binders, the
+  body's own parameters, value and machine binders, then states, machines,
+  data and cases by position). Every other root kind (traits, conformances,
+  domains, constants, propositions, target-scoped and boundary machines)
+  rejects as an unsupported declaration before binding; `boundary data` binds
+  as data. The parser harness reads all 29 product source files whole and 29
+  of the 100 `source/library/std` and `core` files; the other 71 stop first at
+  29 `satisfies` machine clauses, 12 retired `boundary requirement` and 5
+  retired `boundary operator` declarations awaiting library migration, 7
+  retired range suffixes awaiting **CANONICALIZE-SCALAR-RANGE-CONTRACTS**
+  migration, 7 `terminates` clauses, 3 operator-token machine heads, 2 `where
+  machine` contracts, 3 `in` memberships, and one each at `match`, an `as`
+  pattern rename and a `proposition` generic binder. The resolver gate
+  resolves the whole psi package, its 24 units, as one source set; the shared
+  syntax tables hold 1,024 roots, 24,576 path members, 16,384 type references,
+  8,192 parameters and statements, 4,096 states and 32,768 expressions, over a
+  65,536-token unit. Next: package aliases, with `pub` narrowing imports
+  across packages, so the product entry and its library imports resolve; then
+  typing. Size the parser tables to the request contract's scalar-resource
+  rows (roots and states 4,096; path members, data members, type nodes,
+  statements and expressions 16,384) and publish their refusals as those
+  provisions; aarch64 frames past 16 MiB now realize. The product's own 29
+  sources hold 27,792 expressions and 19,098 path members, so those rows must
+  count per source unit, or grow, before D can compile C. Run both gates on
+  Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
+  structural identity, capacity and determinism controls and range-proven
+  narrowing casts.
 
   Acceptance: the package-resolved closure implements the
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the

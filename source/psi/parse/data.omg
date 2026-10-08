@@ -14,16 +14,21 @@ use psi::tokens::tokens;
 // fields are `[#N] name: Type`. `#N` is a stable schema identity. Every
 // completed member is retained at once, so a rejection keeps each member
 // before it; the item and its root are retained at the closing `}`.
+// `[pub] boundary data Name [<generic parameters>] [properties];` leaves its
+// representation to a crossing: no members, and no `where` facts over fields
+// it does not show.
 pub machine Parser::parse_data(
     parser: &mut Parser,
     input: &TokenStream,
     item_start: u64 in Trapping,
-    is_public: bool
+    is_public: bool,
+    is_boundary: bool
 )
 crashes Trap
 {
     parser.data_item_start = item_start;
     parser.data_is_public = is_public;
+    parser.data_is_boundary = is_boundary;
     transition parser.output.root_count < 1024 {
         true -> capacity(parser, input)
         _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
@@ -72,7 +77,7 @@ crashes Trap
         let bracket: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBracket);
         transition bracket {
             true -> property_list(parser, input)
-            _ -> clauses(parser, input)
+            _ -> representation(parser, input)
         }
     }
 
@@ -80,7 +85,26 @@ crashes Trap
         Parser::parse_properties(parser, input);
         parser.data_multiplicity = parser.property_multiplicity;
         transition parser.output.accepted {
-            true -> clauses(parser, input)
+            true -> representation(parser, input)
+            _ -> done()
+        }
+    }
+
+    state representation(parser: &mut Parser, input: &TokenStream) {
+        transition parser.data_is_boundary {
+            true -> boundary_end(parser, input)
+            _ -> clauses(parser, input)
+        }
+    }
+
+    state boundary_end(parser: &mut Parser, input: &TokenStream) {
+        parser.data_first_clause = parser.output.clause_count as u64 in Trapping;
+        parser.data_clause_count = 0;
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon,
+            ParseDiagnosticCode::ExpectedBoundaryDataEnd
+        );
+        transition parser.output.accepted {
+            true -> retain_capacity(parser, input)
             _ -> done()
         }
     }
@@ -485,6 +509,10 @@ crashes Trap
 
     state close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
+        transition { _ -> retain_capacity(parser, input) }
+    }
+
+    state retain_capacity(parser: &mut Parser, input: &TokenStream) {
         transition parser.output.data_count < 256 && parser.output.root_count < 1024 {
             true -> retain(parser)
             _ -> reject(parser, input, ParseDiagnosticCode::DataCapacityExceeded)
@@ -507,6 +535,7 @@ crashes Trap
             first_clause: parser.data_first_clause,
             clause_count: parser.data_clause_count,
             multiplicity: parser.data_multiplicity,
+            is_boundary: parser.data_is_boundary,
             is_public: parser.data_is_public,
             source_span: span
         };

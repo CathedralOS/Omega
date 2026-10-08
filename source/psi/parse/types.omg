@@ -655,6 +655,64 @@ crashes Trap
     }
 }
 
+// `<argument {, argument}>`, a static argument list, entered at `<`. Each
+// argument is a type, or an integer static value, staged on the type
+// argument stack until `>` commits the list to `type_arguments`; its range
+// lands in `committed_type_first`/`committed_type_count`.
+pub machine Parser::parse_static_arguments(parser: &mut Parser, input: &TokenStream)
+crashes Trap
+{
+    let base: u64 in Trapping = parser.pending_type_argument_count as u64 in Trapping;
+    Parser::take_current(parser, input);
+    transition { _ -> argument(parser, input, base) }
+
+    state argument(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::parse_static_argument(parser, input);
+        transition parser.output.accepted {
+            true -> staged(parser, input, base)
+            _ -> done()
+        }
+    }
+
+    state staged(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        let argument: u64 in Trapping = parser.type_result;
+        Parser::push_type_argument(parser, input, argument);
+        let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
+        transition parser.output.accepted && comma {
+            true -> comma(parser, input, base)
+            _ -> close(parser, input, base)
+        }
+    }
+
+    state comma(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::take_current(parser, input);
+        transition { _ -> argument(parser, input, base) }
+    }
+
+    state close(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        transition parser.output.accepted {
+            true -> greater(parser, input, base)
+            _ -> done()
+        }
+    }
+
+    state greater(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Greater,
+            ParseDiagnosticCode::ExpectedStaticArgumentEnd
+        );
+        transition parser.output.accepted {
+            true -> commit(parser, input, base)
+            _ -> done()
+        }
+    }
+
+    state commit(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping) {
+        Parser::commit_type_arguments(parser, input, base);
+    }
+
+    state done() {}
+}
+
 // One static argument: a type, or at its root an integer static value
 // (`AtMost<8>`, `Build::f<8>(x)`). Rows and diagnostics are the type
 // grammar's.

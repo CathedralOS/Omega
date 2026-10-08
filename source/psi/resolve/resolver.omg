@@ -7,11 +7,11 @@ use psi::syntax::syntax;
 
 // Name resolution over the parsed roots of a compilation's source units. The
 // pass runs in fail-closed steps, each completing before the next begins:
-// imports, top-level data names, member namespaces, stable identities
-// (identities.omg), data type references, machine signature type
-// references, body type references (`let` types, cast targets and static
-// arguments), machine namespaces, then expression names. The first
-// rejection is the diagnostic. Lookup mirrors the reference resolver: an
+// declaration kinds it binds, imports, top-level data names, member
+// namespaces, stable identities (identities.omg), data type references,
+// machine signature type references, body type references (`let` types,
+// cast targets and static arguments), machine namespaces, then expression
+// names. The first rejection is the diagnostic. Lookup mirrors the reference resolver: an
 // enclosing generic parameter, then a builtin type, then a data declaration
 // the reference's unit can see (imports.omg). Builtin and duplicate
 // declarations reject before any lookup, so the builtin and data tiers
@@ -31,10 +31,18 @@ pub machine Resolver::resolve(resolver: &mut Resolver, sources: &SourceSet, synt
 crashes Trap
 {
     NameResolution::clear(&mut resolver.output, SourceId { value: 0 });
-    Resolver::check_imports(resolver, sources, syntax);
+    Resolver::check_declaration_kinds(resolver, syntax);
     transition resolver.output.accepted {
-        true -> declarations(resolver, sources, syntax)
+        true -> imports(resolver, sources, syntax)
         _ -> done()
+    }
+
+    state imports(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+        Resolver::check_imports(resolver, sources, syntax);
+        transition resolver.output.accepted {
+            true -> declarations(resolver, sources, syntax)
+            _ -> done()
+        }
     }
 
     state declarations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
@@ -104,6 +112,47 @@ crashes Trap
     state publish(resolver: &mut Resolver, syntax: &SyntaxTrees) {
         resolver.output.binding_count = syntax.type_reference_count;
         resolver.output.value_binding_count = syntax.expression_count;
+    }
+
+    state done() {}
+}
+
+// The declaration kinds this resolver binds: `use`, `data` (`boundary data`
+// declares an opaque type name like any other) and untargeted, non-boundary
+// machines. Every other root rejects at its span, in source order, before
+// any binding: its names would otherwise be absent from every scope.
+machine Resolver::check_declaration_kinds(resolver: &mut Resolver, syntax: &SyntaxTrees)
+crashes Trap
+{
+    transition { _ -> next(resolver, syntax, 0) }
+
+    state next(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        transition index < syntax.root_count {
+            true -> root(resolver, syntax, index)
+            _ -> done()
+        }
+    }
+
+    state root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+        let root: RootItem = SyntaxTrees::root_item(syntax, index);
+        transition root.kind {
+            RootItemKind::Use -> next(resolver, syntax, index + 1)
+            RootItemKind::Data -> next(resolver, syntax, index + 1)
+            RootItemKind::Machine -> machine_root(resolver, syntax, index, root)
+            _ -> reject(resolver, root.source_span)
+        }
+    }
+
+    state machine_root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, root: RootItem) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, root.item_index);
+        transition item.has_target || item.is_boundary {
+            true -> reject(resolver, root.source_span)
+            _ -> next(resolver, syntax, index + 1)
+        }
+    }
+
+    state reject(resolver: &mut Resolver, source_span: SourceSpan) {
+        NameResolution::reject(&mut resolver.output, ResolveDiagnosticCode::UnsupportedDeclaration, source_span);
     }
 
     state done() {}

@@ -1,0 +1,240 @@
+use psi::parse::generics;
+use psi::parse::input;
+use psi::parse::machine;
+use psi::parse::parser;
+use psi::parse::types;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::tokens::tokens;
+
+// `[pub] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
+// { member* }`, entered at the `trait` word. A parent is a type application
+// retained in `SyntaxTrees::trait_parents`. A member is a machine requirement
+// (machine.omg's grammar, contained by the trait) or a body parent
+// `requires Parent;`, which joins the header's parents. The item and its
+// root are retained at the closing `}`.
+pub machine Parser::parse_trait(
+    parser: &mut Parser,
+    input: &TokenStream,
+    item_start: u64 in Trapping,
+    is_public: bool,
+    is_boundary: bool
+)
+crashes Trap
+{
+    parser.declaration_start = item_start;
+    parser.declaration_is_public = is_public;
+    parser.declaration_is_boundary = is_boundary;
+    transition parser.output.trait_count < 256 {
+        true -> keyword(parser, input)
+        _ -> reject(parser, input, ParseDiagnosticCode::TraitCapacityExceeded)
+    }
+
+    state keyword(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
+        parser.declaration_first_parent = parser.output.trait_parent_count as u64 in Trapping;
+        Parser::expect_name(parser, input, ParseDiagnosticCode::ExpectedTraitName);
+        transition parser.output.accepted {
+            true -> named(parser, input)
+            _ -> done()
+        }
+    }
+
+    state named(parser: &mut Parser, input: &TokenStream) {
+        parser.declaration_name_start = parser.name_start;
+        parser.declaration_name_end = parser.name_end;
+        let generic: bool = Parser::at_punctuation(parser, input, PunctuationKind::Less);
+        transition generic {
+            true -> generics(parser, input)
+            _ -> parents(parser, input)
+        }
+    }
+
+    state generics(parser: &mut Parser, input: &TokenStream) {
+        Parser::parse_generic_parameters(parser, input);
+        transition parser.output.accepted {
+            true -> parents(parser, input)
+            _ -> done()
+        }
+    }
+
+    state parents(parser: &mut Parser, input: &TokenStream) {
+        let listed: bool = Parser::at_punctuation(parser, input, PunctuationKind::Colon);
+        transition listed {
+            true -> next_parent(parser, input)
+            _ -> body(parser, input)
+        }
+    }
+
+    state next_parent(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedTraitParent);
+        transition parser.output.accepted {
+            true -> header_parent(parser, input, parser.type_result)
+            _ -> done()
+        }
+    }
+
+    state header_parent(parser: &mut Parser, input: &TokenStream, parent: u64 in Trapping) {
+        Parser::append_trait_parent(parser, input, parent);
+        let more: bool = Parser::at_punctuation(parser, input, PunctuationKind::Plus);
+        transition parser.output.accepted && more {
+            true -> next_parent(parser, input)
+            _ -> header_end(parser, input)
+        }
+    }
+
+    state header_end(parser: &mut Parser, input: &TokenStream) {
+        transition parser.output.accepted {
+            true -> body(parser, input)
+            _ -> done()
+        }
+    }
+
+    state body(parser: &mut Parser, input: &TokenStream) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedTraitBody);
+        parser.declaration_first_machine = parser.output.machine_count as u64 in Trapping;
+        transition parser.output.accepted {
+            true -> member(parser, input)
+            _ -> done()
+        }
+    }
+
+    state member(parser: &mut Parser, input: &TokenStream) {
+        let closing: bool = Parser::at_punctuation(parser, input, PunctuationKind::RightBrace);
+        transition closing {
+            true -> close(parser, input)
+            _ -> machine_member(parser, input)
+        }
+    }
+
+    state machine_member(parser: &mut Parser, input: &TokenStream) {
+        let required: bool = Parser::at_keyword(parser, input, KeywordKind::Machine);
+        transition required {
+            true -> requirement(parser, input)
+            _ -> parent_member(parser, input)
+        }
+    }
+
+    state requirement(parser: &mut Parser, input: &TokenStream) {
+        let token: Token = input.tokens[parser.current_index];
+        let head: MachineHead = Parser::member_machine_head(token.start, MachineContainer::Trait);
+        Parser::parse_machine(parser, input, head);
+        transition parser.output.accepted {
+            true -> member(parser, input)
+            _ -> done()
+        }
+    }
+
+    state parent_member(parser: &mut Parser, input: &TokenStream) {
+        let composed: bool = Parser::at_word(parser, input, "requires");
+        transition composed {
+            true -> body_parent(parser, input)
+            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTraitMember)
+        }
+    }
+
+    state body_parent(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        Parser::parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedTraitParent);
+        transition parser.output.accepted {
+            true -> body_parent_end(parser, input, parser.type_result)
+            _ -> done()
+        }
+    }
+
+    state body_parent_end(parser: &mut Parser, input: &TokenStream, parent: u64 in Trapping) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedTraitRequirementEnd);
+        transition parser.output.accepted {
+            true -> body_parent_retained(parser, input, parent)
+            _ -> done()
+        }
+    }
+
+    state body_parent_retained(parser: &mut Parser, input: &TokenStream, parent: u64 in Trapping) {
+        Parser::append_trait_parent(parser, input, parent);
+        transition parser.output.accepted {
+            true -> member(parser, input)
+            _ -> done()
+        }
+    }
+
+    state close(parser: &mut Parser, input: &TokenStream) {
+        Parser::take_current(parser, input);
+        transition parser.output.trait_count < 256 {
+            true -> root_capacity(parser, input)
+            _ -> reject(parser, input, ParseDiagnosticCode::TraitCapacityExceeded)
+        }
+    }
+
+    state root_capacity(parser: &mut Parser, input: &TokenStream) {
+        transition parser.output.root_count < 1024 {
+            true -> retain(parser)
+            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+        }
+    }
+
+    state retain(parser: &mut Parser) {
+        let trait_index: u64 in Trapping = parser.output.trait_count as u64 in Trapping;
+        let span: SourceSpan = Parser::source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.traits[parser.output.trait_count] = TraitItem {
+            name: Parser::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+            first_generic_parameter: parser.declaration_first_generic,
+            generic_parameter_count: (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic,
+            first_parent: parser.declaration_first_parent,
+            parent_count: (parser.output.trait_parent_count as u64 in Trapping) - parser.declaration_first_parent,
+            first_machine: parser.declaration_first_machine,
+            machine_count: (parser.output.machine_count as u64 in Trapping) - parser.declaration_first_machine,
+            is_boundary: parser.declaration_is_boundary,
+            is_public: parser.declaration_is_public,
+            source_span: span
+        };
+        parser.output.trait_count = parser.output.trait_count + 1;
+        parser.output.roots[parser.output.root_count] = RootItem {
+            kind: RootItemKind::Trait,
+            item_index: trait_index,
+            source_span: span
+        };
+        parser.output.root_count = parser.output.root_count + 1;
+    }
+
+    state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+        Parser::reject_current(parser, input, code);
+    }
+
+    state done() {}
+}
+
+// Append one parent's type row to `SyntaxTrees::trait_parents`.
+machine Parser::append_trait_parent(parser: &mut Parser, input: &TokenStream, parent: u64 in Trapping)
+crashes Trap
+{
+    transition parser.output.trait_parent_count < 512 {
+        true -> append(parser, parent)
+        _ -> full(parser, input)
+    }
+
+    state append(parser: &mut Parser, parent: u64 in Trapping) {
+        parser.output.trait_parents[parser.output.trait_parent_count] = parent as u64;
+        parser.output.trait_parent_count = parser.output.trait_parent_count + 1;
+    }
+
+    state full(parser: &mut Parser, input: &TokenStream) {
+        Parser::reject_current(parser, input, ParseDiagnosticCode::TraitParentCapacityExceeded);
+    }
+}
+
+// The head of a trait or conformance member machine, starting at its
+// `machine` keyword: no visibility, target or `boundary` of its own.
+machine Parser::member_machine_head(start: u64 in Trapping, container: MachineContainer) -> MachineHead {
+    MachineHead {
+        start: start,
+        is_public: false,
+        has_target: false,
+        target_start: 0,
+        target_end: 0,
+        is_boundary: false,
+        container: container
+    }
+}

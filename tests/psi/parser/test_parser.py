@@ -40,6 +40,14 @@ class Observation:
     pattern_fields: tuple[tuple[int, ...], ...] = ()
     clauses: tuple[tuple[int, ...], ...] = ()
     type_arguments: tuple[int, ...] = ()
+    name_paths: tuple[tuple[int, ...], ...] = ()
+    traits: tuple[tuple[int, ...], ...] = ()
+    trait_parents: tuple[int, ...] = ()
+    conformances: tuple[tuple[int, ...], ...] = ()
+    conformance_rows: tuple[tuple[int, ...], ...] = ()
+    domains: tuple[tuple[int, ...], ...] = ()
+    constants: tuple[tuple[int, ...], ...] = ()
+    propositions: tuple[tuple[int, ...], ...] = ()
 
 
 class Reader:
@@ -64,8 +72,8 @@ class Reader:
 
 def decode(payload: bytes) -> Observation:
     reader = Reader(payload)
-    assert reader.bytes(8) == b"OMGPAR10"
-    assert reader.u64() == 10
+    assert reader.bytes(8) == b"OMGPAR11"
+    assert reader.u64() == 11
     accepted = reader.byte() == 1
     diagnostic = reader.byte()
     diagnostic_span = (reader.u64(), reader.u64(), reader.u64())
@@ -101,6 +109,7 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte() == 1,
         )
         for _ in range(reader.u64())
     )
@@ -234,6 +243,12 @@ def decode(payload: bytes) -> Observation:
             reader.u64(),
             reader.u64(),
             reader.u64(),
+            reader.byte(),
+            reader.u64(),
+            reader.u64(),
+            reader.u64(),
+            reader.byte(),
+            reader.byte(),
         )
         for _ in range(reader.u64())
     )
@@ -362,6 +377,77 @@ def decode(payload: bytes) -> Observation:
         )
         for _ in range(reader.u64())
     )
+    # The declaration tables: name paths, traits, trait parents,
+    # conformances, conformance rows, domains, constants and propositions.
+    name_paths = tuple(
+        (reader.u64(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
+        for _ in range(reader.u64())
+    )
+    traits = tuple(
+        (
+            reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(), reader.byte(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    trait_parents = tuple(reader.u64() for _ in range(reader.u64()))
+    conformances = tuple(
+        (
+            reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    conformance_rows = tuple(
+        (reader.u64(), reader.u64(), reader.u64(), reader.u64(), reader.u64())
+        for _ in range(reader.u64())
+    )
+    domains = tuple(
+        (
+            reader.u64(),
+            reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(), reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(),
+            reader.u64(), reader.u64(),
+            reader.byte(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    constants = tuple(
+        (
+            reader.byte(), reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
+    propositions = tuple(
+        (
+            reader.u64(), reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.u64(), reader.u64(),
+            reader.byte(), reader.u64(), reader.u64(),
+            reader.byte(),
+            reader.u64(), reader.u64(), reader.u64(),
+        )
+        for _ in range(reader.u64())
+    )
     assert reader.cursor == len(payload), "trailing parser observation bytes"
     return Observation(
         accepted,
@@ -388,6 +474,14 @@ def decode(payload: bytes) -> Observation:
         pattern_fields,
         clauses,
         type_arguments,
+        name_paths,
+        traits,
+        trait_parents,
+        conformances,
+        conformance_rows,
+        domains,
+        constants,
+        propositions,
     )
 
 
@@ -418,6 +512,20 @@ def with_identity(rows: tuple[tuple, ...], width: int) -> tuple[tuple, ...]:
     """Field and case rows spelled before stable identities carry none: the
     absent identity follows the name span."""
     return tuple(row if len(row) == width else row[:3] + NO_IDENTITY + row[3:] for row in rows)
+
+
+def data_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
+    """Data rows spelled before `boundary data` are ordinary declarations."""
+    return tuple(
+        row if len(row) == 19 else (row if len(row) == 18 else row + (0, 0)) + (False,)
+        for row in rows
+    )
+
+
+def machine_rows(rows: tuple[tuple, ...]) -> tuple[tuple, ...]:
+    """Machine rows spelled before target-scoped, boundary and member
+    machines are untargeted, not boundary, and stand at the root."""
+    return tuple(row if len(row) == 32 else row + (0, 1, 0, 0, 0, 0) for row in rows)
 
 
 def type_rows(rows: tuple[tuple[int, ...], ...]) -> tuple[tuple[int, ...], ...]:
@@ -475,7 +583,16 @@ def accepted(
     construct_fields: tuple[tuple[int, ...], ...] = (),
     statements: tuple[tuple[int, ...], ...] = (),
     type_arguments: tuple[int, ...] = (),
-) -> None:
+    clauses: tuple[tuple[int, ...], ...] = (),
+    name_paths: tuple[tuple[int, ...], ...] = (),
+    traits: tuple[tuple[int, ...], ...] = (),
+    trait_parents: tuple[int, ...] = (),
+    conformances: tuple[tuple[int, ...], ...] = (),
+    conformance_rows: tuple[tuple[int, ...], ...] = (),
+    domains: tuple[tuple[int, ...], ...] = (),
+    constants: tuple[tuple[int, ...], ...] = (),
+    propositions: tuple[tuple[int, ...], ...] = (),
+) -> Observation:
     status, payload = run(program, source)
     assert status == 0, f"{name}: status {status}"
     actual = decode(payload)
@@ -486,21 +603,32 @@ def accepted(
         roots,
         uses,
         members,
-        with_clause_range(data_items, 18),
+        data_rows(data_items),
         data_members,
         with_identity(fields, 11),
         with_identity(payload_fields, 11),
         with_identity(tuple(row + (0, 0) if len(row) == 8 else row for row in cases), 14),
         type_rows(type_references),
         generic_parameters,
-        machines,
+        machine_rows(machines),
         parameters,
         states,
         expressions,
         arguments,
         construct_fields,
         statements,
-        type_arguments=type_arguments,
+        (),
+        (),
+        clauses,
+        type_arguments,
+        name_paths,
+        traits,
+        trait_parents,
+        conformances,
+        conformance_rows,
+        domains,
+        constants,
+        propositions,
     )
     assert actual == expected, f"{name}:\nexpected {expected}\nactual   {actual}"
 
@@ -525,6 +653,14 @@ def rejected(
     state_count: int = 0,
     expression_count: int = 0,
     statement_count: int = 0,
+    name_path_count: int = 0,
+    trait_count: int = 0,
+    trait_parent_count: int = 0,
+    conformance_count: int = 0,
+    conformance_row_count: int = 0,
+    domain_count: int = 0,
+    constant_count: int = 0,
+    proposition_count: int = 0,
 ) -> None:
     status, payload = run(program, source)
     assert status == 250, f"{name}: status {status}"
@@ -546,6 +682,409 @@ def rejected(
     assert len(actual.states) == state_count, (name, actual)
     assert len(actual.expressions) == expression_count, (name, actual)
     assert len(actual.statements) == statement_count, (name, actual)
+    assert len(actual.name_paths) == name_path_count, (name, actual)
+    assert len(actual.traits) == trait_count, (name, actual)
+    assert len(actual.trait_parents) == trait_parent_count, (name, actual)
+    assert len(actual.conformances) == conformance_count, (name, actual)
+    assert len(actual.conformance_rows) == conformance_row_count, (name, actual)
+    assert len(actual.domains) == domain_count, (name, actual)
+    assert len(actual.constants) == constant_count, (name, actual)
+    assert len(actual.propositions) == proposition_count, (name, actual)
+
+
+DECLARATION_TABLES = (
+    "name_paths", "traits", "trait_parents", "conformances",
+    "conformance_rows", "domains", "constants", "propositions",
+)
+
+
+def declaration_accepted(program: str, name: str, source: bytes, **tables: tuple) -> Observation:
+    """An accepted source whose roots and named tables match exactly; every
+    declaration table it does not name is empty. Data, machine and type rows
+    take the shorthands `accepted` takes."""
+    status, payload = run(program, source)
+    assert status == 0, f"{name}: status {status}"
+    actual = decode(payload)
+    shorthand = {"data_items": data_rows, "machines": machine_rows, "type_references": type_rows}
+    for table in DECLARATION_TABLES:
+        tables.setdefault(table, ())
+    for table, rows in tables.items():
+        expected = shorthand.get(table, tuple)(rows)
+        assert getattr(actual, table) == expected, (
+            f"{name}: {table}\nexpected {expected}\nactual   {getattr(actual, table)}"
+        )
+    return actual
+
+
+def span(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, int, int]:
+    """The source span of the `occurrence`-th spelling of `fragment`."""
+    start = -1
+    for _ in range(occurrence):
+        start = source.index(fragment, start + 1)
+    return (1, start, start + len(fragment))
+
+
+def through(source: bytes, first: bytes, last: bytes) -> tuple[int, int, int]:
+    """From the first spelling of `first` through the following `last`."""
+    start = source.index(first)
+    return (1, start, source.index(last, start) + len(last))
+
+
+def root_declaration_cases(program: str) -> None:
+    """Target-scoped and boundary declarations, traits, named conformances,
+    domains, constants and propositions."""
+    NONE = (1, 0, 0)
+    TRAIT, CONFORMANCE, DOMAIN, CONSTANT, PROPOSITION = 4, 5, 6, 7, 8
+
+    def named(source: bytes, fragment: bytes, occurrence: int = 1) -> tuple[int, ...]:
+        where = span(source, fragment, occurrence)
+        return (1, *where, *where, 0, 0, 0, 0)
+
+    def whole(source: bytes) -> tuple[int, int, int]:
+        return (1, 0, len(source))
+
+    def machine(
+        source: bytes,
+        name: bytes,
+        extent: tuple[int, int, int],
+        parameters: tuple[int, int] = (0, 0),
+        return_type: int = -1,
+        statements: tuple[int, int] = (0, 0),
+        owner: bytes = b"",
+        public: bool = False,
+        target: bytes = b"",
+        boundary: bool = False,
+        container: int = 0,
+        body: bool = True,
+        expressions: tuple[int, int] = (0, 0),
+        clauses: tuple[int, int] = (0, 0),
+        generics: tuple[int, int] = (0, 0),
+    ) -> tuple[int, ...]:
+        return (
+            1 if owner else 0, *(span(source, owner) if owner else NONE),
+            *span(source, name),
+            *generics,
+            *parameters,
+            0 if return_type < 0 else 1, max(return_type, 0),
+            *clauses,
+            *statements,
+            0, 0,
+            1 if body else 0, *expressions,
+            1 if public else 0, *extent,
+            1 if target else 0, *(span(source, target) if target else NONE),
+            1 if boundary else 0, container,
+        )
+
+    # Boundary data declares an opaque representation: no members, no facts.
+    source = b"boundary data Handle;"
+    declaration_accepted(
+        program, "boundary-data", source,
+        roots=((2, 0, *whole(source)),),
+        data_items=((*span(source, b"Handle"), 0, 0, 0, 0, 0, 0, 0, False, *whole(source), 0, 0, 0, 0, True),),
+    )
+    source = b"pub boundary data Ptr<T> [linear];"
+    declaration_accepted(
+        program, "public-generic-linear-boundary-data", source,
+        roots=((2, 0, *whole(source)),),
+        data_items=((*span(source, b"Ptr"), 0, 0, 0, 0, 0, 0, 2, True, *whole(source), 0, 1, 0, 0, True),),
+        generic_parameters=((2, *span(source, b"T"), 0, 0, 0, *span(source, b"T")),),
+    )
+
+    # A target name before `machine` scopes one body of a family; `boundary`
+    # marks a crossing, with or without a target.
+    source = b"linux_arm64 machine Clock::now() -> u64 {}"
+    declaration_accepted(
+        program, "target-scoped-machine", source,
+        roots=((3, 0, *whole(source)),),
+        machines=(machine(source, b"now", whole(source), owner=b"Clock", return_type=0, target=b"linux_arm64"),),
+        type_references=(named(source, b"u64"),),
+    )
+    source = b"pub macos_arm64 boundary machine exit(code: i32) {}"
+    declaration_accepted(
+        program, "public-target-scoped-boundary-machine", source,
+        roots=((3, 0, *whole(source)),),
+        machines=(machine(source, b"exit", whole(source), parameters=(0, 1), public=True,
+                          target=b"macos_arm64", boundary=True),),
+        type_references=(named(source, b"i32"),),
+    )
+    source = b"boundary machine entry() {}\npub boundary machine Real::add() {}"
+    declaration_accepted(
+        program, "boundary-machines", source,
+        roots=((3, 0, *through(source, b"boundary", b"{}")), (3, 1, *through(source, b"pub", b"{}"))),
+        machines=(
+            machine(source, b"entry", through(source, b"boundary", b"{}"), boundary=True),
+            machine(source, b"add", through(source, b"pub", b"{}"), owner=b"Real", public=True, boundary=True),
+        ),
+    )
+
+    # Constants: package- or owner-scoped, with an ordinary value.
+    source = b"pub const PAGE_SIZE: u64 = 4096;\nconst Status::SUCCESS: Status = Status { code: 0 };"
+    actual = declaration_accepted(
+        program, "constants", source,
+        roots=((CONSTANT, 0, *through(source, b"pub", b";")), (CONSTANT, 1, *through(source, b"const Status", b"};"))),
+        type_references=(named(source, b"u64"), named(source, b"Status", 2)),
+        constants=(
+            (0, *NONE, *span(source, b"PAGE_SIZE"), 0, 0, 1, *through(source, b"pub", b";")),
+            (1, *span(source, b"Status"), *span(source, b"SUCCESS"), 1, 3, 0, *through(source, b"const Status", b"};")),
+        ),
+    )
+    assert [row[0] for row in actual.expressions] == [3, 1, 3, 12], f"constants: {actual.expressions}"
+
+    # Propositions: primitive, witness-bearing and transparent bodies.
+    source = (
+        b"proposition Settled;\n"
+        b"pub proposition Witnessed<T>(value: T) evidence Proof<T>;\n"
+        b"proposition Even(value: u64) = value % 2 == 0;"
+    )
+    actual = declaration_accepted(
+        program, "propositions", source,
+        roots=(
+            (PROPOSITION, 0, *span(source, b"proposition Settled;")),
+            (PROPOSITION, 1, *through(source, b"pub", b"Proof<T>;")),
+            (PROPOSITION, 2, *through(source, b"proposition Even", b"== 0;")),
+        ),
+        generic_parameters=((2, *span(source, b"T"), 0, 0, 0, *span(source, b"T")),),
+        propositions=(
+            (*span(source, b"Settled"), 0, 0, 0, 0, 1, 0, 0, 0, *span(source, b"proposition Settled;")),
+            (*span(source, b"Witnessed"), 0, 1, 0, 1, 2, 2, 0, 1, *through(source, b"pub", b"Proof<T>;")),
+            (*span(source, b"Even"), 1, 0, 1, 1, 3, 0, 4, 0, *through(source, b"proposition Even", b"== 0;")),
+        ),
+    )
+    assert len(actual.parameters) == 2 and len(actual.type_references) == 4, f"propositions: {actual}"
+
+    # Domains: predicate subjects, generic families with index arguments,
+    # bracketed carriers, establishment routes, transparent aliases and an
+    # empty body.
+    source = b"pub domain i32::Positive(value) requires value > 0;"
+    declaration_accepted(
+        program, "predicate-domain", source,
+        roots=((DOMAIN, 0, *whole(source)),),
+        type_references=(named(source, b"i32"),),
+        domains=((0, *span(source, b"Positive"), 0, 0, 0, 0, 1, *span(source, b"value"), 0, 1, 0, 0, 0, 0, 0, 1,
+                  *whole(source)),),
+        clauses=((6, 0, 0, 1, 2, *span(source, b"requires value > 0")),),
+    )
+    source = b"domain<T, const U: Unit> T::Quantity<U>;"
+    declaration_accepted(
+        program, "indexed-domain-family", source,
+        roots=((DOMAIN, 0, *whole(source)),),
+        generic_parameters=(
+            (2, *span(source, b"T"), 0, 0, 0, *span(source, b"T")),
+            (3, *span(source, b"U"), 1, 0, 0, *through(source, b"const", b"Unit")),
+        ),
+        type_references=(named(source, b"Unit"), named(source, b"T", 2), named(source, b"U", 3)),
+        type_arguments=(2,),
+        domains=((1, *span(source, b"Quantity"), 0, 1, 0, 2, 0, *NONE, 0, 0, 0, 0, 0, 0, 0, 0, *whole(source)),),
+    )
+    source = b"pub domain [u8]::Path(path) requires no_nul(path);"
+    declaration_accepted(
+        program, "bracketed-carrier-domain", source,
+        roots=((DOMAIN, 0, *whole(source)),),
+        type_references=(
+            named(source, b"u8"),
+            (5, *NONE, *span(source, b"[u8]"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        ),
+        domains=((1, *span(source, b"Path"), 0, 0, 0, 0, 1, *span(source, b"path"), 0, 1, 0, 0, 0, 0, 0, 1,
+                  *whole(source)),),
+        clauses=((6, 0, 0, 1, 2, *span(source, b"requires no_nul(path)")),),
+    )
+    source = b"pub domain Reservation::Issued established by Issues::issue, mint;"
+    declaration_accepted(
+        program, "routed-domain", source,
+        roots=((DOMAIN, 0, *whole(source)),),
+        members=(span(source, b"Issues"), span(source, b"issue"), span(source, b"mint")),
+        type_references=(named(source, b"Reservation"),),
+        name_paths=((0, 2, *span(source, b"Issues::issue")), (2, 1, *span(source, b"mint"))),
+        domains=((0, *span(source, b"Issued"), 0, 0, 0, 0, 0, *NONE, 0, 0, 0, 2, 0, 2, 0, 1, *whole(source)),),
+    )
+    source = b"pub domain Socket::Usable = Socket::Connected & Socket::Authenticated;"
+    declaration_accepted(
+        program, "alias-domain", source,
+        roots=((DOMAIN, 0, *whole(source)),),
+        type_references=(named(source, b"Socket"),),
+        name_paths=((0, 2, *span(source, b"Socket::Connected")), (2, 2, *span(source, b"Socket::Authenticated"))),
+        domains=((0, *span(source, b"Usable"), 0, 0, 0, 0, 0, *NONE, 0, 0, 2, 0, 1, 0, 2, 1, *whole(source)),),
+    )
+    source = b"domain Player::Alive(player) requires player.health > 0 { }"
+    declaration_accepted(
+        program, "domain-empty-body", source,
+        roots=((DOMAIN, 0, *whole(source)),),
+        type_references=(named(source, b"Player"),),
+        domains=((0, *span(source, b"Alive"), 0, 0, 0, 0, 1, *span(source, b"player", 1), 0, 1, 0, 0, 0, 0, 0, 0,
+                  *whole(source)),),
+    )
+
+    # Traits: generic parameters, header and body parents, and member
+    # machines contained by the trait.
+    source = b"pub boundary trait Clock<T>: Service + Order<T> { requires Base; machine now(clock: T) -> u64 {} }"
+    declaration_accepted(
+        program, "boundary-trait", source,
+        roots=((TRAIT, 0, *whole(source)),),
+        generic_parameters=((2, *span(source, b"T"), 0, 0, 0, *span(source, b"T")),),
+        type_references=(
+            named(source, b"Service"),
+            named(source, b"T", 2),
+            (1, *span(source, b"Order"), *span(source, b"Order<T>"), 0, 0, 0, 0, 0, 0, 0, 0, 1, 1),
+            named(source, b"Base"),
+            named(source, b"T", 3),
+            named(source, b"u64"),
+        ),
+        type_arguments=(1,),
+        trait_parents=(0, 2, 3),
+        machines=(machine(source, b"now", through(source, b"machine", b"{}"), parameters=(0, 1), return_type=5,
+                          container=1, generics=(1, 0)),),
+        traits=((*span(source, b"Clock"), 0, 1, 0, 3, 0, 1, 1, 1, *whole(source)),),
+    )
+    # A trait member without a body is a requirement; one with a body is
+    # its default.
+    source = b"pub boundary trait Clock { machine now() -> u64 reaches Clock; machine later(value: u64) -> u64 { value } }"
+    declaration_accepted(
+        program, "boundary-trait-requirements", source,
+        roots=((TRAIT, 0, *whole(source)),),
+        type_references=(named(source, b"u64"), named(source, b"u64", 2), named(source, b"u64", 3)),
+        clauses=((1, 0, 1, 1, 0, *span(source, b"reaches Clock")),),
+        machines=(
+            machine(source, b"now", span(source, b"machine now() -> u64 reaches Clock;"), return_type=0,
+                    clauses=(0, 1), body=False, container=1),
+            machine(source, b"later", through(source, b"machine later", b"}"), parameters=(0, 1), return_type=2,
+                    clauses=(1, 0), statements=(0, 1), expressions=(0, 1), container=1),
+        ),
+        traits=((*span(source, b"Clock"), 0, 0, 0, 0, 0, 2, 1, 1, *whole(source)),),
+    )
+    source = b"linux_arm64 machine Clock::now() -> u64;\nmachine f(x: u64) -> u64 requires x > 0;\ndomain<T> T::Wrapped;"
+    actual = declaration_accepted(
+        program, "bodyless-declarations-before-roots", source,
+        roots=(
+            (3, 0, *span(source, b"linux_arm64 machine Clock::now() -> u64;")),
+            (3, 1, *span(source, b"machine f(x: u64) -> u64 requires x > 0;")),
+            (DOMAIN, 0, *span(source, b"domain<T> T::Wrapped;")),
+        ),
+        domains=((3, *span(source, b"Wrapped"), 0, 0, 0, 1, 0, *NONE, 1, 0, 0, 0, 0, 0, 0, 0,
+                  *span(source, b"domain<T> T::Wrapped;")),),
+    )
+    assert [(row[19], row[26]) for row in actual.machines] == [(0, 1), (0, 0)], f"bodyless: {actual.machines}"
+    source = b"trait Empty { }"
+    declaration_accepted(
+        program, "empty-trait", source,
+        roots=((TRAIT, 0, *whole(source)),),
+        traits=((*span(source, b"Empty"), 0, 0, 0, 0, 0, 0, 0, 0, *whole(source)),),
+    )
+
+    # Named conformances: checked members and reference rows.
+    source = (
+        b"pub Saturating<T> satisfies Increment<Counter<T>> "
+        b"{ machine increment(counter: &mut Counter<T>) {} Increment::reset = Counter::clear; }"
+    )
+    declaration_accepted(
+        program, "conformance", source,
+        roots=((CONFORMANCE, 0, *whole(source)),),
+        members=(span(source, b"Increment", 2), span(source, b"reset"), span(source, b"Counter", 3),
+                 span(source, b"clear")),
+        name_paths=((0, 2, *span(source, b"Increment::reset")), (2, 2, *span(source, b"Counter::clear"))),
+        conformance_rows=((0, 1, *span(source, b"Increment::reset = Counter::clear;")),),
+        machines=(machine(source, b"increment", through(source, b"machine", b"{}"), parameters=(0, 1),
+                          container=2, generics=(1, 0)),),
+        conformances=((*span(source, b"Saturating"), 0, 1, 2, 0, 1, 0, 1, 1, *whole(source)),),
+        type_arguments=(0, 1, 3),
+    )
+
+    # Rejections at the exact token, keeping every row completed before it.
+    rejections = (
+        ("retired-boundary-requirement", b"boundary requirement Task::finish(task: Task);", 110,
+         span(b"boundary requirement", b"requirement")[1:], {}),
+        ("retired-boundary-operator", b"boundary operator Ptr::offset(p: Ptr) -> Ptr;", 111, (9, 17), {}),
+        ("retired-operator", b"operator + Vec2::add(left: Vec2) -> Vec2 {}", 111, (0, 8), {}),
+        ("boundary-declaration", b"boundary let x;", 109, (9, 12), {}),
+        ("boundary-declaration-at-end", b"boundary", 109, (8, 8), {}),
+        ("target-scoped-machine", b"linux_arm64 boundary data X;", 112, (21, 25), {}),
+        ("unsupported-name-root", b"linux_arm64 thing", 2, (0, 11), {}),
+        ("public-unsupported-name-root", b"pub linux_arm64 thing", 9, (4, 15), {}),
+        ("boundary-data-body", b"boundary data Handle { x: u8; }", 113, (21, 22), {}),
+        ("boundary-data-facts", b"boundary data Handle where x;", 113, (21, 26), {}),
+        ("trait-name", b"trait { }", 114, (6, 7), {}),
+        ("trait-parent", b"trait T: { }", 115, (9, 10), {}),
+        ("trait-body", b"trait T x", 116, (8, 9), {}),
+        ("trait-member", b"trait T { data X; }", 117, (10, 14), {}),
+        ("trait-requirement-end", b"trait T { requires P }", 118, (21, 22), {"type_reference_count": 1}),
+        ("trait-member-owner", b"trait T { machine A::f() {} }", 47, (19, 21), {}),
+        ("conformance-satisfies", b"Name<T> x", 121, (8, 9), {"generic_parameter_count": 1}),
+        ("conformance-trait", b"Name satisfies { }", 122, (15, 16), {}),
+        ("conformance-body", b"Name satisfies T x", 123, (17, 18), {"type_reference_count": 1}),
+        ("conformance-member", b"Name satisfies T { ; }", 124, (19, 20), {"type_reference_count": 1}),
+        ("conformance-row-equals", b"Name satisfies T { T::f g; }", 125, (24, 25),
+         {"type_reference_count": 1, "member_count": 2, "name_path_count": 1}),
+        ("conformance-row-target", b"Name satisfies T { T::f = ; }", 126, (26, 27),
+         {"type_reference_count": 1, "member_count": 2, "name_path_count": 1}),
+        ("conformance-row-end", b"Name satisfies T { T::f = g }", 127, (28, 29),
+         {"type_reference_count": 1, "member_count": 3, "name_path_count": 2}),
+        ("conformance-member-body", b"Name satisfies T { machine f() }", 47, (31, 32), {"type_reference_count": 1}),
+        ("conformance-member-bodyless", b"Name satisfies T { machine f(); }", 155, (30, 31),
+         {"type_reference_count": 1, "machine_count": 1}),
+        ("domain-carrier", b"domain ::X;", 130, (7, 9), {}),
+        ("domain-separator", b"domain i32 X;", 131, (11, 12), {"type_reference_count": 1}),
+        ("domain-name", b"domain i32::;", 132, (12, 13), {"type_reference_count": 1}),
+        ("domain-subject", b"domain i32::X(;", 133, (14, 15), {"type_reference_count": 1}),
+        ("domain-subject-end", b"domain i32::X(v;", 134, (15, 16), {"type_reference_count": 1}),
+        ("domain-constituent", b"domain i32::X = ;", 135, (16, 17), {"type_reference_count": 1}),
+        ("established-by", b"domain i32::X established Y;", 136, (26, 27), {"type_reference_count": 1}),
+        ("domain-route", b"domain i32::X established by ;", 137, (29, 30), {"type_reference_count": 1}),
+        ("domain-end", b"domain i32::X requires v > 0", 138, (28, 28),
+         {"type_reference_count": 1, "member_count": 1, "expression_count": 3}),
+        ("domain-body-end", b"domain i32::X { v }", 139, (16, 17), {"type_reference_count": 1}),
+        ("domain-clause", b"domain i32::X ensures v;", 105, (14, 21), {"type_reference_count": 1}),
+        ("domain-index-end", b"domain T::X<A;", 102, (13, 14), {"type_reference_count": 2}),
+        ("constant-name", b"const ;", 142, (6, 7), {}),
+        ("constant-colon", b"const N u64", 143, (8, 11), {}),
+        ("constant-type", b"const N: = 1;", 144, (9, 10), {}),
+        ("constant-equals", b"const N: u64 1;", 145, (13, 14), {"type_reference_count": 1}),
+        ("constant-value", b"const N: u64 = ;", 146, (15, 16), {"type_reference_count": 1}),
+        ("constant-end", b"const N: u64 = 1", 147, (16, 16), {"type_reference_count": 1, "expression_count": 1}),
+        ("proposition-name", b"proposition ;", 149, (12, 13), {}),
+        ("proposition-body", b"proposition P(x: u8) -> bool;", 150, (21, 23),
+         {"type_reference_count": 1, "parameter_count": 1}),
+        ("proposition-evidence", b"proposition P evidence ;", 151, (23, 24), {}),
+        ("proposition-fact", b"proposition P = ;", 152, (16, 17), {}),
+        ("proposition-end", b"proposition P = x", 153, (17, 17), {"member_count": 1, "expression_count": 1}),
+    )
+    for name, source, diagnostic, where, counts in rejections:
+        rejected(program, name, source, diagnostic, where, **counts)
+
+    # Capacity edges: each table holds exactly its bound, and one more
+    # rejects at the declaration or row past it.
+    edges = (
+        ("trait", b"trait T { }\n", 256, 119, b"trait", {"trait_count": 256}),
+        ("conformance", b"C satisfies T { }\n", 256, 128, b"C", {"conformance_count": 256, "type_reference_count": 256}),
+        ("domain", b"domain i32::D;\n", 256, 140, b"domain", {"domain_count": 256, "type_reference_count": 256}),
+        ("constant", b"const N: u8 = 1;\n", 512, 148, b"const",
+         {"constant_count": 512, "type_reference_count": 512, "expression_count": 512}),
+        ("proposition", b"proposition P;\n", 256, 154, b"proposition", {"proposition_count": 256}),
+    )
+    for name, declaration, bound, diagnostic, word, counts in edges:
+        status, _ = run(program, declaration * bound)
+        assert status == 0, f"{name}-capacity: status {status}"
+        source = declaration * (bound + 1)
+        start = len(declaration) * bound
+        rejected(program, f"{name}-capacity-plus-one", source, diagnostic, (start, start + len(word)),
+                 root_count=bound, **counts)
+    rows = b"T::f = g; " * 512
+    source = b"C satisfies T { " + rows + b"}"
+    status, _ = run(program, source)
+    assert status == 0, f"conformance-row-capacity: status {status}"
+    source = b"C satisfies T { " + rows + b"T::f = g; }"
+    rejected(program, "conformance-row-capacity-plus-one", source, 129, (len(source) - 1, len(source)),
+             type_reference_count=1, member_count=1539, name_path_count=1026, conformance_row_count=512)
+    parents = b" + P" * 511
+    status, _ = run(program, b"trait T: P" + parents + b" { }")
+    assert status == 0, "trait-parent-capacity: status"
+    source = b"trait T: P" + parents + b" + P { }"
+    rejected(program, "trait-parent-capacity-plus-one", source, 120, (len(source) - 3, len(source) - 2),
+             type_reference_count=513, trait_parent_count=512)
+    routes = b", r" * 2047
+    status, _ = run(program, b"domain i32::D established by r" + routes + b";")
+    assert status == 0, "name-path-capacity: status"
+    source = b"domain i32::D established by r" + routes + b", r;"
+    rejected(program, "name-path-capacity-plus-one", source, 141, (len(source) - 1, len(source)),
+             type_reference_count=1, member_count=2049, name_path_count=2048)
 
 
 def main() -> None:
@@ -1072,9 +1611,9 @@ def main() -> None:
     rejected(
         program,
         "unsupported-root-after-data",
-        b"data X {} trait Run {}",
+        b"data X {} let run = 1;",
         2,
-        (10, 15),
+        (10, 13),
         root_count=1,
         data_count=1,
     )
@@ -1108,10 +1647,13 @@ def main() -> None:
         machine_count=512,
     )
 
-    exact_members = b"use " + b"::".join(f"n{i}".encode() for i in range(16384)) + b";"
+    # The shared path-member table holds 24,576 members, more than the
+    # psi package's units fill together; one unit reaches the edge with a
+    # repeated short member.
+    exact_members = b"use " + b"::".join(b"n" for _ in range(24576)) + b";"
     exact_member_status, exact_member_payload = run(program, exact_members)
     assert exact_member_status == 0
-    assert len(decode(exact_member_payload).members) == 16384
+    assert len(decode(exact_member_payload).members) == 24576
     overflowing_member_start = len(exact_members) - 1 + 2
     rejected(
         program,
@@ -1119,7 +1661,7 @@ def main() -> None:
         exact_members[:-1] + b"::overflow;",
         7,
         (overflowing_member_start, overflowing_member_start + 8),
-        member_count=16384,
+        member_count=24576,
     )
 
     exact_fields = b"data Huge { " + b"".join(
@@ -2242,7 +2784,7 @@ def main() -> None:
 
     actual = contract("bodyless-operational-clause", b"machine f() blocks;", [4], [False])
     assert actual.clauses[0][5:] == (1, 12, 19), f"bodyless-operational-clause:\n{actual.clauses}"
-    assert actual.machines[0][23:] == (1, 0, 19), f"bodyless-operational-clause:\n{actual.machines}"
+    assert actual.machines[0][23:26] == (1, 0, 19), f"bodyless-operational-clause:\n{actual.machines}"
     contract("operational-clause-before-body", b"machine f() blocks; suspends; {}", [4, 3], [True])
     source = b"machine f(value: u64) -> u8\nrequires\n    value <= 255;\n{\n    value as u8\n}"
     actual = contract("requires-semicolon-before-body", source, [6], [True])
@@ -2314,6 +2856,8 @@ def main() -> None:
     assert nested_status == 0, "32 nested groups"
     too_nested = b"machine f() { " + b"(" * 33 + b"1" + b")" * 33 + b"; }"
     rejected(program, "expression-nesting-plus-one", too_nested, 68, (46, 47))
+
+    root_declaration_cases(program)
 
     repeat_source = (
         b"use repeated::observation; data Stable [linear] { "

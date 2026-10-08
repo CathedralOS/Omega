@@ -27,6 +27,7 @@ AMBIGUOUS_NAME = 14
 PARTIAL_STABLE_IDENTITIES = 15
 DUPLICATE_STABLE_IDENTITY = 16
 INVALID_STABLE_IDENTITY = 17
+UNSUPPORTED_DECLARATION = 18
 
 # Value bindings: (tag, handle, case handle).
 NOT_A_NAME = (0, 0, 0)
@@ -942,6 +943,30 @@ def main() -> None:
         DUPLICATE_MACHINE,
         1,
         b"g",
+    )
+
+    # Declaration kinds resolution does not bind yet reject at their whole
+    # root, in source order and before any binding, instead of resolving as
+    # if their names were absent. `boundary data` declares an opaque type
+    # name and binds like any other data declaration.
+    for name, source in (
+        ("unsupported-trait", b"trait Order<T> { machine before(left: T, right: T) -> bool {} }"),
+        ("unsupported-conformance", b"pub Ascending satisfies Order<u8> { Order::before = less; }"),
+        ("unsupported-domain", b"pub domain i32::Positive(value) requires value > 0;"),
+        ("unsupported-constant", b"const Limits::MAX: u64 = 4096;"),
+        ("unsupported-proposition", b"proposition Even(value: u64) = value % 2 == 0;"),
+        ("unsupported-target-machine", b"linux_arm64 machine Clock::now() -> u64 {}"),
+        ("unsupported-boundary-machine", b"boundary machine entry() {}"),
+    ):
+        rejected(program, name, source, UNSUPPORTED_DECLARATION, source)
+    source = b"data A { x: u8; }\nconst N: u64 = 1;\ndata B { y: Q; }"
+    rejected(program, "unsupported-declaration-before-binding", source, UNSUPPORTED_DECLARATION, b"const N: u64 = 1;")
+    accepted(program, "boundary-data-binds", b"boundary data Handle;\ndata A { h: Handle; }", (data(0),))
+    accepted(
+        program,
+        "generic-boundary-data-binds",
+        b"pub boundary data Ptr<T> [linear];\ndata A { p: Ptr<u8>; }",
+        (builtin("u8"), data(0)),
     )
 
     # The product's own psi package resolves as one source set: each module
