@@ -197,7 +197,7 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
     use std::collections::BTreeMap;
-    use terminal_psi::TerminalMachine;
+    use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine};
     use terminal_psi::{
         Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,

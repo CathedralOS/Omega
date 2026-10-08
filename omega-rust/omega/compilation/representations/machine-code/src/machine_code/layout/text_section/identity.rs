@@ -146,7 +146,7 @@ fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        FuelScheduleIdentity, FunctionFragmentEmissionIdentity, MachineId, OperationId,
+        FuelScheduleIdentity, FunctionFragmentEmissionIdentity, MachineId,
         PlacedBlockSpan, PlacedFunctionFragment, PlacedInstructionSpan,
         PlacedInternalMachineCallResolution, SelectedBlockId, SelectedInstructionId,
         SelectedInstructionPlanIdentity, TerminalPsiIdentity,
@@ -157,6 +157,7 @@ mod tests {
         TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
     use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
+    use semantic_vocabulary::OperationId;
     use terminal_psi::{SemanticFingerprint, VocabularyMarker};
 
     #[test]
