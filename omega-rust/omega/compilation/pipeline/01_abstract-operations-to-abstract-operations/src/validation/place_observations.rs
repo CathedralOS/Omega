@@ -383,8 +383,7 @@ fn borrowed_roots_exclusive(
     loop {
         let mut progressed = false;
         for edge in function
-            .block_nodes()
-            .flat_map(|node| node.successors.iter())
+            .block_edges()
             .filter(|edge| members.contains(&edge.target))
         {
             for binding in &edge.structural_bindings {
@@ -1178,8 +1177,7 @@ pub(crate) fn invariant_member_place_parameters(
             let mut anchor = None;
             let mut loop_carried = false;
             for edge in function
-                .block_nodes()
-                .flat_map(|node| node.successors.iter())
+                .block_edges()
                 .filter(|edge| edge.target == *block)
             {
                 let Some(binding) = edge

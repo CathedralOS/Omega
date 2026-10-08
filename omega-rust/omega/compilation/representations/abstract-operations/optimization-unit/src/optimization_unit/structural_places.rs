@@ -618,8 +618,7 @@ pub fn constant_definition(
         })?;
         let mut argument = None;
         for edge in function
-            .block_nodes()
-            .flat_map(|node| node.successors.iter())
+            .block_edges()
             .filter(|edge| edge.target == owner.id)
         {
             let binding = edge
@@ -1383,13 +1382,7 @@ pub fn bound_place(
         return None;
     }
     let mut bound = None;
-    for edge in function
-        .blocks
-        .iter()
-        .flat_map(|owner| owner.nodes.iter())
-        .flat_map(|node| node.successors.iter())
-        .filter(|edge| edge.target == block)
-    {
+    for edge in function.block_edges().filter(|edge| edge.target == block) {
         let binding = edge
             .structural_bindings
             .iter()

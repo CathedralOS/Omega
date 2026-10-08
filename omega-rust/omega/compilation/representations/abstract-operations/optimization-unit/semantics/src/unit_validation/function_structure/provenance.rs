@@ -144,9 +144,8 @@ pub(crate) fn validate_provenance_fuel_effects(
             (
                 block.id,
                 block
-                    .nodes
-                    .iter()
-                    .flat_map(|node| node.successors.iter().map(|edge| edge.target))
+                    .successors()
+                    .map(|edge| edge.target)
                     .collect::<Vec<_>>(),
             )
         })

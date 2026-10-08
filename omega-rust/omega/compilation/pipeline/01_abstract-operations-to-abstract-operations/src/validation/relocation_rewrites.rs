@@ -353,7 +353,7 @@ pub(crate) fn scalar_case_result_contained(
         .blocks
         .iter()
         .filter(|block| !members.contains(&block.id))
-        .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
+        .flat_map(|block| block.successors())
         .all(|edge| {
             !edge
                 .cleanup_actions

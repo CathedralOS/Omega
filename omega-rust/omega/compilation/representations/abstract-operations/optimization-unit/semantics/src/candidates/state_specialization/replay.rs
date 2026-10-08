@@ -36,9 +36,8 @@ pub(crate) fn cyclic_machines(unit: &PsiOptimizationUnit) -> BTreeSet<MachineId>
                     (
                         block.id,
                         block
-                            .nodes
-                            .iter()
-                            .flat_map(|node| node.successors.iter().map(|edge| edge.target))
+                            .successors()
+                            .map(|edge| edge.target)
                             .collect::<Vec<_>>(),
                     )
                 })
