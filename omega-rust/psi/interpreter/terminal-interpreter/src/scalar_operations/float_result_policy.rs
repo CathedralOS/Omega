@@ -5,11 +5,11 @@
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
-use crate::results::{TerminalCrash, TerminalCrashSite, TerminalExecutionStatus};
+use crate::results::TerminalExecutionStatus;
 use crate::values::TerminalScalarValue;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType, ValueId};
-use terminal_psi::{CrashCause, FloatResultPolicy, FloatSaturationRule, Operation, OperationKind};
+use terminal_psi::{FloatResultPolicy, FloatSaturationRule, Operation, OperationKind};
 
 fn meaning(value: IeeeFloatValue) -> FloatMeaning {
     match value {
@@ -51,19 +51,8 @@ impl TerminalExecution<'_> {
         let adapted = match policy {
             FloatResultPolicy::Trapping { .. } => {
                 if FloatSemantics::apply_trapping_policy(raw_meaning).is_err() {
-                    let crash = TerminalCrash {
-                        site: TerminalCrashSite::Operation {
-                            machine: self.current_machine,
-                            block: self.current,
-                            operation: operation.id,
-                        },
-                        cause: CrashCause::Trap,
-                        site_guard: Vec::new(),
-                        frontier_lower_bound: self.live_claims.keys().copied().collect(),
-                    };
-                    self.crash = Some(crash.clone());
                     return Ok(OperationFlow::Yield(TerminalExecutionStatus::Crashed(
-                        crash,
+                        self.operation_trap(operation),
                     )));
                 }
                 raw_result

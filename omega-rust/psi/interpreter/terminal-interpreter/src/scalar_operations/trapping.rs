@@ -18,6 +18,23 @@ use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 use terminal_psi::{CrashCause, OperationKind, TrappingIntegerOperation};
 
 impl TerminalExecution<'_> {
+    /// Commit a `Trap` crash at `operation` in the current block: the
+    /// reported frontier is the machine-local live claim set now.
+    pub(crate) fn operation_trap(&mut self, operation: &terminal_psi::Operation) -> TerminalCrash {
+        let crash = TerminalCrash {
+            site: TerminalCrashSite::Operation {
+                machine: self.current_machine,
+                block: self.current,
+                operation: operation.id,
+            },
+            cause: CrashCause::Trap,
+            site_guard: Vec::new(),
+            frontier_lower_bound: self.live_claims.keys().copied().collect(),
+        };
+        self.crash = Some(crash.clone());
+        crash
+    }
+
     fn trapping_integer_operand(
         &self,
         value: ValueId,
@@ -89,19 +106,8 @@ impl TerminalExecution<'_> {
         let Some(value) = exact else {
             // No exact value exists: this is the primitive's trap, committed
             // before any result is published.
-            let crash = TerminalCrash {
-                site: TerminalCrashSite::Operation {
-                    machine: self.current_machine,
-                    block: self.current,
-                    operation: operation.id,
-                },
-                cause: CrashCause::Trap,
-                site_guard: Vec::new(),
-                frontier_lower_bound: self.live_claims.keys().copied().collect(),
-            };
-            self.crash = Some(crash.clone());
             return Ok(OperationFlow::Yield(TerminalExecutionStatus::Crashed(
-                crash,
+                self.operation_trap(operation),
             )));
         };
         self.store_scalar(
