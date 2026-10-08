@@ -47,7 +47,6 @@ impl StateGraphEmission<'_, '_> {
             bindings,
             current_rank,
             rank_ceiling,
-            case_subject,
             inherited_lengths,
             inherited_field_lengths,
         } = *frame;
@@ -719,9 +718,6 @@ impl StateGraphEmission<'_, '_> {
                         .any(|cleanup| cleanup.sources.contains(&action.place()))
             }));
         }
-        if case_edge && let Some(consumed) = case_subject {
-            cleanup_actions.retain(|action| action.place() != consumed);
-        }
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.
@@ -943,8 +939,6 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) bindings: &'f ScalarBindings,
     pub(super) current_rank: Option<ValueId>,
     pub(super) rank_ceiling: Option<ValueId>,
-    /// The closed-sum subject a case edge has already consumed.
-    pub(super) case_subject: Option<PlaceId>,
     pub(super) inherited_lengths: &'f [(PlaceId, ValueId)],
     pub(super) inherited_field_lengths: &'f [(
         PlaceId,

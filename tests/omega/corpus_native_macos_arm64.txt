@@ -1462,7 +1462,7 @@ pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 1441ms exit:85
 pass/storage/runtime_parameter_slice_forward_exit built 2309ms exit:70 @693920652f41
 pass/storage/runtime_primitive_local_literal_composition_exit built 700ms exit:70 @e75f61cc4333+wt
 pass/structs/affine_record_state_clone built 2180ms exit:70 @922ccf420927+wt
-pass/structs/affine_result_constructor built 1095ms exit:70 @4b33596b9ee1+wt
+pass/structs/affine_result_constructor built 1148ms exit:70 @e114c45a5f7b+wt
 pass/structs/case_field_type_store_shapes built 31396ms exit:70 @8a4d4e552420+wt
 pass/structs/copied_array_field_shared_record built 642ms exit:70
 pass/structs/deep_nested_write_paths_exit built 1883ms exit:70 @fb2178def922

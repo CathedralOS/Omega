@@ -845,8 +845,9 @@ impl StateGraphEmission<'_, '_> {
         // A case test on a whole owned parameter consumes it, as the checked
         // cleanup records by leaving it out of the arm's discards: each tested
         // arm's edge and the dispatch's closing `_` edge dispose of it where
-        // control leaves the state. A closed-sum dispatch disposes of it on its
-        // own case edges instead.
+        // control leaves the state. A closed-sum dispatch disposes of it on a
+        // returning arm's case edge, and through a successor arm's checked exit
+        // cleanup on its staged jump, after operands transfer payload subtrees.
         let mut edge_blocks = Vec::new();
         let frame = super::successor_edge::SuccessorFrame {
             position,
@@ -854,10 +855,6 @@ impl StateGraphEmission<'_, '_> {
             bindings: &bindings,
             current_rank,
             rank_ceiling,
-            case_subject: prepared_cases
-                .as_ref()
-                .filter(|prepared| prepared.discard_subject)
-                .map(|prepared| prepared.source),
             inherited_lengths: &inherited_lengths,
             inherited_field_lengths: &inherited_field_lengths,
         };
@@ -1274,7 +1271,14 @@ impl StateGraphEmission<'_, '_> {
                             target: edge.target,
                             case: case.identity,
                             payload_fields: case.fields.clone(),
-                            cleanup_actions: case_subject_discards.iter().copied().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
+                            // A successor arm's staged block evaluates its
+                            // operands first: they may transfer payload
+                            // subtrees out of the subject, and the exit's
+                            // checked cleanup there disposes the remainder.
+                            cleanup_actions: match &case.outcome {
+                                checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Vec::new(),
+                                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => case_subject_discards.iter().copied().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
+                            },
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
