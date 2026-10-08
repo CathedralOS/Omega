@@ -16,8 +16,9 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape
 
 use super::{InstallationError, InstallationRecord, InstalledFunction};
 use crate::object_artifact::replay::unit::call_custody::{fixed_integer_shape, unit_scalar_shape};
-use crate::object_artifact::replay::{zero_code_field_store_source_is_consistent, zero_code_store_source_is_consistent};
-
+use crate::object_artifact::replay::{
+    zero_code_field_store_source_is_consistent, zero_code_store_source_is_consistent,
+};
 
 pub(super) fn installed_function_scalar_transport_is_canonical(
     function: &InstalledFunction,
@@ -228,6 +229,18 @@ pub(super) fn installed_scalar_abi_is_canonical(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             == abi.parameters.len() + 1
+}
+
+fn unit_source_is_fresh(
+    function: &InstalledFunction,
+    defining_operation: semantic_vocabulary::OperationId,
+    source_value: semantic_vocabulary::ValueId,
+) -> bool {
+    function.unit_integer_constants.iter().all(|constant| {
+        constant.defining_operation != defining_operation && constant.source_value != source_value
+    }) && function.unit_scalar_homes.iter().all(|home| {
+        home.defining_operation != defining_operation && home.source_value != source_value
+    })
 }
 
 pub(super) fn validate_installed_unit_scalar_calls(
@@ -505,14 +518,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     (
                         definition_ordinal < store.operation_ordinal
                             && definition_count == 1
-                            && function.unit_integer_constants.iter().all(|constant| {
-                                constant.defining_operation != defining_operation
-                                    && constant.source_value != source_value
-                            })
-                            && function.unit_scalar_homes.iter().all(|home| {
-                                home.defining_operation != defining_operation
-                                    && home.source_value != source_value
-                            })
+                            && unit_source_is_fresh(function, defining_operation, source_value)
                             && zero_code_field_store_source_is_consistent(
                                 &function.unit_structural_scalar_field_stores,
                                 store.source,
@@ -650,7 +656,6 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
     }
     Ok(())
 }
-
 
 pub(super) fn validate_installed_unit_write_only_primitive_stores(
     record: &InstallationRecord,
@@ -806,14 +811,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     (
                         definition_ordinal < store.operation_ordinal
                             && definition_count == 1
-                            && function.unit_integer_constants.iter().all(|constant| {
-                                constant.defining_operation != defining_operation
-                                    && constant.source_value != source_value
-                            })
-                            && function.unit_scalar_homes.iter().all(|home| {
-                                home.defining_operation != defining_operation
-                                    && home.source_value != source_value
-                            })
+                            && unit_source_is_fresh(function, defining_operation, source_value)
                             && zero_code_store_source_is_consistent(
                                 &function.unit_write_only_primitive_stores,
                                 store.source,
@@ -848,14 +846,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     (
                         definition_ordinal < store.operation_ordinal
                             && definition_count == 1
-                            && function.unit_integer_constants.iter().all(|constant| {
-                                constant.defining_operation != defining_operation
-                                    && constant.source_value != source_value
-                            })
-                            && function.unit_scalar_homes.iter().all(|home| {
-                                home.defining_operation != defining_operation
-                                    && home.source_value != source_value
-                            })
+                            && unit_source_is_fresh(function, defining_operation, source_value)
                             && zero_code_store_source_is_consistent(
                                 &function.unit_write_only_primitive_stores,
                                 store.source,
@@ -1042,4 +1033,3 @@ fn installed_native_scalar_shape(
         _ => None,
     }
 }
-
