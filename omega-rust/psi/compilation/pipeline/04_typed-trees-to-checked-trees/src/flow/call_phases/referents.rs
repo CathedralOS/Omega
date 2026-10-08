@@ -12,11 +12,10 @@
 
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
-use crate::flow::append_constraint_ref;
 use crate::flow::reference_spans;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
-use checked_trees::{BorrowCallFact, FlowConstraintKind, FlowSemanticContextRef};
+use checked_trees::{BorrowCallFact, FlowSemanticContextRef};
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint,
     QualificationEvidence,

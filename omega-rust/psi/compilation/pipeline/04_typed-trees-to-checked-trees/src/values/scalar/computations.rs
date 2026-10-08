@@ -17,7 +17,7 @@ use checked_trees::CheckedScalarExpressionPlans;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
-    CheckedScalarComputationRoot, FlowFacts, ProofFacts,
+    FlowFacts, ProofFacts,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;

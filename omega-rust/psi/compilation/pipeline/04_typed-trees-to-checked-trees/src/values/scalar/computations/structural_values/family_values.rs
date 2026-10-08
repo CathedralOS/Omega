@@ -2,7 +2,7 @@
 //! and case constructions each establish their own contents.
 
 use super::super::{
-    Builder, CheckedScalarComputationRoot, CheckedScalarExpressionRole, ExpressionHandle,
+    Builder, CheckedScalarExpressionRole, ExpressionHandle,
     ExpressionNode, TypeReferenceNode,
 };
 use super::value_predicates::{zeroed_integer_literal, zeroed_scalar_array_parts};

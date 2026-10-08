@@ -16,7 +16,7 @@
 //! and presentation independently; lending never changes the owner's invariants.
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralResultBindingPlan,
     ExpressionNode, Multiplicity, StateParameter, StatementNode, SymbolHandle,
     exact_structural_argument_access, names_whole_local,
 };

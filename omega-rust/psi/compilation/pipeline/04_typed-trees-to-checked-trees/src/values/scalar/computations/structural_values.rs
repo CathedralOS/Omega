@@ -11,7 +11,7 @@
 //! owned or borrowed root may supply an unrestricted child without moving it.
 //! Exact source/path replay and ordinary liveness remain downstream checks.
 use super::{
-    Builder, CheckedScalarComputationRoot, CheckedScalarExpressionRole, ExpressionHandle,
+    Builder, CheckedScalarExpressionRole, ExpressionHandle,
     ExpressionNode, PrimitiveType, SymbolHandle, TypeReferenceNode,
 };
 use checked_trees::{

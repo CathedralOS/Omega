@@ -413,8 +413,6 @@ fn prepare_linux_x86_64(
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
-    let entry = artifact.entry_function();
     let mut bytes = Vec::with_capacity(LINUX_X86_64_RECEIVER_SHIM_BYTES);
     bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
     bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
@@ -472,7 +470,6 @@ fn prepare_macos_x86_64(
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
     let entry = artifact.entry_function();
     let mut bytes = Vec::with_capacity(MACOS_X86_64_RECEIVER_SHIM_BYTES);
     bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
@@ -597,7 +594,6 @@ fn prepare_windows_x86_64(
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
     let entry = artifact.entry_function();
     let mut bytes = Vec::with_capacity(WINDOWS_X86_64_RECEIVER_SHIM_BYTES);
     bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
