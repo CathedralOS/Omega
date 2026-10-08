@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{BlockId, EdgeId};
 use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
 use sha2::{Digest, Sha256};
-use terminal_psi::{TerminalMachine, TerminalNaturalCycle, Terminator};
+use terminal_psi::{TerminalMachine, TerminalNaturalCycle};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlGraphError {
@@ -23,26 +23,7 @@ pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, B
         .blocks
         .iter()
         .map(|block| {
-            let edges = match &block.terminator {
-                Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![
-                    (when_true.edge, when_true.target),
-                    (when_false.edge, when_false.target),
-                ],
-                Terminator::StructuralCase { cases, .. } => cases
-                    .iter()
-                    .map(|successor| (successor.edge, successor.target))
-                    .collect(),
-                Terminator::Return { .. }
-                | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnStructural { .. }
-                | Terminator::Crash { .. }
-                | Terminator::ExternalCompletion { .. } => Vec::new(),
-            };
+            let edges = block.terminator.successor_edges();
             (block.id, edges)
         })
         .collect()

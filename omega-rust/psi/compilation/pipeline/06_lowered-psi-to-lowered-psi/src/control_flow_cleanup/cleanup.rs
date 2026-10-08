@@ -109,18 +109,7 @@ fn stranded_blocks(
         let targets: Vec<BlockId> = if index == position {
             vec![target]
         } else {
-            match &machine.blocks[index].terminator {
-                Terminator::Jump { target, .. } => vec![*target],
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![when_true.target, when_false.target],
-                Terminator::StructuralCase { cases, .. } => {
-                    cases.iter().map(|case| case.target).collect()
-                }
-                _ => Vec::new(),
-            }
+            machine.blocks[index].terminator.successor_targets()
         };
         for target in targets {
             if reachable.insert(target) {

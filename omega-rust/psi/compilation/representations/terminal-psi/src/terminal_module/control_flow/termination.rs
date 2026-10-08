@@ -219,6 +219,37 @@ impl Terminator {
             | Self::Crash { .. } => {}
         }
     }
+    /// Edge-and-target pairs of every successor branch.
+    pub fn successor_edges(&self) -> Vec<(EdgeId, BlockId)> {
+        match self {
+            Self::Jump { edge, target, .. } => vec![(*edge, *target)],
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![
+                (when_true.edge, when_true.target),
+                (when_false.edge, when_false.target),
+            ],
+            Self::StructuralCase { cases, .. } => cases
+                .iter()
+                .map(|successor| (successor.edge, successor.target))
+                .collect(),
+            Self::Return { .. }
+            | Self::ReturnUnit { .. }
+            | Self::ReturnStructural { .. }
+            | Self::Crash { .. }
+            | Self::ExternalCompletion { .. } => Vec::new(),
+        }
+    }
+
+    /// Target blocks of every successor branch.
+    pub fn successor_targets(&self) -> Vec<BlockId> {
+        self.successor_edges()
+            .into_iter()
+            .map(|(_, target)| target)
+            .collect()
+    }
 }
 
 /// One ordered conditional successor and its simultaneous block-parameter

@@ -30,10 +30,10 @@ use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AbstractResult,
     AtomicModificationAfter, AtomicReadsFrom,
 };
-use semantic_vocabulary::{BlockId, OperationId, PlaceId, ScalarType};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationKind, StructuralTypeDeclaration,
-    TerminalMachine, Terminator,
+    TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -250,7 +250,7 @@ fn reaching_fact(
         }
         let mut has_predecessor = false;
         for predecessor in &machine.blocks {
-            if !successors(&predecessor.terminator).contains(&block) {
+            if !predecessor.terminator.successor_targets().contains(&block) {
                 continue;
             }
             has_predecessor = true;
@@ -350,22 +350,4 @@ fn latest_write(
         }
     }
     None
-}
-
-/// Actual control successors, including edges that carry no structural data.
-fn successors(terminator: &Terminator) -> Vec<BlockId> {
-    match terminator {
-        Terminator::Jump { target, .. } => vec![*target],
-        Terminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            vec![when_true.target, when_false.target]
-        }
-        Terminator::StructuralCase { cases, .. } => {
-            cases.iter().map(|successor| successor.target).collect()
-        }
-        _ => Vec::new(),
-    }
 }

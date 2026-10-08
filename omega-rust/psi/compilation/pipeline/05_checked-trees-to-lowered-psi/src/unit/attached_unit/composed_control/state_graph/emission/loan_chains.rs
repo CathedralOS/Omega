@@ -791,18 +791,7 @@ fn private_region(
         let Some(block) = machine.blocks.iter().find(|block| block.id == current) else {
             continue;
         };
-        let targets = match &block.terminator {
-            Terminator::Jump { target, .. } => vec![*target],
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![when_true.target, when_false.target],
-            Terminator::StructuralCase { cases, .. } => {
-                cases.iter().map(|case| case.target).collect()
-            }
-            _ => Vec::new(),
-        };
+        let targets = block.terminator.successor_targets();
         for target in targets {
             if !headers.contains(&target) && region.insert(target) {
                 pending.push(target);

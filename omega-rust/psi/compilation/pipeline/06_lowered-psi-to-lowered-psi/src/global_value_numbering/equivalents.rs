@@ -150,22 +150,7 @@ fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
         .blocks
         .iter()
         .map(|block| {
-            let targets = match &block.terminator {
-                Terminator::Jump { target, .. } => vec![*target],
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![when_true.target, when_false.target],
-                Terminator::StructuralCase { cases, .. } => {
-                    cases.iter().map(|case| case.target).collect()
-                }
-                Terminator::Return { .. }
-                | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnStructural { .. }
-                | Terminator::Crash { .. }
-                | Terminator::ExternalCompletion { .. } => Vec::new(),
-            };
+            let targets = block.terminator.successor_targets();
             (block.id, targets)
         })
         .collect::<BTreeMap<_, _>>();
@@ -204,22 +189,7 @@ fn dominators(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<BlockId>>
         .map(|block| (*block, BTreeSet::new()))
         .collect::<BTreeMap<_, _>>();
     for block in &machine.blocks {
-        let targets = match &block.terminator {
-            Terminator::Jump { target, .. } => vec![*target],
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![when_true.target, when_false.target],
-            Terminator::StructuralCase { cases, .. } => {
-                cases.iter().map(|case| case.target).collect()
-            }
-            Terminator::Return { .. }
-            | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnStructural { .. }
-            | Terminator::Crash { .. }
-            | Terminator::ExternalCompletion { .. } => Vec::new(),
-        };
+        let targets = block.terminator.successor_targets();
         for target in targets {
             if let Some(incoming) = predecessors.get_mut(&target) {
                 incoming.insert(block.id);
