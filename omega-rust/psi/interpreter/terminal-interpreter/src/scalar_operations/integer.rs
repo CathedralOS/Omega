@@ -20,6 +20,44 @@ pub(crate) fn integer_scalar_type(
 }
 
 impl TerminalExecution<'_> {
+    /// Both operands of a binary integer operation: the declared integer
+    /// carrier plus each operand's integer type and value, resolved and
+    /// unwrapped. Callers own the operand-to-carrier conformance check, which
+    /// admits a subtraction's widened operands at the exact-arithmetic sites.
+    fn integer_operands(
+        &self,
+        operation: &terminal_psi::Operation,
+        left: semantic_vocabulary::ValueId,
+        right: semantic_vocabulary::ValueId,
+    ) -> Result<
+        (
+            semantic_vocabulary::IntegerType,
+            semantic_vocabulary::IntegerValue,
+            semantic_vocabulary::IntegerValue,
+            semantic_vocabulary::IntegerType,
+            semantic_vocabulary::IntegerType,
+        ),
+        TerminalInterpretError,
+    > {
+        let scalar_type = integer_scalar_type(operation)?;
+        let left = self.scalar_value(left)?;
+        let right = self.scalar_value(right)?;
+        let (
+            TerminalScalarValue::Integer {
+                scalar_type: left_type,
+                value: left,
+            },
+            TerminalScalarValue::Integer {
+                scalar_type: right_type,
+                value: right,
+            },
+        ) = (left, right)
+        else {
+            return Err(malformed());
+        };
+        Ok((scalar_type, left, right, left_type, right_type))
+    }
+
     pub(crate) fn execute_integer_constant(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -300,22 +338,8 @@ impl TerminalExecution<'_> {
         else {
             unreachable!("dispatched execute_exact_integer_add")
         };
-        let scalar_type = integer_scalar_type(operation)?;
-        let left = self.scalar_value(left)?;
-        let right = self.scalar_value(right)?;
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type: left_type,
-                value: left,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: right_type,
-                value: right,
-            },
-        ) = (left, right)
-        else {
-            return Err(malformed());
-        };
+        let (scalar_type, left, right, left_type, right_type) =
+            self.integer_operands(operation, left, right)?;
         let operands_match = if matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. })
         {
             scalar_type.admits_exact_subtract_operands(left_type, right_type)
@@ -360,22 +384,8 @@ impl TerminalExecution<'_> {
         let OperationKind::SaturatingIntegerAdd { left, right } = operation.kind else {
             unreachable!("dispatched execute_saturating_integer_add")
         };
-        let scalar_type = integer_scalar_type(operation)?;
-        let left = self.scalar_value(left)?;
-        let right = self.scalar_value(right)?;
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type: left_type,
-                value: left,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: right_type,
-                value: right,
-            },
-        ) = (left, right)
-        else {
-            return Err(malformed());
-        };
+        let (scalar_type, left, right, left_type, right_type) =
+            self.integer_operands(operation, left, right)?;
         if left_type != scalar_type || right_type != scalar_type {
             return Err(malformed());
         }
@@ -393,22 +403,8 @@ impl TerminalExecution<'_> {
         let OperationKind::SaturatingIntegerSubtract { left, right } = operation.kind else {
             unreachable!("dispatched execute_saturating_integer_subtract")
         };
-        let scalar_type = integer_scalar_type(operation)?;
-        let left = self.scalar_value(left)?;
-        let right = self.scalar_value(right)?;
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type: left_type,
-                value: left,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: right_type,
-                value: right,
-            },
-        ) = (left, right)
-        else {
-            return Err(malformed());
-        };
+        let (scalar_type, left, right, left_type, right_type) =
+            self.integer_operands(operation, left, right)?;
         if left_type != scalar_type || right_type != scalar_type {
             return Err(malformed());
         }
@@ -426,22 +422,8 @@ impl TerminalExecution<'_> {
         let OperationKind::SaturatingIntegerMultiply { left, right } = operation.kind else {
             unreachable!("dispatched execute_saturating_integer_multiply")
         };
-        let scalar_type = integer_scalar_type(operation)?;
-        let left = self.scalar_value(left)?;
-        let right = self.scalar_value(right)?;
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type: left_type,
-                value: left,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: right_type,
-                value: right,
-            },
-        ) = (left, right)
-        else {
-            return Err(malformed());
-        };
+        let (scalar_type, left, right, left_type, right_type) =
+            self.integer_operands(operation, left, right)?;
         if left_type != scalar_type || right_type != scalar_type {
             return Err(malformed());
         }
