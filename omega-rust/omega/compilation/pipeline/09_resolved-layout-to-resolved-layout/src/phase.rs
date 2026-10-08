@@ -40,13 +40,12 @@ pub fn execute_resolved_layout_optimization(
         Some(relaxation) => relaxation.shared_layout(),
         None => baseline.shared_program(),
     };
-    let artifact = ResolvedLayoutOptimization {
+    Ok(ResolvedLayoutOptimization {
         current,
         selections: selections.clone(),
         budget,
         relaxation,
-    };
-    Ok(artifact)
+    })
 }
 
 /// Admission is private to this phase; retained raw data grant no authority.

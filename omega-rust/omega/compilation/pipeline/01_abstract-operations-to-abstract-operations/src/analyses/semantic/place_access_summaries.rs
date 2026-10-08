@@ -151,9 +151,8 @@ pub struct PlaceAccessSummaryAnalysis {
 pub fn declared_access(access: StructuralAccess) -> (bool, bool) {
     match access {
         StructuralAccess::SharedBorrow => (true, false),
-        StructuralAccess::MutableBorrow => (true, true),
+        StructuralAccess::MutableBorrow | StructuralAccess::Owned => (true, true),
         StructuralAccess::WriteOnlyBorrow => (false, true),
-        StructuralAccess::Owned => (true, true),
     }
 }
 

@@ -78,7 +78,7 @@ pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::Dominators,
             AnalysisKind::StronglyConnectedComponents,
         ])),
-        AnalysisKind::ScalarConstants => Some(AnalysisSet::new([
+        AnalysisKind::ScalarConstants | AnalysisKind::ValueLiveness => Some(AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::UseDefinition,
         ])),
@@ -91,10 +91,6 @@ pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::Dominators,
             AnalysisKind::UseDefinition,
             AnalysisKind::ScalarConstants,
-        ])),
-        AnalysisKind::ValueLiveness => Some(AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
         ])),
         AnalysisKind::PlaceAliases => Some(AnalysisSet::new([AnalysisKind::OwnershipFrontiers])),
         _ => None,
