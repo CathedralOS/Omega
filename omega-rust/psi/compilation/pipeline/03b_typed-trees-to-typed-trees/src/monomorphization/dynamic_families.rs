@@ -85,13 +85,7 @@ pub(crate) fn generate_dynamic_family_specializations(
             let binders = program.machine_type_parameters(realization);
             let value_binders = binders
                 .iter()
-                .filter(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                            | typed_trees::data::TypeParameterKind::Value { .. }
-                    )
-                })
+                .filter(|parameter| parameter.kind.is_const_or_value())
                 .count();
             if binders.len() != value_binders || value_binders != arity {
                 diagnostics.push(Diagnostic::error(format!(
@@ -214,13 +208,7 @@ fn collect_selection_demands(
             let realization_binders = program.machine_type_parameters(realization);
             let value_binders = realization_binders
                 .iter()
-                .filter(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                            | typed_trees::data::TypeParameterKind::Value { .. }
-                    )
-                })
+                .filter(|parameter| parameter.kind.is_const_or_value())
                 .count();
             if realization_binders.len() != value_binders || value_binders != arity {
                 diagnostics.push(Diagnostic::error(format!(

@@ -138,13 +138,7 @@ pub(super) fn project_contract_conformance_application(
         .map_or(&[][..], |application| application.arguments.as_ref());
     let const_parameter_count = parameters
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Const { .. }
-                    | typed_trees::data::TypeParameterKind::Value { .. }
-            )
-        })
+        .filter(|parameter| parameter.kind.is_const_or_value())
         .count();
     if !declaration.lifetime_parameters.is_empty()
         || parameters.len() != supplied.len()

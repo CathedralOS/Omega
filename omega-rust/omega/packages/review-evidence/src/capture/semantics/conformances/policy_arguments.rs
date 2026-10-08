@@ -25,11 +25,7 @@ pub(super) fn argument_type_reference(
         return Err(rejected("an unsupported or over-deep static argument"));
     }
     if let Some(literal) = &argument.const_literal {
-        if !matches!(
-            kind,
-            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-        ) || argument.application.is_some()
-        {
+        if !kind.is_const_or_value() || argument.application.is_some() {
             return Err(rejected("a const literal outside its exact telescope slot"));
         }
         return Ok(program

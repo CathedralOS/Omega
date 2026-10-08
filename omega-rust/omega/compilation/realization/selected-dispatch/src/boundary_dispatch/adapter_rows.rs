@@ -614,13 +614,7 @@ fn resolve_family_adapter_row(
     let provider_parameters = typed.machine_type_parameters(adapter);
     let provider_value_parameters = provider_parameters
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Const { .. }
-                    | typed_trees::data::TypeParameterKind::Value { .. }
-            )
-        })
+        .filter(|parameter| parameter.kind.is_const_or_value())
         .count();
     if provider_parameters.len() != provider_value_parameters {
         return Err(Diagnostic::error(format!(

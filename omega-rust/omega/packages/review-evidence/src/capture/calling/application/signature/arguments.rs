@@ -7,7 +7,7 @@ use crate::record::PackageReviewTypeIdentity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::trait_definition::TraitDefinition;
-use typed_trees::{data::TypeParameterKind, name::Identifier, types::TypeReferenceHandle};
+use typed_trees::{name::Identifier, types::TypeReferenceHandle};
 
 pub(super) fn project(
     typed: &dyn ::validation::CheckingInput,
@@ -36,10 +36,7 @@ pub(super) fn project(
         .iter()
         .zip(arguments)
         .map(|(parameter, argument)| {
-            let const_argument = matches!(
-                parameter.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            );
+            let const_argument = parameter.kind.is_const_or_value();
             signature_type_identity(
                 typed,
                 compilation.custody.sources().exact_toolchain_sources(),

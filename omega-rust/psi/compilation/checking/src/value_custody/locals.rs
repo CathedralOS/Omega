@@ -1,7 +1,6 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use diagnostics::Diagnostic;
 use language_core::is_self_receiver;
-use typed_trees::data::TypeParameterKind;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
 use typed_trees::{machine::Machine, state::State};
@@ -102,13 +101,7 @@ pub(crate) fn state_value_root_is_known(
     if program
         .machine_type_parameters(machine)
         .iter()
-        .any(|parameter| {
-            parameter.name.as_str() == name
-                && matches!(
-                    &parameter.kind,
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                )
-        })
+        .any(|parameter| parameter.name.as_str() == name && parameter.kind.is_const_or_value())
     {
         return true;
     }
@@ -119,11 +112,7 @@ pub(crate) fn state_value_root_is_known(
                     .data_type_parameters(definition)
                     .iter()
                     .any(|parameter| {
-                        parameter.name.as_str() == name
-                            && matches!(
-                                &parameter.kind,
-                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                            )
+                        parameter.name.as_str() == name && parameter.kind.is_const_or_value()
                     })
         })
     {

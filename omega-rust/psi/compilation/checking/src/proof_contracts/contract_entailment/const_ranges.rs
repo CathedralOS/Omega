@@ -571,11 +571,7 @@ fn static_const_value(
                 .machine_type_parameters(caller)
                 .iter()
                 .any(|parameter| {
-                    parameter.symbol == argument.symbol
-                        && matches!(
-                            parameter.kind,
-                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                        )
+                    parameter.symbol == argument.symbol && parameter.kind.is_const_or_value()
                 }))
         .then_some(None);
     }
@@ -610,11 +606,7 @@ fn static_const_value(
                 .machine_type_parameters(machine)
                 .iter()
                 .any(|parameter| {
-                    parameter.symbol == argument.symbol
-                        && matches!(
-                            parameter.kind,
-                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                        )
+                    parameter.symbol == argument.symbol && parameter.kind.is_const_or_value()
                 })
         })
     {
@@ -671,12 +663,7 @@ fn call_bindings(
     let parameters = program
         .machine_type_parameters(callee)
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            )
-        })
+        .filter(|parameter| parameter.kind.is_const_or_value())
         .collect::<Vec<_>>();
     let mut bindings = Vec::new();
     let mut fixed = Vec::new();
