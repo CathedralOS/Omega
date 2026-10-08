@@ -18,7 +18,7 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId, terminator_instruction,
+    SelectedInstruction, SelectedInstructionId,
 };
 
 use super::ConfluenceRelocationError;
@@ -27,7 +27,7 @@ use crate::rewrites::block_edges::{
     CrossingDirection, crossed_window, edge_surface, terminator_successors,
 };
 use crate::rewrites::window_hazards::{
-    admit_run_relocation, block_scan_surface, register_writes, surface,
+    admit_run_relocation, surface,
 };
 
 pub(super) struct Admission {
@@ -113,32 +113,10 @@ pub(super) fn admit(
     // the function's three rosters; the dead-path audit rescans a block's
     // stream and edge surfaces only while its entry set grows — at most
     // once per member location per block.
-    let run_locations: usize = run
-        .iter()
-        .map(|member| {
-            register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
-        })
-        .sum();
-    let block_scan = block_scan_surface(function);
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            function.blocks.iter().try_fold(total, |total, candidate| {
-                candidate
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(terminator_instruction(
-                        &candidate.terminator,
-                    )))
-                    .try_fold(total, |total, _| total.checked_add(1))
-            })
-        })
+    let (scan, run_locations, block_scan) =
+        super::confluence_scan_base(plan, function, run)
+            .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
+    let total = Some(scan)
         .and_then(|total| total.checked_add(edge_limit))
         .and_then(|total| {
             run.iter().try_fold(total, |total, member| {
@@ -164,21 +142,8 @@ pub(super) fn admit(
                 })
             })
         })
-        .and_then(|total| {
-            total
-                .checked_add(function.memory_accesses.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.boundary_settlements.len())
-        })
-        .and_then(|total| {
-            total.checked_add(block_scan.saturating_mul(run_locations.saturating_add(1)))
-        })
         .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ConfluenceRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ConfluenceRelocationError::WorkBudgetExceeded);
-    }
+    super::confluence_settle_steps(total, function, block_scan, run_locations, budget)?;
     Ok(Admission {
         block_index: derived.block_index,
         first_index: derived.first_index,

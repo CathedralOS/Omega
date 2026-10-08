@@ -181,6 +181,74 @@ impl std::fmt::Display for ConfluenceRelocationError {
 
 impl std::error::Error for ConfluenceRelocationError {}
 
+/// The step base every confluence audit charges before its own surfaces:
+/// one scan of the plan's body and terminator instructions to locate the
+/// run's first member and find the join's other inflow, and each member's
+/// register, implicit-def, and clobber locations.
+pub(super) fn confluence_scan_base(
+    plan: &selected_instructions::SelectedInstructionPlan,
+    function: &selected_instructions::SelectedFunction,
+    run: &[selected_instructions::SelectedInstruction],
+) -> Option<(usize, usize, usize)> {
+    let run_locations: usize = run
+        .iter()
+        .map(|member| {
+            crate::rewrites::window_hazards::register_writes(member).count()
+                + member.implicit_defs.len()
+                + member.clobbers.len()
+        })
+        .sum();
+    let block_scan = crate::rewrites::window_hazards::block_scan_surface(function);
+    let scan = plan
+        .functions
+        .iter()
+        .try_fold(0usize, |total, function| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block.instructions.len())?.checked_add(1)
+            })
+        })
+        .and_then(|total| {
+            function.blocks.iter().try_fold(total, |total, candidate| {
+                candidate
+                    .instructions
+                    .iter()
+                    .chain(std::iter::once(
+                        selected_instructions::terminator_instruction(&candidate.terminator),
+                    ))
+                    .try_fold(total, |total, _| total.checked_add(1))
+            })
+        })
+?;
+    Some((scan, run_locations, block_scan))
+}
+
+/// The tail of the family's measured step: the audit's own surfaces plus
+/// the function's three rosters and the dead-path walk's rescans, charged
+/// against the budget as the family's shared overflow and budget terms.
+pub(super) fn confluence_settle_steps(
+    total: usize,
+    function: &selected_instructions::SelectedFunction,
+    block_scan: usize,
+    run_locations: usize,
+    budget: optimization_core::OptimizationWorkBudget,
+) -> Result<(), ConfluenceRelocationError> {
+    let steps = total
+        .checked_add(function.memory_accesses.len())
+        .and_then(|total| total.checked_add(function.calls.len()))
+        .and_then(|total| total.checked_add(function.boundary_settlements.len()))
+        .and_then(|total| {
+            total.checked_add(block_scan.saturating_mul(run_locations.saturating_add(1)))
+        })
+        .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
+    if u64::try_from(steps).map_err(|_| ConfluenceRelocationError::IdentityOverflow)?
+        > budget.validation_steps()
+    {
+        return Err(ConfluenceRelocationError::WorkBudgetExceeded);
+    }
+    Ok(())
+}
+
+
 
 /// The shared derivation of the run's confluence legality both the
 /// admission and the validator prove: the run's contiguous span in its

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, terminator_instruction,
+    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -23,7 +23,7 @@ use super::{
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::transport_conflict;
 use crate::rewrites::window_hazards::{
-    block_scan_surface, coupled, has_call_contract, register_writes, schedulable,
+    coupled, has_call_contract, schedulable,
     surface,
 };
 
@@ -156,32 +156,10 @@ fn reconstruct<'source>(
     // surface against each crossed position's; the dead-path audit
     // rescans a block's stream and edge surfaces only while its entry
     // set grows — at most once per member location per block.
-    let run_locations: usize = run
-        .iter()
-        .map(|member| {
-            register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
-        })
-        .sum();
-    let block_scan = block_scan_surface(function);
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            function.blocks.iter().try_fold(total, |total, candidate| {
-                candidate
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(terminator_instruction(
-                        &candidate.terminator,
-                    )))
-                    .try_fold(total, |total, _| total.checked_add(1))
-            })
-        })
+    let (scan, run_locations, block_scan) =
+        super::confluence_scan_base(plan, function, run)
+            .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
+    let total = Some(scan)
         .and_then(|total| total.checked_add(successor.bindings.len().saturating_mul(run.len())))
         .and_then(|total| {
             run.iter().try_fold(total, |total, member| {
@@ -196,21 +174,8 @@ fn reconstruct<'source>(
                     })
             })
         })
-        .and_then(|total| {
-            total
-                .checked_add(function.memory_accesses.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.boundary_settlements.len())
-        })
-        .and_then(|total| {
-            total.checked_add(block_scan.saturating_mul(run_locations.saturating_add(1)))
-        })
         .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| ConfluenceRelocationError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
-        return Err(ConfluenceRelocationError::WorkBudgetExceeded);
-    }
+    super::confluence_settle_steps(total, function, block_scan, run_locations, budget)?;
     Ok(Reconstructed {
         function,
         block_index,
