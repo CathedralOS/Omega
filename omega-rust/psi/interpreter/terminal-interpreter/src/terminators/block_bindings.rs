@@ -494,35 +494,29 @@ impl TerminalExecution<'_> {
                         return Err(malformed());
                     }
                 }
-                // A shared loan moves no custody and grants no write, so it
-                // may present any aggregate, including one holding service
-                // bindings or claims, as the exact view its path selects. An
-                // exclusive storage loan still requires a plain owned shape.
-                // Fused bindings have no storage to snapshot: either borrowed
-                // access forwards the same admitted occurrence, with exclusive
-                // authority checked against its exact source declaration below.
+                // A loan moves no custody, so it may present any aggregate,
+                // including one holding service bindings or claims, as the
+                // exact view its path selects: the destination names the
+                // same referent a call parameter would. A shared loan grants
+                // no write; an exclusive one forwards only the authority its
+                // exact source declaration holds, checked below. Fused
+                // bindings have no storage to snapshot: either borrowed access
+                // forwards the same admitted occurrence.
                 StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow
-                    if self.plain_aggregate_type(parameter.structural_type)
-                        || matches!(
-                            self.program
-                                .structural_types()
-                                .get(&parameter.structural_type)
-                                .map(|declaration| &declaration.shape),
-                            Some(
-                                StructuralTypeShape::PrimitiveScalar(_)
-                                    | StructuralTypeShape::FusedServiceBinding
-                            )
-                        )
-                        || (parameter.access == StructuralAccess::SharedBorrow
-                            && self
-                                .program
-                                .structural_types()
-                                .get(&parameter.structural_type)
-                                .is_some_and(|declaration| {
-                                    declaration.shape.is_composite_shape()
-                                })) =>
+                    if self
+                        .program
+                        .structural_types()
+                        .get(&parameter.structural_type)
+                        .is_some_and(|declaration| {
+                            declaration.shape.is_composite_shape()
+                                || matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::PrimitiveScalar(_)
+                                        | StructuralTypeShape::FusedServiceBinding
+                                )
+                        }) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self
