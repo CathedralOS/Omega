@@ -22,7 +22,6 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
-use typed_trees::types::TypeReferenceNode;
 
 /// Whether a statement call is a synthesized wire codec entry. Recognition
 /// binds the receiver by declaration path, so a same-named machine field or
@@ -76,18 +75,10 @@ pub(super) fn known_wire_codec_call_written_paths(
                     symbols,
                     CallerWriteSite::Call(call),
                 )?;
-                let mut reference =
-                    declared_place_type_raw(program, current_machine, Some(state), *argument)?;
-                while let TypeReferenceNode::Constrained { base_type, .. } =
-                    program.type_reference_table.type_reference(reference)
-                {
-                    reference = *base_type;
-                }
-                let TypeReferenceNode::Reference { access, .. } =
-                    program.type_reference_table.type_reference(reference)
-                else {
-                    return None;
-                };
+                let access = crate::value_custody::places::declared_reference_access(
+                    program,
+                    declared_place_type_raw(program, current_machine, Some(state), *argument)?,
+                )?;
                 if !access.is_exclusive() {
                     continue;
                 }

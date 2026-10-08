@@ -25,7 +25,6 @@ use crate::machine_calls::calls::write_frames::transparent_results::transparent_
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
-use typed_trees::types::TypeReferenceNode;
 
 /// Recover the caller-visible origin of the deliberately narrow stable local-
 /// alias shapes handled by the ordinary frame summarizer. A reborrow through
@@ -144,18 +143,7 @@ fn local_declared_reference_access(
     program: &dyn crate::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<language_core::ReferenceAccess> {
-    let mut reference = local.type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    let TypeReferenceNode::Reference { access, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
-    };
-    Some(*access)
+    crate::value_custody::places::declared_reference_access(program, local.type_reference)
 }
 
 /// The divergent counterpart of [`stable_local_reference_alias_origin`]: an

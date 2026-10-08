@@ -547,6 +547,21 @@ pub fn peel_declared_constraints(
     type_reference
 }
 
+/// The declared reference access beneath a type's `Constrained` shells —
+/// `None` when the peeled carrier is not a `Reference`.
+pub fn declared_reference_access(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<language_core::ReferenceAccess> {
+    let peeled = peel_declared_constraints(program, type_reference);
+    let TypeReferenceNode::Reference { access, .. } =
+        program.type_reference_table.type_reference(peeled)
+    else {
+        return None;
+    };
+    Some(*access)
+}
+
 /// Two declared types name the same storage carrier when they differ only by
 /// `Constrained` shells, at any depth: a `&[u8] in Utf8` leaf and a `&[u8]`
 /// destination both describe the 16-byte shared-view descriptor. Reference
