@@ -94,9 +94,7 @@ pub(crate) fn specialize_operator_candidates(
 
     for request in selected {
         let Some(machine_index) = templates
-            .machines()
-            .iter()
-            .position(|machine| machine.symbol == request.realization_machine)
+            .machine_position_by_symbol(request.realization_machine)
         else {
             diagnostics.push(Diagnostic::error(
                 "generic operator candidate names no realization machine",

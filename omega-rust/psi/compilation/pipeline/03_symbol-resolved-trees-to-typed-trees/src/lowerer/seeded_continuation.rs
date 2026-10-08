@@ -472,9 +472,7 @@ fn lower_body_completion(
     for &symbol in &selected {
         let ordinal = lowerer
             .typed_trees
-            .machines()
-            .iter()
-            .position(|machine| machine.symbol == symbol)
+            .machine_position_by_symbol(symbol)
             .ok_or_else(violation)?;
         let mut declaration = lowerer.typed_trees.machines()[ordinal].clone();
         let implementation = source
@@ -643,9 +641,7 @@ fn completed_typed_base_is_retained(
     let mut comparison = candidate.clone();
     for &symbol in selected {
         let Some(ordinal) = base
-            .machines()
-            .iter()
-            .position(|machine| machine.symbol == symbol)
+            .machine_position_by_symbol(symbol)
         else {
             return false;
         };

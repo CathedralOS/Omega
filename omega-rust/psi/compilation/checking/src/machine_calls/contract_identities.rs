@@ -264,9 +264,7 @@ fn generic_machine_index(
     machine_symbol: SymbolHandle,
 ) -> Option<usize> {
     let machine_index = program
-        .machines()
-        .iter()
-        .position(|machine| machine.symbol == machine_symbol)?;
+        .machine_position_by_symbol(machine_symbol)?;
     (!program
         .machine_type_parameters(&program.machines()[machine_index])
         .is_empty())
@@ -317,9 +315,7 @@ pub fn prepare_specialization_contract_identities(
             Some(template_index) => template_index,
             None => {
                 let machine_index = program
-                    .machines()
-                    .iter()
-                    .position(|machine| machine.symbol == specialization.template)
+                    .machine_position_by_symbol(specialization.template)
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
                             "generic specialization lost its authored template declaration",

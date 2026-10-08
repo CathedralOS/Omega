@@ -122,9 +122,7 @@ pub(crate) fn generate_dynamic_family_specializations(
     let mut generated = 0;
     for (template_symbol, tuples) in demands {
         let Some(machine_index) = program
-            .machines()
-            .iter()
-            .position(|machine| machine.symbol == template_symbol)
+            .machine_position_by_symbol(template_symbol)
         else {
             return Err(vec![Diagnostic::error(
                 "dynamic family realization lost its machine template",

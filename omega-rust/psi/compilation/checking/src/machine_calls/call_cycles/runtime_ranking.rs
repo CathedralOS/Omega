@@ -1113,15 +1113,11 @@ fn target_machine(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> O
         return None;
     }
     program
-        .machines()
-        .iter()
-        .position(|machine| machine.symbol == symbol)
+        .machine_position_by_symbol(symbol)
         .or_else(|| {
             let holder = program.machine_holding_state(symbol)?;
             program
-                .machines()
-                .iter()
-                .position(|machine| machine.symbol == holder.symbol)
+                .machine_position_by_symbol(holder.symbol)
         })
 }
 
