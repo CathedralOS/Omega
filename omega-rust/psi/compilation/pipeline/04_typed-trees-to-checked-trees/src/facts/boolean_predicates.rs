@@ -25,6 +25,14 @@ pub(crate) struct BoundPredicate {
     pub bindings: Vec<BoundObservation>,
 }
 
+impl BoundPredicate {
+    pub(crate) fn binding(&self, operand: &Scalar) -> Option<&BoundObservation> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.operand == *operand)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BoundObservation {
     pub operand: Scalar,
@@ -45,9 +53,7 @@ pub(crate) fn entry_expression(
     let mut expression = predicate.expression.clone();
     map_observations(&mut expression, &mut |operand| {
         let binding = predicate
-            .bindings
-            .iter()
-            .find(|binding| binding.operand == *operand)?;
+            .binding(&operand)?;
         let (position, path) = super::crash_entry_values::entry_parameter_place(
             program,
             machine,
@@ -486,9 +492,7 @@ fn normalize(predicates: &[BoundPredicate]) -> Option<(Vec<Boolean>, Vec<Observa
             let mut expression = predicate.expression.clone();
             map_observations(&mut expression, &mut |operand| {
                 let binding = predicate
-                    .bindings
-                    .iter()
-                    .find(|binding| binding.operand == *operand)?;
+                    .binding(&operand)?;
                 let primitive_type = operand.primitive_type()?;
                 let key = (binding.place.clone(), primitive_type);
                 let position = observations
@@ -641,9 +645,7 @@ pub(crate) fn fold(
     let mut result = predicate.clone();
     map_observations(&mut result.expression, &mut |operand| {
         let binding = predicate
-            .bindings
-            .iter()
-            .find(|binding| binding.operand == *operand)?;
+            .binding(&operand)?;
         if let Some(ScalarValue::Boolean(value)) = resolve(&binding.place)
             && operand.primitive_type() == Some(PrimitiveType::Bool)
         {

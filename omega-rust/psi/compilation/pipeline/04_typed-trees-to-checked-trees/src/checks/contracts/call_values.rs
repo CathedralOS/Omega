@@ -479,9 +479,7 @@ pub(crate) fn proves_bound_predicate<'program>(
     current.bindings.clear();
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
         let observation = predicate
-            .bindings
-            .iter()
-            .find(|binding| binding.operand == *operand)?;
+            .binding(&operand)?;
         let actual = actual(observation)?;
         let captured = captured_value(program, facts, state, call, &actual)?;
         let capture = captured.operand;
@@ -577,9 +575,7 @@ pub(crate) fn entry_predicate(
     let mut expression = predicate.expression.clone();
     crate::facts::boolean_predicates::map_observations(&mut expression, &mut |operand| {
         let observation = predicate
-            .bindings
-            .iter()
-            .find(|binding| binding.operand == *operand)?;
+            .binding(&operand)?;
         let actual = observation_actual(program, state, call, observation)?;
         let primitive = operand.primitive_type()?;
         let captured = captured_value(program, facts, state, call, &actual)?;
