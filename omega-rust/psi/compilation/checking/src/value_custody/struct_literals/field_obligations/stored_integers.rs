@@ -26,9 +26,7 @@ pub(super) fn validate_construction(
     statement_index: usize,
 ) -> Option<CheckedStoredIntegerWrite> {
     let plan = program
-        .plan_laid_layouts
-        .iter()
-        .find(|plan| plan.data_symbol == literal.type_symbol)?;
+        .plan_laid_layout(literal.type_symbol)?;
     let field_index = plan
         .field_symbols
         .iter()

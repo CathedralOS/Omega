@@ -23,9 +23,7 @@ pub(crate) fn bind_applications(
     let mut applications = Arena::default();
     for (instance_handle, instance) in cleanup.dispositions.iter() {
         let Some(specialization) = program
-            .machine_specializations
-            .iter()
-            .find(|specialization| specialization.instance == instance.machine)
+            .machine_specialization(instance.machine)
         else {
             continue;
         };

@@ -106,9 +106,7 @@ pub(crate) fn infer_entry_requirements(
     // new public demand merely because another parameter happens to be generic.
     for (_, state) in facts.flow.control.states.iter() {
         let Some(specialization) = program
-            .machine_specializations
-            .iter()
-            .find(|specialization| specialization.instance == state.machine_symbol)
+            .machine_specialization(state.machine_symbol)
         else {
             continue;
         };

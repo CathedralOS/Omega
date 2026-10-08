@@ -176,9 +176,7 @@ impl<'program> Evaluator<'program> {
 
         let plan = self
             .program
-            .plan_laid_layouts
-            .iter()
-            .find(|plan| plan.data_symbol == data.symbol);
+            .plan_laid_layout(data.symbol);
         let offsets = if let Some(plan) = plan {
             if plan.offsets.len() != field_specs.len() || plan.field_symbols != field_symbols {
                 visiting.remove(type_name);
@@ -464,9 +462,7 @@ impl<'program> Evaluator<'program> {
         }
         let result = if let Some(plan) = self
             .program
-            .plan_laid_layouts
-            .iter()
-            .find(|plan| plan.data_symbol == data.symbol)
+            .plan_laid_layout(data.symbol)
         {
             (plan.offsets.len() == field_layouts.len() && plan.field_symbols == field_symbols)
                 .then_some((plan.size, plan.align))
@@ -514,9 +510,7 @@ impl<'program> Evaluator<'program> {
         }
         let (offsets, integer_fields, repeated_fields) = if let Some(plan) = self
             .program
-            .plan_laid_layouts
-            .iter()
-            .find(|plan| plan.data_symbol == data.symbol)
+            .plan_laid_layout(data.symbol)
         {
             if plan.offsets.len() != fields.len() || plan.field_symbols != field_symbols {
                 return None;

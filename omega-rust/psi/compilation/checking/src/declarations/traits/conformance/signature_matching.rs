@@ -34,9 +34,7 @@ fn specialized_instance_realized_tail(
     state: &State,
 ) -> usize {
     let Some(application) = program
-        .machine_specializations
-        .iter()
-        .find(|application| application.instance == machine.symbol)
+        .machine_specialization(machine.symbol)
     else {
         return 0;
     };

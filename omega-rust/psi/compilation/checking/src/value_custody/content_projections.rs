@@ -583,9 +583,7 @@ fn compiler_owned_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandl
         .find(|machine| program.machine_or_state_symbol(machine, symbol));
     let declaration = owning_machine.map_or(symbol, |machine| machine.symbol);
     let authored = program
-        .machine_specializations
-        .iter()
-        .find(|specialization| specialization.instance == declaration)
+        .machine_specialization(declaration)
         .map_or(declaration, |specialization| specialization.template);
     match program.symbols.symbol_source_origin(authored) {
         Some(source::SourceOrigin::Toolchain) => true,

@@ -354,9 +354,7 @@ pub(crate) fn stored_integer_field_type(
     let carrier = places::unwrapped_type_reference(program, carrier).ok_or(())?;
     let data = places::data_definition_for_type(program, carrier).ok_or(())?;
     let Some(plan) = program
-        .plan_laid_layouts
-        .iter()
-        .find(|plan| plan.data_symbol == data.symbol)
+        .plan_laid_layout(data.symbol)
     else {
         return Ok(None);
     };

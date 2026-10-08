@@ -846,9 +846,7 @@ impl<'program> ShapeCollector<'program> {
 
         let program = self.program;
         let authored_layout = program
-            .plan_laid_layouts
-            .iter()
-            .find(|layout| layout.data_symbol == data.symbol);
+            .plan_laid_layout(data.symbol);
         let record_storage = match authored_layout {
             Some(layout) => Some(semantic_vocabulary::AuthoredRecordStorage {
                 byte_size: u64::try_from(layout.size).ok()?,

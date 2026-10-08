@@ -305,9 +305,7 @@ impl<'input> BoundaryValueLayout<'input> {
             .data_definition_by_symbol(symbol)
             .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
         let planned_layout = typed
-            .plan_laid_layouts
-            .iter()
-            .find(|layout| layout.data_symbol == definition.symbol);
+            .plan_laid_layout(definition.symbol);
         let runtime_field_symbols = typed
             .data_members(definition)
             .iter()

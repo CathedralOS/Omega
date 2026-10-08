@@ -92,9 +92,7 @@ pub fn selected_trait_operator_meanings<'program>(
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> Vec<SelectedTraitOperatorMeaning<'program>> {
     let Some(specialization) = program
-        .machine_specializations
-        .iter()
-        .find(|specialization| specialization.instance == machine_symbol)
+        .machine_specialization(machine_symbol)
     else {
         return Vec::new();
     };
@@ -136,9 +134,7 @@ pub fn selected_trait_operator_meaning_exists(
     operand_types: &[Option<TypeReferenceHandle>],
 ) -> bool {
     let Some(specialization) = program
-        .machine_specializations
-        .iter()
-        .find(|specialization| specialization.instance == machine_symbol)
+        .machine_specialization(machine_symbol)
     else {
         return false;
     };

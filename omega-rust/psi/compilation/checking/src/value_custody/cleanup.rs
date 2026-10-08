@@ -323,9 +323,7 @@ pub fn nominal_cleanup_owner(
         }
         visited.push(declaration.symbol);
         let template = program
-            .machine_specializations
-            .iter()
-            .find(|specialization| specialization.instance == declaration.symbol)?
+            .machine_specialization(declaration.symbol)?
             .template;
         declaration = program.machine(template)?;
     }

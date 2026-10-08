@@ -580,9 +580,7 @@ fn mutable_record_representation_inner_body(
     }
     let data = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
     let layout = program
-        .plan_laid_layouts
-        .iter()
-        .find(|plan| plan.data_symbol == data.symbol);
+        .plan_laid_layout(data.symbol);
     // The synthesized layout owns geometry, while its retained schema owns
     // authored validity. Copying fields into a physical declaration must not
     // erase the schema's where facts at an alias or foreign-write boundary.
@@ -673,9 +671,7 @@ fn mutable_record_representation_inner_body(
     }
 
     let (size, align, offsets) = if let Some(plan) = program
-        .plan_laid_layouts
-        .iter()
-        .find(|plan| plan.data_symbol == data.symbol)
+        .plan_laid_layout(data.symbol)
     {
         if plan.field_symbols != field_symbols || plan.offsets.len() != fields.len() {
             visiting.remove(&symbol_identity);

@@ -509,9 +509,7 @@ fn closed_call_application(
         return Ok(None);
     };
     let specialization = checked
-        .machine_specializations
-        .iter()
-        .find(|application| application.instance == source_machine.symbol)
+        .machine_specialization(source_machine.symbol)
         .ok_or(LoweringError::Unsupported(
             "closed schema call lost its specialization",
         ))?;

@@ -358,6 +358,24 @@ impl TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
     }
 
+    pub fn plan_laid_layout(
+        &self,
+        data_symbol: symbols::SymbolHandle,
+    ) -> Option<&PlanLaidLayout> {
+        self.plan_laid_layouts
+            .iter()
+            .find(|layout| layout.data_symbol == data_symbol)
+    }
+
+    pub fn machine_specialization(
+        &self,
+        instance: symbols::SymbolHandle,
+    ) -> Option<&MachineSpecialization> {
+        self.machine_specializations
+            .iter()
+            .find(|specialization| specialization.instance == instance)
+    }
+
     /// Whether an authored occurrence belongs to this checking context.
     /// A Build view retains descriptor ledger IDs, but does not judge the
     /// Product-authored declarations those IDs describe.

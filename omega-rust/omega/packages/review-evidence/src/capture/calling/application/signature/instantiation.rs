@@ -39,9 +39,7 @@ pub(super) fn instantiate(
                 return Ok(*actual);
             }
             let plan = compilation
-                .plan_laid_layouts
-                .iter()
-                .find(|layout| layout.data_symbol == symbol)
+                .plan_laid_layout(symbol)
                 .map(|layout| (layout.schema_symbol, layout.policy_symbol));
             if let Some((schema_symbol, policy_symbol)) = plan {
                 let schema = compilation
