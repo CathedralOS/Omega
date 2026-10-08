@@ -7,9 +7,9 @@
 //! exactly as an ordinary call's do: every selectable implementation is a
 //! checked body that receives them under checked-body custody.
 
-use super::super::parameters::emitted_claim_transfers;
 use super::OperationFrame;
 use super::calls::CallInputs;
+use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
     ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported, value_id,

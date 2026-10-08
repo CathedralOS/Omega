@@ -98,6 +98,9 @@ pub(crate) struct LoweredDirectCallBinding {
     /// leaves resolve against this operation's caller namespace at emission.
     pub(crate) erased_proof_arguments: Vec<crate::scalar_lowering::contracts::LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
+    /// The caller claims each owned operand hands over, resolved through the
+    /// emitting body's claim table when the call is written.
+    pub(crate) claim_transfers: Vec<checked_trees::CheckedUnitClaimTransferPlan>,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
@@ -240,6 +243,10 @@ fn emit_direct_call_operation(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let claim_transfers = crate::emission::claim_bindings::emitted_claim_transfers(
+        &call.claim_transfers,
+        call_emission.claims.bindings(),
+    )?;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -249,15 +256,13 @@ fn emit_direct_call_operation(
             id: result,
             scalar_type: call.result_type.scalar_type,
         }),
-        // A lowered direct call binding has no claim-transfer lane, so no
-        // transfer crosses this call.
         kind: DirectCall {
             callee,
             arguments: arguments.iter().map(|argument| argument.id).collect(),
             erased_arguments,
             erased_proof_arguments,
             structural_arguments,
-            claim_transfers: Vec::new(),
+            claim_transfers,
             requirement_obligations,
             crash_continuations,
             result: DirectCallResult::Scalar,

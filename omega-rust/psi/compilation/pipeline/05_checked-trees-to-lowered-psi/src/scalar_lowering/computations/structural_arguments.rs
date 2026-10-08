@@ -45,7 +45,7 @@ pub(super) fn lower(
                     (_, Multiplicity::Unrestricted)
                         | (
                             checked_trees::CheckedStructuralAccess::Owned,
-                            Multiplicity::Affine
+                            Multiplicity::Affine | Multiplicity::Linear
                         )
                 )
                 || parameter.fused_service_erasure.is_some()

@@ -167,6 +167,7 @@ impl Expansion<'_> {
         arguments: HandleSpan<Computation>,
         structural: HandleSpan<CheckedScalarComputationStructuralArgument>,
         temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
+        claim_transfers: HandleSpan<checked_trees::CheckedUnitClaimTransferPlan>,
         result_type: QualifiedScalarType,
         input_types: &[QualifiedScalarType],
         target: usize,
@@ -247,6 +248,13 @@ impl Expansion<'_> {
             target_machine,
             target_state,
         )?;
+        let claim_transfers = plans
+            .claim_transfers
+            .span(claim_transfers)
+            .ok_or(LoweringError::Unsupported(
+                "computed call claim transfers have a stale span",
+            ))?
+            .to_vec();
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;
         let mut operands = Vec::new();
@@ -423,6 +431,12 @@ impl Expansion<'_> {
             statement_index: source.statement_index,
             call_ordinal: source.call_ordinal,
         };
+        if !claim_transfers.is_empty()
+            && (signature.boundary
+                || matches!(callee, checked_trees::CheckedScalarCallee::Dynamic { .. }))
+        {
+            return unsupported("computed boundary or selector call has no claim transfer lane");
+        }
         let call = if let checked_trees::CheckedScalarCallee::Dynamic {
             slot,
             interface_identity,
@@ -484,6 +498,7 @@ impl Expansion<'_> {
                 site.bindings,
                 scalar_actuals,
                 structural_arguments,
+                claim_transfers,
                 crate::scalar_lowering::contracts::caller_erased_proof_roster(
                     self.checked,
                     self.machine,
@@ -515,7 +530,9 @@ impl Expansion<'_> {
                 bindings: Vec::new(),
                 erased_formal_types: Vec::new(),
                 erased_proof_formals: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::jump_with_cleanup(target, super::parameters(&parameter_types),
+                terminator: LoweredScalarBranchTerminator::jump_with_cleanup(
+                    target,
+                    super::parameters(&parameter_types),
                     discards,
                 ),
                 parameter_types,
@@ -541,7 +558,10 @@ impl Expansion<'_> {
                         structural_type: slot.structural_type,
                         bytes: slot.bytes.clone(),
                     }],
-                    terminator: LoweredScalarBranchTerminator::jump(continuation, super::parameters(prefix)),
+                    terminator: LoweredScalarBranchTerminator::jump(
+                        continuation,
+                        super::parameters(prefix),
+                    ),
                 }),
                 Operand::Range { argument, slot } => {
                     self.subslice(argument, slot, prefix, continuation, site, active)?
@@ -553,7 +573,10 @@ impl Expansion<'_> {
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
                     structural_effects: vec![effect.clone()],
-                    terminator: LoweredScalarBranchTerminator::jump(continuation, super::parameters(prefix)),
+                    terminator: LoweredScalarBranchTerminator::jump(
+                        continuation,
+                        super::parameters(prefix),
+                    ),
                 }),
                 Operand::Produced(slot) => {
                     let values = &self.checked.facts.values.structural_values;

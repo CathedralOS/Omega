@@ -118,12 +118,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &entry.entry_claims,
         &parameters,
     )?;
-    // Successor-state claims keep the entry parameter's place; their checked
-    // identities join that entry claim so call and return replays resolve.
-    for (successor, entry) in &admitted.claim_transport.aliases {
-        let claim = lookup_claim_id(&claims.source_claims, *entry)?;
-        claims.source_claims.push((*successor, claim));
-    }
     // Fresh linear establishments mint their caller bindings while the graph
     // publishes its claim roster: a composed state reads the machine-wide
     // table and cannot mint while it emits, so every claim a local
@@ -169,7 +163,15 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // A structural call result establishes the claims it carries when the
     // call completes. A received result keeps the receiving local's identity
     // (or an input's, returned on every exit); a result no place receives is
-    // named by its call and path alone.
+    // named by its call and path alone. A state's transported entry claim
+    // handed back as a result keeps its root's binding, joined below.
+    let transported = |identity: language_semantics::PermissionClaimIdentity| {
+        admitted
+            .claim_transport
+            .aliases
+            .iter()
+            .any(|(successor, _)| *successor == identity)
+    };
     for state in &plan.states {
         for operation in state
             .operation_dependencies()
@@ -200,16 +202,24 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                             claim,
                         },
                     );
-                } else if !claims
-                    .source_claims
-                    .iter()
-                    .any(|(identity, _)| *identity == received.claim)
+                } else if !transported(received.claim)
+                    && !claims
+                        .source_claims
+                        .iter()
+                        .any(|(identity, _)| *identity == received.claim)
                 {
                     let claim = claim_id(allocate_dense(&mut next_claim)?);
                     claims.source_claims.push((received.claim, claim));
                 }
             }
         }
+    }
+    // A successor state's checked entry claims continue the root claim every
+    // arrival carries; their identities join that root's binding so call,
+    // cleanup and return replays in the state resolve.
+    for (successor, root) in &admitted.claim_transport.aliases {
+        let claim = lookup_claim_id(&claims.source_claims, *root)?;
+        claims.source_claims.push((*successor, claim));
     }
     catalogs
         .scalar_calls
@@ -274,26 +284,25 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             let mut block_position = 0_u32;
             for (dense, parameter) in block_parameters.iter_mut().enumerate() {
                 if let Some(root) = admitted
-                    .claim_transport
-                    .aliased
+                    .entry_aliases
                     .get(position)
                     .and_then(|aliased| aliased.get(&(dense as u32)))
                 {
-                    // A claim carried across an edge keeps the entry
+                    // A forwarded whole entry parameter keeps the entry
                     // parameter's place; the block does not re-declare it.
                     parameter.place = parameters
                         .get(*root as usize)
                         .ok_or(LoweringError::Unsupported(
-                            "Unit graph claim alias lost its entry parameter",
+                            "Unit graph entry alias lost its entry parameter",
                         ))?
                         .place;
                 } else {
                     // Exclusive plain storage crosses an edge by address.
                     // Retain write-only access on the arriving name: moving
                     // the loan cannot grant observation of its referent.
-                    // The entry claim aliases are not block
-                    // parameters. Only transferred structural values occupy
-                    // its dense namespace.
+                    // Entry aliases are not block parameters. Only
+                    // transferred structural values occupy its dense
+                    // namespace.
                     parameter.position = block_position;
                     block_position =
                         block_position
@@ -309,8 +318,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     .enumerate()
                     .filter(|(dense, _)| {
                         !admitted
-                            .claim_transport
-                            .aliased
+                            .entry_aliases
                             .get(position)
                             .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
                     })
@@ -415,8 +423,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     .enumerate()
                     .filter(|(dense, _)| {
                         !admitted
-                            .claim_transport
-                            .aliased
+                            .entry_aliases
                             .first()
                             .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
                     })
@@ -433,7 +440,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let loan_chains = loan_chains::LoanChains::plan(
         plan,
         &admitted.live,
-        &admitted.claim_transport.aliased,
+        &admitted.entry_aliases,
         entry_reentered,
         &state_views,
     )?;

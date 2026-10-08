@@ -74,11 +74,7 @@ impl Builder<'_, '_> {
         source_call: arena::Handle<checked_trees::FlowCallFact>,
         arguments: &[ExpressionHandle],
         parameters: &[typed_trees::signature::StateParameter],
-    ) -> Option<(
-        arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
-        arena::HandleSpan<checked_trees::CheckedScalarComputationStructuralArgument>,
-        arena::HandleSpan<checked_trees::CheckedScalarComputationTemporaryCleanup>,
-    )> {
+    ) -> Option<ComputedCallOperands> {
         use typed_trees::types::TypeReferenceNode;
         if arguments.len() != parameters.len()
             || parameters.iter().any(|parameter| {
@@ -96,6 +92,7 @@ impl Builder<'_, '_> {
         }
         let mut computed_arguments = Vec::with_capacity(arguments.len());
         let mut structural_arguments = Vec::new();
+        let mut structural_actuals = Vec::new();
         let mut temporary_cleanups = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
             // An erased parameter position consumes its authored
@@ -227,6 +224,7 @@ impl Builder<'_, '_> {
                             // formal. Qualifications are not type rows.
                             Some(argument_plan)
                         });
+                structural_actuals.push(*argument);
                 structural_arguments.push(
                     checked_trees::CheckedScalarComputationStructuralArgument::Place(
                         argument_plan?,
@@ -234,6 +232,21 @@ impl Builder<'_, '_> {
                 );
             }
         }
+        // The claims crossing at this call join the same owned operands an
+        // ordinary call operation's arguments join.
+        let claim_transfers =
+            crate::execution::terminal_unit::calls::computed_call_claim_transfers(
+                self.program,
+                self.flow,
+                self.machine,
+                self.state,
+                self.flow.control.calls.get(source_call),
+                &structural_actuals
+                    .iter()
+                    .zip(&structural_arguments)
+                    .map(|(actual, argument)| Some((*actual, argument.as_place()?)))
+                    .collect::<Option<Vec<_>>>()?,
+            )?;
         let arguments = self.plans.operands.insert_many(computed_arguments);
         let structural_arguments = self
             .plans
@@ -244,7 +257,22 @@ impl Builder<'_, '_> {
             .plans
             .temporary_cleanups
             .insert_many(temporary_cleanups);
-
-        Some((arguments, structural_arguments, temporary_cleanups))
+        let claim_transfers = self.plans.claim_transfers.insert_many(claim_transfers);
+        Some(ComputedCallOperands {
+            arguments,
+            structural_arguments,
+            temporary_cleanups,
+            claim_transfers,
+        })
     }
+}
+
+/// One computed call's operand lanes, retained in the computation arenas.
+pub(super) struct ComputedCallOperands {
+    pub(super) arguments: arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
+    pub(super) structural_arguments:
+        arena::HandleSpan<checked_trees::CheckedScalarComputationStructuralArgument>,
+    pub(super) temporary_cleanups:
+        arena::HandleSpan<checked_trees::CheckedScalarComputationTemporaryCleanup>,
+    pub(super) claim_transfers: arena::HandleSpan<checked_trees::CheckedUnitClaimTransferPlan>,
 }

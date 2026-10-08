@@ -200,9 +200,9 @@ impl StateGraphEmission<'_, '_> {
         });
         if position != 0 || self.entry_reentered {
             // Argument evaluation can split the body; bindings belong to its source root.
-            // Claim-aliased parameters keep the entry parameter's place, so
+            // Entry-aliased parameters keep the entry parameter's place, so
             // they are not block parameters either.
-            let aliased = &self.admitted.claim_transport.aliased;
+            let aliased = &self.admitted.entry_aliases;
             let root = evaluation
                 .blocks
                 .iter_mut()

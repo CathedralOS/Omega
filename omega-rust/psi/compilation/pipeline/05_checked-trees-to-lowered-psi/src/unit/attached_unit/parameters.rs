@@ -2,15 +2,15 @@
 //! closures.
 
 use super::super::{
-    BTreeSet, CheckedUnitStructuralPathSegment, ClaimId, PermissionClaimIdentity, ServiceId,
-    ServiceReachId, ServiceReachInterface, ServiceReachPlan, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralTypeDeclaration,
+    BTreeSet, CheckedUnitStructuralPathSegment, ServiceId, ServiceReachId, ServiceReachInterface,
+    ServiceReachPlan, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
+    StructuralTypeDeclaration,
 };
 use super::{
-    CheckedBoundaryMachinePlan, CheckedTrees, ClaimTransfer, LoweringError, Multiplicity, PlaceId,
-    ScalarType, ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, ValueDeclaration, allocate_dense, lookup_claim_id, lookup_service_id,
-    lookup_type_id, place_id, require_valid_service_row, terminal_scalar_type, unsupported,
+    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
+    ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
+    require_valid_service_row, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -381,24 +381,6 @@ pub(crate) fn lower_installation_machine_service_ceiling(
         summary,
         service_ids,
     )
-}
-
-/// Resolve every checked transfer through the caller's exact claim table.
-pub(crate) fn emitted_claim_transfers(
-    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
-    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
-) -> Result<Vec<ClaimTransfer>, LoweringError> {
-    let mut emitted = transfers
-        .iter()
-        .map(|transfer| {
-            Ok(ClaimTransfer {
-                claim: lookup_claim_id(claim_bindings, transfer.claim_identity)?,
-                argument_index: transfer.argument_index,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    emitted.sort();
-    Ok(emitted)
 }
 
 pub(crate) fn literal_argument_places(

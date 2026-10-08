@@ -97,7 +97,9 @@ pub(crate) use signatures::{
     free_structural_scalar_signature, free_structural_scalar_signature_traced,
     parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
-pub(crate) use structural_arguments::{call_claim_transfers, exact_structural_borrow_access};
+pub(crate) use structural_arguments::{
+    call_claim_transfers, computed_call_claim_transfers, exact_structural_borrow_access,
+};
 pub(crate) use structural_result_call::view_source_parameter_is_mutable;
 /// Rejoin a bodyless external leaf (a compiler intrinsic or an evaluated
 /// foreign binding) to the exact boundary-trait requirement whose call it

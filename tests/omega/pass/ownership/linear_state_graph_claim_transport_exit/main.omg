@@ -1,0 +1,81 @@
+// Linear values held across state edges. Each state's entry claim continues
+// the claim its arriving edge carries, whatever established it: `spin`
+// reenters its own entry holding the receipt its caller passed in (an inline
+// construction once, a named local once) until its count runs out; `issue`
+// carries a local into the state that returns it; `main` carries a call
+// result into `holding`, which hands that claim through `pass` and back, then
+// carries a fresh call result into `last`.
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; }
+
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+machine make(code: i32) -> Receipt {
+    let issued: Receipt = Receipt { code: code };
+    issued
+}
+
+machine pass(receipt: Receipt) -> Receipt {
+    receipt
+}
+
+machine consume(receipt: Receipt) -> i32 {
+    let observed: i32 = receipt.code;
+    drop(receipt);
+    observed
+}
+
+machine spin(held: Receipt, remaining: u32) -> i32
+terminates by remaining -> Nat::Descending;
+{
+    transition remaining > 0 {
+        true -> spin(held, remaining - 1)
+        _ -> finish(held)
+    }
+    state finish(last: Receipt) -> i32 {
+        consume(last)
+    }
+}
+
+machine issue(code: i32) -> Receipt {
+    let issued: Receipt = Receipt { code: code };
+    transition { _ -> returning(issued) }
+    state returning(held: Receipt) -> Receipt {
+        held
+    }
+}
+
+machine main() crashes Trap {
+    let looped: i32 = spin(Receipt { code: 9 }, 3);
+    let issued: Receipt = Receipt { code: 2 };
+    let once: i32 = spin(issued, 0);
+    let made: Receipt = issue(6);
+    transition looped == 9 && once == 2 {
+        true -> holding(made)
+        _ -> refusing(made)
+    }
+
+    state holding(held: Receipt) {
+        let back: Receipt = pass(held);
+        let observed: i32 = consume(back);
+        let fresh: Receipt = make(observed);
+        transition { _ -> last(fresh) }
+    }
+
+    state refusing(held: Receipt) {
+        let observed: i32 = consume(held);
+        transition { _ -> bad() }
+    }
+
+    state last(final: Receipt) {
+        let seen: i32 = consume(final);
+        transition seen == 6 {
+            true -> done()
+            _ -> bad()
+        }
+    }
+
+    state done() {}
+    state bad() { crash Trap; }
+}

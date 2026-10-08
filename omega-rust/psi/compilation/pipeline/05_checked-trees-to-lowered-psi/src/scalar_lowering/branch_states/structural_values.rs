@@ -77,7 +77,8 @@ impl Storage {
 pub(crate) struct PreparedValue {
     pub(crate) place: PlaceId,
     pub(crate) structural_type: StructuralTypeId,
-    pub(crate) consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
+    /// Source homes moved whole into the value's members.
+    pub(crate) consumed: Vec<PlaceId>,
     statement: u32,
     steps: Vec<Step>,
 }
@@ -266,7 +267,7 @@ struct Preparation<'a> {
     reserved: &'a Storage,
     prefix: Vec<QualifiedScalarType>,
     steps: Vec<Step>,
-    consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
+    consumed: Vec<PlaceId>,
     claims: Vec<PreparedClaim>,
 }
 
@@ -294,38 +295,26 @@ impl Preparation<'_> {
         }
         if let CheckedStructuralValueKind::Place(argument) = &node.kind {
             let source = self.bindings.owned_argument(argument)?;
-            return match self.checked.type_multiplicity(reference) {
-                Multiplicity::Unrestricted => self.bind_place(
+            if self.checked.type_multiplicity(reference) == Multiplicity::Unrestricted {
+                return self.bind_place(
                     value,
                     source,
                     declaration.id,
                     StructuralMultiplicity::Unrestricted,
-                ),
-                Multiplicity::Affine => {
-                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    } = argument.source
-                    else {
-                        return unsupported(
-                            "record parameter moves require their own source custody join",
-                        );
-                    };
-                    if self
-                        .consumed
-                        .iter()
-                        .any(|(candidate, place)| *candidate == symbol || *place == source.place)
-                    {
-                        return unsupported("record value transfers its source more than once");
-                    }
-                    self.consumed.push((symbol, source.place));
-                    // A nested owner transfers directly into EstablishRecord.
-                    // A whole local initializer instead binds a fresh block home.
-                    Ok(source.place)
-                }
-                Multiplicity::Linear => {
-                    unsupported("scalar record cannot transfer linear authority")
-                }
-            };
+                );
+            }
+            // An affine or linear member moves its whole source home, a named
+            // local or a parameter, directly into EstablishRecord; the claims
+            // it holds continue beneath the member's field. Checking already
+            // retired the source's own disposal at this move.
+            if !source.path.is_empty() {
+                return unsupported("record member moves only a whole owned source");
+            }
+            if self.consumed.contains(&source.place) {
+                return unsupported("record value transfers its source more than once");
+            }
+            self.consumed.push(source.place);
+            return Ok(source.place);
         }
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
             let (machine, state) =

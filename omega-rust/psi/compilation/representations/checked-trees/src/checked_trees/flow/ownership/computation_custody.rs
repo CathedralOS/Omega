@@ -88,7 +88,60 @@ impl CallTransfers<'_> {
                 }
                 _ => false,
             };
-        usize::from(whole_owner) + self.argument_evaluation(argument)
+        usize::from(whole_owner) + self.argument_evaluation(argument) + self.produced(argument)
+    }
+
+    /// An anonymous operand the call consumes or lends is completed before
+    /// the call: a whole owner moved into that construction leaves its source
+    /// as surely as one passed directly. The operand's retained value root
+    /// names exactly the members it takes; an ambiguous or missing root moves
+    /// nothing here, so accounting still demands another disposition.
+    fn produced(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
+        let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+            argument.source
+        else {
+            return 0;
+        };
+        let plans = &self.values.structural_values;
+        let mut roots = plans
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .filter(|root| root.expression == expression);
+        let (Some(root), None) = (roots.next(), roots.next()) else {
+            return 0;
+        };
+        self.constructed(root.root, plans.calls_for_root(root.root).unwrap_or(&[]))
+    }
+
+    /// Whole owners a completed construction takes as its members, plus the
+    /// transfers evaluating its children performs.
+    fn constructed(
+        &self,
+        root: CheckedStructuralValueHandle,
+        calls: &[CheckedStructuralValueCall],
+    ) -> usize {
+        let plans = &self.values.structural_values;
+        match &plans.nodes.get(root).kind {
+            CheckedStructuralValueKind::Place(source) => self.argument(source),
+            CheckedStructuralValueKind::Record { fields, .. }
+            | CheckedStructuralValueKind::StructuralCase { fields, .. } => plans
+                .record_fields
+                .span_or_empty(*fields)
+                .iter()
+                .map(|field| match field.value {
+                    CheckedStructuralRecordFieldValue::Scalar(value) => self.computation(value),
+                    CheckedStructuralRecordFieldValue::Structural(value) => {
+                        self.constructed(value, calls)
+                    }
+                })
+                .sum(),
+            CheckedStructuralValueKind::FixedArray { elements } => elements
+                .iter()
+                .map(|element| self.constructed(*element, calls))
+                .sum(),
+            _ => self.structural(root, calls),
+        }
     }
 
     fn argument_evaluation(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {

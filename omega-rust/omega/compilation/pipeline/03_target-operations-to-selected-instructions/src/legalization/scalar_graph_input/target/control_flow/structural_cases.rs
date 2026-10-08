@@ -96,10 +96,12 @@ pub(super) fn home_available(
             else {
                 return false;
             };
+            // A linear arrival is held at its block home exactly as an
+            // operation result's linear value is: its claims are the
+            // ownership the arriving edge moved, not storage of their own.
             if declaration != original
                 || target_parameter != original
                 || declaration.access != terminal_psi::StructuralAccess::Owned
-                || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
                 || (*owner != block && !sources::dominates(optimized, *owner, block))
             {
                 return false;

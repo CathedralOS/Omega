@@ -1,7 +1,12 @@
-//! Whole entry-parameter loans forwarded through state parameters.
+//! Whole entry parameters forwarded through state parameters.
 //!
 //! Any whole borrowed entry parameter can keep its invocation place when
-//! every arrival proves that identity. The referent's representation does not
+//! every arrival proves that identity; so can a claim-bearing owned entry
+//! parameter forwarded whole on every arrival (`alias_forwarded_entry_claims`).
+//! Its claims then never leave the invocation place, and an arrival may drop
+//! the parameter's qualifications without moving the value. A claim-bearing
+//! parameter any arrival fills from another value stays an ordinary block
+//! parameter; `claims` joins its claim identities either way. The referent's representation does not
 //! change this proof: a plain record and a record containing views obey the
 //! same rule. This also lets a projected child travel while its parent stays
 //! rooted at invocation storage; Terminal still checks every child access and
@@ -24,7 +29,7 @@ use super::{CheckedComposedUnitControlMachinePlan, successors};
 use checked_trees::{CheckedStructuralAccess, CheckedStructuralControlTransferSourcePlan};
 
 /// Bind each forwarded whole entry-parameter loan to that parameter's
-/// position in `aliased`, beside the claim aliases already resolved there.
+/// position in `aliased`.
 pub(super) fn alias_entry_parameter_loans(
     plan: &CheckedComposedUnitControlMachinePlan,
     live: &[bool],
@@ -127,6 +132,155 @@ pub(super) fn alias_entry_parameter_loans(
         for (position, index) in candidates {
             aliased[position].insert(index, root);
         }
+    }
+    Ok(())
+}
+
+/// Bind each claim-bearing owned state parameter that only ever receives one
+/// entry parameter whole to that parameter's position in `aliased`. The
+/// entry state's own claim parameters seed the roster, which also lets a
+/// reentry edge that forwards them keep their invocation places. A candidate
+/// leaves once one arrival supplies anything other than an aliased parameter
+/// with the same root, so one foreign arrival anywhere in a forwarding cycle
+/// removes the whole cycle.
+pub(super) fn alias_forwarded_entry_claims(
+    plan: &CheckedComposedUnitControlMachinePlan,
+    live: &[bool],
+    aliased: &mut [BTreeMap<u32, u32>],
+) -> Result<(), LoweringError> {
+    let Some(entry) = plan.states.first() else {
+        return Ok(());
+    };
+    let entry_reentered = plan
+        .states
+        .iter()
+        .zip(live)
+        .filter_map(|(state, live)| live.then_some(state))
+        .flat_map(successors)
+        .any(|successor| successor.target_state == entry.state);
+    let claimed = |position: usize, index: u32| {
+        let state = &plan.states[position];
+        state
+            .entry_claims
+            .iter()
+            .any(|claim| claim.parameter_index == index)
+            && state
+                .structural_parameters
+                .get(index as usize)
+                .is_some_and(|parameter| parameter.access == CheckedStructuralAccess::Owned)
+    };
+    let incoming = |position: usize| {
+        let target = plan.states[position].state;
+        plan.states
+            .iter()
+            .enumerate()
+            .filter(|(source, _)| live[*source])
+            .flat_map(|(source, state)| {
+                successors(state)
+                    .into_iter()
+                    .filter(move |edge| edge.target_state == target)
+                    .map(move |edge| (source, edge))
+            })
+            .collect::<Vec<_>>()
+    };
+    // Each candidate's entry root. Without reentry the entry block holds the
+    // invocation parameters themselves.
+    let mut roots = BTreeMap::new();
+    for (position, state) in plan.states.iter().enumerate() {
+        if !live[position] || (position == 0 && !entry_reentered) {
+            continue;
+        }
+        for claim in &state.entry_claims {
+            if claimed(position, claim.parameter_index) {
+                roots.insert((position, claim.parameter_index), None);
+            }
+        }
+    }
+    if entry_reentered {
+        for claim in &entry.entry_claims {
+            if let Some(root) = roots.get_mut(&(0, claim.parameter_index)) {
+                *root = Some(claim.parameter_index);
+            }
+        }
+    }
+    let arriving_root =
+        |roots: &BTreeMap<(usize, u32), Option<u32>>,
+         source: usize,
+         index: u32,
+         parameter: &checked_trees::CheckedUnitStructuralParameterPlan| {
+            let source_parameter = plan.states[source]
+                .structural_parameters
+                .get(index as usize)?;
+            if source_parameter.access != CheckedStructuralAccess::Owned
+                || source_parameter.multiplicity != parameter.multiplicity
+            {
+                return None;
+            }
+            if source == 0 && !entry_reentered {
+                Some(index)
+            } else {
+                roots.get(&(source, index)).copied().flatten()
+            }
+        };
+    loop {
+        let mut changed = false;
+        let candidates = roots.keys().copied().collect::<Vec<_>>();
+        for (position, index) in candidates {
+            let parameter = &plan.states[position].structural_parameters[index as usize];
+            let mut root = roots[&(position, index)];
+            let mut rejected = false;
+            for (source, edge) in incoming(position) {
+                let forwarded = edge
+                    .transfers
+                    .iter()
+                    .find(|transfer| transfer.target_parameter_index == index)
+                    .and_then(|transfer| match transfer.source {
+                        CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
+                            Some(index)
+                        }
+                        _ => None,
+                    });
+                let Some(source_index) = forwarded else {
+                    rejected = true;
+                    break;
+                };
+                // An arrival from a candidate whose root is still open settles
+                // through the cycle's other arrivals.
+                if roots.get(&(source, source_index)) == Some(&None) {
+                    continue;
+                }
+                match (arriving_root(&roots, source, source_index, parameter), root) {
+                    (None, _) => {
+                        rejected = true;
+                        break;
+                    }
+                    (Some(arriving), Some(settled)) if arriving != settled => {
+                        rejected = true;
+                        break;
+                    }
+                    (Some(arriving), _) => root = Some(arriving),
+                }
+            }
+            if rejected {
+                roots.remove(&(position, index));
+                changed = true;
+            } else if root != roots[&(position, index)] {
+                roots.insert((position, index), root);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for ((position, index), root) in roots {
+        // A root that never settled has no arrival from outside its cycle.
+        let Some(root) = root else {
+            return Err(LoweringError::Unsupported(
+                "Unit graph forwarded claim has no entry arrival",
+            ));
+        };
+        aliased[position].insert(index, root);
     }
     Ok(())
 }

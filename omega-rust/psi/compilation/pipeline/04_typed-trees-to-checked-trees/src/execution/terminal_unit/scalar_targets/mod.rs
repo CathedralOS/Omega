@@ -359,8 +359,30 @@ pub(super) fn available_target(
                 })?;
                 Some((result, Some(expression)))
             }
+            // A nested operand's anonymous result is rooted at its authored
+            // call; a bound result at its local.
             CheckedUnitEffectOperationPlan::Call(call) => {
-                call.structural_result().map(|result| (result, None))
+                let result = call.structural_result()?;
+                if result.local.symbol.is_valid() {
+                    return Some((result, None));
+                }
+                let mut producers = facts
+                    .flow
+                    .control
+                    .calls
+                    .span_or_empty(flow.calls)
+                    .iter()
+                    .filter(|producer| {
+                        u32::try_from(producer.statement_index).ok()
+                            == Some(call.coordinate.statement_index)
+                            && u32::try_from(producer.call_ordinal).ok()
+                                == Some(call.coordinate.call_ordinal)
+                    });
+                let producer = producers.next()?;
+                if producers.next().is_some() || !producer.authored_expression.is_valid() {
+                    return None;
+                }
+                Some((result, Some(producer.authored_expression)))
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {

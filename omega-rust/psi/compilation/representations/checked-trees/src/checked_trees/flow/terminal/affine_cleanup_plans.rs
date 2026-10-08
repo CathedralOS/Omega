@@ -130,7 +130,7 @@ pub struct CheckedUnitNominalAffineCleanupRequirementPlan {
     pub expected: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedUnitClaimTransferPlan {
     pub claim_identity: language_semantics::PermissionClaimIdentity,
     /// Dense index into this call's structural argument list. The callee-local

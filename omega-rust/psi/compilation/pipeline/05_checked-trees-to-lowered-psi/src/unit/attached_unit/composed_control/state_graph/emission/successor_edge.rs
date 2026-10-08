@@ -160,13 +160,12 @@ impl StateGraphEmission<'_, '_> {
             {
                 if let Some(root) = self
                     .admitted
-                    .claim_transport
-                    .aliased
+                    .entry_aliases
                     .get(target)
                     .and_then(|aliased| aliased.get(&(target_index as u32)))
                 {
-                    // A claim or a forwarded whole parameter carried across
-                    // the edge keeps the entry parameter's place; the block
+                    // A forwarded whole entry parameter carried across the
+                    // edge keeps the entry parameter's place; the block
                     // does not rebind it, so the transfer row must still
                     // name that exact parameter and no edge argument is
                     // emitted. The entry place is read from the machine
@@ -796,8 +795,7 @@ impl StateGraphEmission<'_, '_> {
             } else if let Some(dense) = ranking::parameter_position(plan, target_state) {
                 let source = if let Some(root) = self
                     .admitted
-                    .claim_transport
-                    .aliased
+                    .entry_aliases
                     .get(target)
                     .and_then(|aliased| aliased.get(&(dense as u32)))
                 {
@@ -812,7 +810,7 @@ impl StateGraphEmission<'_, '_> {
                     ranking::view_argument_position(
                         plan,
                         target_state,
-                        &self.admitted.claim_transport.aliased[target],
+                        &self.admitted.entry_aliases[target],
                     )
                     .map(|parameter_position| structural_arguments[parameter_position].place)
                 };

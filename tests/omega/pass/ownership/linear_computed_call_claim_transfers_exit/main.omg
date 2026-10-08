@@ -1,0 +1,51 @@
+// Claim-bearing operands of calls evaluated inside an expression. A call
+// that is one operand of arithmetic is a computed call, not a statement
+// call; its owned operands still hand their claims over at the call: an
+// inline construction, a named local, a construction holding a moved local
+// beside a fresh member, and a nested call's anonymous linear result.
+use omega::language::core::drop;
+
+data Receipt [linear] { code: i32; }
+
+machine Receipt::drop(receipt: &mut Receipt) {}
+
+data Pair { left: Receipt; right: Receipt; }
+
+machine make(code: i32) -> Receipt {
+    let issued: Receipt = Receipt { code: code };
+    issued
+}
+
+machine consume(receipt: Receipt) -> i32 {
+    let observed: i32 = receipt.code;
+    drop(receipt);
+    observed
+}
+
+machine settle(pair: Pair) -> i32 {
+    let left: Receipt = pair.left;
+    let right: Receipt = pair.right;
+    let total: i32 = ((left.code as i32 in Wrapping) + (right.code as i32 in Wrapping)) as i32;
+    drop(left);
+    drop(right);
+    total
+}
+
+machine verify(settled: bool) crashes Trap {
+    transition settled {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let inline: i32 = ((consume(Receipt { code: 5 }) as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;
+    let local: Receipt = Receipt { code: 4 };
+    let named: i32 = ((consume(local) as i32 in Wrapping) + (2 as i32 in Wrapping)) as i32;
+    let member: Receipt = Receipt { code: 6 };
+    let paired: i32 = ((settle(Pair { left: member, right: Receipt { code: 7 } }) as i32 in Wrapping) + (3 as i32 in Wrapping)) as i32;
+    let nested: i32 = consume(make(8));
+    verify(inline == 6 && named == 6 && paired == 16 && nested == 8);
+}

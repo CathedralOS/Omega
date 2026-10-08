@@ -64,7 +64,8 @@ pub(crate) fn retain_nested_structural_call_arguments(
             let captured =
                 crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
@@ -405,8 +406,14 @@ pub(crate) fn nested_structural_call_return_type(
             program.type_reference_table.type_reference(return_type),
             TypeReferenceNode::Unit
         )
-        && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-            && (validation::has_contents(program, return_type, validation::ContentsRequirement::BorrowFree)
+        // A checked body's linear result is an anonymous owner like an
+        // affine one: its call binds the claims the returning edge holds,
+        // and the consuming call transfers them whole.
+        && ((match program.type_multiplicity(return_type) {
+            language_semantics::Multiplicity::Affine => true,
+            language_semantics::Multiplicity::Linear => ordinary,
+            language_semantics::Multiplicity::Unrestricted => false,
+        } && (validation::has_contents(program, return_type, validation::ContentsRequirement::BorrowFree)
                 // A checked-body record carrying borrowed referents is affine
                 // through its captured leaf loans; the caller's own operand
                 // scheduling still has to replay that custody exactly.

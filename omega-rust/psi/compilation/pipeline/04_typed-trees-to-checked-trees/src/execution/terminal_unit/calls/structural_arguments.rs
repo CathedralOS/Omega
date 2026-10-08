@@ -859,35 +859,7 @@ pub(crate) fn call_claim_transfers(
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     arguments: &[CheckedUnitStructuralArgumentPlan],
 ) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
-    let events = facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source
-                    == PermissionEventSource::Call {
-                        statement_index: call.statement_index,
-                        call_ordinal: call.call_ordinal,
-                        target_symbol: call.target_symbol,
-                    }
-                // Both events move custody out of the caller. Whether the
-                // destination is a checked body or a boundary does not change
-                // the explicit argument's ownership judgment. The call route
-                // decides whether these rows become ingress transfers or
-                // normal-completion receipts.
-                && matches!(
-                    event.kind,
-                    PermissionEventKind::Transfer | PermissionEventKind::Consume
-                )
-                && event.access == PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-        })
-        .map(|(_, event)| event)
-        .collect::<Vec<_>>();
+    let events = call_claim_events(&facts.flow, machine, state, call);
     let mut output = Vec::new();
     let mut accounted = 0usize;
     for (argument_index, argument) in arguments.iter().enumerate() {
@@ -932,51 +904,26 @@ pub(crate) fn call_claim_transfers(
                 _ => return None,
             };
             if let Some(root) = root {
-                // A projected operand carries only the claims beneath its
-                // selected path; sibling claims stay with their owner or cross
-                // at another operand of the same call.
-                let root_type = if argument.path.is_empty() {
-                    None
-                } else {
-                    Some(validation::canonical_place_type_reference(
-                        program,
-                        state,
-                        call.statement_index,
-                        &validation::CanonicalPlace {
-                            root,
-                            segments: Vec::new(),
-                        },
-                    )?)
-                };
-                let mut claims = Vec::new();
-                for event in events.iter().filter(|event| event.root == root) {
-                    if let Some(root_type) = root_type {
-                        let (path, _) = validation::structural_owned_path(
-                            program,
-                            root_type,
-                            facts.flow.ownership.segments.span_or_empty(event.segments),
-                        )
-                        .ok()?;
-                        if !path.starts_with(&argument.path) {
-                            continue;
-                        }
-                    }
-                    if event.claim_identity == PermissionClaimIdentity::Unknown
-                        || claims.contains(&event.claim_identity)
-                    {
-                        return None;
-                    }
-                    claims.push(event.claim_identity);
+                let crossing = owner_claim_crossings(
+                    program,
+                    &facts.flow,
+                    state,
+                    call,
+                    &events,
+                    root,
+                    &argument.path,
+                )?;
+                for (claim_identity, kind) in crossing {
                     // A result consumed by a by-value `self` callee carries
                     // its claim on the completed result itself; the lowering
                     // joins that claim to the callee's entry roster, so the
                     // plan names no separate transfer row for it.
-                    if event.kind == PermissionEventKind::Consume {
+                    if kind == PermissionEventKind::Consume {
                         accounted = accounted.checked_add(1)?;
                         continue;
                     }
                     output.push(CheckedUnitClaimTransferPlan {
-                        claim_identity: event.claim_identity,
+                        claim_identity,
                         argument_index: u32::try_from(argument_index).ok()?,
                     });
                 }
@@ -1019,6 +966,147 @@ pub(crate) fn call_claim_transfers(
         return None;
     }
     Some(output)
+}
+
+/// The linear claims leaving the caller at one call: every live owned
+/// transfer or consumption the permission pass recorded at its coordinate.
+/// Whether the destination is a checked body or a boundary does not change
+/// the explicit argument's ownership judgment; the call route decides whether
+/// these rows become ingress transfers or normal-completion receipts.
+fn call_claim_events<'facts>(
+    flow: &'facts checked_trees::FlowFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+) -> Vec<&'facts checked_trees::FlowPermissionEventFact> {
+    flow.ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.source
+                    == PermissionEventSource::Call {
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
+                        target_symbol: call.target_symbol,
+                    }
+                && matches!(
+                    event.kind,
+                    PermissionEventKind::Transfer | PermissionEventKind::Consume
+                )
+                && event.access == PermissionAccess::Owned
+                && event.multiplicity == Multiplicity::Linear
+                && event.obligation_live
+        })
+        .map(|(_, event)| event)
+        .collect()
+}
+
+/// The claims one owned operand carries across its call: the events rooted at
+/// the operand's owner beneath its selected path. A projected operand carries
+/// only the claims beneath that path; sibling claims stay with their owner or
+/// cross at another operand of the same call. Named, parameter and anonymous
+/// owners share this join: the owner's root, not the operand's source
+/// spelling, identifies the claims it holds.
+fn owner_claim_crossings(
+    program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    events: &[&checked_trees::FlowPermissionEventFact],
+    root: facts::PlaceRoot,
+    path: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Option<Vec<(PermissionClaimIdentity, PermissionEventKind)>> {
+    let root_type = if path.is_empty() {
+        None
+    } else {
+        Some(validation::canonical_place_type_reference(
+            program,
+            state,
+            call.statement_index,
+            &validation::CanonicalPlace {
+                root,
+                segments: Vec::new(),
+            },
+        )?)
+    };
+    let mut claims = Vec::new();
+    for event in events.iter().filter(|event| event.root == root) {
+        if let Some(root_type) = root_type {
+            let (event_path, _) = validation::structural_owned_path(
+                program,
+                root_type,
+                flow.ownership.segments.span_or_empty(event.segments),
+            )
+            .ok()?;
+            if !event_path.starts_with(path) {
+                continue;
+            }
+        }
+        if event.claim_identity == PermissionClaimIdentity::Unknown
+            || claims
+                .iter()
+                .any(|(identity, _)| *identity == event.claim_identity)
+        {
+            return None;
+        }
+        claims.push((event.claim_identity, event.kind));
+    }
+    Some(claims)
+}
+
+/// Join a computed call's owned operands to the call's complete linear
+/// permission-event set, exactly as an ordinary call operation's arguments
+/// join it. Each operand names its owner through the canonical place its
+/// authored actual denotes, so a parameter, a named local and an anonymous
+/// construction or call result transfer the claims their owner holds. A
+/// claim no owned operand carries, or one the callee consumes in place,
+/// leaves the computation without a transfer plan.
+pub(crate) fn computed_call_claim_transfers(
+    program: &dyn ::validation::CheckingInput,
+    flow: &checked_trees::FlowFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    operands: &[(
+        typed_trees::expression::ExpressionHandle,
+        &CheckedUnitStructuralArgumentPlan,
+    )],
+) -> Option<Vec<CheckedUnitClaimTransferPlan>> {
+    let events = call_claim_events(flow, machine, state, call);
+    let mut output = Vec::new();
+    for (argument_index, (expression, argument)) in operands.iter().enumerate() {
+        if argument.access != CheckedStructuralAccess::Owned {
+            continue;
+        }
+        let root = match argument.source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                facts::PlaceRoot::Expression(expression)
+            }
+            _ => {
+                validation::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    call.statement_index,
+                    *expression,
+                )?
+                .root
+            }
+        };
+        for (claim_identity, kind) in
+            owner_claim_crossings(program, flow, state, call, &events, root, &argument.path)?
+        {
+            if kind == PermissionEventKind::Consume {
+                return None;
+            }
+            output.push(CheckedUnitClaimTransferPlan {
+                claim_identity,
+                argument_index: u32::try_from(argument_index).ok()?,
+            });
+        }
+    }
+    (output.len() == events.len()).then_some(output)
 }
 
 pub(crate) fn exact_integer_at(

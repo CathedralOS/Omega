@@ -568,18 +568,19 @@ defines the complete product bar.
     binds the claim the callee's returning edge holds at each result path; an
     inline claim-bearing construction is an anonymous owner whose claims
     transfer whole to its call; a projected owned argument carries the claims
-    beneath its path. `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`
-    and `pass/ownership/linear_{inline_constructed_argument_claims,result_member_projection_arguments,result_owners_residual_cleanup,call_result_place_assignment}_exit`
-    run natively. Still refused: in a composed state graph a scalar computed
-    call takes no claim-bearing argument (stage 05
-    `scalar_lowering/computations/call_signature.rs` refuses a callee with
-    entry claims), and a local moved into a construction operand of a computed
-    call has no counted disposition ("state graph: structural result has no
-    selected disposition", affine members included). A claim-bearing nested
-    call result passed by value (`consume(make(8))`) checks but is no
-    structural operand: `values/scalar/call_arguments.rs::nested_structural_call_return_type`
-    admits only affine/unrestricted results of entry-state targets, so even an
-    affine bare free-machine operand has no callee plan. Passing a projection
+    beneath its path; a state's entry claim continues the claim its arriving
+    edge carries. `pass/ownership/{linear_call_result_claims_exit,linear_ambiguous_state_result_mapping,linear_transparent_record_frontier}`,
+    `pass/ownership/linear_{inline_constructed_argument_claims,result_member_projection_arguments,result_owners_residual_cleanup,call_result_place_assignment}_exit`
+    and `pass/ownership/linear_{state_graph_call_arguments,state_graph_claim_transport,computed_call_claim_transfers}_exit`
+    run natively. Still refused: a claim-bearing call result as a construction
+    member (`settle(Pair { left: make(1), .. })`) stops at "owned completion
+    changes its established claim identities" in a statement call and at
+    "scalar structural value cannot acquire linear claims" in a computed
+    operand; a computed boundary or selector call has no claim-transfer lane;
+    a state parameter whose arrivals carry different claims (two locals
+    swapped across arms) has "unsupported graph custody" (stage 05
+    `state_graph/claims.rs`): a Terminal operation names one static claim, so
+    that join needs by-path binding like a call result's. Passing a projection
     of a linear field reseated by `pair.left = make(5)` fails Terminal
     foundation validation ("claim action does not match a declared structural
     claim path"); consuming the reseated owner whole runs. Qualified record

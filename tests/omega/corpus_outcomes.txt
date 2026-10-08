@@ -1511,6 +1511,8 @@ fail/ownership/linear_call_result_field_live_overwrite rejected 644ms expected @
 	assignment would overwrite live linear value `pair.left`; consume or transfer the existing obligation first
 fail/ownership/linear_call_result_field_scope_loss rejected 500ms expected @9c376f77b213+wt
 	linear value `pair.left` reaches scope exit without being consumed or transferred
+fail/ownership/linear_computed_call_argument_second_use rejected 799ms expected @c70a706629c8+wt
+	cannot use `local` in machine `main` state `entry` (statement 2) after `local` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `local` first
 fail/ownership/linear_inline_argument_result_scope_loss rejected 552ms expected @9c376f77b213+wt
 	linear value `passed` reaches scope exit without being consumed or transferred
 fail/ownership/linear_inline_argument_result_second_use rejected 453ms expected @9c376f77b213+wt
@@ -1530,6 +1532,12 @@ fail/ownership/linear_scope_loss rejected 512ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/ownership/linear_second_transfer rejected 332ms expected @04d0fbe9d97c
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
+fail/ownership/linear_state_arm_abandons_local rejected 651ms expected @c70a706629c8+wt
+	linear value `carried` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
+fail/ownership/linear_state_parameter_scope_loss rejected 598ms expected @c70a706629c8+wt
+	linear value `held` reaches scope exit without being consumed or transferred
+fail/ownership/linear_state_parameter_second_use rejected 468ms expected @c70a706629c8+wt
+	cannot use `held` in machine `main` state `holding` (statement 1) after `held` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `held` first
 fail/ownership/linear_temporary_scalar_observation rejected 372ms expected @461e97c328e8
 	linear value `named(name(Receipt))` reaches scope exit without being consumed or transferred
 fail/ownership/linear_transparent_record_member_scope_loss rejected 328ms expected @b69e30357ca8+wt
@@ -3366,11 +3374,14 @@ pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_call_result_claims_exit checked 3292ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/linear_call_result_place_assignment_exit checked 2933ms check-target:macos_arm64 @9c376f77b213+wt
+pass/ownership/linear_computed_call_claim_transfers_exit checked 2651ms check-target:macos_arm64 @c70a706629c8+wt
 pass/ownership/linear_inline_constructed_argument_claims_exit checked 3119ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_qualified_call_result_claims checked 541ms @9c376f77b213+wt
 pass/ownership/linear_result_member_projection_arguments_exit checked 3205ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_result_owners_residual_cleanup_exit checked 3024ms check-target:macos_arm64 @9c376f77b213+wt
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
+pass/ownership/linear_state_graph_call_arguments_exit checked 3296ms check-target:macos_arm64 @c70a706629c8+wt
+pass/ownership/linear_state_graph_claim_transport_exit checked 3443ms check-target:macos_arm64 @c70a706629c8+wt
 pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm64 @e4c5f1527652+wt
 pass/ownership/linear_transparent_record_frontier checked 3103ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f
@@ -3384,6 +3395,7 @@ pass/ownership/runtime_borrowed_shared_alias_carrier_transform_exit checked 1614
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 1325ms check-target:macos_arm64 @84da89581e65
 pass/ownership/runtime_whole_borrowed_transform_exit checked 1786ms check-target:macos_arm64 @50701b2d3809+wt
+pass/ownership/state_graph_construction_operand_moves_exit checked 3174ms check-target:macos_arm64 @c70a706629c8+wt
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 1365ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 298ms @2d8ed253669f
 pass/parser/deep_nesting_within_limit checked 280ms @2d8ed253669f

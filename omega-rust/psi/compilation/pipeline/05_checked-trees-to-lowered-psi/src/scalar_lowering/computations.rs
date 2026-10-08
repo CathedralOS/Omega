@@ -716,6 +716,7 @@ impl<'a> Expansion<'a> {
                 arguments,
                 structural_arguments,
                 temporary_cleanups,
+                claim_transfers,
             } => self.call(
                 source_call,
                 &callee,
@@ -723,6 +724,7 @@ impl<'a> Expansion<'a> {
                 arguments,
                 structural_arguments,
                 temporary_cleanups,
+                claim_transfers,
                 result_type,
                 input_types,
                 target,

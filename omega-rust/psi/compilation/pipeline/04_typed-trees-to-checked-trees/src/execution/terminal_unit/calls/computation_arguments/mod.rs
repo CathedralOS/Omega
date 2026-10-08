@@ -773,17 +773,16 @@ fn owned_argument(
     };
     let mut shapes = ShapeCollector::new(program);
     for reference in [source_type, target.type_reference] {
+        // Linear claims and nominal cleanup stay explicit obligations of the
+        // consuming call: the operand transfers them with its storage.
+        let contents = if crate::checks::type_carries_linear_obligation(program, reference) {
+            validation::ContentsRequirement::LinearOwned
+        } else {
+            validation::ContentsRequirement::CleanupOwned
+        };
         if program.primitive_type_reference(reference).is_some()
-            || !matches!(
-                crate::checks::type_multiplicity(program, reference),
-                Multiplicity::Unrestricted | Multiplicity::Affine
-            )
             || !(validation::is_closed_primitive_array_type(program, reference)
-                || validation::has_contents(
-                    program,
-                    reference,
-                    validation::ContentsRequirement::CleanupOwned,
-                ))
+                || validation::has_contents(program, reference, contents))
             || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
             || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()

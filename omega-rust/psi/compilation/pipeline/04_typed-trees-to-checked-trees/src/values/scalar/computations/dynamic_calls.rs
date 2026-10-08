@@ -12,6 +12,7 @@
 //! discharged its `requires` against these operands and every selectable
 //! implementation refines it where its conformance is checked. A suspending
 //! requirement declines here; the route carries no suspension frontier.
+use super::call_arguments::ComputedCallOperands;
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
     PrimitiveType,
@@ -40,8 +41,12 @@ impl Builder<'_, '_> {
         let (&selector_argument, data_arguments) = arguments.split_first()?;
         let selector = self.expression(selector_argument, PrimitiveType::Selector)?;
         self.plans.nodes.get_mut(selector).authored_root = selector_argument;
-        let (arguments, structural_arguments, temporary_cleanups) =
-            self.call_operands(source_call, data_arguments, slot.data_parameters())?;
+        let ComputedCallOperands {
+            arguments,
+            structural_arguments,
+            temporary_cleanups,
+            claim_transfers,
+        } = self.call_operands(source_call, data_arguments, slot.data_parameters())?;
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
@@ -56,6 +61,7 @@ impl Builder<'_, '_> {
                 arguments,
                 structural_arguments,
                 temporary_cleanups,
+                claim_transfers,
             },
         ))
     }

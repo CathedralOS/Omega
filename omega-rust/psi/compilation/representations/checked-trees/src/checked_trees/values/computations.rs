@@ -69,6 +69,7 @@ pub struct CheckedScalarComputationPlans {
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub temporary_cleanups: Arena<CheckedScalarComputationTemporaryCleanup>,
     pub temporary_cleanup_actions: Arena<crate::CheckedNormalCleanupAction>,
+    pub claim_transfers: Arena<crate::CheckedUnitClaimTransferPlan>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
 }
@@ -287,6 +288,10 @@ pub enum CheckedScalarComputationKind {
         /// Checked owner retirement on this invocation's normal continuation.
         /// Borrowed access alone does not authorize an owned temporary's drop.
         temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
+        /// Every live linear claim the call moves out of the caller, joined to
+        /// the owned structural operand whose owner holds it, as an ordinary
+        /// call operation's transfers are. Empty when no claim crosses.
+        claim_transfers: HandleSpan<crate::CheckedUnitClaimTransferPlan>,
     },
     Select {
         /// Exact conditional occurrence, retained when an enclosing constant

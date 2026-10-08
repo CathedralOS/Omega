@@ -1108,10 +1108,6 @@ impl ScalarBindings {
         if !argument.path.is_empty()
             || argument.access != checked_trees::CheckedStructuralAccess::Owned
             || parameter.access != StructuralAccess::Owned
-            || !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            )
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {

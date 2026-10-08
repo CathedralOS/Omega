@@ -19,6 +19,7 @@
 //! structural places, selector snapshots, and scalar computations retain their
 //! formal order. Their published boundary signature still owns access, claims,
 //! completion and contract requirements independently of evaluation.
+use super::call_arguments::ComputedCallOperands;
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
@@ -258,8 +259,12 @@ impl Builder<'_, '_> {
             return None;
         }
         let (source_call, call_ordinal) = self.call_ordinal(expression, call_target)?;
-        let (arguments, structural_arguments, temporary_cleanups) =
-            self.call_operands(source_call, operands, parameters)?;
+        let ComputedCallOperands {
+            arguments,
+            structural_arguments,
+            temporary_cleanups,
+            claim_transfers,
+        } = self.call_operands(source_call, operands, parameters)?;
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::Call {
@@ -272,6 +277,7 @@ impl Builder<'_, '_> {
                 arguments,
                 structural_arguments,
                 temporary_cleanups,
+                claim_transfers,
             },
         ))
     }

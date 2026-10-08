@@ -109,6 +109,24 @@ impl ClaimBindings<'_> {
     }
 }
 
+/// Resolve every checked transfer through the caller's exact claim table.
+pub(crate) fn emitted_claim_transfers(
+    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+) -> Result<Vec<terminal_psi::ClaimTransfer>, LoweringError> {
+    let mut emitted = transfers
+        .iter()
+        .map(|transfer| {
+            Ok(terminal_psi::ClaimTransfer {
+                claim: lookup_claim_id(claim_bindings, transfer.claim_identity)?,
+                argument_index: transfer.argument_index,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    emitted.sort();
+    Ok(emitted)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedClaim {
     pub(crate) identity: PermissionClaimIdentity,

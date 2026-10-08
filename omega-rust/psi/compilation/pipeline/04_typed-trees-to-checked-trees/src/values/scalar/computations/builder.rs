@@ -1,5 +1,6 @@
 //! builder slice of computations.
 
+use super::call_arguments::ComputedCallOperands;
 use super::{boundary_calls, integers, normal_return};
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
@@ -528,8 +529,12 @@ impl Builder<'_, '_> {
                 if arguments.len() != target_parameters.len() {
                     return None;
                 }
-                let (arguments, structural_arguments, temporary_cleanups) =
-                    self.call_operands(source_call, &arguments, target_parameters)?;
+                let ComputedCallOperands {
+                    arguments,
+                    structural_arguments,
+                    temporary_cleanups,
+                    claim_transfers,
+                } = self.call_operands(source_call, &arguments, target_parameters)?;
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {
@@ -542,6 +547,7 @@ impl Builder<'_, '_> {
                         arguments,
                         structural_arguments,
                         temporary_cleanups,
+                        claim_transfers,
                     },
                 ))
             }

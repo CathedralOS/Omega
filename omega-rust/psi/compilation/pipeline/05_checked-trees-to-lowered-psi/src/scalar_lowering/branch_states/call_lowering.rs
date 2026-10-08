@@ -29,6 +29,7 @@ pub(crate) fn lower_scalar_call(
     scalar_bindings: &storage::ScalarBindings,
     arguments: Vec<LoweredDirectExpression>,
     structural_arguments: Vec<PreparedStructuralArgument>,
+    claim_transfers: Vec<checked_trees::CheckedUnitClaimTransferPlan>,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target = if structural_arguments.is_empty() {
@@ -47,8 +48,24 @@ pub(crate) fn lower_scalar_call(
     // Structural operands arrive from source custody and catalog projection
     // preparation. Reclassifying their path spelling here would discard valid
     // reference crossings after their geometry and access were already checked.
+    // Each owned operand hands over exactly as many claims as the callee
+    // establishes on its parameter; the checked transfers name the caller's
+    // identities and the callee reconstructs its own.
     if target.structural_parameters().len() != structural_arguments.len()
-        || !target.entry_claims().is_empty()
+        || (0..structural_arguments.len()).any(|index| {
+            claim_transfers
+                .iter()
+                .filter(|transfer| transfer.argument_index as usize == index)
+                .count()
+                != target
+                    .entry_claims()
+                    .iter()
+                    .filter(|claim| claim.parameter_index as usize == index)
+                    .count()
+        })
+        || claim_transfers
+            .iter()
+            .any(|transfer| transfer.argument_index as usize >= structural_arguments.len())
     {
         return unsupported("computed scalar call requires exact structural custody");
     }
@@ -175,6 +192,7 @@ pub(crate) fn lower_scalar_call(
         erased_arguments,
         erased_proof_arguments,
         structural_arguments,
+        claim_transfers,
         // The selected body owns storage even when its public signature has
         // only scalars. Graph and ordered-body callers use the same decision.
         crash_continuations,

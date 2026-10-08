@@ -10,10 +10,11 @@
 //! through `publish_result` (the dense roster with its local binding, or the
 //! composed catalog and operation-buffer registry).
 
-use super::super::parameters::{self, emitted_claim_transfers, lower_structural_arguments};
+use super::super::parameters::{self, lower_structural_arguments};
 use super::super::{argument_evaluation, ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
 use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;

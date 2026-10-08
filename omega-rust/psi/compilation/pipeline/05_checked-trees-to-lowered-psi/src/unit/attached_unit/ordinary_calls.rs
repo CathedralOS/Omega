@@ -5,7 +5,7 @@ use super::super::{
     structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
 use super::bodies::UnitPlans;
-use super::parameters::{emitted_claim_transfers, mint_runtime_index_selectors};
+use super::parameters::mint_runtime_index_selectors;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Operation,
     OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -16,6 +16,7 @@ use super::{
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::borrowed_window::terminal_multiplicity;
+use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};

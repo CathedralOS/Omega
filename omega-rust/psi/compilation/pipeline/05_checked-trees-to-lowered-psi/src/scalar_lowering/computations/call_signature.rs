@@ -41,7 +41,7 @@ pub(super) fn structural_parameters(
         crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
             checked, machine,
         )?;
-    if target.entry_state()? != state || !target.entry_claims().is_empty() {
+    if target.entry_state()? != state {
         return unsupported("computed call disagrees with its selected callee signature");
     }
     Ok(target.structural_parameters())
