@@ -60,10 +60,7 @@ pub(super) fn retain(
                     .then_some(fact)
             });
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let StatementNode::Assignment(assignment) = statement else {
                     continue;

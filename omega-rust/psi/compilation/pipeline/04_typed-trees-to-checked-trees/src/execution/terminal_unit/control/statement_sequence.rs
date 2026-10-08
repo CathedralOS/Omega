@@ -175,10 +175,7 @@ pub(super) fn first_unsupported_statement(
         .map(|(_, count)| *count)
         .unwrap_or(usize::MAX);
     program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
         .take(prefix_count)
         .skip(construction_statement_count)
         .find(|(index, statement)| !match statement {

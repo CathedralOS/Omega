@@ -216,10 +216,7 @@ fn solve_state_effects<'program>(
         let mut exits = Vec::new();
         let mut has_transition = false;
         for (ordinal, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+            .statement_table.indexed_statements(state.statement_nodes)
         {
             let StatementNode::Transition(transition) = statement else {
                 continue;

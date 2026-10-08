@@ -369,10 +369,7 @@ pub(super) fn project_component(
                 }
             }
             for (statement_ordinal, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let StatementNode::Transition(transition) = statement else {
                     if prefix::preserves_rank(

@@ -741,10 +741,7 @@ fn collect_exact_proof_call_edges(
         }
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 collect_exact_proof_statement_edges(
                     program,

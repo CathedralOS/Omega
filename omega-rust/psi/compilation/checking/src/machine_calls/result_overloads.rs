@@ -157,10 +157,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let StatementNode::Call(call) = statement else {
                     continue;

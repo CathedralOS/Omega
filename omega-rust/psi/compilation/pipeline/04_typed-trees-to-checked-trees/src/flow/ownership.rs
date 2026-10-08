@@ -212,10 +212,7 @@ pub(crate) fn discover_state_move_events(
     let mut call_index = 0usize;
 
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         sink.evaluation = checked_trees::FlowPermissionEvaluation::Statement;
         append_statement_ownership_events(

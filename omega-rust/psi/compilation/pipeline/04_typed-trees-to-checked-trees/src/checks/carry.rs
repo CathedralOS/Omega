@@ -515,10 +515,7 @@ fn append_live_local_diagnostics(
     let parameter_count = program.state_parameters(state).iter().count();
     let mut local_position = 0;
     for (definition_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         if definition_index >= call.statement_index {
             break;

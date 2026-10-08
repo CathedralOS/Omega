@@ -321,10 +321,7 @@ fn intake_state_induction(
     judge: &mut StructuralJudge<'_>,
 ) {
     let mut transitions = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
         .filter_map(|(position, statement)| {
             let StatementNode::Transition(transition) = statement else {
                 return None;

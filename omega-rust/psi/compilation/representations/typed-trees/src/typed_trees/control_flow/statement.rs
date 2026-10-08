@@ -497,6 +497,15 @@ impl StatementTable {
         self.statements.span_or_empty(span)
     }
 
+    /// The state's statements paired with their index inside the state's
+    /// node span — the shape every per-statement walk consumes.
+    pub fn indexed_statements(
+        &self,
+        span: HandleSpan<StatementNode>,
+    ) -> impl Iterator<Item = (usize, &StatementNode)> {
+        self.statements(span).iter().enumerate()
+    }
+
     /// The `index`th statement inside `state`'s statement list, if present.
     pub fn statement_at(
         &self,

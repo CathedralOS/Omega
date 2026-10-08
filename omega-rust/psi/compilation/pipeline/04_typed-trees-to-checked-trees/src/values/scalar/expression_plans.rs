@@ -221,10 +221,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 .expect("filtered scalar parameters retain primitive carriers");
             let result_type = program.primitive_type_reference(state.return_type);
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;

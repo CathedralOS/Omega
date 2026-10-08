@@ -57,10 +57,7 @@ pub(super) fn check_domain_field_writes(
     };
 
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         // A local annotation is an obligation on its initializer, not an
         // establishment route. Check before the local's own statement facts

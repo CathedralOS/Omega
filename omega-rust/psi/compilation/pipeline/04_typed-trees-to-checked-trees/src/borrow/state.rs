@@ -40,10 +40,7 @@ pub(super) fn append_state_borrow_facts(
     let mut calls_span = arena::HandleSpan::empty();
     let mut loans_span = arena::HandleSpan::empty();
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         for pending in statement_borrow_loans(
             program,

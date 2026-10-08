@@ -33,10 +33,7 @@ pub(crate) fn shared_temporary_owners(
     calls: &[checked_trees::FlowCallFact],
 ) -> Vec<SharedTemporaryOwner> {
     let completed = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
         .map(|(statement_index, statement)| {
             crate::checks::ownership_occurrences::statement_steps(
                 program,

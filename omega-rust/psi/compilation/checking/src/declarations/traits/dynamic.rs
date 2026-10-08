@@ -473,10 +473,7 @@ pub fn resolve_selected_dynamic_call_targets(
         }
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 if let StatementNode::Call(call) = statement {
                     let members = program.statement_table.name_path_members(call.receiver);

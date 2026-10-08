@@ -82,10 +82,7 @@ fn reference_result_nested_operand_call_is_supported(
     // `unit_result_initializer_call_is_supported` performs.
     let mut bindings = program.machine_states(machine).iter().filter_map(|state| {
         program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+            .statement_table.indexed_statements(state.statement_nodes)
             .find_map(|(index, statement)| match statement {
                 StatementNode::LocalData(local) if local.initial_value == value => {
                     Some((state, index, local))

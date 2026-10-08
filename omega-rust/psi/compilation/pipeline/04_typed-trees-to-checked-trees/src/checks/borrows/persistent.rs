@@ -392,10 +392,7 @@ fn analyze_persistent_state(
     let mut static_persistent_paths = entry_paths.to_vec();
     let mut diagnostics = Vec::new();
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         if retain_static_paths_across_call_frame(
             program,

@@ -52,10 +52,7 @@ pub fn visit_executable_value_occurrences(
         }
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 visitor.collect_statement(machine.symbol, state.symbol, statement_index, statement);
             }

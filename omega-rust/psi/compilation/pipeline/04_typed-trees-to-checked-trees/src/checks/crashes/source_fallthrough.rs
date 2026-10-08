@@ -36,10 +36,7 @@ pub(super) fn collect(
         // write cannot unmake the entry fact the unselected arm established.
         let mut guards = Vec::new();
         for (ordinal, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+            .statement_table.indexed_statements(state.statement_nodes)
         {
             // Every statement — a crash exit, a call-bearing statement, or an
             // ordinary step — observes the facts earlier unselected arms

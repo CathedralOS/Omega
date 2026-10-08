@@ -60,10 +60,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             stored_reference_transfer(program, machine, state, symbols, &mut inference)?;
         let mut has_transition = false;
         for (index, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+            .statement_table.indexed_statements(state.statement_nodes)
         {
             let prefix = prefixes.get(index)?.as_ref()?;
             // Birth is a write to the physical home, even for plain scalar or

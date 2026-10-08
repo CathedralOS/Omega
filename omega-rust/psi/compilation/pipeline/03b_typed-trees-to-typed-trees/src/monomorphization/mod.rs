@@ -842,10 +842,7 @@ fn resolve_specialized_receiver_calls(
     for state in &states {
         let mut expression_handles = Vec::new();
         for (index, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+            .statement_table.indexed_statements(state.statement_nodes)
         {
             collect_statement_expression_trees(program, statement, &mut expression_handles);
             let StatementNode::Call(call) = statement else {

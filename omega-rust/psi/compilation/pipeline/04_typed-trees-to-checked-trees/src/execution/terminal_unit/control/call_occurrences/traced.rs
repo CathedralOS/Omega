@@ -80,10 +80,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     let control_prefix =
         statement_sequence::scalar_control(program, facts, owner, state).map(|(_, prefix)| prefix);
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
         .take(statement_end)
     {
         if erased_statement(statement) {

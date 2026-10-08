@@ -44,10 +44,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     let mut loan_index = 0usize;
 
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         append_proof_output_ensures(
             proof,

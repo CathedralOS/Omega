@@ -118,10 +118,7 @@ pub(super) fn for_each_statement_containing(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let mut expressions = Vec::new();
                 validation::expression_traversal::collect_statement_expression_trees(

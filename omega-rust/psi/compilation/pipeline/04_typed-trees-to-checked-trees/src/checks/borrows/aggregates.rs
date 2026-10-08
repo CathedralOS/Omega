@@ -120,10 +120,7 @@ pub(super) fn check_formed_aggregates<'p>(
         return;
     };
     for (statement_index, statement) in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
+        .statement_table.indexed_statements(state.statement_nodes)
     {
         let Some(expression) = super::escape::return_expression(program, statement) else {
             continue;

@@ -313,10 +313,7 @@ fn recognize_structural_state_leaves(
         let mut transitions = Vec::new();
         let mut saw_transition = false;
         for (statement_index, statement) in program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .enumerate()
+            .statement_table.indexed_statements(state.statement_nodes)
         {
             if is_arm_pattern_marker(statement) {
                 continue;

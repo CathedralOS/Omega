@@ -10,10 +10,7 @@ pub(crate) fn record_state_locals(program: &dyn validation::CheckingInput) -> St
         for state in program.machine_states(machine) {
             let mut locals = Vec::new();
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let StatementNode::LocalData(local) = statement else {
                     continue;

@@ -147,10 +147,7 @@ pub(crate) fn validate_recasts(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 if let StatementNode::LocalData(local) = statement
                     && local.type_reference.is_valid()

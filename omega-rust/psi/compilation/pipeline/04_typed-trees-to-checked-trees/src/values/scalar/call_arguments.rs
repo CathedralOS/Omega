@@ -64,10 +64,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
             let captured =
                 crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);
             for (statement_index, statement) in program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
+                .statement_table.indexed_statements(state.statement_nodes)
             {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
