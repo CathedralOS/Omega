@@ -768,10 +768,7 @@ pub(super) fn returned<'a>(
             block,
             declaration,
         } => {
-            let parameter = source
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == *block)?
+            let parameter = source.block(*block)?
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == declaration.place)?;

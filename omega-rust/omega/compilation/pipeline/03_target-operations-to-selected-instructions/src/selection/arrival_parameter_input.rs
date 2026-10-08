@@ -76,10 +76,7 @@ pub(super) fn parameter(
         StructuralPlaceKind::BlockParameter { block, position } => {
             block != source.entry_block
                 && position == parameter.position
-                && source
-                    .blocks
-                    .iter()
-                    .find(|row| row.id == block)
+                && source.block(block)
                     .and_then(|row| row.structural_parameters.get(position as usize))
                     == Some(parameter)
         }

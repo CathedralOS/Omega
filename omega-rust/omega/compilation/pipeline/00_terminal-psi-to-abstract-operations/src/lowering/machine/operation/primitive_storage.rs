@@ -29,10 +29,7 @@ pub(super) fn parameter<'a>(
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
-    let parameter = machine
-        .blocks
-        .iter()
-        .find(|row| row.id == block)?
+    let parameter = machine.block(&block)?
         .structural_parameters
         .get(position as usize)?;
     (parameter.place == place && parameter.position == position).then_some(parameter)
@@ -61,10 +58,7 @@ pub(super) fn owned_state_parameter(
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
-    let parameter = machine
-        .blocks
-        .iter()
-        .find(|row| row.id == block)?
+    let parameter = machine.block(&block)?
         .structural_parameters
         .get(position as usize)?;
     (parameter.place == place

@@ -81,10 +81,7 @@ pub(super) fn validate_structural_block_bindings(
             let unsupported =
                 |target: semantic_vocabulary::BlockId,
                  arguments: &[terminal_psi::StructuralArgument]| {
-                    let parameters = machine
-                        .blocks
-                        .iter()
-                        .find(|candidate| candidate.id == target)
+                    let parameters = machine.block(&target)
                         .map(|candidate| candidate.structural_parameters.as_slice())
                         .filter(|parameters| parameters.len() == arguments.len());
                     arguments.iter().enumerate().any(|(position, argument)| {

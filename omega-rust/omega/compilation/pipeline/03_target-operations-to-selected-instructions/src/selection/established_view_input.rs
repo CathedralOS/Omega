@@ -148,10 +148,7 @@ pub(super) fn accepts(
     target: &TargetStructuralArgument,
 ) -> Option<()> {
     if let TargetStructuralArgumentSource::BlockParameter { block, place } = target.source {
-        let owner = source
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)?;
+        let owner = source.block(block)?;
         let parameter = owner
             .structural_parameters
             .iter()

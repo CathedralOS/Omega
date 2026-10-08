@@ -84,10 +84,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 }
                 StructuralPlaceKind::BlockParameter { block, position } => {
                     position == parameter.position
-                        && machine
-                            .blocks
-                            .iter()
-                            .find(|candidate| candidate.id == block)
+                        && machine.block(&block)
                             .and_then(|block| block.structural_parameters.get(position as usize))
                             == Some(parameter)
                 }
@@ -556,10 +553,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
                 return None;
             };
-            machine
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)?
+            machine.block(&block)?
                 .structural_parameters
                 .get(position as usize)
                 .filter(|parameter| parameter.place == *source && parameter.position == position)

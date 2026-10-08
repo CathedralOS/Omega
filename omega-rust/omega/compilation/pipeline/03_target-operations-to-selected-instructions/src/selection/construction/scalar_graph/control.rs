@@ -394,10 +394,7 @@ fn successor(
                         )?,
                     });
                 }
-                let parameter = source
-                    .blocks
-                    .iter()
-                    .find(|block| block.id == next.target)
+                let parameter = source.block(next.target)
                     .and_then(|block| {
                         block
                             .structural_parameters

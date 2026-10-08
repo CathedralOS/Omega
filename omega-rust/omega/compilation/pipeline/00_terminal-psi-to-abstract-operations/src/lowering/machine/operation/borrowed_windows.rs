@@ -300,10 +300,7 @@ pub(super) fn block_parameter(
     let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
         return None;
     };
-    machine
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)?
+    machine.block(&block)?
         .structural_parameters
         .get(position as usize)
         .filter(|parameter| parameter.place == place && parameter.position == position)

@@ -84,10 +84,7 @@ fn validate_block_parameters(
 fn validate_block_parameter_places(machine: &TerminalMachine) -> Result<(), CodecError> {
     for place in &machine.structural_places {
         if let StructuralPlaceKind::BlockParameter { block, position } = place.kind {
-            let parameter = machine
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)
+            let parameter = machine.block(&block)
                 .and_then(|candidate| candidate.structural_parameters.get(position as usize));
             if parameter.is_none_or(|parameter| parameter.place != place.id) {
                 return malformed("structural block place has no matching parameter");
@@ -209,10 +206,7 @@ fn validate_partial_affine_discards(
                 else {
                     return None;
                 };
-                machine
-                    .blocks
-                    .iter()
-                    .find(|candidate| candidate.id == block)?
+                machine.block(&block)?
                     .structural_parameters
                     .get(position as usize)
                     .filter(|parameter| {

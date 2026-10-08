@@ -1119,10 +1119,7 @@ fn block_parameter(
             return None;
         };
         (declaration.id == place).then_some(())?;
-        machine
-            .blocks
-            .iter()
-            .find(|candidate| candidate.id == block)?
+        machine.block(&block)?
             .structural_parameters
             .get(position as usize)
             .filter(|parameter| parameter.place == place)
