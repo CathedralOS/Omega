@@ -373,17 +373,7 @@ pub(super) fn zeroed_scalar_array_parts(
         return None;
     };
     let primitive_type = program.primitive_type_reference(*element_type)?;
-    if !matches!(
-        primitive_type,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) {
+    if !primitive_type.is_fixed_integer() {
         return None;
     }
     Some((primitive_type, u64::try_from(*length).ok()?))

@@ -33,19 +33,6 @@ fn signed_minimum(primitive: PrimitiveType) -> Option<i64> {
     }
 }
 
-fn fixed_integer(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::U8
-            | PrimitiveType::I16
-            | PrimitiveType::U16
-            | PrimitiveType::I32
-            | PrimitiveType::U32
-            | PrimitiveType::I64
-            | PrimitiveType::U64
-    )
-}
 
 fn may_contain(interval: Option<Interval>, value: i64) -> bool {
     let Some(interval) = interval else {
@@ -160,7 +147,7 @@ pub(super) fn validate_operands(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    if !fixed_integer(primitive)
+    if !primitive.is_fixed_integer()
         || !matches!(
             binary.operator,
             BinaryOperator::Divide | BinaryOperator::Modulo
@@ -253,7 +240,7 @@ pub(super) fn validate_abstract(
             let Some(primitive) = left_operand
                 .or(right_operand)
                 .map(|(primitive, _)| primitive)
-                .filter(|primitive| fixed_integer(*primitive))
+                .filter(|primitive| primitive.is_fixed_integer())
             else {
                 return;
             };

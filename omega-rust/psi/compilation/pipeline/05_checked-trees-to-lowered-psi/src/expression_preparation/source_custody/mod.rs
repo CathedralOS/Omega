@@ -37,18 +37,7 @@ pub(crate) mod case_sources;
 pub(crate) mod structural;
 
 pub(crate) fn supported_mutable_parameter(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::Bool
-            | PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    )
+    matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()
 }
 
 /// The source-role ordinal of the `let` at `statement`: the authored local

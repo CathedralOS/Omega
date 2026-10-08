@@ -745,16 +745,6 @@ fn realized_scalar_carrier(
     }
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
     (!bounded
-        || matches!(
-            primitive,
-            PrimitiveType::I8
-                | PrimitiveType::I16
-                | PrimitiveType::I32
-                | PrimitiveType::I64
-                | PrimitiveType::U8
-                | PrimitiveType::U16
-                | PrimitiveType::U32
-                | PrimitiveType::U64
-        ))
+        || primitive.is_fixed_integer())
     .then_some(primitive)
 }

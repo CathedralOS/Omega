@@ -835,17 +835,7 @@ fn fixed_integer(
     type_reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
     let primitive = program.primitive_type_reference(type_reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) {
+    if !primitive.is_fixed_integer() {
         return None;
     }
     let domain = program.arithmetic_domain_for_type_reference(type_reference);

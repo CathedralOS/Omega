@@ -6,7 +6,6 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 mod context;
 mod guard_implication;
-pub(super) use context::fixed_integer;
 pub(super) use context::proves as proves_in_context;
 
 pub(super) fn proves(

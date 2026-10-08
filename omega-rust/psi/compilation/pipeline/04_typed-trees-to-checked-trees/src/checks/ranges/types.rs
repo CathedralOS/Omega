@@ -150,17 +150,7 @@ pub(in crate::checks) fn expression_enforced_declared_range(
         ),
     };
     let primitive = primitive_of_type_reference(program, type_reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) {
+    if !primitive.is_fixed_integer() {
         return None;
     }
     let declared = enforced_range_of_type_reference(program, type_reference).or_else(|| {
@@ -223,17 +213,7 @@ fn dependent_range_substituted(
     // The field itself must be an enforced-integer-ranged place (same gate
     // this module applies to any range an index proof may trust).
     if primitive_of_type_reference(program, field_type).is_none_or(|primitive| {
-        !matches!(
-            primitive,
-            PrimitiveType::I8
-                | PrimitiveType::I16
-                | PrimitiveType::I32
-                | PrimitiveType::I64
-                | PrimitiveType::U8
-                | PrimitiveType::U16
-                | PrimitiveType::U32
-                | PrimitiveType::U64
-        )
+        !primitive.is_fixed_integer()
     }) {
         return None;
     }

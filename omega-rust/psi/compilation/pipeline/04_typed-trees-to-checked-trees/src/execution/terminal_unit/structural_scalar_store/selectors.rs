@@ -187,19 +187,7 @@ fn retained(
     index: ExpressionHandle,
 ) -> Option<()> {
     let integer = |primitive_type: Option<PrimitiveType>| {
-        matches!(
-            primitive_type,
-            Some(
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
-        )
+        primitive_type.is_some_and(|primitive| primitive.is_fixed_integer())
     };
     let role = CheckedScalarExpressionRole::AssignmentIndex { depth };
     if let Some((binding, value)) =

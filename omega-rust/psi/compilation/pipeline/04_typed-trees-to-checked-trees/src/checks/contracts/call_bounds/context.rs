@@ -241,7 +241,7 @@ fn prove(
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
             continue;
         };
-        if !fixed_integer(primitive) {
+        if !primitive.is_fixed_integer() {
             continue;
         }
         if fixed_parameter_type(program, parameter) != Some(primitive) {
@@ -426,19 +426,6 @@ fn binding(
     }
 }
 
-pub(crate) fn fixed_integer(primitive: PrimitiveType) -> bool {
-    matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    )
-}
 
 fn fixed_parameter_type(
     program: &dyn ::validation::CheckingInput,
@@ -449,7 +436,7 @@ fn fixed_parameter_type(
     }
     program
         .primitive_type_reference(parameter.type_reference)
-        .filter(|primitive| fixed_integer(*primitive))
+        .filter(|primitive| primitive.is_fixed_integer())
 }
 
 fn direct_parameter<'a>(
@@ -492,7 +479,7 @@ fn comparison_is_supported(
                     literal: literal.clone(),
                 },
             )?;
-            return fixed_integer(primitive).then_some((Some(primitive), None));
+            return primitive.is_fixed_integer().then_some((Some(primitive), None));
         }
         let primitive = arguments::primitive_type(program, facts, owner, parameters, expression)?;
         let type_reference = direct_parameter(program, parameters, expression)

@@ -20,7 +20,6 @@
 
 use super::callable::Callable;
 use super::{Invocation, actual_projection, bound_place, direct_place};
-use crate::checks::contracts::call_bounds::fixed_integer;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
@@ -325,7 +324,7 @@ fn bind_occurrences(
         let reference = callable.scalar_reference(program, occurrence)?;
         let primitive = program
             .primitive_type_reference(reference)
-            .filter(|primitive| fixed_integer(*primitive))?;
+            .filter(|primitive| primitive.is_fixed_integer())?;
         let binder = match program.expression_table.expression(occurrence) {
             ExpressionNode::Member(_) => ScopedArithmeticBinder::Projection(occurrence),
             ExpressionNode::Name(path)
@@ -402,7 +401,7 @@ fn term(
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable
             .scalar_reference(program, expression)
             .and_then(|reference| program.primitive_type_reference(reference))
-            .is_some_and(fixed_integer),
+            .is_some_and(|primitive| primitive.is_fixed_integer()),
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
@@ -433,7 +432,7 @@ fn term(
         }
         ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
             .is_some_and(|(primitive, source)| {
-                fixed_integer(primitive)
+                primitive.is_fixed_integer()
                     && matches!(
                         program.expression_table.expression(source),
                         ExpressionNode::Name(_)

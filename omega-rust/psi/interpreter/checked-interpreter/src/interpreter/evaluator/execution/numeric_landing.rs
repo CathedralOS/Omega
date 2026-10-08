@@ -152,17 +152,7 @@ impl Evaluator<'_> {
         destination: Option<PrimitiveType>,
     ) -> EvalResult<Option<Value>> {
         if let Some(destination) = destination.filter(|primitive| {
-            matches!(
-                primitive,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
+            primitive.is_fixed_integer()
         }) && let Some(literal) = validation::land_anonymous_integer_expression(
             self.program,
             expression,

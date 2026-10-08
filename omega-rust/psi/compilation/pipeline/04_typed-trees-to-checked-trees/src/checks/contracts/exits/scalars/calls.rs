@@ -307,17 +307,7 @@ impl ExitScalars<'_, '_> {
             ..
         } = selected;
         let result_type = self.program.primitive_type_reference(entry.return_type)?;
-        if !matches!(
-            result_type,
-            typed_trees::types::PrimitiveType::I8
-                | typed_trees::types::PrimitiveType::I16
-                | typed_trees::types::PrimitiveType::I32
-                | typed_trees::types::PrimitiveType::I64
-                | typed_trees::types::PrimitiveType::U8
-                | typed_trees::types::PrimitiveType::U16
-                | typed_trees::types::PrimitiveType::U32
-                | typed_trees::types::PrimitiveType::U64
-        ) {
+        if !result_type.is_fixed_integer() {
             return None;
         }
         let mut retained = None;

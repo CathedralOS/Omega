@@ -388,17 +388,7 @@ impl<'program> Evaluator<'program> {
         let is_float = |primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64);
         let is_numeric = |primitive| {
             is_float(primitive)
-                || matches!(
-                    primitive,
-                    PrimitiveType::I8
-                        | PrimitiveType::I16
-                        | PrimitiveType::I32
-                        | PrimitiveType::I64
-                        | PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                )
+                || primitive.is_fixed_integer()
         };
         (source != destination
             && is_numeric(source)

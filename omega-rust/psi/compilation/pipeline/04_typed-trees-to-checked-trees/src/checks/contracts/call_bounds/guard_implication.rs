@@ -198,17 +198,7 @@ fn observation(
         return None;
     }
     let primitive = program.primitive_type_reference(reference)?;
-    matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    )
+    primitive.is_fixed_integer()
     .then_some((expression, Meaning::Integer(primitive)))
 }
 

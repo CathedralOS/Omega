@@ -483,17 +483,7 @@ fn exact_integer(
     reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let primitive = program.primitive_type_reference(reference)?;
-    if !matches!(
-        primitive,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
+    if !primitive.is_fixed_integer() || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
     {
         return None;
     }

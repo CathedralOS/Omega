@@ -47,19 +47,7 @@ pub(crate) fn mutable_scalar_parameter_type(
         return None;
     }
     let primitive = program.primitive_type_reference(parameter.type_reference)?;
-    matches!(
-        primitive,
-        PrimitiveType::Bool
-            | PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    )
-    .then_some(primitive)
+    (matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()).then_some(primitive)
 }
 
 pub(crate) use scalar::{

@@ -40,17 +40,7 @@ impl VirtualClockResult {
                 TypeReferenceNode::Unit
             ),
             Self::Integer(primitive) => {
-                matches!(
-                    primitive,
-                    PrimitiveType::I8
-                        | PrimitiveType::I16
-                        | PrimitiveType::I32
-                        | PrimitiveType::I64
-                        | PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64
-                ) && matches!(
+                primitive.is_fixed_integer() && matches!(
                     checked.type_reference_table.type_reference(result),
                     TypeReferenceNode::Named { .. }
                 ) && checked.primitive_type_reference(result) == Some(primitive)
@@ -139,16 +129,7 @@ impl VirtualClockBinding {
             .iter()
             .map(
                 |parameter| match checked.primitive_type_reference(parameter.type_reference) {
-                    Some(
-                        primitive @ (PrimitiveType::I8
-                        | PrimitiveType::I16
-                        | PrimitiveType::I32
-                        | PrimitiveType::I64
-                        | PrimitiveType::U8
-                        | PrimitiveType::U16
-                        | PrimitiveType::U32
-                        | PrimitiveType::U64),
-                    ) => Ok(primitive),
+                    Some(primitive) if primitive.is_fixed_integer() => Ok(primitive),
                     _ => Err("virtual wait requires scalar integer operands"),
                 },
             )

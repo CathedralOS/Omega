@@ -8,7 +8,6 @@ use super::{
 };
 use crate::checks::contracts::call_bounds::context::comparison_is_supported;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
-use crate::checks::contracts::call_bounds::context::fixed_integer;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
 use numerics::arithmetic::ArithmeticDomain;
 
@@ -163,7 +162,7 @@ fn meaning(
                 expression,
             )?;
             let primitive = program.primitive_type_reference(type_reference)?;
-            fixed_integer(primitive).then_some(Meaning {
+            primitive.is_fixed_integer().then_some(Meaning {
                 primitive,
                 domain: program.arithmetic_domain_for_type_reference(type_reference),
                 type_reference: Some(type_reference),
@@ -175,7 +174,7 @@ fn meaning(
                     literal: literal.clone(),
                 },
             )?;
-            fixed_integer(primitive).then_some(Meaning {
+            primitive.is_fixed_integer().then_some(Meaning {
                 primitive,
                 domain: literal.landing()?.domain,
                 type_reference: None,
