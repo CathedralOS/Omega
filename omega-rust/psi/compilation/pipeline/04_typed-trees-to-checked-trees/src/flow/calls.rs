@@ -366,17 +366,13 @@ fn append_one_to_one_call_carry_facts<'plans>(
         });
         semantic.append_ref(&mut refs, fact);
     }
-    let context = semantic.append_context(point, refs);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        &mut exit.contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        &mut exit.constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    reference_spans::append_semantic_context(
+            semantic,
+            build,
+            exit,
+            point,
+            refs,
+        );
 }
 
 /// Publish the declared field predicates an OWNED nominal call result carries.
@@ -464,17 +460,13 @@ fn append_call_result_field_domain_facts<'plans>(
         });
         semantic.append_ref(&mut refs, fact);
     }
-    let context = semantic.append_context(point, refs);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        &mut exit.contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        &mut exit.constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
+    reference_spans::append_semantic_context(
+            semantic,
+            build,
+            exit,
+            point,
+            refs,
+        );
 }
 
 /// Authored `ensures <parameter> in <domain>` claims the call hands back on
@@ -586,16 +578,12 @@ fn append_call_parameter_domain_facts<'plans>(
         });
         let mut refs = HandleSpan::empty();
         semantic.append_ref(&mut refs, fact);
-        let context = semantic.append_context(point, refs);
-        reference_spans::append_flow_reference(
-            &mut build.contexts.semantic_context_refs,
-            &mut exit.contexts,
-            FlowSemanticContextRef { context },
-        );
-        append_constraint_ref(
-            &mut build.contexts.constraint_refs,
-            &mut exit.constraints,
-            FlowConstraintKind::SemanticContext { context },
+        reference_spans::append_semantic_context(
+            semantic,
+            build,
+            exit,
+            point,
+            refs,
         );
     }
 }

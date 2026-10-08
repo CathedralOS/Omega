@@ -217,16 +217,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         }
     }
     for (_, refs) in contexts {
-        let context = semantic.append_context(point, refs);
-        reference_spans::append_flow_reference(
-            &mut build.contexts.semantic_context_refs,
-            &mut exit.contexts,
-            FlowSemanticContextRef { context },
-        );
-        append_constraint_ref(
-            &mut build.contexts.constraint_refs,
-            &mut exit.constraints,
-            FlowConstraintKind::SemanticContext { context },
+        reference_spans::append_semantic_context(
+            semantic,
+            build,
+            exit,
+            point,
+            refs,
         );
     }
 }

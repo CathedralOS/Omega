@@ -124,6 +124,28 @@ pub(crate) fn retained_constraint_refs(
     }
 }
 
+/// Publish one semantic context to both the context-ref and constraint-ref
+/// tails — the two evidence lists a flow site always extends together.
+pub(crate) fn append_semantic_context(
+    semantic: &mut FactPlan,
+    build: &mut super::context::FlowBuildContext<'_>,
+    exit: &mut super::call_phases::CallFlowContexts,
+    point: ProgramPoint,
+    refs: arena::HandleSpan<facts::FactRef>,
+) {
+    let context = semantic.append_context(point, refs);
+    append_flow_reference(
+        &mut build.contexts.semantic_context_refs,
+        &mut exit.contexts,
+        FlowSemanticContextRef { context },
+    );
+    append_constraint_ref(
+        &mut build.contexts.constraint_refs,
+        &mut exit.constraints,
+        FlowConstraintKind::SemanticContext { context },
+    );
+}
+
 pub(crate) fn append_constraint_ref(
     constraint_refs: &mut arena::Arena<FlowConstraintRef>,
     refs: &mut arena::HandleSpan<FlowConstraintRef>,
