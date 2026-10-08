@@ -661,13 +661,7 @@ pub(super) fn bounded_owned_byte_type(
 ) -> bool {
     source.structural.as_ref().is_some_and(|signature| {
         signature.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+            declaration.id == structural_type && declaration.shape.is_bounded_owned_byte_sequence()
         })
     })
 }

@@ -64,15 +64,7 @@ pub(in crate::legalization) fn expected(
             .map_err(|_| LegalizationError::custody())?;
             let mut arguments = Vec::new();
             for (position, parameter) in callee.structural_parameters.iter().enumerate() {
-                if position != 0
-                    || parameter.position != 0
-                    || parameter.structural_type != cleanup.structural_type
-                    || cleanup.cleanup_receiver != Some(parameter.place)
-                    || !matches!(
-                        parameter.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    )
-                {
+                if position != 0 || !parameter.is_cleanup_receiver(cleanup) {
                     return Err(LegalizationError::custody());
                 }
                 let semantic = StructuralArgument {

@@ -845,14 +845,7 @@ pub(super) fn lower_cleanup_calls(
                 .iter()
                 .zip(&signature.parameters)
             {
-                if parameter.position != 0
-                    || parameter.structural_type != cleanup.structural_type
-                    || cleanup.cleanup_receiver != Some(parameter.place)
-                    || !matches!(
-                        parameter.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    )
-                {
+                if !parameter.is_cleanup_receiver(cleanup) {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let argument = StructuralArgument {

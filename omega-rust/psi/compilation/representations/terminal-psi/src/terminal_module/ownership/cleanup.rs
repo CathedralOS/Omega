@@ -64,6 +64,14 @@ impl TerminalAffineCleanupAction {
         }
     }
 
+    /// The cleanup machine a nominal invoke delegates to.
+    pub fn invoked_machine(&self) -> Option<MachineId> {
+        match self {
+            Self::InvokeNominal(cleanup) => Some(cleanup.cleanup_machine),
+            _ => None,
+        }
+    }
+
     /// The owned root affected by this ordered cleanup action.
     pub fn place(&self) -> PlaceId {
         match self {

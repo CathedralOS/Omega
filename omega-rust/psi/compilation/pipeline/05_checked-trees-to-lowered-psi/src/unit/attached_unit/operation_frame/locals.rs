@@ -398,12 +398,7 @@ impl OperationFrame<'_, '_> {
             .iter()
             .any(|declaration| {
                 declaration.id == structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
+                    && declaration.shape.is_bounded_owned_byte_sequence()
             })
         {
             return self.establish_owned_byte_sequence(

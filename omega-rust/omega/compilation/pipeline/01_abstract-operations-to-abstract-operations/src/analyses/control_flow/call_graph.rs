@@ -24,12 +24,7 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                 operation
                     .cleanup_rosters()
                     .flat_map(|(_, actions)| actions)
-                    .filter_map(|action| match action {
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                            Some(cleanup.cleanup_machine)
-                        }
-                        _ => None,
-                    }),
+                    .filter_map(|action| action.invoked_machine()),
             );
             callees.extend(unit.call_machine_references(operation));
         }

@@ -174,12 +174,7 @@ pub(crate) fn check(
                     .terminator
                     .cleanup_rosters()
                     .flat_map(|(_, actions)| actions)
-                    .filter_map(|action| match action {
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                            Some(cleanup.cleanup_machine)
-                        }
-                        _ => None,
-                    }),
+                    .filter_map(|action| action.invoked_machine()),
             );
         }
     }

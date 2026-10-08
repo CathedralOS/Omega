@@ -225,15 +225,10 @@ pub(crate) fn validate_nominal_cleanup_action(
         || !target.entry_claims.is_empty()
         || !target.content_entry_claims.is_empty()
         || target.structural_parameters.len() > 1
-        || target.structural_parameters.iter().any(|parameter| {
-            parameter.position != 0
-                || parameter.structural_type != cleanup.structural_type
-                || cleanup.cleanup_receiver != Some(parameter.place)
-                || !matches!(
-                    parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                )
-        })
+        || target
+            .structural_parameters
+            .iter()
+            .any(|parameter| !parameter.is_cleanup_receiver(cleanup))
         || cleanup.consumed_claims
             != source_claims
                 .iter()

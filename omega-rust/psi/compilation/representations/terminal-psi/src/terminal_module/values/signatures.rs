@@ -85,6 +85,19 @@ pub struct StructuralParameterDeclaration {
 }
 
 impl StructuralParameterDeclaration {
+    /// Whether the parameter is the callee slot a nominal cleanup binds to:
+    /// position zero, the cleanup's structural type and receiver place, and a
+    /// mutably writable borrow access.
+    pub fn is_cleanup_receiver(&self, cleanup: &crate::NominalAffineCleanup) -> bool {
+        self.position == 0
+            && self.structural_type == cleanup.structural_type
+            && cleanup.cleanup_receiver == Some(self.place)
+            && matches!(
+                self.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+    }
+
     /// Whether the parameter carries an ordinary unqualified root: an
     /// unrestricted or affine multiplicity with no declared or projected
     /// qualifications. Borrowed windows and byte-sequence field stores admit
