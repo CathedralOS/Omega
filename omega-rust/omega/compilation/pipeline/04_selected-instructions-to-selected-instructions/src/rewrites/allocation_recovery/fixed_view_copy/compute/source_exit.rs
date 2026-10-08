@@ -82,13 +82,19 @@ pub(super) fn build_source_exit_copies(
                 view: member.to_view,
             });
         }
-        let (insertion_block, before_instruction) = super::super::work::transition_site(
-            emission.exit,
-            members[0].site,
-            first.block,
-            first.virtual_register.0,
-            function_index,
-        )?;
+        let (insertion_block, before_instruction) = match emission.exit {
+            Some(connector) => (connector.source, connector.terminator),
+            None => {
+                let VirtualFixedConstraintSite::Operand { instruction, .. } = members[0].site
+                else {
+                    return Err(FixedViewCopyError::UnsupportedTransitionSite {
+                        function: function_index,
+                        register: first.virtual_register.0,
+                    });
+                };
+                (first.block, instruction)
+            }
+        };
         let copy = FixedViewCopy {
             function: u32::try_from(function_index).map_err(|_| {
                 FixedViewCopyError::IdentifierOverflow {
