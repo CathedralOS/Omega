@@ -780,12 +780,9 @@ pub(crate) fn prepare(
                     subject.typed_overlay,
                     subject.carrier_path,
                     subject.path,
-                    types
-                        .iter()
-                        .find(|declaration| declaration.id == subject.terminal)
-                        .ok_or(LoweringError::Unsupported(
-                            "record read's loaned carrier type is absent",
-                        ))?,
+                    terminal_psi::find_structural_type(&types, subject.terminal).ok_or(
+                        LoweringError::Unsupported("record read's loaned carrier type is absent"),
+                    )?,
                     subject.runtime_index,
                     subject.view_container,
                     subject.element_suffix,
@@ -1117,9 +1114,7 @@ pub(crate) fn type_roots(
     let mut types = Vec::new();
     // A loan used only by array reads has neither a field computation nor a
     // store. Its declared type still owns the projection geometry.
-    if let Some(owner) = checked
-        .machine(machine)
-    {
+    if let Some(owner) = checked.machine(machine) {
         for state in checked.machine_states(owner) {
             for local in checked.facts.state_locals.locals(state.symbol) {
                 let TypeReferenceNode::Reference { referee, .. } = checked

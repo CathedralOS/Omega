@@ -10,8 +10,8 @@ use super::{
     StructuralTypeId, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use terminal_psi::find_structural_type;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use terminal_psi::find_structural_type;
 
 pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
@@ -1459,9 +1459,7 @@ pub(crate) fn element_views(
     parameters
         .iter()
         .filter_map(|(_, parameter)| {
-            let shape = types
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)?;
+            let shape = find_structural_type(types, parameter.structural_type)?;
             let terminal_psi::StructuralTypeShape::ElementView { element } = shape.shape else {
                 return None;
             };

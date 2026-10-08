@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
     Block, OperationKind, RecordFieldValue, StructuralAccess, StructuralAffineDiscard,
     StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, Terminator, find_structural_type,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -319,12 +319,9 @@ fn partition_residual(
         });
         return Ok(());
     }
-    let declaration = types
-        .iter()
-        .find(|declaration| declaration.id == residual.structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "scheduled cleanup subtree declaration is absent",
-        ))?;
+    let declaration = find_structural_type(types, residual.structural_type).ok_or(
+        LoweringError::Unsupported("scheduled cleanup subtree declaration is absent"),
+    )?;
     match &declaration.shape {
         terminal_psi::StructuralTypeShape::Record { fields, .. } => {
             for field in fields

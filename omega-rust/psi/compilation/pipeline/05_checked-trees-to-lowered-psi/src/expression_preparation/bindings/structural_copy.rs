@@ -68,7 +68,7 @@ impl ScalarBindings {
         types: &[StructuralTypeDeclaration],
     ) -> Result<PreparedStructuralCopy, LoweringError> {
         use structural_paths::PreparedStructuralPathSegment as Segment;
-        use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+        use terminal_psi::{StructuralPathSegment, StructuralTypeShape, find_structural_type};
         let (requested_extent, path) = match path.split_first() {
             Some((Segment::ViewExtent { bytes }, suffix)) => (Some(*bytes), suffix),
             _ => (None, path),
@@ -83,12 +83,9 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "indexed copy has no published source type",
                 ))?;
-            let root = types
-                .iter()
-                .find(|declaration| declaration.id == root_type)
-                .ok_or(LoweringError::Unsupported(
-                    "indexed copy source type is absent",
-                ))?;
+            let root = find_structural_type(types, root_type).ok_or(LoweringError::Unsupported(
+                "indexed copy source type is absent",
+            ))?;
             let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
             match root.shape {
                 StructuralTypeShape::ElementView { .. } if requested_extent != Some(true) => {

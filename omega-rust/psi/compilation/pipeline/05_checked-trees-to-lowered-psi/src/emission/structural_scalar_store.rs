@@ -299,12 +299,9 @@ fn structural_field_root(
     root_type: StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<(&StructuralTypeDeclaration, Vec<ProjectionStep>), LoweringError> {
-    let declaration = structural_types
-        .iter()
-        .find(|declaration| declaration.id == root_type)
-        .ok_or(LoweringError::Unsupported(
-            "structural scalar store root type is absent",
-        ))?;
+    let declaration = terminal_psi::find_structural_type(structural_types, root_type).ok_or(
+        LoweringError::Unsupported("structural scalar store root type is absent"),
+    )?;
     // A reference carries its pointer and loan, not inline members. Retain
     // every crossing so downstream geometry observes the referent, never the
     // carrier's home. This applies at the root and at every selected child.

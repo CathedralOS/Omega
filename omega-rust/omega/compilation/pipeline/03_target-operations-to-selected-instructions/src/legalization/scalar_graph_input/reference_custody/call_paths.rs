@@ -59,11 +59,10 @@ pub(super) fn call_reference_custody(
         }
         let prefix = &argument.path[prefix_start..position];
         let reference_type = leaf_type(types, current, prefix).ok_or(invalid())?;
-        let StructuralTypeShape::Reference { referent, access } = types
-            .iter()
-            .find(|declaration| declaration.id == reference_type)
-            .ok_or(invalid())?
-            .shape
+        let StructuralTypeShape::Reference { referent, access } =
+            terminal_psi::find_structural_type(types, reference_type)
+                .ok_or(invalid())?
+                .shape
         else {
             return Err(invalid());
         };

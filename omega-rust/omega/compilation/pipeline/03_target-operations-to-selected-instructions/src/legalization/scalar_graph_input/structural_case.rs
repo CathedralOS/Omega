@@ -8,9 +8,8 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
 };
 use terminal_psi::{
-    find_structural_type,
-StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, find_structural_type,
 };
 
 pub(in crate::legalization) fn source_result(
@@ -213,10 +212,7 @@ pub(in crate::legalization) fn membership_layout(
     {
         return Err(LegalizationError::custody());
     }
-    let declaration = plan
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == identity)
+    let declaration = find_structural_type(plan.structural_types.as_slice(), identity)
         .ok_or(LegalizationError::custody())?;
     let cases: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Sum { cases }

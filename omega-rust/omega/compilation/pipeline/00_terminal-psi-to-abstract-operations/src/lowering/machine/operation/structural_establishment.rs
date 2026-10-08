@@ -1,7 +1,7 @@
 use abstract_operations::AbstractOperation;
 use terminal_psi::{
     Block, Operation, OperationKind, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalMachine,
+    TerminalMachine, find_structural_type,
 };
 
 use super::super::{LoweredAffineLocal, StructuralLiteral};
@@ -109,9 +109,7 @@ pub(super) fn lower(
                 .find(|(place, _, _)| place.id == destination)
                 .copied()
                 .ok_or(LoweringError::UnsupportedByteSequenceLiteral(operation.id))?;
-            let declaration = structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)
+            let declaration = find_structural_type(structural_types, structural_type)
                 .cloned()
                 .ok_or(LoweringError::UnsupportedByteSequenceLiteral(operation.id))?;
             if !matches!(
@@ -148,9 +146,7 @@ pub(super) fn lower(
                         .next()
                         .expect("every terminator carries an edge"),
                 })?;
-            let declaration = structural_types
-                .iter()
-                .find(|declaration| declaration.id == structural_type)
+            let declaration = find_structural_type(structural_types, structural_type)
                 .cloned()
                 .ok_or_else(|| LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,

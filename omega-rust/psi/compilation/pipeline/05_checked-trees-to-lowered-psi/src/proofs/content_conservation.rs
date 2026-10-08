@@ -274,12 +274,10 @@ pub(crate) fn lower_whole_content_entry_claims(
         {
             return unsupported("content entry qualifications are not canonical");
         }
-        let mut carrier = structural_types
-            .iter()
-            .find(|declaration| declaration.id == parameter.structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "content entry carrier is absent",
-            ))?;
+        let mut carrier =
+            terminal_psi::find_structural_type(structural_types, parameter.structural_type).ok_or(
+                LoweringError::Unsupported("content entry carrier is absent"),
+            )?;
         let mut segments = Vec::with_capacity(entry_claim.path.len());
         for segment in &entry_claim.path {
             let child = match (segment, &carrier.shape) {
@@ -311,12 +309,9 @@ pub(crate) fn lower_whole_content_entry_claims(
                 }
                 _ => return unsupported("content claim has an unsupported or mistyped path"),
             };
-            carrier = structural_types
-                .iter()
-                .find(|declaration| declaration.id == child)
-                .ok_or(LoweringError::Unsupported(
-                    "content claim leaf carrier is absent",
-                ))?;
+            carrier = terminal_psi::find_structural_type(structural_types, child).ok_or(
+                LoweringError::Unsupported("content claim leaf carrier is absent"),
+            )?;
         }
         let qualifications = checked_parameter
             .qualifications

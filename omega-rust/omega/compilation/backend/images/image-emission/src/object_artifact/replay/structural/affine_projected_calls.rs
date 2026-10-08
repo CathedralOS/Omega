@@ -10,7 +10,7 @@ use machine_code::{
 use target_operations::CallSiteOwner;
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
+    TerminalAffineCleanupAction, find_structural_type,
 };
 
 pub(crate) fn exact_fully_consumed_affine_parameter(
@@ -168,10 +168,7 @@ fn exact_owned_projection_from_root(
     else {
         return false;
     };
-    let Some(root) = declarations
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
-    else {
+    let Some(root) = find_structural_type(declarations, structural_type) else {
         return false;
     };
     let metadata_matches = match root.shape {

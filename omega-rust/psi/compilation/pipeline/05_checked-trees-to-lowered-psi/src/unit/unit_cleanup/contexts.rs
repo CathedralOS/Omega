@@ -8,7 +8,9 @@ use super::{
     CheckedUnitStructuralTypeShape, LoweringError, PlaceId, PrimitiveType, Proposition, ScalarTerm,
     StructuralTypeShape, SymbolHandle, unsupported,
 };
-use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration};
+use terminal_psi::{
+    StructuralParameterDeclaration, StructuralTypeDeclaration, find_structural_type,
+};
 
 pub(crate) struct SignatureContext {
     pub(crate) receiver: Option<PlaceId>,
@@ -107,9 +109,7 @@ pub(crate) fn field_clause(
 ) -> Result<Proposition, LoweringError> {
     // `validate_requirements` admitted a relevant Boolean field of this
     // parameter's record; resolve its identity to the lowered field.
-    let field = types
-        .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)
+    let field = find_structural_type(types, parameter.structural_type)
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields, .. } => {
                 fields.iter().find(|field| field.identity == identity)

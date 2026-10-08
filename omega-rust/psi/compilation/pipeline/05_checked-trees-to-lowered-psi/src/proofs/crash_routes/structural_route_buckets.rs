@@ -377,10 +377,7 @@ impl RouteTerms<'_> {
             }
             let StructuralTypeShape::Sum {
                 cases: declared_cases,
-            } = &self
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == left_type)
+            } = &terminal_psi::find_structural_type(self.structural_types, left_type)
                 .expect("sum subject type was resolved")
                 .shape
             else {

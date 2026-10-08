@@ -3,11 +3,11 @@
 //! runtime observation even when a proposition already names their active case.
 
 use super::super::{StructuralFieldType, StructuralTypeId, StructuralTypeShape};
-use crate::structural_types::unique_declaration;
 use super::{
     LoweringError, PlaceId, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, unsupported,
 };
+use crate::structural_types::unique_declaration;
 
 #[derive(Clone)]
 pub(crate) struct StructuralCaseBinding {
@@ -134,7 +134,14 @@ pub(crate) fn resolve_runtime_element(
     LoweringError,
 > {
     let (array, prefix) = walk(declarations, structural_type, prefix)?;
-    let (element, observes_element_view_length) = match &unique_declaration(declarations, array, "case observation lost its exact carrier type", "case observation has ambiguous carrier declarations")?.shape {
+    let (element, observes_element_view_length) = match &unique_declaration(
+        declarations,
+        array,
+        "case observation lost its exact carrier type",
+        "case observation has ambiguous carrier declarations",
+    )?
+    .shape
+    {
         StructuralTypeShape::FixedArray { element, .. } => (*element, false),
         StructuralTypeShape::ElementView { element } if prefix.is_empty() => (*element, true),
         _ => {
@@ -152,7 +159,6 @@ pub(crate) fn resolve_runtime_element(
     ))
 }
 
-
 /// Walk relevant structural record fields and in-range literal indexes from
 /// `structural_type`, lowering each step.
 fn walk(
@@ -165,7 +171,13 @@ fn walk(
     // otherwise a field is a record's or a mixed carrier's common field.
     let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
     for segment in steps {
-        let shape = &unique_declaration(declarations, structural_type, "case observation lost its exact carrier type", "case observation has ambiguous carrier declarations")?.shape;
+        let shape = &unique_declaration(
+            declarations,
+            structural_type,
+            "case observation lost its exact carrier type",
+            "case observation has ambiguous carrier declarations",
+        )?
+        .shape;
         match segment {
             checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
                 let fields = case_fields.take().or_else(|| shape.direct_fields()).ok_or(
@@ -233,7 +245,14 @@ fn selected_case(
     structural_type: StructuralTypeId,
     identity: &str,
 ) -> Result<semantic_vocabulary::StructuralCaseId, LoweringError> {
-    let cases = match &unique_declaration(declarations, structural_type, "case observation lost its exact carrier type", "case observation has ambiguous carrier declarations")?.shape {
+    let cases = match &unique_declaration(
+        declarations,
+        structural_type,
+        "case observation lost its exact carrier type",
+        "case observation has ambiguous carrier declarations",
+    )?
+    .shape
+    {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("case observation requires an exact selected sum"),
     };
@@ -255,10 +274,8 @@ pub(crate) fn sum_cases(
     source: PlaceId,
 ) -> Option<&[terminal_psi::StructuralCaseDeclaration]> {
     let binding = bindings.iter().find(|binding| binding.source == source)?;
-    let declaration = binding
-        .declarations
-        .iter()
-        .find(|declaration| declaration.id == binding.structural_type)?;
+    let declaration =
+        terminal_psi::find_structural_type(&binding.declarations, binding.structural_type)?;
     match &declaration.shape {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
             Some(cases.as_slice())

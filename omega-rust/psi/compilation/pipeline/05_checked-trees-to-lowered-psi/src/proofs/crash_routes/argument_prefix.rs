@@ -7,7 +7,7 @@ use semantic_vocabulary::{CanonicalStructuralPathSegment, StructuralPlaceKind};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 pub(crate) fn structural_crash_route_argument_prefix(
@@ -57,12 +57,9 @@ pub(crate) fn structural_crash_route_argument_prefix(
     let mut prefix = Vec::with_capacity(argument.path.len());
     let mut selected_case: Option<&terminal_psi::StructuralCaseDeclaration> = None;
     for (position, segment) in argument.path.iter().enumerate() {
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "structural crash route argument path type is absent",
-            ))?;
+        let declaration = find_structural_type(structural_types, structural_type).ok_or(
+            LoweringError::Unsupported("structural crash route argument path type is absent"),
+        )?;
         if selected_case.is_some() && !matches!(segment, StructuralPathSegment::Field(_)) {
             return unsupported("structural crash route case must select its payload field");
         }

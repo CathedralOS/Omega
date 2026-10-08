@@ -8,7 +8,9 @@
 //! Bounded byte owners use the same length/read observations on their own
 //! home; this registry grants no borrow or mutation authority.
 use super::{LoweringError, PlaceId, ScalarType, StructuralTypeId, unsupported};
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{
+    ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
+};
 
 /// The Terminal view family of an established view place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,9 +28,7 @@ impl ViewCarrier {
         structural_type: StructuralTypeId,
         types: &[StructuralTypeDeclaration],
     ) -> Option<Self> {
-        let declaration = types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)?;
+        let declaration = find_structural_type(types, structural_type)?;
         match declaration.shape {
             StructuralTypeShape::ByteSequence(
                 ByteSequenceCarrier::BorrowedView { .. }
@@ -36,13 +36,12 @@ impl ViewCarrier {
                 | ByteSequenceCarrier::BoundedOwned { .. },
             ) => Some(Self::Bytes),
             StructuralTypeShape::ElementView { element } => Some(Self::Elements {
-                element: types
-                    .iter()
-                    .find(|declaration| declaration.id == element)
-                    .and_then(|declaration| match declaration.shape {
+                element: find_structural_type(types, element).and_then(|declaration| {
+                    match declaration.shape {
                         StructuralTypeShape::PrimitiveScalar(scalar_type) => Some(scalar_type),
                         _ => None,
-                    }),
+                    }
+                }),
             }),
             _ => None,
         }

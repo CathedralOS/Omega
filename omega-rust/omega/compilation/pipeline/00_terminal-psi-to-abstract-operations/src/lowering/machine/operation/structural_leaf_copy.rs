@@ -18,6 +18,7 @@ use semantic_vocabulary::{
 use terminal_psi::{
     Operation, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    find_structural_type,
 };
 
 use crate::lowering::LoweringError;
@@ -92,9 +93,7 @@ pub(super) fn lower(
     // A `&`-leaf copy mints the reference descriptor over the selected
     // storage, so its result is the `SharedBorrow` declaration whose
     // referent is the leaf — not the leaf storage itself.
-    let expected_type = structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
+    let expected_type = find_structural_type(structural_types, result.structural_type)
         .and_then(|declaration| match declaration.shape {
             StructuralTypeShape::Reference {
                 referent,

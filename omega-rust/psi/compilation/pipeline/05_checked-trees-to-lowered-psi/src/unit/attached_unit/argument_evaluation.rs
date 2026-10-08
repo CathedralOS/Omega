@@ -357,12 +357,11 @@ impl Evaluation {
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
         let multiplicity = produced.multiplicity();
-        let declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == produced.structural_type())
-            .ok_or(LoweringError::Unsupported(
-                "structural binding type was not declared",
-            ))?;
+        let declaration =
+            terminal_psi::find_structural_type(structural_types, produced.structural_type())
+                .ok_or(LoweringError::Unsupported(
+                    "structural binding type was not declared",
+                ))?;
         if operations
             .structural_values
             .iter()

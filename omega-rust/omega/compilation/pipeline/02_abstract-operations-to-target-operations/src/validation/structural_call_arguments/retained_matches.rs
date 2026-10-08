@@ -13,7 +13,7 @@ use target_operations::{
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 use super::canonical_roots::RootDeclaration;
@@ -104,10 +104,7 @@ pub(super) fn matches_projected_carrier(
         return actual.fixed_array_length.is_none() && actual.element_stride.is_none();
     }
     let find_shape = |identity| {
-        declarations
-            .iter()
-            .find(|declaration| declaration.id == identity)
-            .map(|declaration| &declaration.shape)
+        find_structural_type(declarations, identity).map(|declaration| &declaration.shape)
     };
     let Some(StructuralTypeShape::FixedArray { element, length }) = find_shape(projected) else {
         return false;

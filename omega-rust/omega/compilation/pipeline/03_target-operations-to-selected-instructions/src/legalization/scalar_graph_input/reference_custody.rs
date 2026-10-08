@@ -176,20 +176,14 @@ fn materialized_mutable_record_projection(
     let StructuralTypeShape::Reference {
         referent,
         access: StructuralAccess::MutableBorrow,
-    } = &types
-        .iter()
-        .find(|declaration| declaration.id == leaf.result.structural_type)?
-        .shape
+    } = &find_structural_type(types, leaf.result.structural_type)?.shape
     else {
         return None;
     };
     // A whole `Referent` path is also the established primitive-reference
     // spelling. Only a record referent may enter this aggregate-origin route.
     if !matches!(
-        &types
-            .iter()
-            .find(|declaration| declaration.id == *referent)?
-            .shape,
+        &find_structural_type(types, *referent)?.shape,
         StructuralTypeShape::Record { .. }
     ) {
         return None;
@@ -440,10 +434,7 @@ fn plain_record_referent(
         return None;
     };
     matches!(
-        types
-            .iter()
-            .find(|declaration| declaration.id == *referent)
-            .map(|declaration| &declaration.shape),
+        find_structural_type(types, *referent).map(|declaration| &declaration.shape),
         Some(StructuralTypeShape::Record { .. })
     )
     .then_some(*referent)
@@ -1473,10 +1464,7 @@ fn transferred_ingress_leaf(
         parameter.place == source.place && parameter.access == StructuralAccess::Owned
     })?;
     if matches!(
-        types
-            .iter()
-            .find(|declaration| declaration.id == parameter.structural_type)?
-            .shape,
+        find_structural_type(types, parameter.structural_type)?.shape,
         StructuralTypeShape::Reference { .. }
     ) {
         return None;
@@ -1610,9 +1598,7 @@ pub(in crate::legalization) fn apply(
                         ..
                     },
                 ..
-            }) = types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
+            }) = find_structural_type(types, result.structural_type)
             else {
                 return Err(invalid());
             };
@@ -1654,9 +1640,7 @@ pub(in crate::legalization) fn apply(
             let Some(StructuralTypeDeclaration {
                 shape: StructuralTypeShape::FixedArray { element, length },
                 ..
-            }) = types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
+            }) = find_structural_type(types, result.structural_type)
             else {
                 return Err(invalid());
             };

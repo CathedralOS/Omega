@@ -24,10 +24,10 @@ use abstract_operations::{
 use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use target_operations::TargetReferenceResult;
 use terminal_psi::{
-    find_structural_case,    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
+    RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
-    structural_children,
+    find_structural_case, find_structural_type, structural_children,
 };
 
 /// Which retained row family a source `BoundaryCall` lowered into. Only the
@@ -199,9 +199,7 @@ fn lookup(
     declarations: &[StructuralTypeDeclaration],
     identity: StructuralTypeId,
 ) -> Option<&StructuralTypeDeclaration> {
-    declarations
-        .iter()
-        .find(|declaration| declaration.id == identity)
+    find_structural_type(declarations, identity)
 }
 
 /// A record member that is realizable storage without a catalog contract of
@@ -1104,14 +1102,12 @@ fn establish_constructor(
         &[terminal_psi::StructuralFieldDeclaration],
     ) = match (shape, result_case) {
         (StructuralTypeShape::Record { fields, .. }, None) => (fields, &[]),
-        (StructuralTypeShape::Sum { cases }, Some(result_case)) => (
-            &[],
-            &find_structural_case(cases, result_case)?.fields,
-        ),
-        (StructuralTypeShape::Mixed { fields, cases }, Some(result_case)) => (
-            fields,
-            &find_structural_case(cases, result_case)?.fields,
-        ),
+        (StructuralTypeShape::Sum { cases }, Some(result_case)) => {
+            (&[], &find_structural_case(cases, result_case)?.fields)
+        }
+        (StructuralTypeShape::Mixed { fields, cases }, Some(result_case)) => {
+            (fields, &find_structural_case(cases, result_case)?.fields)
+        }
         (StructuralTypeShape::FixedArray { length, .. }, None)
             if elements
                 .is_some_and(|elements| u64::try_from(elements.len()).ok() == Some(*length)) =>

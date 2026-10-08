@@ -292,9 +292,7 @@ pub(crate) fn replay_runtime_projection(
     let mut segments = path.iter();
     while let Some(segment) = segments.next() {
         if let terminal_psi::StructuralPathSegment::RuntimeIndex { .. } = segment {
-            let declaration = declarations
-                .iter()
-                .find(|declaration| declaration.id == structural_type)?;
+            let declaration = terminal_psi::find_structural_type(declarations, structural_type)?;
             let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
                 declaration.shape
             else {

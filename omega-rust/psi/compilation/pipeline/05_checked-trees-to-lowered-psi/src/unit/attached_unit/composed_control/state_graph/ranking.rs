@@ -35,7 +35,7 @@ use checked_trees::CheckedNaturalRankMeasure;
 use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge,
+    TerminalNaturalRankEdge, find_structural_type,
 };
 
 /// A machine with a termination witness needs its ranks on the graph: stage
@@ -74,12 +74,9 @@ pub(super) fn emit_view_rank(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ValueId, LoweringError> {
-    let declaration = types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "view rank has no declared carrier",
-        ))?;
+    let declaration = find_structural_type(types, structural_type).ok_or(
+        LoweringError::Unsupported("view rank has no declared carrier"),
+    )?;
     match declaration.shape {
         terminal_psi::StructuralTypeShape::ByteSequence(_) => Ok(
             crate::emission::operation_emission::emit_byte_length(source, next_value, operations),

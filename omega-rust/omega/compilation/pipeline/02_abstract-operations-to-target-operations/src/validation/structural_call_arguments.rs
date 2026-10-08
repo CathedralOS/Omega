@@ -38,6 +38,7 @@ use terminal_psi::{
     StructuralArgument, StructuralFieldType, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalDynamicDispatchCatalog,
+    find_structural_type,
 };
 
 mod canonical_roots;
@@ -1761,10 +1762,8 @@ impl Replay<'_> {
                 let Some((result, home)) = result_home else {
                     return Err(psi_operation);
                 };
-                let Some(result_declaration) = self
-                    .declarations
-                    .iter()
-                    .find(|declaration| declaration.id == result.structural_type)
+                let Some(result_declaration) =
+                    find_structural_type(self.declarations, result.structural_type)
                 else {
                     return Err(psi_operation);
                 };
@@ -2266,11 +2265,9 @@ impl Replay<'_> {
             ) else {
                 return false;
             };
-            let Some(StructuralTypeShape::Reference { referent, access }) = self
-                .declarations
-                .iter()
-                .find(|declaration| declaration.id == carrier)
-                .map(|declaration| &declaration.shape)
+            let Some(StructuralTypeShape::Reference { referent, access }) =
+                find_structural_type(self.declarations, carrier)
+                    .map(|declaration| &declaration.shape)
             else {
                 return false;
             };

@@ -202,10 +202,9 @@ pub(super) fn emit(
         .map(|identity| lookup_type_id(type_ids, identity))
         .transpose()?;
     let provider_places = if let Some(attachment) = attachment {
-        let attachment_declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == attachment)
-            .expect("lowered attachment declaration exists");
+        let attachment_declaration =
+            terminal_psi::find_structural_type(structural_types, attachment)
+                .expect("lowered attachment declaration exists");
         lower_provider_attachment_places(
             attachment,
             attachment_declaration,

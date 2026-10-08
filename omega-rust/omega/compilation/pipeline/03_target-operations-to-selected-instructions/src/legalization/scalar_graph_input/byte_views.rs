@@ -296,15 +296,14 @@ pub(super) fn bounded_view_capacity(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<u64> {
     let parameter = function.arrival_parameter(place)?;
-    types
-        .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)
-        .and_then(|declaration| match declaration.shape {
+    terminal_psi::find_structural_type(types, parameter.structural_type).and_then(|declaration| {
+        match declaration.shape {
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
             ) => Some(capacity),
             _ => None,
-        })
+        }
+    })
 }
 
 /// Exact completed descriptor home; it carries no ownership of borrowed bytes.

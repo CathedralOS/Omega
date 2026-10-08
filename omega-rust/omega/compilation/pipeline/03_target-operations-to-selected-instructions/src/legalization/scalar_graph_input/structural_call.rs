@@ -4,7 +4,7 @@ use abstract_operations::{AbstractOperation, AbstractOperationPlan};
 use calling_conventions::{CallPlan, ValueShape};
 use optimization_unit::PsiOptimizationFunction;
 use target_operations::{TargetOperationPlan, TargetStructuralArgument};
-use terminal_psi::{StructuralAccess, StructuralArgument};
+use terminal_psi::{StructuralAccess, StructuralArgument, find_structural_type};
 
 mod byte_views;
 mod exclusive;
@@ -293,9 +293,7 @@ fn view_argument(
         .ok_or(LegalizationError::custody())?;
     // A descriptor view carries pointer and extent; a bounded view over a
     // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
-    let carrier = structural_types
-        .iter()
-        .find(|declaration| declaration.id == destination_parameter.structural_type)
+    let carrier = find_structural_type(structural_types, destination_parameter.structural_type)
         .map(|declaration| match declaration.shape {
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BoundedView { .. },
@@ -321,9 +319,7 @@ fn view_argument(
     let (structural_type, source) = if let Some((producer, structural_type)) =
         established_view(caller, call_operation, semantic.place)
     {
-        let shape = &structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
+        let shape = &find_structural_type(structural_types, structural_type)
             .ok_or(LegalizationError::custody())?
             .shape;
         let source = if matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. }) {

@@ -1356,9 +1356,7 @@ pub(super) fn plan_short_circuit_guard(
         let (_, parameter) = structural_parameters
             .iter()
             .find(|(_, parameter)| parameter.place == place)?;
-        match &structural_types
-            .iter()
-            .find(|declaration| declaration.id == parameter.structural_type)?
+        match &terminal_psi::find_structural_type(structural_types, parameter.structural_type)?
             .shape
         {
             terminal_psi::StructuralTypeShape::Sum { cases }

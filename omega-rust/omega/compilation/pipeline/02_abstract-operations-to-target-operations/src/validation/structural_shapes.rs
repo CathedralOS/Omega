@@ -11,7 +11,7 @@ use target_operations::{
 };
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralOperationResult,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -56,15 +56,15 @@ pub(super) fn internal_parameter_shape(
     access: StructuralAccess,
     declarations: &[StructuralTypeDeclaration],
 ) -> ValueShape {
-    let scalar = declarations
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
-        .and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => {
-                runtime_abi::ScalarStorageCodec::from_scalar(scalar)
-            }
-            _ => None,
-        });
+    let scalar =
+        find_structural_type(declarations, structural_type).and_then(
+            |declaration| match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar) => {
+                    runtime_abi::ScalarStorageCodec::from_scalar(scalar)
+                }
+                _ => None,
+            },
+        );
     if access != StructuralAccess::Owned && scalar.is_some() {
         ValueShape::borrowed_scalar_reference()
     } else {

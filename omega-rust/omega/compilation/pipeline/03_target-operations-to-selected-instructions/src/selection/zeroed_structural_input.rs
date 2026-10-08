@@ -7,7 +7,7 @@ use legalized_operations::{
 use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId};
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralTypeShape, find_structural_type,
 };
 
 /// Admit a zeroed establishment and reconstruct its exact home shape. The
@@ -105,9 +105,7 @@ pub(super) fn storage(
                         path,
                         declarations,
                     )?;
-                let carrier_declaration = declarations
-                    .iter()
-                    .find(|declaration| declaration.id == carrier)?;
+                let carrier_declaration = find_structural_type(declarations, carrier)?;
                 let (field_offset, field_width) = case_payload_geometry(
                     carrier_declaration,
                     *case,
@@ -146,9 +144,7 @@ pub(super) fn storage(
                 if carrier != *structural_type {
                     return None;
                 }
-                let carrier_declaration = declarations
-                    .iter()
-                    .find(|declaration| declaration.id == carrier)?;
+                let carrier_declaration = find_structural_type(declarations, carrier)?;
                 let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
                     &carrier_declaration.shape
                 else {

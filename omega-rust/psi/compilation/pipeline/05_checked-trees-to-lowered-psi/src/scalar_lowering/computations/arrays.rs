@@ -21,12 +21,9 @@ pub(crate) fn validate_layout(
     let mut count = Some(1u64);
     let mut empty = false;
     for depth in 0..types.len() {
-        let declaration = types
-            .iter()
-            .find(|declaration| declaration.id == current)
-            .ok_or(LoweringError::Unsupported(
-                "computed array element type is absent",
-            ))?;
+        let declaration = terminal_psi::find_structural_type(types, current).ok_or(
+            LoweringError::Unsupported("computed array element type is absent"),
+        )?;
         match declaration.shape {
             StructuralTypeShape::FixedArray { element, length } => {
                 // A later empty dimension suppresses product overflow, never
