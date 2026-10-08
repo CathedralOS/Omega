@@ -21,6 +21,17 @@ macro_rules! encode_scalar_ids {
     };
 }
 
+// The matching decoders read the same ordered, named ID fields into one variant.
+macro_rules! decode_scalar_ids {
+    ($name:ident => $variant:ident, $($field:ident : $id:literal),+ $(,)?) => {
+        pub(super) fn $name(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+            Ok(OperationKind::$variant {
+                $($field: reader.id($id)?,)+
+            })
+        }
+    };
+}
+
 pub(super) fn encode_ieee_float_compare(
     writer: &mut Writer,
     comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
@@ -102,435 +113,217 @@ encode_scalar_ids!(
     left: ValueId, right: ValueId, addend: ValueId,
 );
 
-pub(super) fn decode_nearest_ieee_float_fused_multiply_add(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::NearestIeeeFloatFusedMultiplyAdd {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        addend: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_nearest_ieee_float_fused_multiply_add => NearestIeeeFloatFusedMultiplyAdd, left: "ValueId", right: "ValueId", addend: "ValueId");
 
 encode_scalar_ids!(
     encode_boolean_not => BOOLEAN_NOT,
     operand: ValueId,
 );
 
-pub(super) fn decode_boolean_not(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::BooleanNot {
-        operand: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_boolean_not => BooleanNot, operand: "ValueId");
 
 encode_scalar_ids!(
     encode_boolean_equal => BOOLEAN_EQUAL,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_boolean_equal(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::BooleanEqual {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_boolean_equal => BooleanEqual, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_equal => INTEGER_EQUAL,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_integer_equal(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerEqual {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_equal => IntegerEqual, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_less_than => INTEGER_LESS_THAN,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_integer_less_than(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerLessThan {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_less_than => IntegerLessThan, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_less_or_equal => INTEGER_LESS_OR_EQUAL,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_integer_less_or_equal(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerLessOrEqual {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_less_or_equal => IntegerLessOrEqual, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_bitwise_not => INTEGER_BITWISE_NOT,
     operand: ValueId,
 );
 
-pub(super) fn decode_integer_bitwise_not(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerBitwiseNot {
-        operand: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_bitwise_not => IntegerBitwiseNot, operand: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_widen => INTEGER_WIDEN,
     operand: ValueId,
 );
 
-pub(super) fn decode_integer_widen(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerWiden {
-        operand: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_widen => IntegerWiden, operand: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_exact_cast => INTEGER_EXACT_CAST,
     operand: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_integer_exact_cast(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerExactCast {
-        operand: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_exact_cast => IntegerExactCast, operand: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_integer_bitwise_and => INTEGER_BITWISE_AND,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_integer_bitwise_and(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerBitwiseAnd {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_bitwise_and => IntegerBitwiseAnd, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_bitwise_or => INTEGER_BITWISE_OR,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_integer_bitwise_or(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerBitwiseOr {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_bitwise_or => IntegerBitwiseOr, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_integer_bitwise_xor => INTEGER_BITWISE_XOR,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_integer_bitwise_xor(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerBitwiseXor {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_integer_bitwise_xor => IntegerBitwiseXor, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_shift_left => WRAPPING_INTEGER_SHIFT_LEFT,
     value: ValueId, count: ValueId,
 );
 
-pub(super) fn decode_wrapping_integer_shift_left(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerShiftLeft {
-        value: reader.id("ValueId")?,
-        count: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_shift_left => WrappingIntegerShiftLeft, value: "ValueId", count: "ValueId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_shift_right => WRAPPING_INTEGER_SHIFT_RIGHT,
     value: ValueId, count: ValueId,
 );
 
-pub(super) fn decode_wrapping_integer_shift_right(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerShiftRight {
-        value: reader.id("ValueId")?,
-        count: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_shift_right => WrappingIntegerShiftRight, value: "ValueId", count: "ValueId");
 
 encode_scalar_ids!(
     encode_exact_integer_shift_left => EXACT_INTEGER_SHIFT_LEFT,
     value: ValueId, count: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_shift_left(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerShiftLeft {
-        value: reader.id("ValueId")?,
-        count: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_shift_left => ExactIntegerShiftLeft, value: "ValueId", count: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_exact_integer_shift_right => EXACT_INTEGER_SHIFT_RIGHT,
     value: ValueId, count: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_shift_right(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerShiftRight {
-        value: reader.id("ValueId")?,
-        count: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_shift_right => ExactIntegerShiftRight, value: "ValueId", count: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_exact_integer_add => EXACT_INTEGER_ADD,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_add(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerAdd {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_add => ExactIntegerAdd, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_exact_integer_subtract => EXACT_INTEGER_SUBTRACT,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_subtract(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerSubtract {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_subtract => ExactIntegerSubtract, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_exact_integer_multiply => EXACT_INTEGER_MULTIPLY,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_multiply(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerMultiply {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_multiply => ExactIntegerMultiply, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_exact_integer_divide => EXACT_INTEGER_DIVIDE,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_divide(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerDivide {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_divide => ExactIntegerDivide, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_exact_integer_remainder => EXACT_INTEGER_REMAINDER,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_exact_integer_remainder(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::ExactIntegerRemainder {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_exact_integer_remainder => ExactIntegerRemainder, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_divide => WRAPPING_INTEGER_DIVIDE,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_wrapping_integer_divide(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerDivide {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_divide => WrappingIntegerDivide, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_remainder => WRAPPING_INTEGER_REMAINDER,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_wrapping_integer_remainder(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerRemainder {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_remainder => WrappingIntegerRemainder, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_saturating_integer_divide => SATURATING_INTEGER_DIVIDE,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_saturating_integer_divide(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::SaturatingIntegerDivide {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_saturating_integer_divide => SaturatingIntegerDivide, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_saturating_integer_remainder => SATURATING_INTEGER_REMAINDER,
     left: ValueId, right: ValueId, obligation: ObligationId,
 );
 
-pub(super) fn decode_saturating_integer_remainder(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::SaturatingIntegerRemainder {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
+decode_scalar_ids!(decode_saturating_integer_remainder => SaturatingIntegerRemainder, left: "ValueId", right: "ValueId", obligation: "ObligationId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_add => WRAPPING_INTEGER_ADD,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_wrapping_integer_add(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerAdd {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_add => WrappingIntegerAdd, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_saturating_integer_add => SATURATING_INTEGER_ADD,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_saturating_integer_add(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::SaturatingIntegerAdd {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_saturating_integer_add => SaturatingIntegerAdd, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_subtract => WRAPPING_INTEGER_SUBTRACT,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_wrapping_integer_subtract(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerSubtract {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_subtract => WrappingIntegerSubtract, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_saturating_integer_subtract => SATURATING_INTEGER_SUBTRACT,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_saturating_integer_subtract(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::SaturatingIntegerSubtract {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_saturating_integer_subtract => SaturatingIntegerSubtract, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_wrapping_integer_multiply => WRAPPING_INTEGER_MULTIPLY,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_wrapping_integer_multiply(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::WrappingIntegerMultiply {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_wrapping_integer_multiply => WrappingIntegerMultiply, left: "ValueId", right: "ValueId");
 
 encode_scalar_ids!(
     encode_saturating_integer_multiply => SATURATING_INTEGER_MULTIPLY,
     left: ValueId, right: ValueId,
 );
 
-pub(super) fn decode_saturating_integer_multiply(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::SaturatingIntegerMultiply {
-        left: reader.id("ValueId")?,
-        right: reader.id("ValueId")?,
-    })
-}
+decode_scalar_ids!(decode_saturating_integer_multiply => SaturatingIntegerMultiply, left: "ValueId", right: "ValueId");
 
 /// One Trapping primitive: the family tag, a closed primitive sub-tag, then
 /// the primitive's operands in evaluation order. The crash site is the
