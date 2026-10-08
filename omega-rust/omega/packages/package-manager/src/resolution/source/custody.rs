@@ -134,56 +134,7 @@ impl PackageSourceCustody {
         self.compiled_review_cache_dir.as_deref()
     }
 
-    pub fn key(&self) -> &PackageKey {
-        &self.key
-    }
-
-    pub const fn role(&self) -> BuildDeclarationKind {
-        self.role
-    }
-
-    pub fn resolution(&self) -> &ImmutableSourceResolution {
-        &self.resolution
-    }
-
-    pub const fn materialization(&self) -> &PackageSourceMaterialization {
-        &self.materialization
-    }
-
-    pub fn snapshot_root(&self) -> &Path {
-        &self.snapshot_root
-    }
-
-    pub const fn navigation(&self) -> &PackageSourceNavigation {
-        &self.navigation
-    }
-
-    pub const fn selection_evidence(&self) -> &PackageSourceSelectionEvidence {
-        &self.selection_evidence
-    }
-
-    pub fn source_limits(&self) -> LocalSourceLimits {
-        self.source_limits
-    }
-
-    /// Authored requests for one purpose scope, in requester-local order.
-    pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
-        self.dependency_projections.requests(purpose)
-    }
-
-    /// Authored product-purpose requests, in requester-local order.
-    pub fn product_dependency_requests(&self) -> &[DependencySourceRequest] {
-        self.dependency_requests(DependencyPurpose::Product)
-    }
-
-    /// Authored build-purpose requests, in requester-local order.
-    pub fn build_dependency_requests(&self) -> &[DependencySourceRequest] {
-        self.dependency_requests(DependencyPurpose::Build)
-    }
-
-    pub const fn dependency_projections(&self) -> &DependencyProjections {
-        &self.dependency_projections
-    }
+    crate::resolution::source::package_source_surface_accessors!();
 
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
         self.key == other.key
