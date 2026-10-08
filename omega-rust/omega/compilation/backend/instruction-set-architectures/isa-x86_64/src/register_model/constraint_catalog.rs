@@ -67,6 +67,15 @@ pub fn x86_64_register_constraint_catalog(
             .view_named(name)
             .unwrap_or_else(|| panic!("validated x86-64 model must define {name}"))
     };
+    let merged_units = |base: Vec<register_model::RegisterUnitId>, names: &[&str]| {
+        let mut units = base;
+        for name in names {
+            units.extend(view(name).units.iter().copied());
+        }
+        units.sort_unstable();
+        units.dedup();
+        units
+    };
     let fixed = |operand: u16, access: RegisterOperandAccess, name: &str| {
         let view = view(name);
         RegisterOperandConstraint {
@@ -800,45 +809,17 @@ pub fn x86_64_register_constraint_catalog(
         id: RegisterConstraintId(0),
         key: X86_64_HOSTED_WRITE_BYTE_I32,
         operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-        implicit_uses: {
-            let mut units = view("rsp").units.clone();
-            units.extend(view("rip").units.iter().copied());
-            units.sort_unstable();
-            units.dedup();
-            units
-        },
+        implicit_uses: merged_units(view("rsp").units.clone(), &["rip"]),
         implicit_defs: Vec::new(),
-        clobbers: {
-            let mut units = Vec::new();
-            for name in ["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"] {
-                units.extend(view(name).units.iter().copied());
-            }
-            units.sort_unstable();
-            units.dedup();
-            units
-        },
+        clobbers: merged_units(Vec::new(), &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
     });
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
         key: X86_64_HOSTED_READ_BYTE,
         operands: Vec::new(),
-        implicit_uses: {
-            let mut units = view("rsp").units.clone();
-            units.extend(view("rip").units.iter().copied());
-            units.sort_unstable();
-            units.dedup();
-            units
-        },
+        implicit_uses: merged_units(view("rsp").units.clone(), &["rip"]),
         implicit_defs: Vec::new(),
-        clobbers: {
-            let mut units = Vec::new();
-            for name in ["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"] {
-                units.extend(view(name).units.iter().copied());
-            }
-            units.sort_unstable();
-            units.dedup();
-            units
-        },
+        clobbers: merged_units(Vec::new(), &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"]),
     });
     for key in [X86_64_HOSTED_EXIT_PROCESS_I32] {
         constraints.push(RegisterInstructionConstraint {
@@ -847,15 +828,7 @@ pub fn x86_64_register_constraint_catalog(
             operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
             implicit_uses: view("rip").units.clone(),
             implicit_defs: Vec::new(),
-            clobbers: {
-                let mut units = Vec::new();
-                for name in ["rax", "rdi", "rcx", "r11", "rflags"] {
-                    units.extend(view(name).units.iter().copied());
-                }
-                units.sort_unstable();
-                units.dedup();
-                units
-            },
+            clobbers: merged_units(Vec::new(), &["rax", "rdi", "rcx", "r11", "rflags"]),
         });
     }
     for (scalar_key, unit_key) in x86_64_system_v_register_call_keys()

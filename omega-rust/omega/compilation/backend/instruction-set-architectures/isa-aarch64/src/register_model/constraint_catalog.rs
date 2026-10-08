@@ -81,6 +81,15 @@ pub fn aarch64_register_constraint_catalog(
             .view_named(name)
             .unwrap_or_else(|| panic!("validated AArch64 model must define {name}"))
     };
+    let merged_units = |base: Vec<register_model::RegisterUnitId>, names: &[&str]| {
+        let mut units = base;
+        for name in names {
+            units.extend(view(name).units.iter().copied());
+        }
+        units.sort_unstable();
+        units.dedup();
+        units
+    };
     let fixed = |operand: u16, access: RegisterOperandAccess, name: &str| {
         let view = view(name);
         RegisterOperandConstraint {
@@ -550,23 +559,9 @@ pub fn aarch64_register_constraint_catalog(
             id: RegisterConstraintId(0),
             key,
             operands: Vec::new(),
-            implicit_uses: {
-                let mut units = view("sp").units.clone();
-                units.extend(view("pc").units.iter().copied());
-                units.sort_unstable();
-                units.dedup();
-                units
-            },
+            implicit_uses: merged_units(view("sp").units.clone(), &["pc"]),
             implicit_defs: Vec::new(),
-            clobbers: {
-                let mut units = Vec::new();
-                for name in ["x0", "x1", "x2", syscall_register, "x9", "nzcv"] {
-                    units.extend(view(name).units.iter().copied());
-                }
-                units.sort_unstable();
-                units.dedup();
-                units
-            },
+            clobbers: merged_units(Vec::new(), &["x0", "x1", "x2", syscall_register, "x9", "nzcv"]),
         });
     }
     for (key, syscall_register) in [
@@ -577,23 +572,9 @@ pub fn aarch64_register_constraint_catalog(
             id: RegisterConstraintId(0),
             key,
             operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
-            implicit_uses: {
-                let mut units = view("sp").units.clone();
-                units.extend(view("pc").units.iter().copied());
-                units.sort_unstable();
-                units.dedup();
-                units
-            },
+            implicit_uses: merged_units(view("sp").units.clone(), &["pc"]),
             implicit_defs: Vec::new(),
-            clobbers: {
-                let mut units = Vec::new();
-                for name in ["x0", "x1", "x2", syscall_register, "nzcv"] {
-                    units.extend(view(name).units.iter().copied());
-                }
-                units.sort_unstable();
-                units.dedup();
-                units
-            },
+            clobbers: merged_units(Vec::new(), &["x0", "x1", "x2", syscall_register, "nzcv"]),
         });
     }
     for (key, syscall_register) in [
@@ -606,15 +587,7 @@ pub fn aarch64_register_constraint_catalog(
             operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64)],
             implicit_uses: view("pc").units.clone(),
             implicit_defs: Vec::new(),
-            clobbers: {
-                let mut units = Vec::new();
-                for name in ["x0", syscall_register, "nzcv"] {
-                    units.extend(view(name).units.iter().copied());
-                }
-                units.sort_unstable();
-                units.dedup();
-                units
-            },
+            clobbers: merged_units(Vec::new(), &["x0", syscall_register, "nzcv"]),
         });
     }
     for (scalar_key, unit_key) in aarch64_aapcs64_register_call_keys()
