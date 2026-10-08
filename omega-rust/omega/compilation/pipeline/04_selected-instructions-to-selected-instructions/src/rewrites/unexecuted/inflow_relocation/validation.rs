@@ -12,20 +12,15 @@ use std::sync::Arc;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    SelectedTerminator, terminator_instruction,
+    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, terminator_instruction,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    all_edges, function_at, plain_edge, terminator_successors, transport_conflict,
-};
-use crate::rewrites::unexecuted::dead_path;
+use crate::rewrites::block_edges::{terminator_successors, transport_conflict};
 use crate::rewrites::window_hazards::{
-    block_scan_surface, coupled, has_call_contract, register_writes, schedulable, speculatable,
-    surface,
+    block_scan_surface, coupled, has_call_contract, register_writes, schedulable, surface,
 };
 
 /// The validator's own reconstruction of the relocation the contract
@@ -59,105 +54,24 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, InflowRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(InflowRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, InflowRelocationError::SourceMismatch)?;
-    let (block_index, member_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == member)
-                .map(|member_index| (block_index, member_index))
-        })
-        .ok_or(InflowRelocationError::SourceMismatch)?;
+    let derived = super::derive_inflow_span(
+        source,
+        function_index,
+        member,
+        destination,
+        environment,
+    )?;
+    let plan = derived.plan;
+    let function = derived.function;
+    let block_index = derived.block_index;
+    let member_index = derived.member_index;
+    let member_instruction = derived.member_instruction;
+    let target_index = derived.target_index;
+    let landing_index = derived.landing_index;
+    let successor = derived.successor;
+    let terminator = derived.terminator;
     let block = &function.blocks[block_index];
-    let member_instruction = &block.instructions[member_index];
-    // The destination names the landing position directly: the block
-    // holding it must be the inflow — one predecessor ending in the lone
-    // `Jump` that reaches the member's block. Naming a terminator-carried
-    // instruction lands the member at the body end.
-    let (target_index, landing_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(index, candidate)| {
-            candidate
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == destination)
-                .map(|position| (index, position))
-                .or_else(|| {
-                    (terminator_instruction(&candidate.terminator).id == destination)
-                        .then_some((index, candidate.instructions.len()))
-                })
-        })
-        .ok_or(InflowRelocationError::UnsupportedPair)?;
     let target = &function.blocks[target_index];
-    // Only an unconditional semantic jump edge keeps the member's
-    // execution count on this inflow's path: every traversal of the
-    // inflow block leaves through it and reaches the member's block
-    // exactly once, so the member still runs on every arrival through
-    // the crossed edge. A conditional terminator keeps a second exit the
-    // member would newly execute on — the arm and join families' burden
-    // — and a terminator naming no successor reaches no join.
-    let SelectedTerminator::Jump {
-        instruction: terminator,
-        successor,
-    } = &target.terminator
-    else {
-        return Err(InflowRelocationError::UnsupportedPair);
-    };
-    if successor.block != block.id {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
-    // The crossed edge must be a plain semantic successor: case dispatch,
-    // continuation, structural transfer, and per-edge fuel all carry
-    // boundary effects this step does not cross. Structural bindings may
-    // remain only while every transport is `Unused`, which moves nothing.
-    if !plain_edge(successor) {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
-    // A destination in the member's own block is the in-block family's
-    // case with a back-edge transport reading, not a cross-edge window.
-    // The member's block may not be the entry block — the first
-    // traversal crosses no inflow edge at all, so the move would remove
-    // an execution the dead-path audit cannot see — and the inflow block
-    // must be a plain source block: an implementation block's origin
-    // carries edge or case work the bounded audit does not cross.
-    if target.id == block.id
-        || block.id == function.entry_block
-        || !matches!(target.origin, SelectedBlockOrigin::Source(_))
-    {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
-    // At least one edge into the member's block must leave another block:
-    // the single-predecessor shape is the predecessor family's case,
-    // where no traversal loses the member. Every other inflow — whatever
-    // it carries — runs before the member's old position on its own
-    // arrivals and is never crossed; the dead-path audit reads its
-    // register surface where the move removes the member's write.
-    if !all_edges(function)
-        .any(|(source_block, edge)| edge.block == block.id && source_block != target.id)
-    {
-        return Err(InflowRelocationError::UnsupportedPair);
-    }
-    // The member's execution leaves every arrival through the join's
-    // other inflows, so only pure register and condition-state work may
-    // rise — a roster-carrying or unaccounted memory access or a
-    // potentially-faulting kind that ran on every arrival would silently
-    // vanish from the arrivals the move removes.
-    if schedulable(function, member_instruction) != Some(false) || !speculatable(member_instruction)
-    {
-        return Err(InflowRelocationError::UnsupportedInstruction);
-    }
-    // The crossed edge's register transports sit between the member's old
-    // and new positions.
     if transport_conflict(member_instruction, successor) {
         return Err(InflowRelocationError::UnsupportedPair);
     }
@@ -203,32 +117,8 @@ fn reconstruct<'source>(
     }
     // The dead-path audit: every location the member writes must be dead
     // — unread until rewritten — on every arrival through the join's
-    // other inflows. The walk enters the member's block with nothing
-    // live: the other inflow edges run before the member's old position
-    // on their own arrivals, so their transports meet no divergence at
-    // the boundary — it is the vacated index that publishes the member's
-    // locations, the missing write's divergence on the removed paths. A
-    // walked path looping back through the inflow block runs the member
-    // at its new position — an ordinary execution, whose write
-    // republishes the locations it carries.
-    if !dead_path::dead(
-        function,
-        dead_path::Relocation {
-            members: &[member_instruction],
-            vacated_block: block_index,
-            vacated_first: member_index,
-            vacated_last: member_index,
-            landing_block: target_index,
-            landing_index,
-            landing: dead_path::Landing::Executed,
-            // The member's write is missing where the source still ran
-            // it: the walked arrivals enter the member's block through
-            // the other inflow edges, beside its new position rather than
-            // through it, so the vacated index publishes its locations.
-            vacated: dead_path::Vacated::Removed,
-        },
-        dead_path::Start::Block(block_index),
-    ) {
+    // other inflows.
+    if !super::member_writes_dead(function, &derived) {
         return Err(InflowRelocationError::UnsupportedPair);
     }
     // The scan walks every block body and terminator instruction once to
