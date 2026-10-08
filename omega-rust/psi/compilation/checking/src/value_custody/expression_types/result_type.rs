@@ -316,16 +316,23 @@ fn result_type(
                 program, expression,
             )
         }
-        ExpressionNode::Boolean(_) => builtin_reference(program, BuiltinTypeAtom::Bool),
-        ExpressionNode::UndeterminedNaN(format) => builtin_reference(
-            program,
-            match format {
-                numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
-                numerics::literals::FloatFormat::F64 => BuiltinTypeAtom::F64,
-            },
-        ),
+        ExpressionNode::Boolean(_) => {
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                program,
+                BuiltinTypeAtom::Bool,
+            )
+        }
+        ExpressionNode::UndeterminedNaN(format) => {
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                program,
+                match format {
+                    numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
+                    numerics::literals::FloatFormat::F64 => BuiltinTypeAtom::F64,
+                },
+            )
+        }
         ExpressionNode::Float(literal) => literal.landing().and_then(|format| {
-            builtin_reference(
+            crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
                 program,
                 match format {
                     numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
@@ -346,7 +353,12 @@ fn result_type(
                     .filter(|reference| integer(program, *reference)),
                 UnaryOperator::LogicalNot => operand
                     .filter(|reference| primitive(program, *reference) == Some(PrimitiveType::Bool))
-                    .and_then(|_| builtin_reference(program, BuiltinTypeAtom::Bool)),
+                    .and_then(|_| {
+                        crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                            program,
+                            BuiltinTypeAtom::Bool,
+                        )
+                    }),
             }
         }
         _ => match owner {
@@ -624,7 +636,12 @@ fn binary_result(
                 ExpressionOwner::Parameters { .. } | ExpressionOwner::Domain(_) => false,
             };
             builtin
-                .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
+                .then(|| {
+                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                        program,
+                        BuiltinTypeAtom::Bool,
+                    )
+                })
                 .flatten()
         }
         And | Or => operands
@@ -633,7 +650,12 @@ fn binary_result(
                 reference.and_then(|reference| primitive(program, reference))
                     == Some(PrimitiveType::Bool)
             })
-            .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
+            .then(|| {
+                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    BuiltinTypeAtom::Bool,
+                )
+            })
             .flatten(),
         Equal | NotEqual | Less | LessOrEqual | Greater | GreaterOrEqual => {
             let compatible = if let Some(carrier) = operands.into_iter().flatten().next() {
@@ -649,7 +671,12 @@ fn binary_result(
                 })
             };
             compatible
-                .then(|| builtin_reference(program, BuiltinTypeAtom::Bool))
+                .then(|| {
+                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                        program,
+                        BuiltinTypeAtom::Bool,
+                    )
+                })
                 .flatten()
         }
         ShiftLeft | ShiftRight => {
@@ -682,7 +709,10 @@ fn binary_result(
                     })
                 })
             {
-                return builtin_reference(program, BuiltinTypeAtom::U64);
+                return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    program,
+                    BuiltinTypeAtom::U64,
+                );
             }
             let carrier =
                 arithmetic_result_type_reference(program, operands.into_iter().flatten().next()?)?;
@@ -943,17 +973,4 @@ pub fn arithmetic_result_type_reference(
     program
         .type_reference_table
         .find_arithmetic_result_type_reference(carrier, policy)
-}
-
-fn builtin_reference(
-    program: &dyn crate::CheckingInput,
-    atom: BuiltinTypeAtom,
-) -> Option<TypeReferenceHandle> {
-    let symbol = program
-        .symbols
-        .child_handles(program.symbols.root())?
-        .find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))?;
-    program
-        .type_reference_table
-        .find_named_type_reference(symbol)
 }

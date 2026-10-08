@@ -229,12 +229,7 @@ pub(crate) fn fact_mentions_zero_value(
                 }
             }
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => None,
+        typed_trees::executable_leaf_expression_pattern!() => None,
         _ => find_in_composite_children(program, node, recurse),
     }
 }

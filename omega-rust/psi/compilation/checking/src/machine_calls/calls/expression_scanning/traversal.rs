@@ -1191,12 +1191,7 @@ fn scan_expression_calls_at_position(
                 diagnostics,
             );
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_) => {}
+        typed_trees::executable_leaf_expression_pattern!() => {}
         ExpressionNode::ZeroValue(type_reference) => {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}` uses `zero_value<{}>()` in executable code; \

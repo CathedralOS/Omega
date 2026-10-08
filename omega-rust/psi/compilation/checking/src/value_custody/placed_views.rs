@@ -44,7 +44,7 @@ pub(crate) fn validate_statement(
     {
         validate_binding_private_use(program, machine, view, field, diagnostics);
     }
-    for expression in statement_expression_roots(program, statement) {
+    for expression in statement_expression_roots(program, statement, false) {
         validate_expression(program, machine, state, expression, false, diagnostics);
     }
 }
@@ -388,9 +388,10 @@ fn report_unauthorized(
     )));
 }
 
-fn statement_expression_roots(
+pub(crate) fn statement_expression_roots(
     program: &dyn crate::CheckingInput,
     statement: &StatementNode,
+    include_assignment_targets: bool,
 ) -> Vec<ExpressionHandle> {
     use typed_trees::statement::StatementRootRole as Role;
     program
@@ -398,7 +399,7 @@ fn statement_expression_roots(
         .expression_roots(statement)
         .into_iter()
         .filter(|(role, root)| match role {
-            Role::AssignmentTarget => false,
+            Role::AssignmentTarget => include_assignment_targets,
             Role::BindingReceiver | Role::BindingImplementation => root.is_valid(),
             _ => true,
         })

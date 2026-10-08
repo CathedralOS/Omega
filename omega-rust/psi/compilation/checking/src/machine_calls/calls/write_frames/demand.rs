@@ -986,17 +986,7 @@ pub(crate) fn statement_value_expression_roots(
     program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
-    use typed_trees::statement::StatementRootRole as Role;
-    program
-        .statement_table
-        .expression_roots(statement)
-        .into_iter()
-        .filter(|(role, root)| match role {
-            Role::BindingReceiver | Role::BindingImplementation => root.is_valid(),
-            _ => true,
-        })
-        .map(|(_, root)| root)
-        .collect()
+    crate::value_custody::placed_views::statement_expression_roots(program, statement, true)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1235,13 +1225,7 @@ pub(super) fn collect_expression_call_written_paths(
             visit(range.start)?;
             visit(range.end)?;
         }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        typed_trees::literal_expression_pattern!() => {}
     }
     Some(())
 }

@@ -1441,6 +1441,20 @@ pub struct MatchArm {
 
 /// The leaf-literal `ExpressionNode` variant set that terminates recursive
 /// expression walks — every walk leaves literals untouched.
+/// Executable leaf expressions — every literal plus `Name`, but not
+/// `ZeroValue`, whose presence is a proof-only observation.
+#[macro_export]
+macro_rules! executable_leaf_expression_pattern {
+    () => {
+        $crate::expression::ExpressionNode::Boolean(_)
+            | $crate::expression::ExpressionNode::Float(_)
+            | $crate::expression::ExpressionNode::UndeterminedNaN(_)
+            | $crate::expression::ExpressionNode::Integer(_)
+            | $crate::expression::ExpressionNode::Name(_)
+            | $crate::expression::ExpressionNode::String(_)
+    };
+}
+
 /// The spelled literal leaves only — no `Name` path; walks folding a `Name`
 /// arm separately end on this set.
 #[macro_export]

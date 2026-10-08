@@ -224,13 +224,7 @@ fn expression_is_fact_observation_free(
             .expression_handles(*values)
             .iter()
             .all(|value| expression_is_fact_observation_free(program, *value)),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => true,
+        typed_trees::literal_expression_pattern!() => true,
     }
 }
 

@@ -1087,13 +1087,7 @@ fn fact_call_targets(
                 .iter()
                 .copied(),
         ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::ZeroValue(_) => FactCallTargets {
+        typed_trees::literal_expression_pattern!() => FactCallTargets {
             any: false,
             all_declared: true,
         },

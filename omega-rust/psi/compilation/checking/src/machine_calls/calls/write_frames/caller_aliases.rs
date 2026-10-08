@@ -1129,13 +1129,7 @@ pub(super) fn expression_any(
                     .map(|field| field.value),
             ),
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            typed_trees::literal_expression_pattern!() => {}
         }
     }
     false

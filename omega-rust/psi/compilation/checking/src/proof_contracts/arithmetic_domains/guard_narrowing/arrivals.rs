@@ -1047,13 +1047,7 @@ impl ArrivalWalk<'_, '_> {
                     self.expression(source, field.value, environment);
                 }
             }
-            ExpressionNode::Name(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Boolean(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            typed_trees::literal_expression_pattern!() => {}
         }
         if self
             .observation
