@@ -43,7 +43,7 @@ use super::super::admission::{
 };
 use super::RedundantCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, edge_surface, terminator_successors};
+use crate::rewrites::block_edges::function_at;
 use crate::rewrites::condition_state::{
     adjacency, backward_cone, entry_index, instruction_at, reaching_events,
 };
@@ -198,105 +198,7 @@ pub(super) fn admit<'source>(
             )?;
         }
     }
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let block_count = function.blocks.len();
-    let edge_count = successors
-        .iter()
-        .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    // The shared walk's setup resolves every edge's target index, fills
-    // the predecessor lists, and marks the backward cone. Each unit's
-    // resolution scans the compare block's prefix and — on an in-block
-    // miss — every block's stream for its last event, then propagates
-    // entry sets: a block requeues only while its set grows, a set holds
-    // at most one element per event site plus the unknown marker, and
-    // each pop visits its out-edges at a bounded union cost. The
-    // operand audit visits each stream position at most once and reads
-    // each crossed edge's transport surface once.
-    let elements = function_scan
-        .checked_add(1)
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let pops = block_count
-        .checked_mul(
-            elements
-                .checked_add(1)
-                .ok_or(RedundantCompareError::IdentityOverflow)?,
-        )
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let widest_out = successors
-        .iter()
-        .map(|targets| targets.len())
-        .max()
-        .unwrap_or(0);
-    let per_unit = function_scan
-        .checked_add(block_count)
-        .and_then(|total| total.checked_add(pops))
-        .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let walk_setup = edge_count
-        .checked_mul(
-            block_count
-                .checked_add(1)
-                .ok_or(RedundantCompareError::IdentityOverflow)?,
-        )
-        .and_then(|total| total.checked_add(block_count))
-        .and_then(|total| total.checked_add(edge_count))
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let transport_rows = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            terminator_successors(&block.terminator)
-                .iter()
-                .try_fold(total, |total, successor| {
-                    total.checked_add(edge_surface(successor))
-                })
-        })
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    // The backward operand audit runs once per published unit: each walk
-    // visits a stream position at most once and reads each crossed edge's
-    // transport surface at most once.
-    let audit = units
-        .len()
-        .checked_mul(
-            function_scan
-                .checked_add(edge_count)
-                .and_then(|total| total.checked_add(transport_rows))
-                .ok_or(RedundantCompareError::IdentityOverflow)?,
-        )
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            // A second pass of this function audits the operand classes,
-            // roster rows, and call/access rows the compare must not be
-            // named by.
-            total
-                .checked_add(function_scan)?
-                .checked_add(function.virtual_registers.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.memory_accesses.len())
-        })
-        .and_then(|total| {
-            total
-                .checked_add(walk_setup)?
-                .checked_add(units.len().checked_mul(per_unit)?)?
-                .checked_add(audit)
-        })
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| RedundantCompareError::IdentityOverflow)?
+    if super::measured_steps(plan, function, &successors, units.len())?
         > budget.validation_steps()
     {
         return Err(RedundantCompareError::WorkBudgetExceeded);
