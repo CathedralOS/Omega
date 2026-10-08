@@ -100,7 +100,7 @@ pub use selected_forms::{
 
 /// The nzcv flag register units every flag-consuming form references.
 fn nzcv_flag_units(
-    physical: &ValidatedPhysicalRegisterModel,
+    physical: &register_model::ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<register_model::RegisterUnitId>, Aarch64SelectedFormEncodingError> {
     Ok(physical
         .model()
