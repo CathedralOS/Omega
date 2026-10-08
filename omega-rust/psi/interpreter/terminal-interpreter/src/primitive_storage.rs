@@ -93,8 +93,7 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
         .iter()
         .find(|entry| entry.id == place)?;
     let (producer, structural_type) = declaration.kind.as_operation_result()?;
-    let operation = machine
-        .operation(producer)?;
+    let operation = machine.operation(producer)?;
     let result = operation.result.structural()?;
     (matches!(
         operation.kind,
@@ -900,12 +899,11 @@ impl TerminalExecution<'_> {
         };
         let record =
             self.resolve_live_projection(source, carrier, StructuralAccess::SharedBorrow)?;
-        let declaration = self
+        let Some(fields) = self
             .program
             .structural_types()
-            .get(&record.structural_type)
-            .ok_or_else(malformed)?;
-        let Some(fields) = declaration.shape.record_fields() else {
+            .record_fields(&record.structural_type)
+        else {
             return Ok(None);
         };
         let mut matching = fields.iter().filter(|field| field.identity == *identity);
