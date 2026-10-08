@@ -28,6 +28,18 @@ pub struct UnitParameterRecord {
     pub shape: ValueShape,
 }
 
+impl UnitParameterRecord {
+    /// Whether the placement record agrees field-for-field with this
+    /// parameter — same place, type, multiplicity, access and shape.
+    pub fn matches_home(&self, home: &UnitParameterHomeRecord) -> bool {
+        self.place == home.place
+            && self.structural_type == home.structural_type
+            && self.multiplicity == home.multiplicity
+            && self.access == home.access
+            && self.shape == home.shape
+    }
+}
+
 /// Incoming scalar identities accompany the complete ABI plan. Structural
 /// parameter homes are recorded separately; a non-Unit result stays in the plan
 /// and is realized by the retained function graph, not an invented scalar value.

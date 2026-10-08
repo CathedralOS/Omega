@@ -213,13 +213,7 @@ pub(super) fn row_facts_disagree(
                 .scalar_structural_parameters
                 .iter()
                 .zip(&function.scalar_structural_parameter_homes)
-                .any(|(parameter, home)| {
-                    parameter.place != home.place
-                        || parameter.structural_type != home.structural_type
-                        || parameter.multiplicity != home.multiplicity
-                        || parameter.access != home.access
-                        || parameter.shape != home.shape
-                }))
+                .any(|(parameter, home)| !parameter.matches_home(home)))
         || (!has_scalar_custody
             && (!function.scalar_structural_parameters.is_empty()
                 || !function.scalar_structural_parameter_homes.is_empty()))
@@ -228,11 +222,5 @@ pub(super) fn row_facts_disagree(
                 .unit_parameters
                 .iter()
                 .zip(&function.unit_parameter_homes)
-                .any(|(parameter, home)| {
-                    parameter.place != home.place
-                        || parameter.structural_type != home.structural_type
-                        || parameter.multiplicity != home.multiplicity
-                        || parameter.access != home.access
-                        || parameter.shape != home.shape
-                }))
+                .any(|(parameter, home)| !parameter.matches_home(home)))
 }
