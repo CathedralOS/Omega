@@ -110,25 +110,17 @@ fn descendants_require_fit(
     let data = places::data_definition_for_type(program, reference).ok_or(())?;
     active.push(reference);
     let result = (|| {
-        for member in program.data_members(data) {
-            let fields: &[typed_trees::data::DataField] = match member {
-                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                typed_trees::data::DataMember::Variant(variant) => {
-                    program.data_payload_fields(variant)
-                }
-            };
-            for field in fields {
-                if field.relevance.is_erased() {
-                    continue;
-                }
-                if stored_integer_field_type(program, reference, field.symbol)?.is_some()
-                    && field_requires_fit(program, field.symbol)?
-                {
-                    return Ok(true);
-                }
-                if descendants_require_fit(program, field.type_reference, active)? {
-                    return Ok(true);
-                }
+        for field in program.data_member_fields(program.data_members(data)) {
+            if field.relevance.is_erased() {
+                continue;
+            }
+            if stored_integer_field_type(program, reference, field.symbol)?.is_some()
+                && field_requires_fit(program, field.symbol)?
+            {
+                return Ok(true);
+            }
+            if descendants_require_fit(program, field.type_reference, active)? {
+                return Ok(true);
             }
         }
         Ok(false)

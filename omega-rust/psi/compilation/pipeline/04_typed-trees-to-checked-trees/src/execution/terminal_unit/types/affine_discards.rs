@@ -253,17 +253,10 @@ pub(super) fn partial_affine_source_contents_are_owned(
         return true;
     }
     visited.push(symbol);
-    program.data_members(data).iter().all(|member| {
-        // A selected case owns its whole payload: union members carry owned
-        // contents exactly when every payload field is owned, the same
-        // classification a record field takes.
-        let fields: &[typed_trees::data::DataField] = match member {
-            DataMember::Field(field) => std::slice::from_ref(field),
-            DataMember::Variant(variant) => program.data_payload_fields(variant),
-        };
-        fields.iter().all(|field| {
+    program
+        .data_member_fields(program.data_members(data))
+        .all(|field| {
             !field.relevance.is_erased()
                 && partial_affine_source_contents_are_owned(program, field.type_reference, visited)
         })
-    })
 }

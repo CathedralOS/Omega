@@ -22,15 +22,7 @@ pub(crate) fn terminal_field_declaration(
     let mut fields = program
         .data_definitions()
         .iter()
-        .flat_map(|definition| {
-            program
-                .data_members(definition)
-                .iter()
-                .flat_map(|member| match member {
-                    DataMember::Field(field) => std::slice::from_ref(field),
-                    DataMember::Variant(case) => program.data_payload_fields(case),
-                })
-        })
+        .flat_map(|definition| program.data_member_fields(program.data_members(definition)))
         .filter(|field| field.symbol == symbol);
     let field = fields.next()?;
     fields.next().is_none().then_some(field)

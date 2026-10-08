@@ -419,12 +419,9 @@ fn collect_data(
         return whole_elided_contract;
     }
     visiting.push(definition.symbol);
-    let complete = program.data_members(definition).iter().all(|member| {
-        let fields: &[typed_trees::data::DataField] = match member {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-        };
-        fields.iter().all(|field| {
+    let complete = program
+        .data_member_fields(program.data_members(definition))
+        .all(|field| {
             let mut path = owner_path.to_vec();
             if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
                 path.push(BorrowOwnerSegment::Case(variant));
@@ -441,8 +438,7 @@ fn collect_data(
                 whole_elided_contract,
                 template,
             )
-        })
-    });
+        });
     visiting.pop();
     complete
 }

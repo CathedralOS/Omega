@@ -181,20 +181,14 @@ fn first_forbidden_data_content(
         ));
     }
 
-    for member in program.data_members(definition) {
-        let fields = match member {
-            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed_trees::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-        };
-        for field in fields {
-            if let Some(forbidden) = first_forbidden_carrier_content(
-                program,
-                proof_only,
-                field.type_reference,
-                visited_proof_data,
-            ) {
-                return Some(forbidden);
-            }
+    for field in program.data_member_fields(program.data_members(definition)) {
+        if let Some(forbidden) = first_forbidden_carrier_content(
+            program,
+            proof_only,
+            field.type_reference,
+            visited_proof_data,
+        ) {
+            return Some(forbidden);
         }
     }
     None

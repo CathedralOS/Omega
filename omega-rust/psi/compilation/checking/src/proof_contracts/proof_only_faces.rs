@@ -169,29 +169,20 @@ pub(crate) fn validate_proof_only_consumption(
         if classification.is_proof_only(definition.symbol) {
             continue;
         }
-        for member in program.data_members(definition) {
-            let fields = match member {
-                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                typed_trees::data::DataMember::Variant(variant) => {
-                    program.data_payload_fields(variant)
-                }
-            };
-            for field in fields {
-                // An erased occurrence has no runtime pointer or inline
-                // storage. Its proof-only mention is legal here and remains
-                // subject to proof and multiplicity checking elsewhere.
-                if field.relevance == language_core::BindingRelevance::Erased {
-                    continue;
-                }
-                if let Some(held) = classification.proof_only_mention(program, field.type_reference)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{}` field `{}` views proof-only `{held}` through an \
-                         indirection, but proof-only values never materialize at runtime \
-                         (there is nothing to point at)",
-                        definition.name, field.name
-                    )));
-                }
+        for field in program.data_member_fields(program.data_members(definition)) {
+            // An erased occurrence has no runtime pointer or inline
+            // storage. Its proof-only mention is legal here and remains
+            // subject to proof and multiplicity checking elsewhere.
+            if field.relevance == language_core::BindingRelevance::Erased {
+                continue;
+            }
+            if let Some(held) = classification.proof_only_mention(program, field.type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "data `{}` field `{}` views proof-only `{held}` through an \
+                     indirection, but proof-only values never materialize at runtime \
+                     (there is nothing to point at)",
+                    definition.name, field.name
+                )));
             }
         }
     }

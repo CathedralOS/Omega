@@ -2,7 +2,7 @@
 
 use super::super::ProgressSubject;
 use symbols::SymbolHandle;
-use typed_trees::{data::DataMember, machine::Machine};
+use typed_trees::machine::Machine;
 
 /// Select a finite owned prefix along this demand alone. Unused sibling fields
 /// are never enumerated, even when their type graph shares large subtrees.
@@ -117,10 +117,6 @@ fn exact_declared_field(
     program
         .data_definitions()
         .iter()
-        .flat_map(|data| program.data_members(data))
-        .flat_map(|member| match member {
-            DataMember::Field(field) => std::slice::from_ref(field),
-            DataMember::Variant(variant) => program.data_payload_fields(variant),
-        })
+        .flat_map(|data| program.data_member_fields(program.data_members(data)))
         .find(|field| field.symbol == symbol)
 }

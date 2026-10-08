@@ -508,21 +508,13 @@ fn declared_owned_field_domain_identities_uncached(
                 return;
             }
             ancestors.push(data.symbol);
-            for member in program.data_members(data) {
-                let fields = match member {
-                    typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
-                    typed_trees::data::DataMember::Variant(variant) => {
-                        program.data_payload_fields(variant)
-                    }
-                };
-                for field in fields {
-                    let length = prefix.len();
-                    // A payload promise is conditional on its exact case path;
-                    // it never becomes a sibling alternative's field promise.
-                    crate::push_field_place_segments(program, prefix, field.symbol);
-                    visit(program, field.type_reference, prefix, ancestors, output);
-                    prefix.truncate(length);
-                }
+            for field in program.data_member_fields(program.data_members(data)) {
+                let length = prefix.len();
+                // A payload promise is conditional on its exact case path;
+                // it never becomes a sibling alternative's field promise.
+                crate::push_field_place_segments(program, prefix, field.symbol);
+                visit(program, field.type_reference, prefix, ancestors, output);
+                prefix.truncate(length);
             }
             ancestors.pop();
         } else if let TypeReferenceNode::FixedArray {

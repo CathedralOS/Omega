@@ -417,10 +417,6 @@ fn exact_declared_field(
     program
         .data_definitions()
         .iter()
-        .flat_map(|data| program.data_members(data))
-        .flat_map(|member| match member {
-            typed::data::DataMember::Field(field) => std::slice::from_ref(field),
-            typed::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-        })
+        .flat_map(|data| program.data_member_fields(program.data_members(data)))
         .find(|field| field.symbol == symbol)
 }

@@ -153,15 +153,9 @@ impl ProofOnlyClassification {
             return false;
         }
         visiting.push(*symbol);
-        let admitted = program.data_members(definition).iter().all(|member| {
-            let fields: &[crate::data::DataField] = match member {
-                crate::data::DataMember::Field(field) => std::slice::from_ref(field),
-                crate::data::DataMember::Variant(variant) => program.data_payload_fields(variant),
-            };
-            fields
-                .iter()
-                .all(|field| self.contract_term_field(program, field.type_reference, visiting))
-        });
+        let admitted = program
+            .data_member_fields(program.data_members(definition))
+            .all(|field| self.contract_term_field(program, field.type_reference, visiting));
         visiting.pop();
         admitted
     }
