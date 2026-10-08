@@ -28,15 +28,7 @@ pub(in crate::preparation::generic_data) fn integer_literal_value(
 pub(in crate::preparation::generic_data) fn qualified_const_name(
     definition: &ConstDefinition,
 ) -> String {
-    if definition.scope.as_str().is_empty() {
-        definition.name.as_str().to_owned()
-    } else {
-        format!(
-            "{}::{}",
-            definition.scope.as_str(),
-            definition.name.as_str()
-        )
-    }
+    crate::constant::semantic_const_name(definition)
 }
 
 #[derive(Clone)]
