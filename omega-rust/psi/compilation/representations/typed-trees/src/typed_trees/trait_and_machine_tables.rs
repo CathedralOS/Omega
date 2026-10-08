@@ -379,7 +379,21 @@ impl TypedTrees {
         self.tables.machines.span_or_empty(self.roots.machines)
     }
 
-    /// The machine `symbol` declares, if any.
+    /// The machine signature `symbol` declared by any trait, with its
+    /// declaring trait.
+    pub fn trait_machine_signature(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(&trait_definition::TraitDefinition, &signature::StateSignature)> {
+        self.traits().iter().find_map(|trait_definition| {
+            self.trait_machine_signatures(trait_definition)
+                .iter()
+                .find(|signature| signature.symbol == symbol)
+                .map(|signature| (trait_definition, signature))
+        })
+    }
+
+        /// The machine `symbol` declares, if any.
     pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&machine::Machine> {
         self.machines()
             .iter()

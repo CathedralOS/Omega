@@ -353,13 +353,9 @@ pub(super) fn call_return_type(
     if let Some((_, signature)) = program.machine_parameter_signature(state_symbol) {
         return Some(signature.return_type);
     }
-    program.traits().iter().find_map(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == state_symbol)
-            .map(|signature| signature.return_type)
-    })
+    program
+        .trait_machine_signature(state_symbol)
+        .map(|(_, signature)| signature.return_type)
 }
 
 pub(super) fn collect_type_indexed_instances(

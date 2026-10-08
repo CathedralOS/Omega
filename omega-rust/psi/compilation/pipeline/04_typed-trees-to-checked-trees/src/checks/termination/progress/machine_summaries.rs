@@ -180,12 +180,10 @@ pub(crate) fn selected_call_summary<'a>(
             build_bound_demands: &[],
         });
     }
-    if let Some(signature) = program.traits().iter().find_map(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == target_symbol)
-    }) {
+    if let Some(signature) = program
+        .trait_machine_signature(target_symbol)
+        .map(|(_, signature)| signature)
+    {
         return Some(SelectedCallProgress {
             guarantee: &signature.termination_guarantee,
             build_bound_demands: &[],

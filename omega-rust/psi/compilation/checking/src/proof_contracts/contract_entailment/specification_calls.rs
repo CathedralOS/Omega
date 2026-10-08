@@ -236,12 +236,9 @@ fn signature_by_symbol(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Option<&StateSignature> {
-    program.traits().iter().find_map(|definition| {
-        program
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|requirement| requirement.symbol == symbol)
-    })
+    program
+        .trait_machine_signature(symbol)
+        .map(|(_, signature)| signature)
 }
 
 fn owner_symbol(owner: &RequirementOwner<'_>) -> SymbolHandle {

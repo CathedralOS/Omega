@@ -389,13 +389,7 @@ impl ActivationCarryAccumulator<'_> {
         }
 
         if let Some((trait_definition, signature)) =
-            self.program.traits().iter().find_map(|trait_definition| {
-                self.program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|signature| signature.symbol == target)
-                    .map(|signature| (trait_definition, signature))
-            })
+            self.program.trait_machine_signature(target)
         {
             let parameters = self.program.trait_type_parameters(trait_definition);
             for parameter in self.program.state_signature_parameters(signature) {

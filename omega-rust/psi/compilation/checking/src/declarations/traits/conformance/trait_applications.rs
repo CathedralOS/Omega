@@ -98,13 +98,7 @@ fn validate_machine_declaration_identity_arguments(
         // therefore invalidates every such identity use rather than allowing
         // an expected call shape or a visible satisfier to choose one row.
         if let Some((declaring_trait, selected_requirement)) =
-            program.traits().iter().find_map(|trait_definition| {
-                program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|requirement| requirement.symbol == *symbol)
-                    .map(|requirement| (trait_definition, requirement))
-            })
+            program.trait_machine_signature(*symbol)
         {
             let same_name_count = program
                 .trait_machine_signatures(declaring_trait)

@@ -254,13 +254,9 @@ pub fn call_target_return_type(
     if let Some(reference) = asm_intrinsic_result_type(program, target_state_symbol) {
         return Some(reference);
     }
-    program.traits().iter().find_map(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == target_state_symbol)
-            .map(|signature| signature.return_type)
-    })
+    program
+        .trait_machine_signature(target_state_symbol)
+        .map(|(_, signature)| signature.return_type)
 }
 
 /// The asm-block value intrinsics (`in`, `rdmsr`, `pushfq`, `read_crN`,

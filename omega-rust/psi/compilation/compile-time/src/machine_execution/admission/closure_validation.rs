@@ -465,12 +465,9 @@ fn callable_signature(
         .machine_parameter_signature(symbol)
         .map(|(_, signature)| signature)
         .or_else(|| {
-            program.traits().iter().find_map(|definition| {
-                program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == symbol)
-            })
+            program
+                .trait_machine_signature(symbol)
+                .map(|(_, signature)| signature)
         })
 }
 

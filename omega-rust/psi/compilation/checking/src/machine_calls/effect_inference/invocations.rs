@@ -777,12 +777,9 @@ fn signature_for_symbol(
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
         return Some(signature);
     }
-    program.traits().iter().find_map(|trait_definition| {
-        program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == symbol)
-    })
+    program
+        .trait_machine_signature(symbol)
+        .map(|(_, signature)| signature)
 }
 
 fn boundary_trait_for_signature(

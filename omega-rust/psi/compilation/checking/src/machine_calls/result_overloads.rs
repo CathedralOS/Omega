@@ -624,13 +624,7 @@ fn selected_named_callable_symbol(
     }
 
     let (trait_definition, provisional_requirement) =
-        program.traits().iter().find_map(|trait_definition| {
-            program
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|requirement| requirement.symbol == provisional_target)
-                .map(|requirement| (trait_definition, requirement))
-        })?;
+        program.trait_machine_signature(provisional_target)?;
     let provisional_identity =
         program.trait_requirement_callable_identity(trait_definition, provisional_requirement);
     let overloads = program
@@ -890,13 +884,9 @@ fn collect_call_argument_expectations(
                 .map(|entry| program.state_parameters(entry))
         })
         .or_else(|| {
-            program.traits().iter().find_map(|trait_definition| {
-                program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|requirement| requirement.symbol == call.target_symbol)
-                    .map(|requirement| program.state_signature_parameters(requirement))
-            })
+            program
+                .trait_machine_signature(call.target_symbol)
+                .map(|(_, requirement)| program.state_signature_parameters(requirement))
         });
     let Some(parameters) = parameters else {
         return;
