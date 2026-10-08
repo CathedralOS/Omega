@@ -57,12 +57,9 @@ pub(super) fn structural_sequence_length(
     // A raw fixed-array projection has a type-owned extent. Do
     // not strip a constrained carrier: its live length can differ from its
     // backing capacity. Dynamic byte views retain their runtime read below.
-    let mut extent_type = selected_type;
-    while let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(extent_type)
-    {
-        extent_type = *referee;
-    }
+    let extent_type = program
+        .type_reference_table
+        .dereferenced_type_reference(selected_type);
     if let TypeReferenceNode::FixedArray {
         length: typed_trees::types::FixedArrayLength::Literal(length),
         ..

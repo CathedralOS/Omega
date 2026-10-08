@@ -212,9 +212,9 @@ fn dependent_range_substituted(
     .type_reference;
     // The field itself must be an enforced-integer-ranged place (same gate
     // this module applies to any range an index proof may trust).
-    if primitive_of_type_reference(program, field_type).is_none_or(|primitive| {
-        !primitive.is_fixed_integer()
-    }) {
+    if primitive_of_type_reference(program, field_type)
+        .is_none_or(|primitive| !primitive.is_fixed_integer())
+    {
         return None;
     }
     let (_, field_high) = enforced_range_of_type_reference(program, field_type)?;
@@ -386,14 +386,15 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
         let ExpressionNode::Member(member) = program.expression_table.expression(collection) else {
             return None;
         };
-        let mut receiver = expression_type_reference(program, machine, state, member.receiver)?;
-        while let TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } = program.type_reference_table.type_reference(receiver)
-        {
-            receiver = *referee;
-        }
+        let receiver =
+            program
+                .type_reference_table
+                .peeled_type_reference(expression_type_reference(
+                    program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?);
         let TypeReferenceNode::Generic {
             base_symbol,
             arguments,

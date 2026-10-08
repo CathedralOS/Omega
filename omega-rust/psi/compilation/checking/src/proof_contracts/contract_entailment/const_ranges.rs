@@ -344,14 +344,11 @@ fn value_type(
 
 fn unreferenced(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *referee;
-    }
-    reference
+    program
+        .type_reference_table
+        .dereferenced_type_reference(reference)
 }
 
 fn scoped_value_bound(

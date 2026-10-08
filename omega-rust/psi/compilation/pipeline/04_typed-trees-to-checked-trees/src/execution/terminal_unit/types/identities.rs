@@ -191,14 +191,9 @@ pub(in crate::execution::terminal_unit) fn base_type_identity_with_substitutions
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<String> {
-    let mut storage = type_reference;
-    while let TypeReferenceNode::Reference { referee, .. }
-    | TypeReferenceNode::Constrained {
-        base_type: referee, ..
-    } = program.type_reference_table.type_reference(storage)
-    {
-        storage = *referee;
-    }
+    let storage = program
+        .type_reference_table
+        .peeled_type_reference(type_reference);
     matches!(
         program.type_reference_table.type_reference(storage),
         TypeReferenceNode::Named { .. }

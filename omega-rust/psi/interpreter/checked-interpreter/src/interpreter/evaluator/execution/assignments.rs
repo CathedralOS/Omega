@@ -60,14 +60,10 @@ impl Evaluator<'_> {
             let result = self.deref_cell(result);
             *result.borrow_mut() = prior;
         }
-        let mut value_type = declared_type.unwrap_or_default();
-        while let TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } = self.program.type_reference_table.type_reference(value_type)
-        {
-            value_type = *referee;
-        }
+        let value_type = self
+            .program
+            .type_reference_table
+            .peeled_type_reference(declared_type.unwrap_or_default());
         let value = self.eval_expression_at_type(replacement, value_type, frame)?;
         let copy_array = matches!(value, Value::Array(_))
             && declared_type

@@ -497,7 +497,7 @@ fn captured_place_subject(
     let authored_index = parameters
         .iter()
         .position(|parameter| parameter.symbol == root);
-    let (source, mut type_reference) = match authored_index {
+    let (source, type_reference) = match authored_index {
         Some(authored_index) => {
             // Both unit-plan shapes carry the same authored-position roster:
             // a single-state body keeps it on the machine row, a composed
@@ -546,11 +546,9 @@ fn captured_place_subject(
             (LoanedSource::Local(root), root_local.type_reference)
         }
     };
-    while let TypeReferenceNode::Reference { referee, .. } =
-        checked.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *referee;
-    }
+    let type_reference = checked
+        .type_reference_table
+        .dereferenced_type_reference(type_reference);
     // The receiver's authored type names the machine itself; its structural
     // carrier is the attached data record the machine's states operate on.
     let root_identity = match checked.type_reference_table.type_reference(type_reference) {

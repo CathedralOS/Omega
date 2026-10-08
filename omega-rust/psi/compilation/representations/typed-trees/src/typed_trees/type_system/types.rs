@@ -303,6 +303,19 @@ impl TypeReferenceTable {
         handle
     }
 
+    /// `handle` with every outer `Reference` and `Constrained` shell
+    /// removed — the declared carrier underneath both wrappers.
+    pub fn peeled_type_reference(&self, mut handle: TypeReferenceHandle) -> TypeReferenceHandle {
+        while let TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } = self.type_reference(handle)
+        {
+            handle = *referee;
+        }
+        handle
+    }
+
     /// `handle` with every outer `Constrained` shell removed — the carrier
     /// type the constraint set annotates.
     pub fn unconstrained_type_reference(

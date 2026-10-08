@@ -60,13 +60,9 @@ pub(super) fn type_reference(
     // its stored field's own enforced bounds.
     let mut owner_type = parameter.type_reference;
     if is_subject(parameter) {
-        while let TypeReferenceNode::Reference { referee, .. }
-        | TypeReferenceNode::Constrained {
-            base_type: referee, ..
-        } = program.type_reference_table.type_reference(owner_type)
-        {
-            owner_type = *referee;
-        }
+        owner_type = program
+            .type_reference_table
+            .peeled_type_reference(owner_type);
     }
     let TypeReferenceNode::Named { symbol: owner, .. } =
         program.type_reference_table.type_reference(owner_type)

@@ -690,15 +690,11 @@ fn type_reference_data_name(
 /// reference crossings and establish exclusive authority.
 pub fn data_definition_for_field_type(
     program: &dyn crate::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    while let TypeReferenceNode::Reference { referee, .. }
-    | TypeReferenceNode::Constrained {
-        base_type: referee, ..
-    } = program.type_reference_table.type_reference(type_reference)
-    {
-        type_reference = *referee;
-    }
+    let type_reference = program
+        .type_reference_table
+        .peeled_type_reference(type_reference);
     program.closed_data_definition(type_reference)
 }
 
