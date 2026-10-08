@@ -2,6 +2,7 @@
 //! Original Terminal provenance cannot authorize a stale observation after a rewrite.
 use super::structural_freshness::{structural_metadata_may_change, unchanged_since};
 use crate::OptimizationUnitValidationError;
+use crate::unit_validation::catalog_mismatch;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
@@ -36,11 +37,7 @@ pub(super) fn validate(
                 } => (source, path, field, length, true),
                 _ => continue,
             };
-            let node = u32::try_from(node_position).map_err(|_| {
-                OptimizationUnitValidationError::StructuralCatalogMismatch {
-                    machine: Some(function.machine),
-                }
-            })?;
+            let node = u32::try_from(node_position).map_err(|_| catalog_mismatch(function))?;
             let invalid = if reads {
                 OptimizationUnitValidationError::InvalidByteSequenceRead {
                     machine: function.machine,

@@ -1,4 +1,5 @@
 use crate::OptimizationUnitValidationError;
+use crate::unit_validation::catalog_mismatch;
 use crate::unit_validation::services::structural_signature_matches;
 use crate::unit_validation::structural_catalog::paths::{
     resolve_structural_path, structural_projected_qualifications_match,
@@ -73,9 +74,7 @@ pub(crate) fn validate_function_structural_catalog(
     ),
     OptimizationUnitValidationError,
 > {
-    let mismatch = || OptimizationUnitValidationError::StructuralCatalogMismatch {
-        machine: Some(function.machine),
-    };
+    let mismatch = || catalog_mismatch(function);
     if !structural_signature_matches(
         &function.structural_parameters,
         function.attachment,

@@ -26,6 +26,15 @@ use semantic_vocabulary::MachineId;
 
 pub(crate) mod affine_authority;
 pub(crate) mod arrival_storage;
+
+/// The catalog-mismatch rejection for `function`, named once per check site.
+pub(crate) fn catalog_mismatch(
+    function: &PsiOptimizationFunction,
+) -> OptimizationUnitValidationError {
+    OptimizationUnitValidationError::StructuralCatalogMismatch {
+        machine: Some(function.machine),
+    }
+}
 mod catalogs;
 pub(crate) mod derived_metadata;
 pub(crate) mod function_structure;

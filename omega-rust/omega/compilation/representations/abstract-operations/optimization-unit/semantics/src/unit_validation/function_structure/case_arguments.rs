@@ -2,6 +2,7 @@
 //! Layout selects bytes; only an unchanged observation on every arrival may
 //! authorize interpreting those bytes as the requested case's payload.
 
+use crate::unit_validation::catalog_mismatch;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralTypeId};
@@ -38,9 +39,7 @@ pub(super) fn validate(
                         &argument.path[..position],
                         *case,
                     ) {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
             }

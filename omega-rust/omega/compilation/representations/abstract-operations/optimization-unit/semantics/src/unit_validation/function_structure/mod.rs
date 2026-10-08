@@ -4,6 +4,7 @@
 //! claims and parameters, CFG shape, results, structural roots, provenance,
 //! facts, values, ownership, and service contracts. Each invariant family
 //! descends into one named leaf.
+use crate::unit_validation::catalog_mismatch;
 use crate::unit_validation::derived_metadata::validate_places_and_claims;
 use crate::unit_validation::operation_contracts::validate_values_and_bindings;
 use crate::unit_validation::services::valid_service_ceiling;
@@ -69,9 +70,7 @@ pub(crate) fn validate_function(
                 .count()
                 != 1
         {
-            return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                machine: Some(function.machine),
-            });
+            return Err(catalog_mismatch(function));
         }
     }
     if !valid_service_ceiling(&function.published_service_ceiling, services) {

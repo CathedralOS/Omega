@@ -1,6 +1,7 @@
 //! Independently replay an owned byte snapshot's exact sources and live extents.
 //! Capacity evidence is checked against the current declaration by the unit catalog.
 use crate::OptimizationUnitValidationError;
+use crate::unit_validation::catalog_mismatch;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, StructuralDomainId, StructuralPlaceKind, StructuralTypeId};
@@ -17,9 +18,7 @@ pub(super) fn validate(
     domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let invalid = || OptimizationUnitValidationError::StructuralCatalogMismatch {
-        machine: Some(function.machine),
-    };
+    let invalid = || catalog_mismatch(function);
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
             let O::EstablishByteSequenceConcatenation {

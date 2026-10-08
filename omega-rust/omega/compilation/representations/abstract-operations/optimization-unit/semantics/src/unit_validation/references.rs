@@ -2,6 +2,7 @@
 //! contract. A carrier owns loan permission, never its referent's storage;
 //! every origin and parent is reconstructed from operations and signatures.
 use crate::OptimizationUnitValidationError;
+use crate::unit_validation::catalog_mismatch;
 use crate::unit_validation::operation_contracts::{constructible, structural_source_contract};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -689,9 +690,7 @@ pub(crate) fn validate_function_references(
     functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let invalid = || OptimizationUnitValidationError::StructuralCatalogMismatch {
-        machine: Some(function.machine),
-    };
+    let invalid = || catalog_mismatch(function);
     let is_reference = |structural_type| {
         types.get(&structural_type).is_some_and(|declaration| {
             matches!(
@@ -927,9 +926,7 @@ fn validate_alternative_result_dependencies(
     functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let invalid = || OptimizationUnitValidationError::StructuralCatalogMismatch {
-        machine: Some(function.machine),
-    };
+    let invalid = || catalog_mismatch(function);
     let mut pending = vec![(function.machine, false)];
     let mut active = BTreeSet::new();
     let mut completed = BTreeSet::new();

@@ -1,4 +1,5 @@
 //! Structural-root uniqueness, availability, observation, and return contracts.
+use super::super::catalog_mismatch;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::structural_root_key;
 use abstract_operations::AbstractOperation as O;
@@ -178,9 +179,7 @@ pub(crate) fn validate_structural_root_operations(
                     )
                     .is_none()
                     {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::ByteSequenceStore { source, .. }
@@ -201,9 +200,7 @@ pub(crate) fn validate_structural_root_operations(
                     )
                     .is_none()
                     {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::StructuralByteViewFieldStore { source, .. } => {
@@ -213,9 +210,7 @@ pub(crate) fn validate_structural_root_operations(
                         place_kinds.get(source),
                         structural_types,
                     ) {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::StructuralByteSequenceFieldLength {
@@ -282,9 +277,7 @@ pub(crate) fn validate_structural_root_operations(
                             })
                         });
                     if !valid {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::StructuralCaseMembership {
@@ -575,9 +568,7 @@ pub(crate) fn validate_structural_root_operations(
                             source.access,
                         );
                     if !valid {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::ReleaseReference { source, path, .. } => {
@@ -617,9 +608,7 @@ pub(crate) fn validate_structural_root_operations(
                                 })
                         });
                     if !valid {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::MoveStructuralField {
@@ -648,9 +637,7 @@ pub(crate) fn validate_structural_root_operations(
                                 && *structural_type == result.structural_type
                         );
                     if !valid {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::StoreStructuralField {
@@ -687,9 +674,7 @@ pub(crate) fn validate_structural_root_operations(
                             })
                         });
                     if !valid {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::StructuralLeafCopy {
@@ -797,9 +782,7 @@ pub(crate) fn validate_structural_root_operations(
                                     && *structural_type == result.structural_type
                             );
                     if !valid {
-                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
-                            machine: Some(function.machine),
-                        });
+                        return Err(catalog_mismatch(function));
                     }
                 }
                 O::ReturnStructural { source, .. } => {
@@ -962,6 +945,7 @@ pub(crate) fn validate_structural_root_operations(
 /// a final `Case` step names. The payload overlays the sum's own place; the
 /// verified module proved that case active, and this replay rebuilds only the
 /// declared carrier and leaf, so a substituted case or field fails here.
+
 fn observed_scalar_field(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     root: StructuralTypeId,
