@@ -20,6 +20,79 @@ use crate::object_artifact::replay::{
     zero_code_field_store_source_is_consistent, zero_code_store_source_is_consistent,
 };
 
+/// How many integer constants `function` carries that reproduce the source
+/// provenance before `operation_ordinal` — the source-count check every
+/// IntegerImmediate store arm makes.
+fn integer_constant_source_count(
+    function: &InstalledFunction,
+    defining_operation: semantic_vocabulary::OperationId,
+    source_value: semantic_vocabulary::ValueId,
+    scalar_type: semantic_vocabulary::IntegerType,
+    value: semantic_vocabulary::IntegerValue,
+    operation_ordinal: usize,
+) -> usize {
+    function
+        .unit_integer_constants
+        .iter()
+        .filter(|candidate| {
+            candidate.defining_operation == defining_operation
+                && candidate.source_value == source_value
+                && candidate.scalar_type == scalar_type
+                && candidate.value == value
+                && candidate.operation_ordinal < operation_ordinal
+        })
+        .count()
+}
+
+/// How many zero-byte semantic attributions `definition_ordinal` produced at
+/// or before `code_offset` on `machine` — the definition-count check every
+/// immediate store arm makes.
+fn attribution_definition_count(
+    record: &InstallationRecord,
+    machine: MachineId,
+    defining_operation: semantic_vocabulary::OperationId,
+    definition_ordinal: usize,
+    code_offset: usize,
+) -> usize {
+    record
+        .semantic_code_attribution
+        .iter()
+        .filter(|attribution| {
+            attribution.machine == machine
+                && attribution.attribution.site == SemanticCodeSite::Operation(defining_operation)
+                && attribution.attribution.operation_ordinal == definition_ordinal
+                && attribution.attribution.code_offset <= code_offset
+                && attribution.attribution.byte_count == 0
+        })
+        .count()
+}
+
+/// How many `source_home` call results precede `operation_ordinal` on
+/// `machine`, plus how many scalar homes `function` registers — the
+/// source/home count pair every `Home` store arm checks.
+fn home_source_counts(
+    record: &InstallationRecord,
+    function: &InstalledFunction,
+    source_home: &machine_code::UnitScalarHomeRecord,
+    operation_ordinal: usize,
+) -> (usize, usize) {
+    let source_count = record
+        .internal_unit_scalar_calls
+        .iter()
+        .filter(|call| {
+            call.machine == function.machine
+                && call.custody.result.home == *source_home
+                && call.custody.operation_ordinal < operation_ordinal
+        })
+        .count();
+    let home_count = function
+        .unit_scalar_homes
+        .iter()
+        .filter(|home| *home == source_home)
+        .count();
+    (source_count, home_count)
+}
+
 pub(super) fn installed_function_scalar_transport_is_canonical(
     function: &InstalledFunction,
     target: NativeTarget,
@@ -411,17 +484,14 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     scalar_type,
                     value,
                 } => {
-                    let source_count = function
-                        .unit_integer_constants
-                        .iter()
-                        .filter(|constant| {
-                            constant.defining_operation == defining_operation
-                                && constant.source_value == source_value
-                                && constant.scalar_type == scalar_type
-                                && constant.value == value
-                                && constant.operation_ordinal < store.operation_ordinal
-                        })
-                        .count();
+                    let source_count = integer_constant_source_count(
+                        function,
+                        defining_operation,
+                        source_value,
+                        scalar_type,
+                        value,
+                        store.operation_ordinal,
+                    );
                     let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
                     (
                         source_count == 1
@@ -444,18 +514,13 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     value,
                     definition_ordinal,
                 } => {
-                    let definition_count = record
-                        .semantic_code_attribution
-                        .iter()
-                        .filter(|attribution| {
-                            attribution.machine == function.machine
-                                && attribution.attribution.site
-                                    == SemanticCodeSite::Operation(defining_operation)
-                                && attribution.attribution.operation_ordinal == definition_ordinal
-                                && attribution.attribution.code_offset <= store.code_offset
-                                && attribution.attribution.byte_count == 0
-                        })
-                        .count();
+                    let definition_count = attribution_definition_count(
+                        record,
+                        function.machine,
+                        defining_operation,
+                        definition_ordinal,
+                        store.code_offset,
+                    );
                     (
                         definition_ordinal < store.operation_ordinal
                             && definition_count == 1
@@ -475,20 +540,8 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                     ) {
                         return Err(invalid());
                     }
-                    let source_count = record
-                        .internal_unit_scalar_calls
-                        .iter()
-                        .filter(|call| {
-                            call.machine == function.machine
-                                && call.custody.result.home == source_home
-                                && call.custody.operation_ordinal < store.operation_ordinal
-                        })
-                        .count();
-                    let home_count = function
-                        .unit_scalar_homes
-                        .iter()
-                        .filter(|home| **home == source_home)
-                        .count();
+                    let (source_count, home_count) =
+                        home_source_counts(record, function, &source_home, store.operation_ordinal);
                     let (shape, width) = installed_native_scalar_shape(source_home.scalar_type)
                         .ok_or_else(invalid)?;
                     (
@@ -611,17 +664,14 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     scalar_type,
                     value,
                 } => {
-                    let source_count = function
-                        .unit_integer_constants
-                        .iter()
-                        .filter(|constant| {
-                            constant.defining_operation == defining_operation
-                                && constant.source_value == source_value
-                                && constant.scalar_type == scalar_type
-                                && constant.value == value
-                                && constant.operation_ordinal < store.operation_ordinal
-                        })
-                        .count();
+                    let source_count = integer_constant_source_count(
+                        function,
+                        defining_operation,
+                        source_value,
+                        scalar_type,
+                        value,
+                        store.operation_ordinal,
+                    );
                     let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
                     (
                         source_count == 1
@@ -645,18 +695,13 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     value,
                     definition_ordinal,
                 } => {
-                    let definition_count = record
-                        .semantic_code_attribution
-                        .iter()
-                        .filter(|attribution| {
-                            attribution.machine == function.machine
-                                && attribution.attribution.site
-                                    == SemanticCodeSite::Operation(defining_operation)
-                                && attribution.attribution.operation_ordinal == definition_ordinal
-                                && attribution.attribution.code_offset <= store.code_offset
-                                && attribution.attribution.byte_count == 0
-                        })
-                        .count();
+                    let definition_count = attribution_definition_count(
+                        record,
+                        function.machine,
+                        defining_operation,
+                        definition_ordinal,
+                        store.code_offset,
+                    );
                     (
                         definition_ordinal < store.operation_ordinal
                             && definition_count == 1
@@ -676,18 +721,13 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     value,
                     definition_ordinal,
                 } => {
-                    let definition_count = record
-                        .semantic_code_attribution
-                        .iter()
-                        .filter(|attribution| {
-                            attribution.machine == function.machine
-                                && attribution.attribution.site
-                                    == SemanticCodeSite::Operation(defining_operation)
-                                && attribution.attribution.operation_ordinal == definition_ordinal
-                                && attribution.attribution.code_offset <= store.code_offset
-                                && attribution.attribution.byte_count == 0
-                        })
-                        .count();
+                    let definition_count = attribution_definition_count(
+                        record,
+                        function.machine,
+                        defining_operation,
+                        definition_ordinal,
+                        store.code_offset,
+                    );
                     let (width, bits) = match value {
                         semantic_vocabulary::IeeeFloatValue::Binary32(bits) => (4, u64::from(bits)),
                         semantic_vocabulary::IeeeFloatValue::Binary64(bits) => (8, bits),
@@ -706,20 +746,8 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                     )
                 }
                 machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord::Home(source_home) => {
-                    let source_count = record
-                        .internal_unit_scalar_calls
-                        .iter()
-                        .filter(|call| {
-                            call.machine == function.machine
-                                && call.custody.result.home == source_home
-                                && call.custody.operation_ordinal < store.operation_ordinal
-                        })
-                        .count();
-                    let home_count = function
-                        .unit_scalar_homes
-                        .iter()
-                        .filter(|home| **home == source_home)
-                        .count();
+                    let (source_count, home_count) =
+                        home_source_counts(record, function, &source_home, store.operation_ordinal);
                     let semantic_vocabulary::ScalarType::Integer(integer) = source_home.scalar_type
                     else {
                         return Err(invalid());
@@ -835,7 +863,6 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
     Ok(())
 }
 
-
 /// The `Parameter` source arm's shared audit: the record names an exact ABI
 /// parameter home when the recorded scalar type's declared shape, the
 /// parameter's placement, value and the enclosing call plan all match — the
@@ -948,36 +975,33 @@ fn parameter_source_home(
         .get(scalar_parameter_index)
         .ok_or_else(&invalid)?;
     let (scalar_shape, width) = installed_native_scalar_shape(scalar_type).ok_or_else(&invalid)?;
-    let (expected_location, placed_byte_size) = match scalar_parameter
-        .placement
-        .locations
-        .as_slice()
-    {
-        [
-            ValueLocation::Register {
-                register,
-                value_byte_offset: 0,
-                byte_size,
-            },
-        ] => (
-            machine_code::UnitScalarParameterLocationRecord::Register(*register),
-            *byte_size,
-        ),
-        [
-            ValueLocation::Stack {
-                stack_byte_offset,
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            },
-        ] => (
-            machine_code::UnitScalarParameterLocationRecord::IncomingStack {
-                byte_offset: *stack_byte_offset,
-            },
-            *byte_size,
-        ),
-        _ => return Err(invalid()),
-    };
+    let (expected_location, placed_byte_size) =
+        match scalar_parameter.placement.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] => (
+                machine_code::UnitScalarParameterLocationRecord::Register(*register),
+                *byte_size,
+            ),
+            [
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => (
+                machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                    byte_offset: *stack_byte_offset,
+                },
+                *byte_size,
+            ),
+            _ => return Err(invalid()),
+        };
     let mut parameter_shapes = abi
         .parameters
         .iter()
