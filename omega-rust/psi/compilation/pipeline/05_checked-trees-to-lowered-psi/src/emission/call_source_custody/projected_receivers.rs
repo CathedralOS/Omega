@@ -289,15 +289,15 @@ fn resolve_source(
                         })
                         .and_then(|position| u32::try_from(position).ok()) =>
             {
-                if !validation::place_has_builtin_coordinates(
-                    &checked.typed,
+                validate_indexed_receiver(
+                    checked,
                     machine,
-                    Some(state),
+                    state,
                     cursor,
-                ) {
-                    return unsupported("projected receiver index has no builtin address meaning");
-                }
-                validate_indexed_collection(checked, indexed.collection, None, purpose)?;
+                    indexed.collection,
+                    None,
+                    purpose,
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::Parameter { position },
                 ));
@@ -321,15 +321,15 @@ fn resolve_source(
                     state,
                     indexed.index,
                 )?;
-                if !validation::place_has_builtin_coordinates(
-                    &checked.typed,
+                validate_indexed_receiver(
+                    checked,
                     machine,
-                    Some(state),
+                    state,
                     cursor,
-                ) {
-                    return unsupported("projected receiver index has no builtin address meaning");
-                }
-                validate_indexed_collection(checked, indexed.collection, None, purpose)?;
+                    indexed.collection,
+                    None,
+                    purpose,
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     checked_trees::CheckedRuntimeIndex::StructuralField(selector),
                 ));
@@ -344,15 +344,15 @@ fn resolve_source(
                 let index = fixed_index(checked, state, indexed.index).ok_or(
                     LoweringError::Unsupported("projected receiver requires a literal fixed index"),
                 )?;
-                if !validation::place_has_builtin_coordinates(
-                    &checked.typed,
+                validate_indexed_receiver(
+                    checked,
                     machine,
-                    Some(state),
+                    state,
                     cursor,
-                ) {
-                    return unsupported("projected receiver index has no builtin address meaning");
-                }
-                validate_indexed_collection(checked, indexed.collection, Some(index), purpose)?;
+                    indexed.collection,
+                    Some(index),
+                    purpose,
+                )?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 // Materialization may fold an immutable local's value, but
                 // capture retains that local read's exact selector occurrence.
@@ -483,6 +483,23 @@ fn resolve_source(
 /// Selector spelling changes neither collection identity nor addressability.
 /// This source join grants no bound or mutation permission: the operation's
 /// independent storage/loan and index obligations still establish those.
+/// The builtin-coordinate and collection carrier gate every projected
+/// receiver index must clear before its path segment is emitted.
+fn validate_indexed_receiver(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    cursor: ExpressionHandle,
+    collection: ExpressionHandle,
+    fixed_index: Option<u64>,
+    purpose: SourceUse,
+) -> Result<(), LoweringError> {
+    if !validation::place_has_builtin_coordinates(&checked.typed, machine, Some(state), cursor) {
+        return unsupported("projected receiver index has no builtin address meaning");
+    }
+    validate_indexed_collection(checked, collection, fixed_index, purpose)
+}
+
 fn validate_indexed_collection(
     checked: &CheckedTrees,
     collection: ExpressionHandle,
