@@ -128,7 +128,7 @@ pub(super) fn check(
         else {
             continue;
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(selected.expression)
+        let Some(call) = program.expression_table.call_node(selected.expression)
         else {
             continue;
         };

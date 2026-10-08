@@ -368,7 +368,7 @@ impl ReturnReader<'_, '_> {
                 return None;
             }
             depth += 1;
-            let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+            let Some(path) = self.program.expression_table.name_path_node(expression)
             else {
                 break;
             };

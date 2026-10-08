@@ -79,7 +79,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
         }
         match application.site {
             validation::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression) => {
-                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                let Some(call) = program.expression_table.call_node(expression)
                 else {
                     diagnostics.push(diagnostics::Diagnostic::error(
                         "validated named operator application no longer names a call expression",

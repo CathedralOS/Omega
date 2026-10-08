@@ -181,7 +181,7 @@ fn is_parameter_domain_premise(
             {
                 return false;
             }
-            let ExpressionNode::Name(path) = program.expression_table.expression(membership.value)
+            let Some(path) = program.expression_table.name_path_node(membership.value)
             else {
                 return false;
             };

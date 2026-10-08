@@ -12,7 +12,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         expression: ExpressionHandle,
         owner: BooleanExpressionOwner,
     ) -> Option<(ExpressionHandle, BooleanExpressionOwner)> {
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        let Some(path) = self.program.expression_table.name_path_node(expression)
         else {
             return None;
         };

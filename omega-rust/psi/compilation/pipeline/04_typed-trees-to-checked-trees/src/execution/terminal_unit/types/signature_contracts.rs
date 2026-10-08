@@ -210,7 +210,7 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
             let ProofFact::Membership(membership) = fact else {
                 return false;
             };
-            let ExpressionNode::Name(path) = program.expression_table.expression(membership.value)
+            let Some(path) = program.expression_table.name_path_node(membership.value)
             else {
                 return false;
             };

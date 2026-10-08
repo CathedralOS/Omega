@@ -758,7 +758,7 @@ impl DispatchSubject {
             // member read of its own subject copy; only that spelling reads
             // the one evaluated result.
             Self::Computed(subject) => {
-                let ExpressionNode::Member(member) = program.expression_table.expression(argument)
+                let Some(member) = program.expression_table.member_node(argument)
                 else {
                     return Some(None);
                 };

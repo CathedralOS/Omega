@@ -319,7 +319,7 @@ pub(super) fn collect_call_selections(
                     continue;
                 }
 
-                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                let Some(call) = program.expression_table.call_node(expression)
                 else {
                     continue;
                 };

@@ -28,7 +28,7 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
     fn immutable_fixed_array_view_length(&mut self, expression: ExpressionHandle) -> Option<usize> {
         use typed_trees::statement::{StatementNode, TransitionGuardNode};
 
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        let Some(path) = self.program.expression_table.name_path_node(expression)
         else {
             return None;
         };
@@ -105,7 +105,7 @@ impl<'program> ContractExpressionEvaluator<'program, '_> {
     fn fixed_array_self_field_length(&mut self, member: &TableMemberExpression) -> Option<usize> {
         // Only `self.<field>` receivers: the self type is the one type the
         // callee contract pins statically.
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(member.receiver)
+        let Some(path) = self.program.expression_table.name_path_node(member.receiver)
         else {
             return None;
         };

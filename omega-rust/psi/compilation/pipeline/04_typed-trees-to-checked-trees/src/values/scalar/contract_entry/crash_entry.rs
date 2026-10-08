@@ -679,7 +679,7 @@ impl<'program> Reader<'program> {
     }
 
     fn parameter(&self, expression: ExpressionHandle, _allow_self: bool) -> Option<usize> {
-        let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
+        let Some(name) = self.program.expression_table.name_path_node(expression)
         else {
             return None;
         };
@@ -708,7 +708,7 @@ impl<'program> Reader<'program> {
         {
             return None;
         }
-        let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
+        let Some(member) = self.program.expression_table.member_node(expression)
         else {
             let position = self.parameter(expression, true)?;
             return Some(FieldPath {

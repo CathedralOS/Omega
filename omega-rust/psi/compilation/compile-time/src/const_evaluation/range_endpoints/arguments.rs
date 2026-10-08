@@ -69,7 +69,7 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         callee: super::EndpointCallee,
     ) -> Result<(Vec<BuildTimeValue>, Vec<ExpressionNode>, Vec<Diagnostic>), String> {
-        let ExpressionNode::Call(call) = self.execution.expression_table.expression(expression)
+        let Some(call) = self.execution.expression_table.call_node(expression)
         else {
             return Err("range endpoint lost its call".into());
         };
@@ -160,7 +160,7 @@ impl Invocation<'_> {
         machine: &typed_trees::machine::Machine,
         literals: &[ExpressionNode],
     ) -> Result<bool, String> {
-        let ExpressionNode::Call(call) = self.execution.expression_table.expression(expression)
+        let Some(call) = self.execution.expression_table.call_node(expression)
         else {
             return Err("range endpoint lost its call".into());
         };
@@ -278,7 +278,7 @@ impl ConstantCalls for Invocation<'_> {
             self.admission
                 .require_common_floor_for_invocation(self.execution, machine, custody)?;
         }
-        let ExpressionNode::Call(call) = self.execution.expression_table.expression(expression)
+        let Some(call) = self.execution.expression_table.call_node(expression)
         else {
             return Err("range endpoint lost its call".into());
         };

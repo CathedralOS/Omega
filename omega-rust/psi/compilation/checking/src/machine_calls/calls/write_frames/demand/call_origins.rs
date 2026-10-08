@@ -107,7 +107,7 @@ impl<'program> CallFrameResolver<'program> {
                 program.statement_table.expression_handles(call.arguments),
             ),
             CallerWriteSite::Expression(expression) => {
-                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                let Some(call) = program.expression_table.call_node(expression)
                 else {
                     return None;
                 };

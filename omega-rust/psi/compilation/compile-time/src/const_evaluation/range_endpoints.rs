@@ -292,7 +292,7 @@ pub(super) fn resolve_endpoint_callee(
             static_application: false,
         });
     }
-    let ExpressionNode::Call(call) = execution.expression_table.expression(endpoint.expression)
+    let Some(call) = execution.expression_table.call_node(endpoint.expression)
     else {
         return Err("range endpoint lost its authored static application".to_owned());
     };

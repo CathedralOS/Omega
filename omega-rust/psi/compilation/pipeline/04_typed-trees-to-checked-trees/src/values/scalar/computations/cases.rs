@@ -63,7 +63,7 @@ impl Builder<'_, '_> {
                 },
             ));
         }
-        let ExpressionNode::Name(selected) = self.program.expression_table.expression(binary.right)
+        let Some(selected) = self.program.expression_table.name_path_node(binary.right)
         else {
             return None;
         };

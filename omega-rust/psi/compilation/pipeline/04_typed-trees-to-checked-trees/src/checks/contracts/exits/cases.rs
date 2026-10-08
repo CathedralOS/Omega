@@ -154,7 +154,7 @@ impl CaseObservation<'_> {
         if subject.machine_symbol != self.machine.symbol {
             return None;
         }
-        let ExpressionNode::Name(case) = self.program.expression_table.expression(binary.right)
+        let Some(case) = self.program.expression_table.name_path_node(binary.right)
         else {
             return None;
         };

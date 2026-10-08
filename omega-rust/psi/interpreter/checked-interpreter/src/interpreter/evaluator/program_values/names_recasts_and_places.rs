@@ -171,7 +171,7 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Cast(cast) if cast.form.is_recast() => initializer,
             _ => return Ok(None),
         };
-        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(cast_handle)
+        let Some(cast) = self.program.expression_table.cast_node(cast_handle)
         else {
             return Ok(None);
         };

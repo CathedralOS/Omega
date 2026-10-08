@@ -334,7 +334,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-        let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
+        let Some(name) = self.program.expression_table.name_path_node(expression)
         else {
             return None;
         };

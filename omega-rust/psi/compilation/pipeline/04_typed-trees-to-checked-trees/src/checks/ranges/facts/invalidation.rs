@@ -102,7 +102,7 @@ impl RangeFacts<'_> {
         let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
             return None;
         };
-        let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection)
+        let Some(name) = program.expression_table.name_path_node(indexed.collection)
         else {
             return None;
         };

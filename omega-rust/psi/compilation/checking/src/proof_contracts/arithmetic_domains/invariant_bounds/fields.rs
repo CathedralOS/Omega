@@ -19,7 +19,7 @@ pub(super) fn type_reference(
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
-    let ExpressionNode::Name(receiver) = program.expression_table.expression(member.receiver)
+    let Some(receiver) = program.expression_table.name_path_node(member.receiver)
     else {
         return None;
     };

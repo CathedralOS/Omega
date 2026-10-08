@@ -534,6 +534,46 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    /// The typed `Name` node, or `None` for every other kind.
+    pub fn name_path_node(&self, handle: ExpressionHandle) -> Option<&TableNamePath> {
+        match self.expression(handle) {
+            ExpressionNode::Name(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `Call` node, or `None` for every other kind.
+    pub fn call_node(&self, handle: ExpressionHandle) -> Option<&TableCallExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Call(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `Member` node, or `None` for every other kind.
+    pub fn member_node(&self, handle: ExpressionHandle) -> Option<&TableMemberExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Member(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `Indexed` node, or `None` for every other kind.
+    pub fn indexed_node(&self, handle: ExpressionHandle) -> Option<&TableIndexedExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Indexed(node) => Some(node),
+            _ => None,
+        }
+    }
+
+    /// The typed `Cast` node, or `None` for every other kind.
+    pub fn cast_node(&self, handle: ExpressionHandle) -> Option<&TableCastExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Cast(node) => Some(node),
+            _ => None,
+        }
+    }
+
     /// The typed binary application node, or `None` for every other kind.
     /// Recursive walks open with this check on every expression they visit.
     pub fn binary_node(&self, handle: ExpressionHandle) -> Option<&TableBinaryExpression> {

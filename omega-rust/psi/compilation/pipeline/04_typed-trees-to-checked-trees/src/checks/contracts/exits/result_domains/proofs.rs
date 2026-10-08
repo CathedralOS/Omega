@@ -299,7 +299,7 @@ impl ScalarReturnProof<'_> {
     ) -> Option<typed_trees::expression::ExpressionHandle> {
         use typed_trees::expression::ExpressionNode;
         for _ in 0..128 {
-            let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+            let Some(cast) = self.program.expression_table.cast_node(expression)
             else {
                 return Some(expression);
             };

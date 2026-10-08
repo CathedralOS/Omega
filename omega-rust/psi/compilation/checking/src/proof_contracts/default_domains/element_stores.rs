@@ -58,7 +58,7 @@ pub(super) fn handle_element_store<'program>(
                 None => return false,
             },
         };
-    let ExpressionNode::Member(member) = program.expression_table.expression(member_expression)
+    let Some(member) = program.expression_table.member_node(member_expression)
     else {
         return false;
     };

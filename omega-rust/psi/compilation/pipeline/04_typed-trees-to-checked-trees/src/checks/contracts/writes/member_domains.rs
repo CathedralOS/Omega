@@ -256,7 +256,7 @@ fn case_membership_decision(
     domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<bool> {
     for (subject, case_expression) in [(left, right), (right, left)] {
-        let ExpressionNode::Name(path) = program.expression_table.expression(case_expression)
+        let Some(path) = program.expression_table.name_path_node(case_expression)
         else {
             continue;
         };
@@ -334,7 +334,7 @@ fn construction_selected_case(
     match program.expression_table.expression(value) {
         ExpressionNode::StructLiteral(literal) => literal.case_symbol,
         ExpressionNode::Call(call) => {
-            let ExpressionNode::Name(receiver) = program.expression_table.expression(call.receiver)
+            let Some(receiver) = program.expression_table.name_path_node(call.receiver)
             else {
                 return None;
             };

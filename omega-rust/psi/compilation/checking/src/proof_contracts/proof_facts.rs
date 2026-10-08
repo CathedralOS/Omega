@@ -687,7 +687,7 @@ fn self_member_name(
 ) -> Option<&str> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            let Some(path) = program.expression_table.name_path_node(member.receiver)
             else {
                 return None;
             };

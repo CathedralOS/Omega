@@ -27,7 +27,7 @@ pub fn single_member_receiver_field<'program>(
     if member.case_variant.is_some() {
         return None;
     }
-    let ExpressionNode::Name(receiver) = program.expression_table.expression(member.receiver)
+    let Some(receiver) = program.expression_table.name_path_node(member.receiver)
     else {
         return None;
     };

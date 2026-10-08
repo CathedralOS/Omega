@@ -226,7 +226,7 @@ pub(super) fn parse_counter_relational_upper(
         }
         _ => return None,
     };
-    let ExpressionNode::Member(member) = program.expression_table.expression(possible_length)
+    let Some(member) = program.expression_table.member_node(possible_length)
     else {
         return None;
     };

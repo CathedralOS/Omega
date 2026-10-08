@@ -77,7 +77,7 @@ pub(crate) fn validate_fact_call_projections(
         else {
             continue;
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(call_expression)
+        let Some(call) = program.expression_table.call_node(call_expression)
         else {
             continue;
         };

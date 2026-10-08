@@ -167,7 +167,7 @@ pub(crate) fn bind_selected_operator_calls(
         if !call.receiver.is_valid() {
             continue;
         }
-        let ExpressionNode::Name(receiver) = program.expression_table.expression(call.receiver)
+        let Some(receiver) = program.expression_table.name_path_node(call.receiver)
         else {
             continue;
         };

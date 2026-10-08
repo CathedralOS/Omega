@@ -97,7 +97,7 @@ pub(super) fn infer(
         _ => None,
     };
     for (endpoint_index, required_endpoint) in required_endpoints.into_iter().enumerate() {
-        let ExpressionNode::Name(name) = program.expression_table.expression(required_endpoint)
+        let Some(name) = program.expression_table.name_path_node(required_endpoint)
         else {
             continue;
         };
@@ -192,7 +192,7 @@ pub(super) fn collect_binders(
                 continue;
             };
             for endpoint in [minimum, maximum] {
-                let ExpressionNode::Name(name) = program.expression_table.expression(*endpoint)
+                let Some(name) = program.expression_table.name_path_node(*endpoint)
                 else {
                     continue;
                 };

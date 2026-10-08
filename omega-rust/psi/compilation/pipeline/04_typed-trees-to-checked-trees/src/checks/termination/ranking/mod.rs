@@ -147,7 +147,7 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
     let [decreases] = subjects.as_slice() else {
         return None;
     };
-    let ExpressionNode::Name(decreases_path) = program.expression_table.expression(*decreases)
+    let Some(decreases_path) = program.expression_table.name_path_node(*decreases)
     else {
         return None;
     };
@@ -327,7 +327,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
         let [decreases] = subjects.as_slice() else {
             return None;
         };
-        let ExpressionNode::Name(decreases_path) = program.expression_table.expression(*decreases)
+        let Some(decreases_path) = program.expression_table.name_path_node(*decreases)
         else {
             return None;
         };

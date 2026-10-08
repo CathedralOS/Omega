@@ -157,7 +157,7 @@ pub(super) fn fold_with_valuation(
         ExpressionNode::Member(member)
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
-            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            let Some(path) = program.expression_table.name_path_node(member.receiver)
             else {
                 return None;
             };

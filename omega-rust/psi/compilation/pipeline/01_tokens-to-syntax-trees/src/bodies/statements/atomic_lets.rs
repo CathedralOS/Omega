@@ -33,7 +33,7 @@ pub(crate) fn try_desugar_atomic_let(
     syntax_trees: &mut SyntaxTrees,
     binding: &TableLocalData,
 ) -> Option<HandleSpan<StatementHandle>> {
-    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(binding.initial_value)
+    let Some(call) = syntax_trees.expressions.call_node(binding.initial_value)
     else {
         return None;
     };

@@ -749,7 +749,7 @@ fn write_only_literal_indexed_record_field_assignment(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> bool {
-    let ExpressionNode::Member(final_member) = program.expression_table.expression(expression)
+    let Some(final_member) = program.expression_table.member_node(expression)
     else {
         return false;
     };

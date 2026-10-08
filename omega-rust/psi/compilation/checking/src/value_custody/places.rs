@@ -196,7 +196,7 @@ pub(crate) fn direct_self_field_member(
             if member.case_variant.is_some() {
                 return None;
             }
-            let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
+            let Some(path) = program.expression_table.name_path_node(member.receiver)
             else {
                 return None;
             };

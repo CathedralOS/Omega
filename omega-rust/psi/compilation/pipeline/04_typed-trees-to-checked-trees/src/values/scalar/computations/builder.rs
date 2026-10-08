@@ -227,7 +227,7 @@ impl Builder<'_, '_> {
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
         let operand = self.same_carrier_cast_operand(expression)?;
-        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        let Some(cast) = self.program.expression_table.cast_node(expression)
         else {
             return None;
         };
@@ -241,7 +241,7 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
-        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        let Some(cast) = self.program.expression_table.cast_node(expression)
         else {
             return None;
         };

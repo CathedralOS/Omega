@@ -61,7 +61,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     }) {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
+    let Some(call) = program.expression_table.call_node(local.initial_value)
     else {
         return None;
     };

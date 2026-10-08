@@ -139,7 +139,7 @@ impl Denotations<'_> {
         expression: ExpressionHandle,
         remaining: &mut usize,
     ) -> Option<ExpressionHandle> {
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        let Some(path) = self.program.expression_table.name_path_node(expression)
         else {
             return None;
         };

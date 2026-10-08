@@ -614,7 +614,7 @@ pub(crate) fn lower_scalar_expression(
             // `Implementation as dyn Trait<Args>`: checking admitted the exact
             // named implementation; the selector names its table.
             if target_type == PrimitiveType::Selector {
-                let ExpressionNode::Name(name) = program.expression_table.expression(cast.value)
+                let Some(name) = program.expression_table.name_path_node(cast.value)
                 else {
                     return None;
                 };

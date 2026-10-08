@@ -335,7 +335,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 "selected named operator call requires exact selected meaning and ordered operand capture",
             )
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(named_use.expression)
+        let Some(call) = program.expression_table.call_node(named_use.expression)
         else {
             diagnostics.push(invalid());
             continue;

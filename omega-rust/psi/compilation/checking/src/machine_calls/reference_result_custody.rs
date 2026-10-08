@@ -2608,7 +2608,7 @@ pub fn result_loans(
             checked_trees::BorrowAccessKind::WriteOnly
         }
     };
-    let ExpressionNode::Call(expression) = program.expression_table.expression(local.initial_value)
+    let Some(expression) = program.expression_table.call_node(local.initial_value)
     else {
         return None;
     };

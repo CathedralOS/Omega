@@ -69,7 +69,7 @@ pub(crate) fn erased_subject(
             TransitionGuardNode::Always => {}
             TransitionGuardNode::When(guard) => {
                 let (subject, _) = crate::proof::exact_outcome_case_test(program, guard)?;
-                let ExpressionNode::Name(name) = program.expression_table.expression(subject)
+                let Some(name) = program.expression_table.name_path_node(subject)
                 else {
                     return None;
                 };

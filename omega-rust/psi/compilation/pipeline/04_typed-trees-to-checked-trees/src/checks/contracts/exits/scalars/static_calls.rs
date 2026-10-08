@@ -57,7 +57,7 @@ impl ExitScalars<'_, '_> {
             self.assigned_call_at_place(&place)?
         };
         let selected = self.normal_return_call_target(expression)?;
-        let ExpressionNode::Call(authored) = self.program.expression_table.expression(expression)
+        let Some(authored) = self.program.expression_table.call_node(expression)
         else {
             return None;
         };

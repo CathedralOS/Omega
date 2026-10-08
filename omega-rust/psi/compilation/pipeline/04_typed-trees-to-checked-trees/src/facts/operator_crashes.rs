@@ -164,7 +164,7 @@ pub(crate) fn build(
             diagnostics.push(invalid());
             continue;
         };
-        let ExpressionNode::Call(call) = program.expression_table.expression(named_use.expression)
+        let Some(call) = program.expression_table.call_node(named_use.expression)
         else {
             diagnostics.push(invalid());
             continue;

@@ -187,7 +187,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<NormalReturnCall<'_>> {
-        let ExpressionNode::Call(authored) = self.program.expression_table.expression(expression)
+        let Some(authored) = self.program.expression_table.call_node(expression)
         else {
             return None;
         };
@@ -201,7 +201,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<NormalReturnCall<'_>> {
-        let ExpressionNode::Call(authored) = self.program.expression_table.expression(expression)
+        let Some(authored) = self.program.expression_table.call_node(expression)
         else {
             return None;
         };

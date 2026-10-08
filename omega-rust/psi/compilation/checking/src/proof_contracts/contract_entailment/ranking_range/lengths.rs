@@ -275,7 +275,7 @@ fn evaluate_length(
         Some(state),
         expression,
     ) {
-        let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        let Some(indexed) = program.expression_table.indexed_node(expression)
         else {
             return None;
         };

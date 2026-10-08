@@ -201,7 +201,7 @@ impl Substitution<'_> {
 
     /// The caller-side element path a callee-side `array[index]` denotes.
     fn element_path(&self, formal: ExpressionHandle) -> Option<String> {
-        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(formal)
+        let Some(indexed) = self.program.expression_table.indexed_node(formal)
         else {
             return None;
         };

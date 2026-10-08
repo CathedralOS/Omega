@@ -25,7 +25,7 @@ fn assignment_copies_primitive_referent(
     state: &State,
     assignment: &TableAssignment,
 ) -> bool {
-    let ExpressionNode::Name(target) = program.expression_table.expression(assignment.target)
+    let Some(target) = program.expression_table.name_path_node(assignment.target)
     else {
         return false;
     };

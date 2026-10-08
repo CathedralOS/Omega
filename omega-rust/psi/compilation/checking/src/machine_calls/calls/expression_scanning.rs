@@ -705,7 +705,7 @@ fn validate_expression_call_bounds(
                 // A static attached call names its carrier, rather than a
                 // runtime receiver place. Retain that selected Data symbol;
                 // a collection's element or a spelling is not a carrier home.
-                let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
+                let Some(path) = program.expression_table.name_path_node(call.receiver)
                 else {
                     return None;
                 };

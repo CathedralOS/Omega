@@ -68,7 +68,7 @@ pub(super) fn check_calls(
                     &mut expressions,
                 );
                 for handle in &expressions {
-                    let ExpressionNode::Call(call) = program.expression_table.expression(*handle)
+                    let Some(call) = program.expression_table.call_node(*handle)
                     else {
                         continue;
                     };

@@ -14,7 +14,7 @@ impl ContractExpressionEvaluator<'_, '_> {
             return Some((value, value));
         }
 
-        let ExpressionNode::Name(path) = self.program.expression_table.expression(expression)
+        let Some(path) = self.program.expression_table.name_path_node(expression)
         else {
             return None;
         };

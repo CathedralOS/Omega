@@ -626,7 +626,7 @@ fn evaluate_expression(
                     ),
                     _ => return Err("constant cast requires an integer operand".into()),
                 };
-                let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
+                let Some(cast) = program.expression_table.cast_node(expression)
                 else {
                     return Err("constant cast lost its expression".into());
                 };

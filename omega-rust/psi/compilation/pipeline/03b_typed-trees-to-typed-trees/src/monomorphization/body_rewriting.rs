@@ -84,7 +84,7 @@ pub(super) fn cloned_runtime_call_subjects(
                 if (expression.arena_index() as usize) < expression_start {
                     continue;
                 }
-                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+                let Some(call) = program.expression_table.call_node(expression)
                 else {
                     continue;
                 };

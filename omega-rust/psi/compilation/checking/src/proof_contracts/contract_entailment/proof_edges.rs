@@ -169,7 +169,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             }
             let mut aliased: Vec<(String, StructuralTerm)> = Vec::new();
             for (parameter, argument) in parameters.iter().zip(argument_handles) {
-                let ExpressionNode::Member(member) = program.expression_table.expression(*argument)
+                let Some(member) = program.expression_table.member_node(*argument)
                 else {
                     continue;
                 };

@@ -63,7 +63,7 @@ fn seed_minimum_length_fact(
     possible_length: ExpressionHandle,
     minimum_length: i64,
 ) {
-    let ExpressionNode::Member(member) = program.expression_table.expression(possible_length)
+    let Some(member) = program.expression_table.member_node(possible_length)
     else {
         return;
     };
@@ -83,7 +83,7 @@ fn seed_length_equality_side(
     value: ExpressionHandle,
     possible_length: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Member(member) = program.expression_table.expression(possible_length)
+    let Some(member) = program.expression_table.member_node(possible_length)
     else {
         return false;
     };

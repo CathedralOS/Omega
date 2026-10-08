@@ -357,7 +357,7 @@ impl RankProjection {
             // Lexicographic syntax declares unqualified projections in its
             // exact owner. No arbitrary member expression or global name
             // search can contribute a ranking component.
-            let ExpressionNode::Name(component) = program.expression_table.expression(*component)
+            let Some(component) = program.expression_table.name_path_node(*component)
             else {
                 return None;
             };

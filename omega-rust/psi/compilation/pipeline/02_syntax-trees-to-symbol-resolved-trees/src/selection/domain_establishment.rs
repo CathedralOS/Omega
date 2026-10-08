@@ -602,7 +602,7 @@ fn expression_is_bare_result(
     program: &SymbolResolvedTrees,
     expression: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(expression)
+    let Some(path) = program.tables.bodies.expressions.name_path_node(expression)
     else {
         return false;
     };

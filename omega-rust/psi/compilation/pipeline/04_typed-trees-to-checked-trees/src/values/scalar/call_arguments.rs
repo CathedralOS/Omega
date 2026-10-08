@@ -325,7 +325,7 @@ pub(crate) fn nested_structural_call_return_type(
         // call still checks the receiver loan and executes before its consumer.
         let own_self_receiver = || {
             let caller_machine = program.machine(caller)?;
-            let ExpressionNode::Name(name) = program.expression_table.expression(call.receiver)
+            let Some(name) = program.expression_table.name_path_node(call.receiver)
             else {
                 return None;
             };
