@@ -106,27 +106,7 @@ pub(super) fn admit<'source>(
         span_policy,
         budget,
     )?;
-    Ok(Admission {
-        function: derived.function,
-        use_blocks: derived.use_blocks,
-        shared_reload: derived.shared_reload,
-        dedicated_tie_uses: derived.dedicated_tie_uses,
-        span_closes: derived.span_closes,
-        retained_uses: derived.retained_uses,
-        victim: derived.victim,
-        lineage: derived.lineage,
-        address_scalar_type: derived.address_scalar_type,
-        definitions: derived.definitions,
-        assignment: derived.assignment,
-        structural_uses: derived.structural_uses,
-        first_instruction: derived.first_instruction,
-        first_register: derived.first_register,
-        address: derived.address,
-        load: derived.load,
-        store: derived.store,
-        carrier_class: derived.carrier_class,
-        bits_conversion: derived.bits_conversion,
-    })
+    Ok(super::runtime_spill_projection!(Admission, derived))
 }
 
 /// The declared bit-preserving pair bridging a foreign-class victim to the
