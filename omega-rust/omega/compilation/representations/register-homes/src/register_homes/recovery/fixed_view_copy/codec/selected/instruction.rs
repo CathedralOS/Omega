@@ -16,7 +16,7 @@ use crate::FixedViewCopyDecodeError;
 use super::provenance::{decode_provenance, encode_provenance};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{
-        Cursor, decode_id, decode_option_u16, decode_u16s, encode_option_u16, encode_u16s, length,
+        Cursor, decode_accepted_fact, decode_id, decode_option_u16, decode_u16s, encode_option_u16, encode_u16s, length,
     },
     values::{access_tag, decode_access, decode_bool, decode_constraint_key, decode_integer},
 };
@@ -579,17 +579,13 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
             (SaturatingOperation::Divide, carrier) => SelectedInstructionKind::SaturatingDivide {
                 carrier,
                 obligation: decode_id(cursor, ObligationId::new)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             (SaturatingOperation::Remainder, carrier) => {
                 SelectedInstructionKind::SaturatingRemainder {
                     carrier,
                     obligation: decode_id(cursor, ObligationId::new)?,
-                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                        cursor.array()?,
-                    ),
+                    accepted_fact: decode_accepted_fact(cursor)?,
                 }
             }
             (SaturatingOperation::Multiply, carrier) => {
@@ -598,47 +594,33 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         },
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         57 => SelectedInstructionKind::WrappingRemainderI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         88 => SelectedInstructionKind::ExactMultiplyI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         89 => SelectedInstructionKind::ExactRemainderU64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         90 => SelectedInstructionKind::WrappingSubtractI64,
         91 => SelectedInstructionKind::WrappingMultiplyI64,
         92 => SelectedInstructionKind::WrappingDivideI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         112 => SelectedInstructionKind::ExactDivideI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         113 => SelectedInstructionKind::ExactRemainderI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         93 => SelectedInstructionKind::BitwiseOrI64,
         94 => SelectedInstructionKind::BitwiseNotI64,
@@ -696,29 +678,21 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         59 => SelectedInstructionKind::CopyBytes,
         5 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         6 => SelectedInstructionKind::ExactAddI64Immediate {
             immediate: decode_integer(cursor)?,
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         7 => SelectedInstructionKind::ExactSubtractI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         8 => SelectedInstructionKind::ExactSubtractI64Immediate {
             immediate: decode_integer(cursor)?,
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,

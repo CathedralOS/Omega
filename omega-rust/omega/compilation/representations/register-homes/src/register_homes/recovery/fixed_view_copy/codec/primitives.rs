@@ -97,6 +97,19 @@ pub(super) fn decode_id<T>(
     constructor(raw).ok_or(FixedViewCopyDecodeError::InvalidSemanticId(raw))
 }
 
+/// The 32-byte accepted-obligation receipt paired beside every obligation id
+/// in the fixed-view artifact.
+pub(super) fn decode_accepted_fact(
+    cursor: &mut Cursor<'_>,
+) -> Result<
+    optimization_core::AcceptedObligationFactIdentity,
+    FixedViewCopyDecodeError,
+> {
+    Ok(optimization_core::AcceptedObligationFactIdentity::from_bytes(
+        cursor.array()?,
+    ))
+}
+
 pub(super) fn length(bytes: &mut Vec<u8>, value: usize) {
     bytes.extend_from_slice(
         &u64::try_from(value)

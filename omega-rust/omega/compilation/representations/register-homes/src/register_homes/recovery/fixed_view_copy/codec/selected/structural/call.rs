@@ -2,7 +2,7 @@
 use super::{calling::*, declarations::*, settlements::*};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
+    Cursor, decode_accepted_fact, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
 };
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, encode_call_plan, encode_placement,
@@ -264,9 +264,7 @@ pub(super) fn decode_runtime_indices(
             stride: cursor.u32()?,
             extent: decode_option_u64(cursor)?,
             obligation: decode_id(cursor, ObligationId::new)?,
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                cursor.array()?,
-            ),
+            accepted_fact: decode_accepted_fact(cursor)?,
         });
     }
     Ok(indices)

@@ -66,7 +66,9 @@ pub use instruction::{
 };
 pub use ownership::decode_effect_link;
 pub use ownership::decode_ownership;
-use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligation};
+use values::{
+    decode_accepted_fact, decode_constraint_key, decode_ids, decode_machine, decode_obligation,
+};
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";

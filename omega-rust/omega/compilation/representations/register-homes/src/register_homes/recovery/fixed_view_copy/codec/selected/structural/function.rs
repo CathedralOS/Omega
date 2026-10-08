@@ -2,7 +2,7 @@
 use super::{call::*, normalized_foreign::*, settlements::*, signature::*};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_option_u64, encode_option_u64, length,
+    Cursor, decode_accepted_fact, decode_id, decode_option_u64, encode_option_u64, length,
 };
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedFunction,
@@ -361,17 +361,13 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                 value: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             3 => SelectedMemoryAccessRole::ReadByteSequence {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             10 => SelectedMemoryAccessRole::WriteIndexedPrimitive {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
@@ -379,27 +375,21 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
                 stride: cursor.u32()?,
                 extent: decode_option_u64(cursor)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             12 => SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
                 stride: cursor.u32()?,
                 extent: decode_option_u64(cursor)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             13 => SelectedMemoryAccessRole::WriteIndexedStructural {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
                 stride: cursor.u32()?,
                 extent: decode_option_u64(cursor)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             tag @ (4 | 5) => {
                 let slot = decode_local_slot(cursor)?;
@@ -413,17 +403,13 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             14 => SelectedMemoryAccessRole::WriteElementView {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
-                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                    cursor.array()?,
-                ),
+                accepted_fact: decode_accepted_fact(cursor)?,
             },
             15 => SelectedMemoryAccessRole::ReadReturnedView {
                 producer: decode_id(cursor, OperationId::new)?,

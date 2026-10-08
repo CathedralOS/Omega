@@ -7,7 +7,7 @@ use super::{
     MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior, ObligationId, OperationId,
     PreAllocationMachineEffectDecodeError, PsiProvenance, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_constraint_key,
-    decode_ids, decode_obligation, decode_units,
+    decode_accepted_fact, decode_ids, decode_obligation, decode_units,
 };
 use crate::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, saturating_family_tag,
@@ -243,33 +243,33 @@ fn decode_kind(
         58 => SelectedInstructionKind::WrappingAddI64,
         56 => SelectedInstructionKind::ExactDivideU64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         57 => SelectedInstructionKind::WrappingRemainderI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         88 => SelectedInstructionKind::ExactMultiplyI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         89 => SelectedInstructionKind::ExactRemainderU64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         90 => SelectedInstructionKind::WrappingSubtractI64,
         91 => SelectedInstructionKind::WrappingMultiplyI64,
         92 => SelectedInstructionKind::WrappingDivideI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         112 => SelectedInstructionKind::ExactDivideI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         113 => SelectedInstructionKind::ExactRemainderI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         93 => SelectedInstructionKind::BitwiseOrI64,
         94 => SelectedInstructionKind::BitwiseNotI64,
@@ -284,15 +284,15 @@ fn decode_kind(
         107 => SelectedInstructionKind::WrappingShiftRightU64,
         108 => SelectedInstructionKind::ExactShiftLeftI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         109 => SelectedInstructionKind::ExactShiftRightI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         110 => SelectedInstructionKind::ExactShiftRightU64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         tag if trapping_form(tag).is_some() => SelectedInstructionKind::TrappingInteger {
             form: trapping_form(tag).unwrap(),
@@ -327,16 +327,16 @@ fn decode_kind(
         }
         3 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         4 => SelectedInstructionKind::ExactAddI64Immediate {
             immediate: decode_integer(cursor)?,
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         5 => SelectedInstructionKind::ExactSubtractI64 {
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
         111 => SelectedInstructionKind::Crash,
@@ -351,7 +351,7 @@ fn decode_kind(
         8 => SelectedInstructionKind::ExactSubtractI64Immediate {
             immediate: decode_integer(cursor)?,
             obligation: decode_obligation(cursor)?,
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+            accepted_fact: decode_accepted_fact(cursor)?,
         },
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
