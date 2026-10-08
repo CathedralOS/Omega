@@ -16,7 +16,7 @@ pub(super) use selected_instructions::terminator_successors;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, terminator_instruction,
+    SelectedSuccessorRole, SelectedValueTransport, terminator_instruction,
 };
 
 use crate::rewrites::window_hazards::{has_memory_rows, register_reads, register_writes};
