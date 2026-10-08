@@ -112,6 +112,32 @@ impl OwnedPlacementAdmission {
         &self.placement_plan
     }
 
+    /// Project one placed field over this admission's authority account: the
+    /// plan, profile, resources, identity, and extent base it carries forward.
+    /// Each owned carrier supplies only its borrow poles, required observation,
+    /// and authority receipt.
+    pub(crate) fn project_field<'view>(
+        &'view self,
+        key: AccessFieldKey,
+        current_borrow: BorrowPolarity,
+        source_loan: BorrowPolarity,
+        required_observation: Option<ObservationModel>,
+        authority: PlacementAuthorityRef<'view, 'view>,
+    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
+        project_placed_field(
+            &self.placement_plan,
+            self.profile_receipt,
+            &self.resources,
+            self.identity,
+            self.extent.base(),
+            key,
+            current_borrow,
+            source_loan,
+            required_observation,
+            authority,
+        )
+    }
+
     /// Cancel permission-only admission without claiming content
     /// establishment, destruction, vacancy, or allocator release.
     pub fn withdraw(self) -> Extent {
@@ -227,12 +253,7 @@ impl EstablishedOwnedPlacement {
         key: AccessFieldKey,
         current_borrow: BorrowPolarity,
     ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        project_placed_field(
-            &self.admission.placement_plan,
-            self.admission.profile_receipt,
-            &self.admission.resources,
-            self.admission.identity,
-            self.admission.extent.base(),
+        self.admission.project_field(
             key,
             current_borrow,
             BorrowPolarity::Exclusive,
