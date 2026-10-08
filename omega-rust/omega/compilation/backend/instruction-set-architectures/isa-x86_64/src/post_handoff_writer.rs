@@ -151,31 +151,11 @@ fn validate_common_geometry(
 }
 
 fn encode_private_pointer_to_r10(source: MachineRegister) -> Result<[u8; 3], Diagnostic> {
-    let code = match source {
-        MachineRegister::X86Rax => 0,
-        MachineRegister::X86Rcx => 1,
-        MachineRegister::X86Rdx => 2,
-        MachineRegister::X86Rbx => 3,
-        MachineRegister::X86Rsp => 4,
-        MachineRegister::X86Rbp => 5,
-        MachineRegister::X86Rsi => 6,
-        MachineRegister::X86Rdi => 7,
-        MachineRegister::X86R8 => 8,
-        MachineRegister::X86R9 => 9,
-        MachineRegister::X86R10 => 10,
-        MachineRegister::X86R11 => 11,
-        MachineRegister::X86R12 => 12,
-        MachineRegister::X86R13 => 13,
-        MachineRegister::X86R14 => 14,
-        MachineRegister::X86R15 => 15,
-        MachineRegister::X86Xmm(_)
-        | MachineRegister::Aarch64X(_)
-        | MachineRegister::Aarch64V(_) => {
-            return Err(Diagnostic::error(format!(
-                "generated x86-64 writer context cannot arrive in {source:?}"
-            )));
-        }
-    };
+    let code = calling_conventions::gpr_code(source).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "generated x86-64 writer context cannot arrive in {source:?}"
+        ))
+    })?;
     Ok([0x4c | u8::from(code >= 8), 0x8b, 0xd0 | (code & 7)])
 }
 

@@ -53,7 +53,7 @@ pub use plans::{
     ValuePlacement, ValueShape, compose_state_footprints, encode_state_plan_identity,
     evaluate_call_plan, evaluate_darwin_aapcs64_variadic_boundary_entry_plan,
     evaluate_darwin_aapcs64_variadic_call_plan, evaluate_freestanding_program_entry_plan,
-    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    evaluate_ordinary_boundary_entry_plan, gpr_code, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
     validate_call_plan, validate_provider_exit_realization,
 };

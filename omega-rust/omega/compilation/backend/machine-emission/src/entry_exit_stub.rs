@@ -34,7 +34,7 @@
 use calling_conventions::{
     IndirectPointerLocation, InstalledEntryFactIdentity, MachineRegister, Preemption, RegisterSet,
     ValidatedBoundaryEntryPlan, ValidatedX86_64DeriverStub, ValueLocation,
-    X86_64ErrorCodeDisposition, X86_64GateKind,
+    X86_64ErrorCodeDisposition, X86_64GateKind, gpr_code,
 };
 use semantic_vocabulary::MachineId;
 
@@ -755,31 +755,6 @@ fn vector_save_codes(saved_registers: &[MachineRegister]) -> Vec<u8> {
             _ => None,
         })
         .collect()
-}
-
-fn gpr_code(register: MachineRegister) -> Option<u8> {
-    let code = match register {
-        MachineRegister::X86Rax => 0,
-        MachineRegister::X86Rcx => 1,
-        MachineRegister::X86Rdx => 2,
-        MachineRegister::X86Rbx => 3,
-        MachineRegister::X86Rsp => 4,
-        MachineRegister::X86Rbp => 5,
-        MachineRegister::X86Rsi => 6,
-        MachineRegister::X86Rdi => 7,
-        MachineRegister::X86R8 => 8,
-        MachineRegister::X86R9 => 9,
-        MachineRegister::X86R10 => 10,
-        MachineRegister::X86R11 => 11,
-        MachineRegister::X86R12 => 12,
-        MachineRegister::X86R13 => 13,
-        MachineRegister::X86R14 => 14,
-        MachineRegister::X86R15 => 15,
-        MachineRegister::X86Xmm(_)
-        | MachineRegister::Aarch64X(_)
-        | MachineRegister::Aarch64V(_) => return None,
-    };
-    Some(code)
 }
 
 fn append_push(bytes: &mut Vec<u8>, code: u8) {

@@ -539,3 +539,10 @@ pub(crate) const fn register_code(register: MachineRegister) -> u16 {
         MachineRegister::Aarch64V(index) => 0x300 + index as u16,
     }
 }
+
+pub fn gpr_code(register: MachineRegister) -> Option<u8> {
+    match register_code(register) {
+        0..=15 => Some(register_code(register) as u8),
+        _ => None,
+    }
+}
