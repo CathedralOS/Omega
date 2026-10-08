@@ -49,19 +49,7 @@ impl Evaluation {
             .ok_or(LoweringError::Unsupported(
                 "guard has no retained source value",
             ))?;
-        let bindings = self
-            .scalar_bindings
-            .clone()
-            .with_primitive_storage(&self.primitive_storage)
-            .with_structural_locals(&self.structural_locals)
-            .with_view_locals(&self.view_locals)
-            .with_element_views(&self.element_views)
-            .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_place_observations(&self.place_observations)
-            // A short-circuit guard may read a case payload after its own
-            // case test; the guard's case dispatch binds or refuses each read.
-            .with_deferred_case_payloads();
+        let bindings = self.case_payload_bindings();
         let expression = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
         // A short-circuit guard is always a planned decision. So is a whole-root
         // case test whose successor may read that case's payload: only the

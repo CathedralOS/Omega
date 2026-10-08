@@ -125,6 +125,27 @@ pub(crate) struct StructuralValueOwner {
 }
 
 impl Evaluation {
+    /// The evaluation's scalar bindings extended with the storage, local,
+    /// parameter and observation context every lowering walker needs.
+    fn contextual_bindings(&self) -> crate::expression_preparation::bindings::ScalarBindings {
+        self.scalar_bindings
+            .clone()
+            .with_primitive_storage(&self.primitive_storage)
+            .with_structural_locals(&self.structural_locals)
+            .with_view_locals(&self.view_locals)
+            .with_element_views(&self.element_views)
+            .with_structural_parameters(&self.structural_parameters)
+            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
+            .with_place_observations(&self.place_observations)
+    }
+
+    /// `contextual_bindings` plus deferred case payloads: a case arm or
+    /// short-circuit guard may read a payload its own membership test
+    /// selects; the dispatch binds or refuses each read.
+    fn case_payload_bindings(&self) -> crate::expression_preparation::bindings::ScalarBindings {
+        self.contextual_bindings().with_deferred_case_payloads()
+    }
+
     /// Resolve one selected death in the live state value namespace. Result
     /// registries differ between ordinary and graph bodies; owner/parameter
     /// lookup and selection rebinding do not. The caller supplies its registry.
@@ -917,17 +938,7 @@ impl Evaluation {
         if source_value_count > values.len() {
             return unsupported("call argument source prefix exceeds its retained values");
         }
-        let source_bindings = self
-            .scalar_bindings
-            .clone()
-            .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_place_observations(&self.place_observations);
-        let source_bindings = source_bindings
-            .with_primitive_storage(&self.primitive_storage)
-            .with_structural_locals(&self.structural_locals)
-            .with_view_locals(&self.view_locals)
-            .with_element_views(&self.element_views);
+        let source_bindings = self.contextual_bindings();
         let Some(call) = operation.call() else {
             return Ok(None);
         };
@@ -1062,16 +1073,7 @@ impl Evaluation {
         operations: &mut OperationBuffer,
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let bindings = self
-            .scalar_bindings
-            .clone()
-            .with_primitive_storage(&self.primitive_storage)
-            .with_view_locals(&self.view_locals)
-            .with_element_views(&self.element_views)
-            .with_structural_parameters(&self.structural_parameters)
-            .with_structural_locals(&self.structural_locals)
-            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
-            .with_place_observations(&self.place_observations);
+        let bindings = self.contextual_bindings();
         let qualifications = &self.shared_qualifications;
         let source_types = values
             .iter()
