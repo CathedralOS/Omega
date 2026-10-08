@@ -298,8 +298,7 @@ pub(crate) fn suggest_missing_citation(
         BinaryOperator::Equal => {}
         _ => return None,
     }
-    let goal_left = structural_term(program, binary.left)?;
-    let goal_right = structural_term(program, binary.right)?;
+    let (goal_left, goal_right) = structural_term_pair(program, binary)?;
 
     for lemma in program.machines() {
         if lemma.attached_data.is_some()
@@ -390,8 +389,7 @@ fn suggest_conjunct_match(
         BinaryOperator::Equal => {}
         _ => return None,
     }
-    let lemma_left = structural_term(program, binary.left)?;
-    let lemma_right = structural_term(program, binary.right)?;
+    let (lemma_left, lemma_right) = structural_term_pair(program, binary)?;
     let result_binder = RESULT_BINDER.to_owned();
     // `result`-shaped conjuncts describe the lemma's application, not a
     // free-standing law; the law conjuncts are the suggestible material.
