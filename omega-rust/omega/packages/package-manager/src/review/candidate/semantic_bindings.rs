@@ -7,7 +7,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan, ServiceMethod, Servi
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
-use package_compilation::AcceptedSemanticBinding;
+use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use std::collections::{BTreeMap, BTreeSet};
 use symbols::SymbolHandle;
 use terminal_psi_to_abstract_operations::provider_admission;

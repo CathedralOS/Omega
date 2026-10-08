@@ -9,7 +9,7 @@ use crate::resolution::source::PackageSourceNavigation;
 use crate::resolution::source::PackageSourceSelectionEvidence;
 use package_source::ImmutableSourceResolution;
 use package_source::LocalSourceLimits;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// An immutable source snapshot after its package-owned declaration has been
 /// extracted and joined to canonical source lineage.
