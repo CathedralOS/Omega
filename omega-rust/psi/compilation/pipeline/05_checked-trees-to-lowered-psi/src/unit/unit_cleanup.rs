@@ -458,37 +458,6 @@ fn finalize_nominal_cleanup_machine(
     Ok(())
 }
 
-fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
-    match shape {
-        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && matches!(
-                    &field.field_type,
-                    CheckedUnitStructuralFieldType::Scalar(
-                        PrimitiveType::Bool
-                            | PrimitiveType::I8
-                            | PrimitiveType::I16
-                            | PrimitiveType::I32
-                            | PrimitiveType::I64
-                            | PrimitiveType::U8
-                            | PrimitiveType::U16
-                            | PrimitiveType::U32
-                            | PrimitiveType::U64
-                            | PrimitiveType::Addr
-                    )
-                )
-        }),
-        CheckedUnitStructuralTypeShape::Reference { .. }
-        | CheckedUnitStructuralTypeShape::FusedServiceBinding
-        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-        | CheckedUnitStructuralTypeShape::ByteSequence(_)
-        | CheckedUnitStructuralTypeShape::FixedArray { .. }
-        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
-        | CheckedUnitStructuralTypeShape::Sum { .. }
-        | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
-    }
-}
-
 pub(crate) fn lower_partial_affine_unit_cleanup_machine(
     checked: &CheckedTrees,
     partial: &CheckedPartialAffineUnitCleanupMachinePlan,

@@ -22,12 +22,12 @@ mod residuals;
 pub(super) mod temporary_actions;
 pub(crate) use temporary_actions::finalize_scalar_actions;
 
+pub(crate) use checked_trees::is_bounded_nominal_cleanup_record;
 pub(crate) use cleanup_evidence::machine_has_content_evidence;
 pub(crate) use nominal_requirements::{
     checked_contract_expressions, checked_requires_expressions, direct_boolean_field_requirement,
-    is_bounded_nominal_cleanup_record, nominal_cleanup_boolean_requirements,
-    nominal_cleanup_caller_boolean_requirements, nominal_cleanup_missing_requirement,
-    nominal_cleanup_missing_requirement_diagnostic,
+    nominal_cleanup_boolean_requirements, nominal_cleanup_caller_boolean_requirements,
+    nominal_cleanup_missing_requirement, nominal_cleanup_missing_requirement_diagnostic,
 };
 pub(crate) use partial_affine_cleanup::{
     build_partial_affine_unit_cleanup_machine, partial_affine_residuals,

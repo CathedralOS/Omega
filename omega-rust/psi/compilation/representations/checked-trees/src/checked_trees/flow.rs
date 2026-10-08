@@ -87,6 +87,7 @@ pub use self::terminal::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralReturnPlan,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_borrowed_view,
+    is_bounded_nominal_cleanup_record,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,

@@ -393,3 +393,38 @@ impl PartialOrd for CheckedUnitStructuralPathSegment {
 }
 
 pub use facts::CheckedRuntimeIndex;
+
+/// Whether `shape` is a nominal record whose fields all erase at plan time:
+/// every retained field is an ordinary no-cleanup primitive scalar. Bounded
+/// nominal records carrying any structural, view, sum, or byte-sequence field
+/// keep their own cleanup plan instead.
+pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
+    match shape {
+        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && matches!(
+                    &field.field_type,
+                    CheckedUnitStructuralFieldType::Scalar(
+                        PrimitiveType::Bool
+                            | PrimitiveType::I8
+                            | PrimitiveType::I16
+                            | PrimitiveType::I32
+                            | PrimitiveType::I64
+                            | PrimitiveType::U8
+                            | PrimitiveType::U16
+                            | PrimitiveType::U32
+                            | PrimitiveType::U64
+                            | PrimitiveType::Addr
+                    )
+                )
+        }),
+        CheckedUnitStructuralTypeShape::FusedServiceBinding
+        | CheckedUnitStructuralTypeShape::Reference { .. }
+        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+        | CheckedUnitStructuralTypeShape::ByteSequence(_)
+        | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
+        | CheckedUnitStructuralTypeShape::Sum { .. }
+        | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
+    }
+}

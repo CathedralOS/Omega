@@ -156,7 +156,7 @@ pub use flow::{
     FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
     FlowOwnedSelectionTransfer, FlowOwnershipFacts, FlowPermissionEvaluation,
     FlowPermissionEventFact, FlowSemanticContextRef, FlowStateFact, FlowStateOutgoingFact,
-    FlowStatementFact, RetiredFlowCall, is_borrowed_view,
+    FlowStatementFact, RetiredFlowCall, is_borrowed_view, is_bounded_nominal_cleanup_record,
 };
 pub use operators::{
     CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,

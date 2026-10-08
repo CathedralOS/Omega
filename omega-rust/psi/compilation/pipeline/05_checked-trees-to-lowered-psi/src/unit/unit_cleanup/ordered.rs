@@ -3,11 +3,11 @@
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, is_bounded_nominal_cleanup_record,
-    lower_unit_closure, unsupported,
+    CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, lower_unit_closure, unsupported,
 };
 use crate::unit::attached_unit::UnitClosureRequest;
 use crate::unit::attached_unit::bodies::UnitPlans;
+use checked_trees::is_bounded_nominal_cleanup_record;
 
 pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     checked: &CheckedTrees,

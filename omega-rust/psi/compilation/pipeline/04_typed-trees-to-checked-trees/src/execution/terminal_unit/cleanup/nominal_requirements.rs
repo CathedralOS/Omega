@@ -265,33 +265,17 @@ pub(crate) fn direct_boolean_field_requirement(
     })
 }
 
-pub(crate) fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape) -> bool {
-    match shape {
-        CheckedUnitStructuralTypeShape::Record { fields, .. } => fields.iter().all(|field| {
-            !field.relevance.is_erased()
-                && matches!(
-                    &field.field_type,
-                    CheckedUnitStructuralFieldType::Scalar(
-                        PrimitiveType::Bool
-                            | PrimitiveType::I8
-                            | PrimitiveType::I16
-                            | PrimitiveType::I32
-                            | PrimitiveType::I64
-                            | PrimitiveType::U8
-                            | PrimitiveType::U16
-                            | PrimitiveType::U32
-                            | PrimitiveType::U64
-                            | PrimitiveType::Addr
-                    )
-                )
-        }),
-        CheckedUnitStructuralTypeShape::FusedServiceBinding
-        | CheckedUnitStructuralTypeShape::Reference { .. }
-        | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
-        | CheckedUnitStructuralTypeShape::ByteSequence(_)
-        | CheckedUnitStructuralTypeShape::FixedArray { .. }
-        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. }
-        | CheckedUnitStructuralTypeShape::Sum { .. }
-        | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
+/// Whether `minimum` is the literal signed lower bound of `primitive_type`
+/// (`i8::MIN` … `i64::MIN`); other integer kinds have no signed minimum.
+fn signed_minimum_matches(
+    primitive_type: PrimitiveType,
+    minimum: &numerics::literals::IntegerLiteral,
+) -> bool {
+    match primitive_type {
+        PrimitiveType::I8 => minimum.value_i64() == Some(i64::from(i8::MIN)),
+        PrimitiveType::I16 => minimum.value_i64() == Some(i64::from(i16::MIN)),
+        PrimitiveType::I32 => minimum.value_i64() == Some(i64::from(i32::MIN)),
+        PrimitiveType::I64 => minimum.value_i64() == Some(i64::MIN),
+        _ => false,
     }
 }

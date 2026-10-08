@@ -191,8 +191,9 @@ pub use checked_trees::{
     VacuousQualificationUse, admissibility, borrow, byte_predicates,
     canonical_suspension_crossing_id, contract_declarations_commitment, contract_identity, data,
     declared_termination_commitment, domain, expression, facts, finite_family, flow, identity,
-    is_borrowed_view, machine, name, operators, proof, proof_only, proposition, ranking,
-    service_parameter, signature, state, statement, trait_definition, types, values, wire,
+    is_borrowed_view, is_bounded_nominal_cleanup_record, machine, name, operators, proof,
+    proof_only, proposition, ranking, service_parameter, signature, state, statement,
+    trait_definition, types, values, wire,
 };
 /// The identity request a consumer builds when it asks the typed program
 /// behind a checked carrier for a binder-aware type identity.

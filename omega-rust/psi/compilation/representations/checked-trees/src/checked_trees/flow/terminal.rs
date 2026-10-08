@@ -90,6 +90,7 @@ pub use structural_type_plans::{
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_borrowed_view,
+    is_bounded_nominal_cleanup_record,
 };
 pub use terminal_selections::{
     CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,
