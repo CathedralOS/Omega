@@ -7,7 +7,7 @@ use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFo
 use super::super::{
     StagedOptimizedX86BranchRelaxation, X86BranchRelaxationPolicy,
     error::OptimizedX86BranchRelaxationError,
-    identity::{RevisionRoots, artifact_identity, revision_identity},
+    identity::{artifact_identity, revision_identity},
 };
 use super::RelaxationTrace;
 
@@ -16,13 +16,7 @@ pub(super) fn finish_artifact(
     budget: OptimizationWorkBudget,
     trace: RelaxationTrace,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
-    let roots = RevisionRoots {
-        source: source.identity(),
-        selected: source.selected(),
-        machine: source.machine(),
-        pre_layout: source.pre_layout(),
-        target: source.target(),
-    };
+    let roots = super::revision_roots(source);
     let output_revision = revision_identity(roots, &trace.functions);
     let mut program = source.program().clone();
     program.functions = trace.functions;
