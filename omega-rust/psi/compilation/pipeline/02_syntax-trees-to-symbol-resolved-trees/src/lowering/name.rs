@@ -15,16 +15,26 @@ pub(crate) fn lower_operator_path_name(
     syntax_trees: &SyntaxTrees,
     name: HandleSpan<syntax::identifier::Identifier>,
 ) -> HandleSpan<DiagnosticName> {
-    let mut span = HandleSpan::empty();
-
-    for member in syntax_trees.items.identifier_path_members(name) {
-        lowerer
+    lower_name_members(
+        syntax_trees,
+        name,
+        &mut lowerer
             .symbol_resolved_trees
             .tables
             .declarations
-            .operator_path_members
-            .append_to_span(&mut span, lower_name(member));
-    }
+            .operator_path_members,
+    )
+}
 
+/// Lower an identifier path into a fresh span of `arena`.
+pub(crate) fn lower_name_members(
+    syntax_trees: &SyntaxTrees,
+    name: HandleSpan<syntax::identifier::Identifier>,
+    arena: &mut arena::Arena<DiagnosticName>,
+) -> HandleSpan<DiagnosticName> {
+    let mut span = HandleSpan::empty();
+    for member in syntax_trees.items.identifier_path_members(name) {
+        arena.append_to_span(&mut span, lower_name(member));
+    }
     span
 }

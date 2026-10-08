@@ -312,16 +312,15 @@ pub(crate) fn lower_signature_invokes(
     syntax_trees: &SyntaxTrees,
     invokes: HandleSpan<syntax::identifier::Identifier>,
 ) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
-    let mut span = HandleSpan::empty();
-    for binding in syntax_trees.items.identifier_path_members(invokes) {
-        lowerer
+    crate::lowering::name::lower_name_members(
+        syntax_trees,
+        invokes,
+        &mut lowerer
             .symbol_resolved_trees
             .tables
             .declarations
-            .signature_invokes
-            .append_to_span(&mut span, crate::lowering::name::lower_name(binding));
-    }
-    span
+            .signature_invokes,
+    )
 }
 
 pub(crate) fn lower_service_reach_names(

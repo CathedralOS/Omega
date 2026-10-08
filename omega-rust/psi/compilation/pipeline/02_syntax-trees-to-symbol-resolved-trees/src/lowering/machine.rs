@@ -707,18 +707,15 @@ fn lower_machine_ranking_view(
     syntax_trees: &SyntaxTrees,
     order: HandleSpan<syntax::identifier::Identifier>,
 ) -> HandleSpan<symbol_resolved_trees::name::DiagnosticName> {
-    let mut lowered = HandleSpan::empty();
-
-    for member in syntax_trees.items.identifier_path_members(order) {
-        lowerer
+    crate::lowering::name::lower_name_members(
+        syntax_trees,
+        order,
+        &mut lowerer
             .symbol_resolved_trees
             .tables
             .declarations
-            .ranking_views
-            .append_to_span(&mut lowered, crate::lowering::name::lower_name(member));
-    }
-
-    lowered
+            .ranking_views,
+    )
 }
 
 fn lower_ranking_expressions(
