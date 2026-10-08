@@ -27,13 +27,9 @@ use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, Val
 use super::integer_binary_shapes;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract, integer_constant,
+    constant_evaluation_contract as contract, integer_constant,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
-
-fn contract(rule_name: &[u8], safety: OptimizationSafetyClass) -> OptimizationRuleContract {
-    constant_evaluation_contract(rule_name, safety)
-}
 
 constant_fold_rules! {
     ExactIntegerAddConstantsRule = (b"omega.psi-rule.exact-integer-add-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Add));

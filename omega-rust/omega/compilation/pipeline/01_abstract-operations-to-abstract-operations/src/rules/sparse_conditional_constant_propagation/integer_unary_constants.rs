@@ -9,13 +9,9 @@ use optimization_unit::{
 };
 
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract, integer_constant,
+    constant_evaluation_contract as contract, integer_constant,
 };
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
-
-fn contract(rule_name: &[u8], safety: OptimizationSafetyClass) -> OptimizationRuleContract {
-    constant_evaluation_contract(rule_name, safety)
-}
 
 constant_fold_rules! {
     IntegerBitwiseNotConstantsRule = (b"omega.psi-rule.integer-bitwise-not-constants.v1", ExactOperationSemantics, IntegerUnaryKind::BitwiseNot);

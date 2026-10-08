@@ -13,16 +13,12 @@ use optimization_unit::{
 use semantic_vocabulary::{OperationId, ValueId};
 
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract, integer_constant, integer_value_type,
+    constant_evaluation_contract as contract, integer_constant, integer_value_type,
 };
 use crate::{
     AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     ScalarConstantAnalysis,
 };
-
-fn contract(rule_name: &[u8], safety: OptimizationSafetyClass) -> OptimizationRuleContract {
-    constant_evaluation_contract(rule_name, safety)
-}
 
 constant_fold_rules! {
     BooleanEqualConstantsRule = (b"omega.psi-rule.boolean-equal-constants.v1", ExactOperationSemantics, BooleanEvaluationKind::Equal);
