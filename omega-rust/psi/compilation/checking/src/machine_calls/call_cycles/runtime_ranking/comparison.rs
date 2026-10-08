@@ -208,15 +208,10 @@ fn guard_proves_lower_bound(
     let operator = if truth {
         binary.operator
     } else {
-        match binary.operator {
-            BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-            BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-            BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-            BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-            BinaryOperator::Equal => BinaryOperator::NotEqual,
-            BinaryOperator::NotEqual => BinaryOperator::Equal,
-            _ => return false,
-        }
+        let Some(operator) = binary.operator.complement() else {
+            return false;
+        };
+        operator
     };
     let (operator, bound) = if rank.is_component(program, binary.left, field, role) {
         (operator, integer(program, machine, binary.right))

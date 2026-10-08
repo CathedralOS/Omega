@@ -448,13 +448,7 @@ pub(crate) fn apply_right_literal_guard(
 /// `K OP place` restated as `place OP' K` — the comparison seen from the
 /// literal's left flips each ordering's direction.
 pub(crate) fn mirrored_comparison(operator: BinaryOperator) -> BinaryOperator {
-    match operator {
-        BinaryOperator::Greater => BinaryOperator::Less,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-        BinaryOperator::Less => BinaryOperator::Greater,
-        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-        operator => operator,
-    }
+    operator.mirrored()
 }
 
 pub(crate) fn apply_left_literal_guard(

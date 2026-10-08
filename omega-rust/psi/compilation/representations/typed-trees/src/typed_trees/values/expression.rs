@@ -1426,6 +1426,12 @@ impl BinaryOperator {
         })
     }
 
+    /// [`Self::mirrored`] when the operator is one of the six comparisons;
+    /// `None` otherwise — a non-comparison cannot have its operands swapped.
+    pub fn mirrored_comparison(self) -> Option<BinaryOperator> {
+        self.complement().map(|_| self.mirrored())
+    }
+
     /// This operator with its operands swapped — `a < b` mirrors to `b > a`.
     /// Every other operator mirrors to itself.
     pub fn mirrored(self) -> BinaryOperator {

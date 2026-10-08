@@ -1229,15 +1229,7 @@ impl IntegerTypeClassification {
 fn reversed_comparison(
     operator: typed_trees::expression::BinaryOperator,
 ) -> typed_trees::expression::BinaryOperator {
-    use typed_trees::expression::BinaryOperator;
-
-    match operator {
-        BinaryOperator::Equal => BinaryOperator::Equal,
-        BinaryOperator::NotEqual => BinaryOperator::NotEqual,
-        BinaryOperator::Less => BinaryOperator::Greater,
-        BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::Greater => BinaryOperator::Less,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-        _ => unreachable!("only normalized comparisons reach operand reversal"),
-    }
+    operator
+        .mirrored_comparison()
+        .expect("only normalized comparisons reach operand reversal")
 }

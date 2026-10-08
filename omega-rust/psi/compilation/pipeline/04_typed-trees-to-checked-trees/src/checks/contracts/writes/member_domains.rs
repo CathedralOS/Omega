@@ -467,20 +467,9 @@ fn member_comparison_holds_on_value(
     domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     use typed_trees::expression::BinaryOperator;
-    for (member, constant, operator) in [
-        (left, right, operator),
-        (
-            right,
-            left,
-            match operator {
-                BinaryOperator::Less => BinaryOperator::Greater,
-                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-                BinaryOperator::Greater => BinaryOperator::Less,
-                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-                other => other,
-            },
-        ),
-    ] {
+    for (member, constant, operator) in
+        [(left, right, operator), (right, left, operator.mirrored())]
+    {
         if crate::flow::relative_place_segments_from_expression(program, member, domain).is_none()
             || expression_constant_scalar(program, constant).is_none()
         {

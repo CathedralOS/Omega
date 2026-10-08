@@ -274,13 +274,7 @@ pub(super) fn comparison_interval(
     let operator = if subject_on_left {
         operator
     } else {
-        match operator {
-            BinaryOperator::Less => BinaryOperator::Greater,
-            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-            BinaryOperator::Greater => BinaryOperator::Less,
-            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-            other => other,
-        }
+        operator.mirrored()
     };
     let (low, high) = match operator {
         BinaryOperator::LessOrEqual => (None, operand.high),

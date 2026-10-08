@@ -34,13 +34,7 @@ pub(super) fn proves(
     let (parameter, operator, bound) = if let Some(bound) = literal(binary.right) {
         (binary.left, binary.operator, bound)
     } else if let Some(bound) = literal(binary.left) {
-        let mirrored = match binary.operator {
-            BinaryOperator::Less => BinaryOperator::Greater,
-            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-            BinaryOperator::Greater => BinaryOperator::Less,
-            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-            operator => operator,
-        };
+        let mirrored = binary.operator.mirrored();
         (binary.right, mirrored, bound)
     } else {
         return false;

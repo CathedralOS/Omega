@@ -121,13 +121,7 @@ fn field_fact_interval(
         let operator = if field_side_left {
             binary.operator
         } else {
-            match binary.operator {
-                BinaryOperator::Less => BinaryOperator::Greater,
-                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
-                BinaryOperator::Greater => BinaryOperator::Less,
-                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
-                other_operator => other_operator,
-            }
+            binary.operator.mirrored()
         };
         match operator {
             BinaryOperator::LessOrEqual => {

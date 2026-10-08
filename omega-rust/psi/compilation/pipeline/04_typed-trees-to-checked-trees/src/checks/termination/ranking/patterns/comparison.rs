@@ -37,15 +37,7 @@ pub(in crate::checks::termination::ranking) fn comparison(
                 let operator = if holds {
                     binary.operator
                 } else {
-                    match binary.operator {
-                        BinaryOperator::Equal => BinaryOperator::NotEqual,
-                        BinaryOperator::NotEqual => BinaryOperator::Equal,
-                        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-                        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-                        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-                        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-                        _ => return None,
-                    }
+                    binary.operator.complement()?
                 };
                 return Some((binary.left, operator, binary.right));
             }
