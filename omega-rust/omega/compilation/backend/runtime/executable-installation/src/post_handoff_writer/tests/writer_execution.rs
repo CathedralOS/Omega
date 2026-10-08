@@ -8,7 +8,7 @@
 use layout_plans::test_support::{
     constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context, record_layout,
     recursive_record_array_report, repeated_layout, split_layout, stored_integer_layout,
-    sum_layout, symbolic_path,
+    sum_layout, symbolic_path, writer_field_offsets,
 };
 
 use crate::post_handoff_writer::{
@@ -533,16 +533,7 @@ fn symbolic_inner_materialization_composes_through_a_second_record_boundary() {
     )
     .expect("deep paths compose one offset per crossed record boundary");
 
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            other => panic!("expected runtime writers, found {other:?}"),
-        })
-        .collect::<Vec<_>>();
+    let writes = writer_field_offsets(&plan);
     assert_eq!(
         writes,
         [
@@ -743,16 +734,7 @@ fn symbolic_recursive_sum_array_materialization_composes_indexed_boundaries() {
     )
     .expect("recursive record/sum-array paths compose every crossed boundary");
 
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            _ => panic!("an unresolved symbolic derives a runtime writer"),
-        })
-        .collect::<Vec<_>>();
+    let writes = writer_field_offsets(&plan);
     // `middle` spans 8..168; inside it `inner` sits at 0 holding `choice` at
     // 0, `choices` at 24 (24-byte stride), and `pad` at 72 — while the level's
     // own `route` sum sits at 88 and `batches` repeats at 112.
@@ -864,16 +846,7 @@ fn symbolic_recursive_record_array_materialization_composes_element_boundaries()
     )
     .expect("recursive record-array paths compose every crossed boundary");
 
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            _ => panic!("an unresolved symbolic derives a runtime writer"),
-        })
-        .collect::<Vec<_>>();
+    let writes = writer_field_offsets(&plan);
     // `middle` spans 8..128; inside it `inner` sits at 0, `route` at 32, and
     // `neighbors` repeats at 56 on a 32-byte stride, so `neighbors[1]` lands
     // at 56+32=88 inside the interior and its `choice.Run.callback` resolves

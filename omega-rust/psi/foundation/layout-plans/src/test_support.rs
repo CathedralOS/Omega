@@ -244,6 +244,20 @@ pub fn sum_layout() -> ConventionalSumLayoutReport {
 /// every index the field spells, so `middle.neighbors[1].choice.Run.<p>`
 /// composes the element hop and the record boundary inside it under the same
 /// bounded traversal the standalone record carrier walks.
+/// The `(field, byte offset)` projection of a plan's runtime writers, in
+/// action order.
+pub fn writer_field_offsets(plan: &crate::SymbolicMaterializationPlan) -> Vec<(&str, u64)> {
+    plan.actions
+        .iter()
+        .map(|action| match action {
+            crate::MaterializationAction::RuntimeWriter(write) => {
+                (write.field.as_str(), write.container_byte_offset)
+            }
+            other => panic!("an unresolved symbolic derives a runtime writer, found {other:?}"),
+        })
+        .collect()
+}
+
 /// A single `address` field stored as a 32-bit unsigned integer.
 pub fn stored_integer_layout() -> LayoutPlanReport {
     LayoutPlanReport {

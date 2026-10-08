@@ -1,7 +1,7 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
     recursive_record_array_report, recursive_sum_report, reject_inner_layout_materialization,
-    sum_array_layout, sum_field_layout, sum_layout, symbolic_path,
+    sum_array_layout, sum_field_layout, sum_layout, symbolic_path, writer_field_offsets,
 };
 use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumChildHop,
@@ -565,16 +565,7 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
         |_| None,
     )
     .expect("per-element `At` placements carry the same repeated boundary");
-    let offsets = materialization
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            other => panic!("an unresolved symbolic derives a runtime writer, found {other:?}"),
-        })
-        .collect::<Vec<_>>();
+    let offsets = writer_field_offsets(&materialization);
     assert_eq!(offsets, [("sums[1].Run.callback", 40)]);
 
     // An extra placement entry is not extra coverage: three `At` entries for
@@ -750,16 +741,7 @@ fn symbolic_recursive_sum_materialization_joins_boundaries_by_identity() {
         |_| None,
     )
     .expect("numbered recursive boundaries join on stable identities");
-    let writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::RuntimeWriter(write) => {
-                (write.field.as_str(), write.container_byte_offset)
-            }
-            _ => panic!("an unresolved symbolic derives a runtime writer"),
-        })
-        .collect::<Vec<_>>();
+    let writes = writer_field_offsets(&plan);
     assert_eq!(
         writes,
         vec![
