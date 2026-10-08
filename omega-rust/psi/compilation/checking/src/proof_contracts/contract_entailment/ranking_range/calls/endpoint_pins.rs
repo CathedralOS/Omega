@@ -459,13 +459,7 @@ fn argument_sources<'program>(
         parameter_comparisons(program, caller.machine, site, &mut engine, &bindings)?
     };
     comparisons.extend(carrier_equalities);
-    comparisons.extend(length_bindings.iter().map(|(_, identity)| {
-        (
-            BinaryOperator::GreaterOrEqual,
-            Polynomial::atom(identity.clone()),
-            Polynomial::default(),
-        )
-    }));
+    comparisons.extend(super::super::length_bound_comparisons(&length_bindings));
     comparisons.extend(slice_coordinates.comparisons());
     for &(guard, holds) in &edge.guards {
         meanings::builtin(program, caller.machine, site, guard, 0)?;

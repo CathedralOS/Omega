@@ -134,6 +134,21 @@ pub struct RankingRangeState<'program> {
     pub entry_parameters: &'program [symbols::SymbolHandle],
 }
 
+/// Every length binding is non-negative: each bound symbol satisfies
+/// `symbol >= 0`, the premise every ranking-range site extends into its
+/// comparison set.
+pub(super) fn length_bound_comparisons<'a>(
+    length_bindings: &'a [(symbols::SymbolHandle, String)],
+) -> impl Iterator<Item = (BinaryOperator, Polynomial, Polynomial)> + 'a {
+    length_bindings.iter().map(|(_, identity)| {
+        (
+            BinaryOperator::GreaterOrEqual,
+            Polynomial::atom(identity.clone()),
+            Polynomial::default(),
+        )
+    })
+}
+
 /// Push a measure's subject expressions into `expressions` — every measure
 /// shape's operand roster in one match.
 pub(super) fn push_measure_subjects(
@@ -746,13 +761,7 @@ fn prove_edge(
         comparisons.extend(slice.comparisons());
     }
     comparisons.extend(alias_comparisons);
-    comparisons.extend(length_bindings.iter().map(|(_, identity)| {
-        (
-            BinaryOperator::GreaterOrEqual,
-            Polynomial::atom(identity.clone()),
-            Polynomial::default(),
-        )
-    }));
+    comparisons.extend(length_bound_comparisons(&length_bindings));
     for &(guard, holds) in guards {
         collect_guard(&mut engine, guard, holds, &mut comparisons, 0)?;
     }

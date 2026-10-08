@@ -167,13 +167,7 @@ pub(crate) fn prove_ranking_range_call_entry(
         if let Some(coordinates) = &slice_rank {
             comparisons.extend(coordinates.comparisons());
         }
-        comparisons.extend(length_bindings.iter().map(|(_, identity)| {
-            (
-                BinaryOperator::GreaterOrEqual,
-                Polynomial::atom(identity.clone()),
-                Polynomial::default(),
-            )
-        }));
+        comparisons.extend(super::length_bound_comparisons(&length_bindings));
         let coordinate = match measure {
             RankingRangeMeasure::SliceLength(subject) => match &slice_rank {
                 Some(slice) => slice.value()?,
@@ -527,13 +521,7 @@ pub(crate) fn prove_ranking_range_call(
         parameter_comparisons(program, caller.machine, source, &mut engine, &bindings)?
     };
     comparisons.extend(carrier_equalities);
-    comparisons.extend(length_bindings.iter().map(|(_, identity)| {
-        (
-            BinaryOperator::GreaterOrEqual,
-            Polynomial::atom(identity.clone()),
-            Polynomial::default(),
-        )
-    }));
+    comparisons.extend(super::length_bound_comparisons(&length_bindings));
     if let Some(coordinates) = &field_ranks {
         // The produced coordinate's own natural bounds and declared field
         // constraints are hypotheses, as at a named-state edge.
