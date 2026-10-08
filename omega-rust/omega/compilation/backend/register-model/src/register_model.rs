@@ -47,11 +47,16 @@ impl PhysicalRegisterModel {
         self.views.iter().find(|view| view.name == name)
     }
 
+    /// The register view keyed `id`, when the model declares it.
+    pub fn view(&self, id: RegisterViewId) -> Option<&RegisterView> {
+        self.views.iter().find(|view| view.id == id)
+    }
+
     pub fn aliases(&self, left: RegisterViewId, right: RegisterViewId) -> bool {
-        let Some(left) = self.views.iter().find(|view| view.id == left) else {
+        let Some(left) = self.view(left) else {
             return false;
         };
-        let Some(right) = self.views.iter().find(|view| view.id == right) else {
+        let Some(right) = self.view(right) else {
             return false;
         };
         left.units.iter().any(|unit| right.units.contains(unit))
