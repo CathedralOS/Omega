@@ -520,7 +520,7 @@ fn validate_anonymous_float(
             continue;
         }
         visited.push(expression);
-        if let ExpressionNode::Binary(binary) = probe.expression_table.expression(expression) {
+        if let Some(binary) = probe.expression_table.binary_node(expression) {
             if !validation::has_builtin_binary_expression_meaning(
                 probe,
                 machine,

@@ -46,7 +46,7 @@ pub(super) fn lower(
         });
     }
 
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+    if let Some(binary) = program.expression_table.binary_node(expression)
         && matches!(
             binary.operator,
             BinaryOperator::Equal | BinaryOperator::NotEqual

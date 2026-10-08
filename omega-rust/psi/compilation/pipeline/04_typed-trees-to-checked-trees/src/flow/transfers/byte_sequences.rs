@@ -8,9 +8,7 @@ use crate::flow::transfers::contextual_expression_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use facts::{
-    Fact, FactPayload, FactPlace, FactPlan, ProgramPoint,
-};
+use facts::{Fact, FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 
 #[allow(clippy::too_many_arguments)]
@@ -56,12 +54,16 @@ pub(super) fn append_derived_predicates(
         {
             continue;
         }
-        let fact = semantic.append_transfer_at_point(FactPlace::Place(destination), point, FactPayload::DomainMembership {
+        let fact = semantic.append_transfer_at_point(
+            FactPlace::Place(destination),
+            point,
+            FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
                 domain_symbol: domain.symbol,
                 semantic_domain: language_semantics::SemanticDomainId::NULL,
-            });
+            },
+        );
         semantic.append_ref(references, fact);
     }
 }
@@ -80,7 +82,7 @@ fn value_proves_predicate(
     ) {
         return true;
     }
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+    if let Some(binary) = program.expression_table.binary_node(expression)
         && binary.operator == typed_trees::expression::BinaryOperator::Add
         && crate::values::operator_is_builtin(operators, expression)
     {
@@ -393,7 +395,11 @@ pub(super) fn append_element_replacement_predicates(
         if !carrier_proves_predicate(program, facts, predicate, &carrier_ceiling) {
             continue;
         }
-        let fact = semantic.append_transfer_at_point(FactPlace::Place(carrier), point, FactPayload::BytePredicate { predicate });
+        let fact = semantic.append_transfer_at_point(
+            FactPlace::Place(carrier),
+            point,
+            FactPayload::BytePredicate { predicate },
+        );
         semantic.append_ref(references, fact);
     }
 }

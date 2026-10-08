@@ -86,8 +86,7 @@ pub(crate) fn requires_value_environment(
     // Both interval and joint-relation projection must consume the selected
     // comparison, not its token. Other fact kinds retain their existing owners.
     let comparison_meaning_is_available = |expression| {
-        let Some(comparison) = program.expression_table.binary_node(expression)
-        else {
+        let Some(comparison) = program.expression_table.binary_node(expression) else {
             return true;
         };
         match comparison.operator {
@@ -134,8 +133,7 @@ pub(crate) fn requires_value_environment(
         environment.set(name, Interval { low, high });
     }
     each_available_comparison(&mut |expression| {
-        let Some(comparison) = program.expression_table.binary_node(expression)
-        else {
+        let Some(comparison) = program.expression_table.binary_node(expression) else {
             return;
         };
         if let Some((left, right)) = joint_add_upper_guard(
@@ -379,7 +377,7 @@ pub(crate) fn fall_through_narrowed_environment(
     // The multi-arm desugar wraps `(cmp) == true|false`; a single-arm guard
     // stores the comparison bare. Unwrap when present, else negate the whole
     // expression.
-    if let ExpressionNode::Binary(equality) = program.expression_table.expression(*guard_expr)
+    if let Some(equality) = program.expression_table.binary_node(*guard_expr)
         && equality.operator == BinaryOperator::Equal
         && let ExpressionNode::Boolean(arm_true) =
             program.expression_table.expression(equality.right)
@@ -1250,8 +1248,7 @@ struct EnsuresProjection<'a> {
 
 impl EnsuresProjection<'_> {
     fn seed_conjunct(&self, conjunct: ExpressionHandle, environment: &mut ValueEnvironment) {
-        let Some(comparison) = self.program.expression_table.binary_node(conjunct)
-        else {
+        let Some(comparison) = self.program.expression_table.binary_node(conjunct) else {
             return;
         };
         if comparison.operator == BinaryOperator::And {

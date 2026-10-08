@@ -45,7 +45,7 @@ pub fn has_builtin_decomposed_guard_meaning(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) {
+    if let Some(binary) = program.expression_table.binary_node(expression) {
         match binary.operator {
             BinaryOperator::And | BinaryOperator::Or => return true,
             BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -816,7 +816,9 @@ fn operand_place_projection_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Borrow(borrow) => {
             operand_place_projection_type(program, machine, state, borrow.target, depth + 1)

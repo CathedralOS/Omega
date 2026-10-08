@@ -82,7 +82,7 @@ fn component_comparison(
     field: &Identifier,
 ) -> Option<Comparison> {
     // `<param>.field - positive` strictly decreases.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
+    if let Some(binary) = program.expression_table.binary_node(value)
         && matches!(binary.operator, BinaryOperator::Subtract)
         && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
         && matches!(

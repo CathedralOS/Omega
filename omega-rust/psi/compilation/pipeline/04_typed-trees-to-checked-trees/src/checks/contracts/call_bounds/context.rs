@@ -340,7 +340,7 @@ fn true_conjuncts(
         else {
             continue;
         };
-        if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        if let Some(binary) = program.expression_table.binary_node(expression)
             && binary.operator == BinaryOperator::And
             && !facts.operators.uses.iter().any(|(_, operator)| {
                 operator.expression == expression
@@ -426,7 +426,6 @@ fn binding(
     }
 }
 
-
 fn fixed_parameter_type(
     program: &dyn ::validation::CheckingInput,
     parameter: &StateParameter,
@@ -479,7 +478,9 @@ fn comparison_is_supported(
                     literal: literal.clone(),
                 },
             )?;
-            return primitive.is_fixed_integer().then_some((Some(primitive), None));
+            return primitive
+                .is_fixed_integer()
+                .then_some((Some(primitive), None));
         }
         let primitive = arguments::primitive_type(program, facts, owner, parameters, expression)?;
         let type_reference = direct_parameter(program, parameters, expression)

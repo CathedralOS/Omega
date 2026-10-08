@@ -562,7 +562,7 @@ pub(super) fn expression_custody(
                 origins.push(origin);
             }
         }
-        if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) {
+        if let Some(binary) = program.expression_table.binary_node(expression) {
             pending.push(binary.right);
             pending.push(binary.left);
         } else if let ExpressionNode::Unary(unary) = program.expression_table.expression(expression)

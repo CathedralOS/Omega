@@ -286,7 +286,7 @@ impl<'program> CurrentScalarValues<'program> {
         if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
             return;
         }
-        if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        if let Some(binary) = program.expression_table.binary_node(expression)
             && matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -318,7 +318,7 @@ impl<'program> CurrentScalarValues<'program> {
                 return;
             }
         }
-        if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        if let Some(binary) = program.expression_table.binary_node(expression)
             && ((holds && binary.operator == BinaryOperator::And)
                 || (!holds && binary.operator == BinaryOperator::Or))
             && validation::has_builtin_decomposed_guard_meaning(
@@ -483,7 +483,8 @@ fn exact_integer(
     reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
     let primitive = program.primitive_type_reference(reference)?;
-    if !primitive.is_fixed_integer() || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
+    if !primitive.is_fixed_integer()
+        || program.arithmetic_domain_for_type_reference(reference) != ArithmeticDomain::Exact
     {
         return None;
     }

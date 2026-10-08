@@ -244,7 +244,7 @@ pub(super) fn value_proves_domain_in_contexts(
     // the capacity half -- that the result fits an owned `[u8; N]` carrier -- is
     // the separate length-fits check at the write site, so admitting the domain
     // here is not on its own a license to overflow the target.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
+    if let Some(binary) = program.expression_table.binary_node(value)
         && binary.operator == typed_trees::expression::BinaryOperator::Add
         && validation::field_domains::domain_is_concat_preserving(program, domain_symbol)
     {

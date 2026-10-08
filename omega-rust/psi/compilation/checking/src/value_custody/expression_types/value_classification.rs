@@ -1,5 +1,5 @@
-use diagnostics::Diagnostic;
 use crate::declarations::data_queries::data_definition_by_symbol;
+use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
@@ -72,7 +72,7 @@ pub(super) fn value_class(
     // stores `a > b` straight into an `i32` -- so it must NOT be flagged. (The narrow
     // cost: an arithmetic/bitwise op OVER raw comparison results, `(a == 1) + (a == 1)`,
     // stored into a bool is not caught -- its comparison operands classify as None.)
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value) {
+    if let Some(binary) = program.expression_table.binary_node(value) {
         use typed_trees::expression::BinaryOperator;
         let left = value_class(program, machine, state, binary.left);
         let right = value_class(program, machine, state, binary.right);
@@ -278,7 +278,6 @@ fn concrete_data_type_symbol(
 
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open (the declaration slice is otherwise re-scanned per query).
-
 
 pub(super) fn concrete_data_type_name(
     program: &dyn crate::CheckingInput,

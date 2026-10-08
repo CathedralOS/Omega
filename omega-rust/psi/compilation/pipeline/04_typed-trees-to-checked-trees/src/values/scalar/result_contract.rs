@@ -432,8 +432,7 @@ impl ContractPredicates<'_, '_> {
                 primitive_type,
                 operand,
             }
-        } else if let ExpressionNode::Binary(binary) =
-            program.expression_table.expression(expression)
+        } else if let Some(binary) = program.expression_table.binary_node(expression)
             && validation::proof_integer_expression(program, expression)
             && operator_is_builtin(self.operators, expression)
         {

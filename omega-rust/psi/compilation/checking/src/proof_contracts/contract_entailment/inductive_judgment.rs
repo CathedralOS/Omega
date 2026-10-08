@@ -444,7 +444,7 @@ pub(super) fn guard_arm_comparison(
 }
 
 fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(guard)
+    if let Some(binary) = program.expression_table.binary_node(guard)
         && binary.operator == BinaryOperator::Equal
         && let ExpressionNode::Boolean(polarity) = program.expression_table.expression(binary.right)
     {

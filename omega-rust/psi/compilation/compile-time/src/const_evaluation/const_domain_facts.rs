@@ -203,8 +203,7 @@ pub(crate) fn evaluate_selected_domain_facts(
                     // Conjunction is the same obligation whether authored in
                     // one clause or several. Preserve order and source handles
                     // while removing only independently proved static leaves.
-                    if let ExpressionNode::Binary(binary) =
-                        typed.expression_table.expression(expression)
+                    if let Some(binary) = typed.expression_table.binary_node(expression)
                         && binary.operator == typed_trees::expression::BinaryOperator::And
                     {
                         pending.push(ProofFact::Expression(binary.right));

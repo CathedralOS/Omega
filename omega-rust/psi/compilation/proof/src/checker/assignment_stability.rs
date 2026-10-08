@@ -31,8 +31,7 @@ fn collect_stable_conditions(
         collect_stable_conditions(proof_plan, unwrapped, prefix, conditions);
         return;
     }
-    if let ExpressionNode::Binary(binary) =
-        proof_plan.program.expression_table.expression(condition)
+    if let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
         && binary.operator == BinaryOperator::And
     {
         collect_stable_conditions(proof_plan, binary.left, prefix, conditions);

@@ -221,7 +221,8 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 .expect("filtered scalar parameters retain primitive carriers");
             let result_type = program.primitive_type_reference(state.return_type);
             for (statement_index, statement) in program
-                .statement_table.indexed_statements(state.statement_nodes)
+                .statement_table
+                .indexed_statements(state.statement_nodes)
             {
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
@@ -326,7 +327,7 @@ pub(crate) fn lower_closed_integer_literal_guard(
     // Successful checking has already established literal landing and selected
     // comparison meaning. Comparing these immutable payloads needs no runtime
     // arithmetic, whether the literals are anonymous or have declared carriers.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+    if let Some(binary) = program.expression_table.binary_node(expression)
         && binary.operator == BinaryOperator::Equal
         && operator_is_builtin(operators, expression)
     {

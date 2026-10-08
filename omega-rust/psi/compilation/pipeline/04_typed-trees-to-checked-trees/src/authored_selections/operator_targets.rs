@@ -92,7 +92,7 @@ pub(crate) fn checked_generic_operator_target(
         .collect::<Vec<_>>();
     // An open generic requirement has no selected concrete provider, so the
     // executable operator fact producer may not emit a row for this expression.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+    if let Some(binary) = program.expression_table.binary_node(expression)
         && let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
     {
         for origin in value_origins.origins(expression) {
@@ -592,46 +592,45 @@ fn operator_contract_value_type(
         .name_path_members(path.members)
         .last()?
         .as_str();
-    let mut types = program.all_operators()
-        .filter_map(|operator| {
-            // The name match is a field comparison; the containment walk
-            // visits every contract expression, so it runs only for an
-            // operator whose signature could type the name at all.
-            let type_reference = if language_core::is_reserved_result(name) {
-                operator.return_type
-            } else {
-                program
-                    .operator_parameters(operator)
-                    .iter()
-                    .find(|parameter| parameter.name.as_str() == name)?
-                    .type_reference
-            };
+    let mut types = program.all_operators().filter_map(|operator| {
+        // The name match is a field comparison; the containment walk
+        // visits every contract expression, so it runs only for an
+        // operator whose signature could type the name at all.
+        let type_reference = if language_core::is_reserved_result(name) {
+            operator.return_type
+        } else {
             program
-                .operator_contracts(operator)
+                .operator_parameters(operator)
                 .iter()
-                .any(|contract| {
-                    program
-                        .proof_facts
-                        .span_or_empty(contract.facts)
-                        .iter()
-                        .any(|fact| match fact {
-                            typed_trees::domain::ProofFact::Expression(root) => {
-                                validation::expression_owners::expression_contains(
-                                    program, *root, expression,
-                                )
-                            }
-                            typed_trees::domain::ProofFact::Membership(membership) => {
-                                validation::expression_owners::expression_contains(
-                                    program,
-                                    membership.value,
-                                    expression,
-                                )
-                            }
-                            typed_trees::domain::ProofFact::Proposition(_) => false,
-                        })
-                })
-                .then_some(type_reference)
-        });
+                .find(|parameter| parameter.name.as_str() == name)?
+                .type_reference
+        };
+        program
+            .operator_contracts(operator)
+            .iter()
+            .any(|contract| {
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| match fact {
+                        typed_trees::domain::ProofFact::Expression(root) => {
+                            validation::expression_owners::expression_contains(
+                                program, *root, expression,
+                            )
+                        }
+                        typed_trees::domain::ProofFact::Membership(membership) => {
+                            validation::expression_owners::expression_contains(
+                                program,
+                                membership.value,
+                                expression,
+                            )
+                        }
+                        typed_trees::domain::ProofFact::Proposition(_) => false,
+                    })
+            })
+            .then_some(type_reference)
+    });
     let first = types.next()?;
     types
         .all(|type_reference| type_reference == first)

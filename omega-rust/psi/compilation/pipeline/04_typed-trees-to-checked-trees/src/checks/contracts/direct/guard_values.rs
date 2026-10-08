@@ -76,7 +76,7 @@ pub(in crate::checks::contracts) fn proves_with(
     if equal(guard, required) {
         return guard_value == required_value;
     }
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(guard)
+    if let Some(binary) = program.expression_table.binary_node(guard)
         && ((binary.operator == BinaryOperator::And && guard_value)
             || (binary.operator == BinaryOperator::Or && !guard_value))
     {
@@ -96,7 +96,7 @@ pub(in crate::checks::contracts) fn proves_with(
             equal,
         );
     }
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(required) {
+    if let Some(binary) = program.expression_table.binary_node(required) {
         let left = || {
             proves_with(
                 program,
