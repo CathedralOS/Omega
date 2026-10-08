@@ -149,10 +149,7 @@ pub(super) fn accepts(
 ) -> Option<()> {
     if let TargetStructuralArgumentSource::BlockParameter { block, place } = target.source {
         let owner = source.block(block)?;
-        let parameter = owner
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)?;
+        let parameter = owner.structural_parameter(place)?;
         let signature = source.structural.as_ref()?;
         // The arrival is the loan's root: a whole forward selects it, and a
         // projected element loan's geometry was rejoined by its caller.

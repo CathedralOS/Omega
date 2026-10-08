@@ -335,10 +335,7 @@ fn view_argument(
         };
         (structural_type, source)
     } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
-        block
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == semantic.place)
+        block.structural_parameter(semantic.place)
             .map(|parameter| (block, parameter))
     }) {
         if block.id == caller.entry
@@ -356,10 +353,7 @@ fn view_argument(
             },
         )
     } else {
-        let source = caller
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == semantic.place)
+        let source = caller.structural_parameter(semantic.place)
             .ok_or(LegalizationError::custody())?;
         let target_caller = native
             .functions

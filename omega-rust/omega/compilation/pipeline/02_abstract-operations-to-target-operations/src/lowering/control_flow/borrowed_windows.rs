@@ -176,10 +176,7 @@ pub(super) fn store_field(
         // An owned argument may still be in ABI fragments. Retain its place,
         // not a fabricated operation-result home; selection already captures
         // the incoming fragments or indirect pointer for this parameter.
-        let declaration = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == value.place)
+        let declaration = function.structural_parameter(value.place)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let parameter = prepared
             .parameters

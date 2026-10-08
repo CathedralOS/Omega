@@ -960,10 +960,7 @@ fn formal_origin(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<ReferenceRoot> {
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let parameter = function.structural_parameter(source.place)?;
     if source.path.is_empty()
         && matches!(
             parameter.access,
@@ -1848,10 +1845,7 @@ pub(super) fn call_results(
             let leaf = if matches!(
                 formal_origin(callee_function, types, formal),
                 Some(ReferenceRoot::Ingress(place, path))
-                    if callee_function
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == place)
+                    if callee_function.structural_parameter(place)
                         .and_then(|parameter| {
                             leaf_type(types, parameter.structural_type, &path)
                         })

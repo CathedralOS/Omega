@@ -535,10 +535,7 @@ fn source_contract(
     custody: &Custody,
     place: PlaceId,
 ) -> Option<(StructuralTypeId, StructuralMultiplicity)> {
-    if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
+    if let Some(parameter) = function.structural_parameter(place)
     {
         return Some((parameter.structural_type, parameter.multiplicity));
     }
@@ -572,10 +569,7 @@ fn formal_projection_type(
     {
         return None;
     }
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let parameter = function.structural_parameter(source.place)?;
     let access_is_compatible = match source.access {
         StructuralAccess::SharedBorrow => matches!(
             parameter.access,
@@ -724,10 +718,7 @@ fn formal_origin(
     declarations: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Option<Root> {
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let parameter = function.structural_parameter(source.place)?;
     if source.path.is_empty()
         && matches!(
             parameter.access,
@@ -935,10 +926,7 @@ fn call_result_leaves(
                             if !matches!(tail, StructuralPathSegment::Referent) {
                                 return None;
                             }
-                            let parameter = callee
-                                .structural_parameters
-                                .iter()
-                                .find(|parameter| parameter.place == formal.place)?;
+                            let parameter = callee.structural_parameter(formal.place)?;
                             leaf_type(declarations, parameter.structural_type, carrier_path)
                         })
                         .and_then(|leaf| lookup(declarations, leaf))

@@ -64,10 +64,7 @@ pub(super) fn reconstruct(
     if block_parameters.next().is_some() {
         return Err(LegalizationError::custody());
     }
-    let (source, root_structural_type, source_byte_offset) = if let Some(parameter) = caller
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
+    let (source, root_structural_type, source_byte_offset) = if let Some(parameter) = caller.structural_parameter(argument.place)
     {
         if parameter.access != destination.access
             || (argument.path.is_empty() && parameter.multiplicity != destination.multiplicity)

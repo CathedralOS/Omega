@@ -298,10 +298,7 @@ fn bounded_owner_source(
             && source.qualifications == declaration.qualifications
             && source.projected_qualifications.is_empty()
     };
-    if let Some(source) = function
-        .structural_parameters
-        .iter()
-        .find(|source| source.place == place)
+    if let Some(source) = function.structural_parameter(place)
     {
         return identical(source);
     }
@@ -336,10 +333,7 @@ fn root_type(
             && qualifications.is_empty()
             && projected.is_empty()
     };
-    if let Some(source) = function
-        .structural_parameters
-        .iter()
-        .find(|source| source.place == place)
+    if let Some(source) = function.structural_parameter(place)
     {
         // Explicit parameters lend their declared referents. Namespace
         // attachment neither supplies a root nor changes its authority.

@@ -396,10 +396,7 @@ fn successor(
                 }
                 let parameter = source.block(next.target)
                     .and_then(|block| {
-                        block
-                            .structural_parameters
-                            .iter()
-                            .find(|parameter| parameter.place == semantic.parameter)
+                        block.structural_parameter(semantic.parameter)
                     })
                     .ok_or(SelectedInstructionError::custody())?;
                 let transport =

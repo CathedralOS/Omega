@@ -402,10 +402,7 @@ pub(super) fn byte_argument(
                 .parameters
                 .iter()
                 .find(|source| source.place == argument.place),
-            function
-                .structural_parameters
-                .iter()
-                .find(|root| root.place == argument.place),
+            function.structural_parameter(argument.place),
         ) else {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         };
@@ -514,10 +511,7 @@ pub(super) fn byte_argument(
             .block_entries
             .iter()
             .find_map(|entry| {
-                entry
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == argument.place)
+                entry.structural_parameter(argument.place)
                     .map(|parameter| (entry, parameter))
             })
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;

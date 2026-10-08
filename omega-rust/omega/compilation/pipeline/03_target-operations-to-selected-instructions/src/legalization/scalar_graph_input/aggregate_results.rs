@@ -145,10 +145,7 @@ pub(super) fn cleanup(
         {
             return None;
         }
-        if let Some(parameter) = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)
+        if let Some(parameter) = function.structural_parameter(place)
         {
             return (parameter.access == terminal_psi::StructuralAccess::Owned
                 && parameter.qualifications.is_empty()
@@ -640,10 +637,7 @@ pub(in crate::legalization) fn call_argument(
         .iter()
         .find(|function| function.machine == caller.machine)
         .ok_or(LegalizationError::custody())?;
-    let (source, binding) = if let Some(source) = caller
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
+    let (source, binding) = if let Some(source) = caller.structural_parameter(argument.place)
     {
         let retained = super::structural_parameters(caller_target)
             .and_then(|parameters| {
@@ -658,10 +652,7 @@ pub(in crate::legalization) fn call_argument(
             .blocks
             .iter()
             .find_map(|block| {
-                block
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == argument.place)
+                block.structural_parameter(argument.place)
                     .map(|parameter| (block.id, parameter))
             })
             .ok_or(LegalizationError::custody())?;

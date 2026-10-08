@@ -70,12 +70,11 @@ pub(super) fn home_available(
             block: owner,
             declaration,
         } => {
-            let Some(original) = optimized.block(*owner).and_then(|candidate| {
-                candidate
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == expected_source)
-            }) else {
+            let Some(original) = optimized.block(*owner)
+                .and_then(|candidate| {
+                    candidate.structural_parameter(expected_source)
+                })
+            else {
                 return false;
             };
             let Some(target_parameter) = graph
@@ -83,10 +82,7 @@ pub(super) fn home_available(
                 .iter()
                 .find(|candidate| candidate.block == *owner)
                 .and_then(|candidate| {
-                    candidate
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == expected_source)
+                    candidate.structural_parameter(expected_source)
                 })
             else {
                 return false;
@@ -126,10 +122,7 @@ fn parameter_available(
     layout: &target_operations::TargetStructuralHomeLayout,
     expected_source: PlaceId,
 ) -> bool {
-    let Some(declaration) = optimized
-        .structural_parameters
-        .iter()
-        .find(|declaration| declaration.place == expected_source)
+    let Some(declaration) = optimized.structural_parameter(expected_source)
     else {
         return false;
     };
@@ -152,10 +145,7 @@ fn borrowed_parameter_available(
     layout: &target_operations::TargetStructuralHomeLayout,
     expected_source: PlaceId,
 ) -> bool {
-    let Some(declaration) = optimized
-        .structural_parameters
-        .iter()
-        .find(|declaration| declaration.place == expected_source)
+    let Some(declaration) = optimized.structural_parameter(expected_source)
     else {
         return false;
     };

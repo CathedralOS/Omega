@@ -27,10 +27,7 @@ pub(in crate::lowering) fn block_source(
     StructuralTypeId,
 )> {
     function.block_entries.iter().find_map(|entry| {
-        let parameter = entry
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)?;
+        let parameter = entry.structural_parameter(place)?;
         (entry.block != function.entry && is_immutable_byte_parameter(parameter, structural_types))
             .then_some((
                 target_operations::TargetStructuralArgumentSource::BlockParameter {

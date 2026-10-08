@@ -476,10 +476,7 @@ pub(super) fn lower_terminator(
             }
             let reference_bearing =
                 super::references::contains_reference(structural_types, result.structural_type);
-            if let Some(parameter) = function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *source)
+            if let Some(parameter) = function.structural_parameter(*source)
             {
                 let actual = prepared
                     .parameters

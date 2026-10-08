@@ -47,10 +47,7 @@ pub(super) fn validate(
             // Result membership was established by Psi at this edge. Native
             // custody resolves the exact source carrier, not an equality
             // between its stored labels and the declared postcondition.
-            let (structural_type, multiplicity) = if let Some(parameter) = function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *source)
+            let (structural_type, multiplicity) = if let Some(parameter) = function.structural_parameter(*source)
             {
                 if parameter.access != terminal_psi::StructuralAccess::Owned {
                     return Err(LegalizationError::custody());

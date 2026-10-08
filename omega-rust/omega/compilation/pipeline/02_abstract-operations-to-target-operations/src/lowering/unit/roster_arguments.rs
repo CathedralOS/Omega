@@ -165,10 +165,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         };
     // Fixed byte windows and element views are call presentations of original
     // backing, not immutable subslice producers or a new owned structural value.
-    if let Some(root) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
+    if let Some(root) = function.structural_parameter(argument.place)
         && let Some(loan) = fixed_array_view_argument(
             argument,
             callee_parameter,

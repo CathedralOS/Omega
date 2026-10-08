@@ -129,10 +129,7 @@ pub(super) fn establish(
             (block.id != function.entry_block)
                 .then_some(block)
                 .and_then(|block| {
-                    block
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == source.place)
+                    block.structural_parameter(source.place)
                 })
         })
         .filter(|parameter| {

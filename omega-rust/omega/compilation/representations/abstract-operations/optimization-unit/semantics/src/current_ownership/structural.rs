@@ -177,10 +177,7 @@ pub(crate) fn projected_paths_are_fully_consumed(
     if partial_affine_root_type(function, place).is_some() {
         return partial_affine_root_is_drained(function, structural_types, place, moved);
     }
-    let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
+    let Some(parameter) = function.structural_parameter(place)
     else {
         return false;
     };

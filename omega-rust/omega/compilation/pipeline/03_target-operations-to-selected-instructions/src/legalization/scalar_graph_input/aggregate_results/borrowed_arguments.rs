@@ -85,10 +85,7 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             plan,
         );
     }
-    let (root, source) = if let Some(parameter) = caller
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == argument.place)
+    let (root, source) = if let Some(parameter) = caller.structural_parameter(argument.place)
     {
         if !matches!(
             parameter.access,

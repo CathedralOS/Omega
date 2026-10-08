@@ -296,12 +296,12 @@ impl Checker<'_> {
         root_structural_type: semantic_vocabulary::StructuralTypeId,
         requested: terminal_psi::StructuralAccess,
     ) -> bool {
-        let Some(parameter) = self.optimized.block(block).and_then(|entry| {
-            entry
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == place)
-        }) else {
+        let Some(parameter) = self
+            .optimized.block(block)
+            .and_then(|entry| {
+                entry.structural_parameter(place)
+            })
+        else {
             return false;
         };
         let Some((consumer_block, _)) =

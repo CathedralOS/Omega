@@ -567,10 +567,7 @@ fn direct_reference_parameter<'a>(
     function: &'a PsiOptimizationFunction,
     source: &terminal_psi::StructuralArgument,
 ) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let parameter = function.structural_parameter(source.place)?;
     (matches!(
         parameter.access,
         terminal_psi::StructuralAccess::MutableBorrow
@@ -596,10 +593,7 @@ pub(crate) fn formal_origin(
     function: &PsiOptimizationFunction,
     source: &terminal_psi::StructuralArgument,
 ) -> Option<ReferenceOrigin> {
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)?;
+    let parameter = function.structural_parameter(source.place)?;
     if source.path.is_empty()
         && matches!(
             parameter.access,

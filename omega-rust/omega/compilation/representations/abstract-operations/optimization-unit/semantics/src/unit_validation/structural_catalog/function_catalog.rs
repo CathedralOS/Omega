@@ -372,10 +372,7 @@ pub(crate) fn validate_function_structural_catalog(
                 .ok_or_else(mismatch)?,
         )
         .ok_or_else(mismatch)?;
-        let Some(parameter) = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == claim.input)
+        let Some(parameter) = function.structural_parameter(claim.input)
         else {
             return Err(mismatch());
         };

@@ -184,10 +184,7 @@ fn address_join_argument(
             && (home.qualifications().is_empty() || owner_loan)
             && home.projected_qualifications().is_empty())
         .then(|| home.structural_type())
-    } else if let Some(source) = function
-        .structural_parameters
-        .iter()
-        .find(|source| source.place == argument.place)
+    } else if let Some(source) = function.structural_parameter(argument.place)
     {
         (loan_access_permitted(source.access, parameter.access)
             && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
@@ -285,10 +282,7 @@ pub(super) fn validate_successors(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let place = binding.argument.place;
-                let source_type = function
-                    .structural_parameters
-                    .iter()
-                    .find(|source| source.place == place)
+                let source_type = function.structural_parameter(place)
                     .map(|source| source.structural_type)
                     .or_else(|| {
                         live.structural_homes

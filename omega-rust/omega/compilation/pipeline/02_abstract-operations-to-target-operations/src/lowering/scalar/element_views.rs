@@ -53,10 +53,7 @@ impl<'a> ElementViewBackings<'a> {
             return None;
         }
         let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
-            entry
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == source.place)
+            entry.structural_parameter(source.place)
                 .map(|parameter| (entry, parameter))
         })?;
         if entry.block == function.entry
@@ -89,10 +86,7 @@ impl<'a> ElementViewBackings<'a> {
         source: &StructuralArgument,
     ) -> Option<(StructuralTypeId, TargetStructuralArgumentSource)> {
         let (entry, parameter) = function.block_entries.iter().find_map(|entry| {
-            entry
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == source.place)
+            entry.structural_parameter(source.place)
                 .map(|parameter| (entry, parameter))
         })?;
         let descriptor_carrier = structural_types
@@ -524,10 +518,7 @@ pub(in crate::lowering) fn resolve_element_view(
         ));
     }
     if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
-        entry
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == place)
+        entry.structural_parameter(place)
             .map(|parameter| (entry, parameter))
     }) {
         if entry.block == function.entry || !is_element_view_parameter(parameter, structural_types)
@@ -544,10 +535,7 @@ pub(in crate::lowering) fn resolve_element_view(
             parameter.access,
         ));
     }
-    if let Some(semantic) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
+    if let Some(semantic) = function.structural_parameter(place)
     {
         let parameter = parameters
             .iter()
@@ -725,10 +713,7 @@ fn established_source(
     ) {
         return Err(invalid());
     }
-    let (root_structural_type, backing) = if let Some(semantic) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)
+    let (root_structural_type, backing) = if let Some(semantic) = function.structural_parameter(source.place)
     {
         if !matches!(
             semantic.access,

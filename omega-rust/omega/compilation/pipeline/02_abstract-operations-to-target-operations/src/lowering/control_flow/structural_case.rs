@@ -121,10 +121,7 @@ fn case_source(
     }
     let parameter = parameter_root(prepared, source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let declaration = function
-        .structural_parameters
-        .iter()
-        .find(|declaration| declaration.place == source)
+    let declaration = function.structural_parameter(source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let borrowed = matches!(
         declaration.access,
