@@ -290,8 +290,8 @@ pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
     mut visit: impl FnMut(&[typed_trees::types::TypeConstraintNode]) -> bool,
 ) -> Option<()> {
     loop {
+        handle = program.type_reference_table.dereferenced_type_reference(handle);
         match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
