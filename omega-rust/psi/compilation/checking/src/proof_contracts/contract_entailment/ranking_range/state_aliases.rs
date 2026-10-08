@@ -82,10 +82,13 @@ fn collect(
     symbols: &mut Vec<SymbolHandle>,
     depth: usize,
 ) -> Option<()> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         // Literal spellings have no state dependency. Formation and selected
         // meaning separately decide whether a decimal can land as an integer.
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {}

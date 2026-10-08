@@ -70,11 +70,14 @@ fn stable_builtin_value(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return false;
-    }
+    };
     let stable = |value| stable_builtin_value(program, machine, state, value, depth + 1);
-    match program.expression_table.expression(expression) {
+    match node {
         ExpressionNode::Name(_) => {
             let Some(symbol) =
                 crate::expression_traversal::single_segment_name_symbol(program, expression)

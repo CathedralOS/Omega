@@ -643,10 +643,13 @@ fn direct_input(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<SymbolHandle> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Atomic(atomic) => direct_input(program, atomic.value, depth + 1),
         ExpressionNode::Name(path)
             if path.symbol.is_valid()
@@ -679,10 +682,13 @@ fn endpoint_inputs<'program>(
     length_dependencies: &mut Vec<LengthDependency<'program>>,
     depth: usize,
 ) -> Option<()> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Integer(_) => Some(()),
         ExpressionNode::Atomic(atomic) => endpoint_inputs(
             program,

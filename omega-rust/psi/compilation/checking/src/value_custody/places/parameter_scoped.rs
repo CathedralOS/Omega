@@ -22,11 +22,14 @@ fn expression_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
+    };
     let child_type = |expression| expression_type(program, parameters, expression, depth + 1);
-    let reference = match program.expression_table.expression(expression) {
+    let reference = match node {
         ExpressionNode::Name(path) => {
             // One member: a bare binding occurrence, never a chain. The
             // telescope membership test below is the resolved symbol's, so

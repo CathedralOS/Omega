@@ -541,6 +541,30 @@ impl ExpressionTable {
         self.expressions.is_valid(handle)
     }
 
+    /// The depth-bounded lookup every recursive expression walk opens with:
+    /// `None` at the 128-level recursion ceiling or on a dangling handle, so
+    /// the caller's `match` only ever sees a live node.
+    pub fn expression_at_depth(
+        &self,
+        handle: ExpressionHandle,
+        depth: usize,
+    ) -> Option<&ExpressionNode> {
+        if depth >= 128 || !self.expression_is_valid(handle) {
+            return None;
+        }
+        Some(self.expression(handle))
+    }
+
+    /// The name path's `::`-joined spelling for diagnostics and identity
+    /// strings; the table's members stay the identity.
+    pub fn name_path_string(&self, span: HandleSpan<Identifier>) -> String {
+        self.name_path_members(span)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::")
+    }
+
     pub fn iter_expressions(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.expression_roots
             .iter()

@@ -151,15 +151,15 @@ fn install_expression(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<()> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
+    };
     // These handles are metadata projections only. A slice Name stays outside
     // the scalar language, including in expressions that algebraically cancel.
-    if matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Member(_)
-    ) {
+    if matches!(node, ExpressionNode::Member(_)) {
         for scope in [state, root] {
             let Some(receiver) = crate::value_custody::places::collection_length_receiver(
                 program,
@@ -239,10 +239,13 @@ fn evaluate_length(
     engine: &mut Engine<'_>,
     depth: usize,
 ) -> Option<Polynomial> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+    };
+    if let ExpressionNode::Borrow(borrow) = node {
         if !matches!(
             borrow.access,
             language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable

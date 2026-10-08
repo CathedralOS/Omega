@@ -417,10 +417,13 @@ fn inert_store_target(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return false;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Name(_) => true,
         ExpressionNode::Member(member) => {
             inert_store_target(program, machine, state, member.receiver, depth + 1)
@@ -470,13 +473,16 @@ fn pure_guard_or_calls(
     depth: usize,
     admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return false;
-    }
+    };
     let inert = |expression| {
         pure_guard_or_calls(program, machine, state, expression, depth + 1, admit_call)
     };
-    match program.expression_table.expression(expression) {
+    match node {
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)

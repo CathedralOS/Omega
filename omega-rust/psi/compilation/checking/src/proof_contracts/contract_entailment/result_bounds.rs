@@ -229,10 +229,13 @@ fn result_goal(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return false;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Name(_) => crate::reserved_result_owner(program, expression)
             .is_some_and(|(owner, _)| owner == machine.symbol),
@@ -543,8 +546,7 @@ impl ReturnReader<'_, '_> {
         let operator = if holds {
             binary.operator
         } else {
-            let Some(operator) = binary.operator.complement()
-            else {
+            let Some(operator) = binary.operator.complement() else {
                 return;
             };
             operator

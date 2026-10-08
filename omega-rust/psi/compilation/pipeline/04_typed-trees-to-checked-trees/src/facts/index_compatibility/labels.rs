@@ -59,11 +59,7 @@ pub(super) fn qualification_label(
 ) -> String {
     let name = program
         .expression_table
-        .name_path_members(cast.semantic_domain)
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join("::");
+        .name_path_string(cast.semantic_domain);
     domain_label(
         program,
         &name,

@@ -231,10 +231,13 @@ fn builtin_coordinates(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return false;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Name(_) => true,
         ExpressionNode::Borrow(borrow) => {
             builtin_coordinates(program, machine, state, borrow.target, depth + 1)

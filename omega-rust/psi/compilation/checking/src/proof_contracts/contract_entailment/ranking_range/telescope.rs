@@ -910,10 +910,13 @@ fn argument_subjects(
     subjects: &mut Vec<SymbolHandle>,
     depth: usize,
 ) -> Option<()> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
             if !subjects.contains(&name.symbol) {

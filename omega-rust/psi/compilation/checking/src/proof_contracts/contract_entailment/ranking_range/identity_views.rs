@@ -225,10 +225,13 @@ fn computation_meaning(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<Option<TypeReferenceHandle>> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Integer(literal) => {
             (!literal.value_bignum()?.is_negative()).then_some(None)
         }
@@ -605,10 +608,13 @@ fn computation_shape(
         depth: usize,
         mentions: &mut bool,
     ) -> bool {
-        if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        let Some(node) = program
+            .expression_table
+            .expression_at_depth(expression, depth)
+        else {
             return false;
-        }
-        match program.expression_table.expression(expression) {
+        };
+        match node {
             ExpressionNode::Integer(_) => true,
             ExpressionNode::Name(_) => {
                 let parameter = is_parameter(program, expression, binder);

@@ -1065,10 +1065,13 @@ fn realized_receiver_type(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
-    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+    let Some(node) = program
+        .expression_table
+        .expression_at_depth(expression, depth)
+    else {
         return None;
-    }
-    match program.expression_table.expression(expression) {
+    };
+    match node {
         ExpressionNode::Borrow(inner) => {
             realized_receiver_type(program, state, realized, inner.target, depth + 1)
         }
