@@ -1,3 +1,4 @@
+use super::namespace::take_optional_semicolon;
 use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_parameters::parse_callable_signature;
@@ -176,16 +177,6 @@ fn parse_capability_contract<'tokens, 'source>(
     }
 
     Err(input.error_here("expected capability contract"))
-}
-
-fn take_optional_semicolon<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> Result<Input<'tokens, 'source>, crate::diagnostics::parse_error::ParseError> {
-    if input.at_punctuation(PunctuationKind::Semicolon) {
-        input.take_punctuation(PunctuationKind::Semicolon, ";")
-    } else {
-        Ok(input)
-    }
 }
 
 fn capability_contract_terminator(input: Input<'_, '_>) -> bool {
