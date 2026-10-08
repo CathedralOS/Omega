@@ -51,6 +51,36 @@ pub(super) fn block_instruction_ids(block: &SelectedBlock) -> impl Iterator<Item
     block_instructions(block).map(|instruction| instruction.id.0)
 }
 
+/// The index of the one block whose terminator edges into `block`, when
+/// every inbound edge shares that single source; `None` when the block has
+/// no inbound edge or more than one distinct source.
+pub(super) fn predecessor_source_index(
+    function: &SelectedFunction,
+    block: SelectedBlockId,
+) -> Option<usize> {
+    let mut head_index: Option<usize> = None;
+    for (source_index, edge) in function
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(index, candidate)| {
+            terminator_successors(&candidate.terminator)
+                .into_iter()
+                .map(move |successor| (index, successor))
+        })
+    {
+        if edge.block != block {
+            continue;
+        }
+        match head_index {
+            Some(existing) if existing != source_index => return None,
+            Some(_) => {}
+            None => head_index = Some(source_index),
+        }
+    }
+    head_index
+}
+
 /// Every successor edge in the function paired with the block it leaves,
 /// for predecessor-count audits.
 pub(super) fn all_edges(

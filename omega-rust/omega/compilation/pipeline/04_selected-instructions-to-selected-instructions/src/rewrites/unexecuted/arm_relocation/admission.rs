@@ -19,7 +19,7 @@ use selected_instructions::{
 use super::ArmRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, all_edges, crossed_window, function_at, terminator_successors,
+    CrossingDirection, all_edges, crossed_window, function_at, predecessor_source_index,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
@@ -77,29 +77,8 @@ pub(super) fn admit<'source>(
     if block.id == function.entry_block || !matches!(block.origin, SelectedBlockOrigin::Source(_)) {
         return Err(ArmRelocationError::UnsupportedPair);
     }
-    let mut head_index: Option<usize> = None;
-    for (source_index, edge) in function
-        .blocks
-        .iter()
-        .enumerate()
-        .flat_map(|(index, candidate)| {
-            terminator_successors(&candidate.terminator)
-                .into_iter()
-                .map(move |successor| (index, successor))
-        })
-    {
-        if edge.block != block.id {
-            continue;
-        }
-        match head_index {
-            Some(existing) if existing != source_index => {
-                return Err(ArmRelocationError::UnsupportedPair);
-            }
-            Some(_) => {}
-            None => head_index = Some(source_index),
-        }
-    }
-    let target_index = head_index.ok_or(ArmRelocationError::UnsupportedPair)?;
+    let target_index =
+        predecessor_source_index(function, block.id).ok_or(ArmRelocationError::UnsupportedPair)?;
     let target = &function.blocks[target_index];
     // The head must not collapse back into the member's own block — an
     // arm that heads its own fork is the in-block family's case with a
