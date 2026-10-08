@@ -193,9 +193,7 @@ pub(crate) fn prepare_signature(
                 "nominal cleanup hook lacks a complete callable prerequisite roster",
             );
         }
-        let structural_type = types
-            .iter()
-            .find(|declaration| declaration.identity == hook.type_identity)
+        let structural_type = terminal_psi::structural_type_by_identity(types, &hook.type_identity)
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup hook owner type is absent",
             ))?
