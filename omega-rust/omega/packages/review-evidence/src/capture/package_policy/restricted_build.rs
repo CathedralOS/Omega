@@ -9,13 +9,7 @@
 //! edit even when the requested authority is unchanged.
 
 use crate::capture::PackageReviewInput;
-use crate::record::{
-    PackagePolicyRestrictedBuildGrant, PackagePolicyRestrictedBuildGrantRoot,
-    PackagePolicyRestrictedBuildOperation, PackagePolicyRestrictedBuildRequest,
-};
-use package_compilation::build_execution::{
-    RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
-};
+use crate::record::PackagePolicyRestrictedBuildRequest;
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -25,45 +19,8 @@ pub(super) fn project(
         .build_admission()
         .restricted_build_requests
         .iter()
-        .map(request)
+        .map(Into::into)
         .collect()
 }
 
-fn request(
-    request: &package_compilation::build_execution::RestrictedBuildRequest,
-) -> PackagePolicyRestrictedBuildRequest {
-    let bounds = request.bounds();
-    PackagePolicyRestrictedBuildRequest {
-        operation: match request.operation() {
-            RestrictedBuildOperation::ScopedFilesystemExecution => {
-                PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution
-            }
-            RestrictedBuildOperation::UnscopedFilesystemExecution => {
-                PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution
-            }
-        },
-        read_grants: request.read_grants().iter().map(grant).collect(),
-        write_grants: request.write_grants().iter().map(grant).collect(),
-        bounds: bounds.into(),
-        build_execution_profile: request.build_execution_profile(),
-        selected_target_profile: request.selected_target_profile(),
-    }
-}
 
-fn grant(grant: &RestrictedBuildGrant) -> PackagePolicyRestrictedBuildGrant {
-    PackagePolicyRestrictedBuildGrant {
-        root: match grant.root() {
-            RestrictedBuildGrantRoot::SourceInventory => {
-                PackagePolicyRestrictedBuildGrantRoot::SourceInventory
-            }
-            RestrictedBuildGrantRoot::StagedOutput => {
-                PackagePolicyRestrictedBuildGrantRoot::StagedOutput
-            }
-            RestrictedBuildGrantRoot::Other(identity) => {
-                PackagePolicyRestrictedBuildGrantRoot::Other(identity)
-            }
-        },
-        narrowed: grant.narrowed(),
-        captured: grant.captured().is_some(),
-    }
-}
