@@ -78,11 +78,7 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
-use selected_instructions::{
-    FrameStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
-    SelectedStructuralTransport, SelectedSuccessor, VirtualRegisterOrigin, terminator_instruction
-};
+use selected_instructions::{     FrameStorageSlotId,  SelectedBlockId,  SelectedFunction,  SelectedInstruction,      SelectedInstructionId,  SelectedInstructionKind,  SelectedMemoryAccess,  SelectedMemoryAccessRole,      SelectedStructuralTransport,  SelectedSuccessor,  terminator_instruction };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
@@ -671,26 +667,12 @@ fn byte_span_store_shape(
         .iter()
         .find(|register| register.id == count)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if !origin_carries(register.origin, length) {
+    if !super::origin_carries(register.origin, length) {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())
 }
 
-/// Whether `origin` names `value` as the source scalar the register carries:
-/// an `EntryParameter`, `BlockParameter`, or `InstructionResult` all carry
-/// their value's identity, so a runtime `length` — an entry or block
-/// parameter with no materializing producer — agrees with the span row as
-/// surely as a constant's instruction result does. Compiler-owned origins
-/// carry no source value and never agree.
-fn origin_carries(origin: VirtualRegisterOrigin, value: semantic_vocabulary::ValueId) -> bool {
-    match origin {
-        VirtualRegisterOrigin::EntryParameter { source_value, .. }
-        | VirtualRegisterOrigin::BlockParameter { source_value, .. }
-        | VirtualRegisterOrigin::InstructionResult { source_value, .. } => source_value == value,
-        _ => false,
-    }
-}
 
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
 /// the custody the packed store's dropped scratch requires. The operand
@@ -1013,7 +995,7 @@ fn covering_source(
             if !write_role_covers_subject(row.role, dead.storage, dead.place, structural_places) {
                 return Err(reject());
             }
-            (0, zero_fill_count(instruction, function, environment)?)
+            (0, super::zero_fill_count(instruction, function, environment)?)
         }
         _ => return Err(reject()),
     };
@@ -1032,33 +1014,6 @@ fn covering_source(
     Ok(())
 }
 
-/// The constant byte count a covering `ZeroBytes` writes from its
-/// destination — the home's base, so its encoded range starts at offset
-/// zero. The target's declared `zero_bytes` row pins operand 1 as the count
-/// use; the register named there must hold its function's sole definition
-/// in a clean `MaterializeI64` that no edge transport or case payload
-/// redefines, or the fill's reach is unproven and it covers nothing.
-fn zero_fill_count(
-    instruction: &SelectedInstruction,
-    function: &SelectedFunction,
-    environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<u32, DeadStoreEliminationError> {
-    let reject = || DeadStoreEliminationError::InterveningAccess;
-    if environment.selected_keys().zero_bytes != Some(instruction.constraint) {
-        return Err(DeadStoreEliminationError::ConstraintMismatch);
-    }
-    let count = instruction
-        .operands
-        .iter()
-        .find(|operand| operand.operand == 1 && operand.access == RegisterOperandAccess::Use)
-        .ok_or_else(reject)?
-        .virtual_register;
-    let written = materialized_bits(function, count).map_err(|_| reject())?;
-    if transport_defines(function, count) {
-        return Err(reject());
-    }
-    u32::try_from(written).map_err(|_| reject())
-}
 
 /// The `CopyBytes` covering route: a `WriteByteSpan` row claims `length`
 /// bytes at its fixed `byte_offset`, but the instruction really writes the
@@ -1140,7 +1095,7 @@ fn byte_span_covering(
         .iter()
         .find(|register| register.id == count)
         .ok_or_else(reject)?;
-    if !origin_carries(register.origin, length) {
+    if !super::origin_carries(register.origin, length) {
         return Err(reject());
     }
     // The same-extent route: the dead copy's `length` never resolved, so

@@ -199,3 +199,50 @@ impl std::fmt::Display for DeadStoreEliminationError {
 }
 
 impl std::error::Error for DeadStoreEliminationError {}
+
+/// Whether the register's provenance names `value`: entry parameters, block
+/// parameters, and instruction results all carry it as `source_value`.
+pub(super) fn origin_carries(
+    origin: selected_instructions::VirtualRegisterOrigin,
+    value: semantic_vocabulary::ValueId,
+) -> bool {
+    match origin {
+        selected_instructions::VirtualRegisterOrigin::EntryParameter { source_value, .. }
+        | selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. }
+        | selected_instructions::VirtualRegisterOrigin::InstructionResult { source_value, .. } => {
+            source_value == value
+        }
+        _ => false,
+    }
+}
+
+/// The dead `StoreZeroFill`'s constant fill count: the `count` operand is a
+/// `Use` whose register holds a clean `MaterializeI64` definition that no
+/// edge transport redefines — only then does `byte_offset + count` bound
+/// the filled span exactly.
+pub(super) fn zero_fill_count(
+    instruction: &selected_instructions::SelectedInstruction,
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Result<u32, DeadStoreEliminationError> {
+    let reject = || DeadStoreEliminationError::InterveningAccess;
+    if environment.selected_keys().zero_bytes != Some(instruction.constraint) {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    let count = instruction
+        .operands
+        .iter()
+        .find(|operand| {
+            operand.operand == 1
+                && operand.access == register_model::RegisterOperandAccess::Use
+        })
+        .ok_or_else(reject)?
+        .virtual_register;
+    let written = crate::rewrites::condition_state::materialized_bits(function, count)
+        .map_err(|_| reject())?;
+    if crate::rewrites::place_storage::transport_defines(function, count) {
+        return Err(reject());
+    }
+    u32::try_from(written).map_err(|_| reject())
+}
+
