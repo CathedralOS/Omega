@@ -276,10 +276,7 @@ pub(super) fn validate_call_structural(
         return malformed("structural call result has an unknown structural type");
     }
     for qualification in &actual_result.qualifications {
-        if !module
-            .structural_domains
-            .iter()
-            .any(|domain| domain.id == *qualification)
+        if !module.structural_domain(*qualification).is_some()
         {
             return malformed("structural call result has an unknown structural domain");
         }

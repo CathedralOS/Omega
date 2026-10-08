@@ -142,7 +142,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
                     if !matches!(
                         member.supply,
                         TargetMachineSupply::CheckedBody | TargetMachineSupply::Boundary
-                    ) || !module.machines.iter().any(|body| body.id == machine)
+                    ) || !module.machine(machine).is_some()
                     {
                         return malformed(
                             "target-family checked member has no matching body supply",
@@ -151,10 +151,7 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
                 }
                 TargetMachineCallable::Boundary(boundary) => {
                     if member.supply == TargetMachineSupply::CheckedBody
-                        || !module
-                            .boundary_machines
-                            .iter()
-                            .any(|declaration| declaration.id == boundary)
+                        || !module.boundary_machine(boundary).is_some()
                     {
                         return malformed(
                             "target-family opaque member has no matching declaration supply",
@@ -1211,10 +1208,7 @@ fn validate_claim_indices(
 }
 
 fn has_structural_type(module: &TerminalModule, id: StructuralTypeId) -> bool {
-    module
-        .structural_types
-        .iter()
-        .any(|declaration| declaration.id == id)
+    module.structural_type(id).is_some()
 }
 
 fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecError> {

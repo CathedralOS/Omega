@@ -23,10 +23,7 @@ pub(crate) fn lower_decoded_module(
     // them; the realized provider body or builtin settlement commits the trap
     // natively, so no abstract operation needs a separate continuation lane.
     block_bindings::validate_structural_block_bindings(module)?;
-    if !module
-        .machines
-        .iter()
-        .any(|machine| machine.id == module.entry)
+    if !module.machine(module.entry).is_some()
     {
         return Err(LoweringError::VerifiedEntryMachineMissing(module.entry));
     }

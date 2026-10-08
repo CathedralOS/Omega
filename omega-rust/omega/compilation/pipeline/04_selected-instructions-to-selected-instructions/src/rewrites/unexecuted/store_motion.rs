@@ -502,10 +502,7 @@ fn reconstruct<'source>(
             // A dangling edge target is malformed source, as on the
             // linear path.
             if edges.iter().any(|edge| {
-                !function
-                    .blocks
-                    .iter()
-                    .any(|candidate| candidate.id == edge.block)
+                !function.block(edge.block).is_some()
             }) {
                 return Err(StoreMutationMotionError::SourceMismatch);
             }

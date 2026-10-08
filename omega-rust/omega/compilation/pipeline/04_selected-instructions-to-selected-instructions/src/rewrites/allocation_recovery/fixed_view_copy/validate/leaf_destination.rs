@@ -63,7 +63,7 @@ pub(super) fn replay_site_block(
         .blocks
         .iter()
         .find(|block| {
-            block.instructions.iter().any(|site| site.id == instruction)
+            block.instruction(instruction).is_some()
                 || selected_instructions::terminator_instruction(&block.terminator).id
                     == instruction
         })

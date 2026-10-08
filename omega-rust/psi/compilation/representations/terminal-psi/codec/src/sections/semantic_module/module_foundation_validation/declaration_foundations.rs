@@ -96,14 +96,8 @@ pub(super) fn validate_provider_candidate(
     {
         return malformed("provider candidate identities must be nonempty");
     }
-    if !module
-        .boundary_machines
-        .iter()
-        .any(|boundary| boundary.id == candidate.boundary)
-        || !module
-            .machines
-            .iter()
-            .any(|machine| machine.id == candidate.candidate)
+    if !module.boundary_machine(candidate.boundary).is_some()
+        || !module.machine(candidate.candidate).is_some()
     {
         return malformed("provider candidate references an unknown terminal ID");
     }
@@ -112,10 +106,7 @@ pub(super) fn validate_provider_candidate(
             return malformed("provider signature references an unknown structural type");
         }
         if parameter.qualifications.iter().any(|domain| {
-            !module
-                .structural_domains
-                .iter()
-                .any(|row| row.id == *domain)
+            !module.structural_domain(*domain).is_some()
         }) {
             return malformed("provider signature references an unknown structural domain");
         }

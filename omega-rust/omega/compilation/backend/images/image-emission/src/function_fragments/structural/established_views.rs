@@ -277,10 +277,7 @@ fn local_location(
                 instruction.provenance != Default::default()
                     || !selected.blocks.iter().any(|block| {
                         block.origin == selected_instructions::SelectedBlockOrigin::Source(owner)
-                            && block
-                                .instructions
-                                .iter()
-                                .any(|entry| entry.id == instruction.id)
+                            && block.instruction(instruction.id).is_some()
                     })
             }
             selected_instructions::SelectedMemoryAccessOrigin::Edge(_) => true,

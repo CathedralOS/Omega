@@ -172,10 +172,7 @@ pub fn reconstruct_psi_closed_region_observation(
         .iter()
         .find(|function| function.machine == machine)?;
     if requested.iter().any(|block| {
-        !function
-            .blocks
-            .iter()
-            .any(|candidate| candidate.id == *block)
+        !function.block(*block).is_some()
     }) {
         return None;
     }

@@ -94,10 +94,7 @@ pub(super) fn instruction_block(
     instruction: SelectedInstructionId,
 ) -> Option<usize> {
     function.blocks.iter().position(|block| {
-        block
-            .instructions
-            .iter()
-            .any(|candidate| candidate.id == instruction)
+        block.instruction(instruction).is_some()
     })
 }
 

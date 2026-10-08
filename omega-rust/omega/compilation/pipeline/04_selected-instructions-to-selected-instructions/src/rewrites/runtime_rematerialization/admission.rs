@@ -53,10 +53,7 @@ pub(super) fn admit<'source>(
         .blocks
         .iter()
         .position(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|candidate| candidate.id == definition)
+            block.instruction(definition).is_some()
         })
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     // The regenerable family is one nonaddress runtime value produced by a
