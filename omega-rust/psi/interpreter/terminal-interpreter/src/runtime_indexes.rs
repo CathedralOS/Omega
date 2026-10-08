@@ -29,10 +29,13 @@ impl TerminalExecution<'_> {
             .iter()
             .map(|projection| projection.root)
             .collect::<Vec<_>>();
-        for (root, path) in roots
-            .into_iter()
-            .zip(selected.kind.structural_projection_paths_mut())
-        {
+        let paths = selected.kind.structural_projection_paths_mut();
+        // Every projection must pair with its own path; a shorter inventory
+        // would leave a selector unresolved below a misattributed root.
+        if paths.len() != roots.len() {
+            return Err(malformed());
+        }
+        for (root, path) in roots.into_iter().zip(paths) {
             for position in 0..path.len() {
                 let Some((index, _)) = path[position].runtime_index() else {
                     continue;

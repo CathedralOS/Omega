@@ -980,37 +980,29 @@ defines the complete product bar.
     the `fail/modules/duplicate_data_keeps_guard_facts` control.
 
   Shared failures, by owner (rerun the unchanged fixture after each repair):
+  - Compile regressions on main since 7b2b709c884, found while gating the
+    interpreter series: `pass/data/runtime_zeroed_first_case_enum_payload_exit`
+    rejects with "cannot prove selected case for payload access", and
+    `pass/providers/direct_boundary_array_snapshot_exit` stops at "`Main::main`
+    has no executable body ... (outer calls: statement shape)". Both still
+    reproduce at 92ed6dbe796; 1592cf606cf (statement-sequencing call
+    occurrences) and 441e8f33f8c (scalar case payload reads) are the likely
+    sources and are not yet bisected.
   - Terminal interpreter declines on programs that pass natively
-    (`omega run --both` status 201, `VerifiedOperationMalformed` unless
-    noted), grouped by the interpreter site that refuses:
-    - record-typed storage references (`&mut context.source as &mut UnsignedRecord`)
-      reach `primitive_storage::capture_primitive_loan`, which accepts only
-      primitive scalars: `pass/recast/{runtime_authored_toolchain_type_shadow_exit,runtime_mutable_equivalent_record_recast_exit,runtime_recast_record_view_indexed_write_exit,runtime_shared_record_float_range_weakening_exit,runtime_field_precondition_capture_exit}`;
-    - bounded byte owners (`[u8; N] in Utf8`) lent across a state edge lack
-      the call route's owner bindings in `terminators/block_bindings.rs`:
-      `pass/text/{plain_byte_field_and_qualified_state_loan_exit,runtime_mutable_string_parameter_concat_write_line,qualified_byte_owner_state_loan_cycle_exit}`;
-    - a scalar-array local lent as `&[u8; N]` across a state edge is copied as
-      an owned array: `pass/collections/borrowed_byte_array_state_{reads,writes}_exit`;
-    - checked providers receiving an owned `[u8; 4]`
-      (`prepare_boundary_arguments` has no scalar-array carrier,
-      `VerifiedStructuralPlaceMissing`):
-      `pass/providers/{direct_boundary_array_snapshot_exit,runtime_boundary_array_forwarding_exit}`;
-    - runtime index into a borrowed byte view (`runtime_indexes.rs`):
-      `pass/borrows/runtime_byte_view_element_{loan,reference_calls}_exit`;
-    - checked-provider structural results with a route-established domain
-      (`calls.rs`): `pass/capabilities/{acquires_through_helper_return,runtime_qualified_record_return_exit}`;
-    - qualified owners lent to plain views or mismatched referent
-      qualifications: `pass/borrows/{owned_byte_value_call_exit,qualified_byte_owner_shared_call_exit}`,
-      `pass/text/{plain_and_qualified_byte_arrays_exit,borrowed_bounded_byte_indexed_write_exit,runtime_mixed_byte_field_equality_exit}`;
-    - `pass/slices/runtime_indexed_record_field_range_exit` (`primitive_home_access`
-      in element-view establishment), `pass/data/runtime_zeroed_first_case_enum_payload_exit`
-      (`structural_inputs/scalar_fields.rs` at instantiation), and
-      `pass/collections/element_view_{edge_loan,runtime_loan_read}`
-      (`AffineProjectionNotRepresentable` from custody path resolution).
-    `pass/traits/equatable_string_field_equality_exit` declines in
-    `resolve_structural_byte_sequence_field`. Find a site with an env-gated
-    `std::backtrace::Backtrace::force_capture()` in `errors::malformed()`; the
-    last trace before the failure is the refusing site.
+    (`omega run --both` status 201), not yet traced to a site:
+    `pass/calls/runtime_constructed_payload_arguments_exit`,
+    `pass/control_flow/{element_view_enum_equality,indexed_record_state_argument,single_case_result_dispatch}_exit`,
+    `pass/drops/runtime_projected_reference_siblings_exit`,
+    `pass/memory/runtime_large_{entry_record_field,frame_console_byte_homes,local_record}_exit`,
+    `pass/ownership/{copied_parameter_case_field_store,linear_call_result_place_assignment,linear_result_member_projection_arguments,linear_result_owners_residual_cleanup}_exit`,
+    `pass/slices/{runtime_qualified_record_copy_local,runtime_view_index_copied_argument}_exit`,
+    `pass/storage/large_zero_initialized_local_exit`,
+    `pass/wire/wire_preserving_decode_relay_exit`, `run/contained_health_loop_command_branch`.
+    Find a site with an env-gated `std::backtrace::Backtrace::force_capture()` in
+    `errors::malformed()`; the last trace before the failure is the refusing site.
+    Known limits that still fail closed: aggregate re-views refuse case path
+    segments, `ViewByte` storage is read-only, and a literal byte place cannot be
+    lent mutably.
   - `pass/providers/{generic_provider_structural_result_composition_exit,specialized_mixed_structural_result_operator_hosted_native}`
     stop at "`main` has no executable body ... (call operation: claim
     transfers)" since 59abe20b936 (bisected with the corpus runner; its
