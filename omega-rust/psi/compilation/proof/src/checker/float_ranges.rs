@@ -308,31 +308,7 @@ pub(crate) fn float_range_for_initializer(
 }
 
 pub(crate) fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<FloatRange> {
-    let mut range: Option<FloatRange> = None;
-
-    for constraint in constraints {
-        let ProofConstraint::FloatRange {
-            minimum,
-            maximum,
-            maximum_inclusive,
-        } = constraint
-        else {
-            continue;
-        };
-
-        let candidate = FloatRange {
-            minimum: minimum.landed_f64(),
-            maximum: maximum.landed_f64(),
-            maximum_inclusive: *maximum_inclusive,
-        };
-
-        range = Some(match range {
-            Some(existing) => existing.intersect(candidate),
-            None => candidate,
-        });
-    }
-
-    range
+    crate::obligations::float_range_from_constraints(constraints)
 }
 
 pub(crate) fn finite_float_literal(value: &typed_trees::expression::FloatLiteral) -> Option<f64> {

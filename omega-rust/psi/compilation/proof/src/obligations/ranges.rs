@@ -35,7 +35,7 @@ pub(crate) fn arithmetic_domain_from_constraints(
 
 pub(crate) fn constraints_prove_finite(constraints: &ConstraintBuffer) -> bool {
     has_named_constraint(constraints, "finite")
-        || float_range_from_constraints(constraints).is_some_and(|range| range.proves_finite())
+        || float_range_from_constraints(&*constraints).is_some_and(|range| range.proves_finite())
 }
 
 pub(crate) fn has_named_constraint(constraints: &ConstraintBuffer, name: &str) -> bool {
@@ -100,10 +100,12 @@ pub(crate) fn integer_range_from_constraint_iter<'a>(
     range
 }
 
-pub(crate) fn float_range_from_constraints(constraints: &ConstraintBuffer) -> Option<FloatRange> {
+pub(crate) fn float_range_from_constraints<'a>(
+    constraints: impl IntoIterator<Item = &'a ProofConstraint>,
+) -> Option<FloatRange> {
     let mut range: Option<FloatRange> = None;
 
-    for constraint in constraints.iter() {
+    for constraint in constraints {
         let ProofConstraint::FloatRange {
             minimum,
             maximum,

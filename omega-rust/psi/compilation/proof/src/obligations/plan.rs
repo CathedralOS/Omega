@@ -345,11 +345,22 @@ impl ConstraintBuffer {
         self.count == 0
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &ProofConstraint> {
-        self.inline
-            .iter()
-            .filter_map(Option::as_ref)
-            .chain(self.overflow.iter())
+    pub(crate) fn iter(&self) -> ConstraintBufferIter<'_> {
+        self.inline.iter().flatten().chain(self.overflow.iter())
+    }
+}
+
+pub(crate) type ConstraintBufferIter<'a> = std::iter::Chain<
+    std::iter::Flatten<std::slice::Iter<'a, Option<ProofConstraint>>>,
+    std::slice::Iter<'a, ProofConstraint>,
+>;
+
+impl<'a> IntoIterator for &'a ConstraintBuffer {
+    type IntoIter = ConstraintBufferIter<'a>;
+    type Item = &'a ProofConstraint;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 

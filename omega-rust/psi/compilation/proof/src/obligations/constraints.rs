@@ -655,7 +655,7 @@ fn augment_constraints_with_named_facts(constraints: &mut ConstraintBuffer) {
     // A float range is `finite` evidence only when its membership excludes
     // the infinities it names: an inclusive bound that evaluates to +inf
     // admits it, while the exclusive `x < +inf` bounds below it.
-    if float_range_from_constraints(constraints).is_some_and(|range| range.proves_finite())
+    if float_range_from_constraints(&*constraints).is_some_and(|range| range.proves_finite())
         && !has_named_constraint(constraints, "finite")
     {
         constraints.push(ProofConstraint::Named(Identifier::generated_static(
