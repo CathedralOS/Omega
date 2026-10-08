@@ -81,6 +81,17 @@ impl BuiltinTypeAtom {
         matches!(self, Self::AtomicBool | Self::AtomicU32 | Self::AtomicU64)
     }
 
+    /// Whether the atom spells a canonical constant's scalar carrier: bool,
+    /// the eight fixed-width integers, or the pointer-width address — the
+    /// shapes `DecodedCanonicalConstValue` can hold. Arbitrary-width
+    /// `Int`/`UInt`, floats, and composite atoms are not carriers.
+    pub const fn is_canonical_const_scalar(self) -> bool {
+        matches!(
+            self,
+            Self::Bool | Self::Address
+        ) || self.is_fixed_integer()
+    }
+
     /// Whether the atom names one of the eight fixed-width integers
     /// (`i8`–`u64`); the arbitrary-width `Int`/`UInt` and pointer-width
     /// `Address` are not members.

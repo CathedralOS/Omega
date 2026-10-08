@@ -188,15 +188,9 @@ fn scalar_carrier(
     }
     match source.symbols.builtin_type_atom(*symbol)? {
         BuiltinTypeAtom::Bool => Some(ScalarConstCarrier::Boolean),
-        carrier @ (BuiltinTypeAtom::I8
-        | BuiltinTypeAtom::I16
-        | BuiltinTypeAtom::I32
-        | BuiltinTypeAtom::I64
-        | BuiltinTypeAtom::U8
-        | BuiltinTypeAtom::U16
-        | BuiltinTypeAtom::U32
-        | BuiltinTypeAtom::U64
-        | BuiltinTypeAtom::Address) => Some(ScalarConstCarrier::Integer(carrier)),
+        carrier if carrier.is_canonical_const_scalar() => {
+            Some(ScalarConstCarrier::Integer(carrier))
+        }
         _ => None,
     }
 }

@@ -254,21 +254,10 @@ fn scalar_value_matches(atom: BuiltinTypeAtom, value: &DecodedCanonicalConstValu
 }
 
 fn scalar_atom(source: &SymbolResolvedTrees, symbol: SymbolHandle) -> Option<BuiltinTypeAtom> {
-    source.symbols.builtin_type_atom(symbol).filter(|atom| {
-        matches!(
-            atom,
-            BuiltinTypeAtom::Bool
-                | BuiltinTypeAtom::I8
-                | BuiltinTypeAtom::I16
-                | BuiltinTypeAtom::I32
-                | BuiltinTypeAtom::I64
-                | BuiltinTypeAtom::U8
-                | BuiltinTypeAtom::U16
-                | BuiltinTypeAtom::U32
-                | BuiltinTypeAtom::U64
-                | BuiltinTypeAtom::Address
-        )
-    })
+    source
+        .symbols
+        .builtin_type_atom(symbol)
+        .filter(|atom| atom.is_canonical_const_scalar())
 }
 
 fn type_reference_label(
