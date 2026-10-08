@@ -1,6 +1,7 @@
 //! Optimizer module role: proposal leaf. Direct certificate-owned constant construction.
 
 use super::{
+    unsupported, validate_locations,
     BlockId, CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, IntegerType, IntegerValue,
     MachineId, NodeLocation, O, OperationId, OptimizerUnsignedCountdownRankingCertificate,
@@ -99,80 +100,6 @@ fn locate(
         certificate.rank_type,
         value,
     )
-}
-
-fn validate_locations(
-    function: &PsiOptimizationFunction,
-    component: &optimization_unit::OptimizerCycleComponent,
-    certificate: &OptimizerUnsignedCountdownRankingCertificate,
-    constants: &[CountdownInvariantIntegerConstant; 2],
-) -> Result<(), CountdownInvariantConstantAnalysisError> {
-    let original_blocks = [certificate.header, certificate.descent.backedge.source];
-    if constants
-        .iter()
-        .zip(original_blocks)
-        .all(|(constant, original)| constant.location.block == original)
-    {
-        return Ok(());
-    }
-    let [entry] = component.entries.as_slice() else {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
-    };
-    if component.members.contains(&entry.source) || entry.target != certificate.header {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
-    }
-    let preheader = function
-        .blocks
-        .iter()
-        .find(|block| block.id == entry.source)
-        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
-    let jump_index = preheader
-        .nodes
-        .len()
-        .checked_sub(1)
-        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
-    let O::Jump {
-        psi_edge, target, ..
-    } = preheader.nodes[jump_index].operation
-    else {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
-    };
-    if psi_edge != entry.edge || target != certificate.header {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
-    }
-    let moved = constants
-        .iter()
-        .zip(original_blocks)
-        .filter_map(|(constant, original)| {
-            (constant.location.block != original).then_some(constant)
-        })
-        .collect::<Vec<_>>();
-    let suffix_start = jump_index
-        .checked_sub(moved.len())
-        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
-    if moved.iter().enumerate().any(|(offset, constant)| {
-        constant.location.machine != function.machine
-            || constant.location.block != preheader.id
-            || usize::try_from(constant.location.node).ok() != Some(suffix_start + offset)
-    }) {
-        return Err(unsupported(
-            function.machine,
-            certificate.guard.zero_operation,
-        ));
-    }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -280,11 +207,4 @@ fn validate_roots(
         return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);
     }
     Ok(())
-}
-
-fn unsupported(
-    machine: MachineId,
-    operation: OperationId,
-) -> CountdownInvariantConstantAnalysisError {
-    CountdownInvariantConstantAnalysisError::UnsupportedInvariantConstant { machine, operation }
 }
