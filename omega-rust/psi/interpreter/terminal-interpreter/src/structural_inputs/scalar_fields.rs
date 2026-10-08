@@ -115,12 +115,23 @@ pub(crate) fn bind(
         let root = structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
+        // A case payload is readable only while its case is active; the
+        // read itself checks the stored discriminator and the payload cell.
+        if terminal_semantics::case_payload_carrier(
+            structural_types.values(),
+            root.structural_type,
+            path,
+        )
+        .is_some()
+        {
+            continue;
+        }
         let carrier = terminal_semantics::record_field_carrier(
             structural_types.values(),
             root.structural_type,
             path,
         )
-        .ok_or(malformed())?;
+        .ok_or_else(malformed)?;
         let mut parent = StructuralRuntimePlace::from(root);
         parent.path.extend(carrier.path);
         if !values.contains_key(&StructuralScalarRuntimeField::member(parent, field)) {
