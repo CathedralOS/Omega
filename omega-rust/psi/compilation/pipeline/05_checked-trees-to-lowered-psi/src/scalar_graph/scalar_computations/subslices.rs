@@ -280,3 +280,27 @@ pub(crate) fn declarations(
         })
     })
 }
+
+/// Merge each block's computed subslice declarations into
+/// `structural_places`: an identical declaration is reused; the same
+/// identity with different provenance is an error.
+pub(crate) fn merge_declarations<'b>(
+    blocks: impl Iterator<Item = &'b terminal_psi::Block>,
+    structural_places: &mut Vec<terminal_psi::StructuralPlaceDeclaration>,
+) -> Result<(), LoweringError> {
+    for declaration in blocks.flat_map(|block| declarations(&block.operations)) {
+        match structural_places
+            .iter()
+            .find(|existing| existing.id == declaration.id)
+        {
+            Some(existing) if *existing != declaration => {
+                return unsupported(
+                    "computed subslice conflicts with an existing place declaration",
+                );
+            }
+            Some(_) => {}
+            None => structural_places.push(declaration),
+        }
+    }
+    Ok(())
+}
