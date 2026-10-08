@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "package_source"
-path = "src/lib.rs"
 
 [features]
 test-fixtures = []

@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "build_declarations"
-path = "src/lib.rs"
 
 [dependencies]
 optimization-core = { path = "../../foundation/optimization-core" }

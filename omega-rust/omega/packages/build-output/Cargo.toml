@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "build_output"
-path = "src/lib.rs"
 
 [dependencies]
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }

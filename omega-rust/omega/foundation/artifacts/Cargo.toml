@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "artifacts"
-path = "src/lib.rs"
 
 [dependencies]
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

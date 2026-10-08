@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "package_compilation"
-path = "src/lib.rs"
 
 [features]
 test-support = []

@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "build_evaluation"
-path = "src/lib.rs"
 
 [dependencies]
 typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }

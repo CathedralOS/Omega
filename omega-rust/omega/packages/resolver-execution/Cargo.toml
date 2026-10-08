@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "resolver_execution"
-path = "src/lib.rs"
 
 [dependencies]
 bounded-process = { path = "../../foundation/bounded-process" }

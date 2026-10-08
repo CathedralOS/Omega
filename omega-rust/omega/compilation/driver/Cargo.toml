@@ -8,9 +8,6 @@ version.workspace = true
 # No per-file test binaries (see tests/README.md).
 autotests = false
 
-[lib]
-name = "compiler"
-path = "src/lib.rs"
 
 [dependencies]
 typed-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03b_typed-trees-to-typed-trees" }

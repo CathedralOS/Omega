@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "bounded_process"
-path = "src/lib.rs"
 
 [target.'cfg(unix)'.dependencies]
 command-group = "5.0.1"

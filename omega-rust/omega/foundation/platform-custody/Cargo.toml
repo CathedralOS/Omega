@@ -4,9 +4,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-name = "platform_custody"
-path = "src/lib.rs"
 
 [dependencies]
 cap-fs-ext = "4.0.3"
