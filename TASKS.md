@@ -1369,13 +1369,14 @@ defines the complete product bar.
     (`pass/termination/rank_range_mutable_bounded_endpoint` plus negative
     mutation controls).
   - Library: `source/library/core/numeric_conversion.omg` (suffixed widening
-    results), `source/library/std/console.omg` (`ByteRead::Byte` payload and
-    state parameters), `source/library/std/time.omg` (subsecond fields/locals,
+    results), `source/library/std/time.omg` (subsecond fields/locals,
     constants), `source/library/core/layout.omg` (fuel/index),
-    `source/library/std/calling.omg` (indexed fields) and target-entry
-    `field_range` parameters; prove computed `fuel - 1` / `index + 1`
-    arguments and equivalent guards (`< 255` vs `<= 254`). Keep
-    `pass/host/runtime_console_bounded_line_exit` behavior.
+    `source/library/std/calling.omg` (indexed fields),
+    `source/library/std/filesystem.omg` (open-mode fields),
+    `source/library/std/tests/direct_callback_parameter.omg` (indexed
+    parameter) and target-entry `field_range` parameters; prove computed
+    `fuel - 1` / `index + 1` arguments and equivalent guards (`< 255` vs
+    `<= 254`).
   - Migrate `fail/wire/wire_policy_plan_disagrees` keeping its plan/schema
     disagreement rejection.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,

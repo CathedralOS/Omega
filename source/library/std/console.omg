@@ -16,7 +16,7 @@ use targets::linux_arm64::console_impl;
 // (the byte result has no sentinel).
 pub data ByteRead {
     case Eof;
-    case Byte(value: i32 [0..=255]);
+    case Byte(value: i32) where value >= 0 && value <= 255;
 }
 
 // Counts describe only the prefix written during this invocation. Invalid is
@@ -89,7 +89,9 @@ reaches Console {
             ByteRead::Eof -> end(position)
         }
     }
-    state store(out_line: &mut [u8], position: u64, next: u64, value: i32 [0..=255]) -> LineReadResult {
+    state store(out_line: &mut [u8], position: u64, next: u64, value: i32) -> LineReadResult
+    requires value >= 0 && value <= 255
+    {
         out_line[position] = value as u8;
         transition value == 10 {
             true -> complete(next)
