@@ -24,3 +24,40 @@ pub use post_handoff_writer::{
     PostHandoffWriterSource, PostHandoffWriterSourceSlot, PostHandoffWriterStep,
     derive_post_handoff_writer, post_handoff_writer_context_byte_len, validate_step,
 };
+
+/// Shared test fixtures for the writer-plan consumer tests.
+#[cfg(feature = "test-support")]
+pub mod test_support {
+    use crate::post_handoff_writer::{
+        PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
+    };
+    use layout_plans::{
+        ByteOrder, MaterializationWrite, PlacementConstraints, PlacementPhase, RelocationTarget,
+    };
+
+    /// The canonical single-step `"address"` writer every consumer test
+    /// builds: one full 64-bit container write of one target's bits.
+    pub fn single_address_writer(
+        target: RelocationTarget,
+        source: PostHandoffWriterSource,
+    ) -> PostHandoffWriterPlan {
+        PostHandoffWriterPlan {
+            byte_len: 8,
+            byte_order: ByteOrder::LittleEndian,
+            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
+            steps: vec![PostHandoffWriterStep {
+                write: MaterializationWrite {
+                    field: "address".into(),
+                    target,
+                    container_byte_offset: 0,
+                    container_width_bits: 64,
+                    destination_lsb: 0,
+                    source_lsb: 0,
+                    width: 64,
+                    stored_integer_fit: None,
+                },
+                source,
+            }],
+        }
+    }
+}

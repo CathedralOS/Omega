@@ -139,24 +139,10 @@ fn reusable_writer_fragment_rejects_inconsistent_values_for_one_target() {
 #[test]
 fn invocation_source_validation_rejects_preresolved_value_substitution() {
     let target = entry();
-    let writer = PostHandoffWriterPlan {
-        byte_len: 8,
-        byte_order: ByteOrder::LittleEndian,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        steps: vec![PostHandoffWriterStep {
-            write: MaterializationWrite {
-                field: "address".into(),
-                target,
-                container_byte_offset: 0,
-                container_width_bits: 64,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 64,
-                stored_integer_fit: None,
-            },
-            source: PostHandoffWriterSource::Resolved(0x1234),
-        }],
-    };
+    let writer = crate::test_support::single_address_writer(
+        target,
+        PostHandoffWriterSource::Resolved(0x1234),
+    );
     let invocation = writer
         .lower_reusable_fragment()
         .expect("valid pre-resolved writer invocation");
@@ -175,24 +161,10 @@ fn invocation_source_validation_rejects_preresolved_value_substitution() {
 #[test]
 fn invocation_structure_replay_rejects_tamper_and_preserves_retry() {
     let target = entry();
-    let writer = PostHandoffWriterPlan {
-        byte_len: 8,
-        byte_order: ByteOrder::LittleEndian,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        steps: vec![PostHandoffWriterStep {
-            write: MaterializationWrite {
-                field: "address".into(),
-                target,
-                container_byte_offset: 0,
-                container_width_bits: 64,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 64,
-                stored_integer_fit: None,
-            },
-            source: PostHandoffWriterSource::Resolve(target),
-        }],
-    };
+    let writer = crate::test_support::single_address_writer(
+        target,
+        PostHandoffWriterSource::Resolve(target),
+    );
     let invocation = writer
         .lower_reusable_fragment()
         .expect("valid reusable invocation");

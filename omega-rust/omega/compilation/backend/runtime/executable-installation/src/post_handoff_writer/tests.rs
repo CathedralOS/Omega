@@ -152,24 +152,10 @@ fn installed_code_resolves_only_its_entries_for_atomic_post_handoff_writers() {
 fn prepared_writer_consumes_an_activated_pinned_writable_unpublished_destination() {
     let target = RelocationTarget::Entry(entry_id(1001));
     let installed = installed_code(&admit(&artifact(1)), 106, 0x8000);
-    let writer = PostHandoffWriterPlan {
-        byte_len: 8,
-        byte_order: ByteOrder::LittleEndian,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        steps: vec![PostHandoffWriterStep {
-            write: MaterializationWrite {
-                field: "address".into(),
-                target,
-                container_byte_offset: 0,
-                container_width_bits: 64,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 64,
-                stored_integer_fit: None,
-            },
-            source: PostHandoffWriterSource::Resolve(target),
-        }],
-    };
+    let writer = post_handoff_writer_plan::test_support::single_address_writer(
+        target,
+        PostHandoffWriterSource::Resolve(target),
+    );
     let site = PlacementSite {
         base_address: 0x9000,
         phase: PlacementPhase::PostHandoff,
@@ -331,24 +317,10 @@ fn destination_claim_and_writer_failure_return_linear_authority() {
         .expect("repaired destination remains available for exact retry");
     let installed = installed_code(&admit(&artifact(1)), 107, 0x8000);
     let target = RelocationTarget::Entry(entry_id(1001));
-    let writer = PostHandoffWriterPlan {
-        byte_len: 8,
-        byte_order: ByteOrder::LittleEndian,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        steps: vec![PostHandoffWriterStep {
-            write: MaterializationWrite {
-                field: "address".into(),
-                target,
-                container_byte_offset: 0,
-                container_width_bits: 64,
-                destination_lsb: 0,
-                source_lsb: 0,
-                width: 64,
-                stored_integer_fit: None,
-            },
-            source: PostHandoffWriterSource::Resolve(target),
-        }],
-    };
+    let writer = post_handoff_writer_plan::test_support::single_address_writer(
+        target,
+        PostHandoffWriterSource::Resolve(target),
+    );
     let context = installed
         .populate_post_handoff_entry_writer_context(&writer, 8, site)
         .expect("writer context");
