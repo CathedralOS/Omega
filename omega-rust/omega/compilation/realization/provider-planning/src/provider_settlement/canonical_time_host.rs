@@ -43,7 +43,7 @@
 //! authored machine.
 
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use effects::provider_plan::ProviderPlan;
 use package_compilation::AcceptedSemanticBinding;
 use typed_trees::TypedTrees;
 
@@ -57,14 +57,7 @@ const TOOLCHAIN_TIME_HOST_PROVIDER: &str = "omega::toolchain::time_host";
 
 /// One canonical `TimeHost` requirement realized by one reviewed kernel
 /// syscall on the selected target.
-struct ToolchainTimeHostLeaf {
-    /// Canonical requirement name; locates the method inside the accepted
-    /// service schema. It is never an identity key in the emitted plan — the
-    /// row carries the method's complete normalized requirement identity.
-    method: &'static str,
-    /// Target syscall number for the selected target profile.
-    number: i64,
-}
+type ToolchainTimeHostLeaf = super::ToolchainSettledLeaf;
 
 /// The reviewed linux_x86_64 realization table: only requirements whose
 /// irreducible kernel realization is one named syscall. `monotonic_ticks`
@@ -100,110 +93,32 @@ fn toolchain_time_host_leaves(target_name: &str) -> &'static [ToolchainTimeHostL
 /// The toolchain-settled plan and the exact symbols receiver admission
 /// needs to join it: the boundary trait (fused erasure + provenance schema
 /// declaration) and the row-aligned requirement machine symbols.
-pub struct MintedTimeHostPlan {
-    pub plan: ProviderPlan,
-    pub trait_symbol: symbols::SymbolHandle,
-    /// Row-aligned with `plan.rows`: the requirement's own machine symbol.
-    /// Realization symbols deliberately stay `invalid` downstream — the
-    /// toolchain settlement table, not an authored machine, realizes the row.
-    pub requirement_symbols: Vec<symbols::SymbolHandle>,
-}
+pub type MintedTimeHostPlan = super::ToolchainSettledMint;
 
 /// Mint the canonical `TimeHost` provider plan for this build, or `Ok(None)`
-/// when the build accepts no clock binding, selects no target, selects a
-/// target with no reviewed realization table, or an already-selected plan
-/// covers the slot (defense in depth: authored conformances for this slot
-/// cannot resolve, so coverage implies a foreign source this mint must never
-/// override).
-///
-/// The returned plan is candidate-shaped but toolchain-settled: the caller
-/// joins it into the selected facts, the fused-service erasure binding, and
-/// the post-derivation review provenance, and deliberately excludes it from
-/// candidate plans and pre-selection provenance replay. Package review
-/// replays the same mint against the consumed `TimeHostService` binding to
-/// validate a retained toolchain-settled plan's exact identity.
+/// when the build accepts no clock binding, selects no target,
+/// selects a target with no reviewed realization table, or an
+/// already-selected plan covers the slot. The returned plan is
+/// candidate-shaped but toolchain-settled: the caller joins it into the
+/// selected facts, the fused-service erasure binding, and the
+/// post-derivation review provenance, and deliberately excludes it from
+/// candidate plans and pre-selection provenance replay.
 pub fn mint_canonical_time_host_plan(
     typed: &TypedTrees,
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
 ) -> Result<Option<MintedTimeHostPlan>, Vec<Diagnostic>> {
-    let Some(binding) = accepted_binding else {
-        return Ok(None);
-    };
-    let Some(target_name) = target_name else {
-        return Ok(None);
-    };
-    let leaves = toolchain_time_host_leaves(target_name);
-    if leaves.is_empty() {
-        return Ok(None);
-    }
-    let (definition, schema) =
-        super::resolve_canonical_host_binding(typed, binding).map_err(|error| vec![error])?;
-    let signatures = typed.trait_machine_signatures(definition);
-    if already_selected.iter().any(|selected| {
-        selected.schema.trait_package_identity == schema.trait_package_identity
-            && selected.schema.trait_name == schema.trait_name
-    }) {
-        return Ok(None);
-    }
-    let mut rows = Vec::with_capacity(leaves.len());
-    let mut requirement_symbols = Vec::with_capacity(leaves.len());
-    for leaf in leaves {
-        let Some(method) = schema
-            .methods
-            .iter()
-            .find(|method| method.name == leaf.method)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "canonical `TimeHost` realization table names `{}`, which the accepted service schema does not declare",
-                leaf.method,
-            ))]);
-        };
-        let Some(signature) = signatures
-            .iter()
-            .find(|signature| signature.name.as_str() == method.name)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "canonical `TimeHost` requirement `{}` has no retained typed requirement signature",
-                leaf.method,
-            ))]);
-        };
-        requirement_symbols.push(signature.symbol);
-        rows.push(ProviderPlanRow {
-            method: method.name.clone(),
-            requirement_identity: method.requirement_identity.clone(),
-            requirement_lifetime_partition: Vec::new(),
-            binding: ProviderBinding::Syscall {
-                number: leaf.number,
-            },
-        });
-    }
-    let plan = ProviderPlan {
-        name: crate::satisfies_plan_name(
-            target_name,
-            &schema.trait_name,
-            TOOLCHAIN_TIME_HOST_PROVIDER,
-        ),
-        provider_type: TOOLCHAIN_TIME_HOST_PROVIDER.to_owned(),
-        provider_type_package_identity: None,
-        target: target_name.to_owned(),
-        schema,
-        rows,
-        origin_package_identity: None,
-        origin_package: "omega toolchain".to_owned(),
-        digest_memo: Default::default(),
-    };
-    let errors = plan.validate_candidate_against_schema();
-    if !errors.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "toolchain-settled `TimeHost` plan is malformed: {}",
-            errors.join("; ")
-        ))]);
-    }
-    Ok(Some(MintedTimeHostPlan {
-        plan,
-        trait_symbol: definition.symbol,
-        requirement_symbols,
-    }))
+    let leaves: &[super::ToolchainSettledLeaf] =
+        target_name.map_or(&[], toolchain_time_host_leaves);
+    super::mint_toolchain_settled_plan(
+        typed,
+        accepted_binding,
+        target_name,
+        already_selected,
+        leaves,
+        TOOLCHAIN_TIME_HOST_PROVIDER,
+        "TimeHost",
+        super::CanonicalHostCoverage::Exact,
+    )
 }

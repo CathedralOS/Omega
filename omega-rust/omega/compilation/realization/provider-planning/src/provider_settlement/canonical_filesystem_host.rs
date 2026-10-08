@@ -42,7 +42,7 @@
 //! authored machine.
 
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use effects::provider_plan::ProviderPlan;
 use package_compilation::AcceptedSemanticBinding;
 use typed_trees::TypedTrees;
 
@@ -56,14 +56,7 @@ const TOOLCHAIN_FILESYSTEM_HOST_PROVIDER: &str = "omega::toolchain::filesystem_h
 
 /// One canonical `FilesystemHost` requirement realized by one positional
 /// kernel syscall on the selected target.
-struct ToolchainFilesystemLeaf {
-    /// Canonical requirement name; locates the method inside the accepted
-    /// service schema. It is never an identity key in the emitted plan — the
-    /// row carries the method's complete normalized requirement identity.
-    method: &'static str,
-    /// Target syscall number for the selected target profile.
-    number: i64,
-}
+type ToolchainFilesystemLeaf = super::ToolchainSettledLeaf;
 
 /// The reviewed linux_x86_64 realization table: only requirements whose
 /// checked signature is all scalar and whose honest realization is one
@@ -133,116 +126,32 @@ fn toolchain_filesystem_leaves(target_name: &str) -> &'static [ToolchainFilesyst
 /// The toolchain-settled plan and the exact symbols receiver admission
 /// needs to join it: the boundary trait (fused erasure + provenance schema
 /// declaration) and the row-aligned requirement machine symbols.
-pub struct MintedFilesystemHostPlan {
-    pub plan: ProviderPlan,
-    pub trait_symbol: symbols::SymbolHandle,
-    /// Row-aligned with `plan.rows`: the requirement's own machine symbol.
-    /// Realization symbols deliberately stay `invalid` downstream — the
-    /// toolchain settlement table, not an authored machine, realizes the row.
-    pub requirement_symbols: Vec<symbols::SymbolHandle>,
-}
+pub type MintedFilesystemHostPlan = super::ToolchainSettledMint;
 
-/// Mint the canonical `FilesystemHost` provider plan for this build, or
-/// `Ok(None)` when the build accepts no filesystem binding, selects no
-/// target, selects a target with no reviewed realization table, or an
-/// already-selected plan covers the slot (defense in depth: authored
-/// conformances for this slot cannot resolve, so coverage implies a foreign
-/// source this mint must never override).
-///
-/// The returned plan is candidate-shaped but toolchain-settled: the caller
-/// joins it into the selected facts, the fused-service erasure binding, and
-/// the post-derivation review provenance, and deliberately excludes it from
-/// candidate plans and pre-selection provenance replay. Package review
-/// replays the same mint against the consumed `FilesystemHostService`
-/// binding to validate a retained toolchain-settled plan's exact identity.
+/// Mint the canonical `FilesystemHost` provider plan for this build, or `Ok(None)`
+/// when the build accepts no filesystem binding, selects no target,
+/// selects a target with no reviewed realization table, or an
+/// already-selected plan covers the slot. The returned plan is
+/// candidate-shaped but toolchain-settled: the caller joins it into the
+/// selected facts, the fused-service erasure binding, and the
+/// post-derivation review provenance, and deliberately excludes it from
+/// candidate plans and pre-selection provenance replay.
 pub fn mint_canonical_filesystem_host_plan(
     typed: &TypedTrees,
     accepted_binding: Option<&AcceptedSemanticBinding>,
     target_name: Option<&'static str>,
     already_selected: &[ProviderPlan],
 ) -> Result<Option<MintedFilesystemHostPlan>, Vec<Diagnostic>> {
-    let Some(binding) = accepted_binding else {
-        return Ok(None);
-    };
-    let Some(target_name) = target_name else {
-        return Ok(None);
-    };
-    let leaves = toolchain_filesystem_leaves(target_name);
-    if leaves.is_empty() {
-        return Ok(None);
-    }
-    let (definition, schema) =
-        super::resolve_canonical_host_binding(typed, binding).map_err(|error| vec![error])?;
-    let signatures = typed.trait_machine_signatures(definition);
-    if already_selected.iter().any(|selected| {
-        selected.schema.trait_package_identity == schema.trait_package_identity
-            && selected.schema.trait_name == schema.trait_name
-    }) {
-        return Ok(None);
-    }
-    let mut rows = Vec::with_capacity(leaves.len());
-    let mut requirement_symbols = Vec::with_capacity(leaves.len());
-    for leaf in leaves {
-        // A leaf absent from the accepted schema has no requirement to
-        // realize: consumer-declared schemas name their own demanded subset,
-        // and coverage stops there rather than demanding the canonical
-        // declaration's whole vocabulary.
-        let Some(method) = schema
-            .methods
-            .iter()
-            .find(|method| method.name == leaf.method)
-        else {
-            continue;
-        };
-        let Some(signature) = signatures
-            .iter()
-            .find(|signature| signature.name.as_str() == method.name)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "canonical `FilesystemHost` requirement `{}` has no retained typed requirement signature",
-                leaf.method,
-            ))]);
-        };
-        requirement_symbols.push(signature.symbol);
-        rows.push(ProviderPlanRow {
-            method: method.name.clone(),
-            requirement_identity: method.requirement_identity.clone(),
-            requirement_lifetime_partition: Vec::new(),
-            binding: ProviderBinding::Syscall {
-                number: leaf.number,
-            },
-        });
-    }
-    if rows.is_empty() {
-        // Nothing the schema demands has a toolchain-settled realization:
-        // no plan mints, the same as an unreviewed realization table.
-        return Ok(None);
-    }
-    let plan = ProviderPlan {
-        name: crate::satisfies_plan_name(
-            target_name,
-            &schema.trait_name,
-            TOOLCHAIN_FILESYSTEM_HOST_PROVIDER,
-        ),
-        provider_type: TOOLCHAIN_FILESYSTEM_HOST_PROVIDER.to_owned(),
-        provider_type_package_identity: None,
-        target: target_name.to_owned(),
-        schema,
-        rows,
-        origin_package_identity: None,
-        origin_package: "omega toolchain".to_owned(),
-        digest_memo: Default::default(),
-    };
-    let errors = plan.validate_candidate_against_schema();
-    if !errors.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "toolchain-settled `FilesystemHost` plan is malformed: {}",
-            errors.join("; ")
-        ))]);
-    }
-    Ok(Some(MintedFilesystemHostPlan {
-        plan,
-        trait_symbol: definition.symbol,
-        requirement_symbols,
-    }))
+    let leaves: &[super::ToolchainSettledLeaf] =
+        target_name.map_or(&[], toolchain_filesystem_leaves);
+    super::mint_toolchain_settled_plan(
+        typed,
+        accepted_binding,
+        target_name,
+        already_selected,
+        leaves,
+        TOOLCHAIN_FILESYSTEM_HOST_PROVIDER,
+        "FilesystemHost",
+        super::CanonicalHostCoverage::DemandedSubset,
+    )
 }

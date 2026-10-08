@@ -43,7 +43,7 @@ use crate::derive_satisfies_plans;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
-use effects::provider_plan::ProviderPlan;
+use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
@@ -95,10 +95,134 @@ fn resolve_canonical_host_binding<'trees>(
 
 /// The toolchain-settled mint output shared by the canonical host plans:
 /// the plan plus the exact symbols the provenance and erasure joins need.
-struct ToolchainSettledMint {
-    plan: ProviderPlan,
-    trait_symbol: symbols::SymbolHandle,
-    requirement_symbols: Vec<symbols::SymbolHandle>,
+pub struct ToolchainSettledMint {
+    pub plan: ProviderPlan,
+    pub trait_symbol: symbols::SymbolHandle,
+    /// Row-aligned with `plan.rows`: the requirement's own machine symbol.
+    /// Realization symbols deliberately stay `invalid` downstream — the
+    /// toolchain settlement table, not an authored machine, realizes the row.
+    pub requirement_symbols: Vec<symbols::SymbolHandle>,
+}
+
+/// One canonical host requirement realized by one positional kernel syscall
+/// on the selected target.
+pub(super) struct ToolchainSettledLeaf {
+    /// Canonical requirement name; locates the method inside the accepted
+    /// service schema. It is never an identity key in the emitted plan — the
+    /// row carries the method's complete normalized requirement identity.
+    pub method: &'static str,
+    /// Target syscall number for the selected target profile.
+    pub number: i64,
+}
+
+/// How a realization-table leaf absent from the accepted schema is treated.
+pub(super) enum CanonicalHostCoverage {
+    /// Skip the leaf: consumer-declared schemas name their own demanded
+    /// subset, and coverage stops there rather than demanding the canonical
+    /// declaration's whole vocabulary.
+    DemandedSubset,
+    /// Reject: every table leaf must resolve to a declared schema method.
+    Exact,
+}
+
+/// Mint one canonical host's toolchain-settled plan. `leaves` is the host's
+/// reviewed realization table for the selected target (empty when the target
+/// has none); each leaf names the schema method it satisfies and the syscall
+/// that realizes it. `provider` and `host_label` supply the plan's nominal
+/// identity and diagnostic label.
+fn mint_toolchain_settled_plan(
+    typed: &TypedTrees,
+    accepted_binding: Option<&AcceptedSemanticBinding>,
+    target_name: Option<&'static str>,
+    already_selected: &[ProviderPlan],
+    leaves: &[ToolchainSettledLeaf],
+    provider: &'static str,
+    host_label: &'static str,
+    coverage: CanonicalHostCoverage,
+) -> Result<Option<ToolchainSettledMint>, Vec<Diagnostic>> {
+    let Some(binding) = accepted_binding else {
+        return Ok(None);
+    };
+    let Some(target_name) = target_name else {
+        return Ok(None);
+    };
+    if leaves.is_empty() {
+        return Ok(None);
+    }
+    let (definition, schema) =
+        resolve_canonical_host_binding(typed, binding).map_err(|error| vec![error])?;
+    let signatures = typed.trait_machine_signatures(definition);
+    if already_selected.iter().any(|selected| {
+        selected.schema.trait_package_identity == schema.trait_package_identity
+            && selected.schema.trait_name == schema.trait_name
+    }) {
+        return Ok(None);
+    }
+    let mut rows = Vec::with_capacity(leaves.len());
+    let mut requirement_symbols = Vec::with_capacity(leaves.len());
+    for leaf in leaves {
+        let Some(method) = schema
+            .methods
+            .iter()
+            .find(|method| method.name == leaf.method)
+        else {
+            match coverage {
+                CanonicalHostCoverage::DemandedSubset => continue,
+                CanonicalHostCoverage::Exact => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "canonical `{host_label}` realization table names `{}`, which the accepted service schema does not declare",
+                        leaf.method,
+                    ))]);
+                }
+            }
+        };
+        let Some(signature) = signatures
+            .iter()
+            .find(|signature| signature.name.as_str() == method.name)
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "canonical `{host_label}` requirement `{}` has no retained typed requirement signature",
+                leaf.method,
+            ))]);
+        };
+        requirement_symbols.push(signature.symbol);
+        rows.push(ProviderPlanRow {
+            method: method.name.clone(),
+            requirement_identity: method.requirement_identity.clone(),
+            requirement_lifetime_partition: Vec::new(),
+            binding: ProviderBinding::Syscall {
+                number: leaf.number,
+            },
+        });
+    }
+    if rows.is_empty() {
+        // Nothing the schema demands has a toolchain-settled realization:
+        // no plan mints, the same as an unreviewed realization table.
+        return Ok(None);
+    }
+    let plan = ProviderPlan {
+        name: crate::satisfies_plan_name(target_name, &schema.trait_name, provider),
+        provider_type: provider.to_owned(),
+        provider_type_package_identity: None,
+        target: target_name.to_owned(),
+        schema,
+        rows,
+        origin_package_identity: None,
+        origin_package: "omega toolchain".to_owned(),
+        digest_memo: Default::default(),
+    };
+    let errors = plan.validate_candidate_against_schema();
+    if !errors.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain-settled `{host_label}` plan is malformed: {}",
+            errors.join("; ")
+        ))]);
+    }
+    Ok(Some(ToolchainSettledMint {
+        plan,
+        trait_symbol: definition.symbol,
+        requirement_symbols,
+    }))
 }
 
 /// Target defaults and declaration origins prepared before provider planning.
@@ -324,16 +448,8 @@ pub fn settle_checked_providers(
             &independent_components,
         )?;
     for minted in [
-        toolchain_filesystem_plan.map(|minted| ToolchainSettledMint {
-            plan: minted.plan,
-            trait_symbol: minted.trait_symbol,
-            requirement_symbols: minted.requirement_symbols,
-        }),
-        toolchain_time_host_plan.map(|minted| ToolchainSettledMint {
-            plan: minted.plan,
-            trait_symbol: minted.trait_symbol,
-            requirement_symbols: minted.requirement_symbols,
-        }),
+        toolchain_filesystem_plan,
+        toolchain_time_host_plan,
     ]
     .into_iter()
     .flatten()
