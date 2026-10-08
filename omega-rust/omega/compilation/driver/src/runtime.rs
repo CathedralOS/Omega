@@ -21,7 +21,7 @@
 //! exact readonly byte-view descriptor. Counts cannot widen the loan's extent.
 //! Slots share finite input and independent ordered stdout/stderr captures;
 //! checked Console wrappers still run in Psi.
-//! Darwin clock imports likewise consume an explicitly supplied private time
+//! Exact Darwin imports and Linux clock syscalls consume a supplied private time
 //! model shared across slots. Guest calibration/retry code remains executable;
 //! simulated waits neither sleep the host nor establish native latency evidence.
 

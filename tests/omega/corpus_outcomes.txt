@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 6.59, "load1_start": 6.58, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 1.63, "load1_start": 1.33, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3742,6 +3742,7 @@ pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 15625ms check-t
 pass/time/runtime_clock_shared_import_slots_exit checked 12996ms check-target:macos_arm64 @b8b69519109d+wt
 pass/time/runtime_duration_core_exit checked 24317ms check-target:macos_arm64 @ca8c127c90c5
 pass/time/runtime_fs_mtime_system_time_interop_exit checked 8313ms check-target:macos_arm64 @ad65d2640206+wt
+pass/time/runtime_kernel_clock_wait_loans_exit checked 1479ms check-target:linux_x86_64 @f75b90101c8d
 pass/time/runtime_time_elapsed_since_exit checked 22587ms check-target:macos_arm64 @22d7c734257c+wt
 pass/time/runtime_time_host_native_darwin_exit checked 4141ms check-target:macos_arm64 @ca8c127c90c5
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 13546ms check-target:macos_x86_64 @22d7c734257c+wt

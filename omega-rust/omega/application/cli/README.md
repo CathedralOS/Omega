@@ -47,9 +47,12 @@ the embedding runtime request defaults to no exit delegation. Entry Binding
 fields, reach and selected providers confer no authority. The core seals each
 delegation to the actual instance and exact requirement, never the CLI host or
 another instance. Selected byte input uses the captured finite replay
-stream. Exact Darwin clock imports share invocation-private modeled time seeded
-from a host epoch snapshot; checked library calibration and retry code still run.
-This time model is not evidence of native timing correctness.
+stream. Exact Darwin clock imports and Linux clock/wait syscalls share
+invocation-private modeled time seeded from a host epoch snapshot; checked
+library calibration and retry code still run. Timespec writes and read-only
+wait requests use authenticated original loans and retained native placement.
+This signal-free time model is not evidence of native latency or interruption
+correctness.
 Exact Darwin descriptor writes capture stdout and stderr separately from integer
 loans or readonly byte views. Explicit counts stay within the original primitive
 extent; a pointer to one array element does not grant its allocation's tail.
