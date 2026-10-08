@@ -95,12 +95,12 @@ pub fn ownership_frontier_fact_identity(
     canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
     canonical.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&machine.get().to_le_bytes());
-    encode_frontier_site_identity(&mut canonical, site);
+    encode_ownership_frontier_site(&mut canonical, site);
     encode_frontier_snapshot_identity(&mut canonical, snapshot);
     OwnershipFrontierFactIdentity::from_canonical_bytes(&canonical)
 }
 
-fn encode_frontier_site_identity(bytes: &mut Vec<u8>, site: OwnershipFrontierSite) {
+pub(crate) fn encode_ownership_frontier_site(bytes: &mut Vec<u8>, site: OwnershipFrontierSite) {
     let (tag, identity) = match site {
         OwnershipFrontierSite::BlockEntry(id) => (1, id.get()),
         OwnershipFrontierSite::OperationEntry(id) => (2, id.get()),

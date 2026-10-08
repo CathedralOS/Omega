@@ -165,7 +165,7 @@ fn merge_upper(
     true
 }
 
-fn integer_value_cmp(
+pub(crate) fn integer_value_cmp(
     scalar_type: IntegerType,
     left: IntegerValue,
     right: IntegerValue,

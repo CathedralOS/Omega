@@ -1,5 +1,6 @@
 //! Revision-bound integer range carriers and canonical identities.
 
+use super::integer_intervals::integer_value_cmp;
 use super::super::{
     AcceptedObligationFactIdentity, BlockId, IntegerCarrier, IntegerSign, IntegerType,
     IntegerValue, OperationId, ProofQuestionIdentity, ScalarConstantFactIdentity, ValueId,
@@ -142,24 +143,6 @@ pub fn value_range_fact_identity(
     Some(ValueRangeFactIdentity::from_canonical_bytes(&canonical))
 }
 
-fn integer_value_cmp(
-    scalar_type: IntegerType,
-    left: IntegerValue,
-    right: IntegerValue,
-) -> Option<std::cmp::Ordering> {
-    if !scalar_type.admits(left) || !scalar_type.admits(right) {
-        return None;
-    }
-    match (scalar_type.sign(), left, right) {
-        (IntegerSign::Signed, IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
-            Some(left.cmp(&right))
-        }
-        (IntegerSign::Unsigned, IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => {
-            Some(left.cmp(&right))
-        }
-        _ => None,
-    }
-}
 
 fn encode_range_integer_type(canonical: &mut Vec<u8>, scalar_type: IntegerType) {
     canonical.push(match scalar_type.carrier() {

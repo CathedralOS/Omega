@@ -1,18 +1,16 @@
 //! Canonical candidate and rewrite-plan identity encoding.
 
+use crate::optimization_unit::ownership::encode_ownership_frontier_site;
 use super::canonical_encoding::{
-    encode_integer_type, encode_integer_value, encode_len, encode_scalar_type,
-};
+    encode_integer_type, encode_integer_value, encode_len, encode_scalar_type};
 use super::{
     BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract, OptimizationUnitIdentity,
-    OwnershipFrontierSite, PsiProvenance,
-};
+    OwnershipFrontierSite, PsiProvenance};
 use crate::optimization_unit::rewrite::{
     FieldValueResolution, FoldedFieldValue, NodeLocation, ProofCertifiedScalarIdentityKind,
     ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint,
     PsiRewritePatch, PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution,
-    TotalScalarIdentityKind,
-};
+    TotalScalarIdentityKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn encode_candidate(
@@ -104,16 +102,14 @@ pub(super) fn encode_candidate(
         }
         PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::Binary {
             left_fact,
-            right_fact,
-        }) => {
+            right_fact}) => {
             bytes.extend_from_slice(&[1, 2]);
             bytes.extend_from_slice(&left_fact.bytes());
             bytes.extend_from_slice(&right_fact.bytes());
         }
         PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::ProofCertifiedUnary {
             operand_fact,
-            obligation_fact,
-        }) => {
+            obligation_fact}) => {
             bytes.extend_from_slice(&[1, 3]);
             bytes.extend_from_slice(&operand_fact.bytes());
             bytes.extend_from_slice(&obligation_fact.bytes());
@@ -121,8 +117,7 @@ pub(super) fn encode_candidate(
         PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::ProofCertifiedBinary {
             left_fact,
             right_fact,
-            obligation_fact,
-        }) => {
+            obligation_fact}) => {
             bytes.extend_from_slice(&[1, 4]);
             bytes.extend_from_slice(&left_fact.bytes());
             bytes.extend_from_slice(&right_fact.bytes());
@@ -130,16 +125,14 @@ pub(super) fn encode_candidate(
         }
         PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::RangeAgainstConstant {
             range_fact,
-            constant_fact,
-        }) => {
+            constant_fact}) => {
             bytes.extend_from_slice(&[1, 5]);
             bytes.extend_from_slice(&range_fact.bytes());
             bytes.extend_from_slice(&constant_fact.bytes());
         }
         PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::RangeAgainstRange {
             left_range_fact,
-            right_range_fact,
-        }) => {
+            right_range_fact}) => {
             bytes.extend_from_slice(&[1, 6]);
             bytes.extend_from_slice(&left_range_fact.bytes());
             bytes.extend_from_slice(&right_range_fact.bytes());
@@ -160,8 +153,7 @@ pub(super) fn encode_candidate(
         }
         PsiRewriteWitness::ProofCertifiedScalarIdentity {
             constant_fact,
-            obligation_fact,
-        } => {
+            obligation_fact} => {
             bytes.push(5);
             bytes.extend_from_slice(&constant_fact.bytes());
             bytes.extend_from_slice(&obligation_fact.bytes());
@@ -324,8 +316,7 @@ pub(super) fn encode_candidate(
                 ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft => 18,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue => 19,
                 ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue => 20,
-                ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue => 21,
-            });
+                ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue => 21});
         }
         PsiRewritePatch::EliminateTotalScalarIdentity(patch) => {
             bytes.push(16);
@@ -360,8 +351,7 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft => 23,
                 TotalScalarIdentityKind::IntegerBitwiseAndZeroRight => 24,
                 TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft => 25,
-                TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => 26,
-            });
+                TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => 26});
         }
         PsiRewritePatch::SpecializeStateArgument(patch) => {
             bytes.push(17);
@@ -479,17 +469,6 @@ pub(super) fn encode_location(bytes: &mut Vec<u8>, location: NodeLocation) {
     bytes.extend_from_slice(&location.node.to_le_bytes());
 }
 
-pub(super) fn encode_ownership_frontier_site(bytes: &mut Vec<u8>, site: OwnershipFrontierSite) {
-    let (tag, identity) = match site {
-        OwnershipFrontierSite::BlockEntry(id) => (1, id.get()),
-        OwnershipFrontierSite::OperationEntry(id) => (2, id.get()),
-        OwnershipFrontierSite::OperationExit(id) => (3, id.get()),
-        OwnershipFrontierSite::EdgeEntry(id) => (4, id.get()),
-        OwnershipFrontierSite::EdgeExit(id) => (5, id.get()),
-    };
-    bytes.push(tag);
-    bytes.extend_from_slice(&identity.to_le_bytes());
-}
 
 pub(super) fn encode_realization_site(bytes: &mut Vec<u8>, site: PsiRealizationSite) {
     match site {
