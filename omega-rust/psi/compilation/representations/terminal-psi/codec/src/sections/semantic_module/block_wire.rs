@@ -554,11 +554,11 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             ref path,
             field,
         } => storage_operations::encode_boolean_structural_field(writer, source, path, field)?,
-        OperationKind::IntegerStructuralField {
+        OperationKind::ScalarStructuralField {
             source,
             ref path,
             field,
-        } => storage_operations::encode_integer_structural_field(writer, source, path, field)?,
+        } => storage_operations::encode_scalar_structural_field(writer, source, path, field)?,
         OperationKind::BooleanNot { operand } => {
             scalar_operations::encode_boolean_not(writer, operand)?
         }
@@ -872,8 +872,8 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::BOOLEAN_STRUCTURAL_FIELD => {
             storage_operations::decode_boolean_structural_field(reader)?
         }
-        operation_tags::INTEGER_STRUCTURAL_FIELD => {
-            storage_operations::decode_integer_structural_field(reader)?
+        operation_tags::SCALAR_STRUCTURAL_FIELD => {
+            storage_operations::decode_scalar_structural_field(reader)?
         }
         operation_tags::WRAPPING_INTEGER_ADD => {
             scalar_operations::decode_wrapping_integer_add(reader)?

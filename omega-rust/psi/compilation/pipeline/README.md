@@ -269,7 +269,7 @@ bounds remain proof integers until intersected with the signed or unsigned carri
 Nested forwarding retains each declaration-local carrier field and the final
 scalar field through canonical bytes, proof equations and original record backing.
 The same route handles same-typed siblings, deeper integer/Boolean observations
-and affine moves. Native bounded field reads use `IntegerStructuralField`, keeping
+and affine moves. Native bounded field reads use `ScalarStructuralField`, keeping
 the actual local/parameter/block root, complete carrier path and final field ID.
 They are not projected `PrimitiveScalarRead` operations. The verified constructor
 and declared interval justify a fresh observation; the physical load uses the

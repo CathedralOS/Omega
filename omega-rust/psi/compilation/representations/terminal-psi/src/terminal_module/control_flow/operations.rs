@@ -823,11 +823,11 @@ pub enum OperationKind {
         path: Vec<CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
-    /// Read one relevant integer field from a readable structural root.
+    /// Read one relevant scalar field from a readable structural root.
     /// The carrier path excludes the final field; empty denotes a direct read.
-    /// The exact integer type is carried by the scalar result declaration;
+    /// The exact scalar carrier is carried by the result declaration;
     /// the field identity remains type-local Terminal custody.
-    IntegerStructuralField {
+    ScalarStructuralField {
         source: PlaceId,
         path: Vec<CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
@@ -1223,7 +1223,7 @@ impl OperationKind {
             | Self::EstablishZeroedStructural { .. }
             | Self::EstablishStructuralLocal { .. }
             | Self::BooleanStructuralField { .. }
-            | Self::IntegerStructuralField { .. } => {}
+            | Self::ScalarStructuralField { .. } => {}
         }
     }
 

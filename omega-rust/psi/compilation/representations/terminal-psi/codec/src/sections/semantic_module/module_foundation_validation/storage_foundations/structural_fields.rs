@@ -84,7 +84,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 }
                 StructuralPlaceKind::BlockParameter { block, position } => {
                     position == parameter.position
-                        && machine.block(&block)
+                        && machine
+                            .block(&block)
                             .and_then(|block| block.structural_parameters.get(position as usize))
                             == Some(parameter)
                 }
@@ -184,32 +185,41 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("structural scalar field store declares a non-Unit result");
     }
     let parent_type = field_store_parent(module, machine, *destination, path)?;
-    let Some(expected) = module.structural_type(parent_type)
-        .and_then(|declaration| match &declaration.shape {
-            // A mixed shape's common fields are direct fields at one offset
-            // in every case; payload fields stay out of reach of this store.
-            StructuralTypeShape::Record { fields, .. }
-            | StructuralTypeShape::Mixed { fields, .. } => fields.iter().find_map(|candidate| {
-                (candidate.id == *field && !candidate.relevance.is_erased())
-                    .then_some(&candidate.field_type)
-                    .and_then(|field_type| match field_type {
-                        StructuralFieldType::Scalar(scalar_type) if range_obligation.is_none() => {
-                            Some(*scalar_type)
-                        }
-                        field_type
-                            if terminal_semantics::scalar_field_requires_evidence(field_type)
-                                && range_obligation.is_some() =>
-                        {
-                            field_type.scalar_type()
-                        }
-                        StructuralFieldType::IeeeFloat(format) if range_obligation.is_none() => {
-                            Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
-                        }
-                        _ => None,
+    let Some(expected) =
+        module
+            .structural_type(parent_type)
+            .and_then(|declaration| match &declaration.shape {
+                // A mixed shape's common fields are direct fields at one offset
+                // in every case; payload fields stay out of reach of this store.
+                StructuralTypeShape::Record { fields, .. }
+                | StructuralTypeShape::Mixed { fields, .. } => {
+                    fields.iter().find_map(|candidate| {
+                        (candidate.id == *field && !candidate.relevance.is_erased())
+                            .then_some(&candidate.field_type)
+                            .and_then(|field_type| match field_type {
+                                StructuralFieldType::Scalar(scalar_type)
+                                    if range_obligation.is_none() =>
+                                {
+                                    Some(*scalar_type)
+                                }
+                                field_type
+                                    if terminal_semantics::scalar_field_requires_evidence(
+                                        field_type,
+                                    ) && range_obligation.is_some() =>
+                                {
+                                    field_type.scalar_type()
+                                }
+                                StructuralFieldType::IeeeFloat(format)
+                                    if range_obligation.is_none() =>
+                                {
+                                    Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
+                                }
+                                _ => None,
+                            })
                     })
-            }),
-            _ => None,
-        })
+                }
+                _ => None,
+            })
     else {
         return malformed("structural scalar field store does not select a relevant scalar field");
     };
@@ -365,9 +375,7 @@ fn borrowed_field_store_root_type(
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
-        .chain(
-            machine.block_structural_parameters(),
-        )
+        .chain(machine.block_structural_parameters())
         .find(|parameter| parameter.place == place)
         && matches!(
             parameter.access,
@@ -454,12 +462,12 @@ fn owns_observed_storage(
         })
 }
 
-pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_integer_structural_field(
+pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_scalar_structural_field(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let (OperationKind::IntegerStructuralField {
+    let (OperationKind::ScalarStructuralField {
         source,
         path,
         field,
@@ -470,7 +478,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         field,
     }) = &operation.kind
     else {
-        unreachable!("dispatched validate_integer_structural_field")
+        unreachable!("dispatched validate_scalar_structural_field")
     };
     let Some(result) = operation.result.scalar_ref() else {
         return malformed("scalar structural field has no scalar result");
@@ -478,8 +486,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if !matches!(
         (&operation.kind, result.scalar_type),
         (
-            OperationKind::IntegerStructuralField { .. },
-            ScalarType::Integer(_)
+            OperationKind::ScalarStructuralField { .. },
+            ScalarType::Integer(_) | ScalarType::IeeeFloat(_)
         ) | (
             OperationKind::BooleanStructuralField { .. },
             ScalarType::Boolean
@@ -526,7 +534,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         // A call result's `Reference` shell keeps the loan's access on the
         // type; the observed record is its referent, matching the peel the
         // validating verifier applies for the same read.
-        let (observed_root, access) = match module.structural_type(local.structural_type)
+        let (observed_root, access) = match module
+            .structural_type(local.structural_type)
             .map(|declaration| &declaration.shape)
         {
             Some(StructuralTypeShape::Reference { referent, access }) => (*referent, *access),
@@ -576,7 +585,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
             let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
                 return None;
             };
-            machine.block(&block)?
+            machine
+                .block(&block)?
                 .structural_parameters
                 .get(position as usize)
                 .filter(|parameter| parameter.place == *source && parameter.position == position)
@@ -590,25 +600,15 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         path,
         *field,
     )
-    .filter(|candidate| match &candidate.field_type {
-        StructuralFieldType::Scalar(scalar_type) => *scalar_type == result.scalar_type,
-        StructuralFieldType::Atomic(scalar_type) => {
-            *scalar_type == result.scalar_type
-                && scalar_observation_authorized(
-                    module,
-                    parameter.structural_type,
-                    path,
-                    &candidate.field_type,
-                    parameter.access,
-                )
-        }
-        StructuralFieldType::BoundedInteger(bounded) => {
-            ScalarType::Integer(bounded.integer_type()) == result.scalar_type
-        }
-        StructuralFieldType::RefinedScalar(refinement) => {
-            refinement.carrier() == result.scalar_type
-        }
-        _ => false,
+    .filter(|candidate| {
+        candidate.field_type.scalar_type() == Some(result.scalar_type)
+            && scalar_observation_authorized(
+                module,
+                parameter.structural_type,
+                path,
+                &candidate.field_type,
+                parameter.access,
+            )
     });
     let owned_observation =
         owns_observed_storage(module, parameter.structural_type, parameter.access);

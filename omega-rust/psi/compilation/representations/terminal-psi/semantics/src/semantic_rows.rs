@@ -222,7 +222,7 @@ operation_semantic_rows! {
     ScalarRepresentationView => ("schema:operation:scalar-representation-view", LeafDenotation, None),
     NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),
     BooleanStructuralField => ("schema:operation:boolean-structural-field", LeafDenotation, None),
-    IntegerStructuralField => ("schema:operation:integer-structural-field", LeafDenotation, None),
+    ScalarStructuralField => ("schema:operation:scalar-structural-field", LeafDenotation, None),
     BooleanNot => ("schema:operation:boolean-not", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::Boolean, Operands::UnaryBoolean, Denotation::BooleanNot)),
     BooleanEqual => ("schema:operation:boolean-equal", LeafDenotation,

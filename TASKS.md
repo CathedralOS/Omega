@@ -2539,31 +2539,6 @@ crash and native exit behavior.
   revision, with no timeout replacing the actual diagnostic. Native execution
   remains the owning capability task's acceptance.
 
-- **FLOAT-CASE-PAYLOAD-READS.** (new-scope) A float case payload bound in a
-  dispatch whose subject is a projected place does not lower:
-  `transition context.sample { Sample::Reading { value } -> check(context, value) }`
-  with `case Reading(value: f64)` is refused in stage 05 with "case primitive
-  observation requires an indexed primitive carrier", whether the value was
-  constructed or zero-initialized; the same shape with an `i32` payload runs.
-  Mechanism: `prepare_expression.rs` sends every float structural field to the
-  primitive-storage route (`resolve_primitive`), whose case branch accepts
-  only an indexed payload array. Integer payloads under a projected subject
-  instead become an `IntegerStructuralField` read whose path ends in the
-  `Case` step, admitted by Terminal only under a dominating proof of that
-  case. Terminal has no float structural-field read
-  (`validate_integer_structural_field` admits integer and Boolean results), and
-  primitive reads (`emission/primitive_store.rs::lower_path`) carry no `Case`
-  segment or case-dominance check. Choose one route: a primitive read across
-  a `Case` step with the same dominance verification, or a float
-  structural-field read. Do not copy the payload through a side channel.
-  A whole-root subject (`let sample: Sample = Sample::Reading { value: 2.5 };
-  transition sample { ... }`, f32 or f64) passes Psi and is refused in Omega
-  stage 02 `lowering/control_flow/structural_case.rs`, whose case-edge payload
-  transfer admits only integer scalar types (`UnsupportedControlFlow`).
-  Acceptance: f32 and f64 payloads under root and projected dispatch
-  subjects, passed to a successor and compared there, run natively; a read
-  without a dominating case still rejects.
-
 - **PROJECTED-CASE-DISPATCH.** (new-scope) A one-case dispatch whose subject
   is a projected place does not lower:
   `transition holder.pair { Pair::Both { a, b } -> value(a + b) }` over

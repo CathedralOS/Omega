@@ -67,7 +67,8 @@ pub(super) fn parameter_root(
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     source: PlaceId,
 ) -> Option<&TargetStructuralParameter> {
-    prepared.parameter(source)
+    prepared
+        .parameter(source)
         .filter(|parameter| parameter.access != StructuralAccess::WriteOnlyBorrow)
 }
 
@@ -118,7 +119,8 @@ fn case_source(
     }
     let parameter = parameter_root(prepared, source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    let declaration = function.structural_parameter(source)
+    let declaration = function
+        .structural_parameter(source)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let borrowed = matches!(
         declaration.access,
@@ -287,10 +289,7 @@ pub(super) fn lower(
                 .position(|field| field.id == payload.field)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let field = fields[field_ordinal];
-            let ScalarType::Integer(integer_type) = payload.scalar_type else {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            };
-            let shape = crate::lowering::scalar_abi::fixed_native_integer_shape(integer_type)
+            let shape = crate::lowering::scalar_abi::fixed_native_scalar_shape(payload.scalar_type)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let field_layout = layout.cases[case_ordinal].fields[field_ordinal];
             if field.field_type.scalar_type() != Some(payload.scalar_type)

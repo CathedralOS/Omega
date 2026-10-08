@@ -222,7 +222,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::SelectImplementation { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }
-        | O::IntegerStructuralField { .. }
+        | O::ScalarStructuralField { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteViewFieldStore { .. }

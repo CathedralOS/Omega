@@ -71,18 +71,32 @@ pub(super) fn prepare(
             .get(parameter.0 as usize)
             .cloned()
             .ok_or_else(invalid)?;
-        let ScalarType::Integer(integer) = payload.semantic.parameter.scalar_type else {
-            return Err(invalid());
-        };
-        let (load_kind, load_key, byte_count) = match integer.bits() {
-            32 => (
+        let shape =
+            crate::selection::scalar_call_abi::scalar_shape(payload.semantic.parameter.scalar_type)
+                .ok_or_else(invalid)?;
+        let (load_kind, load_key, byte_count) = match shape.byte_size {
+            1 => (
+                SelectedInstructionKind::Load8 {
+                    byte_offset: payload.semantic.field_byte_offset,
+                },
+                constraints.keys.load8,
+                1,
+            ),
+            2 => (
+                SelectedInstructionKind::Load16 {
+                    byte_offset: payload.semantic.field_byte_offset,
+                },
+                constraints.keys.load16,
+                2,
+            ),
+            4 => (
                 SelectedInstructionKind::Load32 {
                     byte_offset: payload.semantic.field_byte_offset,
                 },
                 constraints.keys.load32,
                 4,
             ),
-            64 => (
+            8 => (
                 SelectedInstructionKind::Load64 {
                     byte_offset: payload.semantic.field_byte_offset,
                 },

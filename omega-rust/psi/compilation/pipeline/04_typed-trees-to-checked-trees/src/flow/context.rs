@@ -619,6 +619,7 @@ impl<'plans> FlowBuildContext<'plans> {
         discard_output_arena(&mut self.control.statements);
         discard_output_arena(&mut self.control.operator_invocations);
         discard_output_arena(&mut self.control.operands);
+        discard_output_arena(&mut self.control.case_accesses);
         discard_output_arena(&mut self.control.operand_children);
         discard_output_arena(&mut self.control.operand_child_paths);
         discard_output_arena(&mut self.control.operand_origin_writes);

@@ -13,7 +13,8 @@
 //!
 //! 1. `contracts::bind_call_evidence_arguments` binds the evidence arguments
 //!    of contract expressions and calls;
-//! 2. `borrows` checks call and statement borrows;
+//! 2. `borrows` checks call and statement borrows, then `case_access` checks
+//!    every evaluated payload access against its live selected tag;
 //! 3. `contracts::check_flow_call_contracts` checks call requirements, exit
 //!    guarantees, arrival requirements and domain field writes;
 //! 4. `multiplicity` checks linear obligations;
@@ -36,6 +37,7 @@
 // Call obligations: contract requirements and guarantees, and borrows.
 mod borrows;
 pub(crate) use borrows::{LifecyclePhase, weakening_event_boundary};
+mod case_access;
 pub(crate) mod contracts;
 pub(crate) mod current_scalar_values;
 mod stored_integer_calls;
@@ -106,6 +108,8 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     ) {
         diagnostics.append(&mut borrow_diagnostics);
     }
+
+    case_access::check(program, facts, &mut diagnostics);
 
     match contracts::check_flow_call_contracts(
         program,

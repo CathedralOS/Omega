@@ -317,10 +317,10 @@ pub(crate) fn resolve_typed(
         if let checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity) = segment {
             // A case of a sum reached through record fields: its payload is
             // read in place as an ordinary scalar observation whose carrier
-            // ends in the `Case` step. Terminal verification admits that read
-            // only where dominating control flow proved this case of this
-            // exact place active (`case_hops`), so a guard's membership test
-            // is the read's authority and a write to the sum retires it. A
+            // ends in the `Case` step. Source flow admission requires this
+            // case of this exact place at the read's observation epoch; a
+            // write to the sum retires its selected-tag fact. Terminal
+            // validation independently retains the declared geometry. A
             // root case keeps its dispatch route (`resolve_case_payload`),
             // whose selected block binds the payload as parameters.
             if ordinal == 0 {
@@ -356,14 +356,12 @@ pub(crate) fn resolve_typed(
             if field.relevance.is_erased() {
                 return unsupported("runtime field observation has an erased or ambiguous field");
             }
-            let declared = match field.field_type {
-                StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => scalar,
-                StructuralFieldType::BoundedInteger(integer) => {
-                    ScalarType::Integer(integer.integer_type())
-                }
-                StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
-                _ => return unsupported("runtime field observation requires a scalar leaf"),
-            };
+            let declared = field
+                .field_type
+                .scalar_type()
+                .ok_or(LoweringError::Unsupported(
+                    "runtime field observation requires a scalar leaf",
+                ))?;
             carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
                 case.id,
             ));
@@ -389,14 +387,12 @@ pub(crate) fn resolve_typed(
             return unsupported("runtime field observation has an erased or ambiguous field");
         };
         if ordinal + 1 == path.len() {
-            let declared = match field.field_type {
-                StructuralFieldType::Scalar(scalar) | StructuralFieldType::Atomic(scalar) => scalar,
-                StructuralFieldType::BoundedInteger(integer) => {
-                    ScalarType::Integer(integer.integer_type())
-                }
-                StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
-                _ => return unsupported("runtime field observation requires a scalar leaf"),
-            };
+            let declared = field
+                .field_type
+                .scalar_type()
+                .ok_or(LoweringError::Unsupported(
+                    "runtime field observation requires a scalar leaf",
+                ))?;
             return resolved_field_read(
                 binding,
                 path,
@@ -558,14 +554,12 @@ pub(crate) fn resolve_case_payload(
             if payload.next().is_some() || field.relevance.is_erased() {
                 return unsupported("case payload observation has an erased or ambiguous payload");
             }
-            let declared = match field.field_type {
-                StructuralFieldType::Scalar(scalar) => scalar,
-                StructuralFieldType::BoundedInteger(integer) => {
-                    ScalarType::Integer(integer.integer_type())
-                }
-                StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
-                _ => return unsupported("case payload observation requires a scalar payload"),
-            };
+            let declared = field
+                .field_type
+                .scalar_type()
+                .ok_or(LoweringError::Unsupported(
+                    "case payload observation requires a scalar payload",
+                ))?;
             if declared != scalar_type {
                 return unsupported("case payload observation changes its declared scalar type");
             }

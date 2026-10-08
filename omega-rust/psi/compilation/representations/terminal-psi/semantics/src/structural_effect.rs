@@ -122,7 +122,7 @@ pub enum StructuralEffectCustody {
     ExactMutableElementView,
     ExactElementViewMetadata,
     ExactLiveBooleanField,
-    ExactLiveIntegerField,
+    ExactLiveScalarField,
     ExactPublishedService,
     ExactEmptyAffineLocal,
     ExactStructuralArray,
@@ -161,7 +161,7 @@ pub enum StructuralEffectAction {
     WriteElementView,
     EstablishElementViewSubslice,
     ReadBooleanField,
-    ReadIntegerField,
+    ReadScalarField,
     EmitPortWrite,
     EstablishAffinePlace,
     EstablishStructuralArray,
@@ -375,7 +375,7 @@ structural_effect_rows! {
     EstablishStructuralCase => (Structural, ExactStructuralCase, EstablishStructuralCase, None, TransfersOwnedChildrenAndAddsOwnedPlace),
     EstablishByteSequenceLiteral => (Unit, ExactByteSequenceLiteral, EstablishByteSequencePlace, None, AddsUnrestrictedPlace),
     BooleanStructuralField => (Boolean, ExactLiveBooleanField, ReadBooleanField, None, RequiresAndKeepsAffinePlace),
-    IntegerStructuralField => (Integer, ExactLiveIntegerField, ReadIntegerField, None, RequiresAndKeepsStructuralPlace),
+    ScalarStructuralField => (Scalar, ExactLiveScalarField, ReadScalarField, None, RequiresAndKeepsStructuralPlace),
     PortWrite => (Unit, ExactPublishedService, EmitPortWrite, PortWrite, KeepsPlaceFrontier),
     EstablishTrivialAffineLocal => (Unit, ExactEmptyAffineLocal, EstablishAffinePlace, None, AddsAffinePlace),
     EstablishStructuralArray => (Structural, ExactStructuralArray, EstablishStructuralArray, None, TransfersOwnedChildrenAndAddsOwnedPlace),
@@ -450,7 +450,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::ElementViewSubslice,
         OperationSemanticTag::ElementViewWrite,
         OperationSemanticTag::BooleanStructuralField,
-        OperationSemanticTag::IntegerStructuralField,
+        OperationSemanticTag::ScalarStructuralField,
         OperationSemanticTag::PortWrite,
         OperationSemanticTag::EstablishTrivialAffineLocal,
         OperationSemanticTag::EstablishStructuralArray,
@@ -523,7 +523,7 @@ fn validate_structural_effect_schema(
             OperationSemanticTag::EstablishByteSequenceLiteral
         }
         StructuralEffectAction::ReadBooleanField => OperationSemanticTag::BooleanStructuralField,
-        StructuralEffectAction::ReadIntegerField => OperationSemanticTag::IntegerStructuralField,
+        StructuralEffectAction::ReadScalarField => OperationSemanticTag::ScalarStructuralField,
         StructuralEffectAction::EmitPortWrite => OperationSemanticTag::PortWrite,
         StructuralEffectAction::EstablishAffinePlace => {
             OperationSemanticTag::EstablishTrivialAffineLocal
@@ -730,9 +730,9 @@ fn validate_structural_effect_schema(
                         && schema.frontier
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsAffinePlace
                 }
-                StructuralEffectAction::ReadIntegerField => {
-                    schema.result == StructuralEffectResultShape::Integer
-                        && schema.custody == StructuralEffectCustody::ExactLiveIntegerField
+                StructuralEffectAction::ReadScalarField => {
+                    schema.result == StructuralEffectResultShape::Scalar
+                        && schema.custody == StructuralEffectCustody::ExactLiveScalarField
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace

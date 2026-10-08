@@ -264,7 +264,7 @@ impl OperationKind {
             | Self::ElementViewLength { source }
             | Self::ElementViewRead { source, .. }
             | Self::BooleanStructuralField { source, .. }
-            | Self::IntegerStructuralField { source, .. } => {
+            | Self::ScalarStructuralField { source, .. } => {
                 *source = map(*source, StructuralAccess::SharedBorrow)
             }
             Self::StructuralByteSequenceFieldByteStore { destination, .. }
@@ -457,7 +457,7 @@ impl OperationKind {
             | Self::EstablishTrivialAffineLocal { .. }
             | call_and_scalar_constant_operations!()
             | Self::BooleanStructuralField { .. }
-            | Self::IntegerStructuralField { .. }
+            | Self::ScalarStructuralField { .. }
             | scalar_predicate_operations!() => {}
         }
         projections

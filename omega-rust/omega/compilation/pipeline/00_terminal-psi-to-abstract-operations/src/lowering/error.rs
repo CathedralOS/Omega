@@ -85,7 +85,7 @@ pub enum LoweringError {
     InvalidStructuralScalarFieldStore(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// shared parameter root, integer field, and typed scalar result.
-    InvalidIntegerStructuralField(semantic_vocabulary::OperationId),
+    InvalidScalarStructuralField(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// mutable-borrowed parameter root, declared structural field type, or
     /// the result/value custody rows a restoration window requires.

@@ -448,7 +448,7 @@ carrier; bounded integers and refined scalars retain their declaration-owned
 predicate as well. Erased, atomic, byte and structural fields do not become
 ordinary scalar observations through this rule. A carrier with neither a
 runtime element nor a reference crossing keeps the canonical
-`IntegerStructuralField` or `BooleanStructuralField` read.
+`ScalarStructuralField` or `BooleanStructuralField` read.
 
 Each runtime segment independently owes `index < extent`, plus `0 <= index`
 for a signed selector, against the array reached by its prefix. A read cannot
@@ -533,7 +533,7 @@ cannot prove its own validity. The canonical certificate is checked before
 execution, and Omega's current-IR validation binds the retained obligation to
 the current destination, value and bounds before native lowering. Accepting
 only the underlying scalar carrier would invalidate later range snapshots.
-Integer and Boolean field observations
+Scalar and Boolean field observations
 remain distinct operations and require readable access. A field or primitive
 store whose path crosses a runtime element names no canonical leaf: it
 publishes no field equation, forgets the current facts observed beneath the
@@ -542,9 +542,11 @@ and overlaps every element of that array. Facts of disjoint siblings, such as
 the selector's own field, stay current; a prefix that cannot be scoped
 forgets the whole destination root.
 
-`IntegerStructuralField` and `BooleanStructuralField` retain the whole source
+`ScalarStructuralField` and `BooleanStructuralField` retain the whole source
 place, an ordered canonical carrier path, and the final declaration-local field
 ID. The carrier path excludes the final field; an empty path is a direct read.
+The result declaration retains the exact integer carrier or IEEE float format;
+floating-point reads capture the stored bits without arithmetic or rounding.
 Each record step selects a relevant structural field of a record by its exact
 parent-local ID. Literal fixed-array indices compose with record fields in
 declaration order, including fields nested below an indexed record; each index
@@ -553,9 +555,9 @@ must be below its array's declared extent. A runtime-selected element's field is
 carrier steps reach a sum. The final field is then a relevant scalar payload
 field of that exact declared case. A case payload is overlaid at the sum's own
 place, so the carrier's shape is no evidence that the overlay is live. Each
-`Case` step must hold as a `StructuralCaseMembership` fact for the same root and
-prefix in the read's incoming facts. A dominating membership test or dispatch
-supplies that fact. Otherwise the case holds when every other declared case of
+`Case` step requires source admission to establish the selected case for the
+same root and prefix at the read's observation epoch. A dominating membership
+test or dispatch supplies that fact. Otherwise the case holds when every other declared case of
 that sum is refuted. A refutation is a surviving membership observation of the
 same place and case whose Boolean result is known false. A sum holds exactly
 one declared case, so an exhaustive test chain's untested final arm may read
@@ -563,7 +565,9 @@ its payload. A write to the sum or any prefix retires these facts, as it does
 for `StructuralCaseLeafCopy`. The rule is the same for a `Case` step directly on
 the root, though producers read a root sum's payload as parameters of its
 dispatch block. Unknown, erased, truncated, and non-record carriers reject;
-consumers must not infer a path from names or layout offsets.
+consumers must not infer a path from names or layout offsets. Terminal validation
+checks the declared path, exact scalar type and access independently; it does not
+replay the retired proof-carrying-code case derivation.
 
 Reading a nested field observes the original backing below that root, not a
 copied child or a new borrow. Independent validation retains the root's readable
@@ -574,7 +578,7 @@ SSA value, not on a mutable field alias; construction, entry and store checks
 remain independently responsible for the declared invariant.
 
 Before a write or mutating/consuming call invalidates current field facts, a
-live exact equality between a Boolean/integer field and an immutable SSA value
+live exact equality between a scalar field and an immutable SSA value
 may capture the affected scalar occurrences in those facts. The equality must
 match the canonical root, complete path and scalar type; it may come from a
 validated read, completed store or imported guarantee. Conditional equalities

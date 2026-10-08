@@ -98,7 +98,7 @@ pub use control::{
     FlowStatementFact, RetiredFlowCall,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
-pub use operand::{FlowOperandChild, FlowOperandFact, FlowOperandReferent};
+pub use operand::{FlowCaseAccessFact, FlowOperandChild, FlowOperandFact, FlowOperandReferent};
 pub use ownership::{
     FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeEntryFact,

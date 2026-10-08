@@ -786,23 +786,23 @@ pub(super) fn decode_boolean_structural_field(
     })
 }
 
-pub(super) fn encode_integer_structural_field(
+pub(super) fn encode_scalar_structural_field(
     writer: &mut Writer,
     source: PlaceId,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INTEGER_STRUCTURAL_FIELD);
+    writer.u8(operation_tags::SCALAR_STRUCTURAL_FIELD);
     writer.id(source);
     encode_scalar_field_path(writer, path)?;
     writer.id(field);
     Ok(())
 }
 
-pub(super) fn decode_integer_structural_field(
+pub(super) fn decode_scalar_structural_field(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
-    Ok(OperationKind::IntegerStructuralField {
+    Ok(OperationKind::ScalarStructuralField {
         source: reader.id("PlaceId")?,
         path: decode_scalar_field_path(reader)?,
         field: reader.id("StructuralFieldId")?,

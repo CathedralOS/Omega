@@ -2251,14 +2251,12 @@ pub(crate) fn field_read(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u32)> {
-    if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
-        || !path.iter().all(|segment| {
-            matches!(
-                segment,
-                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-            )
-        })
-    {
+    if !path.iter().all(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
         return None;
     }
     // An element view is a descriptor, not the observed storage: its live
@@ -2345,16 +2343,14 @@ pub(crate) fn case_field_read(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u32)> {
-    if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
-        || path.iter().any(|segment| {
-            matches!(
-                segment,
-                StructuralPathSegment::RuntimeIndex { .. }
-                    | StructuralPathSegment::Referent
-                    | StructuralPathSegment::FixedByteRange { .. }
-            )
-        })
-    {
+    if path.iter().any(|segment| {
+        matches!(
+            segment,
+            StructuralPathSegment::RuntimeIndex { .. }
+                | StructuralPathSegment::Referent
+                | StructuralPathSegment::FixedByteRange { .. }
+        )
+    }) {
         return None;
     }
     let root = shape(structural_type, declarations)?;

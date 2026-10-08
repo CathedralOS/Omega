@@ -43,11 +43,11 @@ pub(super) fn lower(
             *value,
             *range_obligation,
         ),
-        OperationKind::IntegerStructuralField {
+        OperationKind::ScalarStructuralField {
             source,
             path,
             field,
-        } => lower_integer_read(operation, machine, structural_types, *source, path, *field),
+        } => lower_scalar_read(operation, machine, structural_types, *source, path, *field),
         _ => unreachable!("structural scalar-field router is exhaustive"),
     }
 }
@@ -246,7 +246,7 @@ pub(super) fn owned_store_destination(
     })
 }
 
-fn lower_integer_read(
+fn lower_scalar_read(
     operation: &Operation,
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
@@ -254,7 +254,7 @@ fn lower_integer_read(
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Result<AbstractOperation, LoweringError> {
-    let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
+    let invalid = || LoweringError::InvalidScalarStructuralField(operation.id);
     let (structural_type, access) =
         readable_source_type(machine, structural_types, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
@@ -289,9 +289,8 @@ fn lower_integer_read(
     {
         return Err(invalid());
     }
-    if !matches!(result.scalar_type, ScalarType::Integer(_))
-        || observed_scalar_field(structural_types, observed_root, path, field)
-            != Some(result.scalar_type)
+    if observed_scalar_field(structural_types, observed_root, path, field)
+        != Some(result.scalar_type)
     {
         return Err(invalid());
     }

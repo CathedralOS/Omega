@@ -338,7 +338,7 @@ fn latest_write(
         // These observations do not write. A shared call is different: it
         // may modify this resident through the declared atomic cell.
         OperationKind::PrimitiveScalarRead { .. }
-        | OperationKind::IntegerStructuralField { .. }
+        | OperationKind::ScalarStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }

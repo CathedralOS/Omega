@@ -3,6 +3,15 @@ use typed_trees::expression::ExpressionHandle;
 
 use super::FlowConstraintRef;
 
+/// A payload access at its actual evaluation epoch. Geometry names a case;
+/// these live constraints must separately establish that case before access.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowCaseAccessFact {
+    pub expression: ExpressionHandle,
+    pub statement_index: usize,
+    pub constraints: HandleSpan<FlowConstraintRef>,
+}
+
 /// One storage place an evaluated operand exactly denotes: a canonical root
 /// plus its field/case/index suffix, in the semantic fact plan's `Place`
 /// vocabulary. Produced only when the reference resolver can name the

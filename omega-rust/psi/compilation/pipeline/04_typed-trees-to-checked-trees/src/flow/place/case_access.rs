@@ -171,7 +171,11 @@ pub(crate) fn place_case_has_value(
 }
 
 fn stable_subject(subject: &CanonicalPlace) -> bool {
-    matches!(subject.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
+    // An evaluated temporary is an identity too. Live facts name its exact
+    // occurrence; matching them neither replays its producer nor transfers a
+    // selected tag to another equal-looking call or constructor.
+    (matches!(subject.root, PlaceRoot::Symbol(symbol) if symbol.is_valid())
+        || matches!(subject.root, PlaceRoot::Expression(expression) if expression.is_valid()))
         && subject.segments.iter().all(|segment| {
             matches!(segment, PlaceSegment::Field { symbol } if symbol.is_valid())
                 || matches!(segment, PlaceSegment::Case { variant } if variant.is_valid())

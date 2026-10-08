@@ -182,9 +182,7 @@ fn validate_provider_attachment_foundation(
         .collect::<Vec<_>>();
     let provider_fields = machine
         .attachment
-        .and_then(|attachment| {
-            module.structural_type(attachment)
-        })
+        .and_then(|attachment| module.structural_type(attachment))
         .and_then(|attachment| match &attachment.shape {
             StructuralTypeShape::Record { fields, .. } => Some(
                 fields
@@ -220,7 +218,8 @@ fn validate_provider_attachment_foundation(
                     .iter()
                     .any(|provider_field| provider_field.id == *field)
                 || !boundaries.insert(*boundary)
-                || module.boundary_machine(*boundary)
+                || module
+                    .boundary_machine(*boundary)
                     .is_none_or(|declaration| {
                         declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
                     })
@@ -237,7 +236,8 @@ fn validate_provider_attachment_foundation(
             _ => None,
         })
         .filter(|boundary| {
-            module.boundary_machine(*boundary)
+            module
+                .boundary_machine(*boundary)
                 .is_some_and(|declaration| {
                     declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
                 })
@@ -266,8 +266,7 @@ pub(crate) fn validate_structural_path(
     }
     let mut payload_fields = None;
     for segment in path {
-        let Some(declaration) = module.structural_type(structural_type)
-        else {
+        let Some(declaration) = module.structural_type(structural_type) else {
             return malformed("structural path has an unknown structural type");
         };
         if let StructuralPathSegment::Case(case) = segment {
@@ -530,9 +529,9 @@ fn validate_operation_foundation(
         OperationKind::StoreStructuralField { .. } => {
             storage_foundations::validate_store_structural_field(module, machine, operation)?
         }
-        OperationKind::IntegerStructuralField { .. }
+        OperationKind::ScalarStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. } => {
-            storage_foundations::validate_integer_structural_field(module, machine, operation)?
+            storage_foundations::validate_scalar_structural_field(module, machine, operation)?
         }
         OperationKind::EstablishScalarArray { .. } => {
             value_foundations::validate_establish_scalar_array(module, machine, operation)?
@@ -571,8 +570,7 @@ fn validate_operation_foundation(
                 result.multiplicity != StructuralMultiplicity::Linear && result.claims.is_empty()
             }) =>
         {
-            let Some(callee) = module.machine(*callee)
-            else {
+            let Some(callee) = module.machine(*callee) else {
                 return malformed("mixed structural-result call references an unknown callee");
             };
             let Some(expected_result) = callee.result.structural() else {
@@ -713,8 +711,7 @@ fn validate_structural_qualifications(
         }))
     {
         let carrier = carrier?;
-        let Some(declaration) = module.structural_domain(domain)
-        else {
+        let Some(declaration) = module.structural_domain(domain) else {
             return malformed("structural qualification references an unknown domain");
         };
         if declaration.carrier != carrier {
@@ -1113,7 +1110,8 @@ fn block_parameter(
             return None;
         };
         (declaration.id == place).then_some(())?;
-        machine.block(&block)?
+        machine
+            .block(&block)?
             .structural_parameters
             .get(position as usize)
             .filter(|parameter| parameter.place == place)
@@ -1224,7 +1222,8 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
         if !active.insert(id) {
             return malformed("structural type graph contains a by-value cycle");
         }
-        let declaration = module.structural_type(id)
+        let declaration = module
+            .structural_type(id)
             .expect("structural field targets were validated before graph traversal");
         match &declaration.shape {
             // A reference does not inline its referent storage. The target's
@@ -1288,7 +1287,8 @@ fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecErr
         if !active.insert(id) {
             return malformed("service parent graph contains a cycle");
         }
-        let declaration = module.service(id)
+        let declaration = module
+            .service(id)
             .expect("service parent targets were validated before graph traversal");
         for parent in &declaration.parents {
             visit(module, *parent, active, complete)?;
@@ -1305,7 +1305,8 @@ fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecErr
     }
     for declaration in &module.services {
         for parent in &declaration.parents {
-            let parent = module.service(*parent)
+            let parent = module
+                .service(*parent)
                 .expect("service parent targets were validated before closure validation");
             if parent
                 .parents

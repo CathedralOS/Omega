@@ -733,7 +733,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ScalarRepresentationView { .. }
                     | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
                     | OperationKind::BooleanStructuralField { .. }
-                    | OperationKind::IntegerStructuralField { .. }
+                    | OperationKind::ScalarStructuralField { .. }
                     | OperationKind::BooleanNot { .. }
                     | OperationKind::BooleanEqual { .. }
                     | OperationKind::IntegerEqual { .. }

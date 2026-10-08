@@ -461,7 +461,7 @@ pub(super) fn lower(
             effects::lower(operation, machine, structural_types, value_types)
         }
         OperationKind::StructuralScalarFieldStore { .. }
-        | OperationKind::IntegerStructuralField { .. } => {
+        | OperationKind::ScalarStructuralField { .. } => {
             structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
         OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. } => {

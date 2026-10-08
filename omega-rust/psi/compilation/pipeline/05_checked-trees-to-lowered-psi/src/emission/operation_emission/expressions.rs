@@ -551,7 +551,7 @@ pub(crate) fn emit_direct_expression(
         } => {
             let source = emit_read_source(source, operations);
             emit_scalar_leaf(
-                OperationKind::IntegerStructuralField {
+                OperationKind::ScalarStructuralField {
                     source,
                     path: path.clone(),
                     field: *field,

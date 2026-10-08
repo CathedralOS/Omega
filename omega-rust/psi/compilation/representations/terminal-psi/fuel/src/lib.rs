@@ -92,7 +92,7 @@ impl TerminalFuelSchedule {
             | OperationKind::StructuralCaseMembership { .. }
             | OperationKind::StructuralLeafCopy { .. }
             | OperationKind::StructuralCaseLeafCopy { .. }
-            | OperationKind::IntegerStructuralField { .. }
+            | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }
             | OperationKind::IntegerEqual { .. }

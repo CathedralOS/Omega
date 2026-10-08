@@ -452,7 +452,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 44 | IeeeFloatConstant | IEEE float value |
 | 45 | NearestIeeeFloatFusedMultiplyAdd | left value id + right value id + addend value id |
 | 46 | StructuralScalarFieldStore | destination place id + structural path + field id + value id; unchecked form |
-| 47 | IntegerStructuralField | source place id + scalar field carrier path + field id |
+| 47 | ScalarStructuralField | source place id + scalar field carrier path + field id |
 | 50 | CallStructuralWithScalarArguments | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 55 | ByteSequenceLength | source place id |
 | 56 | ByteSequenceRead | source place id + index value id + length value id + obligation id |

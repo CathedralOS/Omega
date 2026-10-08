@@ -694,8 +694,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                     OperationKind::BooleanStructuralField { .. } => {
                         self.execute_boolean_structural_field(operation)?
                     }
-                    OperationKind::IntegerStructuralField { .. } => {
-                        self.execute_integer_structural_field(operation)?
+                    OperationKind::ScalarStructuralField { .. } => {
+                        self.execute_scalar_structural_field(operation)?
                     }
                     OperationKind::EstablishElementView { .. }
                     | OperationKind::EstablishMutableElementView { .. } => {

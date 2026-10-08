@@ -206,6 +206,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     let state_borrow_weakenings_start = build.borrow_lifetimes.weakenings.len();
     let state_boundary_edges_start = build.boundaries.edges.len();
     let state_statements_start = build.control.statements.len();
+    let state_case_accesses_start = build.control.case_accesses.len();
     let state_exits_start = build.control.exits.len();
     let state_outgoing_start = build.control.outgoing.len();
     let state_calls = {
@@ -264,6 +265,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         ),
         boundary_edges: appended_span_since(&build.boundaries.edges, state_boundary_edges_start),
         statements: appended_span_since(&build.control.statements, state_statements_start),
+        case_accesses: appended_span_since(&build.control.case_accesses, state_case_accesses_start),
         calls: state_calls,
         exits: appended_span_since(&build.control.exits, state_exits_start),
         outgoing: appended_span_since(&build.control.outgoing, state_outgoing_start),

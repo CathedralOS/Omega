@@ -1485,22 +1485,19 @@ impl TerminalExecution<'_> {
         self.store_scalar(operation, TerminalScalarValue::Boolean(value))
     }
 
-    pub(crate) fn execute_integer_structural_field(
+    pub(crate) fn execute_scalar_structural_field(
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::IntegerStructuralField {
+        let OperationKind::ScalarStructuralField {
             source,
             ref path,
             field,
         } = operation.kind
         else {
-            unreachable!("dispatched execute_integer_structural_field")
+            unreachable!("dispatched execute_scalar_structural_field")
         };
         let result = operation.result.expect_scalar();
-        if !matches!(result.scalar_type, ScalarType::Integer(_)) {
-            return Err(malformed());
-        }
         let structural_value = self.observation_root(source)?;
         if terminal_semantics::observed_field_declaration(
             self.program.structural_types().values(),

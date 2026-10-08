@@ -169,6 +169,26 @@ pub fn canonical_place_from_expression_in_state(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
-    contextual_canonical_place_from_expression(program, state_symbol, statement_index, expression)
-        .or_else(|| canonical_place_from_expression(program, expression))
+    let mut place = contextual_canonical_place_from_expression(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )
+    .or_else(|| canonical_place_from_expression(program, expression))?;
+    if let facts::PlaceRoot::Expression(receiver) = place.root
+        && let Some(state) = program.state_by_symbol(state_symbol)
+        && let Some((_, saved)) = super::structural_scalar_field::saved_dispatch_subject(
+            program,
+            state,
+            statement_index,
+            receiver,
+        )
+    {
+        // Guards and payload receivers contain parser copies of one authored
+        // dispatch subject. Its retained result has one identity; another
+        // independently authored call does not join this place.
+        place.root = facts::PlaceRoot::Expression(saved);
+    }
+    Some(place)
 }

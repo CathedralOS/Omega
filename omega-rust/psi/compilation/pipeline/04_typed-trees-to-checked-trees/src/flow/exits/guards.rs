@@ -491,6 +491,44 @@ fn flatten_and_conjuncts(
     }
 }
 
+/// The final positive observation in evaluation order, not the last fact in a
+/// filtered logical conjunction. An opaque or false-comparison tail remains a
+/// barrier: its effects may have retired every earlier storage observation.
+fn final_true_guard_observation(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    mut expression: ExpressionHandle,
+) -> ExpressionHandle {
+    loop {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
+            return expression;
+        };
+        if binary.operator == typed_trees::expression::BinaryOperator::And {
+            expression = binary.right;
+            continue;
+        }
+        if binary.operator != typed_trees::expression::BinaryOperator::Equal
+            || !validation::has_builtin_decomposed_guard_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            )
+        {
+            return expression;
+        }
+        expression = match (
+            program.expression_table.expression(binary.left),
+            program.expression_table.expression(binary.right),
+        ) {
+            (_, ExpressionNode::Boolean(true)) => binary.left,
+            (ExpressionNode::Boolean(true), _) => binary.right,
+            _ => return expression,
+        };
+    }
+}
+
 /// Recognize `subject == Type::Case` (or its commute), the tag compare a
 /// case-membership `in` test lowers to, and return the subject with the
 /// resolved variant and its data definition.
@@ -571,6 +609,49 @@ pub(in crate::flow) fn append_predicate_context(
     // wherever the operand travels. The refused arm mints nothing — a byte
     // carrier failing the class is not a positive class.
     if value {
+        // A selected tag describes the evaluated storage, not the expression
+        // that produced it. In particular a saved dispatch result keeps its
+        // canonical occurrence without executing its call again. Retain the
+        // tag on that exact place before the generic predicate's repeatability
+        // check; a call-containing predicate itself remains non-repeatable.
+        if let Some((machine_position, state_position)) =
+            build.state_location(program, state_symbol)
+        {
+            let machine = &program.machines()[machine_position];
+            let state = &program.machine_states(machine)[state_position];
+            // Earlier conjuncts were established before evaluating their
+            // successors and may have been invalidated by those effects.
+            // Only the last observation can be seeded at guard completion.
+            // Surviving earlier tags already live in the short-circuit flow.
+            let observation = final_true_guard_observation(program, machine, state, expression);
+            if let Some(binary) = program.expression_table.binary_node(observation)
+                && validation::has_exact_case_membership_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    observation,
+                    binary,
+                )
+                && let ExpressionNode::Name(case) =
+                    program.expression_table.expression(binary.right)
+            {
+                append_observation_context(
+                    program,
+                    semantic,
+                    build,
+                    state_symbol,
+                    statement_index,
+                    &[binary.left],
+                    FactPayload::AssignedCase {
+                        variant: case.symbol,
+                    },
+                    point,
+                    FactOrigin::TransitionGuard,
+                    active_contexts,
+                    active_constraints,
+                );
+            }
+        }
         append_byte_predicate_context(
             program,
             semantic,

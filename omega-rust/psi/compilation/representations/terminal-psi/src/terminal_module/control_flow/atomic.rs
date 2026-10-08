@@ -10,7 +10,7 @@
 //! access as one `OperationKind::AtomicAccess` whose [`AtomicAccessEvent`]
 //! names the exact operation, its operands, and its orderings, addressed by
 //! the same `(place, path, field)` location a `StructuralScalarFieldStore`
-//! writes and an `IntegerStructuralField` reads: atomic cells are scalar
+//! writes and an `ScalarStructuralField` reads: atomic cells are scalar
 //! fields of records, reached from a structural root.
 //!
 //! Rejected alternatives:

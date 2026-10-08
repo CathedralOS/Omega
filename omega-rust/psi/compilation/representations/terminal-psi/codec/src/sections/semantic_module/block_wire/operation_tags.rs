@@ -94,8 +94,8 @@ pub(super) const IEEE_FLOAT_CONSTANT: u8 = 44;
 pub(super) const NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD: u8 = 45;
 /// `OperationKind::StructuralScalarFieldStore`.
 pub(super) const STRUCTURAL_SCALAR_FIELD_STORE: u8 = 46;
-/// `OperationKind::IntegerStructuralField`.
-pub(super) const INTEGER_STRUCTURAL_FIELD: u8 = 47;
+/// `OperationKind::ScalarStructuralField`.
+pub(super) const SCALAR_STRUCTURAL_FIELD: u8 = 47;
 /// `OperationKind::CallStructuralWithScalarArguments`.
 pub(super) const CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS: u8 = 50;
 /// `OperationKind::ByteSequenceLength`.

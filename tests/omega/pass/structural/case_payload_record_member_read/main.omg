@@ -2,7 +2,7 @@
 // `Shape::Boxed { inner } -> emit(inner.x)`. The nested read
 // [Case(Boxed), Field(inner), Field(x)] resolves through a
 // StructuralCaseLeafCopy of the record member staged under the selecting
-// case edge, then an IntegerStructuralField read on the completed copy --
+// case edge, then a ScalarStructuralField read on the completed copy --
 // the machine verifies and lowers instead of declining at the
 // payload-observation gate ("requires one case and one payload field").
 // `inner.y` (a member that is not a payload field) still declines upstream

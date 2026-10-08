@@ -187,7 +187,7 @@ pub enum StructuralEffectObservation {
         obligation: ObligationId,
     },
     BooleanFieldEquation(Proposition),
-    IntegerFieldEquation(Proposition),
+    ScalarFieldEquation(Proposition),
     PortWrite {
         service: ServiceId,
         port: u16,
@@ -215,9 +215,7 @@ pub enum StructuralEffectObservation {
     },
 }
 
-impl StructuralEffectObservation {
-
-}
+impl StructuralEffectObservation {}
 
 /// Interpret one structural/effect leaf through the supplied exact-unique
 /// schema table. The returned observation keeps facts, effects, and ownership
@@ -646,8 +644,8 @@ pub fn structural_effect_leaf_observation_in(
             }
         }
         (
-            StructuralEffectAction::ReadIntegerField,
-            OperationKind::IntegerStructuralField {
+            StructuralEffectAction::ReadScalarField,
+            OperationKind::ScalarStructuralField {
                 source,
                 path,
                 field,
@@ -656,27 +654,29 @@ pub fn structural_effect_leaf_observation_in(
             let result = operation
                 .result
                 .scalar_ref()
-                .expect("validated integer structural-field result");
-            let ScalarType::Integer(integer) = result.scalar_type else {
-                return Err(OperationSemanticError::StructuralEffectResultShapeMismatch(
-                    OperationSemanticTag::IntegerStructuralField,
-                ));
+                .expect("validated scalar structural-field result");
+            let field_path = path
+                .iter()
+                .copied()
+                .chain(std::iter::once(
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(*field),
+                ))
+                .collect();
+            let field_term = match result.scalar_type {
+                ScalarType::Integer(integer) => {
+                    ScalarTerm::integer_field_path(*source, field_path, integer)
+                }
+                ScalarType::IeeeFloat(format) => {
+                    ScalarTerm::ieee_float_field_path(*source, field_path, format)
+                }
+                ScalarType::Boolean => ScalarTerm::boolean_field_path(*source, field_path),
             };
             // Read denotation connects the current place observation to its SSA
             // snapshot. Module validation owns field/carrier and live-custody
             // checks; this equation grants no range or construction authority.
-            StructuralEffectObservation::IntegerFieldEquation(Proposition::Equal(
+            StructuralEffectObservation::ScalarFieldEquation(Proposition::Equal(
                 ScalarTerm::value(result.id, result.scalar_type),
-                ScalarTerm::integer_field_path(
-                    *source,
-                    path.iter()
-                        .copied()
-                        .chain(std::iter::once(
-                            semantic_vocabulary::CanonicalStructuralPathSegment::Field(*field),
-                        ))
-                        .collect(),
-                    integer,
-                ),
+                field_term,
             ))
         }
         (

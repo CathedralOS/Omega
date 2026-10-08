@@ -110,6 +110,7 @@ impl FlowBoundaryFacts {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowControlFacts {
+    pub case_accesses: Arena<super::FlowCaseAccessFact>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
     pub operand_children: Arena<super::FlowOperandChild>,
@@ -144,6 +145,7 @@ impl FlowControlFacts {
     ) -> Self {
         Self {
             statements,
+            case_accesses: Arena::default(),
             operator_invocations: Arena::default(),
             operands: Arena::default(),
             operand_children: Arena::default(),
@@ -197,7 +199,6 @@ impl FlowControlFacts {
                 call.statement_index == statement_index && call.call_ordinal == call_ordinal
             })
     }
-
 
     /// Whether `call`, a row of `state`, was retired by selected execution.
     pub fn is_retired(&self, state: SymbolHandle, call: &FlowCallFact) -> bool {

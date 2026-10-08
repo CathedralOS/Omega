@@ -787,6 +787,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 {
                     self.expression(member.receiver, contexts, constraints);
                 }
+                self.record_case_access(expression, *constraints);
                 return self.live_boolean(expression, *contexts);
             }
             ExpressionNode::Binary(binary) => {
@@ -1020,6 +1021,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         *constraints,
                     );
                 }
+                // The selector's effects precede the actual indexed access.
+                // A tag known while evaluating the collection cannot license
+                // an access after a selector replaced that live storage.
+                if crate::values::operator_is_builtin(self.context.operators, expression) {
+                    self.record_case_access(expression, *constraints);
+                }
             }
             ExpressionNode::Atomic(atomic) => {
                 self.expression(atomic.value, contexts, constraints);
@@ -1047,6 +1054,35 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             | ExpressionNode::ZeroValue(_) => {}
         }
         None
+    }
+
+    fn record_case_access(
+        &mut self,
+        expression: ExpressionHandle,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) {
+        let Some(place) = validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            expression,
+        ) else {
+            return;
+        };
+        if place
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }))
+        {
+            self.context
+                .control
+                .case_accesses
+                .append(checked_trees::FlowCaseAccessFact {
+                    expression,
+                    statement_index: self.statement_index,
+                    constraints,
+                });
+        }
     }
 
     fn live_boolean(

@@ -218,6 +218,7 @@ pub struct FlowStateFact {
     pub borrow_weakenings: HandleSpan<FlowBorrowWeakeningFact>,
     pub boundary_edges: HandleSpan<FlowBoundaryEdgeFact>,
     pub statements: HandleSpan<FlowStatementFact>,
+    pub case_accesses: HandleSpan<super::FlowCaseAccessFact>,
     pub calls: HandleSpan<FlowCallFact>,
     pub exits: HandleSpan<FlowExitFact>,
     pub outgoing: HandleSpan<FlowStateOutgoingFact>,
