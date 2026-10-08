@@ -227,9 +227,7 @@ fn declared_window_field_type(
         let StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::MutableBorrow,
-        } = structural_types
-            .iter()
-            .find(|row| row.id == root.structural_type())?
+        } = terminal_psi::find_structural_type(structural_types, root.structural_type())?
             .shape
         else {
             return None;
@@ -237,9 +235,7 @@ fn declared_window_field_type(
         if root.multiplicity() != StructuralMultiplicity::Affine
             || matches!(root, StructuralWindowRoot::OwnedResult { result, .. } if !result.qualification_establishments.is_empty())
             || !matches!(
-                structural_types
-                    .iter()
-                    .find(|row| row.id == referent)?
+                terminal_psi::find_structural_type(structural_types, referent)?
                     .shape,
                 StructuralTypeShape::Record { .. }
             )

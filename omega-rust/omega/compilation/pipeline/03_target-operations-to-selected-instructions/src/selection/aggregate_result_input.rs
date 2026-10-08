@@ -345,12 +345,10 @@ pub(super) fn call_result<'a>(
     // Qualifications, multiplicity and claims are custody evidence carried
     // on the result, not part of the result home's physical shape; the
     // optimization unit's ownership replay already authenticated them.
-    let declaration = source
-        .structural
-        .as_ref()?
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)?;
+    let declaration = terminal_psi::find_structural_type(
+        &source.structural.as_ref()?.structural_types,
+        result.structural_type,
+    )?;
     let shape = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Record { .. }
         | terminal_psi::StructuralTypeShape::FixedArray { .. } => {

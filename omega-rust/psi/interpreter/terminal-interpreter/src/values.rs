@@ -87,9 +87,7 @@ impl TerminalScalarCaseValue {
         let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
             return Err(malformed());
         };
-        let selected = cases
-            .iter()
-            .find(|case| case.id == self.result_case)
+        let selected = terminal_psi::find_structural_case(cases, self.result_case)
             .ok_or_else(malformed)?;
         if declaration.id != self.structural_type
             || selected.fields.len() != self.fields.len()

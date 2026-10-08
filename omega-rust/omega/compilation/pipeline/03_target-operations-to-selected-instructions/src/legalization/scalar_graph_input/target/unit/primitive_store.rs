@@ -71,10 +71,10 @@ pub(super) fn validate(
         }
         _ => false,
     };
-    let declared_type = unit
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == expected_destination.structural_type())
+    let declared_type = terminal_psi::find_structural_type(
+        &unit.structural_types,
+        expected_destination.structural_type(),
+    )
         .ok_or(LegalizationError::custody())?;
     let geometry = crate::structural_inputs::structural_reference_input::primitive_store(
         expected_destination,

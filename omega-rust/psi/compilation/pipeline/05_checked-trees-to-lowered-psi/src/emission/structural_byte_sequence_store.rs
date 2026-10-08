@@ -638,9 +638,7 @@ pub(crate) fn emit_owned_value(
 > {
     let Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
         capacity,
-    })) = structural_types
-        .iter()
-        .find(|row| row.id == structural_type)
+    })) = terminal_psi::find_structural_type(structural_types, structural_type)
         .map(|row| &row.shape)
     else {
         return unsupported("owned byte local has no bounded carrier");
@@ -727,9 +725,7 @@ pub(crate) fn emit_call_literal(
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let shape = structural_types
-        .iter()
-        .find(|row| row.id == structural_type)
+    let shape = terminal_psi::find_structural_type(structural_types, structural_type)
         .map(|row| &row.shape);
     // The formal's carrier selects the materialization; stage 04 pairs an
     // owned formal with a bounded owner and a shared one with a view.

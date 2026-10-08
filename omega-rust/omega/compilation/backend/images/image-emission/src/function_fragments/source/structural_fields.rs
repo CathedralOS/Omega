@@ -414,11 +414,8 @@ fn field_carrier(
 ) -> Option<terminal_psi::ByteSequenceCarrier> {
     let mut carrier = root;
     for segment in path {
-        let declaration = target
-            .graph
-            .structural_types
-            .iter()
-            .find(|row| row.id == carrier)?;
+        let declaration =
+            terminal_psi::find_structural_type(&target.graph.structural_types, carrier)?;
         carrier = match (segment, &declaration.shape) {
             (
                 terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
@@ -439,12 +436,11 @@ fn field_carrier(
             }
         };
     }
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &target
-        .graph
-        .structural_types
-        .iter()
-        .find(|row| row.id == carrier)?
-        .shape
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &terminal_psi::find_structural_type(
+        &target.graph.structural_types,
+        carrier,
+    )?
+    .shape
     else {
         return None;
     };

@@ -130,9 +130,7 @@ fn resolve_copyable_path(
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in path {
-        let declaration = structural_types
-            .iter()
-            .find(|candidate| candidate.id == structural_type)?;
+        let declaration = terminal_psi::find_structural_type(structural_types, structural_type)?;
         structural_type = match (segment, &declaration.shape) {
             (
                 StructuralPathSegment::Field(identity),
@@ -193,9 +191,7 @@ fn byte_carrier_leaf_copy(
     let Some(parent) = resolve_copyable_path(structural_types, root, prefix) else {
         return false;
     };
-    let Some(declaration) = structural_types
-        .iter()
-        .find(|candidate| candidate.id == parent)
+    let Some(declaration) = terminal_psi::find_structural_type(structural_types, parent)
     else {
         return false;
     };

@@ -99,9 +99,7 @@ impl TerminalExecution<'_> {
                         if actual.structural_type != structural_type {
                             return Err(malformed());
                         }
-                        let case = cases
-                            .iter()
-                            .find(|case| case.id == actual.case)
+                        let case = terminal_psi::find_structural_case(cases, actual.case)
                             .ok_or_else(malformed)?;
                         case.fields
                             .iter()

@@ -262,12 +262,10 @@ pub(super) fn mutable_projection<'path>(
             }
             parameter.structural_type
         };
-    let StructuralTypeShape::Reference { referent, access } = function
-        .structural
-        .as_ref()?
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)?
+    let StructuralTypeShape::Reference { referent, access } = terminal_psi::find_structural_type(
+        &function.structural.as_ref()?.structural_types,
+        structural_type,
+    )?
         .shape
     else {
         return None;

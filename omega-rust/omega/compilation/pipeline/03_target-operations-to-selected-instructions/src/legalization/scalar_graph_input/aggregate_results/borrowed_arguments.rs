@@ -279,9 +279,7 @@ pub(super) fn view_arrival<'caller>(
             .map(move |parameter| (block.id, parameter))
     });
     let (block, declaration) = arrivals.next()?;
-    let shape = structural_types
-        .iter()
-        .find(|row| row.id == declaration.structural_type)
+    let shape = terminal_psi::find_structural_type(structural_types, declaration.structural_type)
         .map(|row| &row.shape)?;
     let view = matches!(shape, terminal_psi::StructuralTypeShape::ElementView { .. })
         || shape.is_borrowed_byte_view();

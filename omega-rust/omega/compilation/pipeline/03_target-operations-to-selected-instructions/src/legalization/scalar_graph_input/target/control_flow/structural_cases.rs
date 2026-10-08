@@ -225,10 +225,10 @@ pub(super) fn matches(
     if !available {
         return false;
     }
-    let Some(declaration) = graph
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == source.structural_type())
+    let Some(declaration) = terminal_psi::find_structural_type(
+        &graph.structural_types,
+        source.structural_type(),
+    )
     else {
         return false;
     };
