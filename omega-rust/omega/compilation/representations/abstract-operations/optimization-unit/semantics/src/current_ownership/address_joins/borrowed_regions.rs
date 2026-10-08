@@ -286,27 +286,22 @@ impl BorrowedRegions {
                         }
                     }
                 }
-                for block in &function.blocks {
-                    for node in &block.nodes {
-                        if let O::CallStructural {
-                            result:
-                                abstract_operations::AbstractStructuralCallResult::Structural {
-                                    result,
-                                    ..
-                                },
-                            ..
-                        } = &node.operation
-                            && result.multiplicity
-                                == terminal_psi::StructuralMultiplicity::Unrestricted
-                            && terminal_semantics::descriptor_results::is_shared_descriptor(
-                                declarations.iter(),
-                                result.structural_type,
-                            )
-                            && let Some(origins) =
-                                analysis.call_origins(function.machine, result.place)
-                        {
-                            returned.insert(result.place, origins);
-                        }
+                for node in function.block_nodes() {
+                    if let O::CallStructural {
+                        result:
+                            abstract_operations::AbstractStructuralCallResult::Structural {
+                                result, ..
+                            },
+                        ..
+                    } = &node.operation
+                        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && terminal_semantics::descriptor_results::is_shared_descriptor(
+                            declarations.iter(),
+                            result.structural_type,
+                        )
+                        && let Some(origins) = analysis.call_origins(function.machine, result.place)
+                    {
+                        returned.insert(result.place, origins);
                     }
                 }
             }

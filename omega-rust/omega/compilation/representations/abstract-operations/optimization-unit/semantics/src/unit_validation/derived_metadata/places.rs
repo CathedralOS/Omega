@@ -39,64 +39,60 @@ pub(crate) fn reconstruct_declared_places(
         )
         .chain(function.result.structural().map(|result| result.place))
         .collect::<BTreeSet<_>>();
-    for block in &function.blocks {
-        for node in &block.nodes {
-            match &node.operation {
-                O::EstablishByteSequenceLiteral { place, .. }
-                | O::EstablishTrivialAffineLocal { place, .. } => {
-                    known_places.insert(place.id);
-                }
-                O::EstablishByteSequenceConcatenation { result, .. }
-                | O::EstablishPrimitiveLocal { result, .. }
-                | O::ByteSequenceSubslice { result, .. }
-                | O::EstablishElementView { result, .. }
-                | O::ElementViewSubslice { result, .. }
-                | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
-                | O::EstablishCase { result, .. }
-                | O::EstablishRecord { result, .. }
-                | O::EstablishZeroedStructural { result, .. }
-                | O::EstablishStructuralLocal { result, .. }
-                | O::EstablishReference { result, .. }
-                // The extraction's moved subtree is a declared operation
-                // result place like any establishment's.
-                | O::MoveStructuralField { result, .. }
-                // The copy's fresh owned storage is a declared operation
-                // result place like any establishment's.
-                | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural {
-                    result: AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                }
-                | O::BoundaryCall {
-                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                    ..
-                } => {
-                    known_places.insert(result.place);
-                }
-                O::AtomicEvent { event, .. } => {
-                    // The accessed atomic location joins place custody; a
-                    // fence accesses no place. A single-attempt
-                    // compare-exchange also establishes its structural
-                    // outcome place.
-                    if let Some(place) = event.place() {
-                        known_places.insert(place);
-                    }
-                    if let abstract_operations::AbstractAtomicEvent::CompareExchangeOnce {
-                        outcome,
-                        ..
-                    } = event
-                    {
-                        known_places.insert(outcome.place);
-                    }
-                }
-                _ => {}
+    for node in function.block_nodes() {
+        match &node.operation {
+            O::EstablishByteSequenceLiteral { place, .. }
+            | O::EstablishTrivialAffineLocal { place, .. } => {
+                known_places.insert(place.id);
             }
+            O::EstablishByteSequenceConcatenation { result, .. }
+            | O::EstablishPrimitiveLocal { result, .. }
+            | O::ByteSequenceSubslice { result, .. }
+            | O::EstablishElementView { result, .. }
+            | O::ElementViewSubslice { result, .. }
+            | O::EstablishScalarArray { result, .. } | O::EstablishStructuralArray { result, .. }
+            | O::EstablishCase { result, .. }
+            | O::EstablishRecord { result, .. }
+            | O::EstablishZeroedStructural { result, .. }
+            | O::EstablishStructuralLocal { result, .. }
+            | O::EstablishReference { result, .. }
+            // The extraction's moved subtree is a declared operation
+            // result place like any establishment's.
+            | O::MoveStructuralField { result, .. }
+            // The copy's fresh owned storage is a declared operation
+            // result place like any establishment's.
+            | O::StructuralLeafCopy { result, .. }
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
+            | O::BoundaryCall {
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            } => {
+                known_places.insert(result.place);
+            }
+            O::AtomicEvent { event, .. } => {
+                // The accessed atomic location joins place custody; a
+                // fence accesses no place. A single-attempt
+                // compare-exchange also establishes its structural
+                // outcome place.
+                if let Some(place) = event.place() {
+                    known_places.insert(place);
+                }
+                if let abstract_operations::AbstractAtomicEvent::CompareExchangeOnce {
+                    outcome,
+                    ..
+                } = event
+                {
+                    known_places.insert(outcome.place);
+                }
+            }
+            _ => {}
         }
     }
-    for block in &function.blocks {
-        for node in &block.nodes {
-            validate_operation_places(function.machine, &node.operation, &known_places)?;
-        }
+    for node in function.block_nodes() {
+        validate_operation_places(function.machine, &node.operation, &known_places)?;
     }
     Ok(known_places)
 }

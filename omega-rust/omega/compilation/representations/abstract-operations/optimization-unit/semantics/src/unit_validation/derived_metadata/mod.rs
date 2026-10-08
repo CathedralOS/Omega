@@ -34,24 +34,22 @@ pub(crate) fn validate_places_and_claims(
             });
         }
     }
-    for block in &function.blocks {
-        for node in &block.nodes {
-            for event in &node.ownership {
-                let claims: &[ClaimId] = match event {
-                    optimization_unit::OwnershipEvent::ClaimTransfer(claims)
-                    | optimization_unit::OwnershipEvent::ClaimCompletion(claims)
-                    | optimization_unit::OwnershipEvent::StructuralReturn(claims)
-                    | optimization_unit::OwnershipEvent::CrashFrontier(claims) => claims,
-                    optimization_unit::OwnershipEvent::ExternalCompletionFrontier(claims) => claims,
-                    optimization_unit::OwnershipEvent::Cleanup(_) => continue,
-                };
-                for claim in claims {
-                    if !function_has_claim(function, *claim) {
-                        return Err(OptimizationUnitValidationError::UnknownClaim {
-                            machine: function.machine,
-                            claim: *claim,
-                        });
-                    }
+    for node in function.block_nodes() {
+        for event in &node.ownership {
+            let claims: &[ClaimId] = match event {
+                optimization_unit::OwnershipEvent::ClaimTransfer(claims)
+                | optimization_unit::OwnershipEvent::ClaimCompletion(claims)
+                | optimization_unit::OwnershipEvent::StructuralReturn(claims)
+                | optimization_unit::OwnershipEvent::CrashFrontier(claims) => claims,
+                optimization_unit::OwnershipEvent::ExternalCompletionFrontier(claims) => claims,
+                optimization_unit::OwnershipEvent::Cleanup(_) => continue,
+            };
+            for claim in claims {
+                if !function_has_claim(function, *claim) {
+                    return Err(OptimizationUnitValidationError::UnknownClaim {
+                        machine: function.machine,
+                        claim: *claim,
+                    });
                 }
             }
         }
