@@ -341,10 +341,7 @@ pub(super) fn read_geometry(
                 // operations. Replaying geometry cannot create permissions.
                 let (_, result) =
                     super::aggregate_result_input::operation_result(source, argument.place)?;
-                let expected_access = match signature
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == result.structural_type)?
+                let expected_access = match signature.structural_type(result.structural_type)?
                     .shape
                 {
                     // A read does not attenuate the retained carrier declaration:
@@ -367,10 +364,7 @@ pub(super) fn read_geometry(
                     referent,
                     access:
                         access @ (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
-                } = signature
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == structural_type)?
+                } = signature.structural_type(structural_type)?
                     .shape
                 else {
                     return None;

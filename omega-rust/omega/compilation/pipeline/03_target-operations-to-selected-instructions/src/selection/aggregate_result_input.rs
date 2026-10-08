@@ -270,10 +270,7 @@ pub(super) fn membership_layout(
             &signature.structural_types,
         )?
     };
-    let declaration = signature
-        .structural_types
-        .iter()
-        .find(|declared| declared.id == identity)?;
+    let declaration = signature.structural_type(identity)?;
     // A mixed shape keeps the sum's tag word at offset 0; its runtime common
     // fields follow the tag, so they take part in the layout the tag guards.
     let (common, cases) = match &declaration.shape {
@@ -909,10 +906,7 @@ pub(super) fn block_parameter_shape(
         parameter.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) {
-        let declaration = signature
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == parameter.structural_type)?;
+        let declaration = signature.structural_type(parameter.structural_type)?;
         if parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !parameter.projected_qualifications.is_empty()
             || !(declaration.shape.is_borrowed_byte_carrier()

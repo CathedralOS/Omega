@@ -122,10 +122,7 @@ pub(crate) fn projection(
                 &argument.path[segment_start..position],
                 &signature.structural_types,
             )?;
-        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = signature
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == reference)?
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = signature.structural_type(reference)?
             .shape
         else {
             return None;

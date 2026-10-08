@@ -18,10 +18,7 @@ pub(super) fn project(
     let source = scalar_graph_input::structural_case::case_source(function, *source)?;
     let layout =
         scalar_graph_input::aggregate_results::sum_type_layout(source.structural_type(), plan)?;
-    let declaration = plan
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == source.structural_type())
+    let declaration = plan.structural_type(source.structural_type())
         .ok_or(Error::custody())?;
     let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Sum { cases }

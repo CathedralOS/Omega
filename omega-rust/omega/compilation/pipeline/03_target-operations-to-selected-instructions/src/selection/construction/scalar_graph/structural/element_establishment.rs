@@ -69,10 +69,7 @@ pub(super) fn establish(
     ) {
         return Err(invalid());
     }
-    let Some(declaration) = signature
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == result.structural_type)
+    let Some(declaration) = signature.structural_type(result.structural_type)
     else {
         return Err(invalid());
     };
@@ -86,10 +83,7 @@ pub(super) fn establish(
         // length, the same access-bearing descriptor a `&[u8]` spells.
         StructuralTypeShape::ByteSequence(_)
             if declaration.shape.is_borrowed_byte_carrier()
-                && signature
-                    .structural_types
-                    .iter()
-                    .find(|element_declaration| element_declaration.id == *element)
+                && signature.structural_type(*element)
                     .is_some_and(|element_declaration| {
                         matches!(
                             element_declaration.shape,
@@ -139,10 +133,7 @@ pub(super) fn establish(
             ) && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
-                && signature
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == parameter.structural_type)
+                && signature.structural_type(parameter.structural_type)
                     .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
         });
     let Some(root) = parameter

@@ -27,10 +27,7 @@ pub(super) fn validate(
                 elements: expected_elements,
             },
         ) => {
-            let declaration = plan
-                .structural_types
-                .iter()
-                .find(|entry| entry.id == result.structural_type)
+            let declaration = plan.structural_type(result.structural_type)
                 .ok_or(LegalizationError::custody())?;
             let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
                 declaration.shape
@@ -75,10 +72,7 @@ pub(super) fn validate(
                 fields: expected_fields,
             },
         ) => {
-            let declaration = plan
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
+            let declaration = plan.structural_type(result.structural_type)
                 .ok_or(LegalizationError::custody())?;
             let terminal_psi::StructuralTypeShape::Record {
                 fields: declarations,
@@ -265,10 +259,7 @@ pub(super) fn validate(
             {
                 return Err(LegalizationError::custody());
             }
-            let declaration = plan
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == result.structural_type)
+            let declaration = plan.structural_type(result.structural_type)
                 .ok_or(LegalizationError::custody())?;
             // A mixed case binds its runtime common fields, then the selected
             // payload, in the order Terminal verification checked.
