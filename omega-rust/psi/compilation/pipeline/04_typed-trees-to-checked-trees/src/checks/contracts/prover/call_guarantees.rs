@@ -372,7 +372,7 @@ fn stable_value(
             .iter()
             .all(|field| stable_value(program, field.value, pending))
     } else {
-        super::scalars::literal(program, expression).is_some()
+        crate::flow::literal(program, expression).is_some()
             || direct_place(program, expression)
                 .or_else(|| exclusive_borrow_place(program, expression))
                 .is_some_and(|place| matches!(place.root, PlaceRoot::Symbol(_)))
@@ -583,12 +583,12 @@ fn bound_literal(
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
 ) -> Option<facts::ScalarValue> {
-    super::scalars::literal(program, expression).or_else(|| {
+    crate::flow::literal(program, expression).or_else(|| {
         let (value, remaining) = actual_projection(program, invocation, expression)?;
         if !remaining.is_empty() {
             return None;
         }
-        super::scalars::literal(program, value)
+        crate::flow::literal(program, value)
     })
 }
 

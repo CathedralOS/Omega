@@ -33,6 +33,8 @@ mod context;
 mod reach;
 mod state_values;
 
+pub(crate) use state_values::literal;
+
 // One state's facts and the producers it runs for its entry, statements, and exits.
 mod entry_origins;
 // Contract induction consumes the same all-path origin solution as flow

@@ -194,6 +194,19 @@ pub(super) fn unknown_inputs(program: &dyn ::validation::CheckingInput) -> Vec<S
         .collect()
 }
 
+pub(crate) fn literal(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<ScalarValue> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value.value_bignum().map(ScalarValue::Integer),
+        ExpressionNode::Boolean(value) => Some(ScalarValue::Boolean(*value)),
+        _ => None,
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn record_transition(

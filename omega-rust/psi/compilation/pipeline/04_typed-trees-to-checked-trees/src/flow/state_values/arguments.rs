@@ -4,7 +4,7 @@ use validation::CanonicalPlace;
 use super::{ScalarValue, TransitionTargetNode};
 
 use crate::flow::FlowBuildContext;
-use crate::flow::state_values::literal;
+use crate::flow::literal;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::FlowSemanticContextRef;

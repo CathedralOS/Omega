@@ -45,19 +45,6 @@ pub(in crate::checks::contracts) fn has_builtin_operators(
     }
 }
 
-pub(super) fn literal(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<ScalarValue> {
-    if !program.expression_table.expression_is_valid(expression) {
-        return None;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => value.value_bignum().map(ScalarValue::Integer),
-        ExpressionNode::Boolean(value) => Some(ScalarValue::Boolean(*value)),
-        _ => None,
-    }
-}
 
 pub(in crate::checks::contracts) fn evaluate(
     program: &dyn ::validation::CheckingInput,
@@ -98,7 +85,7 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    if let Some(value) = literal(program, expression) {
+    if let Some(value) = crate::flow::literal(program, expression) {
         return Some(value);
     }
     if let Some(value) = observe_boolean(expression) {
