@@ -49,13 +49,8 @@ pub(super) fn admit(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission, InflowRelocationError> {
-    let derived = super::derive_inflow_span(
-        source,
-        function_index,
-        member,
-        destination,
-        environment,
-    )?;
+    let derived =
+        super::derive_inflow_span(source, function_index, member, destination, environment)?;
     let plan = derived.plan;
     let function = derived.function;
     let block_index = derived.block_index;
@@ -87,8 +82,7 @@ pub(super) fn admit(
         edge_limit,
     )
     .ok_or(InflowRelocationError::WorkBudgetExceeded)?;
-    admit_run_relocation(function, &[member_instruction], &crossing)
-        .map_err(super::rejection)?;
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(super::rejection)?;
     // The dead-path audit: every location the member writes must be dead
     // — unread until rewritten — on every arrival through the join's
     // other inflows.
@@ -112,7 +106,12 @@ pub(super) fn admit(
         &|candidate| terminator_successors(&candidate.terminator).len(),
     )
     .ok_or(InflowRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || InflowRelocationError::IdentityOverflow, || InflowRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || InflowRelocationError::IdentityOverflow,
+        || InflowRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         block_index: derived.block_index,
         member_index: derived.member_index,

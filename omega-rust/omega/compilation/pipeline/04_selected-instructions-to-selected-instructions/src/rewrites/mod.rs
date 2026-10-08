@@ -230,14 +230,14 @@ pub use load_forwarding::{
     forward_selected_stored_load,
 };
 
+use crate::rewrites::block_edges::function_at;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedFunction, SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
 };
-use crate::rewrites::block_edges::function_at;
 
 /// One step per block plus one per instruction across the whole plan — the
 /// scan surface every family's measured-step contract charges first.
@@ -279,6 +279,22 @@ pub(crate) fn plan_function<'source, E>(
     }
     Ok((plan, function_at(plan, function_index, mismatch())?))
 }
+
+/// The four receipt identities every family seals the same way: source,
+/// transformed, optimization unit, and fuel schedule, followed by the
+/// family's own recorded fields.
+macro_rules! receipt {
+    ($receipt:ident, $source:expr, $proposed:expr $(, $field:ident : $value:expr)* $(,)?) => {
+        $receipt {
+            source_selected: $source.selected_identity(),
+            transformed_selected: selected_instructions::selected_instruction_plan_identity(&$proposed),
+            optimization_unit: $source.optimization_unit_identity(),
+            fuel_schedule: $source.fuel_schedule_identity(),
+            $($field: $value,)*
+        }
+    };
+}
+pub(crate) use receipt;
 
 pub(crate) fn instruction(
     id: SelectedInstructionId,

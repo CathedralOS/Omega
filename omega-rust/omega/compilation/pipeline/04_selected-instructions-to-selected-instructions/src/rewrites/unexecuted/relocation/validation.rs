@@ -22,6 +22,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::receipt;
 
 /// Independently consume the proposed program: the validator re-derives
 /// the admitted run, window and landing index from the source without
@@ -85,12 +86,7 @@ pub fn validate_member_run_relocation(
         return Err(MemberRunRelocationError::ReplayMismatch);
     }
     Ok(ValidatedMemberRunRelocation {
-        receipt: MemberRunRelocationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(MemberRunRelocationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

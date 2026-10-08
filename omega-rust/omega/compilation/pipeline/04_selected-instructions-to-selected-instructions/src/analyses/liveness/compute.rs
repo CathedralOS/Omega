@@ -472,10 +472,9 @@ fn virtual_uses_defs(
 fn block_instructions(
     block: &SelectedBlock,
 ) -> impl DoubleEndedIterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator)))
+    block.instructions.iter().chain(std::iter::once(
+        selected_instructions::terminator_instruction(&block.terminator),
+    ))
 }
 
 fn sorted<T: Copy + Ord>(values: &BTreeSet<T>) -> Vec<T> {

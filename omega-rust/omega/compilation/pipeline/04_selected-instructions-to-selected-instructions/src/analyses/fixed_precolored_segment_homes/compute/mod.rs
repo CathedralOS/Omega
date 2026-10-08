@@ -6,7 +6,6 @@ mod functions;
 mod placement;
 mod roots;
 
-
 use optimization_core::OptimizationWorkBudget;
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,

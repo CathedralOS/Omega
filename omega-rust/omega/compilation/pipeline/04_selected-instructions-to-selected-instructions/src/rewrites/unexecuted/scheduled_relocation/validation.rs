@@ -1,3 +1,4 @@
+use crate::rewrites::receipt;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
@@ -79,12 +80,7 @@ pub fn validate_scheduled_relocation(
         return Err(ScheduledRelocationError::ReplayMismatch);
     }
     Ok(ValidatedScheduledRelocation {
-        receipt: ScheduledRelocationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(ScheduledRelocationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

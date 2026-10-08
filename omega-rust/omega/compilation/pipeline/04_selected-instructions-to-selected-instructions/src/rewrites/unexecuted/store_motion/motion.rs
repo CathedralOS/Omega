@@ -10,16 +10,16 @@
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedCasePayloadTransport, SelectedInstructionKind, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId, terminator_instruction
+    SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
+    SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
+    terminator_instruction,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoreMutationMotionError;
-use crate::rewrites::block_edges::{terminator_successors};
+use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, extent_intersects, extent_reached_by, packed_store_row_shape,
     place_store_row_shape, slot_is_subject_storage,
@@ -65,7 +65,11 @@ impl Moved {
 
     /// Whether `access` can reach the moved extent — the shared
     /// dynamic-reach and resolved-landing decision in `place_storage`.
-    pub(super) fn reached_by(&self, access: &SelectedMemoryAccess, function: &SelectedFunction) -> bool {
+    pub(super) fn reached_by(
+        &self,
+        access: &SelectedMemoryAccess,
+        function: &SelectedFunction,
+    ) -> bool {
         extent_reached_by(
             self.byte_offset,
             self.byte_count,
@@ -275,7 +279,11 @@ pub(super) fn instruction_stops(
 }
 /// A boundary settlement at a position in the crossed interval would observe
 /// the place before the moved write instead of after it.
-pub(super) fn settlement_before(function: &SelectedFunction, block: SelectedBlockId, position: usize) -> bool {
+pub(super) fn settlement_before(
+    function: &SelectedFunction,
+    block: SelectedBlockId,
+    position: usize,
+) -> bool {
     function.boundary_settlements.iter().any(|settlement| {
         settlement.block == block && settlement.instruction_index as usize == position
     })

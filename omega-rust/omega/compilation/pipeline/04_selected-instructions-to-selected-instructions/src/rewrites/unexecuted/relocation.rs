@@ -56,7 +56,8 @@ use selected_instructions::{
 
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface, terminator_successors,
+    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface,
+    terminator_successors,
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
@@ -181,8 +182,10 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, MemberRunRelocationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || MemberRunRelocationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            MemberRunRelocationError::SourceMismatch
+        })?;
     let (run_block, run_start) = function
         .blocks
         .iter()
@@ -373,7 +376,12 @@ fn reconstruct<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .ok_or(MemberRunRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || MemberRunRelocationError::IdentityOverflow, || MemberRunRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || MemberRunRelocationError::IdentityOverflow,
+        || MemberRunRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Reconstructed {
         function,
         run_block,

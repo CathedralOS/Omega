@@ -30,6 +30,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::receipt;
 
 /// The flag-universe and jump-surface sizes the measured-step contract
 /// charges — the union of the target's three compare rows' implicit
@@ -173,14 +174,7 @@ pub(crate) fn seal_constant_branch_fold(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
     Ok(ValidatedConstantBranch {
-        receipt: ConstantBranchReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-            function_index,
-            branch,
-        },
+        receipt: receipt!(ConstantBranchReceipt, source, proposed, function_index: function_index, branch: branch),
         transformed: Arc::new(proposed),
     })
 }

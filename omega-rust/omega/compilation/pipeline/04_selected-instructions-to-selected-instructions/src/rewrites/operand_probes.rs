@@ -5,10 +5,9 @@
 
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineMemoryEffect,
-    MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, ValidatedMachineEffectCatalog,
-    VirtualRegisterId,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior, SelectedInstruction,
+    ValidatedMachineEffectCatalog, VirtualRegisterId,
 };
 
 pub(super) fn effect_declaration(
@@ -37,7 +36,6 @@ pub(super) fn last_definition_before(
         })
     })
 }
-
 
 /// The non-unit declaration surface an isolated form must carry: no memory
 /// access, no trap, no barrier, no call, no cleanup.

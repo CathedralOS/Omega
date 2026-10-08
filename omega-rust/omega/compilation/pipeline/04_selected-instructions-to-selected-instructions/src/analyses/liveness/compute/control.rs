@@ -2,7 +2,6 @@
 
 use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 
-
 /// Successors retain semantic polarity order: nonzero/zero or less/not-less.
 pub(super) fn successors(
     terminator: &SelectedTerminator,

@@ -37,13 +37,12 @@
 //! cannot classify, so the slot stays private to its earlier victim.
 
 use register_environment::ValidatedTargetRegisterEnvironment;
-use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
 use register_model::{RegisterClassId, RegisterOperandAccess};
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId, VirtualRegister,
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction,
-    SelectedInstructionKind, VirtualRegisterId,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
 };
+use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
 
 use super::{BitsConversion, RuntimeSpillError, StorageDefinition, StoragePosition};
 

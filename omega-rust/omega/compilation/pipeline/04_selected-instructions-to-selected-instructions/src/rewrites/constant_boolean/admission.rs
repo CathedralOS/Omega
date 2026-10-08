@@ -9,16 +9,16 @@
 //! grammar decides the predicate, whose unit-flow axis states the retired
 //! and preserved unit roles, and whose effect axis is checked against the
 //! bound machine-effect catalog.
-use crate::rewrites::operand_probes::{effect_declaration};
+use crate::rewrites::operand_probes::effect_declaration;
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    MachineSemanticKind, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-    ValidatedMachineEffectCatalog, VirtualRegisterId,
+    MachineSemanticKind, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedOperand, ValidatedMachineEffectCatalog,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::IntegerValue;
 
@@ -29,11 +29,11 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::rewrites::block_edges::function_at;
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
     resolved_operands,
 };
-use crate::rewrites::block_edges::function_at;
 
 impl From<ConditionStateError> for ConstantBooleanError {
     fn from(error: ConditionStateError) -> Self {
@@ -373,7 +373,12 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ConstantBooleanError::IdentityOverflow, || ConstantBooleanError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ConstantBooleanError::IdentityOverflow,
+        || ConstantBooleanError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         block_index,
         materialization_index,

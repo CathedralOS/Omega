@@ -22,8 +22,6 @@ use crate::{
 
 mod sealed {
     pub trait Sealed {}
-
-
 }
 /// The sealed analysis surface every validated rewrite result answers
 /// identically: the transformed plan, its shared handle, and the receipt's
@@ -53,43 +51,29 @@ macro_rules! validated_selected_analysis {
     };
 }
 
-
-
 validated_selected_analysis!(ValidatedAddressFold);
-
 
 validated_selected_analysis!(ValidatedArmRelocation);
 
-
 validated_selected_analysis!(ValidatedBoundaryBoolean);
-
 
 validated_selected_analysis!(ValidatedBoundaryBranch);
 
-
 validated_selected_analysis!(ValidatedConstantBoolean);
-
 
 validated_selected_analysis!(ValidatedConstantBranch);
 
-
 validated_selected_analysis!(ValidatedInterchange);
-
 
 validated_selected_analysis!(ValidatedCommutingRelocation);
 
-
 validated_selected_analysis!(ValidatedConfluenceRelocation);
-
 
 validated_selected_analysis!(ValidatedCopyRemoval);
 
-
 validated_selected_analysis!(ValidatedRedundantCompare);
 
-
 validated_selected_analysis!(ValidatedRedundantExtension);
-
 
 impl sealed::Sealed for ValidatedPreAllocationTransformation {}
 
@@ -116,36 +100,25 @@ impl ValidatedSelectedAnalysis for ValidatedPreAllocationTransformation {
 
 validated_selected_analysis!(ValidatedStoredLoadForwarding);
 
-
 validated_selected_analysis!(ValidatedStoreMutationMotion);
-
 
 validated_selected_analysis!(ValidatedDeadCompare);
 
-
 validated_selected_analysis!(ValidatedDeadStoreElimination);
-
 
 validated_selected_analysis!(ValidatedEquivalentCompare);
 
-
 validated_selected_analysis!(ValidatedInflowRelocation);
-
 
 validated_selected_analysis!(ValidatedMemberRunRelocation);
 
-
 validated_selected_analysis!(ValidatedScheduledRelocation);
-
 
 validated_selected_analysis!(ValidatedRuntimeSpill);
 
-
 validated_selected_analysis!(ValidatedRuntimeSplit);
 
-
 validated_selected_analysis!(ValidatedRuntimeRematerialization);
-
 
 /// Sealed input boundary for analyses over independently validated selected
 /// CFGs. External callers cannot implement this trait for an unchecked plan.
@@ -296,9 +269,7 @@ impl ValidatedSelectedAnalysis for ValidatedPressureRematerialization {
 
 validated_selected_analysis!(ValidatedProjectedAccess);
 
-
 validated_selected_analysis!(ValidatedCopiedCallOperand);
-
 
 /// An admitted current selected program, independent of its producing stage.
 /// Construction only accepts the sealed analysis boundary; a raw plan or digest

@@ -61,7 +61,9 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::fold_selected_boundary_boolean;

@@ -626,14 +626,15 @@ pub(super) fn derive_runtime_spill<'source>(
     use register_model::RegisterOperandAccess;
     use selected_instructions::{
         LocalStorageSlotId, SelectedBlockOrigin, SelectedCasePayloadTransport,
-        SelectedInstructionKind, SelectedMemoryAccessOrigin,
-        SelectedMemoryAccessRole, SelectedSuccessorRole,
-        SelectedValueTransport, VirtualRegisterOrigin,
+        SelectedInstructionKind, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+        SelectedSuccessorRole, SelectedValueTransport, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, OperationId};
     use slot::{bits_transport, entry_definitions};
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || RuntimeSpillError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            RuntimeSpillError::SourceMismatch
+        })?;
     let victim = function
         .virtual_registers
         .iter()
@@ -1831,9 +1832,8 @@ pub(super) fn parameter_definitions(
 ) -> Result<Vec<StorageDefinition>, RuntimeSpillError> {
     use register_model::RegisterOperandAccess;
     use selected_instructions::{
-        SelectedBlockOrigin, SelectedCasePayloadTransport,
-        SelectedSuccessorRole, SelectedTerminator,
-        SelectedValueTransport, VirtualRegisterOrigin,
+        SelectedBlockOrigin, SelectedCasePayloadTransport, SelectedSuccessorRole,
+        SelectedTerminator, SelectedValueTransport, VirtualRegisterOrigin,
     };
     use slot::physical_definition;
     let mut definitions = Vec::new();

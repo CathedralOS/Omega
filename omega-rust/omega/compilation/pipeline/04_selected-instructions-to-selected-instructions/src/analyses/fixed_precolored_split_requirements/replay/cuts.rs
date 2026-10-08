@@ -1,6 +1,6 @@
 //! Sorted fixed-use and transition rows used only by canonical replay.
 
-use super::super::{site_key, site_point, SiteKey};
+use super::super::{SiteKey, site_key, site_point};
 use std::collections::BTreeSet;
 
 use register_model::{RegisterOperandAccess, RegisterViewId};
@@ -163,5 +163,3 @@ fn unauthenticated<T>(
         },
     )
 }
-
-

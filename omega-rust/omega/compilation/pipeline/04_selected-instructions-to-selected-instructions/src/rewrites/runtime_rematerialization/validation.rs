@@ -32,12 +32,8 @@ pub(crate) fn seal_runtime_rematerialization(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRuntimeRematerialization, RuntimeRematerializationError> {
     Ok(ValidatedRuntimeRematerialization {
-        receipt: RuntimeRematerializationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(RuntimeRematerializationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }
+use crate::rewrites::receipt;

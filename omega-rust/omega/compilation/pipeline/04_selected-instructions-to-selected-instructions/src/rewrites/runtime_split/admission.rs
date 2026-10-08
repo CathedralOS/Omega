@@ -30,8 +30,10 @@ pub(super) fn admit(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission, RuntimeSplitError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || RuntimeSplitError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            RuntimeSplitError::SourceMismatch
+        })?;
     let victim = function
         .virtual_registers
         .iter()
@@ -310,7 +312,12 @@ fn charge(
         .and_then(|total| total.checked_add(uses.checked_mul(2)?))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeSplitError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || RuntimeSplitError::IdentityOverflow, || RuntimeSplitError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || RuntimeSplitError::IdentityOverflow,
+        || RuntimeSplitError::WorkBudgetExceeded,
+    )?;
     Ok(())
 }
 

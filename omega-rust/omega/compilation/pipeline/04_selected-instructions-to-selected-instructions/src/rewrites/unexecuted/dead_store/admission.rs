@@ -78,13 +78,17 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
-use selected_instructions::{     FrameStorageSlotId,  SelectedBlockId,  SelectedFunction,  SelectedInstruction,      SelectedInstructionId,  SelectedInstructionKind,  SelectedMemoryAccess,  SelectedMemoryAccessRole,      SelectedStructuralTransport,  SelectedSuccessor,  terminator_instruction };
+use selected_instructions::{
+    FrameStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, terminator_instruction,
+};
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::DeadStoreEliminationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_successors};
+use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
@@ -182,8 +186,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, DeadStoreEliminationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || DeadStoreEliminationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            DeadStoreEliminationError::SourceMismatch
+        })?;
     let (block_index, store_index) = function
         .blocks
         .iter()
@@ -539,7 +545,12 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(DeadStoreEliminationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || DeadStoreEliminationError::IdentityOverflow, || DeadStoreEliminationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || DeadStoreEliminationError::IdentityOverflow,
+        || DeadStoreEliminationError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         function,
         block_index,
@@ -658,7 +669,6 @@ fn byte_span_store_shape(
     }
     Ok(())
 }
-
 
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
 /// the custody the packed store's dropped scratch requires. The operand
@@ -981,7 +991,10 @@ fn covering_source(
             if !write_role_covers_subject(row.role, dead.storage, dead.place, structural_places) {
                 return Err(reject());
             }
-            (0, super::zero_fill_count(instruction, function, environment)?)
+            (
+                0,
+                super::zero_fill_count(instruction, function, environment)?,
+            )
         }
         _ => return Err(reject()),
     };
@@ -999,7 +1012,6 @@ fn covering_source(
     }
     Ok(())
 }
-
 
 /// The `CopyBytes` covering route: a `WriteByteSpan` row claims `length`
 /// bytes at its fixed `byte_offset`, but the instruction really writes the

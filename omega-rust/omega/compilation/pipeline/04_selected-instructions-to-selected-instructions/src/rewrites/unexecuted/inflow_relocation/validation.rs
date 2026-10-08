@@ -19,6 +19,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::{InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{terminator_successors, transport_conflict};
+use crate::rewrites::receipt;
 use crate::rewrites::window_hazards::{
     block_scan_surface, coupled, has_call_contract, register_writes, schedulable, surface,
 };
@@ -54,13 +55,8 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, InflowRelocationError> {
-    let derived = super::derive_inflow_span(
-        source,
-        function_index,
-        member,
-        destination,
-        environment,
-    )?;
+    let derived =
+        super::derive_inflow_span(source, function_index, member, destination, environment)?;
     let plan = derived.plan;
     let function = derived.function;
     let block_index = derived.block_index;
@@ -171,7 +167,12 @@ fn reconstruct<'source>(
             total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
         })
         .ok_or(InflowRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || InflowRelocationError::IdentityOverflow, || InflowRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || InflowRelocationError::IdentityOverflow,
+        || InflowRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Reconstructed {
         function,
         block_index,
@@ -227,12 +228,7 @@ pub fn validate_inflow_relocation(
         return Err(InflowRelocationError::ReplayMismatch);
     }
     Ok(ValidatedInflowRelocation {
-        receipt: InflowRelocationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(InflowRelocationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

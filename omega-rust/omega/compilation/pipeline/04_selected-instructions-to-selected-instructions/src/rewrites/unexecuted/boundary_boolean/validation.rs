@@ -34,6 +34,7 @@ use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
     reaching_event,
 };
+use crate::rewrites::receipt;
 
 /// What the pole operand forces on the reader's predicate over
 /// `left - right`, in the validator's own record: the same two outcomes
@@ -137,8 +138,10 @@ fn reconstruct<'source>(
     materialization: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, BoundaryBooleanError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || BoundaryBooleanError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            BoundaryBooleanError::SourceMismatch
+        })?;
     let (block_index, materialization_index) = function
         .blocks
         .iter()
@@ -435,12 +438,7 @@ pub fn validate_boundary_boolean_fold(
         return Err(BoundaryBooleanError::ReplayMismatch);
     }
     Ok(ValidatedBoundaryBoolean {
-        receipt: BoundaryBooleanReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(BoundaryBooleanReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

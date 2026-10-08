@@ -18,13 +18,12 @@ use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-};
+use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::receipt;
 
 /// Build the function the contract demands from the validator's own
 /// record: the named store moved from its source position to the proven
@@ -33,7 +32,9 @@ use crate::ValidatedSelectedAnalysis;
 /// settlements shifted over the inserted ordinal. The producer's
 /// `rewrite` is not consulted; both sides derive the same function from
 /// the source alone.
-fn expect(reconstructed: &super::Reconstructed<'_>) -> Result<SelectedFunction, StoreMutationMotionError> {
+fn expect(
+    reconstructed: &super::Reconstructed<'_>,
+) -> Result<SelectedFunction, StoreMutationMotionError> {
     let mut expected = reconstructed.function.clone();
     expected.boundary_settlements = super::moved_boundary_settlements(
         reconstructed.function,
@@ -118,12 +119,7 @@ pub fn validate_store_mutation_motion(
         return Err(StoreMutationMotionError::ReplayMismatch);
     }
     Ok(ValidatedStoreMutationMotion {
-        receipt: StoreMutationMotionReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(StoreMutationMotionReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

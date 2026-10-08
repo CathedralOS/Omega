@@ -137,7 +137,6 @@ impl std::fmt::Display for CommutingRelocationError {
 
 impl std::error::Error for CommutingRelocationError {}
 
-
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the admitted run's and destination's coordinates inside
 /// their block. It shares no state with the producer's `admission`
@@ -155,7 +154,6 @@ struct Reconstructed<'source> {
     /// order, with the destination always outside the run.
     destination_index: usize,
 }
-
 
 /// Reconstruct the legality of relocating the run `first_member` and
 /// `last_member` bound to `destination` from first principles: locate
@@ -176,8 +174,10 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, CommutingRelocationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || CommutingRelocationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            CommutingRelocationError::SourceMismatch
+        })?;
     let (block_index, first_index) = function
         .blocks
         .iter()
@@ -300,7 +300,12 @@ fn reconstruct<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .ok_or(CommutingRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || CommutingRelocationError::IdentityOverflow, || CommutingRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || CommutingRelocationError::IdentityOverflow,
+        || CommutingRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Reconstructed {
         function,
         block_index,

@@ -5,7 +5,6 @@ mod conflicts;
 mod indexes;
 mod placement;
 
-
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::ValidatedPhysicalRegisterModel;
 

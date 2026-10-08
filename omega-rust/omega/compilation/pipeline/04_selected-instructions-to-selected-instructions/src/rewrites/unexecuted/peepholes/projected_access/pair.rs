@@ -48,9 +48,7 @@ use selected_instructions::{
     SelectedInstructionKind,
 };
 
-use crate::analyses::machine_effects::{
-    machine_alternative_is_transparent, machine_semantic_kind,
-};
+use crate::analyses::machine_effects::{machine_alternative_is_transparent, machine_semantic_kind};
 
 /// The operand relationship the rewrite asserts: how the producer's
 /// projected register reaches the consumer's pointer operand and what the
@@ -357,6 +355,8 @@ fn isolated_projection(declaration: &MachineEffectDeclaration) -> bool {
         && declaration.barrier == MachineBarrier::None
         && declaration.call == MachineCallEffect::NoneV1
         && declaration.cleanup == MachineCleanupEffect::NoneV1
-        && declaration.alternatives.iter().all(machine_alternative_is_transparent)
+        && declaration
+            .alternatives
+            .iter()
+            .all(machine_alternative_is_transparent)
 }
-

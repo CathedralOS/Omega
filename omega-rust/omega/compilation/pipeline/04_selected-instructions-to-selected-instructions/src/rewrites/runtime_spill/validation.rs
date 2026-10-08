@@ -28,8 +28,8 @@ use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedBoundarySettlementPayload,
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionPlan, SelectedLocalStorageSlot,
-    SelectedStructuralTransport, SelectedValueTransport,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedStructuralTransport, SelectedValueTransport, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::ScalarType;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -37,10 +37,10 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::{
     BitsConversion, RuntimeSpillError, RuntimeSpillReceipt, RuntimeSpillSpanPolicy,
     StorageDefinition, StoragePosition, StructuralArgumentUse, ValidatedRuntimeSpill,
-    VictimLineage, control_mut, control_successors_mut, slot,
-    stored_transport_size,
+    VictimLineage, control_mut, control_successors_mut, slot, stored_transport_size,
 };
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::receipt;
 
 /// The validator's own reconstruction of the spill the contract permits: the
 /// admitted victim, its proven definitions, the use blocks the spill serves,
@@ -410,7 +410,7 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     span_policy: RuntimeSpillSpanPolicy,
     budget: OptimizationWorkBudget,
-) -> Result<Reconstructed<'source>, RuntimeSpillError> { 
+) -> Result<Reconstructed<'source>, RuntimeSpillError> {
     let derived = super::derive_runtime_spill(
         source,
         function_index,
@@ -920,12 +920,7 @@ pub(crate) fn seal_runtime_spill_with_span_policy(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
     Ok(ValidatedRuntimeSpill {
-        receipt: RuntimeSpillReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(RuntimeSpillReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

@@ -118,7 +118,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, all_edges, plain_edge};
+use crate::rewrites::block_edges::{all_edges, function_at, plain_edge};
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{RunRelocationRejection, schedulable, speculatable};
 
@@ -199,19 +199,17 @@ pub(super) fn confluence_scan_base(
         })
         .sum();
     let block_scan = crate::rewrites::window_hazards::block_scan_surface(function);
-    let scan = crate::rewrites::plan_instruction_scan(plan)
-        .and_then(|total| {
-            function.blocks.iter().try_fold(total, |total, candidate| {
-                candidate
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(
-                        selected_instructions::terminator_instruction(&candidate.terminator),
-                    ))
-                    .try_fold(total, |total, _| total.checked_add(1))
-            })
+    let scan = crate::rewrites::plan_instruction_scan(plan).and_then(|total| {
+        function.blocks.iter().try_fold(total, |total, candidate| {
+            candidate
+                .instructions
+                .iter()
+                .chain(std::iter::once(
+                    selected_instructions::terminator_instruction(&candidate.terminator),
+                ))
+                .try_fold(total, |total, _| total.checked_add(1))
         })
-?;
+    })?;
     Some((scan, run_locations, block_scan))
 }
 
@@ -233,11 +231,14 @@ pub(super) fn confluence_settle_steps(
             total.checked_add(block_scan.saturating_mul(run_locations.saturating_add(1)))
         })
         .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ConfluenceRelocationError::IdentityOverflow, || ConfluenceRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ConfluenceRelocationError::IdentityOverflow,
+        || ConfluenceRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(())
 }
-
-
 
 /// The shared derivation of the run's confluence legality both the
 /// admission and the validator prove: the run's contiguous span in its
@@ -317,7 +318,7 @@ fn derive_confluence_span<'source>(
     else {
         return Err(ConfluenceRelocationError::UnsupportedPair);
     };
-use crate::rewrites::block_edges::function_at;
+    use crate::rewrites::block_edges::function_at;
     // The crossed edge must be a plain semantic successor: case dispatch,
     // continuation, structural transfer, and per-edge fuel all carry
     // boundary effects this step does not cross. Structural bindings may

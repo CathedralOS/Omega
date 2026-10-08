@@ -19,7 +19,7 @@ use selected_instructions::{
     SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedMemoryAccessRole, SelectedStructuralTransport,
     SelectedSuccessor, SelectedTerminator, SelectedValueTransport, VirtualRegisterId,
-    VirtualRegisterOrigin, terminator_instruction_mut
+    VirtualRegisterOrigin, terminator_instruction_mut,
 };
 
 use super::CopyRemovalError;
@@ -47,7 +47,6 @@ pub(super) struct CopyUse {
     pub position: usize,
     pub operand: usize,
 }
-
 
 /// The instruction at a source-ordinal position: a body index, or the
 /// terminator's carried instruction at the position equal to the body length.
@@ -191,8 +190,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, CopyRemovalError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || CopyRemovalError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            CopyRemovalError::SourceMismatch
+        })?;
     let (block_index, copy_index) = function
         .blocks
         .iter()
@@ -412,7 +413,12 @@ pub(super) fn admit<'source>(
                 .checked_add(function.calls.len())
         })
         .ok_or(CopyRemovalError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || CopyRemovalError::IdentityOverflow, || CopyRemovalError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || CopyRemovalError::IdentityOverflow,
+        || CopyRemovalError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         function,
         block_index,

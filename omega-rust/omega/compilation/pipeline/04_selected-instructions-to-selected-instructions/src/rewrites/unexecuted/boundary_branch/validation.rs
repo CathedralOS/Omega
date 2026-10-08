@@ -24,20 +24,20 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator, terminator_instruction
+    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator,
+    terminator_instruction,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
-    BoundaryBranchError, BoundaryBranchReceipt, Outcome,
-    ValidatedBoundaryBranch, branch_domain, outcome,
+    BoundaryBranchError, BoundaryBranchReceipt, Outcome, ValidatedBoundaryBranch, branch_domain,
+    outcome,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::condition_state::{
-    adjacency, backward_cone, boundary_operands, entry_index, instruction_at,
-    reaching_event,
+    adjacency, backward_cone, boundary_operands, entry_index, instruction_at, reaching_event,
 };
-
+use crate::rewrites::receipt;
 
 /// The validator's own reconstruction of the fold the contract permits:
 /// the admitted branch's block, identity, and emitted provenance, the
@@ -60,8 +60,6 @@ struct Reconstructed<'source> {
     jump_surface: usize,
     compare_defs: usize,
 }
-
-
 
 /// The family's own mapping of a shared condition-state rejection onto
 /// its error vocabulary. The producer's `From` implementation lives in
@@ -88,8 +86,10 @@ fn reconstruct<'source>(
     branch: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, BoundaryBranchError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || BoundaryBranchError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            BoundaryBranchError::SourceMismatch
+        })?;
     // The branch names its terminator-carried instruction: the block whose
     // terminator instruction carries the id holds the read position at the
     // end of its body stream.
@@ -192,8 +192,7 @@ fn reconstruct<'source>(
     }
     let (left, right) =
         boundary_operands(function, compare_instruction).map_err(BoundaryBranchError::from)?;
-    let outcome =
-        outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
+    let outcome = outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
     let row = match outcome {
         Outcome::Constant(_) => {
             // The rebuilt terminator publishes the jump row's surface
@@ -475,12 +474,7 @@ pub fn validate_boundary_branch_fold(
         return Err(BoundaryBranchError::ReplayMismatch);
     }
     Ok(ValidatedBoundaryBranch {
-        receipt: BoundaryBranchReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(BoundaryBranchReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

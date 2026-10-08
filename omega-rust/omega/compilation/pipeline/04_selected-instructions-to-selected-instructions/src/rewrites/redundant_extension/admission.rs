@@ -145,8 +145,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, RedundantExtensionError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || RedundantExtensionError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            RedundantExtensionError::SourceMismatch
+        })?;
     let (block_index, extension_index) = function
         .blocks
         .iter()
@@ -297,7 +299,12 @@ pub(super) fn admit<'source>(
             })
         })
         .ok_or(RedundantExtensionError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || RedundantExtensionError::IdentityOverflow, || RedundantExtensionError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || RedundantExtensionError::IdentityOverflow,
+        || RedundantExtensionError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         block_index,
         extension_index,

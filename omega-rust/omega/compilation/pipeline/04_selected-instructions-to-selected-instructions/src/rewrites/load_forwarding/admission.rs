@@ -91,14 +91,14 @@ use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
     SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction
+    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::StoredLoadForwardingError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_successors};
+use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
@@ -178,8 +178,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, StoredLoadForwardingError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || StoredLoadForwardingError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            StoredLoadForwardingError::SourceMismatch
+        })?;
     let (block_index, load_index) = function
         .blocks
         .iter()
@@ -677,7 +679,12 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(StoredLoadForwardingError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || StoredLoadForwardingError::IdentityOverflow, || StoredLoadForwardingError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || StoredLoadForwardingError::IdentityOverflow,
+        || StoredLoadForwardingError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         block_index,
         load_index,

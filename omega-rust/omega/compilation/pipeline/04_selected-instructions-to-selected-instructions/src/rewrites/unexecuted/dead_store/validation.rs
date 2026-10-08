@@ -17,7 +17,12 @@ use std::sync::Arc;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
-use selected_instructions::{     FrameStorageSlotId,  SelectedBlockId,  SelectedCasePayloadTransport,  SelectedFunction,      SelectedInstruction,  SelectedInstructionId,  SelectedInstructionKind,  SelectedInstructionPlan,      SelectedMemoryAccess,  SelectedMemoryAccessRole,  SelectedStructuralTransport,  SelectedSuccessor,      SelectedValueTransport,  terminator_instruction };
+use selected_instructions::{
+    FrameStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
+    SelectedValueTransport, terminator_instruction,
+};
 use semantic_vocabulary::PlaceId;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -26,8 +31,9 @@ use super::{
     DeadStoreEliminationError, DeadStoreEliminationReceipt, ValidatedDeadStoreElimination,
 };
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_successors};
+use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::condition_state::materialized_bits;
+use crate::rewrites::receipt;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
     local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
@@ -366,7 +372,6 @@ fn byte_span_row(
     Ok(())
 }
 
-
 /// Whether `register`'s only occurrence in `function` is one `Def` operand —
 /// the custody a dropped early-clobber scratch requires. The operand itself
 /// is that one occurrence: any other operand position, terminator operand,
@@ -634,7 +639,10 @@ fn covers_dead(
             ) {
                 return Err(reject());
             }
-            (0, super::zero_fill_count(instruction, function, environment)?)
+            (
+                0,
+                super::zero_fill_count(instruction, function, environment)?,
+            )
         }
         _ => return Err(reject()),
     };
@@ -652,7 +660,6 @@ fn covers_dead(
     }
     Ok(())
 }
-
 
 /// The `CopyBytes` covering route: a `WriteByteSpan` row claims `length`
 /// bytes at its fixed `byte_offset`, but the instruction really writes the
@@ -921,8 +928,10 @@ fn reconstruct<'source>(
     store: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, DeadStoreEliminationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || DeadStoreEliminationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            DeadStoreEliminationError::SourceMismatch
+        })?;
     let (block_index, store_index) = function
         .blocks
         .iter()
@@ -1395,12 +1404,7 @@ pub fn validate_dead_store_elimination(
         return Err(DeadStoreEliminationError::ReplayMismatch);
     }
     Ok(ValidatedDeadStoreElimination {
-        receipt: DeadStoreEliminationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(DeadStoreEliminationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

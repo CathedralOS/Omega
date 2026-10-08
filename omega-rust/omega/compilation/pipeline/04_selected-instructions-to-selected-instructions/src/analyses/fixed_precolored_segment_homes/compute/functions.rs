@@ -6,9 +6,9 @@ use register_homes::{
 };
 use selected_instructions::FunctionLiveRanges;
 
-use super::{conflicts, placement};
 use super::super::domains;
 use super::super::work::Work;
+use super::{conflicts, placement};
 
 pub(super) fn derive(
     requirements: &[FunctionFixedPrecoloredSplitRequirements],

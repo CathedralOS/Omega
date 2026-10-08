@@ -11,21 +11,20 @@
 //! the whole-function work all charge into the caller's budget. The replay
 //! in `replay` re-derives all of it without the table.
 
-use crate::rewrites::operand_probes::{effect_declaration,last_definition_before};
+use crate::rewrites::operand_probes::{effect_declaration, last_definition_before};
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineSemanticKind, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, ValidatedMachineEffectCatalog,
-    VirtualRegisterId,
+    MachineSemanticKind, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, ValidatedMachineEffectCatalog, VirtualRegisterId,
 };
 
 use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::{function_at, block_instructions};
+use crate::rewrites::block_edges::{block_instructions, function_at};
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
@@ -193,7 +192,7 @@ pub(super) fn admit<'source>(
     let [source_operand, destination_operand] = producer_instruction.operands.as_slice() else {
         return Err(CopiedCallOperandError::UnsupportedProducer);
     };
-use crate::rewrites::block_edges::function_at;
+    use crate::rewrites::block_edges::function_at;
     if source_operand.operand != 0
         || source_operand.access != RegisterOperandAccess::Use
         || destination_operand.operand != 1
@@ -333,7 +332,12 @@ use crate::rewrites::block_edges::function_at;
                 .checked_add(block.instructions.len())
         })
         .ok_or(CopiedCallOperandError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || CopiedCallOperandError::IdentityOverflow, || CopiedCallOperandError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || CopiedCallOperandError::IdentityOverflow,
+        || CopiedCallOperandError::WorkBudgetExceeded,
+    )?;
     Ok(AdmittedPair {
         function,
         block_index,

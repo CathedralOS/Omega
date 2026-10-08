@@ -2,15 +2,15 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterClassId, RegisterInstructionConstraint};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use semantic_vocabulary::ScalarType;
 
 use super::{
-    BitsConversion, RuntimeSpillError, StorageDefinition, StructuralArgumentUse,
-    VictimLineage, slot,
+    BitsConversion, RuntimeSpillError, StorageDefinition, StructuralArgumentUse, VictimLineage,
+    slot,
 };
 use crate::ValidatedSelectedAnalysis;
 
@@ -97,7 +97,7 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     span_policy: super::RuntimeSpillSpanPolicy,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, RuntimeSpillError> { 
+) -> Result<Admission<'source>, RuntimeSpillError> {
     let derived = super::derive_runtime_spill(
         source,
         function_index,

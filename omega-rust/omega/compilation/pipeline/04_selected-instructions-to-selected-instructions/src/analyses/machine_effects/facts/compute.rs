@@ -7,9 +7,8 @@ use register_model::{
 use selected_instructions::{
     MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineSemanticKind, SelectedConstraintKeys, SelectedFunction,
-    SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
-    ValidatedMachineEffectCatalog,
+    MachineSemanticKind, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
+    SelectedInstructionKind, SelectedTerminator, ValidatedMachineEffectCatalog,
 };
 
 use crate::MachineEffectError;

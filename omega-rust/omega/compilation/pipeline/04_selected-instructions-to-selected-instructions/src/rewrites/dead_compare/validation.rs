@@ -18,6 +18,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::{DeadCompareError, DeadCompareReceipt, ValidatedDeadCompare};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::terminator_successors;
+use crate::rewrites::receipt;
 
 /// The validation work this audit performs, in the measured-step contract
 /// the family publishes: one step per block plus one per instruction
@@ -74,14 +75,7 @@ pub(crate) fn seal_dead_compare(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedDeadCompare, DeadCompareError> {
     Ok(ValidatedDeadCompare {
-        receipt: DeadCompareReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-            function_index,
-            compare,
-        },
+        receipt: receipt!(DeadCompareReceipt, source, proposed, function_index: function_index, compare: compare),
         transformed: Arc::new(proposed),
     })
 }

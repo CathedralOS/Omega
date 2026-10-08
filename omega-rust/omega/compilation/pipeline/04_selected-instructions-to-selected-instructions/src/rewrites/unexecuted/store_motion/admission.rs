@@ -108,7 +108,6 @@ pub(super) struct Admission<'source> {
     pub insert_index: usize,
 }
 
-
 pub(super) fn admit<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,

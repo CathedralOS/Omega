@@ -39,13 +39,8 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission, ArmRelocationError> {
-    let derived = super::derive_arm_relocation(
-        source,
-        function_index,
-        member,
-        destination,
-        environment,
-    )?;
+    let derived =
+        super::derive_arm_relocation(source, function_index, member, destination, environment)?;
     // The scan walks every block body and terminator instruction once to
     // locate the member, and again with successor edges to find the arm's
     // predecessor edges; the window audit walks the member's surface
@@ -62,7 +57,12 @@ pub(super) fn admit<'source>(
         &|_| 0,
     )
     .ok_or(ArmRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ArmRelocationError::IdentityOverflow, || ArmRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ArmRelocationError::IdentityOverflow,
+        || ArmRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         block_index: derived.block_index,
         member_index: derived.member_index,

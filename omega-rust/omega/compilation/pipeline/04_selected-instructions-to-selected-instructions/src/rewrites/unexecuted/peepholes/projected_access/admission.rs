@@ -11,14 +11,13 @@
 //! whole-function work all charge into the caller's budget. The replay in
 //! `replay` re-derives all of it without the table.
 
-use crate::rewrites::operand_probes::{effect_declaration,last_definition_before};
+use crate::rewrites::operand_probes::{effect_declaration, last_definition_before};
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, ValidatedMachineEffectCatalog,
-    VirtualRegisterId,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    ValidatedMachineEffectCatalog, VirtualRegisterId,
 };
 
 use super::ProjectedAccessError;
@@ -283,7 +282,7 @@ pub(super) fn admit<'source>(
         },
         _ => return Err(ProjectedAccessError::UnsupportedConsumer),
     };
-use crate::rewrites::block_edges::function_at;
+    use crate::rewrites::block_edges::function_at;
     // The declared effect surface, checked against the bound catalog: the
     // retained producer is fully effect-isolated while the access row —
     // the consumer's and the rewritten form's alike — carries the
@@ -310,7 +309,12 @@ use crate::rewrites::block_edges::function_at;
                 .checked_add(block.instructions.len())
         })
         .ok_or(ProjectedAccessError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ProjectedAccessError::IdentityOverflow, || ProjectedAccessError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ProjectedAccessError::IdentityOverflow,
+        || ProjectedAccessError::WorkBudgetExceeded,
+    )?;
     Ok(AdmittedPair {
         function,
         block_index,

@@ -45,18 +45,19 @@ pub(super) fn replay_apply(
                 function: function_index,
                 instruction: instruction.0,
             })?;
-        let site_instruction = if selected_instructions::terminator_instruction(&block.terminator).id == instruction {
-            selected_instructions::terminator_instruction_mut(&mut block.terminator)
-        } else {
-            block
-                .instructions
-                .iter_mut()
-                .find(|candidate| candidate.id == instruction)
-                .ok_or(FixedViewCopyError::MissingDestination {
-                    function: function_index,
-                    instruction: instruction.0,
-                })?
-        };
+        let site_instruction =
+            if selected_instructions::terminator_instruction(&block.terminator).id == instruction {
+                selected_instructions::terminator_instruction_mut(&mut block.terminator)
+            } else {
+                block
+                    .instructions
+                    .iter_mut()
+                    .find(|candidate| candidate.id == instruction)
+                    .ok_or(FixedViewCopyError::MissingDestination {
+                        function: function_index,
+                        instruction: instruction.0,
+                    })?
+            };
         site_instruction
             .operands
             .iter_mut()
@@ -78,7 +79,9 @@ pub(super) fn replay_apply(
     // The copy sits immediately before the fixed-use instruction: at the end
     // of the block's instruction list for a terminator site, or at the site's
     // own position for an ordinary instruction.
-    let insertion_index = if selected_instructions::terminator_instruction(&block.terminator).id == copy.before_instruction {
+    let insertion_index = if selected_instructions::terminator_instruction(&block.terminator).id
+        == copy.before_instruction
+    {
         block.instructions.len()
     } else {
         block
@@ -135,7 +138,6 @@ pub(super) fn replay_apply(
     );
     Ok(())
 }
-
 
 fn replay_operand(
     constraint: &RegisterOperandConstraint,

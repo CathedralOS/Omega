@@ -12,9 +12,7 @@ use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-};
+use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
@@ -22,10 +20,8 @@ use super::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::transport_conflict;
-use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, schedulable,
-    surface,
-};
+use crate::rewrites::receipt;
+use crate::rewrites::window_hazards::{coupled, has_call_contract, schedulable, surface};
 
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the run's block and contiguous span, the join the crossed
@@ -156,9 +152,8 @@ fn reconstruct<'source>(
     // surface against each crossed position's; the dead-path audit
     // rescans a block's stream and edge surfaces only while its entry
     // set grows — at most once per member location per block.
-    let (scan, run_locations, block_scan) =
-        super::confluence_scan_base(plan, function, run)
-            .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
+    let (scan, run_locations, block_scan) = super::confluence_scan_base(plan, function, run)
+        .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
     let total = Some(scan)
         .and_then(|total| total.checked_add(successor.bindings.len().saturating_mul(run.len())))
         .and_then(|total| {
@@ -242,12 +237,7 @@ pub fn validate_confluence_relocation(
         return Err(ConfluenceRelocationError::ReplayMismatch);
     }
     Ok(ValidatedConfluenceRelocation {
-        receipt: ConfluenceRelocationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(ConfluenceRelocationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

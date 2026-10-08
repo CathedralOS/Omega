@@ -40,7 +40,11 @@ pub(super) fn replay_transformation(
                     .instructions
                     .iter()
                     .map(|instruction| instruction.id.0)
-                    .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator).id.0))
+                    .chain(std::iter::once(
+                        selected_instructions::terminator_instruction(&block.terminator)
+                            .id
+                            .0,
+                    ))
             })
             .collect::<Vec<_>>();
         instruction_ids.sort_unstable();

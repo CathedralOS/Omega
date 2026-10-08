@@ -224,8 +224,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, DeadCompareError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || DeadCompareError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            DeadCompareError::SourceMismatch
+        })?;
     let (block_index, compare_index) = function
         .blocks
         .iter()
@@ -361,7 +363,12 @@ pub(super) fn admit<'source>(
         })
         .and_then(|total| total.checked_add(dead_audit))
         .ok_or(DeadCompareError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || DeadCompareError::IdentityOverflow, || DeadCompareError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || DeadCompareError::IdentityOverflow,
+        || DeadCompareError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         function,
         block_index,

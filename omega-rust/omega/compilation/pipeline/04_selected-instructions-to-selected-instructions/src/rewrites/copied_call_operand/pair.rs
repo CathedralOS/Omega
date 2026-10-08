@@ -342,7 +342,10 @@ fn isolated_copy(declaration: &MachineEffectDeclaration) -> bool {
         && declaration.barrier == MachineBarrier::None
         && declaration.call == MachineCallEffect::NoneV1
         && declaration.cleanup == MachineCleanupEffect::NoneV1
-        && declaration.alternatives.iter().all(machine_alternative_is_transparent)
+        && declaration
+            .alternatives
+            .iter()
+            .all(machine_alternative_is_transparent)
 }
 
 /// The encoded surface a copy alternative must carry: no memory access,

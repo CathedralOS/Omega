@@ -209,9 +209,9 @@ pub(super) fn origin_carries(
     match origin {
         selected_instructions::VirtualRegisterOrigin::EntryParameter { source_value, .. }
         | selected_instructions::VirtualRegisterOrigin::BlockParameter { source_value, .. }
-        | selected_instructions::VirtualRegisterOrigin::InstructionResult { source_value, .. } => {
-            source_value == value
-        }
+        | selected_instructions::VirtualRegisterOrigin::InstructionResult {
+            source_value, ..
+        } => source_value == value,
         _ => false,
     }
 }
@@ -233,8 +233,7 @@ pub(super) fn zero_fill_count(
         .operands
         .iter()
         .find(|operand| {
-            operand.operand == 1
-                && operand.access == register_model::RegisterOperandAccess::Use
+            operand.operand == 1 && operand.access == register_model::RegisterOperandAccess::Use
         })
         .ok_or_else(reject)?
         .virtual_register;
@@ -245,4 +244,3 @@ pub(super) fn zero_fill_count(
     }
     u32::try_from(written).map_err(|_| reject())
 }
-

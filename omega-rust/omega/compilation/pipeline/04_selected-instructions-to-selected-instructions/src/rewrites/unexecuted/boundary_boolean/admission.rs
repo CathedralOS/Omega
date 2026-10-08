@@ -50,8 +50,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, BoundaryBooleanError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || BoundaryBooleanError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            BoundaryBooleanError::SourceMismatch
+        })?;
     let (block_index, materialization_index) = function
         .blocks
         .iter()
@@ -234,7 +236,12 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || BoundaryBooleanError::IdentityOverflow, || BoundaryBooleanError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || BoundaryBooleanError::IdentityOverflow,
+        || BoundaryBooleanError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         function,
         block_index,

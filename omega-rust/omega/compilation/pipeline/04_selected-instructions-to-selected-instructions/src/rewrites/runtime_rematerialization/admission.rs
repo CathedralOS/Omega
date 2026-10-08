@@ -36,8 +36,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, RuntimeRematerializationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || RuntimeRematerializationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            RuntimeRematerializationError::SourceMismatch
+        })?;
     let victim = function
         .virtual_registers
         .iter()
@@ -250,7 +252,12 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(uses.checked_mul(2)?))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || RuntimeRematerializationError::IdentityOverflow, || RuntimeRematerializationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || RuntimeRematerializationError::IdentityOverflow,
+        || RuntimeRematerializationError::WorkBudgetExceeded,
+    )?;
     require_dominated_uses(function, block_index, &use_blocks).map_err(|error| match error {
         crate::RuntimeSpillError::SourceMismatch => RuntimeRematerializationError::SourceMismatch,
         _ => RuntimeRematerializationError::UnsupportedUse,

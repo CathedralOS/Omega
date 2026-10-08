@@ -39,17 +39,17 @@ pub(crate) fn seal_stored_load_forwarding(
     canonical.extend_from_slice(&(function_index as u64).to_le_bytes());
     canonical.extend_from_slice(&load.0.to_le_bytes());
     Ok(ValidatedStoredLoadForwarding {
-        receipt: StoredLoadForwardingReceipt {
+        receipt: receipt!(
+            StoredLoadForwardingReceipt,
+            source,
+            proposed,
             identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
-                &canonical,
+                &canonical
             ),
-            function_index,
-            load,
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+            function_index: function_index,
+            load: load
+        ),
         transformed: Arc::new(proposed),
     })
 }
+use crate::rewrites::receipt;

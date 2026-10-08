@@ -12,18 +12,19 @@
 //! complete source by content.
 
 use super::retained_access;
-use crate::rewrites::operand_probes::{effect_declaration,last_definition_before};
+use crate::rewrites::operand_probes::{effect_declaration, last_definition_before};
+use crate::rewrites::receipt;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
- MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, ValidatedMachineEffectCatalog,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior, MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    ValidatedMachineEffectCatalog,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -250,7 +251,7 @@ pub fn validate_projected_access_fold(
         },
         _ => return Err(ProjectedAccessError::UnsupportedConsumer),
     };
-use crate::rewrites::block_edges::function_at;
+    use crate::rewrites::block_edges::function_at;
     // The effect surface is restated on the bound catalog: the retained
     // producer is the isolated projection and the access row carries its
     // dereference — memory effect, fault surface, operand roster, unchanged
@@ -301,14 +302,14 @@ use crate::rewrites::block_edges::function_at;
                 .checked_add(block.instructions.len())
         })
         .ok_or(ProjectedAccessError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ProjectedAccessError::IdentityOverflow, || ProjectedAccessError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ProjectedAccessError::IdentityOverflow,
+        || ProjectedAccessError::WorkBudgetExceeded,
+    )?;
     Ok(ValidatedProjectedAccess {
-        receipt: ProjectedAccessReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(ProjectedAccessReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }
@@ -349,5 +350,3 @@ fn isolated_projection(declaration: &MachineEffectDeclaration) -> bool {
                 && encoded.implicit_unit_clobbers.is_empty()
         })
 }
-
-

@@ -114,8 +114,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, AddressFoldError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || AddressFoldError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            AddressFoldError::SourceMismatch
+        })?;
     let (block_index, consumer_index) = function
         .blocks
         .iter()
@@ -307,7 +309,12 @@ pub(super) fn admit<'source>(
         .checked_add(block.instructions.len())
         .and_then(|total| total.checked_add(block.instructions.len()))
         .ok_or(AddressFoldError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || AddressFoldError::IdentityOverflow, || AddressFoldError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || AddressFoldError::IdentityOverflow,
+        || AddressFoldError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         function,
         block_index,

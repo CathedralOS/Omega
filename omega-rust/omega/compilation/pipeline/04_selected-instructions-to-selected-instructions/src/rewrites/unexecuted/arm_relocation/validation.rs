@@ -30,6 +30,7 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 use super::{ArmRelocationError, ArmRelocationReceipt, ValidatedArmRelocation};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::edge_surface;
+use crate::rewrites::receipt;
 use crate::rewrites::window_hazards::{block_scan_surface, register_writes, surface};
 
 /// The validator's own reconstruction of the relocation the contract
@@ -57,13 +58,8 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, ArmRelocationError> {
-    let derived = super::derive_arm_relocation(
-        source,
-        function_index,
-        member,
-        destination,
-        environment,
-    )?;
+    let derived =
+        super::derive_arm_relocation(source, function_index, member, destination, environment)?;
     let plan = derived.plan;
     let function = derived.function;
     let member_instruction = derived.member_instruction;
@@ -118,7 +114,12 @@ fn reconstruct<'source>(
             total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
         })
         .ok_or(ArmRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ArmRelocationError::IdentityOverflow, || ArmRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ArmRelocationError::IdentityOverflow,
+        || ArmRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Reconstructed {
         function,
         block_index: derived.block_index,
@@ -174,12 +175,7 @@ pub fn validate_arm_relocation(
         return Err(ArmRelocationError::ReplayMismatch);
     }
     Ok(ValidatedArmRelocation {
-        receipt: ArmRelocationReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
+        receipt: receipt!(ArmRelocationReceipt, source, proposed),
         transformed: Arc::new(proposed),
     })
 }

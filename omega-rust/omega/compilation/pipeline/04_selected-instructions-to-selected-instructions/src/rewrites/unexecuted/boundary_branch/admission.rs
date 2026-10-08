@@ -14,7 +14,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
     SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedTerminator, terminator_instruction
+    SelectedInstructionProvenance, SelectedTerminator, terminator_instruction,
 };
 
 use super::{BoundaryBranchError, Outcome, branch_domain, outcome};
@@ -56,8 +56,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, BoundaryBranchError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || BoundaryBranchError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            BoundaryBranchError::SourceMismatch
+        })?;
     // The branch names its terminator-carried instruction: the block whose
     // terminator instruction carries the id holds the read position at the
     // end of its body stream.
@@ -293,7 +295,12 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(BoundaryBranchError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || BoundaryBranchError::IdentityOverflow, || BoundaryBranchError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || BoundaryBranchError::IdentityOverflow,
+        || BoundaryBranchError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         function,
         block_index,

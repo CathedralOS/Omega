@@ -61,8 +61,10 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission<'source>, RedundantCompareError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || RedundantCompareError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            RedundantCompareError::SourceMismatch
+        })?;
     let (block_index, compare_index) = function
         .blocks
         .iter()
@@ -194,8 +196,7 @@ pub(super) fn admit<'source>(
             )?;
         }
     }
-    if super::measured_steps(plan, function, &successors, units.len())?
-        > budget.validation_steps()
+    if super::measured_steps(plan, function, &successors, units.len())? > budget.validation_steps()
     {
         return Err(RedundantCompareError::WorkBudgetExceeded);
     }

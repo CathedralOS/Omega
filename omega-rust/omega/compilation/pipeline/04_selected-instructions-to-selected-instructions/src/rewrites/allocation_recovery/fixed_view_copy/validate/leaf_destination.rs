@@ -15,7 +15,9 @@ pub(super) fn replay_leaf_block(
     let block = function
         .blocks
         .iter()
-        .find(|block| selected_instructions::terminator_instruction(&block.terminator).id == instruction)
+        .find(|block| {
+            selected_instructions::terminator_instruction(&block.terminator).id == instruction
+        })
         .ok_or(FixedViewCopyError::MissingDestination {
             function: function_index,
             instruction: instruction.0,
@@ -62,7 +64,8 @@ pub(super) fn replay_site_block(
         .iter()
         .find(|block| {
             block.instructions.iter().any(|site| site.id == instruction)
-                || selected_instructions::terminator_instruction(&block.terminator).id == instruction
+                || selected_instructions::terminator_instruction(&block.terminator).id
+                    == instruction
         })
         .ok_or(FixedViewCopyError::MissingDestination {
             function: function_index,
@@ -86,7 +89,6 @@ pub(super) fn replay_site_block(
     }
     Ok(block.id)
 }
-
 
 /// Replay applies the same admission the producer's `is_i64` does:
 /// `CopyI64` preserves a 64-bit register bit-pattern without interpreting

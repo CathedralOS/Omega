@@ -162,8 +162,10 @@ pub(super) fn derive_interchange<'source>(
     use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
     use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable, surface};
 
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || InterchangeError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            InterchangeError::SourceMismatch
+        })?;
     let (block_index, earlier_first_index) = function
         .blocks
         .iter()
@@ -295,7 +297,12 @@ pub(super) fn derive_interchange<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .ok_or(InterchangeError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || InterchangeError::IdentityOverflow, || InterchangeError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || InterchangeError::IdentityOverflow,
+        || InterchangeError::WorkBudgetExceeded,
+    )?;
     Ok(InterchangeDerivation {
         function,
         block_index,
@@ -305,4 +312,3 @@ pub(super) fn derive_interchange<'source>(
         later_last_index,
     })
 }
-

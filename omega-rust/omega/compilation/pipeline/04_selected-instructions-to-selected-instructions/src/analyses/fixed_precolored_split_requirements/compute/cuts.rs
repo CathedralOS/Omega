@@ -1,6 +1,6 @@
 //! Fixed-use cut and legality-transition authentication indexes.
 
-use super::super::{site_key, site_point, SiteKey};
+use super::super::{SiteKey, site_key, site_point};
 use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterOperandAccess, RegisterViewId};
@@ -8,7 +8,6 @@ use register_model::{RegisterOperandAccess, RegisterViewId};
 use crate::FixedPrecoloredSplitRequirementError;
 use register_homes::{EntryFixedViewTransition, FixedPrecoloredInterval, VirtualPointLegality};
 use selected_instructions::VirtualFixedConstraintSite;
-
 
 pub(super) struct CutIndex<'a> {
     fixed: BTreeMap<(u32, u32), Vec<&'a FixedPrecoloredInterval>>,
@@ -178,5 +177,3 @@ impl<'a> CutIndex<'a> {
         }
     }
 }
-
-

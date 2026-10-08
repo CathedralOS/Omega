@@ -1,9 +1,8 @@
-use std::cmp::Reverse;
 use super::super::affinity_edges;
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::RegisterViewId;
-
 
 use crate::FixedPrecoloredSegmentHomeError;
 use register_homes::{
@@ -12,9 +11,9 @@ use register_homes::{
 };
 use selected_instructions::FunctionLiveRanges;
 
-use super::{conflicts::Conflicts};
 use super::super::domains::Domain;
 use super::super::work::Work;
+use super::conflicts::Conflicts;
 
 pub(super) fn assign(
     function: usize,

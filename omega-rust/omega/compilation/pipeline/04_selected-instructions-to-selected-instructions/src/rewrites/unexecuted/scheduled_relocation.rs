@@ -73,13 +73,14 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{CrossingDirection, RelocationCrossing, block_instructions, crossed_window,
-    edge_surface, terminator_successors,
+use crate::rewrites::block_edges::{
+    CrossingDirection, RelocationCrossing, block_instructions, crossed_window, edge_surface,
+    terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    admit_run_relocation, register_writes, schedulable, speculatable, surface,
-    RunRelocationRejection,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
+    surface,
 };
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
@@ -235,7 +236,10 @@ pub(super) fn rejection(rejection: RunRelocationRejection) -> ScheduledRelocatio
     }
 }
 
-pub(super) fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -> Option<usize> {
+pub(super) fn landing_position(
+    block: &SelectedBlock,
+    destination: SelectedInstructionId,
+) -> Option<usize> {
     block
         .instructions
         .iter()
@@ -249,7 +253,6 @@ pub(super) fn landing_position(block: &SelectedBlock, destination: SelectedInstr
 pub(super) fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {
     function.blocks.iter().position(|block| block.id == id)
 }
-
 
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the block the contiguous run vacates, the body positions it
@@ -328,8 +331,10 @@ fn reconstruct<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Reconstructed<'source>, ScheduledRelocationError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || ScheduledRelocationError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            ScheduledRelocationError::SourceMismatch
+        })?;
     let [first_member, ..] = members else {
         return Err(ScheduledRelocationError::UnsupportedPair);
     };
@@ -535,7 +540,12 @@ fn reconstruct<'source>(
             total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
         })
         .ok_or(ScheduledRelocationError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ScheduledRelocationError::IdentityOverflow, || ScheduledRelocationError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ScheduledRelocationError::IdentityOverflow,
+        || ScheduledRelocationError::WorkBudgetExceeded,
+    )?;
     Ok(Reconstructed {
         function,
         block_index,

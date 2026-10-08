@@ -51,7 +51,10 @@ pub struct ValidatedRuntimeRematerialization {
     receipt: RuntimeRematerializationReceipt,
 }
 
-validated_transformed_receipt!(ValidatedRuntimeRematerialization, RuntimeRematerializationReceipt);
+validated_transformed_receipt!(
+    ValidatedRuntimeRematerialization,
+    RuntimeRematerializationReceipt
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeRematerializationReceipt {

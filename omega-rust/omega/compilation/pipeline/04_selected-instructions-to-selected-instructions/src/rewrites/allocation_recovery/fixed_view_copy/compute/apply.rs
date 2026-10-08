@@ -1,5 +1,4 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
-use selected_instructions::terminator_instruction_mut;
 use super::{
     RegisterInstructionConstraint, ScalarType, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator,
@@ -8,6 +7,7 @@ use super::{
 use crate::FixedViewCopy;
 use crate::FixedViewCopyError;
 use crate::rewrites::selected_operands::selected_operand;
+use selected_instructions::terminator_instruction_mut;
 
 pub(super) fn apply_copy(
     function_index: usize,
@@ -148,7 +148,6 @@ fn terminator_instruction_id(terminator: &SelectedTerminator) -> SelectedInstruc
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
     }
 }
-
 
 /// `CopyI64` is a raw 64-bit register move: it preserves the source
 /// bit-pattern without interpreting sign, so a fixed-view copy admits any

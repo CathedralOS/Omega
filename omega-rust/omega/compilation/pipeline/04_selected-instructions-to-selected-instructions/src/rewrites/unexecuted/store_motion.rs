@@ -122,7 +122,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{terminator_successors};
+use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, local_slot_is_place_storage, local_store_shape, staging_slot,
     structural_place_declarations,
@@ -130,8 +130,9 @@ use crate::rewrites::unexecuted::place_storage::{
 use crate::rewrites::window_hazards::coupled;
 
 use motion::{
-    Moved, arm_stops, carried_surface, edge_stops, interferes, instruction_stops, packed_store_shape,
-    place_store_shape, reaches_visited, reconvergent_join, settlement_before, sole_predecessor,
+    Moved, arm_stops, carried_surface, edge_stops, instruction_stops, interferes,
+    packed_store_shape, place_store_shape, reaches_visited, reconvergent_join, settlement_before,
+    sole_predecessor,
 };
 
 pub use rewrite::sink_selected_store_mutation;
@@ -175,7 +176,6 @@ impl std::fmt::Display for StoreMutationMotionError {
 
 impl std::error::Error for StoreMutationMotionError {}
 
-
 /// The validator's own reconstruction of the motion the contract permits:
 /// the admitted store's coordinates, the landing position its own walk
 /// proves, and the walked interval the family's measured-step contract
@@ -200,7 +200,6 @@ struct Reconstructed<'source> {
     interval: usize,
 }
 
-
 /// The validation work this audit performs, in the measured-step
 /// contract the family publishes: one step per block plus one per
 /// instruction across the plan, one per walked interval position and
@@ -216,7 +215,6 @@ fn measured_steps(
         .ok_or(StoreMutationMotionError::IdentityOverflow)?;
     u64::try_from(steps).map_err(|_| StoreMutationMotionError::IdentityOverflow)
 }
-
 
 /// The function's boundary settlements after the move — the validator's
 /// own remap, not the producer's `admission` helper. Positions at or
@@ -276,7 +274,6 @@ fn moved_boundary_settlements(
     Ok(shifted)
 }
 
-
 /// Re-derive the motion's legality from the source records, without the
 /// producer's `admission` routine: locate the named store, prove its
 /// single write row and operand surface, then walk forward to the latest
@@ -289,8 +286,10 @@ fn reconstruct<'source>(
     store: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, StoreMutationMotionError> {
-    let (plan, function) = crate::rewrites::plan_function(
-        source, function_index, environment, || StoreMutationMotionError::SourceMismatch)?;
+    let (plan, function) =
+        crate::rewrites::plan_function(source, function_index, environment, || {
+            StoreMutationMotionError::SourceMismatch
+        })?;
     let (block_index, store_index) = function
         .blocks
         .iter()

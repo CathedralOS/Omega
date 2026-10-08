@@ -17,18 +17,14 @@
 //! execution publishes them on arrivals that never ran it.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId,
-};
+use selected_instructions::{SelectedInstruction, SelectedInstructionId};
 
 use super::ConfluenceRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
     CrossingDirection, crossed_window, edge_surface, terminator_successors,
 };
-use crate::rewrites::window_hazards::{
-    admit_run_relocation, surface,
-};
+use crate::rewrites::window_hazards::{admit_run_relocation, surface};
 
 pub(super) struct Admission {
     /// The run's own block: one inflow of the join.
@@ -113,9 +109,8 @@ pub(super) fn admit(
     // the function's three rosters; the dead-path audit rescans a block's
     // stream and edge surfaces only while its entry set grows — at most
     // once per member location per block.
-    let (scan, run_locations, block_scan) =
-        super::confluence_scan_base(plan, function, run)
-            .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
+    let (scan, run_locations, block_scan) = super::confluence_scan_base(plan, function, run)
+        .ok_or(ConfluenceRelocationError::IdentityOverflow)?;
     let total = Some(scan)
         .and_then(|total| total.checked_add(edge_limit))
         .and_then(|total| {

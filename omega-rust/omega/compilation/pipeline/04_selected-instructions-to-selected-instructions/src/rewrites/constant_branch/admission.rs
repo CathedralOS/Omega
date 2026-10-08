@@ -8,16 +8,16 @@
 //! decides the successor, whose unit-flow axis states the retired and
 //! preserved unit roles, and whose control-flow axis is checked against the
 //! bound machine-effect catalog.
-use crate::rewrites::operand_probes::{effect_declaration};
+use crate::rewrites::operand_probes::effect_declaration;
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
-    ValidatedMachineEffectCatalog, terminator_instruction
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
+    ValidatedMachineEffectCatalog, terminator_instruction,
 };
 
 use super::ConstantBranchError;
@@ -27,11 +27,11 @@ use super::pair::{
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::rewrites::block_edges::function_at;
 use crate::rewrites::condition_state::{
     ConditionStateError, adjacency, backward_cone, entry_index, instruction_at, reaching_event,
     resolved_operands,
 };
-use crate::rewrites::block_edges::function_at;
 
 impl From<ConditionStateError> for ConstantBranchError {
     fn from(error: ConditionStateError) -> Self {
@@ -332,7 +332,12 @@ pub(super) fn admit<'source>(
                 .checked_add(reach_scan)
         })
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    crate::rewrites::charge_steps(steps, budget, || ConstantBranchError::IdentityOverflow, || ConstantBranchError::WorkBudgetExceeded)?;
+    crate::rewrites::charge_steps(
+        steps,
+        budget,
+        || ConstantBranchError::IdentityOverflow,
+        || ConstantBranchError::WorkBudgetExceeded,
+    )?;
     Ok(Admission {
         block_index,
         branch_id: branch,

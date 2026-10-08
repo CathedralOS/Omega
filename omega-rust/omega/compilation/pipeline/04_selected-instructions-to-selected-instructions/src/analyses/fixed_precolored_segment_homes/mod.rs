@@ -5,16 +5,19 @@
 //! transformed liveness, and distinct assigned views do not imply movement.
 
 mod compute;
-mod error;
 mod domains;
+mod error;
 use domains::Domain;
-use work::Work;
-use std::collections::BTreeMap;
 use register_model::RegisterOperandAccess;
-use selected_instructions::{CopyAffinity, FunctionLiveRanges, LiveRangePoint, SelectedBlockId, VirtualLiveRange, VirtualRegisterId};
+use selected_instructions::{
+    CopyAffinity, FunctionLiveRanges, LiveRangePoint, SelectedBlockId, VirtualLiveRange,
+    VirtualRegisterId,
+};
+use std::collections::BTreeMap;
+use work::Work;
 mod replay;
-mod work;
 mod validation;
+mod work;
 
 pub use error::FixedPrecoloredSegmentHomeError;
 use register_homes::FixedPrecoloredSegmentHomePolicy;
