@@ -605,6 +605,29 @@ fn exact_variant_symbol(
         && source.symbols.name(variant.symbol) == variant.name.as_str()
 }
 
+/// Positional arity equality: each template argument must `type_matches` its
+/// same-position instance argument.
+fn type_arguments_match(
+    source: &SymbolResolvedTrees,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template_arguments: &[TypeReference],
+    instance_arguments: &[TypeReference],
+) -> bool {
+    template_arguments.len() == instance_arguments.len()
+        && template_arguments.iter().zip(instance_arguments).all(
+            |(template_argument, instance_argument)| {
+                type_matches(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    template_argument,
+                    instance_argument,
+                )
+            },
+        )
+}
+
 fn type_matches(
     source: &SymbolResolvedTrees,
     substitutions: &[(SymbolHandle, &TypeReference)],
@@ -711,24 +734,13 @@ fn type_matches(
                             && origin.base_symbol == template_generic.base_symbol
                             && origin.base_name.as_str() == template_generic.base_name.as_str()
                             && origin.lifetime_arguments.is_empty()
-                            && {
-                                let template_arguments =
-                                    source.child_type_references(template_generic.arguments);
-                                let instance_arguments =
-                                    source.child_type_references(origin.arguments);
-                                template_arguments.len() == instance_arguments.len()
-                                    && template_arguments.iter().zip(instance_arguments).all(
-                                        |(template_argument, instance_argument)| {
-                                            type_matches(
-                                                source,
-                                                substitutions,
-                                                validated_instances,
-                                                template_argument,
-                                                instance_argument,
-                                            )
-                                        },
-                                    )
-                            }
+                            && type_arguments_match(
+                                source,
+                                substitutions,
+                                validated_instances,
+                                source.child_type_references(template_generic.arguments),
+                                source.child_type_references(origin.arguments),
+                            )
                     })
         }
         TypeReference::DynamicTrait {
@@ -744,20 +756,13 @@ fn type_matches(
             else {
                 return false;
             };
-            let template_arguments = source.child_type_references(*template_arguments);
-            let instance_arguments = source.child_type_references(*instance_arguments);
             template_symbol == instance_symbol
-                && template_arguments.len() == instance_arguments.len()
-                && template_arguments.iter().zip(instance_arguments).all(
-                    |(template_argument, instance_argument)| {
-                        type_matches(
-                            source,
-                            substitutions,
-                            validated_instances,
-                            template_argument,
-                            instance_argument,
-                        )
-                    },
+                && type_arguments_match(
+                    source,
+                    substitutions,
+                    validated_instances,
+                    source.child_type_references(*template_arguments),
+                    source.child_type_references(*instance_arguments),
                 )
         }
         TypeReference::Constrained(_) | TypeReference::ConstExpression(_) => false,

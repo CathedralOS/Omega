@@ -215,12 +215,7 @@ pub(super) fn application<'source>(
         let origin = source.tables.types.generic_application_origins.get(handle);
         let references = &source.tables.declarations.child_type_references;
         let instance = references.get(origin.instance);
-        let (instance_symbol, instance_name) = match instance {
-            TypeReference::Named { symbol, name } => (*symbol, name),
-            TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
-            _ => return Err(mismatch(name)),
-        };
-        if instance_symbol != symbol || instance_name.source_span() != name.source_span() {
+        if !instance_identity_matches(instance, symbol, name)? {
             continue;
         }
         let definition = match selected_definition {
@@ -289,12 +284,7 @@ fn application_scanned<'source>(
             return Err(mismatch(name));
         }
         let instance = references.get(origin.instance);
-        let (instance_symbol, instance_name) = match instance {
-            TypeReference::Named { symbol, name } => (*symbol, name),
-            TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
-            _ => return Err(mismatch(name)),
-        };
-        if instance_symbol != symbol || instance_name.source_span() != name.source_span() {
+        if !instance_identity_matches(instance, symbol, name)? {
             continue;
         }
         let definition = match selected_definition {
@@ -386,6 +376,22 @@ fn validate_origin<'source>(
         return Err(mismatch(name));
     }
     Ok(application)
+}
+
+/// The instance's (symbol, source-span) identity against the origin's
+/// expected `symbol`/`name`: `Ok(false)` is the scan's skip signal, other
+/// reference shapes are a shape mismatch.
+fn instance_identity_matches(
+    instance: &TypeReference,
+    symbol: SymbolHandle,
+    name: &resolved::name::DiagnosticName,
+) -> Result<bool, Diagnostic> {
+    let (instance_symbol, instance_name) = match instance {
+        TypeReference::Named { symbol, name } => (*symbol, name),
+        TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
+        _ => return Err(mismatch(name)),
+    };
+    Ok(instance_symbol == symbol && instance_name.source_span() == name.source_span())
 }
 
 fn mismatch(name: &resolved::name::DiagnosticName) -> Diagnostic {
