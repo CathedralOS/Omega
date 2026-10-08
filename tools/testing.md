@@ -545,7 +545,11 @@ main changes rather than using a merge-base. Invalid references fail.
 | No changed input | No commands; library filter `none()`. |
 
 A change under a `PATH_CANDIDATES` prefix in `test_affected.py` also runs that
-catalog candidate, reported under `path_candidates`. Changes under
+catalog candidate, reported under `path_candidates`: `tools/` runs the tools
+unit tests, `tools/release/` the release-record plan, `tools/bootstrap/` and
+`bootstrap/` the chain-hygiene check, `omega-rust/` the fmt check, and
+`tests/omega/<tier>/<group>/` the corpus gate filtered to the touched groups
+(a golden-only edit selects no gate). Changes under
 `source/library/` run `std_package_check` (`omega --check
 source/library/std/main.omg`, about 2.5 minutes on a debug build): a corpus
 fixture compiles only the std bodies its program reaches, so only a whole-package
@@ -580,9 +584,12 @@ additionally asks a System One model which entries of
 [test_select_candidates.json](test_select_candidates.json) the diff could break
 *beyond what the deterministic baseline already covers*, and appends commands
 for flagged candidates the baseline lacks. The augment is union-only: it can
-add checks (e.g., a standard-library compile for a name-resolution change, or
-a std-compile for a name-resolution change) but never removes baseline
-coverage, so every failure mode degrades to deterministic selection. The
+add checks (e.g., a standard-library compile for a name-resolution change)
+but never removes baseline
+coverage, so every failure mode degrades to deterministic selection. An entry
+the augment adds repeatedly for the same path family is promoted into
+`PATH_CANDIDATES`: the augment is the discovery layer, the table is the
+owner. The
 `jev` plan field reports `augmented` with `flagged`/`added`/`covered`/
 `suggested` lists. With no key configured the plan reports `unconfigured` and
 behaves exactly as before; a configured-but-unreachable API prints one stderr

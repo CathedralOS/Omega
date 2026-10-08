@@ -64,11 +64,23 @@ DOCUMENTATION_FILES = {
 SLOW_TEST_OWNERS: dict[str, list[tuple[str, int]]] = {}
 
 # Catalog candidates selected by changed path, for behavior no library test or
-# corpus fixture observes. A corpus fixture compiles only the std bodies its
-# program reaches, so a std change that fails whole-package checking stays
-# green everywhere except `omega update`, which every sample's preparation runs:
-# on 2026-10-05 new TimeHost providers broke every std sample for three hours.
-PATH_CANDIDATES = (("source/library/", "std_package_check"),)
+# corpus fixture observes. A prefix row is a selection the deterministic layer
+# is always right about: when the Jev augment repeatedly adds the same catalog
+# entry for the same path family, the entry moves here (promoted 2026-10-08:
+# tools::tests, corpus_gate, fmt_check, test_release_record, bootstrap_gates).
+# A corpus fixture compiles only the std bodies its program reaches, so a std
+# change that fails whole-package checking stays green everywhere except
+# `omega update`, which every sample's preparation runs: on 2026-10-05 new
+# TimeHost providers broke every std sample for three hours.
+PATH_CANDIDATES = (
+    ("source/library/", "std_package_check"),
+    ("tests/omega/", "corpus_gate"),
+    ("omega-rust/", "fmt_check"),
+    ("tools/", "tools::tests"),
+    ("tools/release/", "test_release_record"),
+    ("tools/bootstrap/", "bootstrap_gates"),
+    ("bootstrap/", "bootstrap_gates"),
+)
 
 
 def is_documentation(filename):
@@ -257,13 +269,31 @@ def candidate_command(command, runner):
 
 def path_candidate_commands(runner, paths, full):
     """Commands for PATH_CANDIDATES whose prefix a changed path falls under."""
-    wanted = [candidate for prefix, candidate in PATH_CANDIDATES
-              if full or any(path.startswith(prefix) for path in paths)]
-    if not wanted:
-        return [], []
-    commands = {c["id"]: c.get("command") for c in catalog_candidates()}
-    return wanted, [candidate_command(commands[candidate], runner)
-                    for candidate in wanted]
+    wanted = []
+    for prefix, candidate in PATH_CANDIDATES:
+        if not full and not any(path.startswith(prefix) for path in paths):
+            continue
+        if candidate not in wanted:
+            wanted.append(candidate)
+    catalog = {c["id"]: c for c in catalog_candidates()}
+    ids, commands = [], []
+    for candidate in wanted:
+        entry = catalog.get(candidate)
+        if entry is None or entry.get("command") is None:
+            continue
+        argv = candidate_command(entry["command"], runner)
+        if entry.get("auto_run") == "filterable":
+            # --full already selects everything the gate would; and without a
+            # fixture tier/group fragment (e.g. only corpus_outcomes.txt
+            # changed) the unfiltered gate is a scheduled workload, not a
+            # loop command — skip it in both cases.
+            fragments = [] if full else fixture_filters(paths)
+            if not fragments:
+                continue
+            argv = argv + ["--filter", ",".join(fragments)]
+        ids.append(candidate)
+        commands.append(argv)
+    return ids, commands
 
 
 def fixture_filters(paths):

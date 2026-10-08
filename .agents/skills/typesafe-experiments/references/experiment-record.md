@@ -2062,3 +2062,13 @@ never name a suspect. Open: whether a `could this change enable a new
 visibility selection` causal question over the touched-file list (not the
 excerpt) recovers this class without flagging the 52 — untested; do not
 tune it on this exposed case.
+
+Follow-up (same day): the tools::tests flag was a deterministic rule in
+disguise — a path-prefix row the selector simply lacked. Per the playbook's
+"would the mechanical check already be correct?" test, the owner chose
+deterministic: `PATH_CANDIDATES` gained tools/, tools/release/,
+tools/bootstrap/ + bootstrap/, omega-rust/ (fmt), and tests/omega/<tier>/<group>
+(filtered corpus gate). On the same two diffs Jev now reports every one of
+those as `covered`, `added` empty. Standing rule: the augment is the
+discovery layer; an entry it adds repeatedly for one path family moves into
+the table.

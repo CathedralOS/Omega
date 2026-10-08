@@ -177,6 +177,54 @@ class GitChangesTests(unittest.TestCase):
                 affected.changed_paths(root, "nonexistent-commit")
 
 
+class PathCandidateTests(unittest.TestCase):
+    def commands_for(self, *paths, full=False):
+        return affected.path_candidate_commands("runner", list(paths), full)
+
+    def test_tools_change_selects_tools_tests(self):
+        ids, commands = self.commands_for("tools/claims.py")
+        self.assertEqual(ids, ["tools::tests"])
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(" ".join(commands[0][-3:]),
+                         "unittest discover tools/tests")
+
+    def test_release_change_selects_tests_and_record_plan(self):
+        ids, _ = self.commands_for("tools/release/release_record.py")
+        self.assertEqual(ids, ["tools::tests", "test_release_record"])
+
+    def test_bootstrap_prefixes_dedupe_the_gate(self):
+        ids, _ = self.commands_for("tools/bootstrap/paths.sh")
+        self.assertEqual(ids.count("bootstrap_gates"), 1)
+        self.assertIn("tools::tests", ids)
+        ids, _ = self.commands_for("tools/bootstrap/paths.sh",
+                                   "bootstrap/0_alpha/x")
+        self.assertEqual(ids.count("bootstrap_gates"), 1)
+
+    def test_fixture_changes_select_the_filtered_corpus_gate(self):
+        ids, commands = self.commands_for(
+            "tests/omega/pass/time/x/main.omg",
+            "tests/omega/fail/proofs/y/main.omg")
+        self.assertEqual(ids, ["corpus_gate"])
+        self.assertEqual(commands[0][-2:],
+                         ["--filter", "fail/proofs,pass/time"])
+
+    def test_golden_only_change_selects_no_gate(self):
+        ids, commands = self.commands_for("tests/omega/corpus_outcomes.txt")
+        self.assertEqual(ids, [])
+        self.assertEqual(commands, [])
+
+    def test_rust_source_selects_fmt_check(self):
+        ids, _ = self.commands_for("omega-rust/psi/x/src/lib.rs")
+        self.assertEqual(ids, ["fmt_check"])
+
+    def test_full_skips_the_filterable_gate(self):
+        ids, _ = self.commands_for(full=True)
+        self.assertNotIn("corpus_gate", ids)
+        for candidate in ("tools::tests", "test_release_record",
+                          "bootstrap_gates", "fmt_check", "std_package_check"):
+            self.assertIn(candidate, ids)
+
+
 class JevAugmentTests(unittest.TestCase):
     def test_flagged_catalog_candidate_is_added(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -204,6 +252,23 @@ class JevAugmentTests(unittest.TestCase):
                     ["some-crate"], [], False, False)
             self.assertEqual(summary["state"], "unconfigured")
             post.assert_not_called()
+
+    def test_flagged_candidate_in_baseline_reports_covered(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _, commands = affected.path_candidate_commands(
+                "runner", ["tools/claims.py"], False)
+            response = {"answers": {"needs_run::tools::tests":
+                                    {"noul": 0.9}}}
+            with patch.object(affected.typesafe_key, "find_key",
+                              return_value="k"), \
+                    patch.object(affected.typesafe_key, "post",
+                                 return_value=response):
+                summary = affected.jev_augment(
+                    Path(directory), "runner", ["tools/claims.py"], [],
+                    commands, False, False)
+            self.assertEqual(summary["state"], "augmented")
+            self.assertIn("tools::tests", summary["covered"])
+            self.assertEqual(summary["added"], [])
 
 
 if __name__ == "__main__":
