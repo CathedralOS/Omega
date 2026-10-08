@@ -692,6 +692,33 @@ pub(super) fn copy_cloned_expression_type_payloads(
     expression_start: usize,
     symbols: &[(SymbolHandle, SymbolHandle)],
 ) {
+    // Index authority is copied before ordinary type-parameter substitution,
+    // just like cast types. The clone cannot mutate its template's contract.
+    let index_payloads = program
+        .expression_table
+        .iter_expressions()
+        .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
+        .filter_map(|(handle, _)| {
+            program
+                .expression_table
+                .index_expression_authority(handle)
+                .cloned()
+                .map(|authority| (handle, authority))
+        })
+        .collect::<Vec<_>>();
+    for (handle, mut authority) in index_payloads {
+        if let Some(normalization) = &mut authority.normalization {
+            normalization.index_type =
+                copy_type_reference(source, program, normalization.index_type, symbols);
+        }
+        if let Some(operation) = &mut authority.operation {
+            operation.operand_type =
+                copy_type_reference(source, program, operation.operand_type, symbols);
+        }
+        *program
+            .expression_table
+            .index_expression_authority_mut(handle) = authority;
+    }
     let calls = program
         .expression_table
         .iter_expressions()

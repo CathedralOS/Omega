@@ -95,7 +95,6 @@ impl ExpressionTable {
         self.copy_subtree(CopySource::Table(source), expression, &retain_every_field)
     }
 
-
     /// Copy one expression graph within this table. The copy's rows follow
     /// every existing row and share no span with the original.
     pub fn insert_copy(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
@@ -125,6 +124,23 @@ impl ExpressionTable {
             return;
         }
         visited.push(root);
+
+        if self.index_expression_authority(root).is_some() {
+            let authority = self.index_expression_authority_mut(root);
+            if let Some(operation) = &mut authority.operation {
+                for symbol in [
+                    &mut operation.provider,
+                    &mut operation.operator,
+                    &mut operation.algebra_trait,
+                ] {
+                    if let Some((_, replacement)) =
+                        symbols.iter().find(|(original, _)| original == symbol)
+                    {
+                        *symbol = *replacement;
+                    }
+                }
+            }
+        }
 
         let node = self.expression(root).clone();
         match node {
@@ -267,6 +283,7 @@ impl ExpressionTable {
     {
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
+        let authority = origin.index_expression_authority(expression).cloned();
         let occurrences = origin
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
@@ -431,6 +448,12 @@ impl ExpressionTable {
         };
         self.set_source_span(copied, source_span);
         self.attach_authored_selection_occurrences(copied, occurrences);
+        if let Some(mut authority) = authority {
+            if let Some(operation) = &mut authority.operation {
+                operation.expression = copied;
+            }
+            *self.index_expression_authority_mut(copied) = authority;
+        }
         copied
     }
 

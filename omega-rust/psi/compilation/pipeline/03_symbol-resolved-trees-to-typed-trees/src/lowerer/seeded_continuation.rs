@@ -918,9 +918,6 @@ pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedT
             .boundary_calling_plans
             .starts_with(&base.boundary_calling_plans)
         && candidate
-            .open_index_normalizations
-            .starts_with(&base.open_index_normalizations)
-        && candidate
             .evidence_forwardings
             .starts_with(&base.evidence_forwardings)
         && candidate

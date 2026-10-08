@@ -45,6 +45,5 @@ pub(super) fn trees(compilation: &PackageReviewInput<'_>) -> TypedTrees {
     projected.semantic_domains = source.semantic_domains.clone();
     projected.external_bindings = source.external_bindings.clone();
     projected.machine_specializations = source.machine_specializations.clone();
-    projected.open_index_normalizations = source.open_index_normalizations.clone();
     projected
 }

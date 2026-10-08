@@ -457,7 +457,7 @@ impl TypedTreesSnapshot {
                 machine_specialization_count: program.machine_specializations.len(),
                 boundary_calling_plan_count: program.boundary_calling_plans.len(),
                 fused_service_erasure_count: program.fused_service_erasures.len(),
-                open_index_normalization_count: program.open_index_normalizations.len(),
+                open_index_normalization_count: program.expression_table.open_index_normalization_count(),
                 evidence_forwarding_count: program.evidence_forwardings.len(),
                 proof_output_call_count: program.proof_output_calls.len(),
                 ranking_expression_custody_count: program.ranking_expression_custody.len(),

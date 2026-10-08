@@ -419,10 +419,13 @@ pub(super) fn selected_operation_count(
             expressions.push(*expression);
         }
     }
-    program
-        .open_index_normalizations
-        .iter()
-        .filter(|normalization| expressions.contains(&normalization.expression))
-        .map(|normalization| normalization.operations.len())
+    expressions
+        .into_iter()
+        .map(|expression| {
+            program
+                .expression_table
+                .open_index_operations(expression)
+                .count()
+        })
         .sum()
 }

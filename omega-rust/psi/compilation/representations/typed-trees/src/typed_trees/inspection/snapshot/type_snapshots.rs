@@ -261,24 +261,23 @@ pub(crate) fn type_reference_snapshot(
         TypeReferenceNode::ConstExpression(expression) => TypeReferenceSnapshot::ConstExpression {
             expression: expression_snapshot(program, *expression),
             normalization: program
-                .open_index_normalizations
-                .iter()
-                .find(|normalization| normalization.expression == *expression)
+                .expression_table
+                .index_expression_authority(*expression)
+                .and_then(|authority| authority.normalization.as_ref())
                 .map(|normalization| OpenIndexNormalizationSnapshot {
                     index_type: Box::new(type_reference_snapshot(
                         program,
                         normalization.index_type,
                     )),
                     normalizer_version: normalization.normalizer_version,
-                    operations: normalization
-                        .operations
-                        .iter()
+                    operations: program
+                        .expression_table
+                        .open_index_operations(*expression)
                         .map(|operation| OpenIndexOperationSnapshot {
                             expression: expression_snapshot(program, operation.expression),
                             spelling: operation.spelling.symbol(),
                             operation_contract_identity: operation
-                                .operation_contract_identity
-                                .clone(),
+                                .operation_contract_identity(program),
                             provider: program.symbols.display_path(operation.provider, "::"),
                             algebra_trait: program
                                 .symbols

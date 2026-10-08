@@ -426,7 +426,6 @@ impl Lowerer<'_> {
             boundary_calling_plans: _,
             boundary_completion_declarations: _,
             fused_service_erasures: _,
-            open_index_normalizations: _,
             evidence_forwardings,
             proof_output_calls,
             // Derived lookup state does not travel with the fields; the

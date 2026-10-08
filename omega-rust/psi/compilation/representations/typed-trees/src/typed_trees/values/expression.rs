@@ -19,11 +19,15 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 mod display;
+mod index_authority;
 mod shape;
 mod table_copies;
 mod tree_conversion;
 
 pub use display::display_name_path;
+pub use index_authority::{
+    IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
+};
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
@@ -89,6 +93,8 @@ pub struct ExpressionTable {
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
     source_spans: Vec<SourceSpan>,
+    index_expression_authorities: Arena<IndexExpressionAuthority>,
+    index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
     expression_handles: Arena<ExpressionHandle>,
@@ -126,12 +132,21 @@ impl ExpressionTable {
             struct_fields,
             match_arms,
             source_spans,
+            index_expression_authorities,
+            index_expression_authority_handles,
             authored_selection_occurrences,
             static_machine_applications,
             static_machine_arguments,
             static_machine_bindings,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                index_expression_authorities,
+                &self.index_expression_authorities,
+            )
+            && self
+                .index_expression_authority_handles
+                .starts_with(index_expression_authority_handles)
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 static_machine_applications,
                 &self.static_machine_applications,
@@ -214,6 +229,7 @@ impl ExpressionTable {
         self.expressions
             .revision()
             .wrapping_add(self.expression_roots.revision())
+            .wrapping_add(self.index_expression_authorities.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
             .wrapping_add(self.expression_handles.revision())
             .wrapping_add(self.name_path_members.revision())
@@ -246,6 +262,8 @@ impl ExpressionTable {
             expressions: Arena::with_capacity(capacity.expressions),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
+            index_expression_authorities: Arena::default(),
+            index_expression_authority_handles: Vec::new(),
             authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
             authored_selection_occurrence_ids: Arena::with_capacity(
                 capacity.authored_selection_occurrences,
@@ -265,6 +283,8 @@ impl ExpressionTable {
         self.expressions.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
+        self.index_expression_authorities.reset_retain_capacity();
+        self.index_expression_authority_handles.clear();
         self.authored_selection_occurrences.clear();
         self.authored_selection_occurrence_ids
             .reset_retain_capacity();
@@ -914,10 +934,6 @@ impl ExpressionTable {
     pub fn expression_entries(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
         self.iter_expressions()
     }
-
-
-
-
 
     pub fn struct_field_count(&self) -> usize {
         self.struct_fields.len()

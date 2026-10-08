@@ -10,17 +10,13 @@ use crate::typed_trees::type_system::type_identity::identity_context::{
 pub(crate) fn open_index_operation_selection(
     program: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<&crate::typed_trees::OpenIndexOperationSelection> {
-    program
-        .open_index_normalizations
-        .iter()
-        .flat_map(|normalization| &normalization.operations)
-        .find(|selection| selection.expression == expression)
+) -> Option<&crate::expression::OpenIndexOperationSelection> {
+    program.expression_table.open_index_operation(expression)
 }
 
 pub(crate) fn open_index_algebra_identity(
     program: &TypedTrees,
-    selection: &crate::typed_trees::OpenIndexOperationSelection,
+    selection: &crate::expression::OpenIndexOperationSelection,
     context: &TypeIdentityContext<'_>,
 ) -> String {
     if context.qualification == TypeIdentityQualification::Ordinary {
@@ -57,34 +53,34 @@ pub(crate) fn open_index_algebra_identity(
 
 pub(crate) fn open_index_operation_identity(
     program: &TypedTrees,
-    selection: &crate::typed_trees::OpenIndexOperationSelection,
+    selection: &crate::expression::OpenIndexOperationSelection,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    let contract = selection.operation_contract_identity(program);
     if context.qualification == TypeIdentityQualification::Ordinary {
-        return selection.operation_contract_identity.clone();
+        return contract;
     }
     compound(
         "open-index-operation",
         [
             atom(
                 "symbol",
-                &context.name(
-                    program,
-                    selection.operator,
-                    selection.operation_contract_identity.as_str(),
-                ),
+                &context.name(program, selection.operator, &contract),
             ),
-            atom("contract", &selection.operation_contract_identity),
+            atom("contract", &contract),
         ],
     )
 }
 
 fn same_open_index_ac_authority(
-    left: &crate::typed_trees::OpenIndexOperationSelection,
-    right: &crate::typed_trees::OpenIndexOperationSelection,
+    program: &TypedTrees,
+    left: &crate::expression::OpenIndexOperationSelection,
+    right: &crate::expression::OpenIndexOperationSelection,
 ) -> bool {
     left.operator == right.operator
-        && left.operation_contract_identity == right.operation_contract_identity
+        && left.provider == right.provider
+        && program.normalized_type_identity(left.operand_type)
+            == program.normalized_type_identity(right.operand_type)
         && left.algebra_trait == right.algebra_trait
         && left.algebra_requirement == right.algebra_requirement
         && left.algebra_alias == right.algebra_alias
@@ -111,7 +107,7 @@ pub(crate) fn collect_open_index_operands(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operator: BinaryOperator,
-    selection: &crate::typed_trees::OpenIndexOperationSelection,
+    selection: &crate::expression::OpenIndexOperationSelection,
     context: &TypeIdentityContext<'_>,
 ) -> Vec<String> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -149,14 +145,14 @@ fn collect_licensed_ac_operands(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operator: BinaryOperator,
-    authority: &crate::typed_trees::OpenIndexOperationSelection,
+    authority: &crate::expression::OpenIndexOperationSelection,
     context: &TypeIdentityContext<'_>,
     operands: &mut Vec<String>,
 ) {
     if let Some(binary) = program.expression_table.binary_node(expression)
         && binary.operator == operator
         && open_index_operation_selection(program, expression)
-            .is_some_and(|selection| same_open_index_ac_authority(authority, selection))
+            .is_some_and(|selection| same_open_index_ac_authority(program, authority, selection))
     {
         collect_licensed_ac_operands(program, binary.left, operator, authority, context, operands);
         collect_licensed_ac_operands(

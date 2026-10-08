@@ -144,11 +144,9 @@ pub(super) fn interface_retention_set(
     for erasure in &program.fused_service_erasures {
         retain_symbol(&mut retained, index, erasure.requirement);
     }
-    for normalization in &program.open_index_normalizations {
-        for operation in &normalization.operations {
-            retain_symbol(&mut retained, index, operation.provider);
-            retain_symbol(&mut retained, index, operation.operator);
-        }
+    for operation in program.expression_table.selected_index_operations() {
+        retain_symbol(&mut retained, index, operation.provider);
+        retain_symbol(&mut retained, index, operation.operator);
     }
 
     // Every machine referenced by a retained non-machine declaration stays

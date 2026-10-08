@@ -219,6 +219,23 @@ pub(crate) fn rewrite_cloned_calls(
         .map(|(handle, _)| handle)
         .collect();
     for handle in handles {
+        if program
+            .expression_table
+            .index_expression_authority(handle)
+            .is_some()
+        {
+            let authority = program
+                .expression_table
+                .index_expression_authority_mut(handle);
+            if let Some(operation) = &mut authority.operation
+                && let Some((_, provider, alias)) = argument_rewrites
+                    .iter()
+                    .find(|(binder, _, _)| *binder == operation.provider)
+            {
+                operation.provider = *provider;
+                operation.algebra_alias = Some(alias.as_str().to_owned());
+            }
+        }
         let clone_state_arguments = match program.expression_table.expression(handle).clone() {
             ExpressionNode::Call(snapshot)
                 if state_symbols

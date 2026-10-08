@@ -170,11 +170,6 @@ pub struct TypedTrees {
     /// carrier after a Fused provider selection. Ordinary Psi lowering keeps
     /// this empty and therefore cannot erase `Binding<R>` by type shape alone.
     pub fused_service_erasures: Vec<FusedServiceErasureAuthorization>,
-    /// PDI3 exact operation/algebra selections for proof-static open index
-    /// expressions. The expression tree remains the canonical structural
-    /// input; these records bind each operator node to the public operation
-    /// contract and proved algebra instance that license normalization.
-    pub open_index_normalizations: Vec<OpenIndexNormalization>,
     /// Exact owner identity and authored names for erased evidence forwarding;
     /// checked lowering binds both names to checked evidence-term handles.
     pub evidence_forwardings: Vec<EvidenceForwarding>,
@@ -258,36 +253,6 @@ pub struct ProofOutputCall {
 pub struct ProofOutputSelector {
     pub output_field: crate::name::Identifier,
     pub binding: crate::name::Identifier,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpenIndexNormalization {
-    pub expression: crate::expression::ExpressionHandle,
-    pub index_type: crate::types::TypeReferenceHandle,
-    pub operations: Vec<OpenIndexOperationSelection>,
-    /// Artifact provenance only. It never enters semantic type identity.
-    pub normalizer_version: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpenIndexOperationSelection {
-    pub expression: crate::expression::ExpressionHandle,
-    pub spelling: language_core::operator_spelling::OperatorSpelling,
-    pub operator: symbols::SymbolHandle,
-    pub operation_contract_identity: String,
-    pub provider: symbols::SymbolHandle,
-    pub algebra_trait: symbols::SymbolHandle,
-    pub algebra_requirement: String,
-    pub algebra_alias: Option<String>,
-    /// Which checked law slots the selected algebra actually declares for
-    /// this requirement. Each rewrite consumes its own law and one never
-    /// implies the other: reordering operands consumes commutativity,
-    /// flattening a nested chain of the same operation consumes
-    /// associativity. A selection is therefore recorded whenever either slot
-    /// is declared, and every consumer consults the flag for the rewrite it
-    /// is about to perform rather than the presence of the selection.
-    pub commutativity_licensed: bool,
-    pub associativity_licensed: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -464,7 +429,6 @@ impl TypedTrees {
             boundary_calling_plans: Vec::new(),
             boundary_completion_declarations: Arena::default(),
             fused_service_erasures: Vec::new(),
-            open_index_normalizations: Vec::new(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
             declaration_indexes: declaration_index::DeclarationIndexes::default(),

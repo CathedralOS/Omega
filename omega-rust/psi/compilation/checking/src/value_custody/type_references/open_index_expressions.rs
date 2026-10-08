@@ -177,21 +177,35 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             &mut operations,
             &mut diagnostics,
         );
-        normalizations.push(typed_trees::typed_trees::OpenIndexNormalization {
+        normalizations.push((
             expression,
-            index_type,
+            typed_trees::expression::OpenIndexNormalization {
+                index_type,
+                // Version 2 admits single-law algebras. Version 1 canonicalized
+                // an open index only when its carrier declared commutativity and
+                // associativity together, so a commutativity-only algebra reached
+                // the structural form; under version 2 its operands sort. That is
+                // a canonical-form change, which contracts.md makes an explicit
+                // compatibility event rather than a silent one.
+                normalizer_version: 2,
+            },
             operations,
-            // Version 2 admits single-law algebras. Version 1 canonicalized
-            // an open index only when its carrier declared commutativity and
-            // associativity together, so a commutativity-only algebra reached
-            // the structural form; under version 2 its operands sort. That is
-            // a canonical-form change, which contracts.md makes an explicit
-            // compatibility event rather than a silent one.
-            normalizer_version: 2,
-        });
+        ));
     }
     if diagnostics.is_empty() {
-        program.open_index_normalizations = normalizations;
+        for (expression, normalization, operations) in normalizations {
+            program
+                .expression_table
+                .index_expression_authority_mut(expression)
+                .normalization = Some(normalization);
+            for operation in operations {
+                let expression = operation.expression;
+                program
+                    .expression_table
+                    .index_expression_authority_mut(expression)
+                    .operation = Some(operation);
+            }
+        }
         Ok(())
     } else {
         Err(diagnostics)
@@ -281,7 +295,7 @@ fn normalize_open_index_expression_operations(
     expression: typed_trees::expression::ExpressionHandle,
     index_type: TypeReferenceHandle,
     owner: Option<SymbolHandle>,
-    operations: &mut Vec<typed_trees::typed_trees::OpenIndexOperationSelection>,
+    operations: &mut Vec<typed_trees::expression::OpenIndexOperationSelection>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     use language_core::operator_spelling::OperatorSpelling;
@@ -313,35 +327,8 @@ fn normalize_open_index_expression_operations(
     else {
         return;
     };
-    // Specialized clones carry cleared bounds; their open sites inherit the
-    // license their template declared and resolve the binder to the
-    // conformance that specialization selected. The template's own sites
-    // resolve the same binder through its specialization's conformance
-    // arguments when any exist.
-    let (bound_machine, evidence_spec) = program
-        .machine_specializations
-        .iter()
-        .find(|specialization| {
-            specialization.instance == machine.symbol && specialization.template != machine.symbol
-        })
-        .and_then(|specialization| {
-            program
-                .machines()
-                .iter()
-                .find(|candidate| candidate.symbol == specialization.template)
-                .map(|template| (template, Some(specialization)))
-        })
-        .unwrap_or_else(|| {
-            (
-                machine,
-                program
-                    .machine_specializations
-                    .iter()
-                    .find(|specialization| specialization.template == machine.symbol),
-            )
-        });
     let mut candidates = Vec::new();
-    for (bound_index, bound) in bound_machine.conformance_bounds.iter().enumerate() {
+    for bound in &machine.conformance_bounds {
         let Some(trait_definition) = program
             .traits()
             .iter()
@@ -367,14 +354,14 @@ fn normalize_open_index_expression_operations(
             if !type_references_match(program, *argument, index_type) {
                 continue;
             }
-            candidates.push((bound_index, bound, trait_definition, requirement));
+            candidates.push((bound, trait_definition, requirement));
         }
     }
-    let [(bound_index, bound, trait_definition, requirement)] = candidates.as_slice() else {
+    let [(bound, trait_definition, requirement)] = candidates.as_slice() else {
         diagnostics.push(Diagnostic::error(format!(
             "open index operator `{}` requires one exact conformance bound on machine `{}` supplying a `{}` operation spelled `{}`, but {} were found",
             spelling.symbol(),
-            bound_machine.name,
+            machine.name,
             type_reference_label(program, index_type),
             spelling.symbol(),
             candidates.len()
@@ -394,38 +381,15 @@ fn normalize_open_index_expression_operations(
     // its structural identity — the operation stays usable, the rewrites stay
     // unauthorized.
     if !laws.commutativity.is_empty() || !laws.associativity.is_empty() {
-        let subject = program.normalized_type_identity(index_type).into_string();
-        // Evidence binders are ordered by declaration; the same position in a
-        // specialization's `conformance_arguments` names the selected
-        // conformance once the call sites have supplied it.
-        let evidence_position = *bound_index;
-        let selected_conformance = evidence_spec
-            .and_then(|specialization| specialization.conformance_arguments.get(evidence_position))
-            .and_then(|symbol| {
-                program
-                    .conformances()
-                    .iter()
-                    .find(|conformance| conformance.symbol == *symbol)
-            });
-        operations.push(typed_trees::typed_trees::OpenIndexOperationSelection {
+        operations.push(typed_trees::expression::OpenIndexOperationSelection {
             expression,
             spelling,
             operator: requirement.symbol,
-            operation_contract_identity: format!(
-                "trait::{}::{}({subject},{subject})->{subject}",
-                program.symbols.display_path(trait_definition.symbol, "::"),
-                requirement.name,
-            ),
-            provider: selected_conformance.map_or(bound.binder, |conformance| conformance.symbol),
+            operand_type: index_type,
+            provider: bound.binder,
             algebra_trait: trait_definition.symbol,
             algebra_requirement: requirement.name.as_str().to_owned(),
-            algebra_alias: Some(
-                selected_conformance
-                    .and_then(|conformance| conformance.alias.as_ref())
-                    .unwrap_or(&bound.binder_name)
-                    .as_str()
-                    .to_owned(),
-            ),
+            algebra_alias: Some(bound.binder_name.as_str().to_owned()),
             commutativity_licensed: !laws.commutativity.is_empty(),
             associativity_licensed: !laws.associativity.is_empty(),
         });

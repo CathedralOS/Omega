@@ -75,10 +75,10 @@ ensures a + b == 3
 }
 
 // Keep one universal open compatibility boundary after the concrete runtime
-// call specializes `add_indexed`; AC normalization alone discharges this row.
+// call specializes `add_indexed`; nested AC normalization alone discharges it.
 machine reorder_indexed<const A: u64, const B: u64, Algebra satisfies IndexAdd<u64>>(
-    value: i64 in Indexed<A + B>
-) -> i64 in Indexed<B + A> {
+    value: i64 in Indexed<(A + B) + 1>
+) -> i64 in Indexed<A + (1 + B)> {
     value
 }
 

@@ -2792,8 +2792,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
   still repeats `bind_selected_operator_calls` (3 + N runs),
-  `normalize_open_index_identities` (2 + N) and `resolve_projected_receiver_calls`
-  (2). Pending constant evaluation also stamps float destinations in the Build
+  whole-program `refresh_closed_domain_instance_identities` at the inner and
+  outer loop boundaries, and `resolve_projected_receiver_calls` (2).
+  Finalize substituted domain identities at their graph producer, not by
+  rescanning unchanged declarations. Pending constant evaluation also stamps
+  float destinations in the Build
   and product coordinators; move that work into private typed preparation.
   The loop must specialize and bind only; run each remaining pass once at its
   required point. Retire receiver elaboration with **STATIC-MACHINE-MIGRATION**,
@@ -2988,7 +2991,12 @@ of a check the same flow already performed, not the check itself.
   run each pass once at its required point without losing authored requirement
   identity or call-contract diagnostics. Preserve exact erased applications,
   clone correspondence and lexical owners through folding and substitution;
-  tuple bounds use the actual binding declaration, not an authored trait
+  a generic wrapper returning `add_indexed<A, B, Algebra>(left, right)` in
+  `pass/generics/open_computed_quantity_result` still rejects its universal
+  `Indexed<A + B>` return against the identically rendered expected type.
+  Repair exact callee-to-caller const/evidence substitution in readonly
+  `facts/index_compatibility`, not by reopening typed preparation in checking.
+  Tuple bounds use the actual binding declaration, not an authored trait
   requirement. Only live private-graph roots own admission work. Universal
   template commitments use the retained authored graph, never a concrete
   instance's narrower effects. Runtime selected-provider choices are not a

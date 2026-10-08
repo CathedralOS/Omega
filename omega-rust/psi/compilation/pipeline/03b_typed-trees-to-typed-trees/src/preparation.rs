@@ -145,8 +145,9 @@ pub fn prepare_typed_trees(
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
     // Indexed-domain identities participate in static tuple selection. Bind
-    // their operation/algebra authority before deriving instances; each round
-    // refreshes identities for newly copied expressions and substitutions.
+    // their operation/algebra authority once before deriving instances. Copies
+    // retain it and substitute exact type/evidence binders at their producer;
+    // no later instance may choose authority for the universal template.
     // Immutable checking, not this derivation, commits template contracts.
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -179,7 +180,8 @@ pub fn prepare_typed_trees(
         // token or generated candidate can expose another ordinary application,
         // so all rounds return through this same specialization entrypoint.
         specialize_machine_calls(&mut program, true)?;
-        normalize_open_index_identities(&mut program)?;
+        crate::monomorphization::refresh_closed_domain_instance_identities(&mut program)
+            .map_err(|diagnostic| vec![diagnostic])?;
         let mut materialized = match &provider_templates {
             Some(templates) => crate::monomorphization::specialize_operator_candidates(
                 templates,
@@ -245,9 +247,10 @@ pub fn prepare_typed_trees(
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
-/// indexed-domain semantic ID. Static tuple derivation consumes these identities;
-/// cloned expressions and substituted arguments require a refresh before the
-/// next round. Template commitments belong to the following immutable check.
+/// indexed-domain semantic ID before static tuple derivation. Later copies carry
+/// their selected authority; closed-domain identity finalization remains a
+/// separate operation over the substituted graph. Immutable checking owns
+/// template commitments.
 fn normalize_open_index_identities(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {

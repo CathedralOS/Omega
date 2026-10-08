@@ -248,21 +248,11 @@ fn validate_package_index_expression(
             validate_package_index_expression(program, unary.operand, binders)
         }
         ExpressionNode::Binary(binary) => {
-            let mut selections = program
-                .open_index_normalizations
-                .iter()
-                .flat_map(|normalization| &normalization.operations)
-                .filter(|selection| selection.expression == expression);
-            let Some(selection) = selections.next() else {
+            let Some(selection) = program.expression_table.open_index_operation(expression) else {
                 return Err(vec![Diagnostic::error(
                     "package review rejects an open index operation without exact checked selection",
                 )]);
             };
-            if selections.next().is_some() {
-                return Err(vec![Diagnostic::error(
-                    "package review rejects an open index operation with duplicate checked selections",
-                )]);
-            }
             if !selection.operator.is_valid()
                 || !selection.provider.is_valid()
                 || !selection.algebra_trait.is_valid()
