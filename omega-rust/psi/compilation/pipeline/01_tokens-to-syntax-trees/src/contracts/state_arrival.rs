@@ -17,16 +17,7 @@ pub(crate) fn parse_state_arrival_contracts<'tokens, 'source>(
     while input.at_contextual("requires") {
         let keyword_source_span = Some(input.current_source_span());
         input = input.take_contextual("requires")?;
-        let (binding, fact_input) = if let Ok((binding, after_binding)) = input.take_identifier()
-            && after_binding.at_punctuation(PunctuationKind::Colon)
-        {
-            (
-                Some(binding),
-                after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
-            )
-        } else {
-            (None, input)
-        };
+        let (binding, fact_input) = input.take_optional_label()?;
         let ((facts, token_count), rest) =
             crate::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
                 syntax_trees,

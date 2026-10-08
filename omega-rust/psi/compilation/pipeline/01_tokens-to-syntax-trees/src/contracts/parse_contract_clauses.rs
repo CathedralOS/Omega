@@ -270,17 +270,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             if matches!(kind, CapabilityContractKind::Ensures) {
                 reject_ambiguous_outcome_specific_ensures(input)?;
             }
-            let (binding, fact_input) = if let Ok((binding, after_binding)) =
-                input.take_identifier()
-                && after_binding.at_punctuation(PunctuationKind::Colon)
-            {
-                (
-                    Some(binding),
-                    after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
-                )
-            } else {
-                (None, input)
-            };
+            let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
                 crate::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
                     syntax_trees,
@@ -546,16 +536,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let row_input = input;
-        let (binding, fact_input) = if let Ok((binding, after_binding)) = input.take_identifier()
-            && after_binding.at_punctuation(PunctuationKind::Colon)
-        {
-            (
-                Some(binding),
-                after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
-            )
-        } else {
-            (None, input)
-        };
+        let (binding, fact_input) = input.take_optional_label()?;
         let ((facts, token_count), rest) =
             crate::contracts::facts::parse_proof_facts_until(syntax_trees, fact_input, |input| {
                 input.at_punctuation(PunctuationKind::Semicolon)

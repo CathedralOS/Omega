@@ -206,17 +206,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 input = input.take_contextual("ensures")?;
                 CapabilityContractKind::Ensures
             };
-            let (binding, fact_input) = if let Ok((binding, after_binding)) =
-                input.take_identifier()
-                && after_binding.at_punctuation(PunctuationKind::Colon)
-            {
-                (
-                    Some(binding),
-                    after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
-                )
-            } else {
-                (None, input)
-            };
+            let (binding, fact_input) = input.take_optional_label()?;
             let ((facts, token_count), rest) =
                 parse_proof_facts_until(syntax_trees, fact_input, signature_clause_boundary)?;
             if binding.is_some() && facts.count() != 1 {

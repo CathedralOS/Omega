@@ -233,6 +233,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// An optional `identifier:` label prefix; leaves the cursor unchanged
+    /// when the upcoming tokens are not a labeled prefix.
+    pub(crate) fn take_optional_label(self) -> Result<(Option<Identifier>, Self), ParseError> {
+        if let Ok((binding, after_binding)) = self.take_identifier()
+            && after_binding.at_punctuation(PunctuationKind::Colon)
+        {
+            Ok((
+                Some(binding),
+                after_binding.take_punctuation(PunctuationKind::Colon, ":")?,
+            ))
+        } else {
+            Ok((None, self))
+        }
+    }
+
     /// An integer literal as its ANONYMOUS payload (D14) -- the expression
     /// path, where the literal's type comes from a later use.
     pub(crate) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
