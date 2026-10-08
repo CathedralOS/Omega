@@ -9,10 +9,14 @@
 //! and hands the window to one derivation and one audit.
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Every successor edge a terminator names, in its physical record order;
+/// `HostedExitProcess` and `Return` name none.
+pub(super) use selected_instructions::terminator_successors;
+
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedMemoryAccessOrigin, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, terminator_instruction
+    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport, terminator_instruction,
 };
 
 use crate::rewrites::window_hazards::{has_memory_rows, register_reads, register_writes};
@@ -30,32 +34,6 @@ pub(super) fn function_at<'p, E>(
 /// The instruction a terminator carries — a position every traversal of
 /// its block observes, and the body-end landing position a destination can
 /// name.
-
-/// Every successor edge a terminator names, in its physical record order;
-/// `HostedExitProcess` and `Return` name none.
-pub(super) fn terminator_successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
-    match terminator {
-        SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. }
-        | SelectedTerminator::Return { .. } => Vec::new(),
-    }
-}
 
 /// Every position of a block: its body instructions, then the instruction
 /// its terminator carries.

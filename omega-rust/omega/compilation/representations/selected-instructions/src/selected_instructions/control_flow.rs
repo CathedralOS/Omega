@@ -257,7 +257,8 @@ pub fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut S
     }
 }
 
-/// Every successor edge a terminator carries.
+/// Every successor edge a terminator carries, in its physical record
+/// order; `HostedExitProcess` and `Return` carry none.
 pub fn terminator_successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
     match terminator {
         SelectedTerminator::Jump { successor, .. } => vec![successor],
