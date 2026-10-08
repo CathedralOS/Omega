@@ -90,7 +90,7 @@ pub(super) fn updates_preserve_order(
         }
     }
 
-    let Some(head_index) = states.iter().position(|state| state.symbol == head) else {
+    let Some(head_index) = program.state_position_by_symbol(machine.symbol, head) else {
         return false;
     };
     let mut arrivals = vec![None; states.len()];
@@ -129,7 +129,7 @@ pub(super) fn updates_preserve_order(
                 if symbol == head || !loop_states.contains(&symbol) {
                     continue;
                 }
-                let Some(target_index) = states.iter().position(|state| state.symbol == symbol)
+                let Some(target_index) = program.state_position_by_symbol(machine.symbol, symbol)
                 else {
                     return false;
                 };
