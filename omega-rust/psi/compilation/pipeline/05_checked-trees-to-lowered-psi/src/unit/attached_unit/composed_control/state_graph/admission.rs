@@ -13,7 +13,6 @@ use super::{
     CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
     topology,
 };
-use checked_trees::statement::TransitionExit;
 
 /// Custody, not topology, selects this emitter. Once selected, failed source
 /// rejoining must not retry an older matcher that ignores additional statements.
@@ -328,14 +327,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             )?;
         }
         if let CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. } = state.terminator {
-            // A closed-sum dispatch still reads its subject's declaration and
-            // arms from source (`cases::validate`).
-            let statements = checked.statement_table.statements(source.statement_nodes);
-            let terminator_ordinal = state.terminator_statement_ordinal as usize;
-            let tail = typed_trees::statement::reachable_transition_prefix(
-                &statements[terminator_ordinal..],
-            );
-            super::cases::validate(checked, plan, source, state, tail, terminator_ordinal)?;
+            // A closed-sum dispatch checks its subject's sum custody and arms
+            // against what the case emitter lowers (`cases::validate`).
+            super::cases::validate(checked, plan, source, state)?;
         } else {
             for successor in state.successors() {
                 let target = plan
@@ -453,89 +447,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         exclusive_handoffs,
         boundaries,
     })
-}
-
-/// A graph guard names exactly the value its `Guard` coordinate retains: the
-/// pure Boolean expression with its source binding, or the unique Boolean
-/// computation root this machine owns there. Emission evaluates that root once
-/// through the shared computation expander, which rejoins its source custody.
-/// A terminal machine call on one conditional arm: the arm's own authored
-/// invocation of another machine (Terminal calls in transition arms,
-/// state_contracts.md), run on that arm alone before its completion's ordinary
-/// return disposal. Alternative arms may transfer the same inherited owner:
-/// exact authored target custody and the selected-arm call namespace keep those
-/// transfers distinct, while ordinary call admission and Terminal claim replay
-/// require each executed transfer to consume its current owner exactly once. Its
-/// normal result is the machine's: Unit, or the primitive scalar the call
-/// binds at the arm's transition, which the arm returns. Emission rejoins
-/// that binding's ordinal in the namespace the arm inherits. Checked bodies
-/// and selected requirements share this completion contract; ordinary call
-/// admission below retains their distinct target and argument custody.
-pub(super) fn validate_arm_call(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    source: &checked_trees::state::State,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    transition: &checked_trees::statement::TableTransition,
-    ordinal: usize,
-    operands: &checked_trees::CheckedOperandSequence,
-    operation: &checked_trees::CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    let Some(call) = operation.call() else {
-        return unsupported("Unit graph call arm lost its call");
-    };
-    let completes = match (&plan.result, call.result()) {
-        (
-            checked_trees::CheckedControlResultPlan::Unit,
-            checked_trees::CheckedUnitCallResult::Unit,
-        ) => true,
-        (
-            checked_trees::CheckedControlResultPlan::Scalar { primitive_type },
-            checked_trees::CheckedUnitCallResult::Scalar(result),
-        ) => result.primitive_type == *primitive_type && result.statement_index as usize == ordinal,
-        (
-            checked_trees::CheckedControlResultPlan::Structural(signature),
-            checked_trees::CheckedUnitCallResult::Structural {
-                binding,
-                discard_result_on_return,
-            },
-        ) => {
-            binding.type_identity == signature.type_identity
-                && binding.multiplicity == signature.multiplicity
-                && binding.statement_index as usize == ordinal
-                && !discard_result_on_return
-        }
-        _ => false,
-    };
-    if !completes
-        || call.coordinate.statement_index as usize != ordinal
-        || transition.exit != TransitionExit::Ordinary
-        || transition.continuation.is_valid()
-        || !matches!(
-            checked.statement_table.transition_target(transition.target),
-            checked_trees::statement::TransitionTargetNode::Named { .. }
-        )
-    {
-        return unsupported("Unit graph call arm is not its arm's terminal invocation");
-    }
-    crate::unit::attached_unit::argument_schedule::validate_operand_preparation(
-        checked,
-        plan.machine,
-        state.state,
-        operands,
-        operation,
-    )?;
-    for operand in operands.iter() {
-        match operand {
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {}
-            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray { .. } => {}
-            // The shared call admission handles calls in this sequence with
-            // their complete preceding result namespace.
-            _ => {}
-        }
-    }
-    edges::return_discards(checked, plan.machine, source, state)?;
-    Ok(())
 }
 
 /// A borrowed formal's admission reads its plan row: qualifications must be

@@ -159,20 +159,6 @@ pub(super) fn build_operations(
     Ok(steps)
 }
 
-/// A retained preparation sequence belongs to one exact consumer, not to
-/// any other call on the same statement. Reconstruct its dependencies from
-/// authored formals and produced bindings, and require every retained operand
-/// to occur once in that consumer's argument evaluation.
-pub(crate) fn validate_operand_preparation(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operands: &checked_trees::CheckedOperandSequence,
-    consumer: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    operand_preparation(checked, machine, state, operands, consumer).map(|_| ())
-}
-
 /// The same checked operand schedule is consumed by statement and expression bodies.
 pub(crate) fn operand_preparation(
     checked: &CheckedTrees,

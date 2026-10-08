@@ -29,28 +29,6 @@ pub(super) fn result(
         })
 }
 
-/// Whether `result` is the computed subject of this state's closed-case
-/// dispatch: the anonymous result the dispatch's first arm mints and every
-/// case edge consumes. It names no local and has no permission rows.
-fn computed_case_subject(
-    state: &CheckedComposedUnitControlStatePlan,
-    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-) -> bool {
-    matches!(
-        &state.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum {
-            subject,
-            subject_kind: checked_trees::CheckedClosedSumSubjectKind::Computed,
-            ..
-        } if matches!(
-            subject.source,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal,
-            } if binding_ordinal == result.binding_ordinal
-        )
-    )
-}
-
 /// Which role an authored local plays in an owned-selection receipt, if any.
 /// The destination's establishment and every source's residual death share the
 /// receipt's StateExit authority rather than ordinary Establish rows; locals
@@ -360,104 +338,6 @@ fn retired_in_body(
     Ok(retired)
 }
 
-/// Locals already disposed at a checked statement entry must not be disposed
-/// again at return. Stage 04 owns the lifetime decision; lowering consumes its
-/// result ordinals directly instead of reconstructing source ownership rows.
-pub(super) fn statement_discards(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
-    state
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
-                cleanup_actions,
-            } => Some(cleanup_actions),
-            _ => None,
-        })
-        .flatten()
-        .filter_map(|discard| match *discard.source() {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal,
-            } => Some(binding_ordinal),
-            _ => None,
-        })
-        .collect()
-}
-
-pub(super) fn local_discards(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    edge: Option<&CheckedStructuralControlSuccessorPlan>,
-) -> Result<Vec<u32>, LoweringError> {
-    let statements = checked.statement_table.statements(source.statement_nodes);
-    let cleanup_discards = retired_in_body(checked, source, state)?;
-    let mut discards = Vec::new();
-    for result in state.operations.iter().rev().filter_map(result) {
-        if cleanup_discards.contains(&result.binding_ordinal) {
-            continue;
-        }
-        // An ordinary structural return transfers its exact result; other
-        // local owners still need the same cleanup as a Unit completion.
-        if edge.is_none()
-            && matches!(&state.terminator,
-                checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned }
-                    if matches!(returned.source,
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
-                            if binding_ordinal == result.binding_ordinal))
-        {
-            continue;
-        }
-        // The case edges that consume a computed dispatch subject leave from
-        // its own statement; the edge emitter removes it from their roster.
-        let mut authored_local = None;
-        if !computed_case_subject(state, result) {
-            let Some(StatementNode::LocalData(local)) =
-                statements.get(result.statement_index as usize)
-            else {
-                return unsupported("Unit graph edge result has no authored local");
-            };
-            if edge.is_some_and(|edge| result.statement_index >= edge.statement_ordinal) {
-                return unsupported("Unit graph edge precedes local establishment");
-            }
-            if selection_role(
-                checked,
-                machine,
-                source.symbol,
-                local.symbol,
-                result.statement_index,
-            ) == Some(SelectionRole::Source)
-            {
-                // The source's own place already died at the selection join;
-                // its residual parameter is disposed by the caller's splice
-                // roster.
-                continue;
-            }
-            authored_local = Some(local);
-        }
-        let operand_call_moves = match edge {
-            Some(edge) => operand_moves(checked, machine, source, authored_local, result, edge)?,
-            None => 0,
-        };
-        let transferred = operand_call_moves
-            + edge
-                .into_iter()
-                .flat_map(|edge| &edge.transfers)
-                .filter(|transfer| {
-                    transfer_holds_result(checked, source, state, transfer, result.binding_ordinal)
-                })
-                .count();
-        if transferred > 1 {
-            return unsupported("Unit graph edge duplicates local ownership");
-        }
-        if transferred == 0 && result.multiplicity == Multiplicity::Affine {
-            discards.push(result.binding_ordinal);
-        }
-    }
-    Ok(discards)
-}
-
 /// The source-state result whose home the view `binding_ordinal` lends. A
 /// `let` view (`room.exits.as_mut_slice()`) is a loan of the local it was
 /// formed from, so an edge carrying the view must keep that local's home live
@@ -502,32 +382,6 @@ pub(super) fn view_backing(
             homes.next().is_none().then_some(home.binding_ordinal)
         }
         _ => None,
-    }
-}
-
-/// Whether `transfer` takes the source state's result `binding_ordinal` off
-/// its edge's cleanup roster: a whole transfer to the target, or a loan --
-/// projected, or a carried view -- whose backing local stays live through the
-/// edge and dies with the loan, never on this edge itself.
-fn transfer_holds_result(
-    checked: &CheckedTrees,
-    source: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    transfer: &checked_trees::CheckedStructuralControlTransferPlan,
-    binding_ordinal: u32,
-) -> bool {
-    match &transfer.source {
-        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
-            binding_ordinal: transferred,
-        } => {
-            *transferred == binding_ordinal
-                || view_backing(checked, source, state, *transferred) == Some(binding_ordinal)
-        }
-        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-            subject,
-            ..
-        } => subject.source_structural_result_binding_ordinal() == Some(binding_ordinal),
-        _ => false,
     }
 }
 

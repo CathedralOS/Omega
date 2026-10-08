@@ -1,10 +1,16 @@
-//! Reconstruct closed-case dispatch from the authored result and payload paths.
+//! Admit a closed-case dispatch the case emitter can lower: a whole, plain,
+//! non-linear sum subject (an owned or borrowed parameter, a retained local,
+//! or the dispatch's one computed call), arms that return a value or a call
+//! or jump to a successor that does not take the consumed subject, payload
+//! fields the selected case declares, and exit disposal that names only the
+//! subject. Stage 04 built the arms from the authored transitions; this does
+//! not rejoin them to source.
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
 use checked_trees::data::DataMember;
-use checked_trees::statement::{StatementNode, TransitionGuardNode};
+use checked_trees::statement::StatementNode;
 use checked_trees::types::TypeReferenceNode;
 
 /// The sum a Unit case dispatch reads.
@@ -219,8 +225,6 @@ pub(super) fn validate(
     plan: &CheckedComposedUnitControlMachinePlan,
     source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
-    tail: &[StatementNode],
-    ordinal: usize,
 ) -> Result<(), LoweringError> {
     let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } =
         &state.terminator
@@ -363,7 +367,6 @@ pub(super) fn validate(
         _ => None,
     };
     let declared = checked.data_members(declaration);
-    let mut previous_case_order = None;
     let mutable_reference_result =
         crate::reference_custody::mutable_borrow_parts(checked, source.return_type).is_some();
     for case in cases {
@@ -434,17 +437,6 @@ pub(super) fn validate(
         }) {
             return unsupported("Unit case transfers its consumed subject");
         }
-        let source_offset = (case.statement_ordinal() as usize)
-            .checked_sub(ordinal)
-            .ok_or(LoweringError::Unsupported(
-                "Unit case source ordinal precedes dispatch",
-            ))?;
-        let statement = tail.get(source_offset).ok_or(LoweringError::Unsupported(
-            "Unit case source ordinal exceeds dispatch",
-        ))?;
-        let StatementNode::Transition(transition) = statement else {
-            return unsupported("Unit case tail contains an effect");
-        };
         let variant = declared
             .iter()
             .find_map(|member| match member {
@@ -454,79 +446,27 @@ pub(super) fn validate(
                 _ => None,
             })
             .ok_or(LoweringError::Unsupported("Unit case names an absent case"))?;
-        match transition.guard {
-            TransitionGuardNode::When(_) => {}
-            TransitionGuardNode::Always if source_offset + 1 == tail.len() => {}
-            _ => return unsupported("Unit case guard is not an exact case test"),
-        }
-        let declaration_position = declared.iter().position(|member| {
-            matches!(member, DataMember::Variant(candidate) if candidate.symbol == variant.symbol)
-        }).ok_or(LoweringError::Unsupported("Unit case declaration position missing"))?;
-        let order = (source_offset, declaration_position);
-        if previous_case_order.is_some_and(|previous| previous >= order) {
-            return unsupported("Unit case roster no longer follows authored dispatch order");
-        }
-        previous_case_order = Some(order);
-        if let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
-            checked_trees::CheckedConditionalReturnArm::Call {
-                operands,
-                operation,
-            },
-        ) = &case.outcome
-        {
-            super::admission::validate_arm_call(
-                checked,
-                plan,
-                source,
-                state,
-                transition,
-                case.statement_ordinal() as usize,
-                operands,
-                operation,
-            )?;
-            super::result_custody::local_discards(checked, owner, source, state, None)?;
-            continue;
-        }
-        let (
-            Some(successor),
-            checked_trees::statement::TransitionTargetNode::Named { arguments, .. },
-        ) = (
-            successor_plan,
-            checked.statement_table.transition_target(transition.target),
-        )
-        else {
-            if let (
-                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm),
-                checked_trees::statement::TransitionTargetNode::Value(_),
-            ) = (
-                &case.outcome,
-                checked.statement_table.transition_target(transition.target),
-            ) {
-                if mutable_reference_result {
-                    let checked_trees::CheckedConditionalReturnArm::Structural(operation) = arm
-                    else {
+        let Some(successor) = successor_plan else {
+            // A returned mutable reference keeps its structural producer; a
+            // call arm returns its callee's reference.
+            if mutable_reference_result
+                && let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm) = &case.outcome
+            {
+                match arm {
+                    checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
+                        super::guarded::validate_reference_return(checked, plan, state, operation)?
+                    }
+                    checked_trees::CheckedConditionalReturnArm::Call { .. } => {}
+                    _ => {
                         return unsupported(
                             "Unit case reference return lost its structural producer",
                         );
-                    };
-                    super::guarded::validate_reference_return(checked, plan, state, operation)?;
+                    }
                 }
-                super::result_custody::local_discards(checked, owner, source, state, None)?;
-                continue;
             }
-            return unsupported("Unit case outcome and authored arm disagree");
+            continue;
         };
-        let target = plan
-            .states
-            .iter()
-            .find(|target| target.state == successor.target_state)
-            .ok_or(LoweringError::Unsupported("Unit case target missing"))?;
-        let arguments = checked.statement_table.expression_handles(*arguments);
         for payload in &case.payloads {
-            let parameter = target
-                .scalar_parameters
-                .get(payload.target_scalar_parameter_index as usize)
-                .ok_or(LoweringError::Unsupported("Unit case payload slot invalid"))?;
             if !checked
                 .data_payload_fields(variant)
                 .iter()
@@ -534,12 +474,6 @@ pub(super) fn validate(
             {
                 return unsupported("Unit case payload field missing");
             }
-            let argument_position = parameter.source_position as usize;
-            arguments
-                .get(argument_position)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit case payload source missing",
-                ))?;
         }
         let target = plan
             .states
@@ -549,25 +483,6 @@ pub(super) fn validate(
                 "Unit graph successor target is missing",
             ))?;
         edges::admit_transfers(state, successor, target)?;
-    }
-    // Only a final `_` after complete case coverage selects no case.
-    let declared_cases = declared
-        .iter()
-        .filter(|member| matches!(member, DataMember::Variant(_)))
-        .count();
-    if tail.iter().enumerate().any(|(offset, statement)| {
-        !cases
-            .iter()
-            .any(|case| case.statement_ordinal() as usize == ordinal + offset)
-            && !(offset + 1 == tail.len()
-                && cases.len() == declared_cases
-                && matches!(
-                    statement,
-                    StatementNode::Transition(transition)
-                        if transition.guard == TransitionGuardNode::Always
-                ))
-    }) {
-        return unsupported("Unit case omitted an authored arm");
     }
     Ok(())
 }
