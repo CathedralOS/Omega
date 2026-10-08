@@ -66,25 +66,7 @@ pub(super) fn dependent_maximum_of_type_reference(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
-    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, handle)?;
-    shells
-        .iter()
-        .flat_map(|constraints| constraints.iter())
-        .find_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                maximum,
-                end_inclusive,
-                ..
-            } => {
-                let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                    program,
-                    *maximum,
-                    *end_inclusive,
-                )?;
-                Some((symbolic.field, symbolic.offset))
-            }
-            _ => None,
-        })
+    crate::value_custody::type_shapes::exact_shells_symbolic_range_maximum(program, handle)
 }
 
 /// Conservative whole-state field-preservation scan (twin of the proof

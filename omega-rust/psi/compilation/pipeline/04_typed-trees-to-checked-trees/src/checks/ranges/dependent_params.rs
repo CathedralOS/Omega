@@ -75,27 +75,7 @@ fn dependent_maximum_of_type_reference(
     program: &dyn ::validation::CheckingInput,
     handle: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
-    use typed_trees::types::TypeConstraintNode;
-    let mut found = None;
-    super::types::exact_domain_shell_constraints(program, handle, |constraints| {
-        found = constraints.iter().find_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                maximum,
-                end_inclusive,
-                ..
-            } => {
-                let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                    program,
-                    *maximum,
-                    *end_inclusive,
-                )?;
-                Some((symbolic.field, symbolic.offset))
-            }
-            _ => None,
-        });
-        found.is_none()
-    })?;
-    found
+    validation::exact_shells_symbolic_range_maximum(program, handle)
 }
 
 /// The sibling-length bound of a declared type's Range constraint under
