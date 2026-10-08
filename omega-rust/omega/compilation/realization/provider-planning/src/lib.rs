@@ -35,10 +35,10 @@ pub mod task_plans;
 pub mod x86_fma_plan_association;
 
 pub use provider_settlement::{
-    CheckedProviderSelection, MintedFilesystemHostPlan, MintedTimeHostPlan, ProviderSettlement,
+    CheckedProviderSelection, MintedFilesystemHostPlan, ProviderSettlement,
     SettledTargetMachineDeclarations, TargetProviderDefaults, mint_canonical_filesystem_host_plan,
-    mint_canonical_time_host_plan, settle_checked_providers,
-    verify_independent_component_descriptions, verify_selected_compositions_are_realized,
+    settle_checked_providers, verify_independent_component_descriptions,
+    verify_selected_compositions_are_realized,
 };
 
 pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};

@@ -9,11 +9,9 @@
 //! one subordinate admission: re-verifying the component descriptions the
 //! package inputs attached before provider planning joins them.
 //!
-//! Canonical `FilesystemHost` and `TimeHost` slots may use fallback
-//! toolchain plans when their accepted schema has no selected authored
-//! provider. Ordinary reviewed checked providers take precedence: macOS
-//! TimeHost supplies explicit satisfaction and selection in std, including
-//! checked calibration bodies and adapters around private imports.
+//! The canonical `FilesystemHost` slot may use a fallback toolchain plan when
+//! its accepted schema has no selected authored provider. TimeHost is supplied
+//! entirely by ordinary target-scoped std providers.
 //! `Console` is deliberately absent from the fallback set:
 //! its canonical boundary is authored-provider-complete — every hosted
 //! target ships a `ConsoleNativeProvider` conformance plus a
@@ -24,7 +22,6 @@
 //! identity is nominal and never inferred from the boundary's name.
 
 mod canonical_filesystem_host;
-mod canonical_time_host;
 mod composition_modes;
 mod independent_components;
 mod semantic_roles;
@@ -32,7 +29,6 @@ mod semantic_roles;
 pub use canonical_filesystem_host::{
     MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
 };
-pub use canonical_time_host::{MintedTimeHostPlan, mint_canonical_time_host_plan};
 pub use composition_modes::verify_selected_compositions_are_realized;
 pub use independent_components::verify_independent_component_descriptions;
 
@@ -49,9 +45,8 @@ use package_compilation::{
 };
 use typed_trees::TypedTrees;
 
-/// Resolve the exact Product boundary and normalized schema for a canonical
-/// host binding. Filesystem and time settlement share this declaration join;
-/// their role, fallback and target realization policies stay with each mint.
+/// Resolve the exact Product boundary and normalized schema for the canonical
+/// filesystem host binding.
 fn resolve_canonical_host_binding<'trees>(
     typed: &'trees TypedTrees,
     binding: &AcceptedSemanticBinding,
@@ -115,16 +110,6 @@ pub(super) struct ToolchainSettledLeaf {
     pub number: i64,
 }
 
-/// How a realization-table leaf absent from the accepted schema is treated.
-pub(super) enum CanonicalHostCoverage {
-    /// Skip the leaf: consumer-declared schemas name their own demanded
-    /// subset, and coverage stops there rather than demanding the canonical
-    /// declaration's whole vocabulary.
-    DemandedSubset,
-    /// Reject: every table leaf must resolve to a declared schema method.
-    Exact,
-}
-
 /// Mint one canonical host's toolchain-settled plan. `leaves` is the host's
 /// reviewed realization table for the selected target (empty when the target
 /// has none); each leaf names the schema method it satisfies and the syscall
@@ -138,7 +123,6 @@ fn mint_toolchain_settled_plan(
     leaves: &[ToolchainSettledLeaf],
     provider: &'static str,
     host_label: &'static str,
-    coverage: CanonicalHostCoverage,
 ) -> Result<Option<ToolchainSettledMint>, Vec<Diagnostic>> {
     let Some(binding) = accepted_binding else {
         return Ok(None);
@@ -166,15 +150,7 @@ fn mint_toolchain_settled_plan(
             .iter()
             .find(|method| method.name == leaf.method)
         else {
-            match coverage {
-                CanonicalHostCoverage::DemandedSubset => continue,
-                CanonicalHostCoverage::Exact => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "canonical `{host_label}` realization table names `{}`, which the accepted service schema does not declare",
-                        leaf.method,
-                    ))]);
-                }
-            }
+            continue;
         };
         let Some(signature) = signatures
             .iter()
@@ -360,28 +336,10 @@ pub fn settle_checked_providers(
             .map(|selected| selected.derived.plan.clone())
             .collect::<Vec<_>>(),
     )?;
-    // An already-selected ordinary TimeHost provider keeps its exact
-    // provenance. Only an unfilled slot may use the reviewed fallback table.
-    let toolchain_time_host_plan = canonical_time_host::mint_canonical_time_host_plan(
-        typed,
-        package_inputs.and_then(|inputs| {
-            inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::TimeHostService)
-        }),
-        target_name,
-        &selected_provider_plans
-            .iter()
-            .map(|selected| selected.derived.plan.clone())
-            .collect::<Vec<_>>(),
-    )?;
     // Toolchain-minted host services are always Fused.
-    let mut fused_service_erasures = [
-        toolchain_filesystem_plan
-            .as_ref()
-            .map(|minted| minted.trait_symbol),
-        toolchain_time_host_plan
-            .as_ref()
-            .map(|minted| minted.trait_symbol),
-    ]
+    let mut fused_service_erasures = [toolchain_filesystem_plan
+        .as_ref()
+        .map(|minted| minted.trait_symbol)]
     .into_iter()
     .flatten()
     .map(|requirement| typed_trees::typed_trees::FusedServiceErasureAuthorization { requirement })
@@ -420,9 +378,6 @@ pub fn settle_checked_providers(
     if let Some(minted) = &toolchain_filesystem_plan {
         selected_semantic_plans.push(minted.plan.clone());
     }
-    if let Some(minted) = &toolchain_time_host_plan {
-        selected_semantic_plans.push(minted.plan.clone());
-    }
     let external_binding_rows = crate::extract_native_external_binding_rows(
         target_name,
         provider_selection_target,
@@ -447,13 +402,7 @@ pub fn settle_checked_providers(
             selected_provider_plans,
             &independent_components,
         )?;
-    for minted in [
-        toolchain_filesystem_plan,
-        toolchain_time_host_plan,
-    ]
-    .into_iter()
-    .flatten()
-    {
+    for minted in [toolchain_filesystem_plan].into_iter().flatten() {
         selected_provider_plan_facts = selected_provider_plan_facts
             .with_toolchain_settled_plan(minted.plan.clone())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;

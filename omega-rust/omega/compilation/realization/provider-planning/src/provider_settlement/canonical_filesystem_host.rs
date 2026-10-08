@@ -152,6 +152,5 @@ pub fn mint_canonical_filesystem_host_plan(
         leaves,
         TOOLCHAIN_FILESYSTEM_HOST_PROVIDER,
         "FilesystemHost",
-        super::CanonicalHostCoverage::DemandedSubset,
     )
 }

@@ -2388,17 +2388,6 @@ crash and native exit behavior.
     `typed-trees-to-checked-trees` dependencies
     (`omega-rust/omega/compilation/realization/provider-planning/Cargo.toml`)
     and enforce the layering boundary.
-  - Provider planning never manufactures standard-library implementations.
-    Delete `provider_settlement/canonical_time_host.rs`, `MintedTimeHostPlan`
-    and the synthetic `omega::toolchain::time_host` rows that recognize
-    `TimeHost` method strings and Linux syscall numbers. Use the ordinary
-    target-scoped providers in
-    `source/library/std/targets/<target>/time_host_impl.omg`; irreducible
-    syscalls remain authored `via ForeignBinding::Syscall` leaves with exact
-    provider/package provenance. **FILESYSTEM-PLATFORM-SERVICES** owns deletion
-    of the analogous filesystem mint. Acceptance includes a source/dependency
-    guard finding no canonical host-plan mint in provider planning and the
-    unchanged TimeHost positive/negative corpus on applicable hosts.
   - Const exception: provider-dependent constants belong to the one checked
     program. Every realized target must select the same provider for that
     application; evaluate it once in Psi through `SelectedConstantEvaluation`
@@ -5762,9 +5751,7 @@ report a missing runtime leg explicitly.
     markers reject.
   - **Host-provider execution:** use the existing TimeHost providers at
     `source/library/std/targets/<target>/time_host_impl.omg`; do not add a
-    second provider path. **PROVIDER-SELECTION-AFTER-TERMINAL** owns deleting
-    the existing compiler-minted `canonical_time_host` fallback; this release
-    row consumes only the ordinary authored providers.
+    second provider path.
     `pass/time/runtime_time_elapsed_since_exit` has
     recorded native exit 70 on Linux x86-64 and macOS ARM64, and a portable
     `checked` row. Windows x86-64 still records rejection; Linux ARM64 has no
