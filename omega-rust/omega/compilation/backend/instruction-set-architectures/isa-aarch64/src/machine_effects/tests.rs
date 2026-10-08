@@ -121,7 +121,8 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                         &[2, 3],
                     ),
                 };
-                let declaration = catalog.declaration_by_semantic(semantic)
+                let declaration = catalog
+                    .declaration_by_semantic(semantic)
                     .unwrap_or_else(|| panic!("{semantic:?} declared"));
                 assert_eq!(declaration.constraint, key, "{semantic:?}");
                 assert_eq!(declaration.alternatives.len(), 1);
@@ -147,9 +148,7 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                 for corruption in 0..3 {
                     let mut changed = catalog.clone();
                     let alternative = &mut changed
-                        .declarations
-                        .iter_mut()
-                        .find(|row| row.semantic == semantic)
+                        .declaration_by_semantic_mut(semantic)
                         .unwrap()
                         .alternatives[0];
                     match corruption {
@@ -204,7 +203,8 @@ fn wrapping_remainder_catalog_preserves_inputs_and_flags() {
     let constraints = constraints();
     for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
         let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
-        let declaration = catalog.declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
+        let declaration = catalog
+            .declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
             .unwrap();
         assert_eq!(
             declaration.constraint,
@@ -221,9 +221,7 @@ fn wrapping_remainder_catalog_preserves_inputs_and_flags() {
         for corruption in 0..3 {
             let mut changed = catalog.clone();
             let alternative = &mut changed
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == MachineSemanticKind::WrappingRemainderI64)
+                .declaration_by_semantic_mut(MachineSemanticKind::WrappingRemainderI64)
                 .unwrap()
                 .alternatives[0];
             match corruption {
@@ -244,7 +242,8 @@ fn bitwise_xor_catalog_binds_family_size_and_pure_effects() {
         let constraints = constraints();
         let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
         validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
-        let declaration = catalog.declaration_by_semantic(MachineSemanticKind::BitwiseXorI64)
+        let declaration = catalog
+            .declaration_by_semantic(MachineSemanticKind::BitwiseXorI64)
             .unwrap();
         assert_eq!(declaration.alternatives.len(), 1);
         let alternative = &declaration.alternatives[0];
@@ -260,9 +259,7 @@ fn bitwise_xor_catalog_binds_family_size_and_pure_effects() {
         for corruption in 0..3 {
             let mut changed = catalog.clone();
             let alternative = &mut changed
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == MachineSemanticKind::BitwiseXorI64)
+                .declaration_by_semantic_mut(MachineSemanticKind::BitwiseXorI64)
                 .unwrap()
                 .alternatives[0];
             match corruption {
@@ -289,8 +286,7 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
             MachineSemanticKind::SignExtendI16,
             MachineSemanticKind::SignExtendI32,
         ] {
-            let declaration = catalog.declaration_by_semantic(semantic)
-                .unwrap();
+            let declaration = catalog.declaration_by_semantic(semantic).unwrap();
             assert_eq!(declaration.constraint, AARCH64_COPY_I64);
             assert_eq!(declaration.alternatives.len(), 1);
             let alternative = &declaration.alternatives[0];
@@ -302,11 +298,7 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
             );
             for corruption in 0..3 {
                 let mut changed = catalog.clone();
-                let row = changed
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == semantic)
-                    .unwrap();
+                let row = changed.declaration_by_semantic_mut(semantic).unwrap();
                 match corruption {
                     0 => row.alternatives[0].key.family = MachineSemanticKind::CopyI64.into(),
                     1 => row.alternatives[0].size = MachineSizeKnowledge::ExactBytes(1),
@@ -325,11 +317,13 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
     for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
         let constraints = constraints();
         let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
-        let subtract = catalog.declaration_by_semantic(MachineSemanticKind::ExactSubtractI64)
+        let subtract = catalog
+            .declaration_by_semantic(MachineSemanticKind::ExactSubtractI64)
             .unwrap();
         assert_eq!(subtract.constraint, AARCH64_SUBTRACT_I64);
         let register_effects = constraints
-            .catalog().constraint(subtract.constraint)
+            .catalog()
+            .constraint(subtract.constraint)
             .unwrap();
         assert!(register_effects.implicit_uses.is_empty());
         assert!(register_effects.implicit_defs.is_empty());
@@ -343,9 +337,11 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
             subtract.alternatives[0].size,
             MachineSizeKnowledge::ExactBytes(4)
         );
-        let less_than_branch = catalog.declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
+        let less_than_branch = catalog
+            .declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
             .unwrap();
-        let signed_less_than_branch = catalog.declaration_by_semantic(MachineSemanticKind::ConditionalBranchI64LessThan)
+        let signed_less_than_branch = catalog
+            .declaration_by_semantic(MachineSemanticKind::ConditionalBranchI64LessThan)
             .unwrap();
         assert_eq!(less_than_branch.constraint, AARCH64_CONDITIONAL_BRANCH);
         assert_eq!(less_than_branch.barrier, MachineBarrier::ControlFlow);
@@ -401,11 +397,13 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
         }
         assert!(validate_aarch64_machine_effect_catalog(target, &constraints, catalog).is_ok());
         let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
-        let return_unit = catalog.declaration_by_semantic(MachineSemanticKind::ReturnUnit)
+        let return_unit = catalog
+            .declaration_by_semantic(MachineSemanticKind::ReturnUnit)
             .unwrap();
         assert!(
             constraints
-                .catalog().constraint(return_unit.constraint)
+                .catalog()
+                .constraint(return_unit.constraint)
                 .unwrap()
                 .operands
                 .is_empty()
@@ -419,9 +417,7 @@ fn semantic_validator_rejects_invented_alias_or_size_semantics() {
     let constraints = constraints();
     let mut wrong = aarch64_machine_effect_catalog(target, &constraints).unwrap();
     let subtract = wrong
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::ExactSubtractI64)
+        .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
         .unwrap();
     subtract.alternatives[0].applicability =
         MachineAlternativeApplicability::ResultAliasesOperand {
@@ -435,9 +431,7 @@ fn semantic_validator_rejects_invented_alias_or_size_semantics() {
 
     let mut wrong = aarch64_machine_effect_catalog(target, &constraints).unwrap();
     wrong
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::MaterializeI64)
+        .declaration_by_semantic_mut(MachineSemanticKind::MaterializeI64)
         .unwrap()
         .alternatives[0]
         .size = MachineSizeKnowledge::ExactBytes(4);

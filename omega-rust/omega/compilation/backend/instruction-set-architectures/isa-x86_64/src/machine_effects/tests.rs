@@ -113,7 +113,8 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                 } else {
                     (vec![0, 1], vec![2, 3])
                 };
-                let declaration = catalog.declaration_by_semantic(semantic)
+                let declaration = catalog
+                    .declaration_by_semantic(semantic)
                     .unwrap_or_else(|| panic!("{semantic:?} declared"));
                 assert_eq!(declaration.constraint, key, "{semantic:?}");
                 assert_eq!(declaration.alternatives.len(), 1);
@@ -161,9 +162,7 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                 for corruption in 0..4 {
                     let mut changed = catalog.clone();
                     let alternative = &mut changed
-                        .declarations
-                        .iter_mut()
-                        .find(|row| row.semantic == semantic)
+                        .declaration_by_semantic_mut(semantic)
                         .unwrap()
                         .alternatives[0];
                     match corruption {
@@ -260,7 +259,8 @@ fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
             };
             let size = TRAPPING_SIZES[usize::from(form.operation.ordinal())]
                 [usize::from(form.carrier.ordinal())];
-            let declaration = catalog.declaration_by_semantic(semantic)
+            let declaration = catalog
+                .declaration_by_semantic(semantic)
                 .unwrap_or_else(|| panic!("{form:?} declared"));
             assert_eq!(declaration.constraint, key, "{form:?}");
             assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
@@ -307,11 +307,7 @@ fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
             }
             let corruption = form.carrier.ordinal();
             let mut changed = catalog.clone();
-            let row = changed
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == semantic)
-                .unwrap();
+            let row = changed.declaration_by_semantic_mut(semantic).unwrap();
             let alternative = &mut row.alternatives[0];
             match corruption {
                 // Drop the scratch (or RDX) definition the row contracts.
@@ -343,7 +339,8 @@ fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
     let constraints = constraints();
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
-        let declaration = catalog.declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
+        let declaration = catalog
+            .declaration_by_semantic(MachineSemanticKind::WrappingRemainderI64)
             .unwrap();
         assert_eq!(
             declaration.constraint,
@@ -363,9 +360,7 @@ fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
         for corruption in 0..3 {
             let mut changed = catalog.clone();
             let alternative = &mut changed
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == MachineSemanticKind::WrappingRemainderI64)
+                .declaration_by_semantic_mut(MachineSemanticKind::WrappingRemainderI64)
                 .unwrap()
                 .alternatives[0];
             match corruption {
@@ -390,8 +385,7 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
             MachineSemanticKind::SignExtendI16,
             MachineSemanticKind::SignExtendI32,
         ] {
-            let declaration = catalog.declaration_by_semantic(semantic)
-                .unwrap();
+            let declaration = catalog.declaration_by_semantic(semantic).unwrap();
             assert_eq!(declaration.constraint, X86_64_COPY_I64);
             assert_eq!(declaration.alternatives.len(), 1);
             let alternative = &declaration.alternatives[0];
@@ -412,11 +406,7 @@ fn integer_normalization_catalog_binds_identity_size_and_effects() {
             );
             for corruption in 0..3 {
                 let mut changed = catalog.clone();
-                let row = changed
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == semantic)
-                    .unwrap();
+                let row = changed.declaration_by_semantic_mut(semantic).unwrap();
                 match corruption {
                     0 => row.alternatives[0].key.family = MachineSemanticKind::CopyI64.into(),
                     1 => row.alternatives[0].size = MachineSizeKnowledge::ExactBytes(1),
@@ -435,13 +425,17 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         let constraints = constraints();
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
-        let subtract = catalog.declaration_by_semantic(MachineSemanticKind::ExactSubtractI64)
+        let subtract = catalog
+            .declaration_by_semantic(MachineSemanticKind::ExactSubtractI64)
             .unwrap();
-        let add = catalog.declaration_by_semantic(MachineSemanticKind::ExactAddI64)
+        let add = catalog
+            .declaration_by_semantic(MachineSemanticKind::ExactAddI64)
             .unwrap();
-        let less_than_branch = catalog.declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
+        let less_than_branch = catalog
+            .declaration_by_semantic(MachineSemanticKind::ConditionalBranchU64LessThan)
             .unwrap();
-        let signed_less_than_branch = catalog.declaration_by_semantic(MachineSemanticKind::ConditionalBranchI64LessThan)
+        let signed_less_than_branch = catalog
+            .declaration_by_semantic(MachineSemanticKind::ConditionalBranchI64LessThan)
             .unwrap();
         assert_eq!(less_than_branch.constraint, X86_64_CONDITIONAL_BRANCH);
         assert_eq!(less_than_branch.alternatives.len(), 1);
@@ -472,7 +466,8 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
         );
         assert_eq!(subtract.constraint, X86_64_SUBTRACT_I64);
         let register_effects = constraints
-            .catalog().constraint(subtract.constraint)
+            .catalog()
+            .constraint(subtract.constraint)
             .unwrap();
         assert!(register_effects.implicit_uses.is_empty());
         assert!(register_effects.implicit_defs.is_empty());
@@ -598,11 +593,13 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                 }
             ));
         }
-        let return_unit = catalog.declaration_by_semantic(MachineSemanticKind::ReturnUnit)
+        let return_unit = catalog
+            .declaration_by_semantic(MachineSemanticKind::ReturnUnit)
             .unwrap();
         assert!(
             constraints
-                .catalog().constraint(return_unit.constraint)
+                .catalog()
+                .constraint(return_unit.constraint)
                 .unwrap()
                 .operands
                 .is_empty()
@@ -622,7 +619,8 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                     .any(|row| row.semantic == semantic)
             );
         }
-        let load = ordinary.declaration_by_semantic(MachineSemanticKind::Load64)
+        let load = ordinary
+            .declaration_by_semantic(MachineSemanticKind::Load64)
             .unwrap();
         assert_eq!(load.memory, MachineMemoryEffect::ReadPointerV1);
         assert_eq!(
@@ -654,9 +652,7 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
 
     let mut wrong_size = x86_64_machine_effect_catalog(target, &constraints).unwrap();
     wrong_size
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::ExactSubtractI64)
+        .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
         .unwrap()
         .alternatives[0]
         .size = MachineSizeKnowledge::ExactBytes(4);
@@ -667,9 +663,7 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
 
     let mut bad_alias = x86_64_machine_effect_catalog(target, &constraints).unwrap();
     bad_alias
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::ExactSubtractI64)
+        .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
         .unwrap()
         .alternatives[0]
         .applicability = MachineAlternativeApplicability::ResultAliasesOperand {
@@ -688,9 +682,7 @@ fn semantic_validator_rejects_structural_and_target_specific_corruption() {
     let target = NativeTarget::windows_x64();
     let mut wrong_memory = x86_64_machine_effect_catalog(target, &constraints).unwrap();
     wrong_memory
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::Store64)
+        .declaration_by_semantic_mut(MachineSemanticKind::Store64)
         .unwrap()
         .alternatives[0]
         .encoded

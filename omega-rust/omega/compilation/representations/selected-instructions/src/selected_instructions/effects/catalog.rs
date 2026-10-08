@@ -63,9 +63,9 @@ pub fn validate_machine_effect_catalog(
             &constraints.catalog().constraints,
             declaration.constraint,
         )
-            .ok_or(MachineEffectCatalogValidationError::UnknownConstraint(
-                declaration.semantic,
-            ))?;
+        .ok_or(MachineEffectCatalogValidationError::UnknownConstraint(
+            declaration.semantic,
+        ))?;
         validate_declaration(catalog.target.architecture, row, declaration)?;
     }
     let identity = machine_effect_catalog_identity(&catalog);
@@ -924,6 +924,16 @@ impl MachineEffectCatalog {
     ) -> Option<&MachineEffectDeclaration> {
         self.declarations
             .iter()
+            .find(|declaration| declaration.semantic == semantic)
+    }
+
+    /// The mutable effect declaration for `semantic`, when the catalog carries it.
+    pub fn declaration_by_semantic_mut(
+        &mut self,
+        semantic: MachineSemanticKind,
+    ) -> Option<&mut MachineEffectDeclaration> {
+        self.declarations
+            .iter_mut()
             .find(|declaration| declaration.semantic == semantic)
     }
 }

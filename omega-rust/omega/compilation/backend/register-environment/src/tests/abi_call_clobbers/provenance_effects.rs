@@ -182,9 +182,7 @@ fn baseline_float_catalog_admits_fused_multiply_add_only_on_aarch64() {
                     });
                 let mut substituted = catalog.clone();
                 substituted
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == unfused)
+                    .declaration_by_semantic_mut(unfused)
                     .unwrap()
                     .semantic = fused;
                 substituted.declarations.sort_by_key(|row| row.semantic);

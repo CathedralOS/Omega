@@ -401,7 +401,8 @@ mod tests {
             )
             .unwrap();
             let declaration = validated
-                .catalog().declaration_by_semantic(MachineSemanticKind::HostedReadByte)
+                .catalog()
+                .declaration_by_semantic(MachineSemanticKind::HostedReadByte)
                 .unwrap();
             assert_eq!(declaration.constraint, crate::X86_64_HOSTED_READ_BYTE);
             assert_eq!(declaration.alternatives[0].encoded, effects());
@@ -411,9 +412,7 @@ mod tests {
             );
             let mut damaged = catalog;
             let row = damaged
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
+                .declaration_by_semantic_mut(MachineSemanticKind::HostedReadByte)
                 .unwrap();
             row.alternatives[0].encoded.implicit_unit_clobbers.pop();
             assert!(

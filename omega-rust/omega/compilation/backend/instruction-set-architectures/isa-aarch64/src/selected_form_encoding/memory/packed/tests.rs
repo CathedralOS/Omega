@@ -70,8 +70,7 @@ fn packed_forms_access_exact_bytes_and_declare_all_scratch_writes() {
                     )
                     .unwrap();
                     let effects = &encoded.footprint().encoded;
-                    let row = catalog.declaration_by_semantic(semantic)
-                        .unwrap();
+                    let row = catalog.declaration_by_semantic(semantic).unwrap();
                     assert_eq!(effects, &row.alternatives[0].encoded);
                     assert_eq!(
                         encoded.bytes().len(),
@@ -240,8 +239,7 @@ fn packed_constraints_require_early_clobbers_and_effects_reject_scratch_omission
         (crate::AARCH64_LOAD_PACKED, true),
         (crate::AARCH64_STORE_PACKED, false),
     ] {
-        let row = catalog.constraint(key)
-            .unwrap();
+        let row = catalog.constraint(key).unwrap();
         assert_eq!(row.operands.len(), 3);
         assert_eq!(row.operands[1].early_clobber, load);
         assert!(row.operands[2].early_clobber);
@@ -264,9 +262,7 @@ fn packed_constraints_require_early_clobbers_and_effects_reject_scratch_omission
     ] {
         let mut effects = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
         effects
-            .declarations
-            .iter_mut()
-            .find(|row| row.semantic == MachineSemanticKind::StorePacked)
+            .declaration_by_semantic_mut(MachineSemanticKind::StorePacked)
             .unwrap()
             .alternatives[0]
             .encoded

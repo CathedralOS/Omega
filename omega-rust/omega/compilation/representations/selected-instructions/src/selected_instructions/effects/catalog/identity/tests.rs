@@ -367,9 +367,7 @@ fn wrapping_add_catalog_reuses_the_add_constraint_without_exact_semantics() {
     let baseline = machine_effect_catalog_identity(&source);
     let mut changed = source;
     let declaration = changed
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::WrappingAddI64)
+        .declaration_by_semantic_mut(MachineSemanticKind::WrappingAddI64)
         .unwrap();
     declaration.semantic = MachineSemanticKind::ExactAddI64;
     assert_ne!(baseline, machine_effect_catalog_identity(&changed));
@@ -474,17 +472,13 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
             1 => changed.selected_keys.divide_i64 = instruction(47),
             2 => {
                 changed
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == MachineSemanticKind::ExactRemainderU64)
+                    .declaration_by_semantic_mut(MachineSemanticKind::ExactRemainderU64)
                     .unwrap()
                     .semantic = MachineSemanticKind::ExactDivideU64
             }
             _ => {
                 changed
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == MachineSemanticKind::WrappingDivideI64)
+                    .declaration_by_semantic_mut(MachineSemanticKind::WrappingDivideI64)
                     .unwrap()
                     .semantic = MachineSemanticKind::WrappingRemainderI64
             }
@@ -697,9 +691,7 @@ fn identity_binds_memory_call_and_subtraction_alternatives() {
     assert_ne!(baseline, machine_effect_catalog_identity(&changed));
     let mut changed = source.clone();
     let call = changed
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::CallUnit)
+        .declaration_by_semantic_mut(MachineSemanticKind::CallUnit)
         .unwrap();
     call.call = MachineCallEffect::InternalNormalReturnV1 {
         pre_call_stack_alignment: 32,
@@ -707,9 +699,7 @@ fn identity_binds_memory_call_and_subtraction_alternatives() {
     assert_ne!(baseline, machine_effect_catalog_identity(&changed));
     let mut changed = source.clone();
     let subtract = changed
-        .declarations
-        .iter_mut()
-        .find(|row| row.semantic == MachineSemanticKind::ExactSubtractI64)
+        .declaration_by_semantic_mut(MachineSemanticKind::ExactSubtractI64)
         .unwrap();
     subtract.alternatives[0].applicability =
         MachineAlternativeApplicability::ResultAliasesOperand {
@@ -779,9 +769,7 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
             1 => changed.selected_keys.load16 = None,
             _ => {
                 let load = changed
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.semantic == MachineSemanticKind::Load8)
+                    .declaration_by_semantic_mut(MachineSemanticKind::Load8)
                     .unwrap();
                 load.semantic = MachineSemanticKind::Load16;
             }

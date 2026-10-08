@@ -178,8 +178,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         (crate::X86_64_LOAD_PACKED, true),
         (crate::X86_64_STORE_PACKED, false),
     ] {
-        let row = catalog.constraint(key)
-            .unwrap();
+        let row = catalog.constraint(key).unwrap();
         assert_eq!(row.operands.len(), 3);
         assert_eq!(
             row.clobbers,
@@ -219,8 +218,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         (MachineSemanticKind::LoadPacked6, 6),
         (MachineSemanticKind::LoadPacked7, 7),
     ] {
-        let declaration = effects.declaration_by_semantic(semantic)
-            .unwrap();
+        let declaration = effects.declaration_by_semantic(semantic).unwrap();
         assert_eq!(
             declaration.alternatives[0].encoded.memory,
             MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -235,9 +233,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         for mutation in 0..3 {
             let mut changed = effects.clone();
             let encoded = &mut changed
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == semantic)
+                .declaration_by_semantic_mut(semantic)
                 .unwrap()
                 .alternatives[0]
                 .encoded;

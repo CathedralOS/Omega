@@ -616,7 +616,8 @@ mod tests {
             )
             .unwrap();
             let declaration = validated
-                .catalog().declaration_by_semantic(MachineSemanticKind::HostedReadByte)
+                .catalog()
+                .declaration_by_semantic(MachineSemanticKind::HostedReadByte)
                 .unwrap();
             let expected_key = if target == NativeTarget::linux_arm64() {
                 crate::AARCH64_HOSTED_READ_BYTE
@@ -644,9 +645,7 @@ mod tests {
             assert_eq!(declaration.alternatives[0].encoded, effects(target));
             let mut damaged = catalog;
             let row = damaged
-                .declarations
-                .iter_mut()
-                .find(|row| row.semantic == MachineSemanticKind::HostedReadByte)
+                .declaration_by_semantic_mut(MachineSemanticKind::HostedReadByte)
                 .unwrap();
             row.alternatives[0].encoded.implicit_unit_clobbers.pop();
             assert!(
