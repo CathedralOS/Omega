@@ -69,9 +69,7 @@ pub fn selected_requirement_checked_adapter<'typed>(
         crate::service_schema::from_typed_boundary_requirement(context, machine)
     } else {
         typed
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == requirement)
+            .operator_definition_by_symbol(requirement)
             .and_then(|operator| crate::service_schema::from_typed_operator(context, operator))
     };
     let Some(schema) = schema else {

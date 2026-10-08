@@ -188,9 +188,7 @@ fn exact_authored_uses(
 ) -> Vec<CheckedOperatorAuthoredUseKind> {
     let operator = checked
         .typed
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == requirement);
+        .operator_definition_by_symbol(requirement);
     checked
         .facts
         .operators

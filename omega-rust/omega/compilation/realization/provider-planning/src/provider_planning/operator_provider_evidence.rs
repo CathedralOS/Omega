@@ -214,9 +214,7 @@ fn selected_operator_provider_evidence(
 ) -> Result<(), diagnostics::Diagnostic> {
     let Some(operator) = checked
         .typed
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == operator_symbol)
+        .operator_definition_by_symbol(operator_symbol)
     else {
         return Ok(());
     };
@@ -465,9 +463,7 @@ pub fn selected_requirement_plan<'a>(
     }
     let typed = context.typed;
     let mut matching: Vec<(usize, &'a ProviderPlan)> = match typed
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == requirement)
+        .operator_definition_by_symbol(requirement)
     {
         Some(operator) => {
             let slot =

@@ -135,9 +135,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
             return None;
         }
         if let Some(operator) = typed
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == symbol)
+            .operator_definition_by_symbol(symbol)
         {
             return Self::from_operator(typed, operator);
         }
