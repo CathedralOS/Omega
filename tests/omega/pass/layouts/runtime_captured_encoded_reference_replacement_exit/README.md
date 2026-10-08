@@ -10,9 +10,8 @@ two other references. Writes through the returned loan still reach the original
 byte. A second selecting call writes to the replacement's fourth field;
 the original ordinary backing, third field, and neighboring byte stay unchanged.
 
-This is unfinished execution acceptance, not a passing example. Source fit
-retains the original signed-byte backing (the paired overflow control rejects),
-but lowering stops at `local data: structural value: reference record loans`.
-The initializer loan weakens at `LocalReassigned`; that after-RHS boundary is
-not an ordinary before-statement release. The owning task is
-`ENCODED-STORAGE-REFERENCE-TRANSPORT`.
+Exit 0 requires the original byte to become 127 and the replacement's fourth
+field to become 42, while the neighboring byte remains 85. The paired overflow
+control rejects 128 against the original signed-byte backing, not the new
+ordinary storage. Replacement ends the old container occurrence after its RHS;
+it neither retargets the captured loan nor revives the consumed initializer.

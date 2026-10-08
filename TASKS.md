@@ -3239,42 +3239,6 @@ deletions, which the commit lists.
   rejected for a missing source decision reject from `omega --check` with
   checking diagnostics instead, without weakening other check outcomes.
 
-- **ENCODED-STORAGE-REFERENCE-TRANSPORT.** (new-scope) Complete captured-reference
-  custody across replacement of its former container.
-  This is representation and ABI work, independent of PCC retirement.
-
-  On macOS AArch64, `omega run --both
-  tests/omega/pass/layouts/runtime_captured_encoded_reference_replacement_exit/main.omg`
-  stops at `local data: structural value: reference record loans`.
-  The moved initializer's loan weakens at `LocalReassigned`, while
-  `checking/src/machine_calls/reference_result_custody.rs::local_record_loans`
-  requires a last-use/state-exit release boundary. Preserve occurrence identity
-  and the after-RHS reassignment boundary through the shared custody operation;
-  do not treat replacement as before-statement expiry or replay the initializer
-  to discover a new backing. All possible origins remain fit obligations.
-
-  Acceptance: the replacement program exits 0 in Native, Terminal and checked
-  interpretation, preserving original byte backing and selecting the new fourth
-  field only for the replacement reference. Its paired
-  `layouts/captured_encoded_reference_replacement_requires_fit` still rejects
-  128 against the captured signed byte. Keep `--both` and
-  `--both --checked-interpreter` coverage for
-  `layouts/runtime_callee_integer_at_fitting_write_exit`,
-  `layouts/runtime_returned_encoded_reference_exit`,
-  `layouts/runtime_stored_returned_encoded_reference_exit`,
-  `layouts/runtime_multi_origin_encoded_reference_exit`,
-  `layouts/runtime_selected_reference_parent_restoration_exit`,
-  `borrows/runtime_selected_reference_nested_restoration_exit`,
-  `layouts/runtime_recursive_encoded_reference_exit` and
-  `layouts/runtime_offset_encoded_reference_exit`; every execution exits 0
-  and preserves the authored original backing and neighboring byte 85.
-  `layouts/callee_integer_at_multi_origin_reference_requires_fit` must still
-  reject for its authored fit obligation, not missing origin geometry.
-  Live-parent writes under `borrows/selected_reference_live_*_parent_write`,
-  `borrows/multi_origin_returned_reference_live_source_write` and the later
-  non-fitting recursive arrival under
-  `layouts/recursive_integer_at_requires_all_arrivals_fit` still reject.
-
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:
   - AGENTS.md: reword the opening "proof-carrying systems language", and the
