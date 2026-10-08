@@ -1,12 +1,12 @@
 //! Validate and publish one byte window without replacing its backing.
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
+use semantic_vocabulary::{IntegerSign, IntegerType, ValueId};
 use terminal_psi::{Operation, OperationKind, StructuralAccess, StructuralMultiplicity};
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::values::{TerminalScalarValue, TerminalStructuralValue};
+use crate::values::TerminalStructuralValue;
 
 impl TerminalExecution<'_> {
     /// Called only after the dispatch loop has charged this execution. Prepare
@@ -29,22 +29,8 @@ impl TerminalExecution<'_> {
         let result = operation.result.structural().ok_or(malformed())?;
         let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         let count = |operand: &ValueId| -> Result<usize, TerminalInterpretError> {
-            let value = self
-                .values
-                .get(operand)
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(*operand))?;
-            let TerminalScalarValue::Integer {
-                scalar_type,
-                value: IntegerValue::Unsigned(value),
-            } = value
-            else {
-                return Err(malformed());
-            };
-            if *scalar_type != count_type {
-                return Err(malformed());
-            }
-            let value = u64::try_from(*value).map_err(|_| malformed())?;
-            usize::try_from(value).map_err(|_| malformed())
+            usize::try_from(self.unsigned_integer_value(*operand, count_type)?)
+                .map_err(|_| malformed())
         };
         let start = count(start)?;
         let end = count(end)?;
