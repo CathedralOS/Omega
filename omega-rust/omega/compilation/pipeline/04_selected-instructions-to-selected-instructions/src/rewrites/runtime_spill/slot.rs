@@ -109,7 +109,7 @@ pub(super) fn instruction_block(
 /// window's slot too, so consumers can resolve any use point without
 /// re-deriving which positions actually emit a pair.
 #[derive(Debug)]
-pub(super) struct Assignment {
+pub(crate) struct Assignment {
     /// The slot each definition's `Store64` writes.
     pub stores: Vec<LocalStorageSlotId>,
     /// Per block: reload-pair slots by source instruction index, plus the
@@ -125,7 +125,7 @@ pub(super) struct Assignment {
 
 /// Per-block reload-pair slots.
 #[derive(Debug, Default)]
-pub(super) struct BlockLoads {
+pub(crate) struct BlockLoads {
     /// Slot for a reload pair — real or shared — at this instruction index.
     pub instructions: std::collections::BTreeMap<usize, LocalStorageSlotId>,
     /// Slot for pairs at the end-of-block position, when the block has one.
