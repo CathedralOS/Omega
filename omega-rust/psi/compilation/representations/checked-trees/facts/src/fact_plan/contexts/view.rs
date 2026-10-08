@@ -3,8 +3,8 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 use crate::{
-    DomainMembershipFact, Fact, FactPayload, FactPlace, FactPlan, FactRef, PlaceHandle,
-    ProgramPoint, TypeConstraintFact, fact_plan::as_domain_membership,
+    Fact, FactPayload, FactPlace, FactPlan, FactRef, PlaceHandle, ProgramPoint,
+    TypeConstraintFact,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -23,10 +23,6 @@ impl<'facts> FactContextView<'facts> {
             .map(move |reference| self.plan.facts.get(reference.fact))
     }
 
-    pub fn domain_memberships(self) -> impl Iterator<Item = DomainMembershipFact> + 'facts {
-        self.facts()
-            .filter_map(|fact| as_domain_membership(fact.payload))
-    }
 
     pub fn proves_proposition_label(self, program: &TypedTrees, required_label: &str) -> bool {
         self.facts().any(|fact| {

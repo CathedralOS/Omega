@@ -45,8 +45,7 @@ use crate::typed_trees::type_system::type_identity::identity_context::TypeIdenti
 pub use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityQualification;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_type_reference;
 use crate::typed_trees::type_system::type_identity::result_dispatch_terms::collect_result_dispatch_terms;
-use crate::types::{TypeConstraintNode, TypeReferenceHandle};
-use arena::HandleSpan;
+use crate::types::TypeReferenceHandle;
 use std::cell::Cell;
 use symbols::SymbolHandle;
 
@@ -412,12 +411,6 @@ impl TypedTrees {
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
-    pub fn normalized_domain_expression(
-        &self,
-        constraints: HandleSpan<TypeConstraintNode>,
-    ) -> NormalizedDomainExpression {
-        NormalizedDomainExpression::from_constraints(self, constraints)
-    }
 
     /// Normalize the dispatch-bearing domain set on the outer result value.
     /// Reference and nested constrained shells are transparent; domains inside

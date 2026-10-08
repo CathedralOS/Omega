@@ -96,14 +96,6 @@ impl TypedTrees {
         matches.next().is_none().then_some(first)
     }
 
-    pub fn push_data_type_parameter(
-        &mut self,
-        data_definition: &mut data::DataDefinition,
-        type_parameter: data::TypeParameter,
-    ) {
-        self.data_type_parameters
-            .append_to_span(&mut data_definition.type_parameters, type_parameter);
-    }
 
     pub fn data_type_parameters(
         &self,
@@ -225,14 +217,6 @@ impl TypedTrees {
             .append_to_span(&mut self.roots.domain_definitions, domain_definition);
     }
 
-    pub fn push_domain_type_parameter(
-        &mut self,
-        domain: &mut domain::DomainDefinition,
-        parameter: data::TypeParameter,
-    ) {
-        self.data_type_parameters
-            .append_to_span(&mut domain.type_parameters, parameter);
-    }
 
     pub fn domain_type_parameters(
         &self,
@@ -475,14 +459,6 @@ impl TypedTrees {
             .append_to_span(&mut operator.name, member);
     }
 
-    pub fn push_operator_type_parameter(
-        &mut self,
-        operator: &mut crate::operator::OperatorDefinition,
-        parameter: data::TypeParameter,
-    ) {
-        self.data_type_parameters
-            .append_to_span(&mut operator.type_parameters, parameter);
-    }
 
     pub fn operator_type_parameters(
         &self,

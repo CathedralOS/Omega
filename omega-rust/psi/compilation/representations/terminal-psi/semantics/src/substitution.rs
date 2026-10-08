@@ -106,29 +106,7 @@ pub fn substitute_proposition_values(
     }
 }
 
-/// Whether value substitution can change this proposition.
-///
-/// Successor binding retains every already-established fact and only needs to
-/// materialize an additional rewritten fact when one of the edge arguments
-/// actually occurs in it. Keeping this query separate from substitution avoids
-/// cloning large, unrelated proof terms at every control-flow edge.
-pub fn proposition_mentions_substituted_value(
-    proposition: &Proposition,
-    substitutions: &BTreeMap<ValueId, ScalarTerm>,
-) -> bool {
-    proposition.any_value_id(|value| substitutions.contains_key(&value))
-}
 
-pub fn substitute_proposition_places(
-    proposition: &Proposition,
-    substitutions: &BTreeMap<PlaceId, PlaceId>,
-) -> Proposition {
-    let substitutions = substitutions
-        .iter()
-        .map(|(source, target)| (*source, (*target, Vec::new())))
-        .collect::<BTreeMap<_, _>>();
-    substitute_proposition_structural_places(proposition, &substitutions)
-}
 
 pub fn substitute_proposition_structural_places(
     proposition: &Proposition,

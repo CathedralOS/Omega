@@ -27,16 +27,6 @@ impl TypedTrees {
         });
     }
 
-    /// Dynamic encode obligations retained beside one schema's placements.
-    pub fn wire_schema_encode_obligations(
-        &self,
-        schema: symbols::SymbolHandle,
-    ) -> Option<&[wire::WireEncodeObligation]> {
-        self.wire_schema_plans
-            .iter()
-            .find(|plan| plan.schema == schema)
-            .and_then(|plan| self.wire_encode_obligations.span(plan.encode_obligations))
-    }
 
     pub fn push_wire_schema(&mut self, wire_schema: wire::WireSchema) {
         self.tables

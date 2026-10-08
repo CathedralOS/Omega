@@ -87,24 +87,4 @@ pub enum ClosedReachArgument {
 }
 
 impl ClosedReachArgument {
-    pub fn matches_parameter(&self, parameter: &ClosedReachParameter) -> bool {
-        match (self, parameter) {
-            (Self::Type(expected), ClosedReachParameter::Type { argument })
-            | (Self::Const(expected), ClosedReachParameter::Const { argument })
-            | (Self::Proposition(expected), ClosedReachParameter::Proposition { argument }) => {
-                expected == argument
-            }
-            (
-                Self::Machine {
-                    identity,
-                    contract_commitment,
-                },
-                ClosedReachParameter::Machine(binding),
-            ) => {
-                identity == &binding.selected_identity
-                    && contract_commitment == &binding.selected_contract_commitment
-            }
-            _ => false,
-        }
-    }
 }

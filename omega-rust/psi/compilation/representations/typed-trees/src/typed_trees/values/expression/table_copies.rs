@@ -95,18 +95,6 @@ impl ExpressionTable {
         self.copy_subtree(CopySource::Table(source), expression, &retain_every_field)
     }
 
-    /// Copy one expression graph while omitting rejected struct-literal fields
-    /// before their values are visited. This is intentionally a copy-time
-    /// filter: consumers which iterate the destination arena must never observe
-    /// the omitted value subtrees, even as unreachable nodes.
-    pub fn copy_from_filtering_struct_literal_fields(
-        &mut self,
-        source: &ExpressionTable,
-        expression: ExpressionHandle,
-        retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
-    ) -> ExpressionHandle {
-        self.copy_subtree(CopySource::Table(source), expression, retain)
-    }
 
     /// Copy one expression graph within this table. The copy's rows follow
     /// every existing row and share no span with the original.

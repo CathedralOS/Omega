@@ -5,10 +5,6 @@
 //! program revision in `callable_identity.rs` and named by a handle, so no
 //! carrier holds its path and parameter signature as rendered text.
 
-use crate::TypedTrees;
-use crate::typed_trees::type_system::type_identity::constraint_identity::normalized_domain_term;
-use crate::types::TypeConstraintNode;
-use arena::HandleSpan;
 use std::fmt;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,20 +45,6 @@ impl NormalizedDomainExpression {
         self.terms.is_empty()
     }
 
-    pub(crate) fn from_constraints(
-        program: &TypedTrees,
-        constraints: HandleSpan<TypeConstraintNode>,
-    ) -> Self {
-        let mut terms = program
-            .type_reference_table
-            .constraints(constraints)
-            .iter()
-            .filter_map(|constraint| normalized_domain_term(program, constraint))
-            .collect::<Vec<_>>();
-        terms.sort();
-        terms.dedup();
-        Self { terms }
-    }
 }
 
 /// The canonical set of domains that may select a named-machine or

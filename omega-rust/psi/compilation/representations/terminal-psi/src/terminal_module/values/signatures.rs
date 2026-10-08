@@ -149,13 +149,6 @@ pub struct StructuralReferenceResultSource {
 }
 
 impl StructuralReferenceResultSource {
-    /// An exact static origin exists only when the complete roster is a singleton.
-    pub fn sole_source(&self) -> Option<&StructuralArgument> {
-        let [source] = self.sources.as_slice() else {
-            return None;
-        };
-        Some(source)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

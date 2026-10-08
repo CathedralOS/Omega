@@ -186,20 +186,6 @@ impl DominatorTree {
             && use_block.traversal_start < definition.traversal_end
     }
 
-    /// The blocks strictly dominating `block`, nearest first: its dominator
-    /// tree ancestors. Unreachable or unknown blocks have none. Walking this
-    /// chain costs its length, where testing every candidate definition
-    /// block with [`Self::dominates`] costs the number of candidates.
-    pub fn strict_dominators(&self, block: BlockId) -> impl Iterator<Item = BlockId> + '_ {
-        let mut position = self.positions.get(&block).copied();
-        std::iter::from_fn(move || {
-            // Position zero is the entry, which has no strict dominator.
-            let current = position.filter(|&current| current != 0)?;
-            let parent = self.immediate[current];
-            position = Some(parent);
-            Some(self.blocks[parent])
-        })
-    }
 
     /// Number of dominators including the block itself; the entry has depth 1.
     pub fn depth(&self, block: BlockId) -> Option<usize> {
@@ -304,32 +290,6 @@ fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[
     first
 }
 
-/// Removing DFS ancestor edges makes the remaining graph acyclic. Their
-/// targets must be treated as arbitrary iteration entries for proof facts;
-/// deleting the edges does not prove a loop invariant or termination.
-pub fn feedback_edges(machine: &TerminalMachine) -> BTreeMap<EdgeId, BlockId> {
-    let successors = successors(machine);
-    let mut entered = BTreeSet::from([machine.entry]);
-    let mut finished = BTreeSet::new();
-    let mut pending = vec![(machine.entry, 0usize)];
-    let mut feedback = BTreeMap::new();
-    while let Some((block, successor_position)) = pending.last_mut() {
-        let Some((edge, target)) = successors[block].get(*successor_position).copied() else {
-            finished.insert(*block);
-            pending.pop();
-            continue;
-        };
-        *successor_position += 1;
-        if !entered.insert(target) {
-            if !finished.contains(&target) {
-                feedback.insert(edge, target);
-            }
-        } else {
-            pending.push((target, 0));
-        }
-    }
-    feedback
-}
 
 /// Topology identity has no producer-supplied component key. Rank bindings
 /// separately enter the question commitment, so changing a witness invalidates
@@ -345,29 +305,6 @@ pub fn control_cycle_identity(
     topology_identity(machine, edges)
 }
 
-/// Topology-derived component identity for a cyclic component that carries no
-/// producer ranking row — the name an absence-of-bound report uses when an
-/// unranked component is the directed cause. Validation pins a producer's
-/// component edges to ascending edge-id order covering exactly the members'
-/// internal edges, so for any member set a producer later ranks this identity
-/// equals `control_cycle_identity` on that row.
-pub fn cyclic_component_identity(
-    machine: &TerminalMachine,
-    members: &[BlockId],
-) -> CycleComponentId {
-    let member_set: std::collections::BTreeSet<BlockId> = members.iter().copied().collect();
-    let outgoing = successors(machine);
-    let mut internal: Vec<(EdgeId, BlockId, BlockId)> = Vec::new();
-    for member in members {
-        for (edge, target) in outgoing.get(member).into_iter().flatten() {
-            if member_set.contains(target) {
-                internal.push((*edge, *member, *target));
-            }
-        }
-    }
-    internal.sort();
-    topology_identity(machine, internal)
-}
 
 fn topology_identity(
     machine: &TerminalMachine,

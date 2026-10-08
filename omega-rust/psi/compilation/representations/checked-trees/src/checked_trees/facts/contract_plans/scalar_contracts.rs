@@ -166,30 +166,6 @@ impl ClosedScalarValueContractPlan {
         &self.ensures
     }
 
-    /// Rejoin each retained float-meaning equality clause to its checked
-    /// equality row. `resolve` maps the authored `==` contract expression to
-    /// that row's dense coordinate; an unresolved clause reports the authored
-    /// expression so the caller can reject it without silent erasure.
-    pub fn resolve_float_meaning_equalities(
-        &mut self,
-        mut resolve: impl FnMut(
-            typed_trees::expression::ExpressionHandle,
-        ) -> Option<crate::CheckedProofPropositionId>,
-    ) -> Result<(), typed_trees::expression::ExpressionHandle> {
-        for clause in self.ensures.iter_mut().flatten() {
-            let ClosedScalarContractValue::FloatMeaningEquality {
-                expression,
-                equality,
-            } = clause
-            else {
-                continue;
-            };
-            if equality.is_none() {
-                *equality = Some(resolve(*expression).ok_or(*expression)?);
-            }
-        }
-        Ok(())
-    }
 
     pub const fn has_crash_clauses(&self) -> bool {
         self.has_crash_clauses

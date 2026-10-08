@@ -21,8 +21,7 @@
 //! pair admitted anywhere is admitted everywhere.
 
 use semantic_vocabulary::{
-    IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, Proposition,
-    ScalarTerm, ScalarType, ValueId,
+    IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, ScalarType,
 };
 
 /// One admitted `(source, target)` carrier pair of a representation re-view.
@@ -76,30 +75,6 @@ impl ScalarRepresentationViewPair {
         matches!(self, Self::ByteBoolean { .. })
     }
 
-    /// The canonical landing goal `0 <= operand && operand <= 1` at the
-    /// operand's own carrier, or `None` for a total pair. This is the same
-    /// closed-interval conjunction a bounded field store owes, so the same
-    /// interval facts (a `[0..=1]` field, a data `where` bound, a guard)
-    /// discharge it.
-    pub fn landing_goal(self, operand: ValueId) -> Option<Proposition> {
-        let Self::ByteBoolean { integer } = self else {
-            return None;
-        };
-        let endpoint = |value: u8| ScalarTerm::Integer {
-            scalar_type: integer,
-            value: match integer.sign() {
-                IntegerSign::Signed => IntegerValue::Signed(i128::from(value)),
-                IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(value)),
-            },
-        };
-        let operand = ScalarTerm::value(operand, ScalarType::Integer(integer));
-        let mut clauses = vec![
-            Proposition::LessOrEqual(endpoint(0), operand.clone()),
-            Proposition::LessOrEqual(operand, endpoint(1)),
-        ];
-        clauses.sort();
-        Some(Proposition::Conjunction(clauses))
-    }
 
     /// Re-view one source value at the target carrier, bit for bit. `None`
     /// when the value does not belong to the source carrier, or when a byte

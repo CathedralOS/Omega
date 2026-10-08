@@ -903,21 +903,9 @@ impl ExpressionTable {
         self.iter_expressions()
     }
 
-    pub fn expression_handle_count(&self) -> usize {
-        self.expression_handles.len()
-    }
 
-    pub fn authored_selection_occurrence_count(&self) -> usize {
-        self.authored_selection_occurrence_ids.len()
-    }
 
-    pub fn name_path_member_count(&self) -> usize {
-        self.name_path_members.len()
-    }
 
-    pub fn name_path_member_symbol_count(&self) -> usize {
-        self.name_path_member_symbols.len()
-    }
 
     pub fn struct_field_count(&self) -> usize {
         self.struct_fields.len()

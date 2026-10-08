@@ -538,24 +538,6 @@ pub fn call_stored_effects_in(
 ) -> Option<Vec<DescriptorStoredCallEffect>> {
     analysis.call_stored_effects(machine.id, operation_position(machine, operation)?)
 }
-pub fn stored_source_origins(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-) -> Option<Vec<DescriptorCallOrigin>> {
-    let OperationKind::StructuralByteViewFieldStore { source, .. } = operation.kind else {
-        return None;
-    };
-    // Reconstruct all normal exits as well as this pre-store occurrence: a
-    // locally born backing cannot survive in borrowed output storage.
-    stored_effects(module, machine)?;
-    source_origins(
-        module,
-        machine,
-        operation_position(machine, operation)?,
-        &DescriptorLocation::whole(source),
-    )
-}
 fn operation_position(
     machine: &TerminalMachine,
     operation: &Operation,

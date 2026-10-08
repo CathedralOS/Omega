@@ -3,7 +3,7 @@
 
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, ExternalCompletionKind, IeeeFloatFormat, IeeeFloatValue,
-    IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ServiceId,
+    IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ServiceId,
     StructuralDomainId, StructuralTypeId,
 };
 
@@ -522,63 +522,6 @@ pub struct TerminalTraceV1TraceBuilder<'profile> {
 }
 
 impl<'profile> TerminalTraceV1TraceBuilder<'profile> {
-    /// Observe completion at an exact closed terminator site, preserving all
-    /// preceding events. The admitted runtime must separately establish actual
-    /// delegated domain authority; trace construction does not issue it.
-    pub fn finish_external_completion(
-        self,
-        machine: MachineId,
-        block: BlockId,
-        edge: EdgeId,
-        boundary: BoundaryMachineId,
-        kind: ExternalCompletionKind,
-        return_code: i32,
-    ) -> Result<TerminalTraceV1RuntimeTrace, TerminalTraceV1ConstructionError> {
-        let mut rows = self
-            .profile
-            .external_completion_sites
-            .iter()
-            .filter(|row| row.machine == machine && row.block == block && row.edge == edge);
-        let row = rows.next().ok_or(
-            TerminalTraceV1ConstructionError::UnknownExternalCompletionSite {
-                machine,
-                block,
-                edge,
-            },
-        )?;
-        if rows.next().is_some() || row.boundary != boundary || row.kind != kind {
-            return Err(
-                TerminalTraceV1ConstructionError::ExternalCompletionContractMismatch {
-                    boundary,
-                    kind,
-                },
-            );
-        }
-        // Each closed kind owns its semantic argument schema; adding a kind
-        // must add an explicit observation contract here.
-        match kind {
-            ExternalCompletionKind::ProcessExit => {}
-        }
-        if row.boundary_identity.is_empty()
-            || !matches!(row.status.scalar_type, ScalarType::Integer(integer)
-                if integer.sign() == IntegerSign::Signed && integer.bits() == 32 && !integer.is_address())
-        {
-            return Err(TerminalTraceV1ConstructionError::UnsupportedExternalCompletionSchema);
-        }
-        match row.status.comparison {
-            TerminalTraceValueComparison::ExactSemanticValue => {}
-        }
-        Ok(
-            self.complete(Some(TerminalTraceV1Outcome::ExternalCompletion {
-                machine,
-                block,
-                edge,
-                boundary,
-                kind,
-                return_code,
-            })),
-        )
-    }
     /// Admit one ordinary external event at a declared site.
     ///
     /// Events must be pushed in execution order; revisiting a site is a new

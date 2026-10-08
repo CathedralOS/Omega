@@ -1,7 +1,7 @@
 use crate::StructuralPlaceDeclaration;
 use semantic_vocabulary::{
     ClaimId, ContentAlgebra, ContentConservation, ContentProjectionIdentity,
-    ContentStructuralPlace, ContentTerm, OperationId, Proposition,
+    ContentStructuralPlace, OperationId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -28,21 +28,6 @@ pub struct ContentIdentityReshuffle {
 }
 
 impl ContentIdentityReshuffle {
-    pub fn inferred_propositions(&self) -> impl Iterator<Item = Proposition> + '_ {
-        self.projections.iter().map(|content| {
-            Proposition::ContentConservation(ContentConservation::new(
-                content.algebra.clone(),
-                ContentTerm::Projection {
-                    projection: content.projection,
-                    subject: self.input.clone(),
-                },
-                ContentTerm::Projection {
-                    projection: content.projection,
-                    subject: self.output.clone(),
-                },
-            ))
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -73,7 +58,4 @@ pub struct ContentPartitionComposition {
 }
 
 impl ContentPartitionComposition {
-    pub fn inferred_proposition(&self) -> Proposition {
-        Proposition::ContentConservation(self.derived.clone())
-    }
 }

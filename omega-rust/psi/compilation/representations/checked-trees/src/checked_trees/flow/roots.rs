@@ -198,22 +198,6 @@ impl FlowControlFacts {
             })
     }
 
-    /// Whether `state` has an authored transition before `statement_index`,
-    /// after which a later statement runs only on the paths that stayed.
-    pub fn transition_before(&self, state: SymbolHandle, statement_index: usize) -> bool {
-        self.states
-            .iter()
-            .find(|(_, candidate)| candidate.state_symbol == state)
-            .is_some_and(|(_, state)| {
-                self.outgoing
-                    .span_or_empty(state.outgoing)
-                    .iter()
-                    .any(|outgoing| {
-                        outgoing.statement_index < statement_index
-                            && outgoing.transition_target.is_valid()
-                    })
-            })
-    }
 
     /// Whether `call`, a row of `state`, was retired by selected execution.
     pub fn is_retired(&self, state: SymbolHandle, call: &FlowCallFact) -> bool {

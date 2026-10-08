@@ -4,7 +4,6 @@
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle};
 use crate::type_identity::substitution;
-use crate::typed_trees::type_system::type_identity::NormalizedDomainTerm;
 use crate::typed_trees::type_system::type_identity::identity_context::{
     TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
     normalize_type_reference,
@@ -200,31 +199,6 @@ pub(crate) fn normalized_compiler_domain_identity(
     }
 }
 
-pub(crate) fn normalized_domain_term(
-    program: &TypedTrees,
-    constraint: &TypeConstraintNode,
-) -> Option<NormalizedDomainTerm> {
-    match constraint {
-        TypeConstraintNode::ArithmeticDomain(domain) => {
-            Some(NormalizedDomainTerm::Arithmetic(domain.name().to_owned()))
-        }
-        TypeConstraintNode::Domain(domain) => Some(match domain.subject {
-            DomainConstraintSubject::Declared => {
-                NormalizedDomainTerm::Declared(declared_domain_identity(program, domain))
-            }
-            DomainConstraintSubject::Carry(_)
-            | DomainConstraintSubject::Value(_)
-            | DomainConstraintSubject::OmegaLayout { .. } => {
-                NormalizedDomainTerm::Compiler(normalized_compiler_domain_identity(
-                    program,
-                    domain,
-                    &TypeIdentityContext::default(),
-                ))
-            }
-        }),
-        TypeConstraintNode::Named(_) | TypeConstraintNode::Range { .. } => None,
-    }
-}
 
 fn declared_domain_identity(program: &TypedTrees, domain: &DomainConstraint) -> String {
     if domain.semantic_id.is_valid()

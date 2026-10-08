@@ -68,13 +68,6 @@ impl Default for ReferenceCustodyRow {
 }
 
 impl ReferenceCustodyRow {
-    /// The exclusive primitive stored leaf, as `(referent, access)`.
-    pub fn primitive_loan_parts(&self) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-        self.primitive_loan_referent.is_valid().then_some((
-            self.primitive_loan_referent,
-            CheckedStructuralAccess::MutableBorrow,
-        ))
-    }
 
     /// The one stored carrier leaf, as `(referent, access)`.
     pub fn stored_loan_parts(&self) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
@@ -91,13 +84,6 @@ impl ReferenceCustodyRow {
         ))
     }
 
-    /// The shared borrowed view's referent, as `(referent, access)`.
-    pub fn shared_borrow_parts(&self) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-        self.shared_borrow_referent.is_valid().then_some((
-            self.shared_borrow_referent,
-            CheckedStructuralAccess::SharedBorrow,
-        ))
-    }
 }
 
 /// Every type reference's custody row, dense by arena index.
