@@ -192,10 +192,7 @@ fn placed_projection_exposes_only_granular_authorized_events() {
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Destructive,
                     write: false,
-                    transfers: vec![TransferRule {
-                        width_bits: 32,
-                        alignment_bytes: 4,
-                    }],
+                    transfers: super::word32_transfers(),
                 },
                 atomic: AtomicCapability::None,
                 reach: BoundaryReach::default(),

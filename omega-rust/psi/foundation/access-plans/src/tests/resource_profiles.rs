@@ -45,10 +45,7 @@ fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
                     external: ExternalCapability::Access {
                         read: ExternalReadBehavior::Repeatable,
                         write: false,
-                        transfers: vec![TransferRule {
-                            width_bits: 32,
-                            alignment_bytes: 4,
-                        }],
+                        transfers: super::word32_transfers(),
                     },
                     atomic: AtomicCapability::None,
                     reach: broad_reach,
@@ -146,10 +143,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Repeatable,
                     write: false,
-                    transfers: vec![TransferRule {
-                        width_bits: 32,
-                        alignment_bytes: 4,
-                    }],
+                    transfers: super::word32_transfers(),
                 },
                 atomic: AtomicCapability::None,
                 reach: uart_reach(),
@@ -351,10 +345,7 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
                 write: false,
-                transfers: vec![TransferRule {
-                    width_bits: 32,
-                    alignment_bytes: 4,
-                }],
+                transfers: super::word32_transfers(),
             },
             atomic: AtomicCapability::None,
             reach: BoundaryReach::default(),
@@ -522,10 +513,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Repeatable,
                     write: false,
-                    transfers: vec![TransferRule {
-                        width_bits: 32,
-                        alignment_bytes: 4,
-                    }],
+                    transfers: super::word32_transfers(),
                 },
                 atomic: AtomicCapability::None,
                 reach: BoundaryReach::default(),
@@ -586,10 +574,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
                 write: false,
-                transfers: vec![TransferRule {
-                    width_bits: 32,
-                    alignment_bytes: 4,
-                }],
+                transfers: super::word32_transfers(),
             },
             atomic: AtomicCapability::None,
             reach: BoundaryReach::default(),
@@ -626,10 +611,7 @@ fn admitted_profile_binds_rights_provenance_era_and_returns_rejected_loan() {
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
                 write: true,
-                transfers: vec![TransferRule {
-                    width_bits: 32,
-                    alignment_bytes: 4,
-                }],
+                transfers: super::word32_transfers(),
             },
             atomic: AtomicCapability::None,
             reach: uart_reach(),
@@ -737,10 +719,7 @@ fn hostile_shared_regions_never_supply_stable() {
         "the rejection names the violated rule: {hostile_stable}"
     );
 
-    let transfers = vec![TransferRule {
-        width_bits: 32,
-        alignment_bytes: 4,
-    }];
+    let transfers = super::word32_transfers();
     let hostile_external = validate_resource_profile(
         ResourceProfile {
             regions: vec![

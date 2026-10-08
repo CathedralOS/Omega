@@ -51,6 +51,15 @@ fn reach() -> BoundaryServiceReachId {
     BoundaryServiceReachId::from_normalized_identity(7).expect("normalized reach")
 }
 
+/// The single 32-bit/4-byte transfer rule nearly every external-access
+/// fixture declares.
+fn word32_transfers() -> Vec<TransferRule> {
+    vec![TransferRule {
+        width_bits: 32,
+        alignment_bytes: 4,
+    }]
+}
+
 fn uart_reach() -> BoundaryReach {
     BoundaryReach::from_services([reach()])
 }
@@ -266,10 +275,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
                 write: true,
-                transfers: vec![TransferRule {
-                    width_bits: 32,
-                    alignment_bytes: 4,
-                }],
+                transfers: word32_transfers(),
             },
             atomic: AtomicCapability::None,
             reach: reach.clone(),
@@ -403,10 +409,7 @@ fn destructive_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Destructive,
                 write: false,
-                transfers: vec![TransferRule {
-                    width_bits: 32,
-                    alignment_bytes: 4,
-                }],
+                transfers: word32_transfers(),
             },
             atomic: AtomicCapability::None,
             reach: BoundaryReach::default(),
