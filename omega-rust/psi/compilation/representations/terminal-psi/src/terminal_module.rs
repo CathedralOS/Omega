@@ -234,6 +234,16 @@ impl TerminalModule {
         find_structural_type(&self.structural_types, id)
     }
 
+    /// The structural domain keyed `id`, when the module declares it.
+    pub fn structural_domain(
+        &self,
+        id: semantic_vocabulary::StructuralDomainId,
+    ) -> Option<&StructuralDomainDeclaration> {
+        self.structural_domains
+            .iter()
+            .find(|declaration| declaration.id == id)
+    }
+
     /// The boundary machine keyed `id`, when the module declares it.
     pub fn boundary_machine(
         &self,
