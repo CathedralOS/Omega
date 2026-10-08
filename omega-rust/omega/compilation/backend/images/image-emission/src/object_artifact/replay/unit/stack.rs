@@ -122,53 +122,16 @@ pub(crate) fn validate_unit_call_stack(
         }
         None => 0,
     };
-    let (call_start, call_end, linkage_bytes) = match architecture {
-        Architecture::X86_64 => (
-            relocation.offset.saturating_sub(1),
-            relocation.offset.saturating_add(4),
-            8,
-        ),
-        Architecture::Aarch64 => (relocation.offset, relocation.offset.saturating_add(4), 0),
-    };
-    if architecture == Architecture::X86_64 && call.outbound.is_none() {
-        return Err(ObjectError::MissingX86UnitCallStackAdjustment { caller, owner });
-    }
-    if let Some(outbound) = call.outbound {
-        let allocation_end = outbound
-            .allocation_offset
-            .checked_add(outbound.allocation_byte_count)
-            .ok_or(ObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
-        let frame_release = function_evidence.frame.map(|frame| frame.release_offset);
-        if allocation_end > call_start
-            || outbound.release_offset != call_end
-            || frame_release.is_some_and(|release| {
-                outbound
-                    .release_offset
-                    .checked_add(outbound.release_byte_count)
-                    .is_none_or(|end| end > release)
-            })
-        {
-            return Err(ObjectError::InvalidUnitStackEncoding {
-                machine: caller,
-                owner: Some(owner),
-                offset: outbound.allocation_offset,
-            });
-        }
-    }
-    let transient_bytes = outbound_bytes
-        .checked_add(linkage_bytes)
-        .ok_or(ObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
-    let caller_live_bytes = function
-        .frame_bytes
-        .checked_add(transient_bytes)
-        .ok_or(ObjectError::UnitCallStackArithmeticOverflow { caller, owner })?;
-    if !caller_live_bytes.is_multiple_of(function.stack_alignment) {
-        return Err(ObjectError::MisalignedUnitCalleeEntry {
-            caller,
-            owner,
-            caller_live_bytes,
-        });
-    }
+    let (transient_bytes, caller_live_bytes) = checked_caller_live_bytes(
+        architecture,
+        caller,
+        owner,
+        call.outbound,
+        outbound_bytes,
+        relocation.offset,
+        function_evidence,
+        &function,
+    )?;
     Ok(ObjectUnitCallStack {
         owner,
         target: relocation.target,
@@ -196,18 +159,46 @@ pub(crate) fn validate_foreign_unit_call_stack(
         }
         None => 0,
     };
+    let (_, caller_live_bytes) = checked_caller_live_bytes(
+        architecture,
+        caller,
+        owner,
+        relocation.unit_stack.outbound,
+        outbound_bytes,
+        relocation.offset,
+        function_evidence,
+        &function,
+    )?;
+    Ok(caller_live_bytes)
+}
+
+/// The outbound-adjustment and live-byte checks a unit call site shares once
+/// its architecture-specific call geometry is fixed: x86-64 requires an
+/// outbound stack adjustment (its call instruction leaves a return-link spill
+/// the callee must absorb), and the adjusted footprint must still produce an
+/// aligned caller live-byte total on entry.
+fn checked_caller_live_bytes(
+    architecture: Architecture,
+    caller: MachineId,
+    owner: CallSiteOwner,
+    outbound: Option<StackAdjustmentPair>,
+    outbound_bytes: u32,
+    relocation_offset: usize,
+    function_evidence: UnitStackEvidence,
+    function: &ObjectUnitStack,
+) -> Result<(u32, u32), ObjectError> {
     let (call_start, call_end, linkage_bytes) = match architecture {
         Architecture::X86_64 => (
-            relocation.offset.saturating_sub(1),
-            relocation.offset.saturating_add(4),
+            relocation_offset.saturating_sub(1),
+            relocation_offset.saturating_add(4),
             8,
         ),
-        Architecture::Aarch64 => (relocation.offset, relocation.offset.saturating_add(4), 0),
+        Architecture::Aarch64 => (relocation_offset, relocation_offset.saturating_add(4), 0),
     };
-    if architecture == Architecture::X86_64 && relocation.unit_stack.outbound.is_none() {
+    if architecture == Architecture::X86_64 && outbound.is_none() {
         return Err(ObjectError::MissingX86UnitCallStackAdjustment { caller, owner });
     }
-    if let Some(outbound) = relocation.unit_stack.outbound {
+    if let Some(outbound) = outbound {
         let allocation_end = outbound
             .allocation_offset
             .checked_add(outbound.allocation_byte_count)
@@ -243,7 +234,7 @@ pub(crate) fn validate_foreign_unit_call_stack(
             caller_live_bytes,
         });
     }
-    Ok(caller_live_bytes)
+    Ok((transient_bytes, caller_live_bytes))
 }
 
 pub(crate) fn validate_stack_adjustment_pair(
