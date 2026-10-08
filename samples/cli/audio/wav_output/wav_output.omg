@@ -1,0 +1,98 @@
+// WavOutput: the portable byte-file sink the audio samples write through.
+// An application holds only `Binding<WavOutput>`; each target's named
+// implementation satisfies the trait and reaches its own raw filesystem
+// family — PosixFilesystemHost on linux/macos, WindowsFilesystemHost on
+// windows_x86_64 — so provider selection sees exactly one realizable raw
+// family per target (Q1 option 1 in miniature).
+// `write_wav` creates/truncates `path`, writes `bytes`, closes, and returns
+// the byte count or a negative error (negated errno on POSIX, negated Win32
+// code on Windows).
+use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
+use omega_language_std::windows_filesystem_host;
+use omega::language::core::numeric_conversion;
+use omega::language::core::binding;
+
+pub boundary trait WavOutput {
+    machine write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
+        reaches WavOutput
+        invokes PosixFilesystemHost;
+        invokes WindowsFilesystemHost;
+}
+
+data PosixWavOutput { }
+data WindowsWavOutput { }
+
+linux_x86_64 machine PosixWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
+    satisfies WavOutput::write_wav
+reaches PosixFilesystemHost
+{
+    let fd: i32 = PosixFilesystemHost::create(path, 420);
+    transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
+
+    state write(fd: i32, bytes: &[u8]) -> i64 {
+        let n: i64 = PosixFilesystemHost::write(fd, bytes);
+        let rc: i32 = PosixFilesystemHost::close(fd);
+        transition { _ -> (n) }
+    }
+}
+linux_x86_64 machine PosixWavOutput::provider_defaults(defaults: &mut PosixWavOutput) {
+    PosixWavOutput::select_provider<WavOutput, PosixWavOutput>(defaults);
+}
+
+linux_arm64 machine PosixWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
+    satisfies WavOutput::write_wav
+reaches PosixFilesystemHost
+{
+    let fd: i32 = PosixFilesystemHost::create(path, 420);
+    transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
+
+    state write(fd: i32, bytes: &[u8]) -> i64 {
+        let n: i64 = PosixFilesystemHost::write(fd, bytes);
+        let rc: i32 = PosixFilesystemHost::close(fd);
+        transition { _ -> (n) }
+    }
+}
+linux_arm64 machine PosixWavOutput::provider_defaults(defaults: &mut PosixWavOutput) {
+    PosixWavOutput::select_provider<WavOutput, PosixWavOutput>(defaults);
+}
+
+macos_arm64 machine PosixWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
+    satisfies WavOutput::write_wav
+reaches PosixFilesystemHost
+{
+    let fd: i32 = PosixFilesystemHost::create(path, 420);
+    transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
+
+    state write(fd: i32, bytes: &[u8]) -> i64 {
+        let n: i64 = PosixFilesystemHost::write(fd, bytes);
+        let rc: i32 = PosixFilesystemHost::close(fd);
+        transition { _ -> (n) }
+    }
+}
+macos_arm64 machine PosixWavOutput::provider_defaults(defaults: &mut PosixWavOutput) {
+    PosixWavOutput::select_provider<WavOutput, PosixWavOutput>(defaults);
+}
+
+// GENERIC_WRITE 1073741824, share 0, CREATE_ALWAYS 2, FILE_ATTRIBUTE_NORMAL
+// 128; a zero handle reports the negated Win32 error behind it.
+windows_x86_64 machine WindowsWavOutput::write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64
+    satisfies WavOutput::write_wav
+reaches WindowsFilesystemHost
+{
+    let handle: u64 = WindowsFilesystemHost::create_file(path, 1073741824, 0, 2, 128);
+    transition handle != 0 { true -> write(handle, bytes) _ -> failed() }
+
+    state write(handle: u64, bytes: &[u8]) -> i64 {
+        let n: i64 = WindowsFilesystemHost::write_file(handle, bytes);
+        let rc: i32 = WindowsFilesystemHost::close_handle(handle);
+        transition { _ -> (n) }
+    }
+    state failed() -> i64 {
+        let code: u32 = WindowsFilesystemHost::last_error();
+        transition { _ -> (0 - widen_u32_to_i64(code)) }
+    }
+}
+windows_x86_64 machine WindowsWavOutput::provider_defaults(defaults: &mut WindowsWavOutput) {
+    WindowsWavOutput::select_provider<WavOutput, WindowsWavOutput>(defaults);
+}
