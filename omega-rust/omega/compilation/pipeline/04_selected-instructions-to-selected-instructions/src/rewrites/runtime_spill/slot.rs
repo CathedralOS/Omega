@@ -36,13 +36,16 @@
 //! address used anywhere but a load's address operand — is a use the analysis
 //! cannot classify, so the slot stays private to its earlier victim.
 
-use register_model::RegisterOperandAccess;
+use register_environment::ValidatedTargetRegisterEnvironment;
+use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
+use register_model::{RegisterClassId, RegisterOperandAccess};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstructionId,
+    SelectedInstruction, SelectedInstructionId, VirtualRegister,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction,
     SelectedInstructionKind, VirtualRegisterId,
 };
 
-use super::{StorageDefinition, StoragePosition};
+use super::{BitsConversion, RuntimeSpillError, StorageDefinition, StoragePosition};
 
 /// Admitted use positions for the victim, one entry per block in order. The
 /// sharing check needs positions, not just block membership: a proposed reload
@@ -850,4 +853,100 @@ fn loads_before(
         return true;
     };
     (previous..index).any(|point| span_closes[block_index].contains(&point))
+}
+
+pub(super) fn bits_transport<'source>(
+    environment: &'source ValidatedTargetRegisterEnvironment,
+    victim: &VirtualRegister,
+    carrier_class: RegisterClassId,
+) -> Result<BitsConversion<'source>, RuntimeSpillError> {
+    let keys = environment.selected_keys();
+    let (to_key, from_key, to_kind, from_kind) = match victim.scalar_type {
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => (
+            keys.float32_to_bits,
+            keys.bits_to_float32,
+            SelectedInstructionKind::Float32ToBits,
+            SelectedInstructionKind::BitsToFloat32,
+        ),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => (
+            keys.float64_to_bits,
+            keys.bits_to_float64,
+            SelectedInstructionKind::Float64ToBits,
+            SelectedInstructionKind::BitsToFloat64,
+        ),
+        _ => return Err(RuntimeSpillError::UnsupportedValue),
+    };
+    let to_bits = environment
+        .constraint(to_key.ok_or(RuntimeSpillError::UnsupportedValue)?)
+        .ok_or(RuntimeSpillError::UnsupportedValue)?;
+    let from_bits = environment
+        .constraint(from_key.ok_or(RuntimeSpillError::UnsupportedValue)?)
+        .ok_or(RuntimeSpillError::UnsupportedValue)?;
+    for (row, classes) in [
+        (to_bits, [victim.class, carrier_class]),
+        (from_bits, [carrier_class, victim.class]),
+    ] {
+        if row.operands.len() != 2 || !row.implicit_defs.is_empty() || !row.clobbers.is_empty() {
+            return Err(RuntimeSpillError::UnsupportedValue);
+        }
+        for (ordinal, (operand, class)) in row.operands.iter().zip(classes).enumerate() {
+            if usize::from(operand.operand) != ordinal
+                || operand.access
+                    != if ordinal == 0 {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    }
+                || operand.class != class
+                || operand.fixed_view.is_some()
+                || operand.tied_to.is_some()
+                || operand.early_clobber
+            {
+                return Err(RuntimeSpillError::UnsupportedValue);
+            }
+        }
+    }
+    Ok(BitsConversion {
+        to_bits,
+        from_bits,
+        to_kind,
+        from_kind,
+    })
+}
+
+pub(super) fn entry_definitions(entry: usize, victim: &VirtualRegister) -> Vec<StorageDefinition> {
+    vec![StorageDefinition {
+        block_index: entry,
+        position: StoragePosition::BlockStart,
+        register: victim.id,
+    }]
+}
+
+pub(super) fn physical_definition(
+    function: &SelectedFunction,
+    argument: VirtualRegisterId,
+) -> Result<(usize, &SelectedInstruction), RuntimeSpillError> {
+    let mut definitions = function
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(owner, block)| {
+            block.instructions.iter().flat_map(move |candidate| {
+                candidate
+                    .operands
+                    .iter()
+                    .filter(move |operand| {
+                        operand.virtual_register == argument
+                            && operand.access != RegisterOperandAccess::Use
+                    })
+                    .map(move |_| (owner, candidate))
+            })
+        });
+    let Some(definition) = definitions.next() else {
+        return Err(RuntimeSpillError::UnsupportedValue);
+    };
+    if definitions.next().is_some() {
+        return Err(RuntimeSpillError::UnsupportedUse);
+    }
+    Ok(definition)
 }

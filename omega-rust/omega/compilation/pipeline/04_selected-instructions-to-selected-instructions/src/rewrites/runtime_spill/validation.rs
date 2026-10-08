@@ -19,6 +19,7 @@
 //! `stored_transport_size`, `next_chunk` and `surviving_home_exists` helpers
 //! stay shared: the audit reads the same contract, not the producer's record.
 
+use super::slot::{bits_transport, entry_definitions, physical_definition};
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
@@ -34,7 +35,7 @@ use selected_instructions::{
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
-    EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
+    EdgeId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -1651,65 +1652,6 @@ fn reconstruct<'source>(
 /// still-open reload it sits inside. A missing key, an absent row, or a row
 /// that does not bridge the two classes is a victim limit rather than an
 /// environment fault.
-fn bits_transport<'source>(
-    environment: &'source ValidatedTargetRegisterEnvironment,
-    victim: &VirtualRegister,
-    carrier_class: RegisterClassId,
-) -> Result<BitsConversion<'source>, RuntimeSpillError> {
-    let keys = environment.selected_keys();
-    let (to_key, from_key, to_kind, from_kind) = match victim.scalar_type {
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => (
-            keys.float32_to_bits,
-            keys.bits_to_float32,
-            SelectedInstructionKind::Float32ToBits,
-            SelectedInstructionKind::BitsToFloat32,
-        ),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => (
-            keys.float64_to_bits,
-            keys.bits_to_float64,
-            SelectedInstructionKind::Float64ToBits,
-            SelectedInstructionKind::BitsToFloat64,
-        ),
-        _ => return Err(RuntimeSpillError::UnsupportedValue),
-    };
-    let to_bits = environment
-        .constraint(to_key.ok_or(RuntimeSpillError::UnsupportedValue)?)
-        .ok_or(RuntimeSpillError::UnsupportedValue)?;
-    let from_bits = environment
-        .constraint(from_key.ok_or(RuntimeSpillError::UnsupportedValue)?)
-        .ok_or(RuntimeSpillError::UnsupportedValue)?;
-    for (row, classes) in [
-        (to_bits, [victim.class, carrier_class]),
-        (from_bits, [carrier_class, victim.class]),
-    ] {
-        if row.operands.len() != 2 || !row.implicit_defs.is_empty() || !row.clobbers.is_empty() {
-            return Err(RuntimeSpillError::UnsupportedValue);
-        }
-        for (ordinal, (operand, class)) in row.operands.iter().zip(classes).enumerate() {
-            if usize::from(operand.operand) != ordinal
-                || operand.access
-                    != if ordinal == 0 {
-                        RegisterOperandAccess::Use
-                    } else {
-                        RegisterOperandAccess::Def
-                    }
-                || operand.class != class
-                || operand.fixed_view.is_some()
-                || operand.tied_to.is_some()
-                || operand.early_clobber
-            {
-                return Err(RuntimeSpillError::UnsupportedValue);
-            }
-        }
-    }
-    Ok(BitsConversion {
-        to_bits,
-        from_bits,
-        to_kind,
-        from_kind,
-    })
-}
-
 /// The exact edge definitions a block-parameter victim needs: on every
 /// predecessor the edge's own store reads the predecessor's copy output — or,
 /// on a case-dispatch continuation, the bridge's field observation behind the
@@ -1893,47 +1835,10 @@ fn parameter_definitions(
 /// the transformed liveness carries its interval across every re-entry
 /// path. A parameter-side transport naming the register on such an edge
 /// instead substitutes the edge's own arrival, which the same store writes.
-fn entry_definitions(entry: usize, victim: &VirtualRegister) -> Vec<StorageDefinition> {
-    vec![StorageDefinition {
-        block_index: entry,
-        position: StoragePosition::BlockStart,
-        register: victim.id,
-    }]
-}
-
 /// The unique physical instruction defining `argument` anywhere in the
 /// function, as `(owner block, instruction)`. Missing definitions mean the
 /// transport names no real value; multiple mean it is not a single edge-exact
 /// definition — the same split the two caller sites keep.
-fn physical_definition(
-    function: &SelectedFunction,
-    argument: VirtualRegisterId,
-) -> Result<(usize, &SelectedInstruction), RuntimeSpillError> {
-    let mut definitions = function
-        .blocks
-        .iter()
-        .enumerate()
-        .flat_map(|(owner, block)| {
-            block.instructions.iter().flat_map(move |candidate| {
-                candidate
-                    .operands
-                    .iter()
-                    .filter(move |operand| {
-                        operand.virtual_register == argument
-                            && operand.access != RegisterOperandAccess::Use
-                    })
-                    .map(move |_| (owner, candidate))
-            })
-        });
-    let Some(definition) = definitions.next() else {
-        return Err(RuntimeSpillError::UnsupportedValue);
-    };
-    if definitions.next().is_some() {
-        return Err(RuntimeSpillError::UnsupportedUse);
-    }
-    Ok(definition)
-}
-
 /// Consume one emitted register-and-instruction pair from the two replay
 /// streams — declared registers against the appended virtual register tail,
 /// emitted instructions against the block stream — and charge its
