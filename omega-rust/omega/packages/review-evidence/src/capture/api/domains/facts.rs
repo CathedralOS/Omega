@@ -136,9 +136,50 @@ pub(crate) fn require_exact_checked_domain_fact(
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
-    let point = facts::ProgramPoint::Definition {
-        symbol: domain_symbol,
-    };
+    require_exact_checked_fact(
+        compilation,
+        domain_symbol,
+        fact_handle,
+        identity,
+        "domain",
+        "predicate",
+        |domain_symbol| facts::FactOrigin::DomainDefinition { domain_symbol },
+        compilation
+            .facts
+            .semantic
+            .domain_definition_facts
+            .iter()
+            .map(|(_, record)| record),
+        |record: &facts::DomainDefinitionFactRecord| {
+            (record.domain_symbol, record.fact, record.semantic_fact)
+        },
+    )
+}
+
+/// The exact-checked definition-fact requirement both public fact owners
+/// share: exactly one semantic definition row for the symbol's fact handle and
+/// exactly one retained ownership record bound to that row. `kind` and `noun`
+/// complete the diagnostics (`public {kind} \`x\` {noun} fact`), `origin`
+/// builds the definition origin the rows must carry, and `record_fields`
+/// reads each retained record's symbol, typed fact, and semantic handle.
+pub(crate) fn require_exact_checked_fact<'a, R: 'a>(
+    compilation: &PackageReviewInput<'_>,
+    symbol: SymbolHandle,
+    fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
+    identity: &PackageReviewNominalIdentity,
+    kind: &'static str,
+    noun: &'static str,
+    origin: impl Fn(SymbolHandle) -> facts::FactOrigin,
+    retained_facts: impl Iterator<Item = &'a R>,
+    record_fields: impl Fn(
+        &R,
+    ) -> (
+        SymbolHandle,
+        arena::Handle<typed_trees::domain::ProofFact>,
+        facts::FactHandle,
+    ),
+) -> Result<(), Vec<Diagnostic>> {
+    let point = facts::ProgramPoint::Definition { symbol };
     let matching_rows = compilation
         .facts
         .semantic
@@ -146,7 +187,7 @@ pub(crate) fn require_exact_checked_domain_fact(
         .iter()
         .filter_map(|(handle, fact)| {
             (fact.point == point
-                && fact.origin == facts::FactOrigin::DomainDefinition { domain_symbol }
+                && fact.origin == origin(symbol)
                 && fact.evidence == facts::QualificationEvidence::default()
                 && semantic_fact_matches_definition_fact(compilation, fact, fact_handle))
             .then_some(handle)
@@ -154,26 +195,24 @@ pub(crate) fn require_exact_checked_domain_fact(
         .collect::<Vec<_>>();
     if matching_rows.len() != 1 {
         return Err(vec![Diagnostic::error(format!(
-            "public domain `{}` predicate fact has {} exact checked definition rows; expected one",
+            "public {kind} `{}` {noun} fact has {} exact checked definition rows; expected one",
             identity.path,
             matching_rows.len()
         ))]);
     }
-    let retained_records = compilation
-        .facts
-        .semantic
-        .domain_definition_facts
-        .iter()
-        .filter(|(_, record)| record.domain_symbol == domain_symbol && record.fact == fact_handle)
-        .map(|(_, record)| record)
+    let retained_records = retained_facts
+        .filter(|record| {
+            let (record_symbol, record_fact, _) = record_fields(record);
+            record_symbol == symbol && record_fact == fact_handle
+        })
         .collect::<Vec<_>>();
     let matching_records = retained_records
         .iter()
-        .filter(|record| record.semantic_fact == matching_rows[0])
+        .filter(|record| record_fields(record).2 == matching_rows[0])
         .count();
     if retained_records.len() != 1 || matching_records != 1 {
         return Err(vec![Diagnostic::error(format!(
-            "public domain `{}` predicate fact has {matching_records} exact checked ownership records among {} retained records; expected exactly one retained record",
+            "public {kind} `{}` {noun} fact has {matching_records} exact checked ownership records among {} retained records; expected exactly one retained record",
             identity.path,
             retained_records.len(),
         ))]);

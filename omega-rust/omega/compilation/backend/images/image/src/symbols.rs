@@ -1,7 +1,9 @@
 //! Handle and section translation between the object plan and the final image,
 //! including the coordinate reuse the crate header explains.
 
-use crate::final_image::{FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbolHandle};
+use crate::final_image::{
+    FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle,
+};
 use arena::Handle;
 use object_file::{ObjectSymbolHandle, SectionKind, SymbolSection};
 

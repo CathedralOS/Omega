@@ -79,49 +79,24 @@ pub(crate) fn require_exact_checked_data_fact(
     fact_handle: arena::Handle<typed_trees::domain::ProofFact>,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<(), Vec<Diagnostic>> {
-    let point = facts::ProgramPoint::Definition {
-        symbol: data_symbol,
-    };
-    let matching_rows = compilation
-        .facts
-        .semantic
-        .facts
-        .iter()
-        .filter_map(|(handle, fact)| {
-            (fact.point == point
-                && fact.origin == facts::FactOrigin::DataDefinition { data_symbol }
-                && fact.evidence == facts::QualificationEvidence::default()
-                && semantic_fact_matches_definition_fact(compilation, fact, fact_handle))
-            .then_some(handle)
-        })
-        .collect::<Vec<_>>();
-    if matching_rows.len() != 1 {
-        return Err(vec![Diagnostic::error(format!(
-            "public data `{}` invariant fact has {} exact checked definition rows; expected one",
-            identity.path,
-            matching_rows.len()
-        ))]);
-    }
-    let retained_records = compilation
-        .facts
-        .semantic
-        .data_definition_facts
-        .iter()
-        .filter(|(_, record)| record.data_symbol == data_symbol && record.fact == fact_handle)
-        .map(|(_, record)| record)
-        .collect::<Vec<_>>();
-    let matching_records = retained_records
-        .iter()
-        .filter(|record| record.semantic_fact == matching_rows[0])
-        .count();
-    if retained_records.len() != 1 || matching_records != 1 {
-        return Err(vec![Diagnostic::error(format!(
-            "public data `{}` invariant fact has {matching_records} exact checked ownership records among {} retained records; expected exactly one retained record",
-            identity.path,
-            retained_records.len(),
-        ))]);
-    }
-    Ok(())
+    crate::capture::api::domains::facts::require_exact_checked_fact(
+        compilation,
+        data_symbol,
+        fact_handle,
+        identity,
+        "data",
+        "invariant",
+        |data_symbol| facts::FactOrigin::DataDefinition { data_symbol },
+        compilation
+            .facts
+            .semantic
+            .data_definition_facts
+            .iter()
+            .map(|(_, record)| record),
+        |record: &facts::DataDefinitionFactRecord| {
+            (record.data_symbol, record.fact, record.semantic_fact)
+        },
+    )
 }
 
 pub(crate) fn project_public_data(
