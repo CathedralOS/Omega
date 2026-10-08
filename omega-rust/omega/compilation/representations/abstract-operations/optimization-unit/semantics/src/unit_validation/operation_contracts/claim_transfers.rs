@@ -135,46 +135,11 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
             | ScalarTerm::ByteSequencePredicate { root, .. } => {
                 roots.insert(*root);
             }
-            ScalarTerm::BooleanNot { operand }
-            | ScalarTerm::IntegerBitwiseNot { operand, .. }
-            | ScalarTerm::IntegerWiden { operand, .. }
-            | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_roots(operand, roots),
-            ScalarTerm::BooleanEqual { left, right }
-            | ScalarTerm::IntegerEqual { left, right, .. }
-            | ScalarTerm::IntegerLessThan { left, right, .. }
-            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-            | ScalarTerm::ExactIntegerAdd { left, right, .. }
-            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-            | ScalarTerm::ExactIntegerDivide { left, right, .. }
-            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-                scalar_term_roots(left, roots);
-                scalar_term_roots(right, roots);
+            _ => {
+                for operand in term.operands() {
+                    scalar_term_roots(operand, roots);
+                }
             }
-            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                scalar_term_roots(value, roots);
-                scalar_term_roots(count, roots);
-            }
-            ScalarTerm::Value { .. }
-            | ScalarTerm::Boolean(_)
-            | ScalarTerm::Integer { .. }
-            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
     }
 
