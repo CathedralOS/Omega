@@ -164,6 +164,20 @@ impl TypedTrees {
         })
     }
 
+        /// The `Variant` member `definition` declares as `symbol`, if any.
+    pub fn data_variant(
+        &self,
+        definition: &data::DataDefinition,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&data::DataVariant> {
+        self.data_members(definition).iter().find_map(|member| {
+            let data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.symbol == symbol).then_some(variant)
+        })
+    }
+
         /// The `Field` member `definition` declares under `name`, if any.
     pub fn data_field_named(
         &self,

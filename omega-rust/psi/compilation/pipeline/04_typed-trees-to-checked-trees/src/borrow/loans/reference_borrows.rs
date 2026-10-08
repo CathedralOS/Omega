@@ -22,11 +22,7 @@ pub(super) fn element_view_local_binding(
     if local_data.is_mutable {
         return false;
     }
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return false;
     };
     validation::expression_result_type_reference(program, machine, state, local_data.initial_value)

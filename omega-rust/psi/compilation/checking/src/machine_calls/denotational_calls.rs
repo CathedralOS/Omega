@@ -232,11 +232,7 @@ pub(crate) fn unconditionally_terminates(
     program: &dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = program.machine(machine_symbol) else {
         return false;
     };
     matches!(

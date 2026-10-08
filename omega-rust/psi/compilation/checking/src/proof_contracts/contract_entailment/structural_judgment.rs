@@ -586,12 +586,7 @@ impl<'program> StructuralJudge<'program> {
         // The selected state is authoritative. Its display spelling may be
         // qualified or aliased and is not an additional declaration identity.
         let data = crate::value_custody::places::data_definition_for_type(program, result_type)?;
-        let projected_field = program.data_members(data).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Field(candidate) = member else {
-                return None;
-            };
-            (candidate.symbol == field).then_some(candidate)
-        })?;
+        let projected_field = program.data_field(data, field)?;
         let direct_literal_field = || {
             let machine_parameters = program
                 .machine_type_parameters(machine)

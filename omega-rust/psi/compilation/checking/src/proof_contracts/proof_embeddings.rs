@@ -401,16 +401,9 @@ pub(crate) fn expression_type_reference(
                 && let Some(data) =
                     crate::value_custody::places::data_definition_for_type(program, receiver)
             {
-                return program.data_members(data).iter().find_map(
-                    |data_member| match data_member {
-                        typed_trees::data::DataMember::Field(field)
-                            if field.name == member.member =>
-                        {
-                            Some(field.type_reference)
-                        }
-                        _ => None,
-                    },
-                );
+                return program
+                    .data_field_named(data, member.member.as_str())
+                    .map(|field| field.type_reference);
             }
             crate::declarations::data_queries::data_field_type_by_symbol(
                 program,

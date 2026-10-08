@@ -295,10 +295,5 @@ fn declared_field<'program>(
     else {
         return None;
     };
-    program.data_members(definition).iter().find_map(|member| {
-        let DataMember::Field(field) = member else {
-            return None;
-        };
-        (field.symbol == symbol).then_some(field)
-    })
+    program.data_field(definition, symbol)
 }

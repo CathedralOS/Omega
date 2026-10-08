@@ -362,12 +362,9 @@ pub fn data_variant_name(
     variant_symbol: SymbolHandle,
 ) -> Option<&str> {
     program.data_definitions().iter().find_map(|definition| {
-        program.data_members(definition).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
-            (variant.symbol == variant_symbol).then_some(variant.name.as_str())
-        })
+        program
+            .data_variant(definition, variant_symbol)
+            .map(|variant| variant.name.as_str())
     })
 }
 

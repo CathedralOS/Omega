@@ -119,11 +119,7 @@ pub fn occurrence_integer_expression_fits_range(
     else {
         return false;
     };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)
-    else {
+    let Some(state) = program.state_in_machine(machine, state_symbol) else {
         return false;
     };
     super::super::live_integer_constraints::proves_range(

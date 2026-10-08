@@ -188,16 +188,7 @@ pub(super) fn fold_with_valuation(
                     expression,
                     &|symbol, primitive| {
                         let field =
-                            program.data_members(definition).iter().find_map(
-                                |member| match member {
-                                    typed_trees::data::DataMember::Field(field)
-                                        if field.symbol == symbol =>
-                                    {
-                                        Some(field)
-                                    }
-                                    _ => None,
-                                },
-                            )?;
+                            program.data_field(definition, symbol)?;
                         match valuation
                             .iter()
                             .find(|(name, _)| *name == field.name.as_str())

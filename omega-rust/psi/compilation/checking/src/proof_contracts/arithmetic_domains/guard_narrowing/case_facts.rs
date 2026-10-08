@@ -46,12 +46,7 @@ pub(super) fn contribute_case_where_facts(
     let ExpressionNode::Name(case) = program.expression_table.expression(classifier) else {
         return;
     };
-    let Some(variant) = program.data_members(owner).iter().find_map(|member| {
-        let DataMember::Variant(variant) = member else {
-            return None;
-        };
-        (variant.symbol == case.symbol).then_some(variant)
-    }) else {
+    let Some(variant) = program.data_variant(owner, case.symbol) else {
         return;
     };
     if variant.where_facts.is_empty() {

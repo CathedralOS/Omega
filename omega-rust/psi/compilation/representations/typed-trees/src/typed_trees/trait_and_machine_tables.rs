@@ -379,6 +379,13 @@ impl TypedTrees {
         self.tables.machines.span_or_empty(self.roots.machines)
     }
 
+    /// The machine `symbol` declares, if any.
+    pub fn machine(&self, symbol: symbols::SymbolHandle) -> Option<&machine::Machine> {
+        self.machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+    }
+
     /// The state `state_symbol` of machine `machine_symbol`, or `None` when
     /// either symbol names no declared machine or state.
     pub fn machine_state(
@@ -611,6 +618,17 @@ impl TypedTrees {
     #[inline]
     pub fn machine_states(&self, machine: &machine::Machine) -> &[crate::state::State] {
         self.machine_states.span_or_empty(machine.states)
+    }
+
+    /// The state `symbol` of `machine`, if the machine declares one.
+    pub fn state_in_machine(
+        &self,
+        machine: &machine::Machine,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::state::State> {
+        self.machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == symbol)
     }
 
     #[inline]
