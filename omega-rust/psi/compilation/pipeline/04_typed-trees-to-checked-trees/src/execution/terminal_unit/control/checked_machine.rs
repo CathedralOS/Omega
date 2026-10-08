@@ -393,6 +393,13 @@ pub(crate) fn build_checked_machine_residual_parts(
             contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
             service_reach: state_flow.service_reach,
             operations,
+            statement_count: u32::try_from(
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len(),
+            )
+            .ok()?,
         },
         residual_affine_discards,
         has_projected_parameter_moves,

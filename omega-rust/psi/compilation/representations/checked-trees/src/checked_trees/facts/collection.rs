@@ -36,6 +36,12 @@ pub struct CheckFacts {
     /// were established at the store itself, ordered by target handle position.
     /// A later restoration of an invariant does not establish this decision.
     pub proven_byte_writes: Vec<typed_trees::expression::ExpressionHandle>,
+    /// The `AssignmentIndex` selectors whose `[]` occurrence in their
+    /// assignment target is in `proven_scalar_indexes`, keyed by the
+    /// coordinate a plan path names (state, statement, depth) and ordered.
+    /// Lowering reads a runtime element's decision here instead of
+    /// rejoining the authored assignment target.
+    pub proven_assignment_indexes: Vec<ProvenAssignmentIndex>,
     /// Calls whose every `requires` fact checking proved at the call site,
     /// keyed by calling state, statement and resolved target. For a state
     /// transfer this is the target state's arrival contract, so lowering
@@ -126,6 +132,27 @@ pub struct CheckFacts {
     pub placed_view_inputs: Vec<CheckedPlacedViewInput>,
 }
 
+/// One `AssignmentIndex { depth }` selector of the assignment at
+/// `statement_index` whose bounds checking proved its index in range.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProvenAssignmentIndex {
+    pub state: symbols::SymbolHandle,
+    pub statement_index: u32,
+    pub depth: u32,
+}
+
+impl ProvenAssignmentIndex {
+    /// The order `proven_assignment_indexes` is kept in.
+    pub fn key(&self) -> (u32, u32, u32, u32) {
+        (
+            self.state.arena_index(),
+            self.state.generation(),
+            self.statement_index,
+            self.depth,
+        )
+    }
+}
+
 /// One call site whose `requires` checking discharged in full.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecidedCallRequires {
@@ -182,6 +209,25 @@ impl CheckFacts {
                 && decided.statement_index == statement_index
                 && decided.target == target
         })
+    }
+
+    /// Whether the `AssignmentIndex { depth }` selector of the assignment at
+    /// `statement_index` in `state` is proven in range.
+    pub fn assignment_index_is_proven(
+        &self,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        depth: u32,
+    ) -> bool {
+        let key = ProvenAssignmentIndex {
+            state,
+            statement_index,
+            depth,
+        }
+        .key();
+        self.proven_assignment_indexes
+            .binary_search_by_key(&key, ProvenAssignmentIndex::key)
+            .is_ok()
     }
 
     /// Whether every bounds check of this `[]` occurrence proved its scalar

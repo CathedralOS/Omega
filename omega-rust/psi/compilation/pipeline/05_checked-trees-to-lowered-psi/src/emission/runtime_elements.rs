@@ -134,16 +134,16 @@ pub(crate) fn evaluate_selectors(
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<Vec<EvaluatedSelector>, LoweringError> {
     let mut indexes = Vec::new();
-    let occurrences = assignment_occurrences(checked, state, statement_index);
     for step in steps {
         let mut decided = false;
         let (index, scalar_type) = match step {
             ProjectionStep::AssignmentIndex { depth } => {
                 let role = CheckedScalarExpressionRole::AssignmentIndex { depth: *depth };
                 let source = selector_source(checked, state, statement_index, role)?;
-                decided = occurrences
-                    .get(*depth as usize)
-                    .is_some_and(|occurrence| checked.facts.scalar_index_is_proven(*occurrence));
+                decided = checked
+                    .facts
+                    .assignment_index_is_proven(state, statement_index, *depth);
+
                 let index = evaluation.source_value(
                     checked,
                     machine,
@@ -295,27 +295,4 @@ fn selector_source(
     Ok(checked_trees::CheckedCallScalarArgument::Computation(
         root.root,
     ))
-}
-
-/// The scalar `[]` occurrences of the statement's assignment target, indexed
-/// by `AssignmentIndex` depth. A statement that is not an assignment has none,
-/// so its runtime elements decide nothing.
-fn assignment_occurrences(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement_index: u32,
-) -> Vec<checked_trees::expression::ExpressionHandle> {
-    let Some(state) = checked.typed.state_by_symbol(state) else {
-        return Vec::new();
-    };
-    match checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index as usize)
-    {
-        Some(checked_trees::statement::StatementNode::Assignment(assignment)) => {
-            validation::assignment_target_indexes(&checked.expression_table, assignment.target)
-        }
-        _ => Vec::new(),
-    }
 }

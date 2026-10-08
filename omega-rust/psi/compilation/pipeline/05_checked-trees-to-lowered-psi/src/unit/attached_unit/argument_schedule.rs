@@ -66,15 +66,7 @@ pub(super) fn build(
 ) -> Result<Vec<Step>, LoweringError> {
     let operations = &plan.operations[..plan.operations.len() - 1];
     let mut steps = build_operations(checked, plan.machine, plan.state, operations)?;
-    let (_, authored) = crate::declarations::state_declaration(checked, plan.state)?;
-    let end = u32::try_from(
-        checked
-            .statement_table
-            .statements(authored.statement_nodes)
-            .len(),
-    )
-    .map_err(|_| LoweringError::Unsupported("record loan capture statement extent overflow"))?;
-    steps.push(Step::CaptureBefore(end));
+    steps.push(Step::CaptureBefore(plan.statement_count));
     Ok(steps)
 }
 

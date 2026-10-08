@@ -177,6 +177,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
     indexed_writes::record(program, facts);
+    indexed_writes::record_assignment_indexes(program, facts);
 
     if let Err(mut termination_diagnostics) =
         termination::check_machine_termination_with_call_frames(program, call_frames.as_ref())

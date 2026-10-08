@@ -104,3 +104,52 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
     proven.dedup();
     facts.proven_byte_writes = proven;
 }
+
+/// Key each proven `[]` occurrence of an assignment target by the
+/// `AssignmentIndex` depth plans name it with, so lowering decides a runtime
+/// element's bound from that coordinate alone.
+pub(super) fn record_assignment_indexes(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) {
+    let mut proven = Vec::new();
+    for (_, state_flow) in facts.flow.control.states.iter() {
+        let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
+            continue;
+        };
+        let statements = program.statement_table.statements(state.statement_nodes);
+        for statement_flow in facts
+            .flow
+            .control
+            .statements
+            .span_or_empty(state_flow.statements)
+        {
+            let Some(StatementNode::Assignment(assignment)) =
+                statements.get(statement_flow.statement_index)
+            else {
+                continue;
+            };
+            let Ok(statement_index) = u32::try_from(statement_flow.statement_index) else {
+                continue;
+            };
+            for (depth, occurrence) in
+                validation::assignment_target_indexes(&program.expression_table, assignment.target)
+                    .into_iter()
+                    .enumerate()
+            {
+                if let Ok(depth) = u32::try_from(depth)
+                    && facts.scalar_index_is_proven(occurrence)
+                {
+                    proven.push(checked_trees::ProvenAssignmentIndex {
+                        state: state.symbol,
+                        statement_index,
+                        depth,
+                    });
+                }
+            }
+        }
+    }
+    proven.sort_by_key(checked_trees::ProvenAssignmentIndex::key);
+    proven.dedup();
+    facts.proven_assignment_indexes = proven;
+}

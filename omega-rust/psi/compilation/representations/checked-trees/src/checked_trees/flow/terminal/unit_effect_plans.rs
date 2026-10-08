@@ -805,6 +805,9 @@ pub struct CheckedUnitEffectMachinePlan {
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
+    /// The number of authored statements in the body, the position at which
+    /// a record loan still live at body end is captured.
+    pub statement_count: u32,
 }
 
 /// Borrowed entry vocabulary shared by ordinary sequences and state graphs.

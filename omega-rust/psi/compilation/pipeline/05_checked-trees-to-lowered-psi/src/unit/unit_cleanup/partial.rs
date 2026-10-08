@@ -5,8 +5,8 @@ use super::super::{
 };
 use super::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralFieldType, LoweringError, Terminator, lookup_type_id,
-    unique_unit_machine, unsupported,
+    CheckedUnitStructuralFieldType, LoweringError, Terminator, lookup_type_id, unique_unit_machine,
+    unsupported,
 };
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
@@ -135,20 +135,10 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     {
         return unsupported("partial affine Unit cleanup is not an exact field path");
     }
-    if anonymous {
-        let (source_machine, source_state) =
-            crate::declarations::state_declaration(checked, plan.state)?;
-        if source_machine.symbol != plan.machine
-            || checked
-                .statement_table
-                .statements(source_state.statement_nodes)
-                .len()
-                != 1
-        {
-            return unsupported(
-                "anonymous projected result must die at its enclosing call continuation",
-            );
-        }
+    if anonymous && plan.statement_count != 1 {
+        return unsupported(
+            "anonymous projected result must die at its enclosing call continuation",
+        );
     }
 
     // The partial lane's shapes live in the ordinary roster's one type
@@ -467,4 +457,3 @@ fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
             )
         })
 }
-

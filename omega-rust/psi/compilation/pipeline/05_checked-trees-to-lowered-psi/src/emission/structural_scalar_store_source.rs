@@ -1,45 +1,5 @@
-//! Independent source occurrence custody for ordered projected scalar stores.
+//! The computation root that supplies a projected scalar store's value.
 use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, unsupported};
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
-
-
-/// Rejoin a structural local to its unique earlier declaration. This is source
-/// identity, not a transfer or mutation permission: a carrier may hold reference
-/// fields without owning their backing. Consumers retain the exact declared
-/// type and resolve its current live storage in the ordered namespace, then
-/// check the selected operation's access, qualifications and field geometry.
-/// Finding this declaration cannot restore a moved home or strengthen a loan.
-pub(crate) fn local_destination<'a>(
-    checked: &'a CheckedTrees,
-    state: &checked_trees::state::State,
-    statement: u32,
-    symbol: symbols::SymbolHandle,
-) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
-    let statements = checked.statement_table.statements(state.statement_nodes);
-    let mut locals =
-        statements
-            .iter()
-            .enumerate()
-            .filter_map(|(ordinal, statement)| match statement {
-                StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
-                _ => None,
-            });
-    let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
-        "record store has no source local",
-    ))?;
-    if !symbol.is_valid()
-        || locals.next().is_some()
-        || ordinal >= statement as usize
-        || !local.type_reference.is_valid()
-        || checked
-            .primitive_type_reference(local.type_reference)
-            .is_some()
-    {
-        return unsupported("record store lost its earlier structural declaration");
-    }
-    Ok(local)
-}
 
 /// Select a computation only through its exact authored assignment coordinate.
 /// A whole-record replacement selects each field through the literal's own
@@ -97,34 +57,10 @@ pub(crate) fn computation_root(
     if root.machine != machine || root.root != handle || !plans.nodes.is_valid(handle) {
         return unsupported("field assignment computation root has different custody");
     }
-    if let CheckedScalarExpressionRole::RecordField {
-        expression,
-        field_ordinal,
-    } = root.role
+    if matches!(root.role, CheckedScalarExpressionRole::RecordField { .. })
+        && field_identity.is_none()
     {
-        let ExpressionNode::StructLiteral(literal) =
-            checked.expression_table.expression(expression)
-        else {
-            return unsupported("record store field has no authored literal owner");
-        };
-        let field = checked
-            .expression_table
-            .struct_fields(literal.fields)
-            .get(field_ordinal as usize)
-            .ok_or(LoweringError::Unsupported(
-                "record store field ordinal escaped its literal",
-            ))?;
-        if !checked.data_definitions().iter().any(|data| {
-            checked.data_members(data).iter().any(|member| {
-                matches!(member, checked_trees::data::DataMember::Field(declaration)
-                    if declaration.symbol == field.field_symbol)
-            })
-        }) {
-            return unsupported("record store field declaration is missing");
-        }
-        if field_identity.is_none() {
-            return unsupported("record store field has no field identity");
-        }
+        return unsupported("record store field has no field identity");
     }
     Ok(Some((handle, root.role)))
 }

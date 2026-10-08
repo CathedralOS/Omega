@@ -292,6 +292,13 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             }],
+            statement_count: u32::try_from(
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len(),
+            )
+            .ok()?,
         },
         caller_requirements,
         cleanups,

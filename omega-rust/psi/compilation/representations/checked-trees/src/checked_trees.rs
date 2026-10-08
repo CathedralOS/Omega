@@ -47,7 +47,7 @@ pub use facts::CheckedValueQualification;
 pub use facts::{
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
-    DecidedCallRequires, StoredIntegerWriteSite,
+    DecidedCallRequires, ProvenAssignmentIndex, StoredIntegerWriteSite,
 };
 
 pub use facts::{

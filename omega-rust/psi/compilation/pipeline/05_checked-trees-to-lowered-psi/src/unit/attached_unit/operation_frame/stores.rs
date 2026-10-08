@@ -141,37 +141,22 @@ impl OperationFrame<'_, '_> {
                     // A projected store writes through an established
                     // structural local's owned place: the declared carrier
                     // supplies the walk, the binding table supplies storage.
-                    let source = self
+                    let (source, declared) = self
                         .evaluation
                         .structural_locals
                         .iter()
                         .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
-                        .map(|local| local.argument.clone())
+                        .map(|local| (local.argument.clone(), local.structural_type))
                         .ok_or(LoweringError::Unsupported(
                             "primitive store lost its structural local destination",
                         ))?;
                     if source.access != StructuralAccess::Owned {
                         return unsupported("primitive store local is not an owned place");
                     }
-                    let (_, authored) =
-                        crate::declarations::state_declaration(self.checked, self.state)?;
-                    let local = crate::emission::structural_scalar_store_source::local_destination(
-                        self.checked,
-                        authored,
-                        statement_index,
-                        *symbol,
-                    )?;
-                    let identity = self.checked.normalized_type_identity(local.type_reference);
-                    let declaration = self
-                        .structural_types
-                        .declarations()
-                        .iter()
-                        .find(|declaration| declaration.identity == identity.as_str())
-                        .ok_or(LoweringError::Unsupported(
-                            "primitive store local lost its declared carrier",
-                        ))?;
+                    // The established home's own declared carrier supplies
+                    // the walk below it.
                     let (steps, _) = crate::emission::primitive_store::lower_destination_path(
-                        declaration.id,
+                        declared,
                         path,
                         self.structural_types.declarations(),
                     )?;
