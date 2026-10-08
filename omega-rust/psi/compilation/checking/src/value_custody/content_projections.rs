@@ -702,31 +702,9 @@ fn domain_accepts_projection_carrier(
         })
 }
 
-fn declared_domain_constraints(
-    program: &dyn crate::CheckingInput,
+fn declared_domain_constraints<'a>(
+    program: &'a dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Vec<&typed_trees::types::DomainConstraint> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            declared_domain_constraints(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let mut domains = declared_domain_constraints(program, *base_type);
-            domains.extend(
-                program
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .filter_map(|constraint| match constraint {
-                        typed_trees::types::TypeConstraintNode::Domain(domain) => Some(domain),
-                        _ => None,
-                    }),
-            );
-            domains
-        }
-        _ => Vec::new(),
-    }
+) -> Vec<&'a typed_trees::types::DomainConstraint> {
+    typed_trees::operator::declared_domain_constraints(program.typed_program(), type_reference)
 }

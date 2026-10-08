@@ -365,7 +365,7 @@ pub(crate) fn declared_domain_constraints_match(
     })
 }
 
-fn declared_domain_constraints(
+pub fn declared_domain_constraints(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<&crate::types::DomainConstraint> {
