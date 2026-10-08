@@ -9,7 +9,7 @@
 //! with word-granularity immediates far inside their encodable ranges.
 
 use super::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
+    decode_all, Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
 use crate::selected_form_encoding::selected_forms::resolve_registers;
@@ -626,17 +626,6 @@ fn assemble(
     Ok(bytes)
 }
 
-fn decode_all(bytes: &[u8]) -> Result<Vec<Decoded>, Aarch64SelectedFormEncodingError> {
-    let (words, tail) = bytes.as_chunks::<4>();
-    if !tail.is_empty() {
-        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-    }
-    words
-        .iter()
-        .enumerate()
-        .map(|(position, word)| decode_word(u32::from_le_bytes(*word), position))
-        .collect()
-}
 
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
@@ -686,7 +675,7 @@ pub(super) fn validate(
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let registers = request(physical, alternative, operands)?;
-    if decode_all(bytes)? != expected_stream(predicate, registers)? {
+    if decode_all(bytes, decode_word)? != expected_stream(predicate, registers)? {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     let flags = physical

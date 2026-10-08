@@ -97,3 +97,18 @@ pub use selected_forms::{
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,
     validate_aarch64_selected_form_encoding,
 };
+
+fn decode_all<D>(
+    bytes: &[u8],
+    decode_word: impl Fn(u32, usize) -> Result<D, Aarch64SelectedFormEncodingError>,
+) -> Result<Vec<D>, Aarch64SelectedFormEncodingError> {
+    let (words, tail) = bytes.as_chunks::<4>();
+    if !tail.is_empty() {
+        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
+    }
+    words
+        .iter()
+        .enumerate()
+        .map(|(position, word)| decode_word(u32::from_le_bytes(*word), position))
+        .collect()
+}
