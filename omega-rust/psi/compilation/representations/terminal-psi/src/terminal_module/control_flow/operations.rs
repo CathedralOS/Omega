@@ -962,6 +962,19 @@ pub enum OperationKind {
 }
 
 impl OperationKind {
+    /// The statically resolved machine target of a direct call, absent for
+    /// dynamic and provider-routed calls.
+    pub fn direct_callee(&self) -> Option<MachineId> {
+        match self {
+            Self::Call { callee, .. }
+            | Self::CallUnit { callee, .. }
+            | Self::CallStructuralScalar { callee, .. }
+            | Self::CallStructural { callee, .. }
+            | Self::CallStructuralWithScalarArguments { callee, .. } => Some(*callee),
+            _ => None,
+        }
+    }
+
     /// Ordered structural operands of complete aggregate construction. Scalar
     /// fields have no ownership transfer and are deliberately absent here.
     pub fn constructor_arguments(&self) -> impl Iterator<Item = &StructuralArgument> {

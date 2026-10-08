@@ -1,9 +1,7 @@
 //! Source-independent call-closure queries for retained closed-reach applications.
 
 use semantic_vocabulary::MachineId;
-use terminal_psi::{
-    ClosedReachMachineBinding, ClosedReachParameter, OperationKind, TerminalModule,
-};
+use terminal_psi::{ClosedReachMachineBinding, ClosedReachParameter, TerminalModule};
 
 /// Whether an ordinary call closure contains an exact selected schema application.
 pub fn has_schema_application_in_call_closure(
@@ -40,13 +38,8 @@ pub fn has_schema_application_in_call_closure(
             }
         }
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-            let callee = match operation.kind {
-                OperationKind::Call { callee, .. }
-                | OperationKind::CallUnit { callee, .. }
-                | OperationKind::CallStructuralScalar { callee, .. }
-                | OperationKind::CallStructural { callee, .. }
-                | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
-                _ => continue,
+            let Some(callee) = operation.kind.direct_callee() else {
+                continue;
             };
             if !reachable.contains(&callee) {
                 reachable.push(callee);

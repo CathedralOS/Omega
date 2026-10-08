@@ -81,13 +81,6 @@ pub(crate) fn check(
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             for operation in &block.operations {
                 let callee = match &operation.kind {
-                    OperationKind::Call { callee, .. }
-                    | OperationKind::CallUnit { callee, .. }
-                    | OperationKind::CallStructuralScalar { callee, .. }
-                    | OperationKind::CallStructural { callee, .. }
-                    | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-                        Some(*callee)
-                    }
                     OperationKind::CallDynamic {
                         interface, slot, ..
                     } => {
@@ -147,7 +140,7 @@ pub(crate) fn check(
                             }
                         }
                     }
-                    _ => None,
+                    kind => kind.direct_callee(),
                 };
                 if let Some(callee) = callee {
                     pending.push(callee);

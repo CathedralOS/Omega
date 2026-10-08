@@ -547,23 +547,19 @@ fn inspect_machine<'module>(
 ) {
     for block in &machine.blocks {
         for operation in &block.operations {
-            match &operation.kind {
-                OperationKind::Call { callee, .. }
-                | OperationKind::CallUnit { callee, .. }
-                | OperationKind::CallStructuralScalar { callee, .. }
-                | OperationKind::CallStructural { callee, .. }
-                | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-                    match module.machines.iter().find(|target| target.id == *callee) {
-                        Some(target) => pending.push_back(target),
-                        None => report.gaps.push(EvidenceGap {
-                            entry,
-                            machine: machine.id,
-                            block: Some(block.id),
-                            operation: Some(operation.id),
-                            kind: EvidenceGapKind::UnknownCallee(*callee),
-                        }),
-                    }
+            if let Some(callee) = operation.kind.direct_callee() {
+                match module.machines.iter().find(|target| target.id == callee) {
+                    Some(target) => pending.push_back(target),
+                    None => report.gaps.push(EvidenceGap {
+                        entry,
+                        machine: machine.id,
+                        block: Some(block.id),
+                        operation: Some(operation.id),
+                        kind: EvidenceGapKind::UnknownCallee(callee),
+                    }),
                 }
+            }
+            match &operation.kind {
                 OperationKind::BoundaryCall { boundary, .. } => {
                     let Some(declaration) = module
                         .boundary_machines
