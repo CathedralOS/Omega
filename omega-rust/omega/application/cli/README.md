@@ -41,8 +41,12 @@ flush reports a command error (status 200), not a successful program result.
 Comparison runs the shared Terminal runtime on the native report's exact produced
 artifact and retained entry/provider provisions before publication transfers that
 payload. It never interprets checked trees, recompiles source or repeats Build.
-The current runtime establishes an isolated hosted root, buffered output and
-domain-bound ProcessExit. Selected byte input uses the captured finite replay
+The current runtime establishes an isolated hosted root and buffered output.
+The standalone CLI explicitly delegates ProcessExit to that fresh private domain;
+the embedding runtime request defaults to no exit delegation. Entry Binding
+fields, reach and selected providers confer no authority. The core seals each
+delegation to the actual instance and exact requirement, never the CLI host or
+another instance. Selected byte input uses the captured finite replay
 stream. Exact Darwin clock imports share invocation-private modeled time seeded
 from a host epoch snapshot; checked library calibration and retry code still run.
 This time model is not evidence of native timing correctness.

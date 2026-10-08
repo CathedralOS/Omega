@@ -13,7 +13,6 @@ pub(super) struct EstablishedEntry {
     arguments: Vec<TerminalStructuralValue>,
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
-    established_slots: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
 
 impl EstablishedEntry {
@@ -24,10 +23,6 @@ impl EstablishedEntry {
             established_erased_fields: &self.erased_fields,
             ..TerminalStructuralInputs::default()
         }
-    }
-
-    pub(super) fn established_slots(&self) -> &[semantic_vocabulary::BoundaryMachineId] {
-        &self.established_slots
     }
 }
 
@@ -56,7 +51,6 @@ pub(super) fn establish(
         arguments: Vec::new(),
         zero_initialized: Vec::new(),
         erased_fields: Vec::new(),
-        established_slots: Vec::new(),
     };
     let receiver = provisions.and_then(TerminalRuntimeProvisions::receiver);
     if let Some(receiver) = receiver {
@@ -70,7 +64,7 @@ pub(super) fn establish(
                 row.field_path() == field.field_path()
                     && row.carrier_type_identity() == field.carrier_type_identity()
             });
-            let Some((row, slots)) = rows.next() else {
+            let Some((row, _)) = rows.next() else {
                 return Err(TerminalRuntimeError::InvalidProvision(
                     "root Binding field lost its admitted establishment",
                 ));
@@ -83,10 +77,9 @@ pub(super) fn establish(
                     "root Binding occurrence differs from its actual entry",
                 ));
             }
-            // The driver establishes all of this root's erased capabilities
-            // for its own isolated domain. These slots are retained even when
-            // the whole receiver has no runtime data projection.
-            arrival.established_slots.extend_from_slice(slots);
+            // Establish the exact erased service occurrence. Its zero payload
+            // is not a grant of containing-process-domain authority; the host
+            // delegates that separately for the actual runtime instance.
             if matches!(
                 receiver.projection(),
                 CheckedProgramEntryReceiverProjection::Retained { .. }
@@ -163,7 +156,5 @@ pub(super) fn establish(
             arrival.zero_initialized.push(0);
         }
     }
-    arrival.established_slots.sort_unstable();
-    arrival.established_slots.dedup();
     Ok(arrival)
 }

@@ -2,7 +2,9 @@
 //! the native report's exact retained provisions, never a second compilation,
 //! dummy receiver, expected-output callback or Unit-returning exit mock.
 
-use compiler::runtime::{TerminalRuntimeError, TerminalRuntimeRequest};
+use compiler::runtime::{
+    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeRequest,
+};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 
 #[derive(Default)]
@@ -44,6 +46,7 @@ pub(super) fn interpret(
         artifact,
         provisions,
         fuel_allowance,
+        domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: Some(standard_input),
         clock: Some(clock),
     }) {

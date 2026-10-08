@@ -1144,8 +1144,7 @@ defines the complete product bar.
   Acceptance: no installation or interpretation route supplies a provider
   value or receiver its requirement did not author; the four GUI samples check;
   `tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit`
-  still exits 70 in both engines (the Terminal interpreter declines its
-  `ProcessExit` until **TERMINAL-RUNTIME-DRIVERS**).
+  still exits 70 in both engines.
 
 - **MACOS-APPLICATION-PUBLICATION.** Publish and run `samples/gui/window_app`,
   `window_demo` and `windowed_calculator` under the
@@ -1753,9 +1752,7 @@ then independent claimed restoration slices -> final closure.
   **Q2: hosted-interpreter-abi-library-dependency** in `OWNER_QUESTIONS.md`:
   existing exact locator/ABI checks need independent Omega backend libraries,
   which the current Psi dependency rule forbids. Other runtime work is unblocked.
-  Acceptance: `omega run --both` for
-  `pass/float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`
-  returns native/interpreter 70; restore **WINDOWS-CONSOLE-INPUT**'s Loader and
+  Acceptance: restore **WINDOWS-CONSOLE-INPUT**'s Loader and
   five bounded-line controls through the common core. Missing/wrong-instance
   imports reject before effects; stdout/stderr and exit oracles are independent.
   A native compilation failure or comparison decline cannot count as agreement.
@@ -1763,8 +1760,14 @@ then independent claimed restoration slices -> final closure.
   and uses the common core; it no longer calls the checked-tree interpreter.
   The shared `driver/src/runtime.rs` consumes retained native entry/provider
   provisions, establishes fresh private hosted backing and erased root fields,
-  binds typed buffered line/byte output and delegates ProcessExit to that
-  isolated instance. Complete external demands, including possible dynamic
+  binds typed buffered line/byte output. Preserve
+  `float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`,
+  `providers/foreign_out_parameter_write_observed_exit` and
+  `host/process_exit_explicit_standalone_domain_exit`: standalone sponsors must
+  explicitly delegate exit to their private instance; embeddings default to no
+  authority, independently of entry fields, reach and provider selection.
+  Exact instance/slot and crossing admission remain mandatory. Complete external
+  demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
   loans, padding-containing, reference-bearing or atomic host buffers,
@@ -1839,11 +1842,6 @@ then independent claimed restoration slices -> final closure.
   Preserve `host/runtime_descriptor_local_array_loan_input_exit`: shared and mutable
   whole-array loans keep their owner's activation across calls and state edges;
   only owned occurrences copy payload, and short reads retain unread elements.
-  The original
-  `runtime_float_integer_conversion_boundaries_exit` has no exact established
-  root ProcessExit Binding occurrence and declines before effects; resolve its
-  source authority contract under [Process-exit contract](#process-exit-contract),
-  rather than granting authority from its Console reach.
   Selected-reference backing retains its separate capability attribution.
   CLI comparison consumes the exact native report before publication; missing
   imports decline without reinterpreting trees or rerunning source/Build.
@@ -1854,19 +1852,6 @@ then independent claimed restoration slices -> final closure.
   custody rather than a second source compilation. Qualify Windows native
   input/output and comparison on Windows after binding the exact foreign leaves;
   macOS cross-realization alone supplies no Windows execution evidence.
-
-  Correct the stale agreement in `tests/omega/corpus_both_macos_arm64.txt`:
-  it currently records
-  `pass/borrows/transition_shared_borrow_result` as
-  `built ... exit:181 interpreter-exit:181 interpreter:agrees`. Its native leg
-  delivers `exit:181`, but its interpreter leg reports
-  `unimplemented: capability=process-exit-domain-binding`. This context-free
-  entry names Console reach but establishes no root Binding occurrence for
-  exit; a runtime driver must not manufacture authority from that reach.
-  Resolve its source authority contract under [Process-exit contract](#process-exit-contract)
-  before claiming agreement or refreshing the row as successful.
-  Note `--cross-golden` compares only the check and native goldens, so it
-  cannot see a stale both-leg row at all -- this class has no detector.
 
 - **TERMINAL-BUILD-QUERIES.** (split-of:TERMINAL-BUILD-SEED) Restore Build
   query/selection families beyond the development seed after
@@ -3152,24 +3137,20 @@ deletions, which the commit lists.
   finite-result guarantees and payload-preserving casts in callers and returns;
   `float/same_carrier_cast_cannot_mint_finite` and
   `float/finite_result_requires_proof` must still reject independently.
-  `float/runtime_format_conversion_result_bounds_exit` (0) constrains rounded
-  named-conversion result guarantees and strict IEEE ranges;
-  shared Terminal execution needs `TERMINAL-RUNTIME-DRIVERS`' exact host-binding
-  adapter for `F32::from_f64` (native/checked execution already works).
+  `float/runtime_format_conversion_result_bounds_exit` (0 in both engines)
+  constrains rounded named-conversion result guarantees and strict IEEE ranges.
   `float/format_conversion_{requires_result_proof,exclusive_upper,lookalike}`
   must reject overflow, unknown NaN, rounded excluded ends and spelling lookalikes.
   `float/runtime_exact_format_narrowing_exit` (native/checked 0) constrains
   declaration-backed unchanged-denotation proofs and retained IEEE endpoints;
   `float/exact_format_conversion_requires_denotation` must reject lossy literals,
   unknown or finite-only operands, non-singleton windows and receiving-type premises.
-  `float/runtime_exact_integer_coercion_exit` (native/checked 0) constrains
+  `float/runtime_exact_integer_coercion_exit` (0 in both engines) constrains
   unchanged-denotation coercions, live IEEE equality facts, enforced result/entry
   ranges and integer bounds from selected named-conversion guarantees;
   `float/exact_integer_coercion_requires_denotation` and
   `float/integer_conversion_lookalike` must reject fractional values, NaN,
   overflow, integer-ended fractional intervals, stale writes and spelling lookalikes.
-  Shared Terminal execution needs **TERMINAL-RUNTIME-DRIVERS**' exact
-  host-binding adapter for `I32::from_f64` before its remaining reachable imports.
   `float/runtime_refined_conversion_target_exit` (0) constrains carrier
   conversion beneath explicit target ranges and same-carrier call completion;
   `float/refined_conversion_target_requires_source_proof` must reject wrong or
@@ -3205,14 +3186,11 @@ deletions, which the commit lists.
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified
   operand independently of its receiving field. Retain
-  `float/runtime_finite_record_invariant_window_exit` (native/checked 0) for
-  temporary poison repaired before borrowing; shared Terminal execution needs
-  the `TERMINAL-RUNTIME-DRIVERS` host-binding adapter for `Float::divide`.
+  `float/runtime_finite_record_invariant_window_exit` (0 in both engines) for
+  temporary poison repaired before borrowing.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.
-  **TERMINAL-RUNTIME-DRIVERS** owns the remaining
-  external-completion bindings for the ProcessExit controls.
 
   Acceptance: every supported primitive operation reaches stage 05 with its
   exact checking-time decision carried through `SourceChecked`; corpus failures

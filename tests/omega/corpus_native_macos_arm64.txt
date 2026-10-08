@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.02, "load1_start": 1.66, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.96, "load1_start": 3.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1022,6 +1022,7 @@ pass/generics/runtime_nested_generic_instantiations_exit built 628ms exit:30
 pass/generics/runtime_value_generic_subject_exit built 636ms exit:17
 pass/host/console_exit_process_exit built 2697ms exit:70 stdout:match @5c302dd6d305
 pass/host/process_exit_after_zero_payload_construction built 1427ms exit:70 @5d657ba9bd55+wt
+pass/host/process_exit_explicit_standalone_domain_exit built 9401ms exit:70 @5889f8b8208f+wt
 pass/host/process_exit_i32_status_mapped built 6901ms exit:212 @7c6892099245+wt
 pass/host/process_exit_i32_status_ordered built 7788ms exit:70 stdout:match @7c6892099245+wt
 pass/host/process_exit_preserves_scalar_contract built 2977ms exit:70 stdout:match @2424b17e715c

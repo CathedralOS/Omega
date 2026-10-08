@@ -5,7 +5,10 @@
 //! transfers that payload. Rechecking source or interpreting checked trees would
 //! bypass the product contract and could repeat Build or lose generated inputs.
 
-use compiler::runtime::{TerminalRuntimeError, TerminalRuntimeObservation, TerminalRuntimeRequest};
+use compiler::runtime::{
+    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
+    TerminalRuntimeRequest,
+};
 use compiler::{CompileOptions, CompileReport, CompileRequest};
 use diagnostics::Diagnostic;
 use package_manager::operations::LocalProjectPreparationOptions;
@@ -80,6 +83,9 @@ fn interpret_product(
         artifact,
         provisions: report.runtime_provisions(),
         fuel_allowance: REFERENCE_EXECUTION_FUEL_ALLOWANCE,
+        // `run` sponsors one standalone private domain. Its death cannot end
+        // this CLI or invalidate another instance's storage/capabilities.
+        domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: Some(Box::new(input)),
         clock: Some(compiler::runtime::TerminalClockSnapshot::capture_host_epoch()?),
     })

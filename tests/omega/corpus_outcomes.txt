@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.02, "load1_start": 1.55, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.35, "load1_start": 3.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3130,6 +3130,7 @@ pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms check-ta
 pass/generics/runtime_value_generic_subject_exit checked 1300ms check-target:macos_arm64 @2d8ed253669f
 pass/host/console_exit_process_exit checked 2187ms check-target:macos_arm64 @5c302dd6d305
 pass/host/process_exit_after_zero_payload_construction checked 1256ms check-target:macos_arm64 @5d657ba9bd55+wt
+pass/host/process_exit_explicit_standalone_domain_exit checked 9495ms check-target:macos_arm64 @5889f8b8208f+wt
 pass/host/process_exit_i32_status_mapped checked 1100ms check-target:macos_arm64 @2d8ed253669f
 pass/host/process_exit_i32_status_ordered checked 1629ms check-target:macos_arm64 @2d8ed253669f
 pass/host/process_exit_preserves_scalar_contract checked 2603ms check-target:macos_arm64 @2424b17e715c

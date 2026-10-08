@@ -3,9 +3,11 @@
 //! The native producer retains its admitted entry and provider provisions.
 //! Reference execution consumes those exact records without rebuilding source
 //! or rerunning Build. They identify what to establish; this owner creates the
-//! actual zero backing, pure buffered host bindings and containing-domain exit
-//! delegation. Guest storage never escapes, no placed host loans are admitted,
-//! and host output is copied into an observation rather than performed on a
+//! actual zero backing and pure buffered host bindings. Containing-domain exit
+//! requires a separate explicit host delegation; its default is absent even
+//! when entry or provider provisions are present. Guest storage never escapes,
+//! no placed host loans are admitted, and host output is copied into an
+//! observation rather than performed on a
 //! surviving process. Those are the domain-death premises of this runtime, not
 //! permissions inferred from a provider name or from a reach declaration.
 //! Selected numeric imports reuse exact shared IEEE semantics, including directed
@@ -28,6 +30,18 @@ mod host_imports;
 
 pub use host_imports::clock::TerminalClockSnapshot;
 
+/// A trusted embedding choice, not a permission inferred from guest metadata.
+/// The default supplies no exit authority. A standalone sponsor may explicitly
+/// delegate death of this invocation's private simulated containing domain;
+/// the core still seals each grant to the actual instance and exact demand.
+/// This never delegates death of the embedding host or a sibling domain.
+#[derive(Clone, Copy, Default)]
+pub enum TerminalDomainExitDelegation {
+    #[default]
+    Unprovided,
+    IsolatedContainingDomain,
+}
+
 use compilation_products::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
@@ -39,6 +53,10 @@ pub struct TerminalRuntimeRequest<'program> {
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
     pub fuel_allowance: u64,
+    /// Explicit host acceptance of domain death through the driver's private
+    /// storage and buffered crossings. Binding establishment, reach, provider
+    /// selection and artifact possession supply none of this permission.
+    pub domain_exit: TerminalDomainExitDelegation,
     /// Explicit finite replay stream. A zero read establishes exhaustion of
     /// this snapshot, never a temporarily empty live pipe. Absence supplies no
     /// stdin capability; input-demanding imports reject before guest effects.
@@ -147,6 +165,17 @@ pub fn execute(
             ),
         ));
     }
+    if !requirements.external_completions.is_empty()
+        && matches!(
+            request.domain_exit,
+            TerminalDomainExitDelegation::Unprovided
+        )
+    {
+        return Err(TerminalRuntimeError::missing(
+            "process-exit-domain-delegation",
+            "the host has not delegated exit of this isolated containing domain",
+        ));
+    }
     let arrival = entry::establish(&program, request.provisions)?;
     let inputs = arrival.inputs();
     let mut instance = program
@@ -160,18 +189,12 @@ pub fn execute(
         request.standard_input,
         request.clock,
     )?;
-    // Each Binding occurrence is established for this containing domain by
-    // this host, never by merely selecting the native exit implementation.
+    // Service occurrences and containing-domain authority are independent.
+    // This host explicitly accepted domain death above. All guest storage is
+    // private, outputs are buffered, and placed host loans are refused. The
+    // core grants exact instance/slot custody under those crossing premises;
+    // a Binding roster, Console reach or selected exit provider cannot grant it.
     for demand in &requirements.external_completions {
-        if !arrival.established_slots().contains(&demand.boundary) {
-            return Err(TerminalRuntimeError::missing(
-                "process-exit-domain-binding",
-                format!(
-                    "exit slot {:?} has no exact established root Binding occurrence",
-                    demand.boundary
-                ),
-            ));
-        }
         let admission = TerminalProcessExitAdmission::admit_isolated_simulated_domain(
             &instance,
             demand.boundary,
