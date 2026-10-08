@@ -45,10 +45,8 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
     if reads.is_empty() {
         return true;
     }
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
+    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    else {
         return false;
     };
     let arm_of = |call_ordinal: usize| -> Option<TransitionTargetHandle> {

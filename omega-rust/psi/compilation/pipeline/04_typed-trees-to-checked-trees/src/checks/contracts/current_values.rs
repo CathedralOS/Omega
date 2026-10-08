@@ -18,10 +18,8 @@ pub(crate) fn proves_exit(
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
-    let Some(machine) = program.machine_by_symbol(exit.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = program.state_in_machine(machine, exit.state_symbol) else {
+    let Some((machine, state)) = program.state_flow_site(exit.machine_symbol, exit.state_symbol)
+    else {
         return false;
     };
     let Some(values) = CurrentScalarValues::at(
@@ -74,10 +72,8 @@ pub(crate) fn proves_call(
     expression: ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
+    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    else {
         return false;
     };
     let Some(site) = validation::find_call_site(

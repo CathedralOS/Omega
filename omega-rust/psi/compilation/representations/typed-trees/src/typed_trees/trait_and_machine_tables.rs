@@ -703,6 +703,18 @@ impl TypedTrees {
     }
 
     /// The state `symbol` of `machine`, if the machine declares one.
+    /// The machine and state a flow fact's machine and state symbols name,
+    /// or `None` for a dangling pair.
+    pub fn state_flow_site(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    ) -> Option<(&machine::Machine, &crate::state::State)> {
+        let machine = self.machine_by_symbol(machine_symbol)?;
+        let state = self.state_in_machine(machine, state_symbol)?;
+        Some((machine, state))
+    }
+
     pub fn state_in_machine(
         &self,
         machine: &machine::Machine,
