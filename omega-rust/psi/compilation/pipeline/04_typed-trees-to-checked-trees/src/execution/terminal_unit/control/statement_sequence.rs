@@ -442,6 +442,8 @@ pub(in crate::execution::terminal_unit) fn build(
                         && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
                             || u32::try_from(*index).ok().is_some_and(|ordinal| facts.values.scalar_computations.root_at(
                                 state.symbol, ordinal, CheckedScalarExpressionRole::Return,
+                            ).is_some() || facts.values.structural_values.root_for_expression(
+                                state.symbol, ordinal, *expression,
                             ).is_some())))
         })
     {
