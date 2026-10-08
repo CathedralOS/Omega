@@ -5,9 +5,8 @@
 
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineMemoryEffect,
     MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, ValidatedMachineEffectCatalog,
     VirtualRegisterId,
 };
@@ -39,16 +38,6 @@ pub(super) fn last_definition_before(
     })
 }
 
-pub(super) fn copy_alternative(alternative: &MachineAlternative) -> bool {
-    let encoded = &alternative.encoded;
-    encoded.memory == MachineEncodedMemoryEffect::NoneV1
-        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
-        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
-        && encoded.control == MachineEncodedControlEffect::FallThroughV1
-        && encoded.implicit_unit_uses.is_empty()
-        && encoded.implicit_unit_defs.is_empty()
-        && encoded.implicit_unit_clobbers.is_empty()
-}
 
 /// The non-unit declaration surface an isolated form must carry: no memory
 /// access, no trap, no barrier, no call, no cleanup.

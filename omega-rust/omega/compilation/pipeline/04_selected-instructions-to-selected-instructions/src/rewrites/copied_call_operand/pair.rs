@@ -44,7 +44,7 @@
 //! because the reroute changes only which virtual register each argument
 //! operand names, never what the call does.
 
-use crate::rewrites::operand_probes::{copy_alternative};
+use crate::analyses::machine_effects::machine_alternative_is_transparent;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
@@ -342,7 +342,7 @@ fn isolated_copy(declaration: &MachineEffectDeclaration) -> bool {
         && declaration.barrier == MachineBarrier::None
         && declaration.call == MachineCallEffect::NoneV1
         && declaration.cleanup == MachineCleanupEffect::NoneV1
-        && declaration.alternatives.iter().all(copy_alternative)
+        && declaration.alternatives.iter().all(machine_alternative_is_transparent)
 }
 
 /// The encoded surface a copy alternative must carry: no memory access,
