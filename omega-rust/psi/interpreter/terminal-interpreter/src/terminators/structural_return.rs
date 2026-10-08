@@ -40,11 +40,16 @@ impl TerminalExecution<'_> {
                 element_view_values,
                 byte_sequence_values,
                 live_affine_frontier,
-                result: SuspendedCallResult::Structural { result, .. },
+                result:
+                    SuspendedCallResult::Structural {
+                        result,
+                        claim_origin,
+                        ..
+                    },
                 ..
             }) if result.structural_type == signature.structural_type
                 && result.multiplicity == signature.multiplicity
-                && result.qualifications == signature.qualifications
+                && claim_origin.result_qualifications_match(result, &signature.qualifications)
                 && !structural_values.contains_key(&result.place)
                 && !scalar_array_values.contains_key(&result.place)
                 && !element_view_values.contains_key(&result.place)
@@ -96,6 +101,10 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             value.absorb_qualifications(&signature.qualifications);
+            // A boundary issuance also establishes its route's domains.
+            if let Some(destination) = &destination {
+                value.absorb_qualifications(&destination.qualifications);
+            }
             self.validate_reference_return(&signature, &value)?;
             if value.structural_type != signature.structural_type
                 || signature

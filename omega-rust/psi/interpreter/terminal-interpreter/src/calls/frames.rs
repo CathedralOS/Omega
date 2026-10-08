@@ -403,7 +403,7 @@ impl TerminalExecution<'_> {
         // this exact declaration before installing it in the caller.
         if result.structural_type != callee_result.structural_type
             || result.multiplicity != callee_result.multiplicity
-            || result.qualifications != callee_result.qualifications
+            || !claim_origin.result_qualifications_match(&result, &callee_result.qualifications)
             || result.projected_qualifications != callee_result.projected_qualifications
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)

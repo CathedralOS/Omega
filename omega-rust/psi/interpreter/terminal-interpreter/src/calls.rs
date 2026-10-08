@@ -333,15 +333,17 @@ impl TerminalExecution<'_> {
             // form already uses for an ordinary callee. Scalar results carry
             // no structural custody to restrict: the callee's declared scalar
             // result type is checked against the operation result at entry.
-            // A linear structural result may carry minted claims and the
-            // boundary's introduced qualifications: the boundary route mints
-            // `result.claims` onto the caller at resume (no transfer slots
-            // exist on the operation), and the provider's declared result
-            // qualifications introduce the returned domains. Affine results
-            // stay claim-free. Unrestricted results use the same frame
-            // admission as ordinary returns, which checks their concrete
-            // payload capability; projected qualifications still have no
-            // installed-provider leg.
+            // A structural result of any multiplicity may carry the
+            // boundary's introduced qualifications: the provider's declared
+            // result domains plus each domain the operation establishes
+            // through its route, and the issuing frame admits a result naming
+            // exactly those. A linear result may also carry minted claims:
+            // the boundary route mints `result.claims` onto the caller at
+            // resume (no transfer slots exist on the operation). Affine and
+            // unrestricted results stay claim-free; unrestricted results use
+            // the same frame admission as ordinary returns, which checks
+            // their concrete payload capability. Projected qualifications
+            // still have no installed-provider leg.
             let supported_result = match &operation.result {
                 terminal_psi::OperationResult::Unit | terminal_psi::OperationResult::Scalar(_) => {
                     true
@@ -350,9 +352,7 @@ impl TerminalExecution<'_> {
                     result.projected_qualifications.is_empty()
                         && match result.multiplicity {
                             StructuralMultiplicity::Unrestricted
-                            | StructuralMultiplicity::Affine => {
-                                result.qualifications.is_empty() && result.claims.is_empty()
-                            }
+                            | StructuralMultiplicity::Affine => result.claims.is_empty(),
                             StructuralMultiplicity::Linear => true,
                         }
                 }

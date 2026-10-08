@@ -180,6 +180,29 @@ pub(crate) enum ResultClaimOrigin {
     BoundaryIssuance,
 }
 
+impl ResultClaimOrigin {
+    /// Whether `result` carries exactly the domains its callee returns: the
+    /// callee's declared result domains plus, for a boundary issuance, each
+    /// domain the operation establishes through its admitted route. An
+    /// ordinary callee return establishes nothing beyond its declaration.
+    pub(crate) fn result_qualifications_match(
+        self,
+        result: &terminal_psi::StructuralOperationResult,
+        declared: &[semantic_vocabulary::StructuralDomainId],
+    ) -> bool {
+        let mut expected = declared.to_vec();
+        if self == Self::BoundaryIssuance {
+            for establishment in &result.qualification_establishments {
+                if !expected.contains(&establishment.domain) {
+                    expected.push(establishment.domain);
+                }
+            }
+            expected.sort();
+        }
+        result.qualifications == expected
+    }
+}
+
 pub(crate) enum SuspendedCallResult {
     Scalar(ValueId),
     Unit,
