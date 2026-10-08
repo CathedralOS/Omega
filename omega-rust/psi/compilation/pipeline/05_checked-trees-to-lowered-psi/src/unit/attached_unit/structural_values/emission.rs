@@ -101,10 +101,7 @@ pub(crate) fn emit(
                 .iter()
                 .rev()
                 .map(|source| {
-                    if let Some(argument) = evaluation
-                        .structural_locals
-                        .iter()
-                        .find(|local| local.root == facts::PlaceRoot::Symbol(source.symbol))
+                    if let Some(argument) = crate::expression_preparation::bindings::structural_local_by_root(&evaluation.structural_locals, facts::PlaceRoot::Symbol(source.symbol))
                         .map(|local| local.argument.clone())
                     {
                         return Ok(argument);
@@ -1337,11 +1334,10 @@ impl Emission<'_, '_, '_> {
                 let selected = match &argument.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
-                    } => self
-                        .evaluation
-                        .structural_locals
-                        .iter()
-                        .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
+                    } => crate::expression_preparation::bindings::structural_local_by_root(
+                        &self.evaluation.structural_locals,
+                        facts::PlaceRoot::Symbol(*symbol),
+                    )
                         .map(|local| local.argument.place)
                         .or(self.parameter_source(&argument)?)
                         .ok_or(LoweringError::Unsupported(

@@ -56,6 +56,14 @@ pub(crate) struct StructuralLocalBinding {
     pub(crate) structural_type: StructuralTypeId,
 }
 
+/// The structural local binding rooted at `root`.
+pub(crate) fn structural_local_by_root(
+    locals: &[StructuralLocalBinding],
+    root: facts::PlaceRoot,
+) -> Option<&StructuralLocalBinding> {
+    locals.iter().find(|local| local.root == root)
+}
+
 fn valid_structural_root(root: facts::PlaceRoot) -> bool {
     match root {
         facts::PlaceRoot::Symbol(symbol) => symbol.is_valid(),

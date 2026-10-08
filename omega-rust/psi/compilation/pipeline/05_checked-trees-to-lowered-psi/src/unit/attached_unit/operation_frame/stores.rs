@@ -141,11 +141,10 @@ impl OperationFrame<'_, '_> {
                     // A projected store writes through an established
                     // structural local's owned place: the declared carrier
                     // supplies the walk, the binding table supplies storage.
-                    let (source, declared) = self
-                        .evaluation
-                        .structural_locals
-                        .iter()
-                        .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
+                    let (source, declared) = crate::expression_preparation::bindings::structural_local_by_root(
+                        &self.evaluation.structural_locals,
+                        facts::PlaceRoot::Symbol(*symbol),
+                    )
                         .map(|local| (local.argument.clone(), local.structural_type))
                         .ok_or(LoweringError::Unsupported(
                             "primitive store lost its structural local destination",

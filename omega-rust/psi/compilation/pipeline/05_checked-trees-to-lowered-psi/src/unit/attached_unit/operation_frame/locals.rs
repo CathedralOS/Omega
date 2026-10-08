@@ -744,11 +744,10 @@ impl OperationFrame<'_, '_> {
             }
             // An owned local's established home supplies the repair whole.
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                let local = self
-                    .evaluation
-                    .structural_locals
-                    .iter()
-                    .find(|local| local.root == facts::PlaceRoot::Symbol(symbol));
+                let local = crate::expression_preparation::bindings::structural_local_by_root(
+                    &self.evaluation.structural_locals,
+                    facts::PlaceRoot::Symbol(symbol),
+                );
                 let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
                     argument,
                     structural_type,

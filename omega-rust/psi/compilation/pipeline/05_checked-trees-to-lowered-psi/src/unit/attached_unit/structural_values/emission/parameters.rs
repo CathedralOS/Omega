@@ -134,11 +134,10 @@ impl Emission<'_, '_, '_> {
                 let place = match &argument.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
-                    } => match self
-                        .evaluation
-                        .structural_locals
-                        .iter()
-                        .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
+                    } => match crate::expression_preparation::bindings::structural_local_by_root(
+                        &self.evaluation.structural_locals,
+                        facts::PlaceRoot::Symbol(*symbol),
+                    )
                         .map(|local| &local.argument)
                     {
                         // A root that is itself a projected alias contributes

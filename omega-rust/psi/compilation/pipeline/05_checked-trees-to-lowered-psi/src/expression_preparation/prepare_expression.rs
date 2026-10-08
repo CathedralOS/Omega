@@ -108,9 +108,7 @@ fn owned_local_observation(
     let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
         argument: source,
         ..
-    }) = structural_locals
-        .iter()
-        .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+    }) = crate::expression_preparation::bindings::structural_local_by_root(structural_locals, facts::PlaceRoot::Symbol(symbol))
     else {
         return unsupported("owned local observation lost its established place");
     };

@@ -215,10 +215,7 @@ impl Evaluation {
                 (parameter.place, parameter.structural_type)
             }
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                let local = self
-                    .structural_locals
-                    .iter()
-                    .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+                let local = crate::expression_preparation::bindings::structural_local_by_root(&self.structural_locals, facts::PlaceRoot::Symbol(symbol))
                     .ok_or(LoweringError::Unsupported(
                         "cleanup local is not established",
                     ))?;
