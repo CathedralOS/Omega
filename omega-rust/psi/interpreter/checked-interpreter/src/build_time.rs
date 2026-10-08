@@ -182,12 +182,7 @@ impl SelectedBuildTimeBinaryOperator {
                     .signature_contracts
                     .span_or_empty(operator.contracts)
                     .iter()
-                    .any(|contract| {
-                        matches!(
-                            contract.kind,
-                            typed_trees::signature::SignatureContractKind::Crashes { .. }
-                        )
-                    })
+                    .any(|contract| contract.is_crashes())
             })
             || program
                 .machines()

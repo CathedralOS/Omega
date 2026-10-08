@@ -249,10 +249,7 @@ pub fn validate_selected_provider_bodies(
         program,
         selected,
         "selected build-time provider body",
-        |row| {
-            (!row.provider.is_empty())
-                .then_some((row.expression, row.origin.machine_symbol()))
-        },
+        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
     )?
     else {
         return Ok(());
@@ -393,12 +390,7 @@ pub fn validate_selected_provider_bodies(
             .machine_contracts(provider)
             .iter()
             .chain(program.state_contracts(entry).iter())
-            .any(|contract| {
-                matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Crashes { .. }
-                )
-            })
+            .any(|contract| contract.is_crashes())
         {
             return Err(
                 "selected build-time provider body crash contracts have no build-time execution support"
@@ -436,12 +428,7 @@ pub fn validate_selected_provider_bodies(
                 .machine_contracts(requirement)
                 .iter()
                 .chain(program.state_contracts(required_entry))
-                .any(|contract| {
-                    matches!(
-                        contract.kind,
-                        typed_trees::signature::SignatureContractKind::Crashes { .. }
-                    )
-                })
+                .any(|contract| contract.is_crashes())
             {
                 return Err(
                     "selected operator crash invocations have no build-time execution support"
@@ -523,12 +510,7 @@ pub fn validate_selected_provider_bodies(
             .signature_contracts
             .span_or_empty(operator.contracts)
             .iter()
-            .any(|contract| {
-                matches!(
-                    contract.kind,
-                    typed_trees::signature::SignatureContractKind::Crashes { .. }
-                )
-            })
+            .any(|contract| contract.is_crashes())
         {
             return Err(
                 "selected operator crash invocations have no build-time execution support".into(),
@@ -611,10 +593,7 @@ pub fn validate_selected_operators(
         program,
         selected,
         "selected build-time operator",
-        |row| {
-            (!row.provider.is_empty())
-                .then_some((row.expression, row.origin.machine_symbol()))
-        },
+        |row| (!row.provider.is_empty()).then_some((row.expression, row.origin.machine_symbol())),
     )?
     else {
         return Ok(());

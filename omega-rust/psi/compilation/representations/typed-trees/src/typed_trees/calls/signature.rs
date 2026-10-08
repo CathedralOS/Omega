@@ -171,6 +171,13 @@ pub struct SignatureContract {
     pub token_count: usize,
 }
 
+impl SignatureContract {
+    /// Whether this contract is the `crashes` denial clause.
+    pub fn is_crashes(&self) -> bool {
+        matches!(self.kind, SignatureContractKind::Crashes { .. })
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum SignatureContractKind {
     #[default]
