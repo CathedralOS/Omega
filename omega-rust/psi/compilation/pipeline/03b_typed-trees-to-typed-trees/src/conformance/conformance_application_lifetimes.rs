@@ -813,12 +813,7 @@ fn static_substitutions(
         .collect::<Vec<_>>();
     let const_parameters = parameters
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            )
-        })
+        .filter(|parameter| parameter.kind.is_const_or_value())
         .collect::<Vec<_>>();
     for argument in arguments {
         if argument.const_literal.is_some() {

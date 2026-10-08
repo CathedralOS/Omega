@@ -14,7 +14,6 @@ use checked_trees::{FlowFacts, FlowSemanticContextRef};
 use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use language_semantics::const_value::boolean_literal_spelling;
 use symbols::{SymbolHandle, SymbolKind};
-use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
 };
@@ -279,12 +278,7 @@ pub(crate) fn bound_index_substitutions(
     let type_parameters = validation::call_target_type_parameters(program, target_symbol);
     let const_parameters = type_parameters
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            )
-        })
+        .filter(|parameter| parameter.kind.is_const_or_value())
         .collect::<Vec<_>>();
     if const_parameters.is_empty() {
         return Vec::new();
@@ -309,11 +303,7 @@ pub(crate) fn bound_index_substitutions(
                 .iter()
                 .flat_map(|machine| program.machine_type_parameters(machine))
                 .any(|parameter| {
-                    parameter.symbol == argument.symbol
-                        && matches!(
-                            parameter.kind,
-                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                        )
+                    parameter.symbol == argument.symbol && parameter.kind.is_const_or_value()
                 })
         {
             // A forwarded `const`/`Value` binder occupies a const slot under

@@ -170,6 +170,14 @@ pub enum TypeParameterKind {
     },
 }
 
+impl TypeParameterKind {
+    /// The parameter binds a compile-time value — a static const identity or
+    /// a runtime-capable value that today only specializes statically.
+    pub fn is_const_or_value(&self) -> bool {
+        matches!(self, Self::Const { .. } | Self::Value { .. })
+    }
+}
+
 /// Authored declaration-site contract for a static machine parameter.
 /// Structural contracts own their complete signature locally. Nominal
 /// contracts retain only the exact signature-free requirement path; symbol

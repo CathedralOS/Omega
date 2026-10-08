@@ -184,12 +184,7 @@ fn validate_arguments(
         .any(|parameter| matches!(parameter.kind, TypeParameterKind::Type));
     let const_parameters = parameters
         .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-            )
-        })
+        .filter(|parameter| parameter.kind.is_const_or_value())
         .collect::<Vec<_>>();
     let mut const_index = 0;
     for (ordinal, argument) in arguments.iter().enumerate() {

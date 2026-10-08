@@ -185,6 +185,14 @@ pub enum TypeParameterKind {
     },
 }
 
+impl TypeParameterKind {
+    /// The parameter binds a compile-time value — a static const identity or
+    /// a runtime-capable value that today only specializes statically.
+    pub fn is_const_or_value(&self) -> bool {
+        matches!(self, Self::Const { .. } | Self::Value { .. })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineParameterContract {
     RequirementIdentity,

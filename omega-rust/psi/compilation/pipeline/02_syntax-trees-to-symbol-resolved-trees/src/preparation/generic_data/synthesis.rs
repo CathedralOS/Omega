@@ -199,10 +199,7 @@ pub(crate) fn desugar_generic_data_instances_in(
                             // const-shaped here: it can only lawfully pair
                             // with a data `const` binder (a static argument),
                             // never with a data type binder.
-                            let method_is_const = matches!(
-                                parameter.kind,
-                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
-                            );
+                            let method_is_const = parameter.kind.is_const_or_value();
                             data_parameters.iter().any(|(name, data_is_const)| {
                                 name == parameter.name.as_str() && *data_is_const == method_is_const
                             })
