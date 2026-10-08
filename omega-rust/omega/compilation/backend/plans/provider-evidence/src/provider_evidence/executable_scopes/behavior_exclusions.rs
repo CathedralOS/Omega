@@ -351,7 +351,7 @@ impl BoundaryServiceOwners {
                 continue;
             }
             invoked.push(service);
-            if let Some(declaration) = module.services.iter().find(|row| row.id == service) {
+            if let Some(declaration) = module.service(service) {
                 pending.extend(declaration.parents.iter().copied());
             }
         }

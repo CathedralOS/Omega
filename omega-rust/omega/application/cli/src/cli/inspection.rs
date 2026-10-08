@@ -360,9 +360,6 @@ fn structural_type_identity(module: &TerminalModule, id: StructuralTypeId) -> Op
 }
 
 fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
-    module
-        .services
-        .iter()
-        .find(|declaration| declaration.id == id)
+    module.service(id)
         .map(|declaration| declaration.identity.as_str())
 }

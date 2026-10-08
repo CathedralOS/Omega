@@ -56,10 +56,7 @@ impl BehaviorExclusion {
                 format!("crash cause {cause:?}")
             }
             Self::Service(service) => {
-                match module
-                    .services
-                    .iter()
-                    .find(|declaration| declaration.id == service)
+                match module.service(service)
                 {
                     Some(declaration) => format!("service `{}`", declaration.identity),
                     None => format!("service {service}"),
