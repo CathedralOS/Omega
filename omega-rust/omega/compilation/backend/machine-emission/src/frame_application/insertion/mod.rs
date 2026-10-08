@@ -3,7 +3,8 @@
 //! [`apply_frame_protocol_to_fragments`] inserts each function's prologue and
 //! the epilogue before every retained return and shifts block, row and fixup
 //! coordinates (`compute`) and re-encodes and widens the branches the insertion
-//! moved (`reflow`). [`validate_frame_protocol_application`] is the
+//! moved (`reflow`), reading each ISA's short conditional forms from one table
+//! (`branch_reach`). [`validate_frame_protocol_application`] is the
 //! independent checker (`validation`, decoding every branch through
 //! `validation_branch`) for retained-artifact readers and tests. Source-fragment and target-protocol admission belong to the
 //! frame-application stage above; successful byte insertion alone is not
@@ -14,6 +15,7 @@
 //! impose termination on source machines that make no such promise. The same
 //! insertion and branch reflow apply to empty and nonempty return rosters.
 
+mod branch_reach;
 mod compute;
 mod error;
 mod reflow;

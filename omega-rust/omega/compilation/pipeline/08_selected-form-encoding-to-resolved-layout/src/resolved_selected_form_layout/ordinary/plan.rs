@@ -60,7 +60,7 @@ pub(in super::super) fn derive(
                 .get(&branch.id)
                 .ok_or(OptimizedResolvedSelectedFormLayoutError::MissingInstruction(branch.id))?;
             let displacement = byte_displacement(taken_offset, instruction_offset)?;
-            if aarch64_branch_overflows_imm19(displacement) {
+            if !isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH.contains(&displacement) {
                 grown.insert(branch.id);
             }
         }
@@ -143,11 +143,6 @@ pub(crate) fn widening_candidate(instruction: &SelectedInstruction, row: &Select
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
         }
     )
-}
-
-pub(crate) fn aarch64_branch_overflows_imm19(byte_displacement: i64) -> bool {
-    byte_displacement % 4 == 0
-        && !(-(1_i64 << 18)..(1_i64 << 18)).contains(&(byte_displacement / 4))
 }
 
 pub(crate) fn byte_displacement(

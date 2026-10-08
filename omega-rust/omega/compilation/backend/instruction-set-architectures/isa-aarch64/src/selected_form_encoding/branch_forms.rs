@@ -15,6 +15,12 @@ use selected_instructions::{
     MachineEncodedTrapBehavior, SelectedInstructionKind,
 };
 
+/// Displacements, in bytes from the branch's own address, that a one-word
+/// conditional branch (`B.cond`, `CBNZ`) encodes: a signed imm19 word count,
+/// so ±1 MiB. Layout and frame application realize a taken edge outside it
+/// as the widened `B.<inverse> +8; B` pair, whose imm26 reaches ±128 MiB.
+pub const AARCH64_CONDITIONAL_BRANCH_BYTE_REACH: std::ops::Range<i64> = -(1 << 20)..(1 << 20);
+
 /// Encode the canonical layout-resolved realization of
 /// `ConditionalBranchNonZero`. AArch64 conditional-branch displacement is
 /// measured from the branch instruction address and scaled by four bytes.
@@ -375,11 +381,10 @@ fn branch_word_displacement(
     if byte_displacement % 4 != 0 {
         return Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned);
     }
-    let words = byte_displacement / 4;
-    if !(-(1_i64 << 18)..(1_i64 << 18)).contains(&words) {
+    if !AARCH64_CONDITIONAL_BRANCH_BYTE_REACH.contains(&byte_displacement) {
         return Err(Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm19);
     }
-    Ok(words as i32)
+    Ok((byte_displacement / 4) as i32)
 }
 
 /// Encode the layout-resolved AArch64 realization selected by

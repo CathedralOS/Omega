@@ -1,11 +1,22 @@
-//! Monotonic repair of short branches after frame bytes have been inserted.
+//! Monotonic widening of short conditional branches that frame bytes moved
+//! out of reach.
+//!
+//! Each round finds every short row whose taken edge left its form's reach
+//! (`branch_reach`) and widens all of them at once: four bytes enter right
+//! after each short row, and every later block, row, fixup and epilogue
+//! coordinate moves by the growth inserted before it. Widening only lengthens
+//! rows, so a row out of reach stays out of reach and the rounds reach the
+//! least widening closure; each round retires at least one short row.
+
+use std::collections::BTreeMap;
 
 use machine_code::{
     FunctionAppliedFrameEpilogue, FunctionFragment, FunctionFragmentBranchEvidence,
-    FunctionFragmentConditionalBranchPredicate,
 };
 use target::Architecture;
 
+use super::super::branch_reach::{WIDENING_GROWTH, short_conditional_form};
+use super::super::compute::shift_row_fixups;
 use super::FrameApplicationError;
 
 pub(super) fn widen_out_of_range_branches(
@@ -13,137 +24,125 @@ pub(super) fn widen_out_of_range_branches(
     epilogues: &mut [FunctionAppliedFrameEpilogue],
     architecture: Architecture,
 ) -> Result<(), FrameApplicationError> {
-    if architecture != Architecture::X86_64 {
-        return Ok(());
-    }
-    let short_count = function
-        .instructions()
-        .filter(|row| {
-            row.bytes.len() == 2
-                && matches!(row.branch.as_deref(),
-            Some(FunctionFragmentBranchEvidence::Conditional(branch))
-                if branch.predicate == FunctionFragmentConditionalBranchPredicate::NonZeroV1)
-        })
-        .count();
-    for _ in 0..=short_count {
-        let Some((block_index, row_index)) = next_out_of_range(function)? else {
+    loop {
+        let rows = out_of_reach_short_rows(function, architecture)?;
+        if rows.is_empty() {
             return Ok(());
-        };
-        widen(function, epilogues, block_index, row_index)?;
+        }
+        widen(function, epilogues, &rows)?;
     }
-    Err(FrameApplicationError::ArtifactMismatch)
 }
 
-fn next_out_of_range(
+/// `(block index, row index)` of every short conditional row whose taken edge
+/// lies outside its form's reach, in layout order.
+fn out_of_reach_short_rows(
     function: &FunctionFragment,
-) -> Result<Option<(usize, usize)>, FrameApplicationError> {
+    architecture: Architecture,
+) -> Result<Vec<(usize, usize)>, FrameApplicationError> {
+    let block_offsets = function
+        .blocks
+        .iter()
+        .map(|block| (block.block, block.offset))
+        .collect::<BTreeMap<_, _>>();
+    let mut rows = Vec::new();
     for (block_index, block) in function.blocks.iter().enumerate() {
         for (row_index, row) in block.instructions.iter().enumerate() {
             let Some(FunctionFragmentBranchEvidence::Conditional(branch)) = row.branch.as_deref()
             else {
                 continue;
             };
-            if row.bytes.len() != 2
-                || branch.predicate != FunctionFragmentConditionalBranchPredicate::NonZeroV1
-            {
+            let Some(form) = short_conditional_form(architecture, branch) else {
+                continue;
+            };
+            if u64::try_from(row.bytes.len()).ok() != Some(form.width) {
                 continue;
             }
-            let target = function
-                .blocks
-                .iter()
-                .find(|block| block.block == branch.when_taken_block)
-                .ok_or(FrameApplicationError::MissingTargetBlock(
-                    branch.when_taken_block,
-                ))?
-                .offset;
-            let displacement = i128::from(target) - (i128::from(row.offset) + 2);
-            if i8::try_from(displacement).is_err() {
-                return Ok(Some((block_index, row_index)));
+            let target = block_offsets.get(&branch.when_taken_block).copied().ok_or(
+                FrameApplicationError::MissingTargetBlock(branch.when_taken_block),
+            )?;
+            if !form.reaches(row.offset, target) {
+                rows.push((block_index, row_index));
             }
         }
     }
-    Ok(None)
+    Ok(rows)
 }
 
+/// Widen every listed row in one pass. The rows arrive in layout order, so
+/// their insertion points ascend.
 fn widen(
     function: &mut FunctionFragment,
     epilogues: &mut [FunctionAppliedFrameEpilogue],
-    block_index: usize,
-    row_index: usize,
+    rows: &[(usize, usize)],
 ) -> Result<(), FrameApplicationError> {
-    let insertion = function.blocks[block_index].instructions[row_index]
-        .offset
-        .checked_add(2)
-        .ok_or(FrameApplicationError::OffsetOverflow)?;
-    let position = usize::try_from(insertion).map_err(|_| FrameApplicationError::OffsetOverflow)?;
-    if position > function.bytes.len() {
+    let growth =
+        usize::try_from(WIDENING_GROWTH).map_err(|_| FrameApplicationError::OffsetOverflow)?;
+    let mut insertions = Vec::with_capacity(rows.len());
+    for &(block_index, row_index) in rows {
+        let block = &mut function.blocks[block_index];
+        let row = &mut block.instructions[row_index];
+        let short_width =
+            u64::try_from(row.bytes.len()).map_err(|_| FrameApplicationError::OffsetOverflow)?;
+        insertions.push(
+            row.offset
+                .checked_add(short_width)
+                .ok_or(FrameApplicationError::OffsetOverflow)?,
+        );
+        row.bytes.resize(row.bytes.len() + growth, 0);
+        block.byte_count = grow(block.byte_count, 1)?;
+    }
+    if insertions.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(FrameApplicationError::ArtifactMismatch);
     }
-    function.bytes.splice(position..position, [0; 4]);
-    function.blocks[block_index].instructions[row_index]
-        .bytes
-        .resize(6, 0);
-    function.blocks[block_index].byte_count = grow(function.blocks[block_index].byte_count)?;
-    function.byte_count = grow(function.byte_count)?;
+
+    let mut bytes = Vec::with_capacity(function.bytes.len() + rows.len() * growth);
+    let mut cursor = 0_usize;
+    for &insertion in &insertions {
+        let position =
+            usize::try_from(insertion).map_err(|_| FrameApplicationError::OffsetOverflow)?;
+        bytes.extend_from_slice(
+            function
+                .bytes
+                .get(cursor..position)
+                .ok_or(FrameApplicationError::ArtifactMismatch)?,
+        );
+        bytes.resize(bytes.len() + growth, 0);
+        cursor = position;
+    }
+    bytes.extend_from_slice(&function.bytes[cursor..]);
+    function.bytes = bytes;
+    function.byte_count = grow(function.byte_count, insertions.len())?;
+
+    // A coordinate moves by the growth inserted at or before it; the widened
+    // row itself starts before its own insertion point.
+    let shift = |offset: u64| {
+        grow(
+            offset,
+            insertions.partition_point(|&insertion| insertion <= offset),
+        )
+    };
     for block in &mut function.blocks {
-        if block.offset >= insertion {
-            block.offset = grow(block.offset)?;
-        }
+        block.offset = shift(block.offset)?;
         for row in &mut block.instructions {
-            if row.offset >= insertion {
-                row.offset = grow(row.offset)?;
-                if let Some(fixup) = &mut row.byte_literal_address_fixup {
-                    fixup.fields = fixup
-                        .fields
-                        .shifted(4)
-                        .ok_or(FrameApplicationError::OffsetOverflow)?;
-                }
-                if let Some(fixup) = &mut row.implementation_table_address_fixup {
-                    fixup.fields = fixup
-                        .fields
-                        .shifted(4)
-                        .ok_or(FrameApplicationError::OffsetOverflow)?;
-                }
-                if let Some(fixup) = &mut row.internal_machine_fixup {
-                    fixup.opcode_function_offset = grow(fixup.opcode_function_offset)?;
-                    fixup.patch_function_offset = grow(fixup.patch_function_offset)?;
-                    fixup.reference_function_offset = grow(fixup.reference_function_offset)?;
-                }
-                if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
-                    fixup.opcode_function_offset = grow(fixup.opcode_function_offset)?;
-                    fixup.patch_function_offset = grow(fixup.patch_function_offset)?;
-                    fixup.reference_function_offset = grow(fixup.reference_function_offset)?;
-                    for callback in &mut fixup.callbacks {
-                        callback.code_function_offset = grow(callback.code_function_offset)?;
-                        match &mut callback.encoding {
-                            machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 { patch_function_offset } => {
-                                *patch_function_offset = grow(*patch_function_offset)?;
-                            }
-                            machine_code::FunctionFragmentCallbackMaterializationEncoding::Aarch64PageAddress {
-                                page_patch_function_offset,
-                                page_offset_patch_function_offset,
-                            } => {
-                                *page_patch_function_offset =
-                                    grow(*page_patch_function_offset)?;
-                                *page_offset_patch_function_offset =
-                                    grow(*page_offset_patch_function_offset)?;
-                            }
-                        }
-                    }
-                }
+            let shifted = shift(row.offset)?;
+            let delta = shifted - row.offset;
+            row.offset = shifted;
+            if delta != 0 {
+                shift_row_fixups(row, delta)?;
             }
         }
     }
     for epilogue in epilogues {
-        if epilogue.function_offset >= insertion {
-            epilogue.function_offset = grow(epilogue.function_offset)?;
-        }
+        epilogue.function_offset = shift(epilogue.function_offset)?;
     }
     Ok(())
 }
 
-fn grow(offset: u64) -> Result<u64, FrameApplicationError> {
-    offset
-        .checked_add(4)
+/// `offset` plus `count` widenings.
+fn grow(offset: u64, count: usize) -> Result<u64, FrameApplicationError> {
+    u64::try_from(count)
+        .ok()
+        .and_then(|count| count.checked_mul(WIDENING_GROWTH))
+        .and_then(|growth| offset.checked_add(growth))
         .ok_or(FrameApplicationError::OffsetOverflow)
 }

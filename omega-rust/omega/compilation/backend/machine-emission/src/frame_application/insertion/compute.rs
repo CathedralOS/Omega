@@ -1,6 +1,6 @@
 use machine_code::{
     FunctionFragment, FunctionFragmentControlProvenance, FunctionFragmentEmissionPlan,
-    FunctionFragmentInternalMachineFixup,
+    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
 };
 use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -182,24 +182,7 @@ fn apply_function(
                 applied_before_row,
                 epilogue_len,
             )?;
-            if let Some(fixup) = &mut row.internal_machine_fixup {
-                shift_fixup(fixup, row.offset - source_row_offset)?;
-            }
-            if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
-                shift_foreign_fixup(fixup, row.offset - source_row_offset)?;
-            }
-            if let Some(fixup) = &mut row.byte_literal_address_fixup {
-                fixup.fields = fixup
-                    .fields
-                    .shifted(row.offset - source_row_offset)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-            }
-            if let Some(fixup) = &mut row.implementation_table_address_fixup {
-                fixup.fields = fixup
-                    .fields
-                    .shifted(row.offset - source_row_offset)
-                    .ok_or(FrameApplicationError::OffsetOverflow)?;
-            }
+            shift_row_fixups(row, row.offset - source_row_offset)?;
         }
         block.byte_count = block
             .byte_count
@@ -312,6 +295,33 @@ fn shifted_offset(
                 .and_then(|shift| offset.checked_add(shift))
         })
         .ok_or(FrameApplicationError::OffsetOverflow)
+}
+
+/// Move every fixup coordinate a row carries by `shift` bytes, with the row.
+/// The row's own offset is the caller's.
+pub(super) fn shift_row_fixups(
+    row: &mut FunctionFragmentInstructionSpan,
+    shift: u64,
+) -> Result<(), FrameApplicationError> {
+    if let Some(fixup) = &mut row.internal_machine_fixup {
+        shift_fixup(fixup, shift)?;
+    }
+    if let Some(fixup) = &mut row.normalized_foreign_call_fixup {
+        shift_foreign_fixup(fixup, shift)?;
+    }
+    if let Some(fixup) = &mut row.byte_literal_address_fixup {
+        fixup.fields = fixup
+            .fields
+            .shifted(shift)
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
+    }
+    if let Some(fixup) = &mut row.implementation_table_address_fixup {
+        fixup.fields = fixup
+            .fields
+            .shifted(shift)
+            .ok_or(FrameApplicationError::OffsetOverflow)?;
+    }
+    Ok(())
 }
 
 pub(super) fn shift_fixup(

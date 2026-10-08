@@ -1,9 +1,9 @@
 //! Independent least widening closure from source rows and frame insertions.
 
+use super::super::branch_reach::{WIDENING_GROWTH, short_conditional_form};
 use super::FrameApplicationError;
 use machine_code::{
-    FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentControlProvenance,
+    FunctionFragment, FunctionFragmentBranchEvidence, FunctionFragmentControlProvenance,
 };
 use std::collections::BTreeMap;
 use target::Architecture;
@@ -26,9 +26,15 @@ pub(super) fn validate_widths(
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    let short_count = source.instructions()
-        .filter(|row| architecture == Architecture::X86_64 && row.bytes.len() == 2 && matches!(row.branch.as_deref(),
-            Some(FunctionFragmentBranchEvidence::Conditional(branch)) if branch.predicate == FunctionFragmentConditionalBranchPredicate::NonZeroV1))
+    let short_count = source
+        .instructions()
+        .filter(|row| match row.branch.as_deref() {
+            Some(FunctionFragmentBranchEvidence::Conditional(branch)) => {
+                short_conditional_form(architecture, branch)
+                    .is_some_and(|form| row.bytes.len() as u64 == form.width)
+            }
+            _ => false,
+        })
         .count();
     for _ in 0..=short_count {
         let mut cursor = prologue as u64;
@@ -58,24 +64,22 @@ pub(super) fn validate_widths(
         let mut changed = false;
         for (block_index, block) in source.blocks.iter().enumerate() {
             for (row_index, row) in block.instructions.iter().enumerate() {
-                if architecture != Architecture::X86_64 || widths[block_index][row_index] != 2 {
-                    continue;
-                }
                 let Some(FunctionFragmentBranchEvidence::Conditional(branch)) =
                     row.branch.as_deref()
                 else {
                     continue;
                 };
-                if branch.predicate != FunctionFragmentConditionalBranchPredicate::NonZeroV1 {
+                let Some(form) = short_conditional_form(architecture, branch) else {
+                    continue;
+                };
+                if widths[block_index][row_index] as u64 != form.width {
                     continue;
                 }
                 let target = blocks.get(&branch.when_taken_block).ok_or(
                     FrameApplicationError::MissingTargetBlock(branch.when_taken_block),
                 )?;
-                let displacement =
-                    i128::from(*target) - (i128::from(offsets[block_index][row_index]) + 2);
-                if !(-128..=127).contains(&displacement) {
-                    widths[block_index][row_index] = 6;
+                if !form.reaches(offsets[block_index][row_index], *target) {
+                    widths[block_index][row_index] += WIDENING_GROWTH as usize;
                     changed = true;
                 }
             }
