@@ -12,11 +12,11 @@
 //! record, requires the proposal to equal it, and restores the complete
 //! source by content.
 
-use std::sync::Arc;
 
 use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 
 use super::{CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand};
+use crate::rewrites::sealed;
 use crate::ValidatedSelectedAnalysis;
 
 /// The bounded-work charge of one copied-call-operand audit — the
@@ -46,17 +46,13 @@ pub(crate) fn seal_copied_call_operand_fold(
     call: SelectedInstructionId,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedCopiedCallOperand, CopiedCallOperandError> {
-    Ok(ValidatedCopiedCallOperand {
-        receipt: CopiedCallOperandReceipt {
-            source_selected: source.selected_identity(),
-            transformed_selected: selected_instruction_plan_identity(&proposed),
-            function_index,
-            producer,
-            call,
-            optimization_unit: source.optimization_unit_identity(),
-            fuel_schedule: source.fuel_schedule_identity(),
-        },
-        transformed: Arc::new(proposed),
-    })
+    Ok(sealed!(
+        ValidatedCopiedCallOperand,
+        CopiedCallOperandReceipt,
+        source,
+        proposed,
+        function_index: function_index,
+        producer: producer,
+        call: call
+    ))
 }
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
