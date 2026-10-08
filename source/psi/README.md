@@ -115,7 +115,12 @@ becoming a private bridge tree.
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): each unit belongs to the module
 its path names (`a::b`), is parsed into the shared syntax tables, and has its
-position as its source id. A `use` must name a supplied module
+position as its source id. Those tables are whole-program, sized at about
+twice what the psi package fills: 4,096 roots, 1,024 uses, 2,048 machines,
+16,384 parameters and statements, 8,192 states and transition arms, 32,768
+type references and call arguments, and 131,072 expressions; resolution's and
+typing's rows indexed by machine, type-reference and expression handles share
+those bounds. A `use` must name a supplied module
 ([`resolve/imports.omg`](resolve/imports.omg)). A reference sees its own
 module, whichever of the module's units declares, and each module its unit
 imports; an import is not transitive, and two visible declarations of one
@@ -294,18 +299,20 @@ semantic-free gate preserves all of its cases.
 does the same for typing over the resolver gate's framed source sets; its
 harness observes the type table, every expression's span, type, selection,
 adaptation and anonymous value, and every binder's type, and exits 248
-without an observation when resolution rejects. Its last case types the whole
-psi package as one source set.
+without an observation when resolution rejects. It types the whole psi
+package as one source set, and a source set filling the expression table.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
 does the same for name resolution. Its input is a source set: a unit count,
 then each unit's module path and source, `u32`-framed; the decoder frames a
 single source as the root module. Its harness lexes and parses each unit,
 resolves the set, and observes the diagnostic and every type, domain and value
-binding. Lexical or parse rejection exits without an observation.
+binding. Lexical or parse rejection exits without an observation. Capacity
+edges one unit's 65,536 tokens cannot reach (expressions, parameters, type
+references and call arguments) run here as multi-unit source sets.
 
 On macOS ARM64 the three gates build their harnesses natively from a fresh
-CLI: all 453 parser cases, all 203 resolver cases and all 60 typing cases
+CLI: all 456 parser cases, all 211 resolver cases and all 61 typing cases
 pass. Each gate counts each distinct source it runs as one case. No cached
 executable may stand in for that run. Linux and Windows hosts have run none of
 them.

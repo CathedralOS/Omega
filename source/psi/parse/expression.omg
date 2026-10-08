@@ -1182,7 +1182,7 @@ crashes Trap
 machine Parser::emit_expression(parser: &mut Parser, input: &TokenStream, node: Expression)
 crashes Trap
 {
-    transition parser.output.expression_count < 65536 {
+    transition parser.output.expression_count < 131072 {
         true -> store(parser, input, node)
         _ -> full(parser, input)
     }
@@ -1836,7 +1836,7 @@ crashes Trap
     }
 
     state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
-        transition parser.output.argument_count < 16384 {
+        transition parser.output.argument_count < 32768 {
             true -> copy(parser, input, base, cursor)
             _ -> full(parser, input)
         }

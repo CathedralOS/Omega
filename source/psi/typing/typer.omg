@@ -22,7 +22,7 @@ pub data Typer {
     // Explicit traversal stack for an expression tree's lowest handle.
     stack: [u64; 4096];
     // Which expressions have typed.
-    typed: [bool; 65536];
+    typed: [bool; 131072];
     // Generic bindings (generics.omg): a type per generic-parameter handle,
     // live while its stamp equals `binding_generation`.
     bound: [u64; 256];
@@ -279,7 +279,7 @@ crashes Trap
 pub machine Typer::is_typed(typer: &Typer, index: u64 in Trapping) -> bool
 crashes Trap
 {
-    transition index < 65536 {
+    transition index < 131072 {
         true -> read(typer, index)
         _ -> invalid()
     }
@@ -296,7 +296,7 @@ crashes Trap
 pub machine Typer::mark_typed(typer: &mut Typer, index: u64 in Trapping, typed: bool)
 crashes Trap
 {
-    transition index < 65536 {
+    transition index < 131072 {
         true -> write(typer, index, typed)
         _ -> invalid()
     }

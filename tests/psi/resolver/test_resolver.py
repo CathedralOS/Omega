@@ -320,7 +320,11 @@ def rejected_units(
 
 
 def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
-    actual_status, payload = run(program, source)
+    phase_rejected_units(program, name, ((b"", source),), status)
+
+
+def phase_rejected_units(program: str, name: str, units: tuple[tuple[bytes, bytes], ...], status: int) -> None:
+    actual_status, payload = run_units(program, units)
     assert actual_status == status, f"{name}: status {actual_status}"
     assert payload == b"", name
 
@@ -1501,6 +1505,59 @@ def main() -> None:
     )
     assert package.accepted and package.diagnostic == 0, f"psi-package: {package.diagnostic} {package.diagnostic_span}"
     assert len(psi_units) >= 17 and len(package.bindings) > 0 and len(package.value_bindings) > 0, "psi-package"
+    print(f"psi-package: {len(psi_units)} units, {len(package.bindings)} type references, "
+          f"{len(package.value_bindings)} expressions, {len(package.path_bindings)} name paths")
+
+    # Whole-program tables one unit's 65,536 tokens cannot fill reach their
+    # capacity edges across units; one more row in a further unit rejects
+    # while parsing. A sum of n literals `1+...+1` fills 2n - 1 expression
+    # rows.
+    def sum_constant(name: str, literals: int) -> bytes:
+        return f"const {name}: u64 = ".encode() + b"+".join(b"1" for _ in range(literals)) + b";\n"
+
+    exact_expressions = (
+        (b"e0", sum_constant("A", 32000)),
+        (b"e1", sum_constant("B", 32000)),
+        (b"e2", sum_constant("C", 769) + sum_constant("D", 769)),
+    )
+    status, payload = run_units(program, exact_expressions)
+    assert status == 0, f"expression-capacity: status {status}"
+    assert len(decode(payload).value_bindings) == 131072, "expression-capacity"
+    phase_rejected_units(program, "expression-capacity-plus-one",
+                         exact_expressions + ((b"e3", sum_constant("E", 1)),), 250)
+
+    # 16,384 parameters, 128 to a machine, each typed `u8` or `&u8`: the
+    # second fills the type-reference table's 32,768 rows as well.
+    def parameter_units(parameter_type: bytes) -> tuple[tuple[bytes, bytes], ...]:
+        signature = b", ".join(f"p{index}: ".encode() + parameter_type for index in range(128))
+        unit = b"".join(f"machine f{index}(".encode() + signature + b") {}\n" for index in range(64))
+        return ((b"p0", unit), (b"p1", unit))
+
+    exact_parameters = parameter_units(b"u8")
+    status, payload = run_units(program, exact_parameters)
+    assert status == 0, f"parameter-capacity: status {status}"
+    assert len(decode(payload).bindings) == 16384, "parameter-capacity"
+    phase_rejected_units(program, "parameter-capacity-plus-one",
+                         exact_parameters + ((b"p2", b"machine g(q: u8) {}"),), 250)
+    exact_type_references = parameter_units(b"&u8")
+    status, payload = run_units(program, exact_type_references)
+    assert status == 0, f"type-reference-capacity: status {status}"
+    assert len(decode(payload).bindings) == 32768, "type-reference-capacity"
+    phase_rejected_units(program, "type-reference-capacity-plus-one",
+                         exact_type_references + ((b"p2", b"const X: u8 = 1;"),), 250)
+
+    # 32,768 call arguments: a call stages at most 256, and 64 such calls
+    # fill one unit.
+    call = b"f(" + b",".join(b"1" for _ in range(256)) + b");\n"
+    argument_unit = b"machine f() {\n" + call * 64 + b"}\n"
+    exact_arguments = ((b"a0", argument_unit), (b"a1", argument_unit))
+    status, payload = run_units(program, exact_arguments)
+    assert status == 0, f"argument-capacity: status {status}"
+    argument_bindings = decode(payload).value_bindings
+    assert len(argument_bindings) == 2 * 64 * 258, "argument-capacity"
+    assert sum(1 for row in argument_bindings if row[0] == 6) == 128, "argument-capacity callees"
+    phase_rejected_units(program, "argument-capacity-plus-one",
+                         exact_arguments + ((b"a2", b"machine g() { g(1); }"),), 250)
 
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)

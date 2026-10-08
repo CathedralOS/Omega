@@ -27,7 +27,7 @@ use psi::syntax::syntax;
 pub data Resolver {
     output: NameResolution;
     // Name-resolution scratch: what each expression's position lets it name.
-    name_roles: [NameRole; 65536];
+    name_roles: [NameRole; 131072];
 }
 
 // What a type's root position admits. A trait application stands as a
@@ -1030,7 +1030,7 @@ crashes Trap
         type_reference: TypeReference,
         binding: TypeBinding
     ) {
-        transition row < 16384 {
+        transition row < 32768 {
             true -> store(resolver, sources, syntax, row, type_reference, binding)
             _ -> invalid()
         }
@@ -1228,7 +1228,7 @@ machine Resolver::bind_domain(
     domain: IdentifierSpan
 )
 // The caller binds only references it has bounded by the syntax table.
-requires reference < 16384
+requires reference < 32768
 crashes Trap
 {
     let known: DomainBinding = Resolver::known_domain(sources, domain.source_span);
@@ -2004,7 +2004,7 @@ crashes Trap
     }
 
     state bounded(resolver: &Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) {
-        transition left < 16384 && right < 16384 {
+        transition left < 32768 && right < 32768 {
             true -> compare(resolver, left_scope, left, right_scope, right)
             _ -> different()
         }

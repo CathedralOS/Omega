@@ -120,7 +120,7 @@ crashes Trap
 machine Resolver::set_machine_owner(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
-    transition handle < 512 {
+    transition handle < 2048 {
         true -> store(resolver, handle, owner)
         _ -> invalid()
     }

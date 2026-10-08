@@ -147,7 +147,7 @@ crashes Trap
         evidence: u64 in Trapping,
         fact: u64 in Trapping
     ) {
-        transition parser.output.root_count < 1024 {
+        transition parser.output.root_count < 4096 {
             true -> retain(parser, body, evidence, fact)
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }

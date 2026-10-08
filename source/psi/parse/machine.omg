@@ -45,7 +45,7 @@ crashes Trap
     parser.machine_target_end = head.target_end;
     parser.machine_is_boundary = head.is_boundary;
     parser.machine_container = head.container;
-    transition parser.output.machine_count < 512 {
+    transition parser.output.machine_count < 2048 {
         true -> keyword(parser, input)
         _ -> machine_full(parser, input)
     }
@@ -198,7 +198,7 @@ crashes Trap
         parser.machine_first_statement = parser.output.statement_count as u64 in Trapping;
         parser.machine_statement_count = 0;
         parser.machine_first_state = parser.output.state_count as u64 in Trapping;
-        transition parser.output.machine_count < 512 {
+        transition parser.output.machine_count < 2048 {
             true -> retain(parser, input, false)
             _ -> machine_full(parser, input)
         }
@@ -250,7 +250,7 @@ crashes Trap
 
     state close(parser: &mut Parser, input: &TokenStream) {
         Parser::take_current(parser, input);
-        transition parser.output.machine_count < 512 {
+        transition parser.output.machine_count < 2048 {
             true -> retain(parser, input, true)
             _ -> machine_full(parser, input)
         }
@@ -298,7 +298,7 @@ crashes Trap
     }
 
     state root(parser: &mut Parser, input: &TokenStream, machine_index: u64 in Trapping) {
-        transition parser.output.root_count < 1024 {
+        transition parser.output.root_count < 4096 {
             true -> root_bounded(parser, machine_index)
             _ -> root_full(parser, input)
         }
@@ -325,7 +325,7 @@ crashes Trap
 machine Parser::parse_state_member(parser: &mut Parser, input: &TokenStream)
 crashes Trap
 {
-    transition parser.output.state_count < 4096 {
+    transition parser.output.state_count < 8192 {
         true -> keyword(parser, input)
         _ -> state_full(parser, input)
     }
@@ -393,7 +393,7 @@ crashes Trap
     }
 
     state retain_capacity(parser: &mut Parser) {
-        transition parser.output.state_count < 4096 {
+        transition parser.output.state_count < 8192 {
             true -> retain(parser)
             _ -> done()
         }
@@ -737,7 +737,7 @@ crashes Trap
     }
 
     state parameter(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
-        transition parser.output.parameter_count < 8192 {
+        transition parser.output.parameter_count < 16384 {
             true -> parameter_name(parser, input, code)
             _ -> parameter_full(parser, input)
         }
@@ -776,7 +776,7 @@ crashes Trap
     }
 
     state retain_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.parameter_count < 8192 {
+        transition parser.output.parameter_count < 16384 {
             true -> retain(parser, input)
             _ -> parameter_full(parser, input)
         }

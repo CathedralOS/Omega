@@ -560,7 +560,7 @@ crashes Trap
     }
 
     state prepare_use(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.root_count < 1024 {
+        transition parser.output.root_count < 4096 {
             true -> use_capacity(parser, input)
             _ -> root_full(parser, input)
         }
@@ -576,7 +576,7 @@ crashes Trap
     }
 
     state use_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.use_count < 256 {
+        transition parser.output.use_count < 1024 {
             true -> use_start(parser, input)
             _ -> use_full(parser, input)
         }
@@ -698,7 +698,7 @@ crashes Trap
 
 
     state retain_use(parser: &mut Parser, input: &TokenStream, item_end: u64 in Trapping) {
-        transition parser.output.use_count < 256 {
+        transition parser.output.use_count < 1024 {
             true -> retain_use_bounded(parser, input, item_end)
             _ -> retained_capacity_lost(parser)
         }
@@ -721,7 +721,7 @@ crashes Trap
         item_end: u64 in Trapping,
         use_index: u64 in Trapping
     ) {
-        transition parser.output.root_count < 1024 {
+        transition parser.output.root_count < 4096 {
             true -> retain_root_bounded(parser, input, item_end, use_index)
             _ -> retained_capacity_lost(parser)
         }

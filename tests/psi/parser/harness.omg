@@ -344,7 +344,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_root(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
-    requires index <= 1023
+    requires index <= 4095
     {
         let root: RootItem = output.roots[index];
         transition root.kind {
@@ -366,7 +366,7 @@ machine ParserHarness::write_parse_observation(
         index: u64,
         tag: u8
     )
-    requires index <= 1023
+    requires index <= 4095
     {
         ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, root.item_index);
@@ -379,7 +379,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_root_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
-        transition next < 1024 {
+        transition next < 4096 {
             true -> parse_root(parser_harness, output, next)
             _ -> parse_use_count(parser_harness, output)
         }
@@ -394,7 +394,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_use_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
-    requires index <= 255
+    requires index <= 1023
     {
         let item: UseItem = output.uses[index];
         ParserHarness::write_u64(parser_harness, item.first_member);
@@ -408,7 +408,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_use_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
-        transition next < 256 {
+        transition next < 1024 {
             true -> parse_use_item(parser_harness, output, next)
             _ -> parse_member_count(parser_harness, output)
         }
@@ -684,7 +684,7 @@ machine ParserHarness::write_parse_observation(
     // shared or 2 mutable) and its inner, length, first-argument,
     // argument-count and first-row handles.
     state parse_type_reference(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64)
-    requires index <= 16383
+    requires index <= 32767
     {
         let type_reference: TypeReference = output.type_references[index];
         transition type_reference.kind {
@@ -701,7 +701,7 @@ machine ParserHarness::write_parse_observation(
         type_reference: TypeReference,
         index: u64
     )
-    requires index <= 16383
+    requires index <= 32767
     {
         transition type_reference.access {
             ReferenceAccess::Shared -> parse_type_row(parser_harness, output, type_reference, index, 3, 1)
@@ -716,7 +716,7 @@ machine ParserHarness::write_parse_observation(
         kind: u8,
         access: u8
     )
-    requires index <= 16383
+    requires index <= 32767
     {
         ParserHarness::write_byte(parser_harness, kind);
         ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
@@ -733,7 +733,7 @@ machine ParserHarness::write_parse_observation(
         index: u64,
         access: u8
     )
-    requires index <= 16383
+    requires index <= 32767
     {
         ParserHarness::write_byte(parser_harness, 1);
         ParserHarness::write_source_span(parser_harness, type_reference.domain.source_span);
@@ -746,7 +746,7 @@ machine ParserHarness::write_parse_observation(
         index: u64,
         access: u8
     )
-    requires index <= 16383
+    requires index <= 32767
     {
         ParserHarness::write_byte(parser_harness, 0);
         ParserHarness::write_u64(parser_harness, 0);
@@ -761,7 +761,7 @@ machine ParserHarness::write_parse_observation(
         index: u64,
         access: u8
     )
-    requires index <= 16383
+    requires index <= 32767
     {
         ParserHarness::write_byte(parser_harness, access);
         ParserHarness::write_u64(parser_harness, type_reference.inner);
@@ -777,7 +777,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_type_reference_bound(parser_harness: &mut ParserHarness, output: &SyntaxTrees, next: u64) {
-        transition next < 16384 {
+        transition next < 32768 {
             true -> parse_type_reference(parser_harness, output, next)
             _ -> parse_type_argument_count(parser_harness, output)
         }

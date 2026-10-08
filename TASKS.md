@@ -5828,8 +5828,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
 
   Current state: on macOS ARM64, `OMEGA_CLI=<fresh optimized CLI>
   OMEGA_TARGET=macos_arm64` with `tests/psi/parser/test-parser.sh` passes all
-  453 parser cases, `tests/psi/resolver/test-resolver.sh` all 203 resolver
-  cases, and `tests/psi/typing/test-typing.sh` all 60 typing cases; run
+  456 parser cases, `tests/psi/resolver/test-resolver.sh` all 211 resolver
+  cases, and `tests/psi/typing/test-typing.sh` all 61 typing cases; run
   together from a CLI with the plan-identity memo (2d73039fbef), the three
   gates took 3, 5 and 9 minutes on a quiet host and 12, 16 and 26 minutes
   beside a fourth native build.
@@ -5898,7 +5898,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared domains and equality needing a
   declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 37 units, as one source set (44,653 expressions, 227
+  whole psi package, its 37 units, as one source set (44,653 expressions, 228
   interned types). The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
@@ -5912,27 +5912,28 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   AtMost<8>`) do not parse yet. Of the 65 library files that parse whole, 13 resolve with the
   modules they import under their own module paths (`omega::language::core::*`;
   std package-relative, as std's own `use` rows spell them); all 65 at once
-  overflow the 512-row machine table (the library declares about 2,000
-  machines). The others stop first at 23 `satisfies` or `terminates` clauses,
-  2 `where machine` contracts and one operator token, forms resolution rejects
-  until it records their bindings, 19 at an import of a module that does not
+  overflow the 1,024-row clause table with 1,285 clauses. The others stop
+  first at 23 `satisfies` or `terminates` clauses, 2 `where machine`
+  contracts and one operator token, forms resolution rejects until it
+  records their bindings, 19 at an import of a module that does not
   parse yet, 6 at an import that rejects, and `std/build.omg` names the build
   context's `Build`. The resolver gate resolves the whole psi
   package, its 37 units, as one source set; the shared syntax tables hold
-  1,024 roots, 32,000 path members (8,479 used by psi; a single name
-  stores none, its expression row holding it),
-  16,384 type references, 1,536 data members, 768 cases, 8,192 parameters and
-  statements, 4,096 states and 65,536 expressions, over a 65,536-token unit.
+  4,096 roots, 1,024 uses, 32,000 path members (8,479 used by psi; a single
+  name stores none, its expression row holding it), 32,768 type references
+  and call arguments, 1,536 data members, 768 cases, 2,048 machines, 16,384
+  parameters and statements, 8,192 states and transition arms and 131,072
+  expressions, over a 65,536-token unit; edges one unit cannot reach run in
+  the resolver gate's source sets.
   Next: package aliases, with `pub` narrowing imports across
   packages, so the product entry and its library imports resolve; `satisfies` requirement
   edges, `terminates` clauses and `where machine` contracts, which the
   library's remaining files stop at; names in facts; and typing's declared
-  equality; then checking. Size the parser tables to the request contract's scalar-resource
-  rows (roots and states 4,096; path members, data members, type nodes,
-  statements and expressions 16,384) and publish their refusals as those
-  provisions; aarch64 frames past 16 MiB now realize. The psi package's own
-  37 sources hold 44,653 expressions, so those rows must count per source
-  unit, or grow, before D can compile C. Run the
+  equality; then checking. Publish the parser's capacity refusals as the
+  request contract's scalar-resource provisions, whose rows (roots and states
+  4,096; path members, data members, type nodes, statements and expressions
+  16,384) the psi package's own 44,653 expressions exceed, so they must count
+  per source unit, or grow, before D can compile C. Run the
   three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven
   narrowing casts.

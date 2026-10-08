@@ -2280,22 +2280,28 @@ def main() -> None:
         data_count=1,
     )
 
-    # Roots fill with every kind at its own capacity: 256 uses, 256 data
-    # declarations and 512 machines. A further declaration rejects at the
-    # root capacity, which a data declaration checks first.
+    # Roots fill to their 4,096 rows with kinds at their own capacities:
+    # 1,024 uses, 256 data declarations, 2,048 machines, 512 constants and
+    # 256 traits. A further declaration rejects at the root capacity, which a
+    # data declaration checks first.
+    exact_uses = b"".join(f"use n{i};".encode() for i in range(1024))
     exact_roots = (
-        b"".join(f"use n{i};".encode() for i in range(256))
+        exact_uses
         + b"".join(f"data D{i} {{}}".encode() for i in range(256))
-        + b"".join(f"machine m{i}() {{}}".encode() for i in range(512))
+        + b"".join(f"machine m{i}() {{}}".encode() for i in range(2048))
+        + b"const N: u8 = 1;" * 512
+        + b"trait T { }" * 256
     )
     accepted_status, accepted_payload = run(program, exact_roots)
     assert accepted_status == 0
     exact_observation = decode(accepted_payload)
-    assert len(exact_observation.roots) == 1024
-    assert len(exact_observation.uses) == 256
-    assert len(exact_observation.members) == 256
+    assert len(exact_observation.roots) == 4096
+    assert len(exact_observation.uses) == 1024
+    assert len(exact_observation.members) == 1024
     assert len(exact_observation.data_items) == 256
-    assert len(exact_observation.machines) == 512
+    assert len(exact_observation.machines) == 2048
+    assert len(exact_observation.constants) == 512
+    assert len(exact_observation.traits) == 256
     overflow_start = len(exact_roots)
     rejected(
         program,
@@ -2303,10 +2309,24 @@ def main() -> None:
         exact_roots + b"data Overflow {}",
         5,
         (overflow_start, overflow_start + 4),
-        root_count=1024,
-        member_count=256,
+        root_count=4096,
+        member_count=1024,
         data_count=256,
-        machine_count=512,
+        type_reference_count=512,
+        machine_count=2048,
+        expression_count=512,
+        trait_count=256,
+        constant_count=512,
+    )
+    # The use table holds 1,024 imports; a further `use` rejects at its word.
+    rejected(
+        program,
+        "use-capacity-plus-one",
+        exact_uses + b"use overflow;",
+        6,
+        (len(exact_uses), len(exact_uses) + 3),
+        root_count=1024,
+        member_count=1024,
     )
 
     # The shared path-member table holds 32,000 members, more than the
@@ -2621,42 +2641,27 @@ def main() -> None:
     rejected(program, "state-body", b"machine f() { state s() }", 50, (24, 25))
     rejected(program, "state-unsupported-statement", b"machine f() { state s() { if } }", 51, (26, 28))
 
-    exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(512))
+    exact_machines = b"".join(f"machine m{index}() {{}} ".encode() for index in range(2048))
     exact_machine_status, exact_machine_payload = run(program, exact_machines)
     assert exact_machine_status == 0
-    assert len(decode(exact_machine_payload).machines) == 512
+    assert len(decode(exact_machine_payload).machines) == 2048
     rejected(
         program,
         "machine-capacity-plus-one",
         exact_machines + b"machine overflow() {}",
         52,
         (len(exact_machines), len(exact_machines) + 7),
-        root_count=512,
-        machine_count=512,
+        root_count=2048,
+        machine_count=2048,
     )
-    exact_parameters = b"machine f(" + b", ".join(
-        f"p{index}: T".encode() for index in range(8192)
-    ) + b") {}"
-    exact_parameter_status, exact_parameter_payload = run(program, exact_parameters)
-    assert exact_parameter_status == 0
-    assert len(decode(exact_parameter_payload).parameters) == 8192
-    overflow_parameter = exact_parameters[:-4] + b", overflow: T) {}"
-    overflow_parameter_start = len(exact_parameters) - 4 + 2
-    rejected(
-        program,
-        "parameter-capacity-plus-one",
-        overflow_parameter,
-        53,
-        (overflow_parameter_start, overflow_parameter_start + 8),
-        parameter_count=8192,
-        type_reference_count=8192,
-    )
+    # The parameter table's 16,384 rows take at least 65,539 tokens, more
+    # than one unit holds; the resolver gate's source sets reach that edge.
     exact_states = b"machine f() { " + b"".join(
-        f"state s{index} {{}} ".encode() for index in range(4096)
+        f"state s{index} {{}} ".encode() for index in range(8192)
     ) + b"}"
     exact_state_status, exact_state_payload = run(program, exact_states)
     assert exact_state_status == 0
-    assert len(decode(exact_state_payload).states) == 4096
+    assert len(decode(exact_state_payload).states) == 8192
     overflow_state_start = len(exact_states) - 1
     rejected(
         program,
@@ -2664,8 +2669,43 @@ def main() -> None:
         exact_states[:-1] + b"state overflow {} }",
         54,
         (overflow_state_start, overflow_state_start + 5),
-        state_count=4096,
+        state_count=8192,
     )
+
+    # Body tables: 16,384 statements and 8,192 transition arms. A statement
+    # or arm past its table rejects once it completes, at the token after it.
+    exact_statements = b"machine f() { " + b"x; " * 16384 + b"}"
+    exact_statement_status, exact_statement_payload = run(program, exact_statements)
+    assert exact_statement_status == 0
+    exact_statement_observation = decode(exact_statement_payload)
+    assert len(exact_statement_observation.statements) == 16384
+    assert len(exact_statement_observation.expressions) == 16384
+    overflow_statements = b"machine f() { " + b"x; " * 16385 + b"}"
+    rejected(
+        program,
+        "statement-capacity-plus-one",
+        overflow_statements,
+        81,
+        (len(overflow_statements) - 1, len(overflow_statements)),
+        expression_count=16385,
+        statement_count=16384,
+    )
+    exact_arms = b"machine f() { transition x { " + b"_ -> {} " * 8192 + b"} }"
+    exact_arm_status, exact_arm_payload = run(program, exact_arms)
+    assert exact_arm_status == 0
+    exact_arm_observation = decode(exact_arm_payload)
+    assert len(exact_arm_observation.arms) == 8192
+    assert len(exact_arm_observation.statements) == 1
+    overflow_arms = b"machine f() { transition x { " + b"_ -> {} " * 8193 + b"} }"
+    rejected(
+        program,
+        "arm-capacity-plus-one",
+        overflow_arms,
+        90,
+        (len(overflow_arms) - 3, len(overflow_arms) - 2),
+        expression_count=1,
+    )
+    assert len(decode(run(program, overflow_arms)[1]).arms) == 8192, "arm-capacity-plus-one"
 
     # Machine bodies. Each accepted case pins the four body tables exactly:
     # expression rows (kind, operator, left, right, first, count, flag, name

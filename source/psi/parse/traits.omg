@@ -293,7 +293,7 @@ crashes Trap
     }
 
     state root_capacity(parser: &mut Parser, input: &TokenStream) {
-        transition parser.output.root_count < 1024 {
+        transition parser.output.root_count < 4096 {
             true -> retain(parser)
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }
@@ -375,7 +375,7 @@ crashes Trap
 {
     let token: Token = input.tokens[parser.current_index];
     parser.machine_start = token.start;
-    transition parser.output.machine_count < 512 {
+    transition parser.output.machine_count < 2048 {
         true -> keyword(parser, input)
         _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
     }
@@ -446,7 +446,7 @@ crashes Trap
     }
 
     state capacity(parser: &mut Parser, input: &TokenStream, every: bool, end: u64 in Trapping) {
-        transition parser.output.machine_count < 512 {
+        transition parser.output.machine_count < 2048 {
             true -> retain(parser, input, every, end)
             _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
         }

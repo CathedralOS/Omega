@@ -183,20 +183,20 @@ pub data ResolveDiagnostic [copy] {
 
 pub data NameResolution
 where
-    binding_count <= 16384,
-    value_binding_count <= 65536,
+    binding_count <= 32768,
+    value_binding_count <= 131072,
     path_binding_count <= 2048,
-    machine_owner_count <= 512,
+    machine_owner_count <= 2048,
 {
-    type_bindings: [TypeBinding; 16384];
-    domain_bindings: [DomainBinding; 16384];
-    domain_items: [u64; 16384];
+    type_bindings: [TypeBinding; 32768];
+    domain_bindings: [DomainBinding; 32768];
+    domain_items: [u64; 32768];
     binding_count: u64;
-    value_bindings: [ValueBinding; 65536];
+    value_bindings: [ValueBinding; 131072];
     value_binding_count: u64;
     path_bindings: [PathBinding; 2048];
     path_binding_count: u64;
-    machine_owners: [MachineOwner; 512];
+    machine_owners: [MachineOwner; 2048];
     machine_owner_count: u64;
     diagnostic: ResolveDiagnostic;
     accepted: bool;
@@ -301,7 +301,7 @@ crashes Trap
 pub machine NameResolution::type_binding_at(resolution: &NameResolution, row: u64 in Trapping) -> TypeBinding
 crashes Trap
 {
-    transition row < 16384 {
+    transition row < 32768 {
         true -> read(resolution, row)
         _ -> invalid()
     }

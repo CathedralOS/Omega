@@ -216,7 +216,7 @@ crashes Trap
     }
 
     state append(parser: &mut Parser, input: &TokenStream, row: TypeReference) {
-        transition parser.output.type_reference_count < 16384 {
+        transition parser.output.type_reference_count < 32768 {
             true -> appended(parser, input, row)
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }
@@ -317,7 +317,7 @@ crashes Trap
         element: u64 in Trapping,
         kind: TypeReferenceKind
     ) {
-        transition parser.output.type_reference_count < 16384 {
+        transition parser.output.type_reference_count < 32768 {
             true -> length_appended(parser, input, frame, element,
                 Parser::type_row(parser, kind, parser.token_start, parser.token_end, parser.token_start, parser.token_end))
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)

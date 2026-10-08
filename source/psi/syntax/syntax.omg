@@ -843,8 +843,8 @@ pub data ParseDiagnostic [copy] {
 
 pub data SyntaxTrees
 where
-    root_count <= 1024,
-    use_count <= 256,
+    root_count <= 4096,
+    use_count <= 1024,
     member_count <= 32000,
     data_count <= 256,
     generic_parameter_count <= 256,
@@ -852,16 +852,16 @@ where
     data_member_count <= 1536,
     case_count <= 768,
     payload_field_count <= 1024,
-    type_reference_count <= 16384,
+    type_reference_count <= 32768,
     type_argument_count <= 1024,
-    machine_count <= 512,
-    parameter_count <= 8192,
-    state_count <= 4096,
-    expression_count <= 65536,
-    argument_count <= 16384,
+    machine_count <= 2048,
+    parameter_count <= 16384,
+    state_count <= 8192,
+    expression_count <= 131072,
+    argument_count <= 32768,
     construct_field_count <= 2048,
-    statement_count <= 8192,
-    arm_count <= 4096,
+    statement_count <= 16384,
+    arm_count <= 8192,
     pattern_field_count <= 2048,
     clause_count <= 1024,
     name_path_count <= 2048,
@@ -876,9 +876,9 @@ where
     match_arm_count <= 1024,
     definition_count <= 256,
 {
-    roots: [RootItem; 1024] in Trapping;
+    roots: [RootItem; 4096] in Trapping;
     root_count: u64;
-    uses: [UseItem; 256] in Trapping;
+    uses: [UseItem; 1024] in Trapping;
     use_count: u64;
     members: [IdentifierSpan; 32000] in Trapping;
     member_count: u64;
@@ -894,25 +894,25 @@ where
     case_count: u64;
     payload_fields: [DataField; 1024] in Trapping;
     payload_field_count: u64;
-    type_references: [TypeReference; 16384] in Trapping;
+    type_references: [TypeReference; 32768] in Trapping;
     type_reference_count: u64;
     type_arguments: [u64; 1024] in Trapping;
     type_argument_count: u64;
-    machines: [MachineItem; 512] in Trapping;
+    machines: [MachineItem; 2048] in Trapping;
     machine_count: u64;
-    parameters: [Parameter; 8192] in Trapping;
+    parameters: [Parameter; 16384] in Trapping;
     parameter_count: u64;
-    states: [StateItem; 4096] in Trapping;
+    states: [StateItem; 8192] in Trapping;
     state_count: u64;
-    expressions: [Expression; 65536] in Trapping;
+    expressions: [Expression; 131072] in Trapping;
     expression_count: u64;
-    arguments: [u64; 16384] in Trapping;
+    arguments: [u64; 32768] in Trapping;
     argument_count: u64;
     construct_fields: [ConstructField; 2048] in Trapping;
     construct_field_count: u64;
-    statements: [Statement; 8192] in Trapping;
+    statements: [Statement; 16384] in Trapping;
     statement_count: u64;
-    arms: [TransitionArm; 4096] in Trapping;
+    arms: [TransitionArm; 8192] in Trapping;
     arm_count: u64;
     pattern_fields: [PatternField; 2048] in Trapping;
     pattern_field_count: u64;

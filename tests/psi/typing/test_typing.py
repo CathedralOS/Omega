@@ -761,6 +761,21 @@ def main() -> None:
     print(f"psi-package: {len(package.rows)} types, {len(package.expressions)} expressions, "
           f"{len(untyped)} denote no value")
 
+    # The expression table's capacity, 131,072 rows across units, types
+    # whole: a sum of n anonymous literals `1+...+1` fills 2n - 1 rows and
+    # lands at its constant's type.
+    def sum_constant(name: str, literals: int) -> bytes:
+        return f"const {name}: u64 = ".encode() + b"+".join(b"1" for _ in range(literals)) + b";\n"
+
+    status, payload = run_units(program, (
+        (b"e0", sum_constant("A", 32000)),
+        (b"e1", sum_constant("B", 32000)),
+        (b"e2", sum_constant("C", 769) + sum_constant("D", 769)),
+    ))
+    capacity = decode(payload)
+    assert status == 0 and capacity.accepted, f"expression-capacity: status {status}: {capacity.diagnostic}"
+    assert len(capacity.expressions) == 131072, "expression-capacity"
+
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
     phase_rejected(program, "parse-rejection-has-no-observation", b"data A { x: ; }", 250)
     phase_rejected(program, "lex-rejection-has-no-observation", b"\x80", 251)

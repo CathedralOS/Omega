@@ -113,7 +113,7 @@ crashes Trap
     }
 
     state root_capacity(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping, value: u64 in Trapping) {
-        transition parser.output.root_count < 1024 {
+        transition parser.output.root_count < 4096 {
             true -> retain(parser, type_reference, value)
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }
