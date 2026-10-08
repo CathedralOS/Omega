@@ -352,6 +352,27 @@ fn reject_bracketed_asm_operand(
 
 // Operand parsing and instruction policy stay in the dispatch below. These
 // constructors only publish the already selected intrinsic and arena handles.
+fn parsed_intrinsic_instruction<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mnemonic: &Identifier,
+    intrinsic_name: &'static str,
+    contract: language_core::inline_assembly::AsmInstructionContract,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ParsedAsmInstruction> {
+    Ok((
+        ParsedAsmInstruction {
+            statement: asm_intrinsic_call(
+                syntax_trees,
+                mnemonic,
+                intrinsic_name,
+                HandleSpan::empty(),
+            ),
+            contract,
+        },
+        input,
+    ))
+}
+
 fn asm_intrinsic_call(
     syntax_trees: &mut SyntaxTrees,
     mnemonic: &Identifier,
@@ -567,54 +588,34 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 input,
             ))
         }
-        AsmInstructionShape::MemoryFence(kind) => Ok((
-            ParsedAsmInstruction {
-                statement: asm_intrinsic_call(
-                    syntax_trees,
-                    &mnemonic,
-                    kind.intrinsic_name(),
-                    HandleSpan::empty(),
-                ),
-                contract,
-            },
+        AsmInstructionShape::MemoryFence(kind) => parsed_intrinsic_instruction(
+            syntax_trees,
+            &mnemonic,
+            kind.intrinsic_name(),
+            contract,
             input,
-        )),
-        AsmInstructionShape::InterruptControl(kind) => Ok((
-            ParsedAsmInstruction {
-                statement: asm_intrinsic_call(
-                    syntax_trees,
-                    &mnemonic,
-                    kind.intrinsic_name(),
-                    HandleSpan::empty(),
-                ),
-                contract,
-            },
+        ),
+        AsmInstructionShape::InterruptControl(kind) => parsed_intrinsic_instruction(
+            syntax_trees,
+            &mnemonic,
+            kind.intrinsic_name(),
+            contract,
             input,
-        )),
-        AsmInstructionShape::InstructionSerialization(kind) => Ok((
-            ParsedAsmInstruction {
-                statement: asm_intrinsic_call(
-                    syntax_trees,
-                    &mnemonic,
-                    kind.intrinsic_name(),
-                    HandleSpan::empty(),
-                ),
-                contract,
-            },
+        ),
+        AsmInstructionShape::InstructionSerialization(kind) => parsed_intrinsic_instruction(
+            syntax_trees,
+            &mnemonic,
+            kind.intrinsic_name(),
+            contract,
             input,
-        )),
-        AsmInstructionShape::SchedulingHint(kind) => Ok((
-            ParsedAsmInstruction {
-                statement: asm_intrinsic_call(
-                    syntax_trees,
-                    &mnemonic,
-                    kind.intrinsic_name(),
-                    HandleSpan::empty(),
-                ),
-                contract,
-            },
+        ),
+        AsmInstructionShape::SchedulingHint(kind) => parsed_intrinsic_instruction(
+            syntax_trees,
+            &mnemonic,
+            kind.intrinsic_name(),
+            contract,
             input,
-        )),
+        ),
         AsmInstructionShape::CacheOperation(kind) => Ok((
             ParsedAsmInstruction {
                 statement: asm_intrinsic_call(
