@@ -1354,6 +1354,8 @@ fail/layouts/callee_integer_at_stored_returned_reference_requires_fit rejected 8
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_write_requires_fit rejected 250ms expected @bf12cd0f89bb+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/captured_encoded_reference_replacement_requires_fit rejected 453ms expected @2013ba4602a1+wt
+	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/encoded_foreign_view_preserves_value_facts rejected 202ms expected @d56a61c738bf
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ForeignByte` are not representation-compatible
 fail/layouts/encoded_foreign_view_requires_same_geometry rejected 199ms expected @d56a61c738bf

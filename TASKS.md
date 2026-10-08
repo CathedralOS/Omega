@@ -3238,24 +3238,26 @@ deletions, which the commit lists.
   rejected for a missing source decision reject from `omega --check` with
   checking diagnostics instead, without weakening other check outcomes.
 
-- **ENCODED-STORAGE-REFERENCE-TRANSPORT.** (new-scope) Restore exact source-fit
-  geometry for multi-origin encoded references.
+- **ENCODED-STORAGE-REFERENCE-TRANSPORT.** (new-scope) Complete captured-reference
+  custody across replacement of its former container.
   This is representation and ABI work, independent of PCC retirement.
 
-  On macOS AArch64 at `0919e048c9f`,
-  `layouts/runtime_multi_origin_encoded_reference_exit` rejects in
-  `write_selected`: "IntegerAt store ... has no exact stored field geometry or
-  reference origin". The overflow control
-  `layouts/callee_integer_at_multi_origin_reference_requires_fit` rejects for
-  that same missing geometry instead of its authored fit obligation. Repair
-  the retained origin/substitution query in
-  `checking/.../stored_integer_writes.rs`; do not pick one possible backing
-  or infer an encoding from the formal's logical carrier.
+  On macOS AArch64, `omega run --both
+  tests/omega/pass/layouts/runtime_captured_encoded_reference_replacement_exit/main.omg`
+  stops at `local data: structural value: reference record loans`.
+  The moved initializer's loan weakens at `LocalReassigned`, while
+  `checking/src/machine_calls/reference_result_custody.rs::local_record_loans`
+  requires a last-use/state-exit release boundary. Preserve occurrence identity
+  and the after-RHS reassignment boundary through the shared custody operation;
+  do not treat replacement as before-statement expiry or replay the initializer
+  to discover a new backing. All possible origins remain fit obligations.
 
-  Reproduce the source frontier with `python tools/corpus_gate.py --filter
-  layouts/runtime_multi_origin_encoded_reference_exit,layouts/callee_integer_at_multi_origin_reference_requires_fit`.
-  Acceptance: these two fixtures reach their authored success/fit rejection.
-  Run `--both` and `--both --checked-interpreter` for
+  Acceptance: the replacement program exits 0 in Native, Terminal and checked
+  interpretation, preserving original byte backing and selecting the new fourth
+  field only for the replacement reference. Its paired
+  `layouts/captured_encoded_reference_replacement_requires_fit` still rejects
+  128 against the captured signed byte. Keep `--both` and
+  `--both --checked-interpreter` coverage for
   `layouts/runtime_callee_integer_at_fitting_write_exit`,
   `layouts/runtime_returned_encoded_reference_exit`,
   `layouts/runtime_stored_returned_encoded_reference_exit`,
@@ -3265,6 +3267,8 @@ deletions, which the commit lists.
   `layouts/runtime_recursive_encoded_reference_exit` and
   `layouts/runtime_offset_encoded_reference_exit`; every execution exits 0
   and preserves the authored original backing and neighboring byte 85.
+  `layouts/callee_integer_at_multi_origin_reference_requires_fit` must still
+  reject for its authored fit obligation, not missing origin geometry.
   Live-parent writes under `borrows/selected_reference_live_*_parent_write`,
   `borrows/multi_origin_returned_reference_live_source_write` and the later
   non-fitting recursive arrival under

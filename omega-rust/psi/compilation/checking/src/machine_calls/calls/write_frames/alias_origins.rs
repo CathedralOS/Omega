@@ -1,5 +1,10 @@
 //! Stable alias origins of local references, initializers, expressions and
 //! assignment targets.
+//! Reference formation closes selected stored leaves over the current frame
+//! prefix. Container fields are descriptor homes, not scalar backing: retaining
+//! those homes until a later query loses encoding geometry and can retarget an
+//! existing loan after replacement. The shared leaf-sensitive substitution keeps
+//! every possible referent; an unknown candidate makes the capture fail closed.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::call_trees::stable_alias_index_expression_preserves_origin;
@@ -475,7 +480,22 @@ pub(crate) fn stable_alias_initializer_origins(
                 .then_some(vec![origin])
         })?,
     };
-    (!origins.is_empty()).then_some(origins)
+    // Capture reference contents at formation, while this prefix still owns
+    // the descriptor-to-referent association. Returning a stored leaf must
+    // not leave its container field as the scalar's apparent storage, and
+    // later inventory queries must not resolve a replaced descriptor again.
+    let mut captured = Vec::new();
+    for origin in origins {
+        for referent in super::stored_origins::canonical_reference_origins(
+            program,
+            &Some(origin),
+            aliases,
+            stored,
+        ) {
+            push_unique_origin(&mut captured, referent?);
+        }
+    }
+    (!captured.is_empty()).then_some(captured)
 }
 
 #[allow(clippy::too_many_arguments)]

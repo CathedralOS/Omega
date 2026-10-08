@@ -176,8 +176,10 @@ Reference-valued entry parameters or host-entry results, reference projections
 into host-boundary calls, write-only returned record carriers, runtime-indexed
 result paths and alternative roots from different formals remain explicit
 implementation limits. The Terminal interpreter supports primitive referents, including total shared
-representation views, and declines alternative-origin result signatures;
-native address transport and checked interpretation do not implement that route.
+representation views and finite alternative origins below one owned reference
+container formal. `layouts/runtime_multi_origin_encoded_reference_exit` selects
+encoded-byte and ordinary integer backing at runtime; Native, Terminal and
+checked interpretation preserve both formats and exit 0 on macOS ARM64.
 Ordinary calls may temporarily attenuate a mutable carrier to shared or write-only
 access without creating such a carrier. None of the unsupported forms gains
 authority merely because its shape or source lifetime resembles an admitted
