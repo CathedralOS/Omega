@@ -82,7 +82,8 @@ fn reference_result_nested_operand_call_is_supported(
     // `unit_result_initializer_call_is_supported` performs.
     let mut bindings = program.machine_states(machine).iter().filter_map(|state| {
         program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
             .find_map(|(index, statement)| match statement {
                 StatementNode::LocalData(local) if local.initial_value == value => {
                     Some((state, index, local))
@@ -251,10 +252,9 @@ fn reference_result_nested_operand_call_is_supported(
                 .iter()
                 .enumerate()
                 .filter(|(_, parameter)| {
-                    !parameter.is_const
-                        && program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
+                    crate::machine_calls::reference_result_custody::is_mutable_structural_parameter(
+                        program, parameter,
+                    )
                 })
                 .nth(parameter_index as usize)
             else {

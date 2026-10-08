@@ -33,6 +33,19 @@ const MAX_REFERENCE_ORIGIN_LEAVES: usize = 4096;
 const MAX_REFERENCE_ORIGIN_VISITS: usize = MAX_REFERENCE_ORIGIN_LEAVES * 2;
 const MAX_REFERENCE_ORIGIN_DEPTH: usize = 128;
 
+/// The mutable structural state-parameter test the custody walks share: not
+/// const, and not a primitive type (primitives carry scalar, not structural,
+/// state).
+pub(crate) fn is_mutable_structural_parameter(
+    program: &dyn crate::CheckingInput,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    !parameter.is_const
+        && program
+            .primitive_type_reference(parameter.type_reference)
+            .is_none()
+}
+
 fn reference_origin_expansion_is_bounded(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -233,12 +246,7 @@ fn structural_parameter_position<'program>(
     program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
+        .filter(|parameter| is_mutable_structural_parameter(program, parameter))
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == symbol)
 }
@@ -589,12 +597,7 @@ fn construction_sources_with_calls(
         let (ordinal, parameter) = program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| {
-                !parameter.is_const
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
+            .filter(|parameter| is_mutable_structural_parameter(program, parameter))
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == name.symbol)?;
         if name.head_symbol != name.symbol
@@ -957,12 +960,7 @@ fn whole_reference_sources(
         let (parameter_index, parameter) = program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| {
-                !parameter.is_const
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
+            .filter(|parameter| is_mutable_structural_parameter(program, parameter))
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == origin.root)?;
         let mut selected = parameter.type_reference;
@@ -1604,12 +1602,7 @@ fn call_actual_leaf_loans(
         .state_parameters(destination)
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
+        .filter(|(_, parameter)| is_mutable_structural_parameter(program, parameter))
         .nth(parameter_index as usize)?;
     if !is_reference_record(program, parameter.type_reference) {
         return None;
@@ -2311,12 +2304,7 @@ pub fn source_leaf(
         .state_parameters(state)
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
+        .filter(|(_, parameter)| is_mutable_structural_parameter(program, parameter))
         .nth(parameter_index as usize)?;
     if stored_loan_parts(program, parameter.type_reference).is_some()
         || !is_reference_record(program, parameter.type_reference)
