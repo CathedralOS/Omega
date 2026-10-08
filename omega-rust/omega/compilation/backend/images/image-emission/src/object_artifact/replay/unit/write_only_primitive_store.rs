@@ -237,11 +237,7 @@ fn validate_store(
         || parameter.multiplicity != store.destination.multiplicity
         || parameter.access != store.destination.access
         || parameter.shape != expected_shape
-        || home.place != parameter.place
-        || home.structural_type != parameter.structural_type
-        || home.multiplicity != parameter.multiplicity
-        || home.access != parameter.access
-        || home.shape != parameter.shape
+        || !parameter.matches_home(home)
         || home.source.shape != expected_shape
         || home.source != store.destination_placement
         || !home.indirect

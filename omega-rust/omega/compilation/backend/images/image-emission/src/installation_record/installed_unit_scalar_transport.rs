@@ -591,11 +591,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 || parameter.structural_type != store.destination.structural_type
                 || parameter.multiplicity != store.destination.multiplicity
                 || parameter.access != store.destination.access
-                || home.place != parameter.place
-                || home.structural_type != parameter.structural_type
-                || home.multiplicity != parameter.multiplicity
-                || home.access != parameter.access
-                || home.shape != parameter.shape
+                || !parameter.matches_home(home)
                 || store.destination_placement != home.source
                 || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
                 || store.parameter_home_indirect != home.indirect
@@ -835,11 +831,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 || parameter.multiplicity != store.destination.multiplicity
                 || parameter.access != store.destination.access
                 || parameter.shape != expected_shape
-                || home.place != parameter.place
-                || home.structural_type != parameter.structural_type
-                || home.multiplicity != parameter.multiplicity
-                || home.access != parameter.access
-                || home.shape != parameter.shape
+                || !parameter.matches_home(home)
                 || home.source.shape != expected_shape
                 || home.source != store.destination_placement
                 || !home.indirect

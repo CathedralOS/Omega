@@ -45,11 +45,7 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
         || parameter.multiplicity != anchor.destination.multiplicity
         || parameter.access != anchor.destination.access
         || parameter.shape.class != ValueClass::BorrowedReference
-        || home.place != parameter.place
-        || home.structural_type != parameter.structural_type
-        || home.multiplicity != parameter.multiplicity
-        || home.access != parameter.access
-        || home.shape != parameter.shape
+        || !parameter.matches_home(home)
         || !home.indirect
         || home.source != anchor.destination_placement
         || anchor.destination_placement.shape != parameter.shape
