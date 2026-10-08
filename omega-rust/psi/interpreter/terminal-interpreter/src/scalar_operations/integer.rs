@@ -19,6 +19,29 @@ pub(crate) fn integer_scalar_type(
     Ok(scalar_type)
 }
 
+macro_rules! saturating_integer_op {
+    ($( $name:ident : $variant:ident => $method:ident ; )+) => {$(
+        pub(crate) fn $name(
+            &mut self,
+            operation: &terminal_psi::Operation,
+        ) -> Result<OperationFlow, TerminalInterpretError> {
+            let OperationKind::$variant { left, right } = operation.kind else {
+                unreachable!("dispatched {}", stringify!($name))
+            };
+            let (scalar_type, left, right, left_type, right_type) =
+                self.integer_operands(operation, left, right)?;
+            if left_type != scalar_type || right_type != scalar_type {
+                return Err(malformed());
+            }
+            let value = scalar_type.$method(left, right).ok_or(malformed())?;
+            self.store_scalar(
+                operation,
+                TerminalScalarValue::Integer { scalar_type, value },
+            )
+        }
+    )+}
+}
+
 impl TerminalExecution<'_> {
     /// One operand's declared integer type and value, or malformed when the
     /// bound scalar is not an integer.
@@ -334,61 +357,10 @@ impl TerminalExecution<'_> {
         )
     }
 
-    pub(crate) fn execute_saturating_integer_add(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::SaturatingIntegerAdd { left, right } = operation.kind else {
-            unreachable!("dispatched execute_saturating_integer_add")
-        };
-        let (scalar_type, left, right, left_type, right_type) =
-            self.integer_operands(operation, left, right)?;
-        if left_type != scalar_type || right_type != scalar_type {
-            return Err(malformed());
-        }
-        let value = scalar_type.saturating_add(left, right).ok_or(malformed())?;
-        self.store_scalar(
-            operation,
-            TerminalScalarValue::Integer { scalar_type, value },
-        )
-    }
-
-    pub(crate) fn execute_saturating_integer_subtract(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::SaturatingIntegerSubtract { left, right } = operation.kind else {
-            unreachable!("dispatched execute_saturating_integer_subtract")
-        };
-        let (scalar_type, left, right, left_type, right_type) =
-            self.integer_operands(operation, left, right)?;
-        if left_type != scalar_type || right_type != scalar_type {
-            return Err(malformed());
-        }
-        let value = scalar_type.saturating_sub(left, right).ok_or(malformed())?;
-        self.store_scalar(
-            operation,
-            TerminalScalarValue::Integer { scalar_type, value },
-        )
-    }
-
-    pub(crate) fn execute_saturating_integer_multiply(
-        &mut self,
-        operation: &terminal_psi::Operation,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
-        let OperationKind::SaturatingIntegerMultiply { left, right } = operation.kind else {
-            unreachable!("dispatched execute_saturating_integer_multiply")
-        };
-        let (scalar_type, left, right, left_type, right_type) =
-            self.integer_operands(operation, left, right)?;
-        if left_type != scalar_type || right_type != scalar_type {
-            return Err(malformed());
-        }
-        let value = scalar_type.saturating_mul(left, right).ok_or(malformed())?;
-        self.store_scalar(
-            operation,
-            TerminalScalarValue::Integer { scalar_type, value },
-        )
+    saturating_integer_op! {
+        execute_saturating_integer_add : SaturatingIntegerAdd => saturating_add ;
+        execute_saturating_integer_subtract : SaturatingIntegerSubtract => saturating_sub ;
+        execute_saturating_integer_multiply : SaturatingIntegerMultiply => saturating_mul ;
     }
 
     /// Store a scalar result and advance: every scalar execution epilogue.
