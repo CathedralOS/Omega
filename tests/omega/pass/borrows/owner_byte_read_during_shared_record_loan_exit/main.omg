@@ -1,0 +1,20 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Row { text: [u8; 8] in Utf8; sibling: u64; }
+data Main { console: Binding<Console>; }
+
+machine sibling(row: &Row) -> u64 { row.sibling }
+machine Main::main(main: &mut Main) reaches Console {
+    let row: Row = Row { text: "é", sibling: 17 };
+    let view: &Row = &row;
+    let count: u64 = row.text.len;
+    let same: bool = row.text == "é";
+    let observed: u64 = sibling(view);
+    transition count == 2 && same && observed == 17 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

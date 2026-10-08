@@ -171,12 +171,13 @@ pub fn byte_field_root(
     }
     let source =
         crate::unit_validation::operation_contracts::structural_source_contract(function, root)?;
-    (source.is_unqualified()
-        && !source.has_result_evidence()
-        && matches!(
-            source.multiplicity,
-            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-        ))
+    // Predicates and establishment evidence constrain contents, not the
+    // declaration's geometry or access. Availability and loan compatibility
+    // remain the CFG ownership walk's independent judgments.
+    (matches!(
+        source.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ))
     .then_some((source.structural_type, source.access))
 }
 

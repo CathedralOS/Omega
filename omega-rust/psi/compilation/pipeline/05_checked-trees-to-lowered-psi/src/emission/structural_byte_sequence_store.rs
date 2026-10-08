@@ -284,9 +284,7 @@ pub(crate) fn emit_content_store(
             ) || !structural_types
                 .iter()
                 .find(|declaration| declaration.id == parameter.structural_type)
-                .is_some_and(|declaration| {
-                    declaration.shape.is_bounded_owned_byte_sequence()
-                })
+                .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
             {
                 return unsupported("whole byte store requires a borrowed bounded owner");
             }
@@ -341,6 +339,13 @@ pub(crate) fn emit_content_store(
                 } => {
                     // Resolve an existing whole local, never a fabricated formal
                     // or a type-only promise that its fields are initialized.
+                    // Its establishment may carry field predicates: those are
+                    // not loans or claims. Checking proved this replacement's
+                    // membership; emission must preserve the established home,
+                    // not require an unqualified initializer to write it.
+                    // Replacing its unrestricted byte field neither copies nor
+                    // disposes the enclosing owner. Affine/linear custody and
+                    // claims stay on that home and its ordinary continuation.
                     let produced = operations
                         .operations
                         .iter()
@@ -350,12 +355,6 @@ pub(crate) fn emit_content_store(
                             "byte-field owned destination has no completed producer",
                         ))?;
                     if produced.structural_type != *structural_type
-                        || produced.multiplicity
-                            != terminal_psi::StructuralMultiplicity::Unrestricted
-                        || !produced.qualifications.is_empty()
-                        || !produced.projected_qualifications.is_empty()
-                        || !produced.qualification_establishments.is_empty()
-                        || !produced.claims.is_empty()
                         || !locals.iter().any(
                             |crate::expression_preparation::bindings::StructuralLocalBinding {
                                  argument: local,

@@ -1172,6 +1172,67 @@ pub(super) fn check_projected_access(
     check_region_access(live, place, region.direct_path())
 }
 
+/// A nonescaping read can share an owner's storage with shared loans. Exclusive
+/// loans still suspend overlapping owner reads, and an explicit reference
+/// crossing must use the live carrier's permission rather than the owner's.
+pub(super) fn check_projected_read(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> bool {
+    let Some((root, _)) = source_contract(function, live, place) else {
+        return check_root_access(live, place);
+    };
+    if path.contains(&StructuralPathSegment::Referent) {
+        let mut projection = path.to_vec();
+        if let Some(field) = field {
+            let selected = leaf_type(types, root, path)
+                .and_then(|parent| types.get(&parent))
+                .and_then(|declaration| declaration.shape.record_fields())
+                .and_then(|fields| {
+                    fields
+                        .iter()
+                        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
+                });
+            let Some(selected) = selected else {
+                return true;
+            };
+            projection.push(StructuralPathSegment::Field(selected.identity.clone()));
+        }
+        return access_paths::access_reference_custody(
+            function,
+            live,
+            types,
+            &StructuralArgument {
+                place,
+                path: projection,
+                access: StructuralAccess::SharedBorrow,
+            },
+        )
+        .is_err();
+    }
+    let region =
+        terminal_semantics::projected_storage_region(types.values().copied(), root, path, field);
+    check_region_access_with(
+        live,
+        place,
+        region.direct_path(),
+        |carrier, carrier_path| {
+            shared_source_compatible(
+                function,
+                live,
+                types,
+                carrier,
+                carrier_path,
+                StructuralAccess::SharedBorrow,
+            )
+        },
+    )
+}
+
 pub(super) fn check_operation_access(
     function: &AbstractFunction,
     live: &LiveDefinitions,

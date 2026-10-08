@@ -1,4 +1,8 @@
-//! Resolve selected structural scalar reads against their authored parameter roots.
+//! Resolve structural observations against their declared storage and exact projections.
+//!
+//! Root custody distinguishes parameters, owned locals and view locals. Selection
+//! does not: length, content and element observations must retain the same field
+//! path and selected type rather than rediscovering a whole-local source shape.
 use crate::values::scalar::expression_facts::is_integer;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedOperatorFacts;
@@ -57,35 +61,9 @@ pub(super) fn structural_sequence_length(
     {
         return None;
     }
-    let Some((parameter_position, path, selected_type)) =
-        structural_parameter_place(program, parameters, member.receiver)
-    else {
-        // A local observes the live extent its establishment stored. A
-        // bounded owner is not a fixed-capacity length literal, and it does
-        // not become a borrowed view merely because this observation reads it.
-        let root = if let Some((symbol, _)) = view_local_root(program, parameters, member.receiver)
-        {
-            checked_trees::CheckedStorageRoot::ViewLocal { symbol }
-        } else {
-            let (symbol, declared_type) = owned_local_root(program, parameters, member.receiver)?;
-            if !matches!(
-                crate::execution::terminal_unit::types::byte_sequence_carrier(
-                    program,
-                    declared_type,
-                    &[],
-                ),
-                Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-            ) {
-                return None;
-            }
-            checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
-        };
-        return Some(CheckedScalarExpression::StructuralParameterByteLength {
-            root,
-            path: Vec::new(),
-        });
-    };
-    // A pure parameter-rooted array projection has a type-owned extent. Do
+    let (root, path, selected_type) =
+        structural_storage_place(program, parameters, member.receiver)?;
+    // A raw fixed-array projection has a type-owned extent. Do
     // not strip a constrained carrier: its live length can differ from its
     // backing capacity. Dynamic byte views retain their runtime read below.
     let mut extent_type = selected_type;
@@ -113,9 +91,6 @@ pub(super) fn structural_sequence_length(
         return Some(CheckedScalarExpression::IntegerLiteral { literal });
     }
     if path.is_empty() {
-        let parameter_type = parameters
-            .get(usize::try_from(parameter_position).ok()?)?
-            .type_reference;
         // A whole bounded owner observes the live length stored beside its
         // bytes, whether the parameter owns that value or lends readable
         // access to it. Its capacity is never the answer; a write-only loan
@@ -123,27 +98,22 @@ pub(super) fn structural_sequence_length(
         if matches!(
             crate::execution::terminal_unit::types::byte_sequence_carrier(
                 program,
-                parameter_type,
+                selected_type,
                 &[]
             ),
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-        ) && validation::reference_shell(program, parameter_type).is_none_or(|shell| {
+        ) && validation::reference_shell(program, selected_type).is_none_or(|shell| {
             matches!(
                 shell.access,
                 language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
             )
         }) {
-            return Some(CheckedScalarExpression::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::Parameter {
-                    index: parameter_position,
-                },
-                path,
-            });
+            return Some(CheckedScalarExpression::StructuralParameterByteLength { root, path });
         }
         // A domain constraint (`&[u8] in Path`) wraps the reference or its
         // referent without changing where the extent lives: peel those shells
         // on both sides before identifying the view.
-        let mut parameter_kind = parameter_type;
+        let mut parameter_kind = selected_type;
         while let TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(parameter_kind)
         {
@@ -198,12 +168,7 @@ pub(super) fn structural_sequence_length(
     {
         return None;
     }
-    Some(CheckedScalarExpression::StructuralParameterByteLength {
-        root: checked_trees::CheckedStorageRoot::Parameter {
-            index: parameter_position,
-        },
-        path,
-    })
+    Some(CheckedScalarExpression::StructuralParameterByteLength { root, path })
 }
 
 /// The `let` symbol and declared type of an immutable borrowed view local
@@ -273,125 +238,6 @@ pub(super) fn owned_local_root(
         _ => false,
     };
     owned.then_some((symbol, local.type_reference))
-}
-
-/// A collection can be stored below local fields and fixed array elements,
-/// not just at a parameter or at the local's root. Retain each exact projection;
-/// later source replay checks availability at the actual observation site.
-pub(super) fn owned_local_place(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-) -> Option<(
-    symbols::SymbolHandle,
-    Vec<CheckedStructuralPredicatePathSegment>,
-    TypeReferenceHandle,
-)> {
-    let mut projections = Vec::new();
-    let mut receiver = expression;
-    loop {
-        if projections.len() >= program.expression_table.expression_count() {
-            return None;
-        }
-        let parent = match program.expression_table.expression(receiver) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => member.receiver,
-            ExpressionNode::Indexed(indexed) => indexed.collection,
-            _ => break,
-        };
-        projections.push(receiver);
-        receiver = parent;
-    }
-    let (root, mut carrier) = owned_local_root(program, parameters, receiver)?;
-    let mut path = Vec::with_capacity(projections.len());
-    for projection in projections.into_iter().rev() {
-        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(projection) {
-            if !indexed_read_has_builtin_meaning(
-                program,
-                parameters,
-                projection,
-                carrier,
-                indexed.index,
-            ) {
-                return None;
-            }
-            let element_index = u64::try_from(
-                program
-                    .expression_table
-                    .constant_integer_value(indexed.index)?,
-            )
-            .ok()?;
-            carrier = fixed_index_element_type(program, carrier, element_index)?;
-            path.push(CheckedStructuralPredicatePathSegment::FixedIndex(
-                element_index,
-            ));
-            continue;
-        }
-        let ExpressionNode::Member(member) = program.expression_table.expression(projection) else {
-            return None;
-        };
-        let positions =
-            program.data_definition_positions_for_symbol(program.type_reference_symbol(carrier));
-        let [position] = positions.as_slice() else {
-            return None;
-        };
-        let owner = &program.data_definitions()[*position as usize];
-        let field = validation::exact_data_member_field(
-            program,
-            owner,
-            member.member_symbol,
-            member.member.as_str(),
-            None,
-        )?;
-        if field.relevance.is_erased() {
-            return None;
-        }
-        path.push(CheckedStructuralPredicatePathSegment::Field(
-            field.path_identity(),
-        ));
-        carrier = field.type_reference;
-    }
-    Some((root, path, carrier))
-}
-
-/// A member path over an immutable borrowed view local (`view.entries`, or
-/// `view` whole) selects below the local's referent record: the `ViewLocal`
-/// root, the field path the members spell through that record, and the
-/// selected collection's declared type. The whole local selects its
-/// referent itself with an empty path.
-pub(super) fn view_local_place(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-) -> Option<(
-    symbols::SymbolHandle,
-    Vec<CheckedStructuralPredicatePathSegment>,
-    TypeReferenceHandle,
-)> {
-    let mut base = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(base) {
-        if member.case_variant.is_some() {
-            return None;
-        }
-        base = member.receiver;
-    }
-    let (symbol, view_type) = view_local_root(program, parameters, base)?;
-    let place = validation::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
-        return None;
-    };
-    if root_symbol != symbol {
-        return None;
-    }
-    let mut view_record = view_type;
-    loop {
-        match program.type_reference_table.type_reference(view_record) {
-            TypeReferenceNode::Constrained { base_type, .. } => view_record = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => view_record = *referee,
-            _ => break,
-        }
-    }
-    let (path, selected_type) = element_field_path(program, view_record, &place.segments)?;
-    Some((symbol, path, selected_type))
 }
 
 /// Empty spelling resolution is builtin only when the exact operand types
@@ -583,8 +429,26 @@ pub(crate) fn resolve_structural_parameter_path(
     if !parameter.symbol.is_valid() {
         return None;
     }
-    let mut receiver = parameter.type_reference;
-    let mut frozen = !parameter.is_mutable && !exclusive_reference(program, receiver);
+    let (segments, selected_type, frozen) = resolve_structural_path(
+        program,
+        parameter.type_reference,
+        parameter.is_mutable,
+        path,
+    )?;
+    Some((parameter.symbol, segments, selected_type, frozen))
+}
+
+/// Resolve each projection against the declaration reached by its predecessor,
+/// independent of the storage root's custody. Keeping this join common prevents
+/// local observations from losing fixed indexes or accepting a foreign field.
+fn resolve_structural_path(
+    program: &dyn ::validation::CheckingInput,
+    declared_type: TypeReferenceHandle,
+    is_mutable: bool,
+    path: &[CheckedStructuralPredicatePathSegment],
+) -> Option<(Vec<facts::PlaceSegment>, TypeReferenceHandle, bool)> {
+    let mut receiver = declared_type;
+    let mut frozen = !is_mutable && !exclusive_reference(program, receiver);
     let mut segments = Vec::new();
     let mut selected_case = None;
     for segment in path {
@@ -663,7 +527,7 @@ pub(crate) fn resolve_structural_parameter_path(
     }
     selected_case
         .is_none()
-        .then_some((parameter.symbol, segments, receiver, frozen))
+        .then_some((segments, receiver, frozen))
 }
 
 /// Whether this reference resolves through an exclusive borrow (`&mut`/`&w`).
@@ -851,6 +715,25 @@ pub(super) fn structural_parameter_place(
     Vec<CheckedStructuralPredicatePathSegment>,
     TypeReferenceHandle,
 )> {
+    let (root, path, selected_type) = structural_storage_place(program, parameters, expression)?;
+    let checked_trees::CheckedStorageRoot::Parameter { index } = root else {
+        return None;
+    };
+    Some((index, path, selected_type))
+}
+
+/// Authenticate one authored storage occurrence and resolve its entire static
+/// projection. Root classification supplies custody only; all roots use the
+/// same canonical place and declaration traversal below.
+pub(super) fn structural_storage_place(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    checked_trees::CheckedStorageRoot,
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
     let place = validation::canonical_place_from_expression(program, expression)?;
     // Typed member nodes may leave selection to canonical place resolution.
     // A retained symbol, however, cannot contradict that exact selection.
@@ -877,7 +760,7 @@ pub(super) fn structural_parameter_place(
         }
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(authored) {
             let (_, _, collection_type) =
-                structural_parameter_place(program, parameters, indexed.collection)?;
+                structural_storage_place(program, parameters, indexed.collection)?;
             if !indexed_read_has_builtin_meaning(
                 program,
                 parameters,
@@ -929,12 +812,12 @@ pub(super) fn structural_parameter_place(
         return None;
     };
     let names = program.expression_table.name_path_members(name.members);
-    let parameter_position = if matches!(names, [spelling] if spelling.is_self_receiver()) {
+    let (storage_root, declared_type, is_mutable) = if matches!(names, [spelling] if spelling.is_self_receiver())
+    {
         return None;
     } else {
         if !name.symbol.is_valid()
             || !name.head_symbol.is_valid()
-            || program.symbols.get(name.head_symbol).kind != symbols::SymbolKind::Parameter
             || (names.len() == 1 && name.symbol != name.head_symbol)
         {
             return None;
@@ -948,15 +831,34 @@ pub(super) fn structural_parameter_place(
             .iter()
             .enumerate()
             .filter(|(_, parameter)| parameter.symbol == name.head_symbol);
-        let (position, _) = candidates.next()?;
-        if candidates.next().is_some() {
-            return None;
+        if let Some((position, parameter)) = candidates.next() {
+            if candidates.next().is_some()
+                || program.symbols.get(name.head_symbol).kind != symbols::SymbolKind::Parameter
+                || root != facts::PlaceRoot::Symbol(parameter.symbol)
+            {
+                return None;
+            }
+            (
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: u32::try_from(position).ok()?,
+                },
+                parameter.type_reference,
+                parameter.is_mutable,
+            )
+        } else {
+            let (symbol, local) = whole_local_binding(program, parameters, authored)?;
+            if root != facts::PlaceRoot::Symbol(symbol) {
+                return None;
+            }
+            let storage_root = if view_local_root(program, parameters, authored).is_some() {
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol }
+            } else {
+                owned_local_root(program, parameters, authored)?;
+                checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
+            };
+            (storage_root, local.type_reference, local.is_mutable)
         }
-        position
     };
-    if (facts::PlaceRoot::Symbol(parameters[parameter_position].symbol)) != root {
-        return None;
-    }
     let mut path = Vec::new();
     for segment in &place.segments {
         path.push(match segment {
@@ -985,13 +887,12 @@ pub(super) fn structural_parameter_place(
             _ => return None,
         });
     }
-    let parameter_position = u32::try_from(parameter_position).ok()?;
-    let (resolved_root, segments, type_reference, _) =
-        resolve_structural_parameter_path(program, parameters, parameter_position, &path)?;
-    if (facts::PlaceRoot::Symbol(resolved_root)) != root || segments != place.segments {
+    let (segments, type_reference, _) =
+        resolve_structural_path(program, declared_type, is_mutable, &path)?;
+    if segments != place.segments {
         return None;
     }
-    Some((parameter_position, path, type_reference))
+    Some((storage_root, path, type_reference))
 }
 
 /// The static field path inside one element of type `element`, spelled by

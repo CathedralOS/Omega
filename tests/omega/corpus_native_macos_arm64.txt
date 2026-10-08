@@ -101,6 +101,8 @@ pass/borrows/enum_selected_view_reference_exit built 1258ms exit:70 @011fd400e8c
 pass/borrows/exclusive_array_parameter_shared_lend_exit built 1452ms exit:70 @74a78aefec94+wt
 pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
+pass/borrows/local_record_byte_field_snapshot_exit built 1744ms exit:70 @fef76bc46fc7+wt
+pass/borrows/local_record_nested_sequence_extent_exit built 1737ms exit:70 @fef76bc46fc7+wt
 pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a91ceb+wt
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit built 11207ms exit:9 @51b2cebdd24f
@@ -109,6 +111,7 @@ pass/borrows/nested_reference_crossings_exit built 1618ms exit:70 @104c2da31081
 pass/borrows/nested_reference_leaf_projection_exit built 1617ms exit:70 @104c2da31081
 pass/borrows/owned_byte_value_call_exit built 3530ms exit:70 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit built 956ms exit:70 @3a0c3ba44cd8+wt
+pass/borrows/owner_byte_read_during_shared_record_loan_exit built 1738ms exit:70 @fef76bc46fc7+wt
 pass/borrows/projected_indexed_member_loan built 2120ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_local_member_loan built 2413ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_mut_member_loan built 786ms exit:0 @48008365d839

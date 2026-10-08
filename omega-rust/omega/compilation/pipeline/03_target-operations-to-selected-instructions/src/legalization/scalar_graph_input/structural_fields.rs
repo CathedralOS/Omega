@@ -109,20 +109,17 @@ pub(in crate::legalization) fn replacement(
     // An owned record, an arrival loan and a returned-reference carrier retain
     // distinct custody. Only the reference route crosses into its referent.
     let (root, root_type, access, path) = if let Some((producer, result)) = owned_result {
-        if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.qualification_establishments.is_empty()
-            || !result.claims.is_empty()
-            || !function.structural_places.iter().any(|place| {
-                place.id == *destination
-                    && place.kind
-                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                            producer,
-                            structural_type: result.structural_type,
-                        }
-            })
-        {
+        // Replacing an unrestricted field does not copy or dispose the root.
+        // Its predicates and affine/linear custody remain on the same owner;
+        // reconstruct the exact produced home instead of requiring plain data.
+        if !function.structural_places.iter().any(|place| {
+            place.id == *destination
+                && place.kind
+                    == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type: result.structural_type,
+                    }
+        }) {
             return None;
         }
         (

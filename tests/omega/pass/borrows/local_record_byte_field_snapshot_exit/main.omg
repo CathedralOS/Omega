@@ -1,0 +1,19 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+data Row { text: [u8; 8] in Utf8; sibling: u64; }
+data Main { console: Binding<Console>; }
+
+machine snapshot(row: &mut Row) -> [u8; 8] in Utf8 { row.text }
+machine Main::main(main: &mut Main) reaches Console {
+    let mut row: Row = Row { text: "Gate", sibling: 17 };
+    let captured: [u8; 8] in Utf8 = snapshot(&mut row);
+    row.text = "é";
+    transition captured == "Gate" && captured.len == 4
+        && row.text == "é" && row.text.len == 2 && row.sibling == 17 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

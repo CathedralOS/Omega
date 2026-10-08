@@ -72,12 +72,7 @@ pub(super) fn readable_byte_field(
     // Observations need not share the narrower store grammar. The semantic
     // check below constrains newly admitted deep paths to fixed storage before
     // the general projection resolver computes their physical extent.
-    if super::references::check_projected_access(function, live, types, source, path, Some(field))
-        || function
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == source)
-    {
+    if super::references::check_projected_read(function, live, types, source, path, Some(field)) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (structural_type, access) = field_root(function, types, prepared, live, source)?;
@@ -186,26 +181,15 @@ pub(super) fn field_root(
         }
         return Ok((structural_type, access));
     }
-    if let Some(home) = live.structural_homes.get(&place) {
-        // A descriptor home's qualifications are byte predicates of the
-        // contents its stores installed, not authority over its storage.
-        let descriptor_home = terminal_semantics::descriptor_results::is_shared_descriptor(
-            types.values().copied(),
-            structural_type,
-        );
-        if (!home.qualifications().is_empty() && !descriptor_home)
-            || !home.projected_qualifications().is_empty()
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
+    if live.structural_homes.contains_key(&place) {
+        // Established predicates constrain stored contents, not authority or
+        // physical geometry. The selected operation keeps its independent
+        // access and membership obligations on this same home.
         return Ok((structural_type, StructuralAccess::Owned));
     }
     let parameter = function
         .arrival_parameter(place)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
     Ok((structural_type, parameter.access))
 }
 

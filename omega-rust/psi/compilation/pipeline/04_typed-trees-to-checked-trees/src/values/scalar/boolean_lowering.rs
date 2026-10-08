@@ -491,33 +491,8 @@ pub(super) fn comparable_byte_carrier(
     Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
     checked_trees::CheckedByteSequenceCarrier,
 )> {
-    let (root, path, type_reference) = if let Some((parameter_position, path, type_reference)) =
-        structural_fields::structural_parameter_place(program, authored_parameters, carrier)
-    {
-        (
-            checked_trees::CheckedStorageRoot::Parameter {
-                index: parameter_position,
-            },
-            path,
-            type_reference,
-        )
-    } else if let Some((symbol, path, type_reference)) =
-        structural_fields::owned_local_place(program, authored_parameters, carrier)
-    {
-        (
-            checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
-            path,
-            type_reference,
-        )
-    } else {
-        let (symbol, path, type_reference) =
-            structural_fields::view_local_place(program, authored_parameters, carrier)?;
-        (
-            checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-            path,
-            type_reference,
-        )
-    };
+    let (root, path, type_reference) =
+        structural_fields::structural_storage_place(program, authored_parameters, carrier)?;
     // The selected leaf defines its byte carrier. Its enclosing record may
     // own storage while this field borrows bytes; retain both identities so
     // downstream observation replay checks the actual backing and extent.

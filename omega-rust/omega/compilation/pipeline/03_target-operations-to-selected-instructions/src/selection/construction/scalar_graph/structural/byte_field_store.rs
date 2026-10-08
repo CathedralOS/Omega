@@ -76,18 +76,16 @@ pub(super) fn replace(
         let (_, result) =
             crate::selection::aggregate_result_input::home(function, destination.place)
                 .ok_or_else(|| invalid())?;
-        if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-            || !result.qualification_establishments.is_empty()
-            || !signature.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Record { .. }
-                    )
-            })
-        {
+        // The established owner keeps its custody and field predicates. This
+        // operation replaces only the selected bounded field; it does not
+        // copy or dispose the enclosing record.
+        if !signature.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                )
+        }) {
             return Err(invalid());
         }
         result.structural_type

@@ -102,11 +102,9 @@ fn owned_record_store_carrier(
     (producers.next().is_none()
         && result.place == destination
         && result.structural_type == structural_type
-        && result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.qualification_establishments.is_empty()
-        && result.claims.is_empty()
+        // This authenticates the home and record shape, not copy/disposal
+        // permission. Field replacement preserves its owner's custody and
+        // predicates; receiving verification checks the selected write.
         && module
             .structural_types
             .iter()

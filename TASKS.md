@@ -3844,8 +3844,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `execution/terminal_unit/calls/computation_arguments/`; stage 02
   `validation/structural_call_arguments.rs`; image-emission `argument_custody`.
 
-  Remaining: owned-root/construction-local admission beyond unrestricted array
-  backing and matching-host qualification of projected receiver custody.
+  Remaining: claim-bearing owned-root/construction-local loans, byte-field
+  observations through stored reference crossings, and matching-host
+  qualification of projected receiver custody. A constructed
+  record's shared local view reaches native stage 02, but
+  `view.description.bytes.len` is rejected by `primitive_storage.rs`'s
+  store-path grammar; stage 03 byte-field geometry also lacks pointer crossings.
+  Generalize the observation geometry, retaining the actual live descriptor,
+  rather than replacing it with a guessed owner or staging a referent copy.
   Reuse `Field`, `FixedIndex` and `RuntimeIndex { index, obligation }`; coordinate
   range spelling with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Declared receiver
   custody stays independent of field observations and state count.
@@ -3856,9 +3862,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `borrows/static_record_reference_return_exit` (0) in both engines, plus
   `borrow/runtime_indexed_write_only_local_receiver_exit` (0) for caller-visible
   local-array writes through forwarded and direct indexed loans.
-  `borrows/returned_owned_byte_field_snapshot_exit` (70 in both engines on
-  macOS ARM64) preserves an owned field snapshot after replacing the caller's
-  field, without changing its sibling.
+  `borrows/returned_owned_byte_field_snapshot_exit` and
+  `borrows/local_record_byte_field_snapshot_exit` preserve independent snapshots
+  after field replacement. `borrows/local_record_nested_sequence_extent_exit`
+  retains nested local projections and distinguishes live extent from capacity;
+  `borrows/owner_byte_read_during_shared_record_loan_exit` keeps shared owner
+  observations available without permitting exclusive overlap.
 
   Acceptance: corpus fixtures execute caller-visible projected/forwarded
   writes, owned-field mutable/write-only subloans, synchronized shared

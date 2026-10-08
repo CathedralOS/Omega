@@ -1955,6 +1955,8 @@ fail/text/element_guard_other_index_unbounded rejected 250ms expected @954364ed0
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/text/later_arm_guard_read_unbounded rejected 423ms expected @954364ed064e
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
+fail/text/local_record_byte_field_replacement_breaks_domain rejected 914ms expected @fef76bc46fc7+wt
+	cannot prove the value assigned to `row.text` in main is in domain `[u8; N]::Ascii`; a place declared `in [u8; N]::Ascii` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/text/qualified_byte_owner_state_loan_breaks_domain rejected 459ms expected @ad48a872752b+wt
 	cannot prove requires contract for call step from main: output in [u8; N]::Utf8 (invalidated by prior mutation of output[position]; output is part of [u8; N]::Utf8)
 fail/text/qualified_byte_state_domain_widening rejected 883ms expected @a0c004371ad8+wt
@@ -2177,6 +2179,8 @@ pass/borrows/enum_selected_view_reference_exit checked 6317ms check-target:macos
 pass/borrows/exclusive_array_parameter_shared_lend_exit checked 1170ms check-target:macos_arm64 @74a78aefec94+wt
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms check-target:macos_arm64 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms check-target:macos_arm64 @63377f7122bb+wt
+pass/borrows/local_record_byte_field_snapshot_exit checked 1791ms check-target:macos_arm64 @fef76bc46fc7+wt
+pass/borrows/local_record_nested_sequence_extent_exit checked 1789ms check-target:macos_arm64 @fef76bc46fc7+wt
 pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:macos_arm64 @82ec69a91ceb+wt
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2616ms check-target:macos_arm64 @944fb1232f17
@@ -2185,6 +2189,7 @@ pass/borrows/nested_reference_crossings_exit checked 1601ms check-target:macos_a
 pass/borrows/nested_reference_leaf_projection_exit checked 1599ms check-target:macos_arm64 @104c2da31081
 pass/borrows/owned_byte_value_call_exit checked 3786ms check-target:macos_arm64 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit checked 6433ms check-target:macos_arm64 @cfe60a3a242
+pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 1789ms check-target:macos_arm64 @fef76bc46fc7+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms check-target:macos_arm64 @8778c440081

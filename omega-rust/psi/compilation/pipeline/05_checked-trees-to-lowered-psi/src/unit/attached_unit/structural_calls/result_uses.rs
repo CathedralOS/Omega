@@ -74,8 +74,8 @@ fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&Che
 
 /// Whether a call's result can retain no loan of its operands:
 /// nothing, a scalar, or a structural result that mints no reference loan
-/// or returned claim and whose callee declares contents holding no
-/// reference or slice. Nominal cleanup travels with the owned result without
+/// or returned claim and whose callee declares borrow-free contents. Nominal
+/// cleanup and represented predicates travel with the owned result without
 /// retaining a loan. The declared return type is read from the callee itself
 /// rather than from the checked plan's result shape, so a loan lent into such
 /// a call provably ends with it.
@@ -99,15 +99,16 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
         |(_, callee_state)| {
             let returned = callee_state.return_type;
             checked.typed.normalized_type_identity(returned).as_str() == binding.type_identity
-                && ((matches!(
-                    binding.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                ) && validation::has_contents(
+                // Whether producing an owner prolongs an operand loan is a
+                // contents question, not permission to discard or copy it.
+                // CleanupOwned rejects represented byte predicates even though
+                // those predicates contain no reference. The shared BorrowFree
+                // judgment retains qualifications without inventing membership.
+                && validation::has_contents(
                     &checked.typed,
                     returned,
-                    validation::ContentsRequirement::CleanupOwned,
-                )) || (binding.multiplicity == Multiplicity::Unrestricted
-                    && crate::content_classes::closed_primitive_array(checked, returned)))
+                    validation::ContentsRequirement::BorrowFree,
+                )
         },
     )
 }

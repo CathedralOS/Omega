@@ -40,41 +40,11 @@ pub(in crate::values::scalar) fn selected_element(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let (root, path, mut collection_type) = match structural_fields::structural_parameter_place(
+    let (root, path, mut collection_type) = structural_fields::structural_storage_place(
         program,
         authored_parameters,
         indexed.collection,
-    ) {
-        Some((position, path, collection_type)) => (
-            checked_trees::CheckedStorageRoot::Parameter { index: position },
-            path,
-            collection_type,
-        ),
-        None => {
-            if let Some((symbol, path, collection_type)) = structural_fields::view_local_place(
-                program,
-                authored_parameters,
-                indexed.collection,
-            ) {
-                (
-                    checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-                    path,
-                    collection_type,
-                )
-            } else {
-                let (symbol, path, collection_type) = structural_fields::owned_local_place(
-                    program,
-                    authored_parameters,
-                    indexed.collection,
-                )?;
-                (
-                    checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
-                    path,
-                    collection_type,
-                )
-            }
-        }
-    };
+    )?;
     if !structural_fields::indexed_read_is_builtin(
         program,
         operators,
@@ -155,24 +125,12 @@ pub(super) fn indexed_scalar_read(
     let first_selection = loop {
         match program.expression_table.expression(cursor) {
             ExpressionNode::Indexed(indexed) => {
-                if structural_fields::structural_parameter_place(
+                if structural_fields::structural_storage_place(
                     program,
                     authored_parameters,
                     indexed.collection,
                 )
                 .is_some()
-                    || structural_fields::view_local_place(
-                        program,
-                        authored_parameters,
-                        indexed.collection,
-                    )
-                    .is_some()
-                    || structural_fields::owned_local_place(
-                        program,
-                        authored_parameters,
-                        indexed.collection,
-                    )
-                    .is_some()
                 {
                     break cursor;
                 }
