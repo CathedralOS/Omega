@@ -235,7 +235,7 @@ pub(crate) fn collect_expression_nodes<Hashing: std::hash::BuildHasher>(
 
 /// The single-segment `Name` path's resolved symbol — `None` for member
 /// chains, projections, or an unresolved path.
-pub(crate) fn single_segment_name_symbol(
+pub fn single_segment_name_symbol(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {

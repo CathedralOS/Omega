@@ -214,24 +214,14 @@ pub(super) fn integer_value_identity(
             Some(path.symbol)
         })?;
     for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
-        let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        let Some(symbol) = ::validation::single_segment_name_symbol(program, expression) else {
             return None;
         };
-        if !path.symbol.is_valid()
-            || path.head_symbol != path.symbol
-            || program
-                .expression_table
-                .name_path_members(path.members)
-                .len()
-                != 1
-        {
-            return None;
-        }
-        let Some((_, local)) = program.state_local_declaration(state, path.symbol) else {
+        let Some((_, local)) = program.state_local_declaration(state, symbol) else {
             let mut parameters = program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| parameter.symbol == path.symbol);
+                .filter(|parameter| parameter.symbol == symbol);
             let parameter = parameters.next()?;
             return (parameter.symbol == value
                 && !parameter.is_mutable

@@ -457,22 +457,10 @@ fn direct_parameter<'a>(
     parameters: &'a [StateParameter],
     expression: ExpressionHandle,
 ) -> Option<&'a StateParameter> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
+    let symbol = ::validation::single_segment_name_symbol(program, expression)?;
     parameters
         .iter()
-        .find(|parameter| parameter.symbol == path.symbol)
+        .find(|parameter| parameter.symbol == symbol)
 }
 
 fn comparison_is_supported(
