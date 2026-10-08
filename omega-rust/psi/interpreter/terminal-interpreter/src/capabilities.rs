@@ -18,7 +18,6 @@
 use crate::effects::{AdmittedBoundarySupply, AdmittedProviderInstallation};
 use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
-use crate::program::MachineBlocks;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
 use std::collections::BTreeSet;
 use terminal_psi::{OperationKind, Terminator};

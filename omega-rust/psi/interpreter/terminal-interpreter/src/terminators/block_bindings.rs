@@ -6,7 +6,6 @@
 //! Qualification requirements use the common argument binder on the captured
 //! runtime memberships. A destination declaration never mints missing evidence.
 
-use crate::program::MachineBlocks;
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{

@@ -17,7 +17,7 @@
 
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError, malformed};
 mod declarations;
-pub(crate) use declarations::{MachineBlocks, ProgramDeclarations};
+pub(crate) use declarations::ProgramDeclarations;
 
 use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
@@ -288,7 +288,6 @@ impl<'artifact> TerminalProgram<'artifact> {
                 )
             })
     }
-
 
     /// Start one instance of this program with its scalar arguments and every
     /// structural entry input in one record. No demanded import is invoked

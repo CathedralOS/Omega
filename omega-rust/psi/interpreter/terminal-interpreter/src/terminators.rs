@@ -18,7 +18,6 @@ use crate::execution::{
     CleanupContinuation, CompletedReturn, LiveClaim, SuspendedCall, SuspendedCallResult,
     TerminalExecution, TerminatorFlow,
 };
-use crate::program::MachineBlocks;
 use crate::results::meter_status;
 use crate::results::{
     TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,

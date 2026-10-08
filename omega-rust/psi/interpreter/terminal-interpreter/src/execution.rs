@@ -15,7 +15,6 @@ use crate::effects::{
     AdmittedAssumedBinding, AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler,
 };
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::program::MachineBlocks;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
 use crate::scalar_array::TerminalScalarArrayValue;
@@ -480,7 +479,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             })
             .collect()
     }
-
 
     /// Exact live affine structural paths, ordered canonically. This is
     /// semantic ownership state, not a runtime object-layout bitmap.

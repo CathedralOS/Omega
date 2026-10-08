@@ -73,13 +73,3 @@ impl ProgramDeclaration for BoundaryMachineDeclaration {
         &self.id
     }
 }
-
-pub(crate) trait MachineBlocks {
-    fn block(&self, identity: &semantic_vocabulary::BlockId) -> Option<&Block>;
-}
-
-impl MachineBlocks for TerminalMachine {
-    fn block(&self, identity: &semantic_vocabulary::BlockId) -> Option<&Block> {
-        ProgramDeclarations::new(&self.blocks).get(identity)
-    }
-}
