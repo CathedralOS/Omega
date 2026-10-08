@@ -136,12 +136,7 @@ fn propose_proof_certified_remainder_by_constant(
                             && row.node == node_index
                     });
                     if effect.is_none_or(|row| {
-                        row.revision != unit.identity
-                            || row.class != crate::EffectClass::PureScalar
-                            || row.observable != crate::EffectKnowledge::No
-                            || row.structural_state != crate::EffectKnowledge::No
-                            || row.crash != crate::EffectKnowledge::No
-                            || row.suspension != crate::EffectKnowledge::No
+                        !row.is_pure_scalar_baseline(unit.identity)
                     }) {
                         continue;
                     }

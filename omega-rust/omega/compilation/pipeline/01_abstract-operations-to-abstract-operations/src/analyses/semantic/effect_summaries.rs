@@ -38,6 +38,19 @@ pub struct NodeEffectSummary {
     pub revision: OptimizationUnitIdentity,
 }
 
+impl NodeEffectSummary {
+    /// Whether the row still reads as the unit's unmodified pure-scalar
+    /// baseline: current revision and no observed effect of any kind.
+    pub fn is_pure_scalar_baseline(&self, revision: OptimizationUnitIdentity) -> bool {
+        self.revision == revision
+            && self.class == EffectClass::PureScalar
+            && self.observable == EffectKnowledge::No
+            && self.structural_state == EffectKnowledge::No
+            && self.crash == EffectKnowledge::No
+            && self.suspension == EffectKnowledge::No
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EffectSummaryAnalysis {
     pub nodes: Vec<NodeEffectSummary>,
