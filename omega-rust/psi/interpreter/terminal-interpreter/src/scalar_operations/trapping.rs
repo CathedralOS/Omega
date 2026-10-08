@@ -14,7 +14,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::results::{TerminalCrash, TerminalCrashSite, TerminalExecutionStatus};
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
+use semantic_vocabulary::ValueId;
 use terminal_psi::{CrashCause, OperationKind, TrappingIntegerOperation};
 
 impl TerminalExecution<'_> {
@@ -35,16 +35,6 @@ impl TerminalExecution<'_> {
         crash
     }
 
-    fn trapping_integer_operand(
-        &self,
-        value: ValueId,
-    ) -> Result<(IntegerType, IntegerValue), TerminalInterpretError> {
-        match self.scalar_value(value)? {
-            TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
-            _ => Err(malformed()),
-        }
-    }
-
     pub(crate) fn execute_trapping_integer(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -57,8 +47,8 @@ impl TerminalExecution<'_> {
         };
         let result_type = crate::scalar_operations::integer_scalar_type(operation)?;
         let binary = |execution: &Self, left: ValueId, right: ValueId| {
-            let (left_type, left) = execution.trapping_integer_operand(left)?;
-            let (right_type, right) = execution.trapping_integer_operand(right)?;
+            let (left_type, left) = execution.integer_operand(left)?;
+            let (right_type, right) = execution.integer_operand(right)?;
             if left_type != result_type || right_type != result_type {
                 return Err(malformed());
             }
@@ -87,8 +77,8 @@ impl TerminalExecution<'_> {
             }
             TrappingIntegerOperation::ShiftLeft { value, count }
             | TrappingIntegerOperation::ShiftRight { value, count } => {
-                let (value_type, value) = self.trapping_integer_operand(value)?;
-                let (count_type, count) = self.trapping_integer_operand(count)?;
+                let (value_type, value) = self.integer_operand(value)?;
+                let (count_type, count) = self.integer_operand(count)?;
                 if value_type != result_type {
                     return Err(malformed());
                 }
@@ -99,7 +89,7 @@ impl TerminalExecution<'_> {
                 }
             }
             TrappingIntegerOperation::Convert { operand } => {
-                let (source_type, value) = self.trapping_integer_operand(operand)?;
+                let (source_type, value) = self.integer_operand(operand)?;
                 source_type.exact_cast_value_to(result_type, value)
             }
         };

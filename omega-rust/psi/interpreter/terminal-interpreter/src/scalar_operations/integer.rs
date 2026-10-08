@@ -20,6 +20,24 @@ pub(crate) fn integer_scalar_type(
 }
 
 impl TerminalExecution<'_> {
+    /// One operand's declared integer type and value, or malformed when the
+    /// bound scalar is not an integer.
+    pub(crate) fn integer_operand(
+        &self,
+        operand: semantic_vocabulary::ValueId,
+    ) -> Result<
+        (
+            semantic_vocabulary::IntegerType,
+            semantic_vocabulary::IntegerValue,
+        ),
+        TerminalInterpretError,
+    > {
+        match self.scalar_value(operand)? {
+            TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
+            _ => Err(malformed()),
+        }
+    }
+
     /// Both operands of a binary integer operation: the declared integer
     /// carrier plus each operand's integer type and value, resolved and
     /// unwrapped. Callers own the operand-to-carrier conformance check, which
@@ -40,21 +58,8 @@ impl TerminalExecution<'_> {
         TerminalInterpretError,
     > {
         let scalar_type = integer_scalar_type(operation)?;
-        let left = self.scalar_value(left)?;
-        let right = self.scalar_value(right)?;
-        let (
-            TerminalScalarValue::Integer {
-                scalar_type: left_type,
-                value: left,
-            },
-            TerminalScalarValue::Integer {
-                scalar_type: right_type,
-                value: right,
-            },
-        ) = (left, right)
-        else {
-            return Err(malformed());
-        };
+        let (left_type, left) = self.integer_operand(left)?;
+        let (right_type, right) = self.integer_operand(right)?;
         Ok((scalar_type, left, right, left_type, right_type))
     }
 
@@ -82,20 +87,8 @@ impl TerminalExecution<'_> {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(malformed());
         }
-        let TerminalScalarValue::Integer {
-            scalar_type: left_type,
-            value: left,
-        } = self.scalar_value(left)?
-        else {
-            return Err(malformed());
-        };
-        let TerminalScalarValue::Integer {
-            scalar_type: right_type,
-            value: right,
-        } = self.scalar_value(right)?
-        else {
-            return Err(malformed());
-        };
+        let (left_type, left) = self.integer_operand(left)?;
+        let (right_type, right) = self.integer_operand(right)?;
         let ordering = left_type
             .compare_with(left, right_type, right)
             .ok_or(malformed())?;
@@ -114,20 +107,8 @@ impl TerminalExecution<'_> {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(malformed());
         }
-        let TerminalScalarValue::Integer {
-            scalar_type: left_type,
-            value: left_value,
-        } = self.scalar_value(left)?
-        else {
-            return Err(malformed());
-        };
-        let TerminalScalarValue::Integer {
-            scalar_type: right_type,
-            value: right_value,
-        } = self.scalar_value(right)?
-        else {
-            return Err(malformed());
-        };
+        let (left_type, left_value) = self.integer_operand(left)?;
+        let (right_type, right_value) = self.integer_operand(right)?;
         let ordering = left_type
             .compare_with(left_value, right_type, right_value)
             .ok_or(malformed())?;
@@ -147,13 +128,7 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_integer_bitwise_not")
         };
         let scalar_type = integer_scalar_type(operation)?;
-        let TerminalScalarValue::Integer {
-            scalar_type: operand_type,
-            value: operand,
-        } = self.scalar_value(operand)?
-        else {
-            return Err(malformed());
-        };
+        let (operand_type, operand) = self.integer_operand(operand)?;
         if operand_type != scalar_type {
             return Err(malformed());
         }
@@ -229,20 +204,8 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_integer_bitwise_and")
         };
         let scalar_type = integer_scalar_type(operation)?;
-        let TerminalScalarValue::Integer {
-            scalar_type: left_type,
-            value: left_value,
-        } = self.scalar_value(left)?
-        else {
-            return Err(malformed());
-        };
-        let TerminalScalarValue::Integer {
-            scalar_type: right_type,
-            value: right_value,
-        } = self.scalar_value(right)?
-        else {
-            return Err(malformed());
-        };
+        let (left_type, left_value) = self.integer_operand(left)?;
+        let (right_type, right_value) = self.integer_operand(right)?;
         if left_type != scalar_type || right_type != scalar_type {
             return Err(malformed());
         }
@@ -284,13 +247,7 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let TerminalScalarValue::Integer {
-            scalar_type: count_type,
-            value: count,
-        } = self.scalar_value(count)?
-        else {
-            return Err(malformed());
-        };
+        let (count_type, count) = self.integer_operand(count)?;
         if actual_value_type != value_type {
             return Err(malformed());
         }
