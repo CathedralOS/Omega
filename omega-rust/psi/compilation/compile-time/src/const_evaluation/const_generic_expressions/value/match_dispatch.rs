@@ -255,17 +255,9 @@ pub(super) fn validate_landing(
     destination: PrimitiveType,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<LandedIntegerType, String> {
-    let carrier = match destination {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        _ => return Err("anonymous constant destination is not an exact integer carrier".into()),
-    };
+    let carrier = destination
+        .landed_landing_fixed()
+        .ok_or("anonymous constant destination is not an exact integer carrier")?;
     // A destination follows direct result edges, not anonymous arithmetic
     // operands. Landing each inner Match before an enclosing multiplication
     // would reject valid fractional intermediates. Nor does this construct a

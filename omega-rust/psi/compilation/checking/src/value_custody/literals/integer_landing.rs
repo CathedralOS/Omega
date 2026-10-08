@@ -11,7 +11,7 @@ use diagnostics::Diagnostic;
 use numerics::{
     arithmetic::ArithmeticDomain,
     bignum::{BigInt, BigRational},
-    literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
+    literals::{IntegerLanding, IntegerLiteral, IntegerRadix},
 };
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
@@ -213,19 +213,9 @@ fn integer_landing_warning(
 /// Land a validated mathematical integer in one exact fixed-width carrier.
 /// This checks representability, not the validity of its source expression.
 pub fn land_integer_value(value: &BigInt, destination: PrimitiveType) -> Option<IntegerLiteral> {
-    let landed_type = match destination {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        // Address width and meaning require target authority, not a fixed
-        // integer destination guessed from today's native representation.
-        _ => return None,
-    };
+    // Address width and meaning require target authority, not a fixed
+    // integer destination guessed from today's native representation.
+    let landed_type = destination.landed_landing_fixed()?;
     let width = usize::try_from(landed_type.bit_width()).ok()?;
     let bound = BigInt::from_u64(1).shl_bits(width - usize::from(landed_type.is_signed()));
     let minimum = if landed_type.is_signed() {

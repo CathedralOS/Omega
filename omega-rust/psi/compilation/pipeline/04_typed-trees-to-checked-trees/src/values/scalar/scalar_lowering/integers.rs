@@ -335,21 +335,5 @@ pub(crate) fn land_contextual_integer_literal(
 }
 
 pub(crate) fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<LandedIntegerType> {
-    Some(match primitive_type {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr
-        | PrimitiveType::Selector
-        | PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64 => {
-            return None;
-        }
-    })
+    primitive_type.landed_landing_fixed()
 }

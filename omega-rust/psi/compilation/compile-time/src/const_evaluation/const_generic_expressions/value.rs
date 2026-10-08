@@ -1182,15 +1182,9 @@ fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
             PrimitiveType::Bool => return Ok(Shape::Boolean),
             PrimitiveType::F32 => return Ok(Shape::Float(FloatFormat::F32)),
             PrimitiveType::F64 => return Ok(Shape::Float(FloatFormat::F64)),
-            PrimitiveType::I8 => LandedIntegerType::I8,
-            PrimitiveType::I16 => LandedIntegerType::I16,
-            PrimitiveType::I32 => LandedIntegerType::I32,
-            PrimitiveType::I64 => LandedIntegerType::I64,
-            PrimitiveType::U8 => LandedIntegerType::U8,
-            PrimitiveType::U16 => LandedIntegerType::U16,
-            PrimitiveType::U32 => LandedIntegerType::U32,
-            PrimitiveType::U64 => LandedIntegerType::U64,
-            _ => return Err("constant call requires an exact integer or Boolean carrier".into()),
+            primitive => primitive
+                .landed_landing_fixed()
+                .ok_or("constant call requires an exact integer or Boolean carrier")?,
         },
         typed_trees::types::TypeReferenceHandle::invalid(),
         ArithmeticDomain::Exact,

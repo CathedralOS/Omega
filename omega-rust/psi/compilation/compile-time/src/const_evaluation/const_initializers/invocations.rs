@@ -973,7 +973,7 @@ pub(super) struct LeafEvaluation {
 }
 
 fn scalar_snapshot(value: &ScalarValue, carrier: PrimitiveType) -> Result<ExpressionNode, String> {
-    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
     let value = match value {
         ScalarValue::UndeterminedNaN(_) => {
             return Err("concrete contract snapshot requires determined floating representation; NaN has no payload bits".into());
@@ -999,17 +999,9 @@ fn scalar_snapshot(value: &ScalarValue, carrier: PrimitiveType) -> Result<Expres
         Some(DecodedCanonicalConstValue::Integer { value, .. }) => value,
         _ => return Err("constant argument lost its canonical scalar snapshot".into()),
     };
-    let landed_type = match carrier {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        _ => return Err("constant argument lost its builtin integer carrier".into()),
-    };
+    let landed_type = carrier
+        .landed_landing_fixed()
+        .ok_or("constant argument lost its builtin integer carrier")?;
     let magnitude = value.unsigned_abs().to_string();
     Ok(ExpressionNode::Integer(
         IntegerLiteral::from_parts(value < 0, IntegerRadix::Decimal, &magnitude)?.with_landing(

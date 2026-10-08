@@ -1132,6 +1132,16 @@ impl PrimitiveType {
         })
     }
 
+    /// The fixed-width integer landing when the destination is one of the eight
+    /// sized integer carriers. `Addr` is excluded: its width and meaning need
+    /// target authority, not a guess from today's native representation.
+    pub fn landed_landing_fixed(self) -> Option<numerics::literals::LandedIntegerType> {
+        match self.landed_landing() {
+            Some(numerics::literals::LandedIntegerType::Addr) | None => None,
+            fixed => fixed,
+        }
+    }
+
     /// The sign and bit width of the eight fixed-width integers
     /// (`i8`–`u64`); `Addr`, `Selector`, `Bool` and the floats return `None`.
     pub fn integer_sign_bits(self) -> Option<(semantic_vocabulary::IntegerSign, u16)> {

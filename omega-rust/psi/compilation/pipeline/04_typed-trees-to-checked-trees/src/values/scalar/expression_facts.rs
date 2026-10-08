@@ -100,7 +100,7 @@ pub(crate) fn zeroed_scalar_local_initializer(
     program: &dyn ::validation::CheckingInput,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<CheckedScalarExpression> {
-    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
     if !local.is_mutable
         || local.initial_value.is_valid()
         || !validation::is_plain_scalar_storage(program, local.type_reference)
@@ -124,17 +124,8 @@ pub(crate) fn zeroed_scalar_local_initializer(
                 value: semantic_vocabulary::IeeeFloatValue::Binary64(0),
             });
         }
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr => LandedIntegerType::Addr,
         // A selector has no zero value: only a named implementation makes one.
-        PrimitiveType::Selector => return None,
+        primitive => primitive.landed_landing()?,
     };
     Some(CheckedScalarExpression::IntegerLiteral {
         literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
