@@ -21,6 +21,16 @@ pub use planner::{
 };
 pub(super) use source_projection::ManagerGitWorkspacePlanner;
 
+pub(super) fn git_workspace_declaration_limits() -> package_source::GitWorkspaceDeclarationLimits {
+    package_source::GitWorkspaceDeclarationLimits::new(
+        MAX_WORKSPACE_MEMBERS,
+        u64::try_from(MAX_BUILD_DECLARATION_BYTES)
+            .expect("declaration limit fits canonical u64"),
+        u64::try_from(MAX_TOTAL_BUILD_DECLARATION_BYTES)
+            .expect("declaration aggregate limit fits canonical u64"),
+    )
+}
+
 /// Authenticated declaration bytes associated with one declared member path.
 ///
 /// Bytes are borrowed only for planning and are never retained in the plan.

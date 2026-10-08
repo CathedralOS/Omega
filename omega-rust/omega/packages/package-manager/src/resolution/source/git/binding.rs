@@ -7,7 +7,31 @@ use super::super::{
 };
 use crate::declarations::PackageKey;
 use crate::resolution::source::workspace_path::source_relative_path;
-use package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, ResolvedGitSource};
+use package_source::{
+    GitCommitId, GitTreeId, GitWorkspaceProjectionError, GitWorkspaceProjectionResult,
+    ImmutableSourceResolution, ResolvedGitSource,
+};
+use super::workspace::GitWorkspaceSelectionError;
+
+pub(super) fn bind_git_workspace_member_source(
+    projected: Result<
+        GitWorkspaceProjectionResult<GitWorkspaceSelectionEvidence>,
+        GitWorkspaceProjectionError<GitWorkspaceSelectionError>,
+    >,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let (source, evidence) = projected
+        .map_err(|error| match error {
+            GitWorkspaceProjectionError::Source(error) => {
+                ResolvePackageSourceError::Source(error)
+            }
+            GitWorkspaceProjectionError::Planner(error) => {
+                ResolvePackageSourceError::GitWorkspaceSelection(error)
+            }
+        })?
+        .into_parts();
+    bind_projected_git_package_source(source, evidence, application_root_allowed)
+}
 
 pub(super) fn bind_projected_git_package_source(
     source: ResolvedGitSource,

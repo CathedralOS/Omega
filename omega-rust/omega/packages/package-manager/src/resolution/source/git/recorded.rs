@@ -1,11 +1,8 @@
 //! Bind freshly acquired exact recorded Git content using ordinary declarations.
 
-use super::binding::{bind_git_root_package_source, bind_projected_git_package_source};
+use super::binding::{bind_git_root_package_source, bind_git_workspace_member_source};
 use super::request::GitPackageSourceRequest;
-use super::workspace::{
-    MAX_BUILD_DECLARATION_BYTES, MAX_TOTAL_BUILD_DECLARATION_BYTES, MAX_WORKSPACE_MEMBERS,
-    ManagerGitWorkspacePlanner,
-};
+use super::workspace::{ManagerGitWorkspacePlanner, git_workspace_declaration_limits};
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
 use package_source::git::resolution::{
@@ -14,8 +11,7 @@ use package_source::git::resolution::{
 };
 use package_source::storage::RetainedStorageLane;
 use package_source::{
-    GitCommitId, GitTreeId, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
-    LocalSourceLimits, ResolvedGitSource, SourceResolver,
+    GitCommitId, GitTreeId, LocalSourceLimits, ResolvedGitSource, SourceResolver,
 };
 
 pub(crate) fn resolve_selected_git_package_source_at_revision_in_lanes(
@@ -91,34 +87,21 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
         }
         PackageSelection::Named(package) => {
             let mut planner = ManagerGitWorkspacePlanner::new(package);
-            let projected = resolve_git_workspace_member_at_revision_in_lanes(
-                resolver.primary_git()?,
-                request.acquisition(),
-                commit,
-                tree,
-                acquisition,
-                git_lane,
-                member_lane,
-                limits,
-                GitWorkspaceDeclarationLimits::new(
-                    MAX_WORKSPACE_MEMBERS,
-                    u64::try_from(MAX_BUILD_DECLARATION_BYTES)
-                        .expect("declaration limit fits canonical u64"),
-                    u64::try_from(MAX_TOTAL_BUILD_DECLARATION_BYTES)
-                        .expect("declaration aggregate limit fits canonical u64"),
+            bind_git_workspace_member_source(
+                resolve_git_workspace_member_at_revision_in_lanes(
+                    resolver.primary_git()?,
+                    request.acquisition(),
+                    commit,
+                    tree,
+                    acquisition,
+                    git_lane,
+                    member_lane,
+                    limits,
+                    git_workspace_declaration_limits(),
+                    &mut planner,
                 ),
-                &mut planner,
+                application_root_allowed,
             )
-            .map_err(|error| match error {
-                GitWorkspaceProjectionError::Source(error) => {
-                    ResolvePackageSourceError::Source(error)
-                }
-                GitWorkspaceProjectionError::Planner(error) => {
-                    ResolvePackageSourceError::GitWorkspaceSelection(error)
-                }
-            })?;
-            let (source, evidence) = projected.into_parts();
-            bind_projected_git_package_source(source, evidence, application_root_allowed)
         }
     }
 }
