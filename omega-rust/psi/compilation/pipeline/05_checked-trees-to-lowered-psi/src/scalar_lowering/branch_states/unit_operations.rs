@@ -168,7 +168,6 @@ pub(super) fn prepare(
         *target_state,
     )?;
     let authored = crate::call_sites::locate(checked, state.state, *coordinate)?;
-    let (_, caller_state) = crate::declarations::state_declaration(checked, state.state)?;
     let (_, callee_state) = crate::declarations::state_declaration(checked, *target_state)?;
     if !checked
         .facts
@@ -185,23 +184,6 @@ pub(super) fn prepare(
     {
         return unsupported("scalar Unit calls with services require scalar service lowering");
     }
-    let borrow = crate::expression_preparation::source_custody::borrow_occurrences::call(
-        checked,
-        machine,
-        state.state,
-        *coordinate,
-        authored.source_target,
-    )?;
-    let authored_arguments = &authored.explicit_arguments;
-    let access_positions =
-        crate::expression_preparation::source_custody::computation_calls::rejoin_call_accesses(
-            checked,
-            machine,
-            state.state,
-            coordinate.statement_index,
-            borrow,
-            authored_arguments,
-        )?;
     let contract = checked
         .facts
         .contract_plans
@@ -270,35 +252,6 @@ pub(super) fn prepare(
             .ok_or(LoweringError::Unsupported(
                 "scalar Unit formal position is absent",
             ))?;
-        let expression = authored
-            .structural_arguments
-            .iter()
-            .find_map(|(position, expression)| {
-                (*position == parameter.position).then_some(*expression)
-            })
-            .ok_or(LoweringError::Unsupported(
-                "scalar Unit call lost its authored structural actual",
-            ))?;
-        let access_position = access_positions
-            .get(parameter.position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "scalar Unit argument has no authored access position",
-            ))?
-            .operand_position()?;
-        let actual_position =
-            crate::expression_preparation::source_custody::computation_calls::primitive_arguments::validate(
-                checked,
-                caller_state,
-                coordinate.statement_index,
-                source_parameter.type_reference,
-                expression,
-                argument,
-                borrow,
-                Some(access_position),
-            )?;
-        if actual_position != access_position {
-            return unsupported("scalar Unit call reordered its structural access occurrences");
-        }
         let checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
             .type_reference_table
             .type_reference(source_parameter.type_reference)

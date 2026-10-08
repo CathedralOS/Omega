@@ -2,26 +2,11 @@
 //! Semantic casts are part of that ordering: equal final tags cannot justify
 //! skipping an explicit erasure followed by reintroduction. Only casts whose
 //! operand is independently known to be bare may be peeled as payload wrappers.
-use super::{
-    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, preceding_local,
-    structural_parameter_at, unsupported,
-};
+use super::{CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, unsupported};
 
-use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
-mod borrowed_storage;
 pub(crate) mod byte_comparisons;
 pub(crate) mod byte_predicates;
-mod mixed_arguments;
 mod operand_scopes;
-pub(crate) mod primitive_arguments;
-
-pub(crate) use mixed_arguments::access_occurrences::{
-    rejoin as rejoin_call_accesses, replay as replay_call_accesses,
-};
-
-// A retained computation cannot make a not-yet-established source local
-// available. This checks declaration order, not pure-expression semantics.
-// Earlier mutable locals remain available to the storage-read evaluator.
 
 // This is expression-tree membership only. Call ordinals remain the retained
 // semantic traversal's identity, and unselected syntax need not have a flow row.

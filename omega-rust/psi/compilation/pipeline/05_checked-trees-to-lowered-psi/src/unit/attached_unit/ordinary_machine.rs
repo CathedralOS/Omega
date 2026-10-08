@@ -26,7 +26,6 @@ use super::operation_frame::{
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
 use super::provider_attachments::lower_provider_attachment_places;
-use super::provider_attachments::validate_provider_attachment_requirements;
 use super::signatures::MachineSignature;
 use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
@@ -204,37 +203,6 @@ pub(super) fn emit(
         .map(|identity| lookup_type_id(type_ids, identity))
         .transpose()?;
     let provider_places = if let Some(attachment) = attachment {
-        // Replay each occurrence before deduplicating boundary identities:
-        // ordinary contexts must retain their exact attachment-field roots.
-        let mut called_boundaries = Vec::new();
-        for operation in &plan.operations {
-            if let Some(call) = operation.call()
-                && super::provider_attachments::validate_call_source(
-                    checked,
-                    plan.machine,
-                    plan.state,
-                    operation,
-                    &plan.structural_parameters,
-                    &plan.provider_attachment_requirements,
-                )?
-            {
-                called_boundaries.push(call.target.machine);
-            }
-        }
-        let checked_attachment = plans
-            .structural_types()
-            .find(|declaration| {
-                Some(declaration.identity.as_str()) == plan.attachment_type_identity.as_deref()
-            })
-            .ok_or(LoweringError::Unsupported(
-                "attached Unit machine is missing its checked attachment shape",
-            ))?;
-        validate_provider_attachment_requirements(
-            checked,
-            checked_attachment,
-            &plan.provider_attachment_requirements,
-            &called_boundaries,
-        )?;
         let attachment_declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == attachment)
@@ -248,11 +216,6 @@ pub(super) fn emit(
             &mut next_place,
         )?
     } else {
-        if !plan.provider_attachment_requirements.is_empty() {
-            return unsupported(
-                "free Unit machine fabricates provider-backed attachment requirements",
-            );
-        }
         Vec::new()
     };
     let local_places = plan

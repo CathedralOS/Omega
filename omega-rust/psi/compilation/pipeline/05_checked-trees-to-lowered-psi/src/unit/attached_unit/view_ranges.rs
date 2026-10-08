@@ -231,7 +231,7 @@ fn collection_path(
 pub(crate) fn storage(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
-    statement: u32,
+    _statement: u32,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<RangeStorage, LoweringError> {
@@ -245,7 +245,7 @@ pub(crate) fn storage(
     ) {
         return unsupported("range storage requires a readable loan");
     }
-    let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
+    let (_machine, authored) = crate::declarations::state_declaration(checked, state)?;
     // The `coll[a..b]` spelling carries its collection through the indexed
     // operation; the whole-extent spelling (`let v: &T = coll`) spells no
     // `..` at all — its expression is the collection itself, behind the
@@ -275,13 +275,6 @@ pub(crate) fn storage(
             _ => range.expression,
         }
     };
-    let source = crate::emission::call_source_custody::projected_receivers::source(
-        checked,
-        machine.symbol,
-        state,
-        statement as usize,
-        collection_expression,
-    )?;
     let symbol = match range.root {
         checked_trees::CheckedStorageRoot::Parameter { index } => checked
             .state_parameters(authored)
@@ -308,7 +301,7 @@ pub(crate) fn storage(
         validation::stored_structural_type_identity(&checked.typed, reference, &[], &[]);
     // A root reference is represented by its parameter/view-local custody.
     // A stored reference needs an explicit Referent projection, not erasure.
-    if source.path.is_empty()
+    if argument.path.is_empty()
         && !matches!(
             range.root,
             checked_trees::CheckedStorageRoot::OwnedLocal { .. }
@@ -364,7 +357,7 @@ pub(crate) fn storage(
             )
         }
         _ if collection.id == view.id
-            && source.path.is_empty()
+            && argument.path.is_empty()
             && !matches!(
                 range.root,
                 checked_trees::CheckedStorageRoot::OwnedLocal { .. }
@@ -383,7 +376,7 @@ pub(crate) fn storage(
     Ok(RangeStorage {
         symbol,
         root: range.root,
-        collection: source.path,
+        collection: argument.path.clone(),
         structural_type: view.id,
         family: range.family,
         collection_element,
@@ -595,28 +588,7 @@ pub(crate) fn replay(
     let (machine, authored) = crate::declarations::state_declaration(checked, site.state)?;
     let Some(operation) = validation::subslice_expression(&checked.typed, site.expression) else {
         // The whole-extent spelling `let v: &T = coll` authors no `..`
-        // operation — its endpoints stay omitted and its expression names
-        // the collection itself, behind the same readable-borrow unwrap
-        // `storage` applies.
-        let collection_expression = match checked.expression_table.expression(site.expression) {
-            ExpressionNode::Borrow(borrow)
-                if matches!(
-                    borrow.access,
-                    language_core::ReferenceAccess::Shared
-                        | language_core::ReferenceAccess::Mutable
-                ) =>
-            {
-                borrow.target
-            }
-            _ => site.expression,
-        };
-        crate::emission::call_source_custody::projected_receivers::source(
-            checked,
-            machine.symbol,
-            site.state,
-            site.statement as usize,
-            collection_expression,
-        )?;
+        // operation: its endpoints stay omitted.
         return Ok((None, None));
     };
     let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(operation) else {
@@ -625,16 +597,6 @@ pub(crate) fn replay(
     let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
         return unsupported("view subslice has no authored range");
     };
-    // Reconstruct the same storage relationship ordinary operands use. Empty
-    // projections name whole storage, not necessarily an existing descriptor;
-    // establishing a view is the emitter's separate responsibility.
-    crate::emission::call_source_custody::projected_receivers::source(
-        checked,
-        machine.symbol,
-        site.state,
-        site.statement as usize,
-        indexed.collection,
-    )?;
     if let Some((start, end)) = site.retained
         && (range.start.is_valid() != start.is_some() || range.end.is_valid() != end.is_some())
     {

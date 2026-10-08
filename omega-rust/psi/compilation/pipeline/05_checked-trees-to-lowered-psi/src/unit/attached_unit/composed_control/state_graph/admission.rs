@@ -135,7 +135,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         return unsupported("linear structural graph has unrepresented authored machine contracts");
     }
     super::ranking::validate_witness(checked, machine, plan)?;
-    let attachment = super::super::admission::exact_attachment(checked, plan)?;
+    super::super::admission::reject_attachment(plan)?;
     // A fused roster admits foreign states: each position resolves its own
     // authored owner, no state may repeat, and the dispatch machine's authored
     // states still all appear in authored order.
@@ -872,35 +872,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // Every live state's calls take the one call admission; internal Unit
     // targets' signatures come from the closure that emits this graph.
     let boundaries = super::super::admission::admit_calls(checked, &states)?;
-    if let Some(attachment) = attachment {
-        let mut called = Vec::new();
-        for state in &states {
-            for operation in &state.operations {
-                if let Some(call) = operation.call()
-                    && crate::unit::attached_unit::provider_attachments::validate_call_source(
-                        checked,
-                        super::owner(checked, state.state)?,
-                        state.state,
-                        operation,
-                        &state.structural_parameters,
-                        &plan.provider_attachment_requirements,
-                    )?
-                {
-                    called.push(call.target.machine);
-                }
-            }
-        }
-        // Both lexical self and ordinary contexts contribute their exact
-        // attachment-field requirements after independent source replay.
-        crate::unit::attached_unit::provider_attachments::validate_provider_attachment_requirements(
-            checked,
-            attachment,
-            &plan.provider_attachment_requirements,
-            &called,
-        )?;
-    } else if !plan.provider_attachment_requirements.is_empty() {
-        return unsupported("free Unit graph cannot retain provider attachment requirements");
-    }
     for (boundary, _) in &boundaries {
         if boundary.machine == boundary.state {
             // Static trait signatures have no runtime provider receiver.

@@ -17,8 +17,6 @@ use symbols::SymbolHandle;
 pub(crate) struct AuthoredCall {
     pub source_target: SymbolHandle,
     pub source_site: Option<NominalMachineUseSite>,
-    /// Original explicit source order, before partitioning scalar and structural lanes.
-    pub explicit_arguments: Vec<ExpressionHandle>,
     pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
     pub structural_arguments: Vec<(u32, ExpressionHandle)>,
     pub boundary: bool,
@@ -134,7 +132,6 @@ pub(crate) fn locate(
     Ok(AuthoredCall {
         source_target,
         source_site,
-        explicit_arguments: arguments.to_vec(),
         scalar_arguments,
         structural_arguments,
         boundary: target.boundary,

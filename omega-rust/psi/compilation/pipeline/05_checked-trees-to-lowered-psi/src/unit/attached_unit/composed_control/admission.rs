@@ -10,25 +10,17 @@ use super::super::{CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, u
 use super::{CheckedTrees, LoweringError};
 use crate::unit::attached_unit::bodies::UnitPlans;
 
-pub(super) fn exact_attachment<'a>(
-    checked: &'a CheckedTrees,
+/// A composed graph does not lower an attachment or its provider fields yet:
+/// stage 04 can plan them (`checked_composed_provider_attachment_requirements`),
+/// and this route refuses the machine rather than drop them.
+pub(super) fn reject_attachment(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<Option<&'a checked_trees::CheckedUnitStructuralTypePlan>, LoweringError> {
-    let mut machines = checked
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == plan.machine);
-    machines.next().ok_or(LoweringError::Unsupported(
-        "composed Unit attachment has no authored machine",
-    ))?;
-    if machines.next().is_some() {
-        return unsupported("composed Unit attachment has duplicate authored machines");
-    }
+) -> Result<(), LoweringError> {
     if plan.attachment_type_identity.is_some() || !plan.provider_attachment_requirements.is_empty()
     {
-        return unsupported("free composed Unit fabricated an attachment or provider field");
+        return unsupported("composed Unit graph does not lower an attachment or provider field");
     }
-    Ok(None)
+    Ok(())
 }
 
 /// Admit every call the given states make through the one call admission an

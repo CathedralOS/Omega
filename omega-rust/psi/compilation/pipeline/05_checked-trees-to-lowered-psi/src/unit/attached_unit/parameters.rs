@@ -29,7 +29,7 @@ pub(crate) use reference_sources::{lower_reference_result_sources, lower_referen
 mod service_forward;
 pub(in crate::unit::attached_unit) use service_forward::validate_parameter as validate_service_parameter;
 mod source_path;
-pub(crate) use source_path::{expression_producer, source_path, statement_receiver_path};
+pub(crate) use source_path::{expression_producer, source_path};
 
 /// The carrier beneath a type's qualification shells, for contents
 /// classification and shape inspection. Qualifications have their own

@@ -111,7 +111,7 @@ pub(crate) use composed_control::lower_composed_unit_control_machine;
 pub(crate) use parameters::{
     literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
-    lower_structural_arguments, lower_unit_parameters, statement_receiver_path,
+    lower_structural_arguments, lower_unit_parameters,
 };
 use providers::checked_unit_provider_candidates;
 
@@ -239,8 +239,7 @@ pub(crate) fn lower_unit_closure(
                 operation
                 && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
                 && structural_types.iter().any(|declaration| {
-                    declaration.id == declared
-                        && declaration.shape.is_bounded_owned_byte_sequence()
+                    declaration.id == declared && declaration.shape.is_bounded_owned_byte_sequence()
                 })
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(

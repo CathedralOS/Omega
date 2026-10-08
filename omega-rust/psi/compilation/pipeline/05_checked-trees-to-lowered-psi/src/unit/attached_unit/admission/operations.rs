@@ -6,7 +6,7 @@ use super::super::super::{
     unsupported,
 };
 use super::super::bodies::UnitPlans;
-use super::super::{provider_attachments, scalar_arrays};
+use super::super::scalar_arrays;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;
 use symbols::SymbolHandle;
@@ -20,14 +20,6 @@ pub(super) fn validate<'a>(
 ) -> Result<(), LoweringError> {
     let caller = super::CallerView::ordinary(machine);
     for operation in &machine.operations {
-        provider_attachments::validate_call_source(
-            checked,
-            machine.machine,
-            machine.state,
-            operation,
-            &machine.structural_parameters,
-            &machine.provider_attachment_requirements,
-        )?;
         super::calls::admit(checked, plans, &caller, operation, boundaries)?;
         match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }

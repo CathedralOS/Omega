@@ -2569,12 +2569,12 @@ code and preserve check/native behavior for the named customer slices.
   carry. The validators that only re-confirmed a row against its source are
   deleted. What remains:
   - `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/`
-    (3.9k lines): structural operand and place lookups, parameter storage,
-    primitive references, computation calls and constructed values (the
-    control readers moved: dispatch subject kinds and dispatch call roles
-    are plan rows, guarded exits come from the plan's arm ordinals);
-  - `.../src/emission/call_source_custody/` (2.7k lines): the nested call
-    occurrence walk, named terminal arguments and projected receivers.
+    (1.4k lines): structural place lookups, primitive references, computed
+    invocations, selected comparisons and constructed values (the control
+    readers moved: dispatch subject kinds and dispatch call roles are plan
+    rows, guarded exits come from the plan's arm ordinals);
+  - `.../src/emission/call_source_custody/` (0.7k lines): the nested call
+    occurrence walk and named terminal arguments.
 
   Calls already show the pattern: `FlowCallFact` carries each call's
   authored site, callee, arguments, receiver, result use and closing-arm
@@ -2587,8 +2587,8 @@ code and preserve check/native behavior for the named customer slices.
   affine operands); those refusals stay until the route items admit the
   shapes. Then add a source-scanning guard in stage 05 that lists the few
   files allowed to read `statement_table`, `expression_table`,
-  `StatementNode::` or `ExpressionNode::`; today there are 766 such
-  references across 73 files. The same guard refuses any stage 05 reference to
+  `StatementNode::` or `ExpressionNode::`; today there are 337 such
+  references across 45 files. The same guard refuses any stage 05 reference to
   `validation::reference_result_custody`, which no longer has one: the last 5
   were deleted rather than recorded, because classifying every site by what
   stage 05 did with the answer found 4 pure refusal guards and 1 computation
