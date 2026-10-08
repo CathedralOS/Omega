@@ -38,35 +38,29 @@ pub enum ByteLiteralAddressFields {
 
 impl ByteLiteralAddressFields {
     /// The same fields after their containing span moves by `by` bytes.
-    pub fn shifted(self, by: u64) -> Option<Self> {
+    fn shifted_by(self, by: u64, offset: impl Fn(u64, u64) -> Option<u64>) -> Option<Self> {
         Some(match self {
             Self::X86_64Relative32 { patch_offset } => Self::X86_64Relative32 {
-                patch_offset: patch_offset.checked_add(by)?,
+                patch_offset: offset(patch_offset, by)?,
             },
             Self::Aarch64PageAddress {
                 page_patch_offset,
                 page_offset_patch_offset,
             } => Self::Aarch64PageAddress {
-                page_patch_offset: page_patch_offset.checked_add(by)?,
-                page_offset_patch_offset: page_offset_patch_offset.checked_add(by)?,
+                page_patch_offset: offset(page_patch_offset, by)?,
+                page_offset_patch_offset: offset(page_offset_patch_offset, by)?,
             },
         })
     }
 
+    /// The same fields shifted forward by `by` bytes.
+    pub fn shifted(self, by: u64) -> Option<Self> {
+        self.shifted_by(by, u64::checked_add)
+    }
+
     /// The same fields relative to a span that starts `by` bytes later.
     pub fn unshifted(self, by: u64) -> Option<Self> {
-        Some(match self {
-            Self::X86_64Relative32 { patch_offset } => Self::X86_64Relative32 {
-                patch_offset: patch_offset.checked_sub(by)?,
-            },
-            Self::Aarch64PageAddress {
-                page_patch_offset,
-                page_offset_patch_offset,
-            } => Self::Aarch64PageAddress {
-                page_patch_offset: page_patch_offset.checked_sub(by)?,
-                page_offset_patch_offset: page_offset_patch_offset.checked_sub(by)?,
-            },
-        })
+        self.shifted_by(by, u64::checked_sub)
     }
 
     /// Canonical identity bytes shared by every record that hashes fields.
