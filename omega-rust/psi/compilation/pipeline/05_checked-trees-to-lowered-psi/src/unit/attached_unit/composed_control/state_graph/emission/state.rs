@@ -691,14 +691,10 @@ impl StateGraphEmission<'_, '_> {
                                 "Unit graph shared return arm lost its block",
                             ))?;
                         let staged = block_id(allocate_dense(&mut next_block)?);
-                        evaluation.blocks.push(Block {
-                            id: staged,
-                            parameters: Vec::new(),
-                            erased_scalar_formals: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            structural_parameters: Vec::new(),
-                            operations: Vec::new(),
-                            terminator: Terminator::Jump {
+                        evaluation.blocks.push(Block::plain(
+                            staged,
+                            Vec::new(),
+                            Terminator::Jump {
                                 edge: edge_id(allocate_dense(&mut next_edge)?),
                                 target: *target,
                                 arguments: Vec::new(),
@@ -707,7 +703,7 @@ impl StateGraphEmission<'_, '_> {
                                 structural_arguments: Vec::new(),
                                 cleanup_actions: Vec::new(),
                             },
-                        });
+                        ));
                         Ok(Some(SuccessorEdge {
                             edge: edge_id(allocate_dense(&mut next_edge)?),
                             target: staged,

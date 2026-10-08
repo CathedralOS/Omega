@@ -80,6 +80,23 @@ pub struct Block {
     pub terminator: Terminator,
 }
 
+impl Block {
+    /// A block carrying only its parameters and terminator — the dispatch or
+    /// case-block shape with no erased formals, structural parameters, or
+    /// operations.
+    pub fn plain(id: BlockId, parameters: Vec<ValueDeclaration>, terminator: Terminator) -> Self {
+        Self {
+            id,
+            parameters,
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator,
+        }
+    }
+}
+
 impl TerminalMachine {
     /// The operation with `id`, searched across every block's roster.
     pub fn operation(&self, id: OperationId) -> Option<&Operation> {

@@ -274,14 +274,10 @@ fn reserve_case_entry(
     *next_edge_identity = next_edge_identity
         .checked_add(1)
         .expect("reserved guard case entry edge identity advances");
-    blocks.push(Some(Block {
-        structural_parameters: Vec::new(),
-        id: block,
+    blocks.push(Some(Block::plain(
+        block,
         parameters,
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        operations: Vec::new(),
-        terminator: Terminator::Jump {
+        Terminator::Jump {
             edge,
             target: target.block,
             arguments: target.arguments,
@@ -290,7 +286,7 @@ fn reserve_case_entry(
             structural_arguments: Vec::new(),
             cleanup_actions: Vec::new(),
         },
-    }));
+    )));
     LoweredBooleanDecisionTarget {
         block,
         arguments: Vec::new(),
@@ -521,18 +517,14 @@ fn emit_reserved_boolean_guard_decision_blocks(
                     }
                 })
                 .collect();
-            blocks[block_index] = Some(Block {
-                structural_parameters: Vec::new(),
-                id: block,
-                parameters: block_parameters,
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                operations: Vec::new(),
-                terminator: Terminator::StructuralCase {
+            blocks[block_index] = Some(Block::plain(
+                block,
+                block_parameters,
+                Terminator::StructuralCase {
                     source: dispatch.source,
                     cases,
                 },
-            });
+            ));
             LoweredBooleanDecisionTarget {
                 block,
                 arguments: Vec::new(),

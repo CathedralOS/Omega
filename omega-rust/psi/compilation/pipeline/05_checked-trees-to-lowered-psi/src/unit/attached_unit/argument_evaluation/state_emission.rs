@@ -486,14 +486,10 @@ pub(super) fn emit_state(
             } else {
                 (Vec::new(), Vec::new())
             };
-            blocks.push(Block {
-                structural_parameters: Vec::new(),
-                id: selected_block,
-                parameters: payload_parameters,
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                operations: Vec::new(),
-                terminator: Terminator::Jump {
+            blocks.push(Block::plain(
+                selected_block,
+                payload_parameters,
+                Terminator::Jump {
                     structural_arguments: Vec::new(),
                     edge: edge_id(allocate_dense(next_edge)?),
                     target: *targets
@@ -504,16 +500,12 @@ pub(super) fn emit_state(
                     erased_proof_arguments: when_true_erased_proof_arguments,
                     cleanup_actions: Vec::new(),
                 },
-            });
+            ));
             if let Some(fallback_block) = fallback_block {
-                blocks.push(Block {
-                    structural_parameters: Vec::new(),
-                    id: fallback_block,
-                    parameters: Vec::new(),
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::Jump {
+                blocks.push(Block::plain(
+                    fallback_block,
+                    Vec::new(),
+                    Terminator::Jump {
                         structural_arguments: Vec::new(),
                         edge: edge_id(allocate_dense(next_edge)?),
                         target: *targets
@@ -524,7 +516,7 @@ pub(super) fn emit_state(
                         erased_proof_arguments: when_false_erased_proof_arguments,
                         cleanup_actions: Vec::new(),
                     },
-                });
+                ));
             }
             let mut case_edges = Vec::with_capacity(cases.len());
             for case in cases {
@@ -605,14 +597,10 @@ pub(super) fn emit_state(
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?;
-                    blocks.push(Block {
-                        structural_parameters: Vec::new(),
-                        id: selected_block,
-                        parameters: payload_parameters,
-                        erased_scalar_formals: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        operations: Vec::new(),
-                        terminator: Terminator::Jump {
+                    blocks.push(Block::plain(
+                        selected_block,
+                        payload_parameters,
+                        Terminator::Jump {
                             structural_arguments: Vec::new(),
                             edge: edge_id(allocate_dense(next_edge)?),
                             target: *targets.get(arm.target).ok_or(LoweringError::Unsupported(
@@ -623,7 +611,7 @@ pub(super) fn emit_state(
                             erased_proof_arguments,
                             cleanup_actions: Vec::new(),
                         },
-                    });
+                    ));
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
                         edge: edge_id(allocate_dense(next_edge)?),
                         target: selected_block,
@@ -660,14 +648,10 @@ pub(super) fn emit_state(
                                 )
                             })
                             .collect::<Result<Vec<_>, _>>()?;
-                        blocks.push(Block {
-                            structural_parameters: Vec::new(),
-                            id: block,
-                            parameters: Vec::new(),
-                            erased_scalar_formals: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            operations: Vec::new(),
-                            terminator: Terminator::Jump {
+                        blocks.push(Block::plain(
+                            block,
+                            Vec::new(),
+                            Terminator::Jump {
                                 structural_arguments: Vec::new(),
                                 edge: edge_id(allocate_dense(next_edge)?),
                                 target: *targets.get(*fallback_target).ok_or(
@@ -680,7 +664,7 @@ pub(super) fn emit_state(
                                 erased_proof_arguments,
                                 cleanup_actions: Vec::new(),
                             },
-                        });
+                        ));
                         fallback_block = Some(block);
                     }
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
