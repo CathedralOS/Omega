@@ -633,92 +633,11 @@ fn owned_array_satisfies_constrained_referee(
     required_constraints
         .iter()
         .all(|constraint| match constraint {
-            TypeConstraintNode::Domain(target) => actual_domains
-                .iter()
-                .any(|source| domain_membership_implies(program, *source, target.symbol)),
+            TypeConstraintNode::Domain(target) => actual_domains.iter().any(|source| {
+                crate::field_domains::domain_membership_implies(program, *source, target.symbol)
+            }),
             _ => false,
         })
-}
-
-/// One implied membership between declared domains, mirroring the flow-side
-/// `facts::field_domain::domain_membership_implies`: declared implication
-/// (symbol, semantic identity, and proof membership) first, then the
-/// byte-carrier bridge that lets `[u8; N]::D` evidence satisfy `[u8]::D`
-/// only when both declarations name the same recognized byte predicate.
-fn domain_membership_implies(
-    program: &dyn crate::CheckingInput,
-    source_domain: symbols::SymbolHandle,
-    target_domain: symbols::SymbolHandle,
-) -> bool {
-    if !typed_trees::domain::supports_symbol_only_proof(program, source_domain)
-        || !typed_trees::domain::supports_symbol_only_proof(program, target_domain)
-    {
-        return false;
-    }
-    if typed_trees::domain::declared_domain_implies(program, source_domain, target_domain) {
-        return true;
-    }
-    let Some(source) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == source_domain)
-    else {
-        return false;
-    };
-    let Some(target) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == target_domain)
-    else {
-        return false;
-    };
-    if !is_fixed_byte_carrier(program, source.target_type)
-        || !is_byte_slice_carrier(program, target.target_type)
-        || source.name.as_str().rsplit("::").next() != target.name.as_str().rsplit("::").next()
-    {
-        return false;
-    }
-    matches!(
-        (
-            typed_trees::byte_predicates::domain_byte_predicate(program, source_domain),
-            typed_trees::byte_predicates::domain_byte_predicate(program, target_domain),
-        ),
-        (Some(source), Some(target)) if source == target
-    )
-}
-
-fn is_fixed_byte_carrier(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => is_fixed_byte_carrier(program, *base_type),
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
-        }
-        _ => false,
-    }
-}
-
-fn is_byte_slice_carrier(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => is_byte_slice_carrier(program, *base_type),
-        TypeReferenceNode::Slice { element_type } => {
-            program.type_reference_table.primitive_type(*element_type)
-                == Some(typed_trees::types::PrimitiveType::U8)
-        }
-        _ => false,
-    }
 }
 
 /// The shared-view forget for a constrained referee that is not an owned
