@@ -33,6 +33,41 @@ use super::super::{
     error::WholeFunctionExitContractError,
 };
 
+#[cfg(test)]
+pub(in crate::exit_contract) fn encoded_form_and_layout(
+    instruction: SelectedInstructionId,
+    alternative: selected_instructions::MachineAlternativeKey,
+    code: machine_code::SelectedFormEncodedByteSpan,
+    footprint: machine_code::SelectedFormDecodedFootprintHandle,
+    bytes: Vec<u8>,
+) -> (
+    machine_code::SelectedFormEncodingRow,
+    machine_code::ResolvedSelectedFormRow,
+) {
+    (
+        machine_code::SelectedFormEncodingRow {
+            instruction,
+            alternative,
+            machine_disposition: machine_code::SelectedFormMachineDisposition::RetainedV1,
+            address: None,
+            state: machine_code::SelectedFormEncodingState::Encoded,
+            code,
+            footprint,
+        },
+        machine_code::ResolvedSelectedFormRow {
+            instruction,
+            alternative,
+            offset: 0,
+            bytes,
+            branch: None,
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: None,
+            byte_literal_address_fixup: None,
+            implementation_table_address_fixup: None,
+        },
+    )
+}
+
 pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
     selected: &selected_instructions::SelectedInstructionPlan,
     encoding: &'a SelectedFormEncoding,

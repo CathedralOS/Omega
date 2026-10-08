@@ -341,26 +341,13 @@ mod tests {
                 };
             let mut store = machine_code::SelectedFormEncodedRowStore::new();
             let (code, interned_footprint) = store.intern(&bytes, footprint);
-            let encoding = SelectedFormEncodingRow {
+            let (encoding, layout) = super::super::selected_forms::encoded_form_and_layout(
                 instruction,
                 alternative,
-                machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-                address: None,
-                state: SelectedFormEncodingState::Encoded,
                 code,
-                footprint: interned_footprint,
-            };
-            let layout = ResolvedSelectedFormRow {
-                instruction,
-                alternative,
-                offset: 0,
+                interned_footprint,
                 bytes,
-                branch: None,
-                internal_machine_fixup: None,
-                normalized_foreign_call_fixup: None,
-                byte_literal_address_fixup: None,
-                implementation_table_address_fixup: None,
-            };
+            );
             let validate =
                 |encoding: &SelectedFormEncodingRow,
                  layout: &ResolvedSelectedFormRow,

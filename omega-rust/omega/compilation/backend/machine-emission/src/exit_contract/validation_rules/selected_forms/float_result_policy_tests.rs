@@ -1,9 +1,6 @@
 //! Inline policy control is not a function exit or an external relocation.
 use super::validate_non_return;
-use machine_code::{
-    ResolvedSelectedFormRow, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
-};
+use machine_code::SelectedFormDecodedFootprint;
 use selected_instructions::{
     FloatResultPolicyForm, MachineAlternativeFamily, MachineAlternativeKey,
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
@@ -44,26 +41,13 @@ fn float_result_policy_exit_admission_binds_control_trap_and_operand_footprint()
                 encoded: effects.clone(),
             },
         );
-        let encoding = SelectedFormEncodingRow {
+        let (encoding, layout) = super::encoded_form_and_layout(
             instruction,
             alternative,
-            machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-            address: None,
-            state: SelectedFormEncodingState::Encoded,
             code,
-            footprint: interned_footprint,
-        };
-        let layout = ResolvedSelectedFormRow {
-            instruction,
-            alternative,
-            offset: 0,
-            bytes: encoded.bytes().to_vec(),
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
-        };
+            interned_footprint,
+            encoded.bytes().to_vec(),
+        );
         validate_non_return(
             target::Architecture::Aarch64,
             instruction,

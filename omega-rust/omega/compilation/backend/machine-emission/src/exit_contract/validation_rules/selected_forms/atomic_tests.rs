@@ -1,10 +1,7 @@
 //! Exit admission must retain the indivisible effect verified by the ISA
 //! decoder, not erase it into a generic fall-through instruction.
 use super::validate_non_return;
-use machine_code::{
-    ResolvedSelectedFormRow, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
-};
+use machine_code::SelectedFormDecodedFootprint;
 use selected_instructions::{
     AtomicForm, AtomicWidth, MachineAlternativeFamily, MachineAlternativeKey,
     MachineEncodedControlEffect, MachineEncodedMemoryEffect, MachineEncodedTrapBehavior,
@@ -45,26 +42,13 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
                 encoded: effects.clone(),
             },
         );
-        let encoding = SelectedFormEncodingRow {
+        let (encoding, layout) = super::encoded_form_and_layout(
             instruction,
             alternative,
-            machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-            address: None,
-            state: SelectedFormEncodingState::Encoded,
             code,
-            footprint: interned_footprint,
-        };
-        let layout = ResolvedSelectedFormRow {
-            instruction,
-            alternative,
-            offset: 0,
-            bytes: encoded.bytes().to_vec(),
-            branch: None,
-            internal_machine_fixup: None,
-            normalized_foreign_call_fixup: None,
-            byte_literal_address_fixup: None,
-            implementation_table_address_fixup: None,
-        };
+            interned_footprint,
+            encoded.bytes().to_vec(),
+        );
         validate_non_return(
             target::Architecture::Aarch64,
             instruction,

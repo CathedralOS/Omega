@@ -1,10 +1,7 @@
 //! A decoded byte scan keeps both measured spans through whole-function
 //! admission. Neither a memory-free replacement nor a one-span scan is equal.
 use super::validate_non_return;
-use machine_code::{
-    ResolvedSelectedFormRow, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormMachineDisposition,
-};
+use machine_code::SelectedFormDecodedFootprint;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, SelectedInstructionId,
@@ -40,26 +37,13 @@ fn byte_comparison_exit_contract_retains_both_spans_and_register_roles() {
             encoded: effects.clone(),
         },
     );
-    let encoding = SelectedFormEncodingRow {
+    let (encoding, layout) = super::encoded_form_and_layout(
         instruction,
         alternative,
-        machine_disposition: SelectedFormMachineDisposition::RetainedV1,
-        address: None,
-        state: SelectedFormEncodingState::Encoded,
         code,
-        footprint: interned_footprint,
-    };
-    let layout = ResolvedSelectedFormRow {
-        instruction,
-        alternative,
-        offset: 0,
-        bytes: encoded.bytes().to_vec(),
-        branch: None,
-        internal_machine_fixup: None,
-        normalized_foreign_call_fixup: None,
-        byte_literal_address_fixup: None,
-        implementation_table_address_fixup: None,
-    };
+        interned_footprint,
+        encoded.bytes().to_vec(),
+    );
     validate_non_return(
         target::Architecture::Aarch64,
         instruction,
