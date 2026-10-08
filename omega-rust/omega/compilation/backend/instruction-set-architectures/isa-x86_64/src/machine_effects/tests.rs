@@ -496,10 +496,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
         );
         assert_eq!(subtract.constraint, X86_64_SUBTRACT_I64);
         let register_effects = constraints
-            .catalog()
-            .constraints
-            .iter()
-            .find(|row| row.key == subtract.constraint)
+            .catalog().constraint(subtract.constraint)
             .unwrap();
         assert!(register_effects.implicit_uses.is_empty());
         assert!(register_effects.implicit_defs.is_empty());
@@ -635,10 +632,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             .unwrap();
         assert!(
             constraints
-                .catalog()
-                .constraints
-                .iter()
-                .find(|row| row.key == return_unit.constraint)
+                .catalog().constraint(return_unit.constraint)
                 .unwrap()
                 .operands
                 .is_empty()

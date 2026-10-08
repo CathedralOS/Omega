@@ -171,15 +171,9 @@ mod tests {
                 let general_count = ordinal % 72 / 8;
                 let float_count = ordinal % 8 + 1;
                 let arity = general_count + float_count;
-                let row = catalog
-                    .constraints
-                    .iter()
-                    .find(|row| row.key == key)
+                let row = catalog.constraint(key)
                     .unwrap();
-                let unit = catalog
-                    .constraints
-                    .iter()
-                    .find(|row| row.key == unit_keys[ordinal % 72])
+                let unit = catalog.constraint(unit_keys[ordinal % 72])
                     .unwrap();
                 assert_eq!(row.operands.len(), arity + fragments);
                 let names = (0..general_count)

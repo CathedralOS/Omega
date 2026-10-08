@@ -39,10 +39,7 @@ fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
                 .chain((0..fragments).map(|position| format!("x{position}")))
                 .map(|name| physical.model().view_named(&name).unwrap().id)
                 .collect::<Vec<_>>();
-            let unit = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == unit_keys[ordinal % 72])
+            let unit = catalog.constraint(unit_keys[ordinal % 72])
                 .unwrap();
             let mut effects = expected_effects(aarch64_selected_abi(target).unwrap(), &physical, 0);
             effects.external_operand_reads = (0..arity as u16).collect();
@@ -143,10 +140,7 @@ fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
         ),
     ] {
         for key in keys {
-            let row = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == key)
+            let row = catalog.constraint(key)
                 .unwrap();
             let operands = row
                 .operands

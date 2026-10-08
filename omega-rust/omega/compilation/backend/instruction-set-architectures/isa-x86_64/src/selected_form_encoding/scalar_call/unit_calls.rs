@@ -22,10 +22,7 @@ fn unit_call_templates_cover_native_register_arities_and_reject_forged_results()
         ),
     ] {
         for (arity, key) in keys.iter().enumerate() {
-            let row = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == *key)
+            let row = catalog.constraint(*key)
                 .unwrap();
             assert_eq!(row.operands.len(), arity);
             assert!(

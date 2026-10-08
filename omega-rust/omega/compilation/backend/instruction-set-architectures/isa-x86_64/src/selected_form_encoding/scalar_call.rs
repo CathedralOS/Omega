@@ -310,10 +310,7 @@ mod tests {
         let (physical, kind, alternative, _, _) = inputs();
         let catalog = crate::x86_64_register_constraint_catalog(&physical);
         for (arity, key) in x86_64_system_v_register_call_keys().into_iter().enumerate() {
-            let row = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == key)
+            let row = catalog.constraint(key)
                 .unwrap();
             let operands = expected_operand_views(X86_64SelectedAbi::SystemV, &physical, arity);
             assert_eq!(row.operands.len(), arity + 1);

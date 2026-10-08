@@ -153,10 +153,7 @@ mod tests {
             variant: 0,
         };
         for key in crate::x86_64_linux_system_call_keys() {
-            let row = catalog
-                .constraints
-                .iter()
-                .find(|row| row.key == key)
+            let row = catalog.constraint(key)
                 .unwrap();
             let views: Vec<_> = row
                 .operands

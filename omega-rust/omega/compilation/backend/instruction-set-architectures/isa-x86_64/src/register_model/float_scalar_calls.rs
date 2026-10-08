@@ -185,10 +185,7 @@ mod tests {
         }
         let result = physical.model().view_named("xmm0").unwrap();
         let call_key = x86_64_float_scalar_call_keys(false)[0];
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == call_key)
+        let row = catalog.constraint(call_key)
             .unwrap();
         assert_eq!(row.operands.last().unwrap().fixed_view, Some(result.id));
         assert!(
@@ -197,10 +194,7 @@ mod tests {
                 .iter()
                 .all(|unit| !row.clobbers.contains(unit))
         );
-        let input = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == x86_64_system_v_register_unit_call_keys()[0])
+        let input = catalog.constraint(x86_64_system_v_register_unit_call_keys()[0])
             .unwrap();
         assert!(
             input

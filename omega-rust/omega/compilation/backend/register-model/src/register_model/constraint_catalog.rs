@@ -221,6 +221,16 @@ pub struct RegisterConstraintCatalog {
     pub constraints: Vec<RegisterInstructionConstraint>,
 }
 
+impl RegisterConstraintCatalog {
+    /// The constraint row keyed `key`, when the catalog defines it.
+    pub fn constraint(
+        &self,
+        key: RegisterConstraintKey,
+    ) -> Option<&RegisterInstructionConstraint> {
+        self.constraints.iter().find(|row| row.key == key)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRegisterConstraintCatalog {
     architecture: Architecture,
@@ -596,4 +606,12 @@ pub fn call_constraint_keys(variants: std::ops::Range<u16>) -> Vec<RegisterConst
             variant: u32::from(variant),
         })
         .collect()
+}
+
+/// The constraint row keyed `key` in a constraint row list.
+pub fn find_register_constraint<'rows>(
+    rows: &'rows [RegisterInstructionConstraint],
+    key: RegisterConstraintKey,
+) -> Option<&'rows RegisterInstructionConstraint> {
+    rows.iter().find(|row| row.key == key)
 }

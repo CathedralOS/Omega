@@ -412,10 +412,7 @@ mod tests {
             register_model::validate_physical_register_model(aarch64_physical_register_model())
                 .unwrap();
         let catalog = crate::aarch64_register_constraint_catalog(&physical);
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == crate::AARCH64_COMPARE_BYTE_SEQUENCES)
+        let row = catalog.constraint(crate::AARCH64_COMPARE_BYTE_SEQUENCES)
             .expect("catalog declares the compare constraint");
         assert_eq!(row.operands.len(), 8);
         for position in 0..4 {

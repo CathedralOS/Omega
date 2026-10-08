@@ -344,10 +344,7 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
             .unwrap();
         assert_eq!(subtract.constraint, AARCH64_SUBTRACT_I64);
         let register_effects = constraints
-            .catalog()
-            .constraints
-            .iter()
-            .find(|row| row.key == subtract.constraint)
+            .catalog().constraint(subtract.constraint)
             .unwrap();
         assert!(register_effects.implicit_uses.is_empty());
         assert!(register_effects.implicit_defs.is_empty());
@@ -435,10 +432,7 @@ fn catalog_declares_one_flag_transparent_subtraction_alternative() {
             .unwrap();
         assert!(
             constraints
-                .catalog()
-                .constraints
-                .iter()
-                .find(|row| row.key == return_unit.constraint)
+                .catalog().constraint(return_unit.constraint)
                 .unwrap()
                 .operands
                 .is_empty()

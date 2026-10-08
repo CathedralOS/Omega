@@ -56,15 +56,9 @@ fn mixed_aggregate_rows_preserve_banks_results_and_other_call_effects() {
         .collect::<Vec<_>>();
     assert_eq!(keys.len(), expected_rows.len());
     for (key, (inputs, fragments, base_key)) in keys.into_iter().zip(expected_rows) {
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
+        let row = catalog.constraint(key)
             .unwrap();
-        let base = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == base_key)
+        let base = catalog.constraint(base_key)
             .unwrap();
         let names = inputs
             .iter()

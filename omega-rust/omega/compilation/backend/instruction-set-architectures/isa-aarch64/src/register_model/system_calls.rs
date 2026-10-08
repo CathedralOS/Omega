@@ -90,10 +90,7 @@ mod tests {
             let argument_count = position / 2;
             let returns_value = position % 2 != 0;
             let row = validated
-                .catalog()
-                .constraints
-                .iter()
-                .find(|row| row.key == key)
+                .catalog().constraint(key)
                 .unwrap();
             assert_eq!(
                 row.operands.len(),

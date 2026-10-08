@@ -15,10 +15,7 @@ pub(super) fn declaration(
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
     let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == constraint)
+        .catalog().constraint(constraint)
         .expect("canonical memory instruction constraint");
     let stack_pointer = crate::x86_64_physical_register_model_ref()
         .view_named("rsp")

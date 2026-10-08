@@ -82,10 +82,7 @@ pub fn aarch64_machine_effect_catalog(
                 if semantic == MachineSemanticKind::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
                         constraints
-                            .catalog()
-                            .constraints
-                            .iter()
-                            .find(|row| row.key == constraint)
+                            .catalog().constraint(constraint)
                             .ok_or(
                                 Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch,
                             )?,

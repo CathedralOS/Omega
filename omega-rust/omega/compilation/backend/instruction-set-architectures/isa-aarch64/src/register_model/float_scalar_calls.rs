@@ -182,10 +182,7 @@ mod tests {
         }
         let result = physical.model().view_named("d0").unwrap();
         let call_key = aarch64_float_scalar_call_keys(false)[0];
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == call_key)
+        let row = catalog.constraint(call_key)
             .unwrap();
         assert_eq!(row.operands.last().unwrap().fixed_view, Some(result.id));
         assert!(
@@ -194,10 +191,7 @@ mod tests {
                 .iter()
                 .all(|unit| !row.clobbers.contains(unit))
         );
-        let input = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == aarch64_aapcs64_register_unit_call_keys()[0])
+        let input = catalog.constraint(aarch64_aapcs64_register_unit_call_keys()[0])
             .unwrap();
         assert!(
             input

@@ -33,10 +33,7 @@ fn row(
     catalog: &RegisterConstraintCatalog,
     key: RegisterConstraintKey,
 ) -> &RegisterInstructionConstraint {
-    catalog
-        .constraints
-        .iter()
-        .find(|row| row.key == key)
+    catalog.constraint(key)
         .unwrap()
 }
 
@@ -728,15 +725,9 @@ fn normalized_foreign_templates_retain_complete_target_call_effects() {
         let [key] = keys.as_slice() else {
             panic!("one import template per ABI");
         };
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == *key)
+        let row = catalog.constraint(*key)
             .unwrap();
-        let base = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == base)
+        let base = catalog.constraint(base)
             .unwrap();
         assert!(row.operands.is_empty());
         assert_eq!(row.implicit_uses, base.implicit_uses);

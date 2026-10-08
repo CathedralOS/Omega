@@ -269,10 +269,7 @@ fn request(
         (registers[0], 4)
     };
     let catalog = crate::x86_64_register_constraint_catalog_for(physical);
-    let constraint = catalog
-        .constraints
-        .iter()
-        .find(|row| row.key == key)
+    let constraint = catalog.constraint(key)
         .expect("canonical memory constraint");
     let stack_pointer = physical
         .model()

@@ -243,10 +243,7 @@ fn packed_constraints_require_early_clobbers_and_effects_reject_scratch_omission
         (crate::AARCH64_LOAD_PACKED, true),
         (crate::AARCH64_STORE_PACKED, false),
     ] {
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
+        let row = catalog.constraint(key)
             .unwrap();
         assert_eq!(row.operands.len(), 3);
         assert_eq!(row.operands[1].early_clobber, load);

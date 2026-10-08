@@ -178,10 +178,7 @@ fn packed_memory_constraints_and_effects_retain_early_writes_and_flags() {
         (crate::X86_64_LOAD_PACKED, true),
         (crate::X86_64_STORE_PACKED, false),
     ] {
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
+        let row = catalog.constraint(key)
             .unwrap();
         assert_eq!(row.operands.len(), 3);
         assert_eq!(

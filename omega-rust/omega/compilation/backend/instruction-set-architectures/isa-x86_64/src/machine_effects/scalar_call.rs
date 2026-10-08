@@ -15,10 +15,7 @@ pub(super) fn declaration(
     constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
     let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == constraint)
+        .catalog().constraint(constraint)
         .expect("canonical x86-64 catalog contains its scalar-call constraint");
     let physical = crate::x86_64_physical_register_model_ref();
     let stack_pointer = physical
@@ -252,7 +249,7 @@ pub(crate) fn normalized_foreign_constraint(
     };
     let physical = crate::validated_x86_64_physical_register_model();
     let catalog = crate::x86_64_register_constraint_catalog_for(physical);
-    let base = catalog.constraints.iter().find(|row| row.key == key)?;
+    let base = catalog.constraint(key)?;
     selected_instructions::calls::constraints::instantiate_foreign_call_constraint(
         &record.call,
         base,
