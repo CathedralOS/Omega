@@ -101,11 +101,7 @@ pub(super) fn select_admitted_pairs<'a>(
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<AdmittedPairs<'a>, LiteralFoldError> {
     let find = |key| {
-        constraints
-            .catalog()
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
+        register_model::find_register_constraint(&constraints.catalog().constraints, key)
             .ok_or(LiteralFoldError::ImmediateConstraintMismatch)
     };
     let mut pairs = Vec::new();

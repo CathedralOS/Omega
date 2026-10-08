@@ -9,11 +9,10 @@ pub(super) fn select<'a>(
     constraints: &'a ValidatedRegisterConstraintCatalog,
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<&'a RegisterInstructionConstraint, PressureRematerializationError> {
-    let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == keys.materialize_i64)
+    let row = register_model::find_register_constraint(
+        &constraints.catalog().constraints,
+        keys.materialize_i64,
+    )
         .ok_or(PressureRematerializationError::MaterializeConstraintMismatch)?;
     let [result] = row.operands.as_slice() else {
         return Err(PressureRematerializationError::MaterializeConstraintMismatch);

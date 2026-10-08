@@ -26,11 +26,10 @@ pub(super) fn constraint<'catalog>(
     let invalid = || MachineEffectError::ConstraintEffectMismatch {
         instruction: instruction.id,
     };
-    let base = catalog
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == instruction.constraint)
+    let base = register_model::find_register_constraint(
+        &catalog.catalog().constraints,
+        instruction.constraint,
+    )
         .ok_or_else(invalid)?;
     if matches!(
         instruction.kind.call_target(),

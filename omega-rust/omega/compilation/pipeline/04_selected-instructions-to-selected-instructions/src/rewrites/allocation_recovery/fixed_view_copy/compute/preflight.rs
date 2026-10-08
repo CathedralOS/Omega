@@ -50,11 +50,10 @@ pub(super) fn copy_row<'a>(
     constraints: &'a ValidatedRegisterConstraintCatalog,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<&'a RegisterInstructionConstraint, FixedViewCopyError> {
-    let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == selected_keys.copy_i64)
+    let row = register_model::find_register_constraint(
+        &constraints.catalog().constraints,
+        selected_keys.copy_i64,
+    )
         .ok_or(FixedViewCopyError::CopyConstraintMismatch)?;
     if row.operands.len() != 2
         || row.operands[0].operand != 0

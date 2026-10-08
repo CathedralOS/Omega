@@ -59,11 +59,10 @@ pub fn validate_machine_effect_catalog(
         return Err(MachineEffectCatalogValidationError::DeclarationRosterMismatch);
     }
     for declaration in &catalog.declarations {
-        let row = constraints
-            .catalog()
-            .constraints
-            .iter()
-            .find(|row| row.key == declaration.constraint)
+        let row = register_model::find_register_constraint(
+            &constraints.catalog().constraints,
+            declaration.constraint,
+        )
             .ok_or(MachineEffectCatalogValidationError::UnknownConstraint(
                 declaration.semantic,
             ))?;

@@ -81,11 +81,7 @@ pub(super) fn row(
     catalog: &ValidatedRegisterConstraintCatalog,
     key: RegisterConstraintKey,
 ) -> Result<&RegisterInstructionConstraint, SelectedInstructionError> {
-    catalog
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == key)
+    register_model::find_register_constraint(&catalog.catalog().constraints, key)
         .ok_or(SelectedInstructionError::MissingConstraint(key))
 }
 

@@ -227,7 +227,7 @@ impl RegisterConstraintCatalog {
         &self,
         key: RegisterConstraintKey,
     ) -> Option<&RegisterInstructionConstraint> {
-        self.constraints.iter().find(|row| row.key == key)
+        find_register_constraint(&self.constraints, key)
     }
 }
 

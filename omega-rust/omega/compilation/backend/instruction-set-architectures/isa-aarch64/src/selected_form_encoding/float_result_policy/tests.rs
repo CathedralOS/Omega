@@ -213,10 +213,7 @@ fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
         } else {
             crate::AARCH64_FLOAT_RESULT_SATURATING
         };
-        let constraint = constraints
-            .constraints
-            .iter()
-            .find(|row| row.key == key)
+        let constraint = register_model::find_register_constraint(&constraints.constraints, key)
             .unwrap();
         let declaration = declaration(form, key);
         let registers = (1..=form.operand_count() as u8 + 1).collect::<Vec<_>>();
