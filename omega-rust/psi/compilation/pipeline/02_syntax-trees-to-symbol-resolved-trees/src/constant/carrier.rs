@@ -16,9 +16,7 @@ pub(super) fn retain_declared_carrier(
     reference: SourceSpan,
 ) -> Result<(), Diagnostic> {
     let declaration = program
-        .const_declarations
-        .iter()
-        .find(|declaration| declaration.symbol == declaration_symbol)
+        .const_declaration(declaration_symbol)
         .ok_or_else(|| Diagnostic::error("constant substitution lost its declared carrier"))?;
     let declared_type = declaration.declared_type.clone();
     retain_value_carrier(program, expression, &declared_type, reference)

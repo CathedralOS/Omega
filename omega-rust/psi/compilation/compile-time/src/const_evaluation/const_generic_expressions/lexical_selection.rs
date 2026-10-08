@@ -305,9 +305,7 @@ fn selected_constant(
                 continue;
             };
             let Some(declaration) = resolved
-                .const_declarations
-                .iter()
-                .find(|declaration| declaration.symbol == selected.selected_symbol())
+                .const_declaration(selected.selected_symbol())
             else {
                 continue;
             };

@@ -193,9 +193,7 @@ pub(super) fn lower_fixed_array_type(
                 // before erasing the constant into an ordinary fixed extent.
                 let declaration = source_trees
                     .roots
-                    .const_declarations
-                    .iter()
-                    .find(|declaration| declaration.symbol == *symbol)
+                    .const_declaration(*symbol)
                     .ok_or_else(|| {
                         Diagnostic::error("array length constant has no resolved declaration")
                             .with_source_span(name.source_span())

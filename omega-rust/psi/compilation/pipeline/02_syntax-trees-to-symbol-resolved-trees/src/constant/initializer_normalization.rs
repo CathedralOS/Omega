@@ -235,9 +235,7 @@ fn reconstruct(
         }
         for (reference, selected) in &dependencies {
             let declaration = program
-                .const_declarations
-                .iter()
-                .find(|declaration| declaration.symbol == *selected)
+                .const_declaration(*selected)
                 .ok_or_else(|| error(*reference, "selected dependency lost its declaration"))?;
             let source = program
                 .symbols
@@ -333,9 +331,7 @@ fn append_retained_custody(
             }
             (Kind::StaticPathSegment, Target::Resolved(selected)) => {
                 let declaration = program
-                    .const_declarations
-                    .iter()
-                    .find(|declaration| declaration.symbol == selected.selected_symbol())
+                    .const_declaration(selected.selected_symbol())
                     .ok_or_else(|| {
                         error(
                             reference,

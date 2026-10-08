@@ -103,9 +103,7 @@ fn declared_type<'program>(
                     continue;
                 };
                 let Some(constant) = program
-                    .const_declarations
-                    .iter()
-                    .find(|constant| constant.symbol == selected.selected_symbol())
+                    .const_declaration(selected.selected_symbol())
                 else {
                     continue;
                 };

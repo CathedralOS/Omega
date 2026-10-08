@@ -123,6 +123,16 @@ pub struct SymbolResolvedRoots {
 }
 
 impl SymbolResolvedRoots {
+    /// The const declaration keyed `symbol`.
+    pub fn const_declaration(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        self.const_declarations
+            .iter()
+            .find(|declaration| declaration.symbol == symbol)
+    }
+
     pub fn with_roots(
         data_definitions: OrderedRootArena<crate::data::DataDefinition>,
         domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
@@ -745,6 +755,18 @@ impl SymbolResolvedTrees {
             .declarations
             .signature_contracts
             .span_or_empty(span)
+    }
+
+    /// The machine declaration keyed `symbol`.
+    /// The const declaration keyed `symbol`.
+    pub fn const_declaration(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&crate::constant::ConstDeclaration> {
+        self.roots
+            .const_declarations
+            .iter()
+            .find(|declaration| declaration.symbol == symbol)
     }
 
     /// The machine declaration keyed `symbol`.
