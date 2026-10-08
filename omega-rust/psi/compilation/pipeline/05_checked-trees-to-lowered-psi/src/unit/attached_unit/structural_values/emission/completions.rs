@@ -8,10 +8,9 @@ use super::super::super::{
     LoweringError, Operation, OperationKind, PlaceId, ScalarType, StructuralTypeShape, Terminator,
     ValueDeclaration, allocate_dense, lookup_type_id, lower_structural_path,
     operation_frame::{
-        allocate_structural_result, block_parameter_declaration, operation_result_declaration,
-        structural_parameter_declaration, structural_type_declaration,
+        allocate_structural_result, operation_result_declaration, structural_type_declaration,
     },
-    place_id, unsupported, value_id,
+    unsupported, value_id,
 };
 use super::{Emission, ProjectedMove, ValueContinuation};
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
@@ -255,47 +254,11 @@ impl Emission<'_, '_, '_> {
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             let mut structural_parameters = Vec::new();
             let mut remaining_owners = self.owners.clone();
-            let mut pass_through = Vec::new();
-            let mut residuals = Vec::new();
-            for position in 0..remaining_owners.len() + 1 {
-                let (structural_type, multiplicity) = remaining_owners
-                    .get(position)
-                    .map_or((self.structural_type, self.multiplicity), |owner| {
-                        (owner.value.structural_type, owner.value.multiplicity)
-                    });
-                let is_result_slot = position == remaining_owners.len();
-                let owner = remaining_owners.get_mut(position);
-                let position = u32::try_from(position).map_err(|_| {
-                    LoweringError::Unsupported("owned selection parameter count exceeds u32")
-                })?;
-                let place = place_id(allocate_dense(self.next_place)?);
-                if let Some(owner) = owner {
-                    if self
-                        .sources
-                        .iter()
-                        .any(|source| source.place == owner.value.place)
-                    {
-                        owner.symbol = symbols::SymbolHandle::invalid();
-                        residuals.push(place);
-                    } else {
-                        pass_through.push((owner.value.place, place));
-                    }
-                    owner.value.place = place;
-                }
-                self.temporary_places
-                    .push(block_parameter_declaration(place, join, position));
-                structural_parameters.push(structural_parameter_declaration(
-                    place,
-                    position,
-                    structural_type,
-                    multiplicity,
-                    if is_result_slot {
-                        self.result_access
-                    } else {
-                        StructuralAccess::Owned
-                    },
-                ));
-            }
+            let (pass_through, residuals) = self.partition_owner_continuation(
+                join,
+                &mut remaining_owners,
+                &mut structural_parameters,
+            )?;
             let place = structural_parameters
                 .last()
                 .ok_or(LoweringError::Unsupported(

@@ -1909,6 +1909,62 @@ impl Emission<'_, '_, '_> {
         })
     }
 
+    /// Partition `remaining_owners` into pass-through and residual places
+    /// for one selection join: every owner slot mints a fresh block-parameter
+    /// place, owners still cited by live sources become residuals (their
+    /// symbol is invalidated) and the rest pass through. The trailing result
+    /// slot contributes only its parameter row, carrying the result's own
+    /// access (`SharedBorrow` for a `&T` join, `Owned` otherwise).
+    fn partition_owner_continuation(
+        &mut self,
+        join: BlockId,
+        remaining_owners: &mut Vec<argument_evaluation::StructuralValueOwner>,
+        structural_parameters: &mut Vec<StructuralParameterDeclaration>,
+    ) -> Result<(Vec<(PlaceId, PlaceId)>, Vec<PlaceId>), LoweringError> {
+        let mut pass_through = Vec::new();
+        let mut residuals = Vec::new();
+        for position in 0..remaining_owners.len() + 1 {
+            let (structural_type, multiplicity) = remaining_owners
+                .get(position)
+                .map_or((self.structural_type, self.multiplicity), |owner| {
+                    (owner.value.structural_type, owner.value.multiplicity)
+                });
+            let is_result_slot = position == remaining_owners.len();
+            let owner = remaining_owners.get_mut(position);
+            let position = u32::try_from(position).map_err(|_| {
+                LoweringError::Unsupported("owned selection parameter count exceeds u32")
+            })?;
+            let place = place_id(allocate_dense(self.next_place)?);
+            if let Some(owner) = owner {
+                if self
+                    .sources
+                    .iter()
+                    .any(|source| source.place == owner.value.place)
+                {
+                    owner.symbol = symbols::SymbolHandle::invalid();
+                    residuals.push(place);
+                } else {
+                    pass_through.push((owner.value.place, place));
+                }
+                owner.value.place = place;
+            }
+            self.temporary_places
+                .push(block_parameter_declaration(place, join, position));
+            structural_parameters.push(structural_parameter_declaration(
+                place,
+                position,
+                structural_type,
+                multiplicity,
+                if is_result_slot {
+                    self.result_access
+                } else {
+                    StructuralAccess::Owned
+                },
+            ));
+        }
+        Ok((pass_through, residuals))
+    }
+
     /// Bookkeep a root selection continuation: install the join block's
     /// value and structural parameters on the evaluation state, record the
     /// selection cleanup for the live sources, then repoint structural
