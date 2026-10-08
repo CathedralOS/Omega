@@ -6,8 +6,8 @@ use super::super::{
     CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
 };
 use super::collecting::{
-    collect, collect_argument_calls, collect_constructor_calls, collect_owned_root_calls,
-    collect_range_calls, collect_structural_argument_calls,
+    collect_argument_calls, collect_constructor_calls, collect_owned_root_calls,
+    collect_range_calls, collect_root_calls, collect_structural_argument_calls,
 };
 use super::{ordered_statement_call, terminal_named_call};
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
@@ -280,7 +280,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 {
                     return None;
                 }
-                collect(
+                collect_root_calls(
                     program,
                     facts,
                     state.symbol,
@@ -288,7 +288,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     root.root,
                     calls,
                     0,
-                    &mut Vec::new(),
                     &mut consumed,
                 )?;
             }
@@ -308,7 +307,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             if root.machine != machine {
                 return None;
             }
-            collect(
+            collect_root_calls(
                 program,
                 facts,
                 state.symbol,
@@ -316,7 +315,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 root.root,
                 calls,
                 0,
-                &mut Vec::new(),
                 &mut consumed,
             )?;
         }
@@ -373,7 +371,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             {
                 return None;
             }
-            collect(
+            collect_root_calls(
                 program,
                 facts,
                 state.symbol,
@@ -381,7 +379,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 root.root,
                 calls,
                 0,
-                &mut Vec::new(),
                 &mut consumed,
             )?;
         }

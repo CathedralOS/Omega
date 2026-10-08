@@ -98,7 +98,7 @@ pub(super) fn collect_constructor_calls(
             {
                 return None;
             }
-            collect(
+            collect_root_calls(
                 program,
                 facts,
                 state.symbol,
@@ -106,7 +106,6 @@ pub(super) fn collect_constructor_calls(
                 root.root,
                 calls,
                 0,
-                &mut Vec::new(),
                 consumed,
             )?;
         }
@@ -168,7 +167,7 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
             {
                 return None;
             }
-            collect(
+            collect_root_calls(
                 program,
                 facts,
                 state,
@@ -176,7 +175,6 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
                 root.root,
                 calls,
                 0,
-                &mut Vec::new(),
                 &mut consumed,
             )?;
             if consumed.iter().any(|handle| {
@@ -465,7 +463,7 @@ pub(super) fn collect_argument_calls(
         {
             return None;
         }
-        collect(
+        collect_root_calls(
             program,
             facts,
             state,
@@ -473,7 +471,6 @@ pub(super) fn collect_argument_calls(
             root.root,
             calls,
             u32::try_from(call.call_ordinal.checked_add(1)?).ok()?,
-            &mut Vec::new(),
             consumed,
         )?;
     }
@@ -512,7 +509,7 @@ pub(super) fn collect_range_calls(
         {
             return None;
         }
-        collect(
+        collect_root_calls(
             program,
             facts,
             state,
@@ -520,7 +517,6 @@ pub(super) fn collect_range_calls(
             root.root,
             calls,
             minimum_call_ordinal,
-            &mut Vec::new(),
             consumed,
         )?;
         computed = true;
@@ -604,7 +600,7 @@ pub(super) fn collect_owned_root_calls(
     if root.machine != machine {
         return None;
     }
-    collect(
+    collect_root_calls(
         program,
         facts,
         state,
@@ -612,6 +608,29 @@ pub(super) fn collect_owned_root_calls(
         root.root,
         calls,
         0,
+        consumed,
+    )
+}
+
+/// Collect a scalar-computation root's calls with a fresh visit list.
+pub(super) fn collect_root_calls(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    statement: usize,
+    root: CheckedScalarComputationHandle,
+    calls: &[checked_trees::FlowCallFact],
+    minimum_call_ordinal: u32,
+    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+) -> Option<()> {
+    collect(
+        program,
+        facts,
+        state,
+        statement,
+        root,
+        calls,
+        minimum_call_ordinal,
         &mut Vec::new(),
         consumed,
     )
