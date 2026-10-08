@@ -271,7 +271,7 @@ pub(super) fn negated_guard_conjunct_matches(
         {
             negated_guard_conjunct_matches(program, binary.left, required_label)
         }
-        _ => super::super::intervals::complement_comparison(binary.operator).is_some_and(
+        _ => binary.operator.complement().is_some_and(
             |complement| {
                 format!(
                     "{} {} {}",

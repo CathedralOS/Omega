@@ -543,7 +543,7 @@ impl ReturnReader<'_, '_> {
         let operator = if holds {
             binary.operator
         } else {
-            let Some(operator) = super::inductive_judgment::negated_comparison(binary.operator)
+            let Some(operator) = binary.operator.complement()
             else {
                 return;
             };

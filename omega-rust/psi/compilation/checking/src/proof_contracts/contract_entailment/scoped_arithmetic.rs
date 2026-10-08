@@ -17,7 +17,7 @@
 //! adapter never equates member occurrences by their spelling or receiver.
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
-use super::inductive_judgment::negated_comparison;
+
 use super::strict_arithmetic::StrictArithmeticImplicationJudgment;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -196,7 +196,7 @@ fn install_hypotheses(
         if !hypothesis.holds
             && !matches!(
                 program.expression_table.expression(hypothesis.proposition.expression),
-                ExpressionNode::Binary(binary) if negated_comparison(binary.operator).is_some()
+                ExpressionNode::Binary(binary) if binary.operator.complement().is_some()
             )
         {
             continue;
@@ -213,7 +213,7 @@ fn install_hypotheses(
             let [(operator, left, right)] = read.as_slice() else {
                 continue;
             };
-            let Some(negated) = negated_comparison(*operator) else {
+            let Some(negated) = operator.complement() else {
                 continue;
             };
             read = vec![(negated, left.clone(), right.clone())];

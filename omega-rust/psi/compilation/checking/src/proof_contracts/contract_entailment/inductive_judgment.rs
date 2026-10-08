@@ -427,7 +427,7 @@ pub(super) fn guard_arm_comparison(
         let operator = if polarity {
             operator
         } else {
-            negated_comparison(operator)?
+            operator.complement()?
         };
         return Some((operator, left, right));
     }
@@ -436,7 +436,7 @@ pub(super) fn guard_arm_comparison(
         if expected {
             operator
         } else {
-            negated_comparison(operator)?
+            operator.complement()?
         },
         left,
         right,
@@ -458,17 +458,6 @@ fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHan
 }
 
 /// The classical negation of a comparison operator (integer semantics).
-pub(super) fn negated_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
-    match operator {
-        BinaryOperator::Equal => Some(BinaryOperator::NotEqual),
-        BinaryOperator::NotEqual => Some(BinaryOperator::Equal),
-        BinaryOperator::Less => Some(BinaryOperator::GreaterOrEqual),
-        BinaryOperator::LessOrEqual => Some(BinaryOperator::Greater),
-        BinaryOperator::Greater => Some(BinaryOperator::LessOrEqual),
-        BinaryOperator::GreaterOrEqual => Some(BinaryOperator::Less),
-        _ => None,
-    }
-}
 
 /// Positional map from the machine's non-self parameters to the recursive
 /// call's argument polynomials. `None` when an argument is outside the

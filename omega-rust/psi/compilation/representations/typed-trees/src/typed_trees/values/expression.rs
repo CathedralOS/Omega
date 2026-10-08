@@ -1366,6 +1366,21 @@ pub enum BinaryOperator {
     CaseMembership,
 }
 
+impl BinaryOperator {
+    /// The comparison expressing this operator's negation, when one exists.
+    pub fn complement(self) -> Option<BinaryOperator> {
+        match self {
+            BinaryOperator::Equal => Some(BinaryOperator::NotEqual),
+            BinaryOperator::NotEqual => Some(BinaryOperator::Equal),
+            BinaryOperator::Less => Some(BinaryOperator::GreaterOrEqual),
+            BinaryOperator::LessOrEqual => Some(BinaryOperator::Greater),
+            BinaryOperator::Greater => Some(BinaryOperator::LessOrEqual),
+            BinaryOperator::GreaterOrEqual => Some(BinaryOperator::Less),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOperator {
     BitwiseNot,

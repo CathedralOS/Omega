@@ -48,17 +48,6 @@ pub(super) fn guard_interval_for_label(
 /// The comparison `!` distributes over, under builtin operator semantics: the
 /// complement that the negated (continuation) arm's `!guard` states.
 /// `!(a && b)` refutes an unspecified operand, so it carries no complement.
-pub(super) fn complement_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
-    match operator {
-        BinaryOperator::Equal => Some(BinaryOperator::NotEqual),
-        BinaryOperator::NotEqual => Some(BinaryOperator::Equal),
-        BinaryOperator::Less => Some(BinaryOperator::GreaterOrEqual),
-        BinaryOperator::LessOrEqual => Some(BinaryOperator::Greater),
-        BinaryOperator::Greater => Some(BinaryOperator::LessOrEqual),
-        BinaryOperator::GreaterOrEqual => Some(BinaryOperator::Less),
-        _ => None,
-    }
-}
 
 /// The closed interval `!guard` establishes for the place spelled
 /// `subject_label` -- the negated-arm read of `guard_interval_for_label`.
@@ -93,7 +82,7 @@ pub(super) fn negated_guard_interval_for_label(
             negated_guard_interval_for_label(program, binary.left, subject_label)
         }
         _ => {
-            let operator = complement_comparison(binary.operator)?;
+            let operator = binary.operator.complement()?;
             // `!(a != b)` spells `a == b` -- a point bound. `!(a == b)`
             // spells `a != b`, which bounds nothing closed.
             (operator != BinaryOperator::NotEqual)
