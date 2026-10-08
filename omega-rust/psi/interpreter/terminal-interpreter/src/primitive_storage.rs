@@ -21,6 +21,7 @@ use terminal_psi::{
 use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::execution::{ExecutableMachine, SuspendedCall};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -1016,25 +1017,11 @@ impl TerminalExecution<'_> {
         }
         let scalar = match storage.endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
-                let owner_machine = if home.depth == self.call_stack.len() {
-                    self.current_machine
-                } else {
-                    self.call_stack
-                        .get(home.depth)
-                        .ok_or_else(malformed)?
-                        .current_machine
-                };
-                if owner_machine != home.machine {
-                    return Err(malformed());
-                }
+                self.owned_array_home(&home)?;
                 let arrays = if home.depth == self.call_stack.len() {
                     &self.scalar_array_values
                 } else {
-                    &self
-                        .call_stack
-                        .get(home.depth)
-                        .ok_or(malformed())?
-                        .scalar_array_values
+                    &self.frame_at_depth(home.depth)?.scalar_array_values
                 };
                 arrays
                     .get(&home.place)
@@ -1140,17 +1127,7 @@ impl TerminalExecution<'_> {
         }
         match storage.endpoint {
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
-                let owner_machine = if home.depth == self.call_stack.len() {
-                    self.current_machine
-                } else {
-                    self.call_stack
-                        .get(home.depth)
-                        .ok_or_else(malformed)?
-                        .current_machine
-                };
-                if owner_machine != home.machine {
-                    return Err(malformed());
-                }
+                self.owned_array_home(&home)?;
                 let arrays = if home.depth == self.call_stack.len() {
                     &mut self.scalar_array_values
                 } else {
@@ -1221,6 +1198,30 @@ impl TerminalExecution<'_> {
                     .remove(&StructuralRuntimePlace::from(&view));
             }
         }
+    }
+    /// Resolve the machine owning a suspended home frame, rejecting homes
+    /// recorded against a different machine.
+    fn owned_array_home(
+        &self,
+        home: &PrimitiveStorageHome,
+    ) -> Result<MachineId, TerminalInterpretError> {
+        let owner_machine = if home.depth == self.call_stack.len() {
+            self.current_machine
+        } else {
+            self.call_stack
+                .get(home.depth)
+                .ok_or_else(malformed)?
+                .current_machine
+        };
+        if owner_machine != home.machine {
+            return Err(malformed());
+        }
+        Ok(owner_machine)
+    }
+
+    /// The suspended frame at `depth`, or the malformed-state error.
+    fn frame_at_depth(&self, depth: usize) -> Result<&SuspendedCall, TerminalInterpretError> {
+        self.call_stack.get(depth).ok_or_else(malformed)
     }
 }
 
