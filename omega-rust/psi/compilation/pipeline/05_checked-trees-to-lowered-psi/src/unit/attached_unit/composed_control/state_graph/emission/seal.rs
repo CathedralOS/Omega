@@ -14,7 +14,7 @@ use semantic_vocabulary::EdgeId;
 
 impl StateGraphEmission<'_, '_> {
     /// Record every edge in `edges` as rank-preserving at `rank`.
-    fn preserve_edges(&mut self, edges: impl Iterator<Item = EdgeId>, rank: ValueId) {
+    pub(super) fn preserve_edges(&mut self, edges: impl Iterator<Item = EdgeId>, rank: ValueId) {
         self.rank_edges.extend(edges.map(|edge| {
             (
                 edge,
