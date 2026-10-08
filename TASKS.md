@@ -1824,9 +1824,10 @@ then independent claimed restoration slices -> final closure.
   and explicit payload events address original backing through nested fields.
   Tag preservation must not preserve scalar observations, authorize ordinary
   shared writes, or turn atomic storage into a scalar dispatch snapshot.
-  Complete clock imports beyond admitted Darwin reads and Linux clock_gettime,
-  finite descriptorless poll and signal-free nanosleep: descriptor readiness
-  needs actual custody, CPU clocks need accounting, and remaining target calls
+  Complete clock imports beyond admitted Darwin reads/signal-free waits and
+  Linux clock_gettime, finite descriptorless poll and signal-free nanosleep: descriptor readiness
+  needs actual custody, CPU clocks need accounting, Darwin invalid nanosleep
+  requests need an errno/cancellation model, and remaining target calls
   need exact adapters. Preserve `time/runtime_kernel_clock_wait_loans_exit`:
   read-only timespec requests retain original backing and suffixes, invalid
   requests return raw kernel status without advancing time, and successful waits

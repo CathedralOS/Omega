@@ -124,6 +124,7 @@ pub(super) fn sleep(
     signature: &TerminalImportSignature,
     layout: &NativeBorrowedStorageLayout,
     clock: &Arc<Mutex<TerminalClockSnapshot>>,
+    namespace: ClockNamespace,
 ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
     let invalid =
         || TerminalEffectRejection::new("nanosleep operands differ from the installed contract");
@@ -176,8 +177,16 @@ pub(super) fn sleep(
             .map_err(|_| invalid())?,
     );
     if seconds < 0 || !(0..1_000_000_000).contains(&nanoseconds) {
-        // Raw Linux syscalls return -EINVAL, not libc's -1 plus errno. Invalid
-        // requests advance no clock and modify neither request nor remainder.
+        // A raw Linux error has no libc state to establish. Darwin's error
+        // path sets errno and applies libc's internal conversions, neither of
+        // which is licensed by an elapsed/epoch snapshot. Returning Linux's
+        // -EINVAL there, or guessing a C error without its model, is not replay.
+        if matches!(namespace, ClockNamespace::Darwin) {
+            return Err(TerminalEffectRejection::new(
+                "Darwin nanosleep error requires a hosted errno model",
+            ));
+        }
+        // Invalid requests advance no clock and modify neither carrier.
         return super::status_result(signature, -22);
     }
     let duration = u64::try_from(seconds)
@@ -191,9 +200,9 @@ pub(super) fn sleep(
         .ok_or_else(|| {
             TerminalEffectRejection::new("nanosleep duration exceeds modeled nanoseconds")
         })?;
-    // Linux kernel/time/hrtimer.c writes the remainder only after an interrupted
-    // sleep. This explicitly signal-free model completes successfully without
-    // accessing it, even if its numerical carrier is nonzero. Requiring null or
+    // Linux kernel/time/hrtimer.c and Apple Libc gen/nanosleep.c write the
+    // remainder on interruption, not success. This signal-free model completes
+    // without accessing it, even if its numerical carrier is nonzero. Requiring null or
     // manufacturing remainder backing would invent permission/preconditions.
     // The borrowed request is read only; no replacements are staged.
     super::wait(clock, signature, duration)

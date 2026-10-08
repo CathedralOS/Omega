@@ -11,6 +11,9 @@
 //! No host suspension, CPU accounting, signals or descriptor readiness is
 //! simulated. Consequently this model cannot establish native latency or
 //! interruption equivalence. Unsupported operations reject before changing time.
+//! Darwin nanosleep uses this same signal-free timespec wait. Its invalid-request
+//! path depends on libc errno state, which this snapshot does not provision;
+//! reject that path rather than borrowing Linux's raw error convention.
 
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -231,9 +234,14 @@ impl TerminalEffectHandler for ClockImport {
                 &self.clock,
                 self.namespace,
             ),
-            ClockOperation::Nanosleep(layout) => {
-                timespec::sleep(effect, scalar_buffers, &self.signature, layout, &self.clock)
-            }
+            ClockOperation::Nanosleep(layout) => timespec::sleep(
+                effect,
+                scalar_buffers,
+                &self.signature,
+                layout,
+                &self.clock,
+                self.namespace,
+            ),
             _ if scalar_buffers.is_empty() => self.handle_effect_result(effect),
             _ => Err(TerminalEffectRejection::new(
                 "scalar clock imports do not accept borrowed storage",

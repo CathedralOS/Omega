@@ -47,6 +47,7 @@ pub(super) fn select(
             ClockImplementation::ReadTimespec,
         ),
         (b"_poll".as_slice(), ClockImplementation::Poll),
+        (b"_nanosleep".as_slice(), ClockImplementation::Nanosleep),
     ] {
         let offered = target::normalize_foreign_locator(
             target::ForeignLocatorCandidate::MachODylibSymbol {
