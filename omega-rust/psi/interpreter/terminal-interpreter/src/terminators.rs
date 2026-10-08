@@ -381,23 +381,12 @@ impl TerminalExecution<'_> {
             if !self.boundary_claim_path_inhabited(result.structural_type, source, &binding.path)? {
                 continue;
             }
-            if claims
-                .insert(
-                    binding.claim,
-                    LiveClaim {
-                        place: Some(result.place),
-                        path: binding.path.clone(),
-                        multiplicity: Some(if binding.path.is_empty() {
-                            result.multiplicity
-                        } else {
-                            StructuralMultiplicity::Linear
-                        }),
-                    },
-                )
-                .is_some()
-            {
-                return Err(malformed());
-            }
+            crate::custody::mint_boundary_result_claim(
+                &mut claims,
+                binding,
+                result.place,
+                result.multiplicity,
+            )?;
         }
         Ok(claims)
     }

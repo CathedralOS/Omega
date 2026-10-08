@@ -18,9 +18,7 @@ use crate::custody::{
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::{TerminalEffect, TerminalEffectHandler};
 use crate::errors::{TerminalInterpretError, malformed};
-use crate::execution::{
-    LiveClaim, OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution,
-};
+use crate::execution::{OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution};
 use crate::results::TerminalExecutionStatus;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -439,24 +437,12 @@ impl TerminalExecution<'_> {
         // receipted claims retire before the returned bindings install.
         if let terminal_psi::OperationResult::Structural(result) = &operation.result {
             for binding in &result.claims {
-                if self
-                    .live_claims
-                    .insert(
-                        binding.claim,
-                        LiveClaim {
-                            place: Some(result.place),
-                            path: binding.path.clone(),
-                            multiplicity: Some(if binding.path.is_empty() {
-                                result.multiplicity
-                            } else {
-                                StructuralMultiplicity::Linear
-                            }),
-                        },
-                    )
-                    .is_some()
-                {
-                    return Err(malformed());
-                }
+                crate::custody::mint_boundary_result_claim(
+                    &mut self.live_claims,
+                    binding,
+                    result.place,
+                    result.multiplicity,
+                )?;
             }
         }
         boundary_arguments.commit(self)?;

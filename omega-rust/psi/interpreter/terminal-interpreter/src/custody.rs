@@ -28,8 +28,38 @@ use terminal_psi::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    StructuralResultClaimBinding, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction,
 };
+
+/// Mint one boundary-result claim into a live claim map. A binding inhabiting
+/// a non-empty result path carries Linear multiplicity — the path itself
+/// already resolves the claim to exactly one value.
+pub(crate) fn mint_boundary_result_claim(
+    live_claims: &mut BTreeMap<ClaimId, crate::execution::LiveClaim>,
+    binding: &StructuralResultClaimBinding,
+    place: PlaceId,
+    multiplicity: StructuralMultiplicity,
+) -> Result<(), TerminalInterpretError> {
+    if live_claims
+        .insert(
+            binding.claim,
+            crate::execution::LiveClaim {
+                place: Some(place),
+                path: binding.path.clone(),
+                multiplicity: Some(if binding.path.is_empty() {
+                    multiplicity
+                } else {
+                    StructuralMultiplicity::Linear
+                }),
+            },
+        )
+        .is_some()
+    {
+        return Err(malformed());
+    }
+    Ok(())
+}
 
 /// Checked cleanup is recursive: a parent hook precedes its contiguous
 /// descendant cleanup. Its receiver storage remains live while those actions
@@ -955,8 +985,7 @@ pub(crate) fn direct_scalar_field_type(
     field: StructuralFieldId,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields()
-    else {
+    let Some(fields) = declaration.shape.direct_fields() else {
         return None;
     };
     fields.iter().find_map(|candidate| {
