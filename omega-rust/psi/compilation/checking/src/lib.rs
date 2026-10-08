@@ -315,7 +315,7 @@ pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
     find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, unwrap_constraint_shells,
+    measure_constraints_cover_subject, 
 };
 pub use proof_contracts::contract_entailment::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,

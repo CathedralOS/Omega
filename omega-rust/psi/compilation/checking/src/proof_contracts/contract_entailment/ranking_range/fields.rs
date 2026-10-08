@@ -5,7 +5,7 @@
 //! owners establish exact arrival equality and complete write-frame preservation
 //! of its reference bindings and referent contents before consuming its bounds.
 use super::coordinate::{Coordinate, CoordinateKind};
-use super::identity_views::{MeasureBodyShape, measure_body_shape, unwrap_constraint_shells};
+use super::identity_views::{MeasureBodyShape, measure_body_shape};
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, PrimitiveType, State, TypeReferenceNode, exact_integer_parameter,
@@ -692,7 +692,7 @@ pub(super) fn record_referent(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(SymbolHandle, bool)> {
-    let mut reference = unwrap_constraint_shells(program, type_reference);
+    let mut reference = program.type_reference_table.unconstrained_type_reference(type_reference);
     let mut borrowed = false;
     if let TypeReferenceNode::Reference {
         referee, access, ..
@@ -701,7 +701,7 @@ pub(super) fn record_referent(
         if !access.is_readable() {
             return None;
         }
-        reference = unwrap_constraint_shells(program, *referee);
+        reference = program.type_reference_table.unconstrained_type_reference(*referee);
         borrowed = true;
     }
     let TypeReferenceNode::Named { symbol, .. } =
@@ -814,7 +814,7 @@ pub(super) fn nested_arrival_chain(
     for step in steps {
         let TypeReferenceNode::Named { symbol: next, .. } = program
             .type_reference_table
-            .type_reference(unwrap_constraint_shells(program, step.type_reference))
+            .type_reference(program.type_reference_table.unconstrained_type_reference(step.type_reference))
         else {
             return None;
         };
@@ -923,7 +923,7 @@ pub(super) fn collect_record_paths(
     for_each_record_field_path(program, from, paths, |program, field| {
         let TypeReferenceNode::Named { symbol: next, .. } = program
             .type_reference_table
-            .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
         else {
             return (false, None);
         };
@@ -955,7 +955,7 @@ pub(super) fn collect_leaf_paths(
             // `for_parameter`'s chain resolution.
             let descend = match program
                 .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+                .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
             {
                 TypeReferenceNode::Named { symbol: next, .. } => Some(*next),
                 _ => None,

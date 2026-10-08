@@ -1,6 +1,6 @@
 use crate::proof_contracts::contract_entailment::{
     MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
-    find_declared_measure, measure_body_shape, unwrap_constraint_shells,
+    find_declared_measure, measure_body_shape, 
 };
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
@@ -280,11 +280,11 @@ impl RankProjection {
                 measure_body_shape(program, measure)
         {
             let root = path.first().map_or(owner, |step| step.owner);
-            let mut reference = unwrap_constraint_shells(program, parameter.type_reference);
+            let mut reference = program.type_reference_table.unconstrained_type_reference(parameter.type_reference);
             if let TypeReferenceNode::Reference { referee, .. } =
                 program.type_reference_table.type_reference(reference)
             {
-                reference = unwrap_constraint_shells(program, *referee);
+                reference = program.type_reference_table.unconstrained_type_reference(*referee);
             }
             if !matches!(
                 program.type_reference_table.type_reference(reference),

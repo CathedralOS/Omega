@@ -7,7 +7,6 @@
 use super::fields::{
     declared_field, member_coordinate_parts, nested_arrival_chain, record_referent,
 };
-use super::identity_views::unwrap_constraint_shells;
 use super::{
     Polynomial, PrimitiveType, RankingRangeState, State, TypeReferenceNode, exact_integer_parameter,
 };
@@ -37,7 +36,7 @@ impl CoordinateKind {
             Self::Length => {
                 let TypeReferenceNode::Named { symbol: next, .. } = program
                     .type_reference_table
-                    .type_reference(unwrap_constraint_shells(program, field.type_reference))
+                    .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
                 else {
                     return None;
                 };

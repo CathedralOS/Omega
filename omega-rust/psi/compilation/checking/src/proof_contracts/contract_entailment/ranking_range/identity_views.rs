@@ -358,7 +358,7 @@ pub fn measure_body_shape(
         // next member resolves against one nominal owner.
         let TypeReferenceNode::Named { symbol: next, .. } = program
             .type_reference_table
-            .type_reference(unwrap_constraint_shells(program, field.type_reference))
+            .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
         else {
             return None;
         };
@@ -375,7 +375,7 @@ pub fn measure_body_shape(
     let field = exact_record_field(program, owner, last.member_symbol, &last.member)?;
     // Returning a field with another carrier does not establish a u64 measure.
     // Field constraints narrow its values without changing that carrier.
-    let field_type = unwrap_constraint_shells(program, field.type_reference);
+    let field_type = program.type_reference_table.unconstrained_type_reference(field.type_reference);
     if ![field_type, measure.return_type]
         .into_iter()
         .all(|reference| {
@@ -519,22 +519,9 @@ pub fn identity_subject_matches(
     let Some(reference) = reference else {
         return false;
     };
-    matches!(program.type_reference_table.type_reference(unwrap_constraint_shells(program, reference)),
+    matches!(program.type_reference_table.type_reference(program.type_reference_table.unconstrained_type_reference(reference)),
         TypeReferenceNode::Named { symbol, .. }
             if program.symbols.builtin_type_atom(*symbol) == Some(carrier))
-}
-
-/// Strip every `Constrained` shell down to the carrier reference.
-pub fn unwrap_constraint_shells(
-    program: &dyn crate::CheckingInput,
-    mut handle: TypeReferenceHandle,
-) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(handle)
-    {
-        handle = *base_type;
-    }
-    handle
 }
 
 fn owning_machine<'program>(

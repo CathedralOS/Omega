@@ -12,7 +12,7 @@ use typed_trees::measure::MeasureDefinition;
 use validation::{
     MeasureBodyShape, ProjectionStep, declared_scalar_view, find_declared_measure,
     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-    unwrap_constraint_shells,
+    
 };
 
 /// The well-founded ordering selected for a `terminates by value -> Order` clause.
@@ -305,11 +305,11 @@ impl RankingOrder {
                         && subject_path.head_symbol == subject_path.symbol
                 })?;
                 let root = path.first().map_or(owner, |step| step.owner);
-                let mut reference = unwrap_constraint_shells(program, subject.type_reference);
+                let mut reference = program.type_reference_table.unconstrained_type_reference(subject.type_reference);
                 if let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
                     program.type_reference_table.type_reference(reference)
                 {
-                    reference = unwrap_constraint_shells(program, *referee);
+                    reference = program.type_reference_table.unconstrained_type_reference(*referee);
                 }
                 if !matches!(program.type_reference_table.type_reference(reference),
                     typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == root)
@@ -481,7 +481,7 @@ fn decreasing_value_kind(
     // bracketed element type; nat-like scalars render as their bare name.
     let type_name = program
         .type_reference_table
-        .display_name(unwrap_constraint_shells(program, parameter.type_reference));
+        .display_name(program.type_reference_table.unconstrained_type_reference(parameter.type_reference));
     if type_name.contains('[') {
         return Some(DecreasingValueKind::Slice);
     }
@@ -610,7 +610,7 @@ fn state_parameter_type_name(
         .map(|parameter| {
             program
                 .type_reference_table
-                .display_name(unwrap_constraint_shells(program, parameter.type_reference))
+                .display_name(program.type_reference_table.unconstrained_type_reference(parameter.type_reference))
         })
 }
 

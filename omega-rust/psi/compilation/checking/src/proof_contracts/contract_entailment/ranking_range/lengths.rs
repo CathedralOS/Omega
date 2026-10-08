@@ -11,7 +11,7 @@ use super::fields::{
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
     Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
-    unwrap_constraint_shells,
+    
 };
 use language_semantics::declaration_selection::CollectionViewOperation;
 use symbols::SymbolHandle;
@@ -638,7 +638,7 @@ impl<'program> Coordinate<'program> {
             leaf = unique_literal_field(program, leaf, owner, field.symbol, &field.name)?;
             if let TypeReferenceNode::Named { symbol, .. } = program
                 .type_reference_table
-                .type_reference(unwrap_constraint_shells(program, field.type_reference))
+                .type_reference(program.type_reference_table.unconstrained_type_reference(field.type_reference))
             {
                 owner = *symbol;
             }
