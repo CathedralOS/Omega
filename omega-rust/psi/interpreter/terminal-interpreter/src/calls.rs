@@ -22,6 +22,17 @@ use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
 };
 
+/// The rows at `positions`, in that order: one declared-position subset.
+fn select_positions<T: Clone>(
+    rows: &[T],
+    positions: &[usize],
+) -> Result<Vec<T>, TerminalInterpretError> {
+    positions
+        .iter()
+        .map(|position| rows.get(*position).cloned().ok_or_else(malformed))
+        .collect()
+}
+
 impl TerminalExecution<'_> {
     /// Suspend the live frame onto the call stack: every place map, the affine
     /// frontier, claims, and the instruction position move into a
@@ -283,15 +294,41 @@ impl TerminalExecution<'_> {
             Some(crate::effects::AdmittedBoundarySupply::CheckedProvider(_))
         ) || (supply.is_none() && self.program.has_provider(&boundary))
         {
+            // An owned array copies its payload into the provider's own
+            // formal, exactly as an ordinary call does. The boundary admits
+            // every other argument through its own declaration.
+            let owned_arrays = boundary_declaration
+                .structural_parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| {
+                    parameter.access == StructuralAccess::Owned
+                        && terminal_semantics::scalar_array_leaf_shape(
+                            self.program.structural_types().values(),
+                            parameter.structural_type,
+                        )
+                        .is_some()
+                })
+                .map(|(position, _)| position)
+                .collect::<Vec<_>>();
+            let opaque_positions = (0..boundary_declaration.structural_parameters.len())
+                .filter(|position| !owned_arrays.contains(position))
+                .collect::<Vec<_>>();
+            let opaque_parameters = select_positions(
+                &boundary_declaration.structural_parameters,
+                &opaque_positions,
+            )?;
             let boundary_arguments = self.prepare_boundary_arguments(
-                &boundary_declaration.structural_parameters,
-                structural_arguments,
+                &opaque_parameters,
+                &select_positions(structural_arguments, &opaque_positions)?,
             )?;
-            bind_structural_arguments(
-                &boundary_declaration.structural_parameters,
-                &boundary_arguments.values,
-            )?;
-            validate_boundary_requirements(boundary_declaration, &boundary_arguments.values)?;
+            bind_structural_arguments(&opaque_parameters, &boundary_arguments.values)?;
+            validate_boundary_requirements(boundary_declaration, |index| {
+                opaque_positions
+                    .iter()
+                    .position(|position| *position == index)
+                    .and_then(|position| boundary_arguments.values.get(position))
+            })?;
             // One installed provider call shares the exact frame each result
             // form already uses for an ordinary callee. Scalar results carry
             // no structural custody to restrict: the callee's declared scalar
@@ -334,8 +371,28 @@ impl TerminalExecution<'_> {
                 .machines()
                 .get(&callee_id)
                 .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
-            let prepared_arguments =
-                boundary_arguments.into_call_arguments(&callee.structural_parameters)?;
+            let mut prepared_arguments = boundary_arguments.into_call_arguments(
+                &select_positions(&callee.structural_parameters, &opaque_positions)?,
+            )?;
+            for position in owned_arrays {
+                let formal = callee
+                    .structural_parameters
+                    .get(position)
+                    .ok_or_else(malformed)?;
+                let argument = structural_arguments.get(position).ok_or_else(malformed)?;
+                if formal.structural_type
+                    != boundary_declaration.structural_parameters[position].structural_type
+                    || prepared_arguments
+                        .scalar_arrays
+                        .insert(
+                            formal.place,
+                            self.prepare_scalar_array_argument(callee, formal, argument)?,
+                        )
+                        .is_some()
+                {
+                    return Err(malformed());
+                }
+            }
             let claim_transfers = completion_receipts
                 .iter()
                 .map(|receipt| ClaimTransfer {
@@ -387,7 +444,9 @@ impl TerminalExecution<'_> {
             &boundary_declaration.structural_parameters,
             &boundary_arguments.values,
         )?;
-        validate_boundary_requirements(boundary_declaration, &boundary_arguments.values)?;
+        validate_boundary_requirements(boundary_declaration, |index| {
+            boundary_arguments.values.get(index)
+        })?;
         self.preflight_boundary_result(&operation.result)?;
         let remaining_claims = complete_claims(
             &self.live_claims,

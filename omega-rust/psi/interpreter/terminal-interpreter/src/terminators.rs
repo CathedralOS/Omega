@@ -459,7 +459,7 @@ impl TerminalExecution<'_> {
         }
         let actual = self.scalar_value(arguments[0])?;
         crate::custody::bind_boundary_arguments(&declaration.scalar_parameters, &[actual])?;
-        crate::custody::validate_boundary_requirements(declaration, &[])?;
+        crate::custody::validate_boundary_requirements(declaration, |_| None)?;
         let TerminalScalarValue::Integer {
             scalar_type,
             value: semantic_vocabulary::IntegerValue::Signed(value),

@@ -1245,14 +1245,14 @@ pub(crate) fn rebind_structural_result_claims(
     Ok(rebound)
 }
 
-pub(crate) fn validate_boundary_requirements(
+/// `argument` names the opaque value at one declared boundary position; a
+/// position without one (an owned array copy) cannot carry a qualification.
+pub(crate) fn validate_boundary_requirements<'value>(
     boundary: &BoundaryMachineDeclaration,
-    arguments: &[TerminalStructuralValue],
+    argument: impl Fn(usize) -> Option<&'value TerminalStructuralValue>,
 ) -> Result<(), TerminalInterpretError> {
     for requirement in &boundary.requires {
-        let argument = arguments
-            .get(requirement.argument_index as usize)
-            .ok_or(malformed())?;
+        let argument = argument(requirement.argument_index as usize).ok_or(malformed())?;
         if !argument.qualifications.contains(&requirement.domain) {
             return Err(TerminalInterpretError::BoundaryQualificationMissing {
                 boundary: boundary.id,
