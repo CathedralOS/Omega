@@ -518,23 +518,7 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
         Ok((view.loan, correspondence))
     }
 
-    /// Project one field while retaining this exact admitted correspondence
-    /// as part of the placement authority borrowed by the projection.
-    pub fn project<'view>(
-        &'view self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Shared)
-    }
-
-    /// Exclusively project one field while retaining this exact admitted
-    /// correspondence as part of the placement authority.
-    pub fn project_mut<'view>(
-        &'view mut self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Exclusive)
-    }
+    crate::placements::field_projection_accessors!('extent);
 
     fn project_with<'view>(
         &'view self,

@@ -170,3 +170,31 @@ pub(crate) mod placement_authority;
 pub(crate) mod placement_plan;
 pub(crate) mod resident_views;
 pub(crate) mod schema_correspondence;
+
+/// The shared/exclusive field-projection pair every placed carrier exposes:
+/// both delegate to the carrier's own `project_with` borrow-polarity
+/// implementation. `$extent` is the placement extent lifetime the returned
+/// projection borrows for.
+macro_rules! field_projection_accessors {
+    ($extent:lifetime) => {
+        /// Project one accepted field through a shared borrow.
+        ///
+        /// The returned accessor retains this carrier's placement authority
+        /// through any sealed primitive request derived from it.
+        pub fn project<'view>(
+            &'view self,
+            key: AccessFieldKey,
+        ) -> Result<PlacedFieldProjection<'view, $extent>, AccessPlanDiagnostic> {
+            self.project_with(key, BorrowPolarity::Shared)
+        }
+
+        /// Project one accepted field through an exclusive borrow.
+        pub fn project_mut<'view>(
+            &'view mut self,
+            key: AccessFieldKey,
+        ) -> Result<PlacedFieldProjection<'view, $extent>, AccessPlanDiagnostic> {
+            self.project_with(key, BorrowPolarity::Exclusive)
+        }
+    };
+}
+pub(crate) use field_projection_accessors;

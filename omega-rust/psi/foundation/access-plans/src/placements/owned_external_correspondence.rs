@@ -267,27 +267,7 @@ impl EstablishedOwnedExternalPlacement {
         })
     }
 
-    /// Project one accepted External field through a shared borrow of this
-    /// provider-corresponded owned placement.
-    ///
-    /// The returned accessor retains this entire carrier, including its
-    /// schema/device correspondence, through any sealed primitive request
-    /// derived from it.
-    pub fn project<'view>(
-        &'view self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Shared)
-    }
-
-    /// Exclusively project one accepted External field through an exclusive
-    /// borrow of this provider-corresponded owned placement.
-    pub fn project_mut<'view>(
-        &'view mut self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Exclusive)
-    }
+    crate::placements::field_projection_accessors!('view);
 
     fn project_with<'view>(
         &'view self,

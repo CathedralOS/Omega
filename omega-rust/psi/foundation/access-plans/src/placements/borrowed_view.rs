@@ -57,25 +57,7 @@ impl<'extent> PlacedView<'extent> {
         Ok(self.loan)
     }
 
-    /// Purely project one accepted field through a shared view borrow.
-    ///
-    /// Projection performs no memory event. The returned accessor remains
-    /// tied to this placed view and exposes only named operation methods that
-    /// create sealed lowering requests.
-    pub fn project<'view>(
-        &'view self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Shared)
-    }
-
-    /// Purely project one accepted field through an exclusive view borrow.
-    pub fn project_mut<'view>(
-        &'view mut self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'extent>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Exclusive)
-    }
+    crate::placements::field_projection_accessors!('extent);
 
     fn project_with<'view>(
         &'view self,

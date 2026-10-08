@@ -226,27 +226,7 @@ impl EstablishedOwnedPlacement {
         })
     }
 
-    /// Purely project one accepted Stable field through a shared borrow of
-    /// this provider-established owned placement.
-    ///
-    /// The returned accessor retains this entire carrier, including its
-    /// content-validity and custody evidence, through any sealed primitive
-    /// request derived from it.
-    pub fn project<'view>(
-        &'view self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Shared)
-    }
-
-    /// Purely project one accepted Stable field through an exclusive borrow
-    /// of this provider-established owned placement.
-    pub fn project_mut<'view>(
-        &'view mut self,
-        key: AccessFieldKey,
-    ) -> Result<PlacedFieldProjection<'view, 'view>, AccessPlanDiagnostic> {
-        self.project_with(key, BorrowPolarity::Exclusive)
-    }
+    crate::placements::field_projection_accessors!('view);
 
     fn project_with<'view>(
         &'view self,
