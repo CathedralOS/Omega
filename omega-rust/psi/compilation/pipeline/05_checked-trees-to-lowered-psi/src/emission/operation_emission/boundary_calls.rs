@@ -68,10 +68,7 @@ pub(super) fn emit_boundary_call_binding(
     }
     let parameter_types = parameters
         .iter()
-        .map(|parameter| QualifiedScalarType {
-            scalar_type: parameter.scalar_type,
-            qualifications: parameter.qualifications,
-        })
+        .map(|parameter| parameter.value_type())
         .collect::<Vec<_>>();
     let mut arguments = Vec::with_capacity(call.arguments.len());
     for (argument, expected) in call.arguments.iter().zip(&target.scalar) {

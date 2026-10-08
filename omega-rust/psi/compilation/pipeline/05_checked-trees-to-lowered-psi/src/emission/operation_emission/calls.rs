@@ -140,10 +140,7 @@ pub(super) fn emit_scalar_call_binding(
 ) -> Result<ValueId, LoweringError> {
     let parameter_types = parameters
         .iter()
-        .map(|parameter| QualifiedScalarType {
-            scalar_type: parameter.scalar_type,
-            qualifications: parameter.qualifications,
-        })
+        .map(|parameter| parameter.value_type())
         .collect::<Vec<_>>();
     let arguments = call
         .arguments
