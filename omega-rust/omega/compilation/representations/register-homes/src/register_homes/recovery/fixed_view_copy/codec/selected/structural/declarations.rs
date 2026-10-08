@@ -20,7 +20,9 @@ use super::argument_source::{decode_argument_source, encode_argument_source};
 use super::calling::{decode_placement, decode_shape};
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
-    primitives::{Cursor, decode_id, decode_ids, encode_ids, length},
+    primitives::{
+        Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
+    },
     values::{decode_scalar, encode_scalar},
 };
 use legalized_operations::{encode_placement, encode_shape};
@@ -784,24 +786,6 @@ pub(super) fn decode_string(cursor: &mut Cursor<'_>) -> Result<String, FixedView
     std::str::from_utf8(cursor.take(length)?)
         .map(str::to_owned)
         .map_err(|_| FixedViewCopyDecodeError::InvalidUtf8)
-}
-
-fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {
-    match value {
-        None => bytes.push(0),
-        Some(value) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-    }
-}
-
-fn decode_option_u64(cursor: &mut Cursor<'_>) -> Result<Option<u64>, FixedViewCopyDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(None),
-        1 => Ok(Some(cursor.u64()?)),
-        tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
-    }
 }
 
 fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
