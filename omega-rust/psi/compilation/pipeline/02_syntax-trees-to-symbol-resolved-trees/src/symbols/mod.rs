@@ -343,6 +343,33 @@ impl NamespaceDeclarations {
     }
 }
 
+/// The full symbol-assignment orchestration over a ready table: top-level
+/// identity first, then generic origins, then the typed reference,
+/// proposition, mathematical, measure, contract, domain-fact and signature
+/// passes in dependency order. Both the initial and extension drivers run
+/// the same sequence.
+fn assign_program_symbols(
+    program: &mut SymbolResolvedTrees,
+    symbols: &symbols::SymbolTable,
+    generic_origin_frontier: usize,
+) -> Vec<diagnostics::Diagnostic> {
+    let diagnostics = assign_top_level_symbols(program, symbols);
+    type_references::assign_generic_application_origin_symbols(
+        program,
+        symbols,
+        generic_origin_frontier,
+    );
+    assign_type_reference_symbols(program, symbols);
+    type_references::assign_data_type_value_expression_symbols(program, symbols);
+    propositions::assign_proposition_expression_symbols(program, symbols);
+    mathematical::assign_mathematical_expression_symbols(program, symbols);
+    measures::assign_measure_expression_symbols(program, symbols);
+    assign_contract_reference_symbols(program, symbols);
+    assign_domain_fact_symbols(program, symbols);
+    assign_machine_signature_reference_symbols(program, symbols);
+    diagnostics
+}
+
 pub(crate) fn assign_symbols(
     program: &mut SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
@@ -362,20 +389,7 @@ pub(crate) fn assign_symbols(
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
     let symbols =
         symbol_table::insert_selected_machine_children(program, symbols, sources, 0, has_sources);
-    let diagnostics = assign_top_level_symbols(program, &symbols);
-    type_references::assign_generic_application_origin_symbols(
-        program,
-        &symbols,
-        generic_origin_frontier,
-    );
-    assign_type_reference_symbols(program, &symbols);
-    type_references::assign_data_type_value_expression_symbols(program, &symbols);
-    propositions::assign_proposition_expression_symbols(program, &symbols);
-    mathematical::assign_mathematical_expression_symbols(program, &symbols);
-    measures::assign_measure_expression_symbols(program, &symbols);
-    assign_contract_reference_symbols(program, &symbols);
-    assign_domain_fact_symbols(program, &symbols);
-    assign_machine_signature_reference_symbols(program, &symbols);
+    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     program.symbols = symbols;
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
@@ -411,20 +425,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         true,
     );
     let symbols = program.symbols.clone();
-    let diagnostics = assign_top_level_symbols(program, &symbols);
-    type_references::assign_generic_application_origin_symbols(
-        program,
-        &symbols,
-        generic_origin_frontier,
-    );
-    assign_type_reference_symbols(program, &symbols);
-    type_references::assign_data_type_value_expression_symbols(program, &symbols);
-    propositions::assign_proposition_expression_symbols(program, &symbols);
-    mathematical::assign_mathematical_expression_symbols(program, &symbols);
-    measures::assign_measure_expression_symbols(program, &symbols);
-    assign_contract_reference_symbols(program, &symbols);
-    assign_domain_fact_symbols(program, &symbols);
-    assign_machine_signature_reference_symbols(program, &symbols);
+    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
