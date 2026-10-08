@@ -56,15 +56,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                     catalog,
                 )?);
             }
-            let terminator = match &block.terminator {
-                SelectedTerminator::ConditionalBranch { instruction, .. }
-                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                | SelectedTerminator::Jump { instruction, .. }
-                | SelectedTerminator::Return { instruction, .. }
-                | SelectedTerminator::Crash { instruction, .. }
-                | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-            };
+            let terminator = selected_instructions::terminator_instruction(&block.terminator);
             instructions.push(compute_instruction(
                 function,
                 terminator,

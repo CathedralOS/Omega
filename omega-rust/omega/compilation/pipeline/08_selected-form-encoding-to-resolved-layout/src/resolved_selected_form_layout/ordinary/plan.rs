@@ -164,15 +164,7 @@ pub(in super::super) fn instructions(
     block
         .instructions
         .iter()
-        .chain(std::iter::once(match &block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-            | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. }
-            | SelectedTerminator::Crash { instruction, .. }
-            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-        }))
+        .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator)))
 }
 
 fn instruction_size(

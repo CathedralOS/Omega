@@ -447,15 +447,7 @@ pub(crate) fn control_mut(
     terminator: &mut selected_instructions::SelectedTerminator,
 ) -> &mut selected_instructions::SelectedInstruction {
     use selected_instructions::SelectedTerminator;
-    match terminator {
-        SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. } => instruction,
-    }
+    selected_instructions::terminator_instruction_mut(terminator)
 }
 
 /// The same projection for successor transports. The terminator instruction is

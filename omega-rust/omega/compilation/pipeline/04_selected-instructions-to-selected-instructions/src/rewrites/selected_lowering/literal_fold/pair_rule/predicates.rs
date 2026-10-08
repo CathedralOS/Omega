@@ -100,17 +100,9 @@ pub(super) fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnit
         block
             .instructions
             .iter()
-            .chain(match &block.terminator {
-                SelectedTerminator::ConditionalBranch { instruction, .. }
-                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                | SelectedTerminator::Jump { instruction, .. }
-                | SelectedTerminator::Return { instruction, .. }
-                | SelectedTerminator::Crash { instruction, .. }
-                | SelectedTerminator::HostedExitProcess { instruction, .. } => {
-                    std::iter::once(instruction)
-                }
-            })
+            .chain(std::iter::once(
+                selected_instructions::terminator_instruction(&block.terminator),
+            ))
             .any(|instruction| instruction.implicit_uses.contains(&unit))
     })
 }

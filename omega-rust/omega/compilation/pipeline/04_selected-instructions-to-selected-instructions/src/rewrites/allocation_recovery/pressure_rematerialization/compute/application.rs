@@ -135,15 +135,7 @@ fn rewrite_operand(
         .iter_mut()
         .find(|instruction| instruction.id == rewrite.instruction)
         .or_else(|| {
-            let terminator = match &mut block.terminator {
-                SelectedTerminator::ConditionalBranch { instruction, .. }
-                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-                | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-                | SelectedTerminator::Jump { instruction, .. }
-                | SelectedTerminator::Return { instruction, .. }
-                | SelectedTerminator::Crash { instruction, .. }
-                | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-            };
+            let terminator = selected_instructions::terminator_instruction_mut(&mut block.terminator);
             (terminator.id == rewrite.instruction).then_some(terminator)
         })
         .ok_or(PressureRematerializationError::DecisionMismatch { function })?;

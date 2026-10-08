@@ -183,15 +183,7 @@ fn sole_use(
 ) -> Option<SoleUse> {
     let mut site = None;
     for (candidate_block_index, block) in function.blocks.iter().enumerate() {
-        let terminator = match &block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-            | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. }
-            | SelectedTerminator::Crash { instruction, .. }
-            | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-        };
+        let terminator = selected_instructions::terminator_instruction(&block.terminator);
         for (instruction_index, (instruction, in_block_body)) in block
             .instructions
             .iter()

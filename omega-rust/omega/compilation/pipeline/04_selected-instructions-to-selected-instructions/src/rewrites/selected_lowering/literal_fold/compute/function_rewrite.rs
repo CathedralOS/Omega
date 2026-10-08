@@ -329,22 +329,12 @@ fn redensify(
                 }
             }
         }
-        match &mut block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-            | SelectedTerminator::Jump { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. }
-            | SelectedTerminator::Crash { instruction, .. }
-            | SelectedTerminator::HostedExitProcess { instruction, .. } => {
-                lower_selected_instruction(
-                    function_index,
-                    instruction,
-                    removed_instructions,
-                    removed_registers,
-                )?;
-            }
-        }
+        lower_selected_instruction(
+            function_index,
+            selected_instructions::terminator_instruction_mut(&mut block.terminator),
+            removed_instructions,
+            removed_registers,
+        )?;
     }
     Ok(())
 }

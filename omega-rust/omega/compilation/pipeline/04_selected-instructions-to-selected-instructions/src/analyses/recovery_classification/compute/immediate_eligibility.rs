@@ -191,15 +191,7 @@ fn future_uses(
 }
 
 fn block_instructions(block: &selected_instructions::SelectedBlock) -> Vec<&SelectedInstruction> {
-    let terminator = match &block.terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    };
+    let terminator = selected_instructions::terminator_instruction(&block.terminator);
     block
         .instructions
         .iter()

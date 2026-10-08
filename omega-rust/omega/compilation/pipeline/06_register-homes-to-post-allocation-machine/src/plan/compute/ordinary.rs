@@ -103,22 +103,6 @@ fn build_block(
 }
 
 fn selected_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    let terminator = match &block.terminator {
-        selected_instructions::SelectedTerminator::ConditionalBranch { instruction, .. }
-        | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
-            instruction,
-            ..
-        }
-        | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
-            instruction,
-            ..
-        }
-        | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-        | selected_instructions::SelectedTerminator::Return { instruction, .. }
-        | selected_instructions::SelectedTerminator::Crash { instruction, .. }
-        | selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
-            instruction
-        }
-    };
+    let terminator = selected_instructions::terminator_instruction(&block.terminator);
     block.instructions.iter().chain(std::iter::once(terminator))
 }
