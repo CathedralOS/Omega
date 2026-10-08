@@ -223,7 +223,7 @@ impl Builder<'_, '_> {
     /// because a parameter root described as a local has no consumption owner:
     /// the returned-value walk looks for a result binding that a formal never
     /// mints, and the affine residual routes key on the dense position.
-    fn structural_source(
+    pub(super) fn structural_source(
         &self,
         symbol: SymbolHandle,
     ) -> checked_trees::CheckedUnitStructuralArgumentSourcePlan {

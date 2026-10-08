@@ -957,6 +957,43 @@ pub(crate) fn prepare(
             primitive_path.push(terminal_psi::StructuralPathSegment::Field(
                 retained.identity.clone(),
             ));
+            // The selected field owns either scalar storage or a descriptor.
+            // Follow declared readable crossings at the endpoint just as the
+            // preceding path does; moving/replacing the descriptor is a
+            // different operation and must not be inferred from this read.
+            if let StructuralFieldType::Structural(mut selected) = retained.field_type {
+                let mut crossings = 0;
+                loop {
+                    let selected_type = types.iter().find(|entry| entry.id == selected).ok_or(
+                        LoweringError::Unsupported("scalar observation endpoint type is absent"),
+                    )?;
+                    match selected_type.shape {
+                        StructuralTypeShape::Reference { referent, access } => {
+                            if !matches!(
+                                access,
+                                terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                            ) || crossings >= types.len()
+                            {
+                                return unsupported("scalar observation endpoint is not readable");
+                            }
+                            primitive_path.push(terminal_psi::StructuralPathSegment::Referent);
+                            selected = referent;
+                            crossings += 1;
+                        }
+                        StructuralTypeShape::PrimitiveScalar(actual)
+                            if actual == leaf_scalar_type && crossings != 0 =>
+                        {
+                            break;
+                        }
+                        _ => {
+                            return unsupported(
+                                "scalar observation endpoint differs from its declared referee",
+                            );
+                        }
+                    }
+                }
+            }
             let byte_overlay = byte_overlay
                 .map(|overlay| overlay.field(checked, &subject.path, *field, scalar_type))
                 .transpose()?;

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 5.43, "load1_start": 3.62, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 4.23, "load1_start": 4.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -393,6 +393,8 @@ fail/borrows/static_subject_delayed_loan rejected 372ms expected @cbe9ad8ebf41+w
 	state `bump` receives `main` as mutable more than once
 fail/borrows/static_whole_record_field_overlap rejected 372ms expected @cbe9ad8ebf41+wt
 	state `write_other` receives `store` while local borrow `field` is still active
+fail/borrows/stored_primitive_reference_backing_write rejected 378ms expected @6cb668db83ab
+	statement 2 mutates `backing` while local borrow `bundle` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/stored_reference_child_constructor_live_source_write rejected 444ms expected @9660dd146223
 	statement 5 mutates `main.cell.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrows/stored_reference_constructor_transfer_live_source_write rejected 449ms expected @9660dd146223
@@ -2328,6 +2330,7 @@ pass/borrows/static_carrier_bounded_reference_read_exit checked 1151ms check-tar
 pass/borrows/static_carrier_reference_read_exit checked 1134ms check-target:macos_arm64 @104c2da31081
 pass/borrows/static_projected_local_reference_exit checked 4618ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/static_record_reference_return_exit checked 1105ms check-target:macos_arm64 @2816825e8941
+pass/borrows/stored_primitive_reference_observations_exit checked 1674ms check-target:macos_arm64 @6cb668db83ab
 pass/borrows/stored_reference_projection_exit checked 1121ms check-target:macos_arm64 @104c2da31081
 pass/borrows/transition_shared_borrow_result checked 1126ms check-target:macos_arm64 @4eef5b6cc89f
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
@@ -3347,6 +3350,7 @@ pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm
 pass/ownership/linear_transparent_record_frontier checked 3103ms check-target:macos_arm64 @e007e1d70f35+wt
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
+pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 1671ms check-target:macos_arm64 @6cb668db83ab
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 1691ms check-target:macos_arm64 @461e97c328e8
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms check-target:macos_arm64 @2d8ed253669f
 pass/ownership/runtime_carried_loan_field_replacement_exit checked 1674ms check-target:macos_arm64 @ecd601af92fb

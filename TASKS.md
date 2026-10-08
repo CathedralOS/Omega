@@ -665,6 +665,8 @@ defines the complete product bar.
   Keep `pass/ownership/runtime_carried_loan_field_replacement_exit` (42) for
   replacement's new backing, retained sibling and nonzero storage offset, and
   `fail/borrows/replaced_carrier_keeps_new_backing_loan` for the installed loan.
+  Keep `pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit` (42) for
+  observing primitive backing through the restored incoming descriptor.
   Missing repair, early return, stale reads, overlapping loans, wrong-place
   repair, repeated extraction and whole-owner cleanup reject, including
   `fail/ownership/borrowed_storage_boundary_call` and

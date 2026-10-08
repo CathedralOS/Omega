@@ -15,6 +15,9 @@
 //! custody path, just as neighboring reference permissions do. Rejecting an
 //! owner by multiplicity here would confuse observation with whole-value
 //! transfer and prevent reading a detached linear field before consuming it.
+//! Incoming storage and local storage use that same declaration walk. The
+//! last field may itself hold a readable reference: its scalar observation
+//! follows the descriptor, rather than interpreting pointer bits as a value.
 
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
@@ -172,7 +175,11 @@ pub fn structural_scalar_field(
         field: field.symbol,
         field_identity: field.path_identity(),
         primitive_type,
-        domain: program.arithmetic_domain_for_type_reference(field.type_reference),
+        domain: program.arithmetic_domain_for_type_reference(
+            program
+                .type_reference_table
+                .dereferenced_type_reference(field.type_reference),
+        ),
     })
 }
 
@@ -593,29 +600,41 @@ fn structural_source(
                 {
                     return None;
                 }
-                let (ordinal, local) = program.state_local_declaration(state, receiver.symbol)?;
-                // A zeroed declaration owns storage even without an initializer.
-                let declared_zeroed = !local.initial_value.is_valid()
-                    && matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(local.type_reference),
-                        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                    )
-                    && crate::zeroed_structural_parts(program, local.type_reference);
-                if ordinal >= statement_ordinal as usize
-                    || !(program
-                        .expression_table
-                        .expression_is_valid(local.initial_value)
-                        || declared_zeroed)
-                {
-                    return None;
-                }
+                let parameter = program.state_parameters(state).iter().find(|parameter| {
+                    parameter.symbol == receiver.symbol
+                        && !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                });
+                let local = program.state_local_declaration(state, receiver.symbol);
+                let (ordinal, source_type) = match (parameter, local) {
+                    (Some(parameter), None) => (0, parameter.type_reference),
+                    (None, Some((ordinal, local))) => {
+                        // A zeroed declaration owns storage even without an initializer.
+                        let declared_zeroed = !local.initial_value.is_valid()
+                            && matches!(
+                                program
+                                    .type_reference_table
+                                    .type_reference(local.type_reference),
+                                TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                            )
+                            && crate::zeroed_structural_parts(program, local.type_reference);
+                        if ordinal >= statement_ordinal as usize
+                            || !(program
+                                .expression_table
+                                .expression_is_valid(local.initial_value)
+                                || declared_zeroed)
+                        {
+                            return None;
+                        }
+                        (ordinal, local.type_reference)
+                    }
+                    _ => return None,
+                };
                 (
-                    facts::PlaceRoot::Symbol(local.symbol),
+                    facts::PlaceRoot::Symbol(receiver.symbol),
                     ExpressionHandle::invalid(),
                     ordinal,
-                    local.type_reference,
+                    source_type,
                 )
             }
             _ => {
@@ -649,7 +668,7 @@ fn structural_source(
                 }
             }
         };
-    // A borrow local observes its referent without moving its reference.
+    // Borrowed storage observes its referent without moving its reference.
     // An expression result must already own its home before it can be read.
     let carrier = match program.type_reference_table.type_reference(source_type) {
         TypeReferenceNode::Reference {
@@ -689,6 +708,21 @@ fn realized_scalar_carrier(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
+    // A readable reference is a storage crossing, not a scalar declaration.
+    // Keep write-only access fenced here as at every intermediate projection.
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference {
+                referee,
+                access:
+                    language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable,
+                ..
+            } => reference = *referee,
+            TypeReferenceNode::Reference { .. } => return None,
+            _ => break,
+        }
+    }
     if crate::is_arithmetic_policy_only_integer(program, reference) {
         return program.primitive_type_reference(reference);
     }

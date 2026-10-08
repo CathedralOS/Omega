@@ -52,9 +52,7 @@ impl Builder<'_, '_> {
             checked_trees::CheckedStructuralValueHandle::invalid()
         };
         let source = match field.root {
-            facts::PlaceRoot::Symbol(symbol) => {
-                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-            }
+            facts::PlaceRoot::Symbol(symbol) => self.structural_source(symbol),
             facts::PlaceRoot::Expression(expression) => {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression }
             }
