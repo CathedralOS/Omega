@@ -189,7 +189,7 @@ fn instruction_size(
             {
                 return Ok(0);
             }
-            return unexpected(instruction);
+            return unexpected(instruction.id);
         }
         SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { .. } => {
             if architecture == Architecture::Aarch64
@@ -197,7 +197,7 @@ fn instruction_size(
             {
                 return Ok(branch_size(architecture));
             }
-            return unexpected(instruction);
+            return unexpected(instruction.id);
         }
         SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { .. } => {
             if architecture == Architecture::Aarch64
@@ -206,7 +206,7 @@ fn instruction_size(
             {
                 return Ok(0);
             }
-            return unexpected(instruction);
+            return unexpected(instruction.id);
         }
         SelectedFormMachineDisposition::RetainedV1 => {}
     }
@@ -221,7 +221,7 @@ fn instruction_size(
                     | SelectedInstructionKind::CallUnit { .. }
                     | SelectedInstructionKind::CallAggregate { .. }
             ) {
-                return unexpected(instruction);
+                return unexpected(instruction.id);
             }
             Ok(row.code.byte_count)
         }
@@ -230,7 +230,7 @@ fn instruction_size(
                 instruction.kind,
                 SelectedInstructionKind::NormalizedForeignCall { .. }
             ) {
-                return unexpected(instruction);
+                return unexpected(instruction.id);
             }
             Ok(row.code.byte_count)
         }
@@ -240,7 +240,7 @@ fn instruction_size(
                 instruction.kind,
                 SelectedInstructionKind::ImmutableImageAddress { .. }
             ) {
-                return unexpected(instruction);
+                return unexpected(instruction.id);
             }
             Ok(row.code.byte_count)
         }
@@ -276,7 +276,7 @@ pub(crate) const fn branch_size(architecture: Architecture) -> u64 {
 }
 
 pub(crate) fn unexpected<T>(
-    instruction: &SelectedInstruction,
+    instruction: SelectedInstructionId,
 ) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction.id))
+    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction))
 }

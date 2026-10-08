@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
+use super::plan::unexpected;
 
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind,
+    SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionKind,
 };
 use target::Architecture;
 
@@ -475,11 +475,6 @@ fn validate_callback_materializations(
     Ok(())
 }
 
-fn unexpected<T>(
-    instruction: SelectedInstructionId,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction))
-}
 fn address_fields_inside(
     fields: machine_code::ByteLiteralAddressFields,
     byte_count: usize,

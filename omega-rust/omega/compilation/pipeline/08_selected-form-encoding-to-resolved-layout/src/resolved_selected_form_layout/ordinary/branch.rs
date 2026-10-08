@@ -16,11 +16,11 @@ use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
     MachineEncodedEffects, SelectedBlock, SelectedBlockId,
-    SelectedInstruction, SelectedInstructionId, SelectedTerminator,
+    SelectedInstruction, SelectedTerminator,
 };
 use target::Architecture;
 
-use super::plan::branch_size;
+use super::plan::{branch_size, unexpected};
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence, declared_size_matches,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
@@ -328,8 +328,3 @@ fn checked_delta(target: u64, base: u64) -> Result<i64, OptimizedResolvedSelecte
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
 }
 
-fn unexpected<T>(
-    instruction: SelectedInstructionId,
-) -> Result<T, OptimizedResolvedSelectedFormLayoutError> {
-    Err(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(instruction))
-}
