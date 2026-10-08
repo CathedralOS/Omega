@@ -47,14 +47,7 @@ fn resolve_for_check(path: &Path) -> Option<PathBuf> {
     for _ in 0..LINK_LIMIT {
         let Ok(target) = std::fs::read_link(&current) else {
             // Not a link: `current` is the real leaf the open will create.
-            let parent = current.parent()?;
-            let name = current.file_name()?;
-            let parent = if parent.as_os_str().is_empty() {
-                Path::new(".").canonicalize().ok()?
-            } else {
-                parent.canonicalize().ok()?
-            };
-            return Some(parent.join(name));
+            return resolve_parent_for_check(&current);
         };
         current = if target.is_absolute() {
             target
