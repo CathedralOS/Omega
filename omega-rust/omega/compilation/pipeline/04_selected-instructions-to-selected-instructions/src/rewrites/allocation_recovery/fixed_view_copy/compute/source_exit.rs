@@ -121,18 +121,8 @@ pub(super) fn build_source_exit_copies(
         };
         apply_copy(function_index, transformed, &copy, copy_row)?;
         copies.push(copy);
-        next_instruction =
-            next_instruction
-                .checked_add(1)
-                .ok_or(FixedViewCopyError::IdentifierOverflow {
-                    function: function_index,
-                })?;
-        next_register =
-            next_register
-                .checked_add(1)
-                .ok_or(FixedViewCopyError::IdentifierOverflow {
-                    function: function_index,
-                })?;
+        super::super::bump_identifier(&mut next_instruction, function_index)?;
+        super::super::bump_identifier(&mut next_register, function_index)?;
     }
     Ok(copies)
 }

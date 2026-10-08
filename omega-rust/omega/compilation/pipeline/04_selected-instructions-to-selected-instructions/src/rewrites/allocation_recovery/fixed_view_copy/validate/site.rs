@@ -130,18 +130,8 @@ pub(super) fn replay_site_copies(
         };
         replay_apply(function_index, output_function, &copy, row)?;
         expected.push(copy);
-        next_instruction =
-            next_instruction
-                .checked_add(1)
-                .ok_or(FixedViewCopyError::IdentifierOverflow {
-                    function: function_index,
-                })?;
-        next_register =
-            next_register
-                .checked_add(1)
-                .ok_or(FixedViewCopyError::IdentifierOverflow {
-                    function: function_index,
-                })?;
+        super::super::bump_identifier(&mut next_instruction, function_index)?;
+        super::super::bump_identifier(&mut next_register, function_index)?;
     }
     Ok(expected)
 }

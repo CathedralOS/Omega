@@ -206,3 +206,15 @@ impl std::fmt::Display for FixedViewCopyError {
 }
 
 impl std::error::Error for FixedViewCopyError {}
+
+/// Bumps a synthetic instruction or register identifier, mapping arithmetic
+/// overflow to the function-scoped identifier-overflow error.
+pub(super) fn bump_identifier(
+    value: &mut u32,
+    function: usize,
+) -> Result<(), super::FixedViewCopyError> {
+    *value = value
+        .checked_add(1)
+        .ok_or(super::FixedViewCopyError::IdentifierOverflow { function })?;
+    Ok(())
+}
