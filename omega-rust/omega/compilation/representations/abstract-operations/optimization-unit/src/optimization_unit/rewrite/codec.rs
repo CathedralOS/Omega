@@ -10,9 +10,8 @@ use super::{
 use crate::optimization_unit::ownership::encode_ownership_frontier_site;
 use crate::optimization_unit::rewrite::{
     FieldValueResolution, FoldedFieldValue, NodeLocation, ProofCertifiedScalarIdentityKind,
-    ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint,
-    PsiRewritePatch, PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution,
-    TotalScalarIdentityKind,
+    ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint, PsiRewritePatch,
+    PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution, TotalScalarIdentityKind,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -60,16 +59,8 @@ pub(super) fn encode_candidate(
     encode_len(&mut bytes, provenance.len());
     for row in provenance {
         encode_realization_site(&mut bytes, row.input);
-        match row.disposition {
-            ProvenanceDisposition::RealizedAt(site) => {
-                bytes.push(row.disposition.canonical_tag());
-                encode_realization_site(&mut bytes, site);
-            }
-            ProvenanceDisposition::ProvenUnreachableAt(site) => {
-                bytes.push(row.disposition.canonical_tag());
-                encode_realization_site(&mut bytes, site);
-            }
-        }
+        bytes.push(row.disposition.canonical_tag());
+        encode_realization_site(&mut bytes, row.disposition.site());
         encode_len(&mut bytes, row.sources.len());
         for source in &row.sources {
             match source {

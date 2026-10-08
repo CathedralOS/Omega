@@ -13,7 +13,7 @@ pub(crate) struct DecodedSelectedPlan {
     pub(crate) payload_matches: bool,
 }
 
-pub(super) fn encode(
+pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn encode(
     bytes: &mut Vec<u8>,
     plan: &SelectedInstructionPlan,
 ) -> Result<(), terminal_codec::CodecError> {
@@ -24,7 +24,7 @@ pub(super) fn encode(
     Ok(())
 }
 
-pub(super) fn decode(
+pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode(
     cursor: &mut Cursor<'_>,
 ) -> Result<DecodedSelectedPlan, FixedViewCopyDecodeError> {
     let expected_digest: [u8; 32] = cursor.array()?;

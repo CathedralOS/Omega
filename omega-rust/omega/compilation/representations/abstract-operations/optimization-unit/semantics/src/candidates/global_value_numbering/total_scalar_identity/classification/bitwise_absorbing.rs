@@ -15,33 +15,25 @@ pub(super) fn classify(
                 psi_operation,
                 result,
                 scalar_type,
-                left,
+                left: constant,
                 ..
             },
             TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft,
-        ) => Some(row(
-            *psi_operation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            typed_integer(*scalar_type, 0),
-        )),
-        (
+        )
+        | (
             O::IntegerBitwiseAnd {
                 psi_operation,
                 result,
                 scalar_type,
-                right,
+                right: constant,
                 ..
             },
             TotalScalarIdentityKind::IntegerBitwiseAndZeroRight,
         ) => Some(row(
             *psi_operation,
             *result,
-            *right,
-            *right,
+            *constant,
+            *constant,
             *scalar_type,
             *scalar_type,
             typed_integer(*scalar_type, 0),
@@ -51,33 +43,25 @@ pub(super) fn classify(
                 psi_operation,
                 result,
                 scalar_type,
-                left,
+                left: constant,
                 ..
             },
             TotalScalarIdentityKind::IntegerBitwiseOrAllOnesLeft,
-        ) => Some(row(
-            *psi_operation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            all_ones(*scalar_type),
-        )),
-        (
+        )
+        | (
             O::IntegerBitwiseOr {
                 psi_operation,
                 result,
                 scalar_type,
-                right,
+                right: constant,
                 ..
             },
             TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight,
         ) => Some(row(
             *psi_operation,
             *result,
-            *right,
-            *right,
+            *constant,
+            *constant,
             *scalar_type,
             *scalar_type,
             all_ones(*scalar_type),

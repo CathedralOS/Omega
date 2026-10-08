@@ -1,6 +1,5 @@
 //! Optimizer module role: stage group. Canonical identity construction for legalized-operation custody.
 
-use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 mod boundary_invocations;
 mod calling;
 pub use boundary_invocations::encode_boundary_execution_identity;
@@ -14,11 +13,7 @@ mod structural;
 mod structural_result;
 mod structural_types;
 
-pub fn legalized_operation_plan_identity(
-    plan: &LegalizedOperationPlan,
-) -> LegalizedOperationPlanIdentity {
-    canonical::identity(plan)
-}
+pub use canonical::identity as legalized_operation_plan_identity;
 mod ordinary_calls;
 mod read_byte;
 pub use calling::{

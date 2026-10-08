@@ -5,7 +5,6 @@ use optimization_unit::PsiProvenance;
 pub(crate) fn expected_provenance(
     operation: &abstract_operations::AbstractOperation,
 ) -> Vec<PsiProvenance> {
-    use abstract_operations::AbstractOperation as O;
     match operation {
         O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => Vec::new(),
         O::Return { psi_edge, .. }

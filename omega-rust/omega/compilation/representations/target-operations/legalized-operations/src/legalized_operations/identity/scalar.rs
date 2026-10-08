@@ -56,15 +56,7 @@ pub fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: semantic_vocabulary:
         semantic_vocabulary::ScalarType::Boolean => bytes.push(0),
         semantic_vocabulary::ScalarType::Integer(integer) => {
             bytes.push(1);
-            bytes.push(match integer.carrier() {
-                semantic_vocabulary::IntegerCarrier::Fixed => 0,
-                semantic_vocabulary::IntegerCarrier::Address => 1,
-            });
-            bytes.push(match integer.sign() {
-                semantic_vocabulary::IntegerSign::Signed => 0,
-                semantic_vocabulary::IntegerSign::Unsigned => 1,
-            });
-            bytes.extend_from_slice(&integer.bits().to_le_bytes());
+            encode_integer_type(bytes, integer);
         }
         semantic_vocabulary::ScalarType::IeeeFloat(format) => {
             bytes.push(2);

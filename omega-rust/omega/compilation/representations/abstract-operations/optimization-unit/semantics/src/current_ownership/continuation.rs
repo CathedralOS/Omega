@@ -23,17 +23,11 @@ pub(super) fn apply_edge_cleanup_actions(
     };
     let roots = super::cleanup::cleanup_root_order(function, frontier);
     let mut eligible = roots.into_iter();
-    let mut remaining = actions;
-    while let Some(action) = remaining.first() {
-        let place = action.place();
+    for group in actions.chunk_by(|left, right| left.place() == right.place()) {
+        let place = group[0].place();
         if !eligible.any(|candidate| candidate == place) {
             return Err(mismatch());
         }
-        let count = remaining
-            .iter()
-            .take_while(|action| action.place() == place)
-            .count();
-        let (group, rest) = remaining.split_at(count);
         super::cleanup::consume_owner_cleanup(
             function,
             functions,
@@ -43,7 +37,6 @@ pub(super) fn apply_edge_cleanup_actions(
             place,
             group,
         )?;
-        remaining = rest;
     }
     Ok(())
 }

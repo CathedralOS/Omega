@@ -6,7 +6,7 @@ use crate::FixedViewCopyDecodeError;
 
 use super::declarations::decode_path;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, length,
+    Cursor, decode_id, decode_list, length,
 };
 use selected_instructions::effects::program::identity::encode_path;
 
@@ -32,13 +32,10 @@ pub(super) fn decode_projected(
     if !retain {
         return Ok(Vec::new());
     }
-    let count = cursor.length()?;
-    let mut qualifications = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        qualifications.push(StructuralPathQualification {
+    decode_list(cursor, |cursor| {
+        Ok(StructuralPathQualification {
             path: decode_path(cursor)?,
             domain: decode_id(cursor, semantic_vocabulary::StructuralDomainId::new)?,
-        });
-    }
-    Ok(qualifications)
+        })
+    })
 }

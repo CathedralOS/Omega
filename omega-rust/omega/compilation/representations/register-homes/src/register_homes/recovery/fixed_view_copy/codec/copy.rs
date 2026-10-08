@@ -9,7 +9,7 @@ use optimization_unit::encode_value_definition_site_identity;
 use register_model::encode_constraint_key;
 
 use super::{
-    primitives::{Cursor, decode_id, length},
+    primitives::{Cursor, decode_id, decode_list, length},
     values::{decode_constraint_key, decode_definition_site, decode_fixed_site, encode_fixed_site},
 };
 
@@ -46,15 +46,13 @@ pub(super) fn decode_copy(
     let to_view = RegisterViewId(cursor.u16()?);
     let insertion_block = SelectedBlockId(cursor.u32()?);
     let before_instruction = SelectedInstructionId(cursor.u32()?);
-    let destination_count = cursor.length()?;
-    let mut destinations = Vec::with_capacity(destination_count.min(cursor.remaining()));
-    for _ in 0..destination_count {
-        destinations.push(FixedViewCopyDestination {
+    let destinations = decode_list(cursor, |cursor| {
+        Ok(FixedViewCopyDestination {
             site: decode_fixed_site(cursor)?,
             block: SelectedBlockId(cursor.u32()?),
             view: RegisterViewId(cursor.u16()?),
-        });
-    }
+        })
+    })?;
     Ok(FixedViewCopy {
         function,
         machine,

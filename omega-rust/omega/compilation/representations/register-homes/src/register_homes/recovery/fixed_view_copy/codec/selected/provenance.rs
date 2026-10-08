@@ -5,7 +5,7 @@ use semantic_vocabulary::{EdgeId, ObligationId, OperationId, ValueId};
 use crate::FixedViewCopyDecodeError;
 
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_ids, encode_ids,
+    Cursor, decode_ids, decode_list, encode_ids,
 };
 
 pub(super) fn encode_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstructionProvenance) {
@@ -36,9 +36,7 @@ pub(super) use legalized_operations::encode_fuel;
 pub(super) fn decode_fuel(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<FuelSettlement>, FixedViewCopyDecodeError> {
-    let count = cursor.length()?;
-    let mut fuel = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
+    decode_list(cursor, |cursor| {
         let tag = cursor.byte()?;
         let raw = cursor.u64()?;
         let site = match tag {
@@ -50,10 +48,9 @@ pub(super) fn decode_fuel(
             ),
             tag => return Err(FixedViewCopyDecodeError::UnknownFuelSite(tag)),
         };
-        fuel.push(FuelSettlement {
+        Ok(FuelSettlement {
             site,
             units: cursor.u64()?,
-        });
-    }
-    Ok(fuel)
+        })
+    })
 }

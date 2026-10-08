@@ -52,8 +52,7 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
     if cursor.remaining() != 0 {
         return Err(PostAllocationMachineDecodeError::TrailingBytes);
     }
-    let expected_identity = post_allocation_machine_identity(&plan);
-    if plan.identity != expected_identity {
+    if plan.identity != post_allocation_machine_identity(&plan) {
         return Err(PostAllocationMachineDecodeError::InvalidIdentity);
     }
     Ok(plan)

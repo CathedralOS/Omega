@@ -34,8 +34,7 @@ impl CallSiteOwner {
     pub const fn edge(self) -> Option<EdgeId> {
         match self {
             Self::Operation(_) => None,
-            Self::ExternalCompletion(edge) => Some(edge),
-            Self::CleanupAction { edge, .. } => Some(edge),
+            Self::ExternalCompletion(edge) | Self::CleanupAction { edge, .. } => Some(edge),
         }
     }
 

@@ -24,12 +24,10 @@ impl CompletionClaimSource {
     }
 
     pub fn input(&self) -> PlaceId {
-        match &self.entry {
-            Some(source) => source.input,
-            None => match &self.content {
-                Some(source) => source.input.root,
-                None => unreachable!(),
-            },
+        match (&self.entry, &self.content) {
+            (Some(source), _) => source.input,
+            (None, Some(source)) => source.input.root,
+            (None, None) => unreachable!(),
         }
     }
 }

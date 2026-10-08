@@ -6,23 +6,18 @@ use selected_instructions::{
     SelectedTerminator, SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
-fn binding_mut(plan: &mut FixedViewCopyPlan) -> &mut SelectedValueBinding {
+fn bindings_mut(plan: &mut FixedViewCopyPlan) -> &mut Vec<SelectedValueBinding> {
     let SelectedTerminator::ConditionalBranch { when_nonzero, .. } =
         &mut std::sync::Arc::make_mut(&mut plan.transformed).functions[0].blocks[0].terminator
     else {
         panic!("conditional fixture");
     };
-    &mut when_nonzero.bindings[0]
+    &mut when_nonzero.bindings
 }
 #[test]
 fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
-    let SelectedTerminator::ConditionalBranch { when_nonzero, .. } =
-        &mut std::sync::Arc::make_mut(&mut original.transformed).functions[0].blocks[0].terminator
-    else {
-        panic!("conditional fixture");
-    };
-    when_nonzero.bindings.push(SelectedValueBinding {
+    bindings_mut(&mut original).push(SelectedValueBinding {
         semantic: abstract_operations::ValueBinding {
             parameter: ValueId::new(40).unwrap(),
             argument: ValueId::new(41).unwrap(),
@@ -50,7 +45,7 @@ fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
         },
     ] {
         let mut changed = original.clone();
-        binding_mut(&mut changed).transport = transport;
+        bindings_mut(&mut changed)[0].transport = transport;
         assert_ne!(
             selected_instructions::selected_instruction_plan_identity(&changed.transformed),
             identity

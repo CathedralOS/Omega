@@ -3,7 +3,7 @@
 use super::encoding::encode_len;
 use crate::legalized_operations::{LegalizedOperationPlan, LegalizedOperationPlanIdentity};
 
-pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
+pub fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-legalized-operations.v64\0");
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
@@ -12,12 +12,10 @@ pub(super) fn identity(plan: &LegalizedOperationPlan) -> LegalizedOperationPlanI
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.extend_from_slice(&plan.target.identity_bytes());
     bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
-    {
-        bytes.extend_from_slice(b"ordinary-scalar-graph.v30\0");
-        encode_len(&mut bytes, plan.scalar_functions.len());
-        for function in &plan.scalar_functions {
-            super::scalar_graph::encode(&mut bytes, function);
-        }
+    bytes.extend_from_slice(b"ordinary-scalar-graph.v30\0");
+    encode_len(&mut bytes, plan.scalar_functions.len());
+    for function in &plan.scalar_functions {
+        super::scalar_graph::encode(&mut bytes, function);
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
 }
