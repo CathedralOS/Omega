@@ -90,32 +90,11 @@ fn envelope(
         });
         imports.push(handle);
     }
-    for (instruction_offset, symbol_handle) in [(0, imports[0]), (8, imports[0]), (16, imports[1])]
-    {
-        let (relocation_offset, kind) = match target {
-            TargetProfile::LinuxX64 => {
-                image.memory.text[instruction_offset] = 0xe8;
-                (instruction_offset + 1, RelocationKind::X86_64Relative32)
-            }
-            TargetProfile::LinuxArm64 => {
-                image.memory.text[instruction_offset..instruction_offset + 4]
-                    .copy_from_slice(&[0, 0, 0, 0x94]);
-                (instruction_offset, RelocationKind::Aarch64Branch26)
-            }
-            _ => unreachable!(),
-        };
-        image
-            .relocation_table
-            .relocations
-            .insert(FinalImageRelocation {
-                section: FinalImageSection::Text,
-                offset: relocation_offset,
-                byte_width: 4,
-                symbol_handle,
-                addend: 0,
-                kind,
-            });
-    }
+    crate::test_support::insert_text_call_relocations(
+        &mut image,
+        target,
+        [(0, imports[0]), (8, imports[0]), (16, imports[1])],
+    );
     for &(slot_offset, slot_addend) in general_slots {
         image
             .relocation_table

@@ -361,6 +361,43 @@ pub(crate) mod test_support {
         crate::plan_elf_dynamic_load_layout(relative).unwrap()
     }
 
+    /// Insert one text call-site relocation per site: the x86_64 sites patch
+    /// a `call rel32` and relocate the operand, the arm64 sites patch a `bl`
+    /// and relocate the instruction itself.
+    pub(crate) fn insert_text_call_relocations(
+        image: &mut image::FinalImage,
+        target: TargetProfile,
+        sites: impl IntoIterator<Item = (usize, image::FinalImageSymbolHandle)>,
+    ) {
+        use image::{FinalImageRelocation, FinalImageSection};
+        use object_file::RelocationKind;
+        for (instruction_offset, symbol_handle) in sites {
+            let (relocation_offset, kind) = match target {
+                TargetProfile::LinuxX64 => {
+                    image.memory.text[instruction_offset] = 0xe8;
+                    (instruction_offset + 1, RelocationKind::X86_64Relative32)
+                }
+                TargetProfile::LinuxArm64 => {
+                    image.memory.text[instruction_offset..instruction_offset + 4]
+                        .copy_from_slice(&[0, 0, 0, 0x94]);
+                    (instruction_offset, RelocationKind::Aarch64Branch26)
+                }
+                _ => unreachable!(),
+            };
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Text,
+                    offset: relocation_offset,
+                    byte_width: 4,
+                    symbol_handle,
+                    addend: 0,
+                    kind,
+                });
+        }
+    }
+
     /// One procedure-linkage import for the multi-import fixtures: the raw
     /// library coordinates plus the text offsets that relocate against it.
     /// The byte values are deliberately unprintable so the tests exercise
