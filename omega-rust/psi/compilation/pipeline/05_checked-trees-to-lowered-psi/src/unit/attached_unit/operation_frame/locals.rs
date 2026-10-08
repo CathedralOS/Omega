@@ -63,11 +63,9 @@ impl OperationFrame<'_, '_> {
             return unsupported("Unit scalar expression local type disagrees with its binding");
         }
         let lowered = self.refine_scalar_local_value(result.statement_index, lowered)?;
-        self.evaluation.scalar_bindings.append(
-            checked_trees::CheckedScalarBindingDestination::Immutable,
-            lowered.scalar_type,
-            self.values.len(),
-        )?;
+        self.evaluation
+            .scalar_bindings
+            .append(lowered.scalar_type, self.values.len());
         self.values.push(lowered);
         Ok(())
     }

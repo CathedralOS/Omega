@@ -113,11 +113,9 @@ impl OperationFrame<'_, '_> {
             let position = self.values.len();
             self.values.push(value);
             if names_local {
-                self.evaluation.scalar_bindings.append(
-                    checked_trees::CheckedScalarBindingDestination::Immutable,
-                    value.scalar_type,
-                    position,
-                )?;
+                self.evaluation
+                    .scalar_bindings
+                    .append(value.scalar_type, position);
             } else {
                 self.evaluation
                     .scalar_bindings

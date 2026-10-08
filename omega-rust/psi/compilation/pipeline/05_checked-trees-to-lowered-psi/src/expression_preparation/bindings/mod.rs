@@ -1,4 +1,5 @@
-//! Resolve checked-local storage against its current SSA value or primitive place.
+//! Resolve authored scalar names against their evaluated values, and checked
+//! storage reads against their primitive places.
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralArgument,
@@ -95,7 +96,6 @@ pub(crate) struct ScalarBindings {
     /// preceding call's result.
     authored: Vec<Option<(usize, ScalarType)>>,
     parameter_count: usize,
-    storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Actual original ingress homes, in the dense scalar formal namespace.
     scalar_parameter_homes: Vec<(u32, PlaceId, ScalarType, StructuralAccess)>,
@@ -529,7 +529,6 @@ impl ScalarBindings {
                 .collect(),
             parameter_count: authored.len(),
             authored,
-            storage: Vec::new(),
             primitive_storage: Vec::new(),
             scalar_parameter_homes: Vec::new(),
             structural_parameters: Vec::new(),
@@ -581,7 +580,6 @@ impl ScalarBindings {
     }
 
     /// Register initialized primitive places supplied by the enclosing Unit producer.
-    /// Reads use these places even if an earlier SSA storage row still exists.
     pub(crate) fn with_primitive_storage(
         mut self,
         storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
@@ -1117,53 +1115,11 @@ impl ScalarBindings {
         })
     }
 
-    pub(crate) fn append(
-        &mut self,
-        destination: checked_trees::CheckedScalarBindingDestination,
-        scalar_type: ScalarType,
-        position: usize,
-    ) -> Result<(), LoweringError> {
-        use checked_trees::CheckedScalarBindingDestination;
-        match destination {
-            CheckedScalarBindingDestination::Immutable => {
-                self.immutable.push(Some(position));
-                self.authored.push(Some((position, scalar_type)));
-            }
-            CheckedScalarBindingDestination::StorageInitialize { symbol } => {
-                if !symbol.is_valid() || self.storage.iter().any(|row| row.0 == symbol) {
-                    return unsupported(
-                        "scalar storage initialization identity is missing or duplicated",
-                    );
-                }
-                self.storage.push((symbol, scalar_type, position));
-            }
-            CheckedScalarBindingDestination::StorageAssign { symbol } => {
-                let row = self.storage.iter_mut().find(|row| row.0 == symbol).ok_or(
-                    LoweringError::Unsupported(
-                        "scalar storage assignment has no initialized destination",
-                    ),
-                )?;
-                if row.1 != scalar_type {
-                    return unsupported("scalar storage assignment changes its declared type");
-                }
-                row.2 = position;
-            }
-        }
-        Ok(())
-    }
-
-    fn storage_position(
-        &self,
-        symbol: symbols::SymbolHandle,
-        scalar_type: ScalarType,
-    ) -> Result<usize, LoweringError> {
-        self.storage
-            .iter()
-            .find(|row| row.0 == symbol && row.1 == scalar_type)
-            .map(|row| row.2)
-            .ok_or(LoweringError::Unsupported(
-                "scalar storage read has no initialized value of its declared type",
-            ))
+    /// Bind an immutable local's evaluated value at its source ordinal.
+    /// Mutable storage is a primitive place, never a rebound SSA value.
+    pub(crate) fn append(&mut self, scalar_type: ScalarType, position: usize) {
+        self.immutable.push(Some(position));
+        self.authored.push(Some((position, scalar_type)));
     }
 
     /// Bind a retained scalar result that no source name reads: a call result
@@ -1244,10 +1200,7 @@ impl ScalarBindings {
             | CheckedScalarExpression::Local { position, .. } => {
                 *position = self.authored_position(*position)?
             }
-            CheckedScalarExpression::StorageRead {
-                symbol,
-                primitive_type,
-            } => {
+            CheckedScalarExpression::StorageRead { symbol, .. } => {
                 if self
                     .place_observations
                     .iter()
@@ -1261,11 +1214,7 @@ impl ScalarBindings {
                     // Retain the read occurrence for emission, not an entry snapshot.
                     return Ok(());
                 }
-                *expression = CheckedScalarExpression::Local {
-                    position: self
-                        .storage_position(*symbol, terminal_scalar_type(*primitive_type)?)?,
-                    primitive_type: *primitive_type,
-                };
+                return unsupported("scalar storage read names no established storage");
             }
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;
@@ -1313,9 +1262,7 @@ impl ScalarBindings {
                 {
                     return Ok(());
                 }
-                *expression = CheckedBooleanExpression::Local {
-                    position: self.storage_position(*symbol, ScalarType::Boolean)?,
-                }
+                return unsupported("Boolean storage read names no established storage");
             }
             CheckedBooleanExpression::Not(operand) => self.boolean(operand)?,
             CheckedBooleanExpression::Equal { left, right }

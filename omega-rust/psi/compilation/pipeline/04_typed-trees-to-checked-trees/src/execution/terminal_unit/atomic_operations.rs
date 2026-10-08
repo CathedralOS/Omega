@@ -56,25 +56,6 @@ pub(super) fn result_placeholder(
         .is_some_and(|carrier| names_local(program, carrier.result, local))
 }
 
-/// Whether the local at `statement_index` belongs to an atomic event — a
-/// load or a writing event's result placeholder — and so must be planned by
-/// the sequence rather than evaluated as a pure prefix initializer.
-pub(super) fn owns_local(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-) -> bool {
-    let Some(StatementNode::LocalData(local)) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    else {
-        return false;
-    };
-    validation::atomic_load_carrier(program, local.initial_value).is_some()
-        || result_placeholder(program, state, statement_index, local)
-}
-
 /// Whether the carrier's generated result name binds `local`: its resolved
 /// symbol when the desugar left one, otherwise its spelling.
 fn names_local(

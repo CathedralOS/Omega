@@ -2615,8 +2615,7 @@ code and preserve check/native behavior for the named customer slices.
   (`unit/attached_unit/operation_frame/calls.rs`), and `DirectCall` selects
   every direct Terminal call kind. Separate call emitters remain:
   - `operation_emission/calls.rs::emit_direct_call_operation` and
-    `operation_emission/boundary_calls.rs` for binding-prefix calls and
-    computation calls;
+    `operation_emission/boundary_calls.rs` for computation calls;
   - `scalar_lowering/effects.rs` `LoweredScalarEffect::Call`.
 
   These routes duplicate erased lanes, requirement obligations, crash-route
@@ -2629,7 +2628,6 @@ code and preserve check/native behavior for the named customer slices.
   `ScalarBindings`/`scalar_computations/structural_arguments.rs`; the path
   step (`prepare_structural_argument_path`) is already shared. Stage 04
   builds every `CheckedUnitCallPlan` through `build_call_operation`; scalar
-  binding prefixes (`terminal_scalar/mod.rs` `DirectCall` bindings) and scalar
   computations (`CheckedScalarComputationKind::Call`) keep their own call
   records. Make one argument preparation and one call emitter, keeping the
   real boundary versus machine and result-kind distinctions.
@@ -2685,11 +2683,8 @@ code and preserve check/native behavior for the named customer slices.
   eight sites (`operation_frame::establish_scalar_local` and
   `establish_structural_local`, `primitive_locals`, `ordinary_machine/locals`,
   `structural_values/locals`, `byte_locals`, `emission::emit_scalar_binding`).
-  A composed state also binds its leading immutable scalar locals as SSA
-  values before its operations (`CheckedComposedUnitControlStatePlan::bindings`,
-  stage 05 `composed_control/state_graph/scalars.rs::emit_prefix`), a second
-  route for what its statement sequence already lowers. Replace them with one
-  local-binding operation keyed by the value's representation. Acceptance: one binding
+  Replace them with one local-binding operation keyed by the value's
+  representation. Acceptance: one binding
   variant and one lowering remain; corpus `--filter expressions/,borrows/,calls/`
   is unchanged.
 

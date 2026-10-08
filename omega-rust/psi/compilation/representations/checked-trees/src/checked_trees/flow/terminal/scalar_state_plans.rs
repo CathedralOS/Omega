@@ -1,10 +1,8 @@
-//! Scalar state plans: the scalar bindings a state evaluates before its
-//! terminator, the terminator and its successors, and every state's ordered
-//! guarded exits. Unit planning, composed admission and scalar completion
-//! read them; no separate scalar graph carries them.
+//! Scalar state plans: a state's scalar terminator and its successors, and
+//! every state's ordered guarded exits. Unit planning, composed admission and
+//! scalar completion read them.
 
 use symbols::SymbolHandle;
-use typed_trees::types::PrimitiveType;
 
 /// Every state's ordered guarded exits:
 /// `tails` holds one row per state whose authored transition guards an exit,
@@ -38,41 +36,6 @@ impl Default for CheckedScalarGuardedExit {
             },
         }
     }
-}
-
-/// One primitive computation evaluated in source order before the terminator.
-/// Unborrowed mutable bindings resolve to the current scalar value; borrowed
-/// locals retain their referents through the state's primitive-local roster.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedScalarBinding {
-    pub statement_ordinal: u32,
-    pub destination: CheckedScalarBindingDestination,
-    pub primitive_type: PrimitiveType,
-    pub value: CheckedScalarBindingValue,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedScalarBindingDestination {
-    Immutable,
-    StorageInitialize { symbol: SymbolHandle },
-    StorageAssign { symbol: SymbolHandle },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedScalarBindingValue {
-    Expression,
-    /// The binding value's exact role names its checked computation root.
-    Computation,
-    /// One closed, receiver-free call whose result initializes this binding.
-    /// The call coordinate joins directly to the checked crash-call row; its
-    /// arguments live in `CheckedScalarExpressionPlans` under the same binding
-    /// ordinal, so terminal production does not rediscover source expressions.
-    DirectCall {
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        call_ordinal: u32,
-        argument_count: u32,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

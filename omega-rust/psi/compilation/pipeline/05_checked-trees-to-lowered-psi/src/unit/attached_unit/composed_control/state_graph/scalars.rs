@@ -1,16 +1,8 @@
-//! State-local scalar storage uses the shared source-bound value namespace.
-use super::super::super::super::{StructuralParameterDeclaration, StructuralTypeDeclaration};
-use super::super::super::{
-    CheckedScalarExpressionRole, ValueDeclaration, direct_expression_contains_short_circuit,
-    emit_direct_expression, terminal_scalar_type, unsupported, validate_direct_parameter_types,
-};
+//! A state's scalar successor values and case payload reads, in the shared
+//! source-bound value namespace.
+use super::super::super::{CheckedScalarExpressionRole, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
-use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::expression_preparation::bindings::ScalarBindings;
-use checked_trees::{CheckedScalarBindingDestination, CheckedScalarBindingValue};
-use semantic_vocabulary::{PlaceId, ScalarType};
-use symbols::SymbolHandle;
 
 /// Select the retained value at its authored successor coordinate. Storage
 /// reads use computation nodes; pure expressions keep their ordinary binding.
@@ -69,127 +61,6 @@ pub(in crate::unit::attached_unit::composed_control) fn successor_value(
             value.clone(),
         ))
     }
-}
-
-fn role(
-    binding: &checked_trees::CheckedScalarBinding,
-    immutable_ordinal: u32,
-) -> CheckedScalarExpressionRole {
-    match binding.destination {
-        CheckedScalarBindingDestination::Immutable => {
-            CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: immutable_ordinal,
-            }
-        }
-        CheckedScalarBindingDestination::StorageInitialize { .. } => {
-            CheckedScalarExpressionRole::StorageInitializer
-        }
-        CheckedScalarBindingDestination::StorageAssign { .. } => {
-            CheckedScalarExpressionRole::AssignmentValue
-        }
-    }
-}
-
-pub(super) fn validate(
-    checked: &CheckedTrees,
-    state: &CheckedComposedUnitControlStatePlan,
-) -> Result<(), LoweringError> {
-    if state.bindings.len() != state.binding_initializers.len() {
-        return unsupported("Unit graph scalar prefix lost an initializer");
-    }
-    let mut immutable_ordinal = 0;
-    for (ordinal, (binding, _)) in state
-        .bindings
-        .iter()
-        .zip(&state.binding_initializers)
-        .enumerate()
-    {
-        if binding.statement_ordinal as usize != ordinal
-            || binding.value != CheckedScalarBindingValue::Expression
-        {
-            return unsupported("Unit graph scalar prefix reordered or replaced a binding");
-        }
-        let (source, _) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(
-                state.state,
-                binding.statement_ordinal,
-                role(binding, immutable_ordinal),
-            )
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph scalar prefix has no exact checked expression",
-            ))?;
-        if let CheckedScalarBindingDestination::StorageInitialize { symbol }
-        | CheckedScalarBindingDestination::StorageAssign { symbol } = binding.destination
-            && source.destination != symbol
-        {
-            return unsupported("Unit graph scalar storage destination disagrees with source");
-        }
-        if binding.destination == CheckedScalarBindingDestination::Immutable {
-            immutable_ordinal += 1;
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn emit_prefix(
-    checked: &CheckedTrees,
-    state: &CheckedComposedUnitControlStatePlan,
-    parameters: &[(u32, StructuralParameterDeclaration)],
-    primitive_storage: &[(SymbolHandle, PlaceId, ScalarType)],
-    structural_types: &[StructuralTypeDeclaration],
-    place_observations: &std::sync::Arc<
-        [crate::expression_preparation::bindings::place_observations::PlaceObservation],
-    >,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<ScalarBindings, LoweringError> {
-    // Prefix initializers read the same independently established referents
-    // as later operations; rebuilding only scalar SSA slots loses borrowed
-    // primitive parameters before their first authored local read.
-    let mut bindings = ScalarBindings::entry(
-        values.iter().map(|value| value.scalar_type),
-        primitive_storage,
-        parameters,
-        structural_types,
-        place_observations,
-    );
-    let mut immutable_ordinal = 0;
-    for binding in &state.bindings {
-        let expression = bindings.expression_at(
-            checked,
-            state.state,
-            binding.statement_ordinal,
-            role(binding, immutable_ordinal),
-        )?;
-        let scalar_type = terminal_scalar_type(binding.primitive_type)?;
-        if expression.scalar_type() != scalar_type
-            || direct_expression_contains_short_circuit(&expression)
-        {
-            return unsupported("Unit graph scalar prefix needs a matching branch-free value");
-        }
-        validate_direct_parameter_types(
-            &expression,
-            &values
-                .iter()
-                .map(|value| value.scalar_type)
-                .collect::<Vec<_>>(),
-        )?;
-        let id = emit_direct_expression(&expression, values, next_value, operations);
-        bindings.append(binding.destination, scalar_type, values.len())?;
-        values.push(ValueDeclaration {
-            qualifications: Default::default(),
-            id,
-            scalar_type,
-        });
-        if binding.destination == CheckedScalarBindingDestination::Immutable {
-            immutable_ordinal += 1;
-        }
-    }
-    Ok(bindings)
 }
 
 /// Direct payload reads in one successor argument: each `[Case, Field]` path

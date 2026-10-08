@@ -62,8 +62,7 @@ pub use result_binding_plans::{
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
 };
 pub use scalar_state_plans::{
-    CheckedGuardedExitPlans, CheckedScalarBinding, CheckedScalarBindingDestination,
-    CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedGuardedExitPlans, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
     CheckedScalarGuardedTail, CheckedScalarStateTerminator, CheckedScalarSuccessor,
 };
 pub use structural_argument_plans::{

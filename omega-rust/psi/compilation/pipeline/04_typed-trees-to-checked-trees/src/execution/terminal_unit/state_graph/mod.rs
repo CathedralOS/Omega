@@ -12,8 +12,7 @@
 use super::{
     CheckFacts, CheckedByteSequenceCarrier, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedGuardedJumpPlan, CheckedScalarBinding, CheckedScalarBindingValue,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedGuardedJumpPlan, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarParameterPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
@@ -27,7 +26,6 @@ use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature_traced, structural_scalar_signature_traced,
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
-use crate::execution::terminal_unit::scalar_return_expressions::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_reference, machine_binders, state_flow,
 };
@@ -381,40 +379,9 @@ pub(super) fn build_traced(
     }
     let mut planned = Vec::new();
     for (state_index, &(owner, state)) in fused.iter().enumerate() {
-        trace.phase("state graph: prefix initializers");
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
-        // A body containing structural bindings is not a scalar-only prefix.
-        // The shared sequence must account for every statement in that case.
-        let mut bindings = crate::execution::terminal_scalar::checked_binding_prefix(
-            program,
-            state,
-            &facts.values.scalar_computations,
-        )
-        .unwrap_or_default()
-        .into_iter()
-        // Only immutable locals bind as SSA values. A `mut` local or formal
-        // owns addressable storage that ordinary sequencing establishes
-        // (`parameter_storage` below for a formal); its assignments are
-        // stores into that storage, never split away from the later reads,
-        // assignments and loans that need it.
-        .take_while(|binding| {
-            binding.value == CheckedScalarBindingValue::Expression
-                && binding.destination == checked_trees::CheckedScalarBindingDestination::Immutable
-        })
-        // An atomic load or result placeholder is an event, not a pure prefix.
-        .take_while(|binding| {
-            !super::atomic_operations::owns_local(
-                program,
-                state,
-                binding.statement_ordinal as usize,
-            )
-        })
-        .collect::<Vec<_>>();
-        let binding_initializers = prefix_initializers(program, facts, state, &bindings, trace)?;
-        bindings.truncate(binding_initializers.len());
-        let binding_count = bindings.len();
         let terminator_index = terminator_statement_index(statements, &result);
         let terminator_statement_ordinal = u32::try_from(terminator_index).ok()?;
         trace.phase("state graph: state flow");
@@ -426,7 +393,6 @@ pub(super) fn build_traced(
         {
             return None;
         }
-        let first_call = source_calls.partition_point(|call| call.statement_index < binding_count);
         // A returned structural value is established by the ordinary operation
         // sequence before its return edge. Its operand calls belong to that
         // sequence too; excluding the tail statement loses their exact flow
@@ -464,7 +430,7 @@ pub(super) fn build_traced(
             facts,
             owner.symbol,
             state,
-            &source_calls[first_call..after_calls],
+            &source_calls[..after_calls],
             operation_end,
             trace,
         )?;
@@ -494,7 +460,7 @@ pub(super) fn build_traced(
             &state_entry_claims[state_index],
             &calls,
             &[],
-            binding_count,
+            0,
             operation_end,
             call_frames,
             trace,
@@ -606,8 +572,6 @@ pub(super) fn build_traced(
                 )?,
             requires: state_requires[state_index].clone(),
             entry_claims: state_entry_claims[state_index].clone(),
-            bindings,
-            binding_initializers,
             operations,
             terminator,
             terminator_statement_ordinal,
@@ -875,84 +839,6 @@ pub(super) fn build_traced(
     }
     plan.result = result;
     Some(plan)
-}
-
-/// The branch-free scalar initializers ahead of ordinary statement sequencing.
-/// A short-circuit value ends this prefix, even when it has no calls: the
-/// sequence's scalar-local operation already owns its conditional evaluation.
-/// Keep the remaining bindings in that sequence too, preserving source order
-/// and their references to the completed Boolean value.
-fn prefix_initializers(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    bindings: &[CheckedScalarBinding],
-    trace: &control::LocalConstructionTrace,
-) -> Option<Vec<CheckedScalarExpression>> {
-    use checked_trees::CheckedScalarBindingDestination;
-
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut immutable_ordinal = 0u32;
-    let mut initializers = Vec::with_capacity(bindings.len());
-    for binding in bindings {
-        let mark = |phase| {
-            trace.phase(phase);
-            trace.statement(Some(binding.statement_ordinal));
-        };
-        mark("state graph: prefix initializers: binding value");
-        if binding.value != CheckedScalarBindingValue::Expression {
-            return None;
-        }
-        mark("state graph: prefix initializers: binding destination");
-        let (role, destination) = match binding.destination {
-            CheckedScalarBindingDestination::Immutable => {
-                let StatementNode::LocalData(local) =
-                    statements.get(binding.statement_ordinal as usize)?
-                else {
-                    return None;
-                };
-                let role = CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: immutable_ordinal,
-                };
-                immutable_ordinal = immutable_ordinal.checked_add(1)?;
-                (role, local.symbol)
-            }
-            CheckedScalarBindingDestination::StorageInitialize { symbol } => {
-                (CheckedScalarExpressionRole::StorageInitializer, symbol)
-            }
-            CheckedScalarBindingDestination::StorageAssign { symbol } => {
-                (CheckedScalarExpressionRole::AssignmentValue, symbol)
-            }
-        };
-        mark("state graph: prefix initializers: binding statement");
-        let expression = match statements.get(binding.statement_ordinal as usize)? {
-            StatementNode::LocalData(local) => local.initial_value,
-            StatementNode::Assignment(assignment) => assignment.value,
-            _ => return None,
-        };
-        mark("state graph: prefix initializers: bound expression");
-        let (custody, initializer) = facts.values.scalar_expressions.bound_expression_at(
-            state.symbol,
-            binding.statement_ordinal,
-            role,
-        )?;
-        mark("state graph: prefix initializers: custody agreement");
-        if custody.expression != expression || custody.destination != destination {
-            return None;
-        }
-        mark("state graph: prefix initializers: initializer type");
-        if crate::values::scalar_expression_type(initializer) != Some(binding.primitive_type) {
-            return None;
-        }
-        mark("state graph: prefix initializers: short-circuit boolean");
-        if matches!(initializer, CheckedScalarExpression::Boolean(boolean)
-                if checked_boolean_contains_short_circuit(boolean))
-        {
-            break;
-        }
-        initializers.push(initializer.clone());
-    }
-    Some(initializers)
 }
 
 type Signature = (

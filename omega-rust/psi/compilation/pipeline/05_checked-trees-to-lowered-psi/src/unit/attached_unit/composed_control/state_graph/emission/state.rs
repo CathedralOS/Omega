@@ -17,7 +17,7 @@ use super::super::super::super::{
     place_id, unsupported,
 };
 use super::super::super::LoweringError;
-use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking, scalars};
+use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking};
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -236,18 +236,16 @@ impl StateGraphEmission<'_, '_> {
                 })
                 .transpose()?
         };
-        let bindings = scalars::emit_prefix(
-            checked,
-            state,
-            &evaluation.structural_parameters,
+        // The state's namespace starts from its scalar formals, its arriving
+        // referents and its formal storage; its statements, immutable locals
+        // included, lower through the one operation sequence.
+        evaluation.scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::entry(
+            values.iter().map(|value| value.scalar_type),
             &evaluation.primitive_storage,
+            &evaluation.structural_parameters,
             &self.catalogs.structural_types,
             &evaluation.place_observations,
-            &mut values,
-            &mut next_value,
-            &mut operations,
-        )?;
-        evaluation.scalar_bindings = bindings.clone();
+        );
         // A loan of a `mut` formal lends its storage, never a home rebuilt
         // from the arriving value.
         for storage in &parameter_storage {

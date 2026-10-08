@@ -134,11 +134,9 @@ impl OperationFrame<'_, '_> {
                     id: crate::unit::value_id(allocate_dense(self.next_value)?),
                     scalar_type,
                 };
-                self.evaluation.scalar_bindings.append(
-                    checked_trees::CheckedScalarBindingDestination::Immutable,
-                    scalar_type,
-                    self.values.len(),
-                )?;
+                self.evaluation
+                    .scalar_bindings
+                    .append(scalar_type, self.values.len());
                 self.values.push(value);
                 OperationResult::Scalar(value)
             }

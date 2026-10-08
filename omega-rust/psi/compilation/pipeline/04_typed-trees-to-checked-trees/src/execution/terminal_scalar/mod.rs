@@ -1,5 +1,5 @@
 //! Checked scalar state facts that every Unit body shares: a state's
-//! scalar binding prefix and terminator, every state's guarded exits, the
+//! scalar terminator, every state's guarded exits, the
 //! record shapes scalar computations construct inline, and each machine's
 //! signature eligibility in `CheckedTerminalMachineSelections`.
 //!
@@ -7,8 +7,9 @@
 //!   `build_checked_guarded_exit_plans`, which collects the ordered guarded
 //!   exits and fallback of every state of every machine (`guarded_exits`),
 //!   and `build_checked_terminal_machine_selections`.
-//! - `execution::terminal_unit` plans each state's bindings and exit with
-//!   `checked_binding_prefix` and `checked_terminator`.
+//! - `execution::terminal_unit` plans each state's exit with
+//!   `checked_terminator`; its statements, locals included, belong to the
+//!   state's statement sequence.
 //! - `execution::finalize_execution` adopts the shapes a computation
 //!   constructs inline (`constructions::retain_shapes`) into the Unit type
 //!   roster, so a record built only inside an expression still has its
@@ -18,9 +19,9 @@
 //! for scalar machines, and these facts are what they read.
 
 use checked_trees::{
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarBranchDestination,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedTerminalMachineSelection,
-    CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
+    CheckedScalarBranchDestination, CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedTerminalMachineSelection, CheckedTerminalMachineSelections,
+    CheckedTerminalSignatureEligibility,
 };
 
 pub(crate) fn build_checked_terminal_machine_selections(
@@ -131,216 +132,6 @@ pub(crate) fn build_checked_guarded_exit_plans(
 ) -> checked_trees::CheckedGuardedExitPlans {
     let (exits, tails) = guarded_exits::build(program, expressions, computations);
     checked_trees::CheckedGuardedExitPlans { exits, tails }
-}
-
-/// Retain the contiguous authored declaration/assignment prefix in the shared
-/// scalar binding representation. Consumers choose the supported value forms.
-pub(super) fn checked_binding_prefix(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-) -> Option<Vec<CheckedScalarBinding>> {
-    checked_statement_bindings(program, state, computations, false)
-}
-
-/// A projected assignment belongs to the structural effect inventory, not
-/// the scalar binding inventory. Both collectors must use the same rule:
-/// otherwise a store can disappear between them while its graph stays eligible.
-fn assignment_has_projected_target(
-    program: &dyn ::validation::CheckingInput,
-    assignment: &typed_trees::statement::TableAssignment,
-) -> bool {
-    matches!(
-        program.expression_table.expression(assignment.target),
-        typed_trees::expression::ExpressionNode::Member(_)
-            | typed_trees::expression::ExpressionNode::Indexed(_)
-    )
-}
-
-fn checked_statement_bindings(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    computations: &checked_trees::CheckedScalarComputationPlans,
-    unit_calls: bool,
-) -> Option<Vec<CheckedScalarBinding>> {
-    let parameters = program.state_parameters(state);
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let binding_count = statements
-        .iter()
-        .take_while(|statement| {
-            matches!(
-                statement,
-                StatementNode::LocalData(_) | StatementNode::Assignment(_)
-            ) || (unit_calls && matches!(statement, StatementNode::Call(_)))
-        })
-        .count();
-    let bindings =
-        statements[..binding_count]
-            .iter()
-            .enumerate()
-            .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_))
-                && !(unit_calls && matches!(statement, StatementNode::Assignment(assignment)
-                    if assignment_has_projected_target(program, assignment)))
-                && !(unit_calls && matches!(statement, StatementNode::LocalData(local)
-                    if program.primitive_type_reference(local.type_reference).is_none())))
-            .map(|(statement_index, statement)| {
-                use checked_trees::CheckedScalarBindingDestination;
-                match statement {
-                    StatementNode::LocalData(local) => {
-                        if !program
-                            .expression_table
-                            .expression_is_valid(local.initial_value)
-                            && crate::values::zeroed_scalar_local_initializer(program, local).is_none()
-                        {
-                            return None;
-                        }
-                        let statement_ordinal = u32::try_from(statement_index).ok()?;
-                        let role = if local.is_mutable {
-                            checked_trees::CheckedScalarExpressionRole::StorageInitializer
-                        } else {
-                            let preceding_immutable_count = statements[..statement_index].iter().filter(|statement| {
-                                matches!(statement, StatementNode::LocalData(local) if !local.is_mutable
-                                    && program.primitive_type_reference(local.type_reference).is_some())
-                            }).count();
-                            checked_trees::CheckedScalarExpressionRole::LocalInitializer {
-                                binding_ordinal: u32::try_from(preceding_immutable_count).ok()?,
-                            }
-                        };
-                        let value = if computations
-                            .root_at(state.symbol, statement_ordinal, role)
-                            .is_some()
-                        {
-                            CheckedScalarBindingValue::Computation
-                        } else {
-                            checked_binding_value(program, local.initial_value)?
-                        };
-                        if local.is_mutable
-                            && matches!(value, CheckedScalarBindingValue::DirectCall { .. })
-                        {
-                            return None;
-                        }
-                        Some(CheckedScalarBinding {
-                            statement_ordinal,
-                            destination: if local.is_mutable {
-                                CheckedScalarBindingDestination::StorageInitialize {
-                                    symbol: local.symbol,
-                                }
-                            } else {
-                                CheckedScalarBindingDestination::Immutable
-                            },
-                            primitive_type: program
-                                .primitive_type_reference(local.type_reference)?,
-                            value,
-                        })
-                    }
-                    StatementNode::Assignment(assignment) => {
-                        let typed_trees::expression::ExpressionNode::Name(name) =
-                            program.expression_table.expression(assignment.target)
-                        else {
-                            return None;
-                        };
-                        if !name.symbol.is_valid() || name.head_symbol != name.symbol {
-                            return None;
-                        }
-                        let destination = program
-                            .state_local_declaration(state, name.symbol)
-                            .filter(|&(ordinal, local)| {
-                                ordinal < statement_index && local.is_mutable
-                            })
-                            .and_then(|(_, local)| {
-                                Some((
-                                    local.symbol,
-                                    program.primitive_type_reference(local.type_reference)?,
-                                ))
-                            })
-                            .or_else(|| {
-                                parameters.iter().find_map(|parameter| {
-                                    (parameter.symbol == name.symbol)
-                                        .then(|| {
-                                            Some((
-                                                parameter.symbol,
-                                                crate::values::mutable_scalar_parameter_type(
-                                                    program, parameter,
-                                                )?,
-                                            ))
-                                        })
-                                        .flatten()
-                                })
-                            })?;
-                        let statement_ordinal = u32::try_from(statement_index).ok()?;
-                        let role = checked_trees::CheckedScalarExpressionRole::AssignmentValue;
-                        let value = if computations
-                            .root_at(state.symbol, statement_ordinal, role)
-                            .is_some()
-                        {
-                            CheckedScalarBindingValue::Computation
-                        } else {
-                            CheckedScalarBindingValue::Expression
-                        };
-                        Some(CheckedScalarBinding {
-                            statement_ordinal,
-                            destination: CheckedScalarBindingDestination::StorageAssign {
-                                symbol: destination.0,
-                            },
-                            primitive_type: destination.1,
-                            value,
-                        })
-                    }
-                    _ => None,
-                }
-            })
-            .collect::<Option<Vec<_>>>()?;
-    Some(bindings)
-}
-
-fn checked_binding_value(
-    program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<CheckedScalarBindingValue> {
-    let typed_trees::expression::ExpressionNode::Call(call) =
-        program.expression_table.expression(expression)
-    else {
-        return Some(CheckedScalarBindingValue::Expression);
-    };
-    if call.receiver.is_valid() || !call.machine_arguments.is_empty() {
-        return None;
-    }
-    let (target_machine, target_state) =
-        validation::find_machine_by_entry_state(program, call.target_symbol)?;
-    // DirectCall retains a checked body, not a requirement to be installed.
-    // Whole-value boundary calls belong to the ordinary operation sequence,
-    // which owns their result binding and exact provider-call custody. Giving
-    // them a direct-call binding sends closure discovery looking for a body
-    // that a boundary declaration deliberately does not contain.
-    if !target_machine.supply_mode.is_checked_body() || !target_machine.body_is_present {
-        return None;
-    }
-    let parameters = program.state_parameters(target_state);
-    let authored_arguments = program
-        .expression_table
-        .expression_handles(call.arguments)
-        .len();
-    if authored_arguments != parameters.len() {
-        return None;
-    }
-    // The retained argument count. An erased position has no caller argument
-    // ordinal (`values::scalar::call_lowering` numbers `CallArgument` roles
-    // over the retained positions only), matching the callee's stripped
-    // scalar signature.
-    let mut retained_arguments = 0usize;
-    for parameter in parameters {
-        if !super::terminal_unit::strips_erased_parameter(parameter)? {
-            retained_arguments = retained_arguments.checked_add(1)?;
-        }
-    }
-    Some(CheckedScalarBindingValue::DirectCall {
-        target_machine: target_machine.symbol,
-        target_state: call.target_symbol,
-        // A supported call is the root of its local initializer. Nested calls
-        // cannot acquire scalar argument plans and therefore fail closed.
-        call_ordinal: 0,
-        argument_count: u32::try_from(retained_arguments).ok()?,
-    })
 }
 
 fn checked_successor(

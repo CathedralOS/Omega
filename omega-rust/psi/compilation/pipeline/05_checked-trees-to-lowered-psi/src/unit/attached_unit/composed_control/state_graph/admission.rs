@@ -7,7 +7,7 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError};
 use super::{
     CheckedComposedUnitControlMachinePlan, claims, edges, entry_aliases, exclusive_handoffs,
-    scalars, topology,
+    topology,
 };
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
@@ -363,7 +363,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             )?;
         }
         let statements = checked.statement_table.statements(source.statement_nodes);
-        scalars::validate(checked, state)?;
         let terminator_ordinal = state.terminator_statement_ordinal as usize;
         let tail =
             typed_trees::statement::reachable_transition_prefix(&statements[terminator_ordinal..]);

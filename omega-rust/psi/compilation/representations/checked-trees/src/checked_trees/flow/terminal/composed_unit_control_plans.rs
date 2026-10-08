@@ -3,8 +3,8 @@
 
 use crate::checked_trees::flow::terminal::{
     CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan,
-    CheckedReferenceResultSourcePlan, CheckedScalarBinding, CheckedScalarBranchDestination,
-    CheckedScalarGuardedExit, CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
+    CheckedReferenceResultSourcePlan, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
@@ -153,14 +153,6 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// the state only when every row is `Some`.
     pub requires: Vec<Option<ClosedScalarContractValue>>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
-    /// Ordered primitive declarations and storage assignments before this state's
-    /// effects and terminator. Initializer expressions remain in the exact
-    /// checked scalar-expression table under these statement ordinals.
-    pub bindings: Vec<CheckedScalarBinding>,
-    /// Initializers retained independently by this composed-control plan.
-    /// Terminal admission requires exact agreement with the scalar-expression
-    /// fact at the corresponding binding coordinate before emitting either.
-    pub binding_initializers: Vec<CheckedScalarExpression>,
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
     pub terminator: CheckedComposedUnitControlTerminatorPlan,
