@@ -691,6 +691,24 @@ impl MachineEncodedEffects {
             ..Self::fallthrough_v1(Vec::new(), Vec::new())
         }
     }
+
+    /// A float result-policy form's effect row: the ISA's scratch clobbers
+    /// plus a trap/control pair when the form traps.
+    pub fn float_result_policy_v1(
+        inputs: u16,
+        clobbers: Vec<register_model::RegisterUnitId>,
+        trapping: bool,
+    ) -> Self {
+        let mut effects = Self {
+            implicit_unit_clobbers: clobbers,
+            ..Self::fallthrough_v1((0..inputs).collect(), vec![inputs])
+        };
+        if trapping {
+            effects.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
+            effects.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
+        }
+        effects
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

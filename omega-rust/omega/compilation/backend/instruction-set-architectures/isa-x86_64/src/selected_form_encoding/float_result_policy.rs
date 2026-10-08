@@ -22,8 +22,7 @@ use selected_instructions::{
     FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule, MachineAlternative,
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineEncodedControlEffect, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
     MachineTrapBehavior, SelectedInstructionKind,
 };
 
@@ -46,16 +45,11 @@ pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
 }
 
 pub(crate) fn effects(form: FloatResultPolicyForm) -> MachineEncodedEffects {
-    let inputs = form.operand_count() as u16;
-    let mut effects = MachineEncodedEffects {
-        implicit_unit_clobbers: clobbers(form),
-        ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
-    };
-    if form.can_trap() {
-        effects.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
-        effects.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
-    }
-    effects
+    MachineEncodedEffects::float_result_policy_v1(
+        form.operand_count() as u16,
+        clobbers(form),
+        form.can_trap(),
+    )
 }
 
 pub(crate) fn footprint(
