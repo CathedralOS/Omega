@@ -191,12 +191,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
         _ => None,
     };
     let field_rejoins = data_symbol
-        .and_then(|symbol| {
-            compilation
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == symbol)
-        })
+        .and_then(|symbol| compilation.data_definition_by_symbol(symbol))
         .and_then(|data| {
             compilation.data_members(data).iter().find_map(|candidate| {
                 let typed_trees::data::DataMember::Field(field) = candidate else {

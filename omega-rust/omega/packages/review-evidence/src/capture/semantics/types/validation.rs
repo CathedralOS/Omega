@@ -73,12 +73,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
                         }
                         let declared_parameters = (domain.subject
                             == typed_trees::types::DomainConstraintSubject::Declared)
-                            .then(|| {
-                                program
-                                    .domain_definitions()
-                                    .iter()
-                                    .find(|definition| definition.symbol == domain.symbol)
-                            })
+                            .then(|| program.domain_definition(domain.symbol))
                             .flatten()
                             .map(|definition| program.domain_type_parameters(definition));
                         for (index, argument) in domain.arguments.iter().enumerate() {
@@ -124,9 +119,7 @@ pub(crate) fn validate_package_type_identity_input_inner(
             ..
         } => {
             let parameters = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *base_symbol)
+                .data_definition_by_symbol(*base_symbol)
                 .map(|definition| program.data_type_parameters(definition));
             for (index, argument) in program
                 .type_reference_table

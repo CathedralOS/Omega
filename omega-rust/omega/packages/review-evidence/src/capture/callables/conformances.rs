@@ -71,10 +71,7 @@ pub(super) fn project_callable_conformances(
     let mut operator_realizations = Vec::new();
     let mut requirement_realizations = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
-        let trait_definition = compilation
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == conformance.symbol);
+        let trait_definition = compilation.trait_definition_by_symbol(conformance.symbol);
         let Some(trait_definition) = trait_definition else {
             let Some(requirement_name) = conformance.requirement.as_ref() else {
                 return Err(vec![Diagnostic::error(format!(

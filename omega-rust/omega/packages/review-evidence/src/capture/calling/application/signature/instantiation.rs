@@ -45,9 +45,7 @@ pub(super) fn instantiate(
                 .map(|layout| (layout.schema_symbol, layout.policy_symbol));
             if let Some((schema_symbol, policy_symbol)) = plan {
                 let schema = compilation
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == schema_symbol)
+                    .data_definition_by_symbol(schema_symbol)
                     .map(|definition| {
                         (
                             definition.symbol,

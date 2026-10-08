@@ -142,12 +142,7 @@ pub(super) fn build_machine_declares_identifier_field(
         .iter()
         .flat_map(|state| typed.state_parameters(state).iter())
         .filter_map(|parameter| named_data_symbol(typed, parameter.type_reference))
-        .filter_map(|symbol| {
-            typed
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == symbol)
-        })
+        .filter_map(|symbol| typed.data_definition_by_symbol(symbol))
         .filter(|definition| definition.name.as_str() == "Build")
         .flat_map(|definition| typed.data_members(definition).iter())
         .any(|member| {

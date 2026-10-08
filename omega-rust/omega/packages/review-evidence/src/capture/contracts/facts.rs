@@ -160,9 +160,7 @@ pub(crate) fn project_contracts(
                         membership,
                     )?;
                     let domain = compilation
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == membership.domain_symbol)
+                        .domain_definition(membership.domain_symbol)
                         .ok_or_else(|| {
                             vec![Diagnostic::error(format!(
                                 "reviewed {} `{}` contract refers to an unresolved domain",

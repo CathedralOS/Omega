@@ -47,9 +47,7 @@ pub(super) fn argument_type_reference(
             return Err(rejected("a nested application outside a type slot"));
         }
         let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == argument.symbol)
+            .data_definition_by_symbol(argument.symbol)
             .cloned()
             .ok_or_else(|| rejected("a generic application without an exact data declaration"))?;
         let parameters = program.data_type_parameters(&definition).to_vec();

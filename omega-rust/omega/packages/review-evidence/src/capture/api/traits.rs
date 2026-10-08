@@ -158,9 +158,7 @@ pub(crate) fn project_trait_requirement(
     trait_lifetime_parameters: &[typed_trees::name::Identifier],
 ) -> Result<PackageReviewTraitRequirement, Vec<Diagnostic>> {
     let owner = compilation
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)
+        .trait_definition_by_symbol(trait_symbol)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "package review trait requirement has no exact declaring trait",

@@ -343,11 +343,7 @@ pub(crate) fn is_data_subject_field_expression(
         return false;
     }
     let selected = path.head_symbol;
-    let Some(data) = compilation
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == data_symbol)
-    else {
+    let Some(data) = compilation.data_definition_by_symbol(data_symbol) else {
         return false;
     };
     compilation.data_members(data).iter().any(|member| {
@@ -385,10 +381,7 @@ pub(crate) fn data_subject_binder_position(
         return None;
     }
     let selected = path.head_symbol;
-    let data = compilation
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == data_symbol)?;
+    let data = compilation.data_definition_by_symbol(data_symbol)?;
     let parameter = compilation
         .data_type_parameters(data)
         .iter()

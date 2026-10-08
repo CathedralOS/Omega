@@ -18,9 +18,7 @@ pub(crate) fn project_contract_cast(
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
     let semantic_domain = if cast.semantic_domain_symbol.is_valid() {
         let domain = compilation
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == cast.semantic_domain_symbol)
+            .domain_definition(cast.semantic_domain_symbol)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "reviewed {} `{}` cast refers to an unresolved semantic domain",

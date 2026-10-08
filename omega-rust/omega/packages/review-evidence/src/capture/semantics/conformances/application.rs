@@ -58,9 +58,7 @@ fn selected_conformance_application_type_reference(
             ));
         }
         let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == argument.symbol)
+            .data_definition_by_symbol(argument.symbol)
             .cloned()
             .ok_or_else(|| rejected("a nested data application without one exact declaration"))?;
         if definition.lifetime_parameters.len() != application.lifetime_arguments.len() {
