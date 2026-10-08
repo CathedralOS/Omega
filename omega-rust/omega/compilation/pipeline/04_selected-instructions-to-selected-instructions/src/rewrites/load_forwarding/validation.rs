@@ -15,7 +15,6 @@
 use std::sync::Arc;
 
 use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
@@ -53,3 +52,4 @@ pub(crate) fn seal_stored_load_forwarding(
     })
 }
 use crate::rewrites::receipt;
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;

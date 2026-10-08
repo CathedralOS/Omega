@@ -286,7 +286,7 @@ fn reconstruct<'source>(
     store: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, StoreMutationMotionError> {
-    let (plan, function) =
+    let (_, function) =
         crate::rewrites::plan_function(source, function_index, environment, || {
             StoreMutationMotionError::SourceMismatch
         })?;

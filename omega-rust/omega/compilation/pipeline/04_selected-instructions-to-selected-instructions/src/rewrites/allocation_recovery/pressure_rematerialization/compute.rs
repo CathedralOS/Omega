@@ -13,7 +13,6 @@ use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedRegisterConstraintCatalog,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
     PressureRematerializationError, PressureRematerializationPlan, PressureRematerializationPolicy,
@@ -73,6 +72,7 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAn
         rewritten_uses,
     })
 }
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 /// The plan and the transformed program the compute step derived together,
 /// with the action counts the receipt records.

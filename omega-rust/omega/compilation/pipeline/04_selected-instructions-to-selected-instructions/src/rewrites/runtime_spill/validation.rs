@@ -32,7 +32,6 @@ use selected_instructions::{
     VirtualRegisterOrigin,
 };
 use semantic_vocabulary::ScalarType;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     BitsConversion, RuntimeSpillError, RuntimeSpillReceipt, RuntimeSpillSpanPolicy,

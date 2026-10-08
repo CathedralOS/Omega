@@ -16,7 +16,6 @@
 use std::sync::Arc;
 
 use selected_instructions::SelectedInstructionPlan;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit};
 use crate::ValidatedSelectedAnalysis;

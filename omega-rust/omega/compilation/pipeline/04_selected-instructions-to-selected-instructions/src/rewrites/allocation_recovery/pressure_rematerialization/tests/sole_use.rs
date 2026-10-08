@@ -13,7 +13,6 @@ use selected_instructions::{
     SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerValue, ValueId};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::super::compute::build_functions;
 use super::super::{

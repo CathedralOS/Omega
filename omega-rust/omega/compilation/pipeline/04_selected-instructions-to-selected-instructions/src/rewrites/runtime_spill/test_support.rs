@@ -15,7 +15,6 @@ use semantic_vocabulary::{
 };
 use std::sync::Arc;
 use target::NativeTarget;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 /// A raw selected-stage unit fixture, not a source/Terminal admission claim.

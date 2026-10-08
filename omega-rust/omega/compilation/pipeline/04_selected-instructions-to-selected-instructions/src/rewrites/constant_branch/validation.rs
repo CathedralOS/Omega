@@ -26,7 +26,6 @@ use std::sync::Arc;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterUnitId;
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch};
 use crate::ValidatedSelectedAnalysis;

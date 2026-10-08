@@ -26,7 +26,6 @@ use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     ValidatedMachineEffectCatalog,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess};
 use crate::ValidatedSelectedAnalysis;

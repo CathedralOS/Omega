@@ -18,7 +18,6 @@ use std::sync::Arc;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation};
 use crate::ValidatedSelectedAnalysis;

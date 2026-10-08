@@ -12,7 +12,6 @@ use register_model::{
     ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{SelectedInstructionPlan, ValidatedMachineEffectCatalog};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
     LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy, ValidatedAllocationLegality,
@@ -64,3 +63,4 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
     };
     Ok((plan, transformed))
 }
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;

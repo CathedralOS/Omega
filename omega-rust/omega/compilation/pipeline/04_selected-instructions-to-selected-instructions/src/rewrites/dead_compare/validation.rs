@@ -13,7 +13,6 @@
 use std::sync::Arc;
 
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{DeadCompareError, DeadCompareReceipt, ValidatedDeadCompare};
 use crate::ValidatedSelectedAnalysis;

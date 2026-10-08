@@ -23,7 +23,6 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, VirtualRegisterId,
 };
 use semantic_vocabulary::IntegerValue;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     BoundaryBooleanError, BoundaryBooleanReceipt, Outcome, ValidatedBoundaryBoolean,
@@ -138,7 +137,7 @@ fn reconstruct<'source>(
     materialization: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, BoundaryBooleanError> {
-    let (plan, function) =
+    let (_, function) =
         crate::rewrites::plan_function(source, function_index, environment, || {
             BoundaryBooleanError::SourceMismatch
         })?;

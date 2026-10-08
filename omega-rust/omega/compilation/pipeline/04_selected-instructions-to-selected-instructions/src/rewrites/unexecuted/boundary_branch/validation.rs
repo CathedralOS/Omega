@@ -27,7 +27,6 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedInstructionProvenance, SelectedTerminator,
     terminator_instruction,
 };
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     BoundaryBranchError, BoundaryBranchReceipt, Outcome, ValidatedBoundaryBranch, branch_domain,
@@ -86,7 +85,7 @@ fn reconstruct<'source>(
     branch: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, BoundaryBranchError> {
-    let (plan, function) =
+    let (_, function) =
         crate::rewrites::plan_function(source, function_index, environment, || {
             BoundaryBranchError::SourceMismatch
         })?;

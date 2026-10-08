@@ -24,7 +24,6 @@ use selected_instructions::{
     SelectedValueTransport, terminator_instruction,
 };
 use semantic_vocabulary::PlaceId;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 use terminal_psi::StructuralPlaceDeclaration;
 
 use super::{
@@ -928,7 +927,7 @@ fn reconstruct<'source>(
     store: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
 ) -> Result<Reconstructed<'source>, DeadStoreEliminationError> {
-    let (plan, function) =
+    let (_, function) =
         crate::rewrites::plan_function(source, function_index, environment, || {
             DeadStoreEliminationError::SourceMismatch
         })?;

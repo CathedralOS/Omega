@@ -15,7 +15,6 @@
 use std::sync::Arc;
 
 use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand};
 use crate::ValidatedSelectedAnalysis;
@@ -60,3 +59,4 @@ pub(crate) fn seal_copied_call_operand_fold(
         transformed: Arc::new(proposed),
     })
 }
+use target_operations_to_selected_instructions::selected_instruction_plan_identity;
