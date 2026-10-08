@@ -48,9 +48,7 @@ fn fragment(
     machine: MachineId,
 ) -> Result<&machine_code::FunctionFragment, Error> {
     source::fragments(source)
-        .functions
-        .iter()
-        .find(|row| row.machine == machine)
+        .function(machine)
         .ok_or(Error::Mismatch("missing ordinary function fragment"))
 }
 fn scalar_type(function: &SelectedFunction, value: ValueId) -> Result<ScalarType, Error> {

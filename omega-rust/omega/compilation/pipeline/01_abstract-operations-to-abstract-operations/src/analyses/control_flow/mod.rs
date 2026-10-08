@@ -73,6 +73,14 @@ pub struct ControlFlowAnalysis {
     pub functions: Vec<FunctionControlFlow>,
 }
 
+impl ControlFlowAnalysis {
+    pub fn function(&self, machine: MachineId) -> Option<&FunctionControlFlow> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }
+}
+
 pub type BlockDominators = (BlockId, Vec<BlockId>);
 pub type FunctionDominators = (MachineId, Vec<BlockDominators>);
 
@@ -81,9 +89,25 @@ pub struct DominatorAnalysis {
     pub functions: Vec<FunctionDominators>,
 }
 
+impl DominatorAnalysis {
+    pub fn function(&self, machine: MachineId) -> Option<&FunctionDominators> {
+        self.functions
+            .iter()
+            .find(|(candidate, _)| *candidate == machine)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StronglyConnectedComponentAnalysis {
     pub functions: Vec<(MachineId, Vec<Vec<BlockId>>)>,
+}
+
+impl StronglyConnectedComponentAnalysis {
+    pub fn function(&self, machine: MachineId) -> Option<&(MachineId, Vec<Vec<BlockId>>)> {
+        self.functions
+            .iter()
+            .find(|(candidate, _)| *candidate == machine)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +122,14 @@ pub struct LoopRegion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoopAnalysis {
     pub functions: Vec<(MachineId, Vec<LoopRegion>)>,
+}
+
+impl LoopAnalysis {
+    pub fn function(&self, machine: MachineId) -> Option<&(MachineId, Vec<LoopRegion>)> {
+        self.functions
+            .iter()
+            .find(|(candidate, _)| *candidate == machine)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

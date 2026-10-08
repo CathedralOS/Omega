@@ -95,9 +95,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                 continue;
             }
             let machine_dominators = dominators
-                .functions
-                .iter()
-                .find(|(machine, _)| *machine == function.machine)
+                .function(function.machine)
                 .map(|(_, rows)| rows.as_slice())
                 .unwrap_or_default();
             for (predecessor_position, predecessor) in function.blocks.iter().enumerate() {

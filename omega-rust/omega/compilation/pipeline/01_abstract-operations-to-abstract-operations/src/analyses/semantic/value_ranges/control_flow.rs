@@ -15,9 +15,7 @@ pub(super) fn dominated_blocks(
     anchor: BlockId,
 ) -> Vec<BlockId> {
     let mut blocks = dominators
-        .functions
-        .iter()
-        .find(|(candidate, _)| *candidate == machine)
+        .function(machine)
         .into_iter()
         .flat_map(|(_, rows)| rows)
         .filter_map(|(block, values)| values.contains(&anchor).then_some(*block))

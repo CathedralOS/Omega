@@ -15,9 +15,7 @@ impl StronglyConnectedComponentAnalysis {
             .iter()
             .filter(|function| {
                 let Some((_, components)) = self
-                    .functions
-                    .iter()
-                    .find(|(machine, _)| *machine == function.machine)
+                    .function(function.machine)
                 else {
                     return false;
                 };

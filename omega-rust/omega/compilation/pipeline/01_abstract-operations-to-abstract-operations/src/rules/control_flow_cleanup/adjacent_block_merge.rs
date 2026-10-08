@@ -93,9 +93,7 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                 continue;
             }
             let machine_dominators = dominators
-                .functions
-                .iter()
-                .find(|(machine, _)| *machine == function.machine)
+                .function(function.machine)
                 .map(|(_, rows)| rows.as_slice())
                 .unwrap_or_default();
             for adjacent in function.blocks.windows(2) {

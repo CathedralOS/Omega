@@ -32,9 +32,7 @@ pub(super) fn build_functions(
                 })?;
             let home_function = homes
                 .plan()
-                .functions
-                .iter()
-                .find(|homes| homes.machine == function.machine)
+                .function(function.machine)
                 .ok_or(PostAllocationMachineError::FunctionMismatch {
                     function: function_index,
                 })?;

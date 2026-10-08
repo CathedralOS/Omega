@@ -52,9 +52,7 @@ impl PsiOptimizationRule for PhiTranslatedProofCertifiedCompatiblePolicyScalarGv
         let mut candidates = Vec::new();
         for function in &unit.functions {
             let machine_dominators = dominators
-                .functions
-                .iter()
-                .find(|(machine, _)| *machine == function.machine)
+                .function(function.machine)
                 .map(|(_, rows)| rows.as_slice())
                 .unwrap_or_default();
             let value_types = super::function_value_types(function);

@@ -83,9 +83,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 continue;
             }
             let Some((_, function_post_dominators)) = post_dominators
-                .functions
-                .iter()
-                .find(|(machine, _)| *machine == function.machine)
+                .function(function.machine)
             else {
                 continue;
             };
