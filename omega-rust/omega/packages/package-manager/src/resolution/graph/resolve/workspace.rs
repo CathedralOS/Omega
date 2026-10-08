@@ -27,25 +27,16 @@ pub fn resolve_workspace_package_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    storage.verify_path_identity().map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    let result = resolve_workspace_package_closure_impl(
-        storage,
+    resolve_workspace_closure(
         workspace_root_source,
         root_member_path,
-        live_workspace_root.as_ref(),
-        SourceCacheLane::Retained(storage.workspace_members()),
-        SourceCacheLane::Retained(storage.git_sources()),
+        live_workspace_root,
+        None,
+        storage,
         source_limits,
         closure_limits,
-        None,
         false,
-    );
-    storage.verify_path_identity().map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    result
+    )
 }
 
 /// Resolve a selected workspace project root. The root may be a package or an
@@ -58,25 +49,16 @@ pub fn resolve_workspace_project_closure(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    storage.verify_path_identity().map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    let result = resolve_workspace_package_closure_impl(
-        storage,
+    resolve_workspace_closure(
         workspace_root_source,
         root_member_path,
-        live_workspace_root.as_ref(),
-        SourceCacheLane::Retained(storage.workspace_members()),
-        SourceCacheLane::Retained(storage.git_sources()),
+        live_workspace_root,
+        None,
+        storage,
         source_limits,
         closure_limits,
-        None,
         true,
-    );
-    storage.verify_path_identity().map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    result
+    )
 }
 
 /// Resolve a context-enabled workspace closure beneath private resolver storage.
@@ -89,25 +71,16 @@ pub fn resolve_workspace_package_closure_in_context(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
-    storage.verify_path_identity().map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    let result = resolve_workspace_package_closure_impl(
-        storage,
+    resolve_workspace_closure(
         workspace_root_source,
         root_member_path,
-        live_workspace_root.as_ref(),
-        SourceCacheLane::Retained(storage.workspace_members()),
-        SourceCacheLane::Retained(storage.git_sources()),
+        live_workspace_root,
+        Some(&source_context),
+        storage,
         source_limits,
         closure_limits,
-        Some(&source_context),
         false,
-    );
-    storage.verify_path_identity().map_err(|error| {
-        ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    result
+    )
 }
 
 /// Context-enabled project-root variant for a workspace member that may be an
@@ -122,6 +95,31 @@ pub fn resolve_workspace_project_closure_in_context(
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
+    resolve_workspace_closure(
+        workspace_root_source,
+        root_member_path,
+        live_workspace_root,
+        Some(&source_context),
+        storage,
+        source_limits,
+        closure_limits,
+        true,
+    )
+}
+
+/// The shared verify-impl-verify envelope every workspace closure entry
+/// wraps: identity-checked resolver storage on both sides of the derivation.
+#[expect(clippy::too_many_arguments)]
+fn resolve_workspace_closure(
+    workspace_root_source: &SourceLineage,
+    root_member_path: SourceRelativePath,
+    live_workspace_root: impl AsRef<Path>,
+    external_context: Option<&ExternalSourceContext>,
+    storage: &SourceResolver,
+    source_limits: LocalSourceLimits,
+    closure_limits: PackageSourceClosureLimits,
+    application_root_allowed: bool,
+) -> Result<ResolvedPackageSourceClosure, ResolveWorkspacePackageClosureError> {
     storage.verify_path_identity().map_err(|error| {
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
@@ -134,8 +132,8 @@ pub fn resolve_workspace_project_closure_in_context(
         SourceCacheLane::Retained(storage.git_sources()),
         source_limits,
         closure_limits,
-        Some(&source_context),
-        true,
+        external_context,
+        application_root_allowed,
     );
     storage.verify_path_identity().map_err(|error| {
         ResolveWorkspacePackageClosureError::Root(ResolvePackageSourceError::Source(error))
