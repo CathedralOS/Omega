@@ -2133,3 +2133,48 @@ then settled the angle's two halves cheaply. Process rule to add to the
 playbook: inventory the fallback/always-fire branches and gold-labeled
 corpora on disk first; anecdote picks the angle only when the artifacts
 are silent.
+
+## 2026-10-08 (cont.) — second artifact sweep: one deterministic win, one Jev angle declined, two owner-level numbers
+
+Four more scans, no model calls.
+
+**Fixture pin strength.** Counting other *fixtures* with a matching
+diagnostic (my first pass counted diagnostics and overstated: 33/249/225),
+28 fail fixtures pin a fragment matched by ≥25 others (`cannot prove` 198,
+`requires` 199, `cannot prove requires contract` 56); 184 of 919 match ≥5
+by the looser diagnostic count. The golden diff still catches a changed
+diagnostic, so the cost sits
+at `--record` time: a fixture now rejecting for a different reason is
+re-pinned `expected` without notice. A second deterministic list: 25
+fixtures carry an extra diagnostic containing a sibling fixture's pinned
+fragment (8 trip `implicit_semantic_domain_local_weakening`) — the
+"pin one rule" convention violated mechanically. Shipped as
+`tools/corpus_pin_audit.py`, advisory, exit 0.
+
+**Jev angle declined by the playbook's own gate.** Candidate: Jev chooses,
+among code-proposed identifier-free spans of the own diagnostic, the one
+that names the rule. Generated candidates for 10 weak fixtures
+(`build/experiments/diag-intent/pin_candidates.json`) before any call and
+found the mechanical check already correct: the robust fragment is
+usually a longer prefix of the own diagnostic *with* its identifiers
+(`cannot prove index \`top\` is within length 4`), which specificity
+counting finds alone; identifier stripping destroyed the rule phrase
+(`is within length 4 in Stack::replace_top::write`); and families
+legitimately share a rule phrase (the 53 `while local borrow` fixtures
+differ by scenario, not rule), so "fewer other matches" is the wrong
+objective for them. No API call spent.
+
+**Golden churn (owner-level).** 877 commits touched
+`corpus_outcomes.txt` since 2026-09-15. Sampling 63 of those snapshots:
+454 pass/fail fixtures were pinned in a non-target status at some point;
+67 at two or more separate times (`pass/filesystem/native_metadata_ino`
+6). The golden is used as a regression ledger by design, but the re-pin
+rate is the measured customer for `corpus_gate --jev`'s `record_safe`
+verdict and for any `--record` policy that separates "pin a new
+regression" from "refresh expected rows". Not a tooling decision.
+
+**Board.** 164 items in `TASKS.md`, zero pairs at token-Jaccard ≥0.35 —
+the 2026-09-24 dedup deferral still holds. The measurable defect is item
+size (mean 35 lines, max 163 for `STATE-LOCAL-VALUE-FRONTIER`), which is
+run history the board rules forbid, not duplication; a line-count report
+beats a semantic judgment there.

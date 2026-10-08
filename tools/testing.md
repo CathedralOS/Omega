@@ -186,7 +186,11 @@ them: a bulk `--record` pins whatever another lane broke as expected. Adding
 `--jev` to the same diffing invocation asks the advisory `record_safe`
 verdict, which names suspect rows through the causal "could this commit
 produce this diff" question — advisory only; it does not replace
-attributing each row.
+attributing each row. `python tools/corpus_pin_audit.py` lists fixtures
+whose expected fragment matches many other fixtures' diagnostics (a pin
+that cannot tell its rule from any rejection) and fixtures whose extra
+diagnostics trip a sibling's pinned rule; tighten those pins before
+relying on `expected` at --record time.
 
 Two measurement hazards, both of which have produced a wrong mechanism here.
 The compiler caches resolved package snapshots under its user cache
