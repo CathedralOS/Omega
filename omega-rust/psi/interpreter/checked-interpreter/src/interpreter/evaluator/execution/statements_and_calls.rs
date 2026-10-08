@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, FrameLocal, Halt,
     Machine, Reference, State, StatementNode, SymbolHandle, TableCall, TableTransition,
-    TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value, trap,
+    TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value,
 };
 use typed_trees::statement::TransitionExit;
 
@@ -132,7 +132,7 @@ impl<'program> Evaluator<'program> {
         if holds {
             match transition.exit {
                 TransitionExit::Ordinary => {}
-                TransitionExit::Crash(cause) => return trap(format!("explicit crash {cause:?}")),
+                TransitionExit::Crash(cause) => return Err(Halt::Crash(cause)),
             }
         }
 

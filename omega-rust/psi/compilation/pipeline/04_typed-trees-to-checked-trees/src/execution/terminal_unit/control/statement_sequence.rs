@@ -11,8 +11,10 @@
 //! `build` sets up the sequence and walks the body's statements in order:
 //! `local_data` plans a `let`, `assignments` plans an assignment, and
 //! `statement_call` then plans the call either statement leaves (or a call
-//! or expression statement performs). `completion` closes the body: windows,
-//! the structural or scalar result, and call-count agreement.
+//! or expression statement performs). `completion` selects the structural or
+//! scalar result and checks call-count agreement. The exit owner receives the
+//! sequence's exact window debt and distinguishes normal completion from
+//! abandonment instead of requiring repair before it knows the terminator.
 use super::super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -62,6 +64,9 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) structural_result:
         Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
+    /// Exact restoration debt at the end of the operation prefix. Its exit
+    /// owner requires closure for normal completion, not crash abandonment.
+    pub(in crate::execution::terminal_unit) windows: super::super::borrowed_windows::OpenWindows,
     /// Every silent place loan the sequence admitted, in statement order.
     pub(in crate::execution::terminal_unit) place_loans: Vec<checked_trees::CheckedPlaceLoanPlan>,
     pub(in crate::execution::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,

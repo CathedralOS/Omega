@@ -489,6 +489,16 @@ pub(super) fn build_traced(
             terminator_index,
             trace,
         )?;
+        // The prefix still owes its exact holes. A normal successor must
+        // receive established storage; an all-crash roster returns nothing
+        // and owns no repair or cleanup successor. Guarded crash spelling
+        // does not exempt a returning sibling.
+        trace.phase("state graph: borrowed windows at selected exits");
+        if !sequence.windows.is_closed()
+            && !terminator.abandons_custody(&facts.flow.guarded_exits)?
+        {
+            return None;
+        }
         trace.phase("state graph: exit result locals");
         let disposable_locals = if matches!(
             terminator,

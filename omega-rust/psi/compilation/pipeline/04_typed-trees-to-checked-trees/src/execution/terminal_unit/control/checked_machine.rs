@@ -202,6 +202,12 @@ pub(crate) fn build_checked_machine_residual_parts(
         call_frames,
         trace,
     )?;
+    // This owner publishes a normal completion. Abnormal terminators belong
+    // to the composed graph, which checks the actual selected exit roster.
+    trace.phase("statement sequence: borrowed windows closed");
+    if !sequence.windows.is_closed() {
+        return None;
+    }
     let trivial_affine_locals = local_rows
         .iter()
         .map(|(plan, _)| plan.clone())

@@ -41,12 +41,12 @@ pub(super) fn emit_call_operations(
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
     // Borrowed-storage windows open and close within one straight-line
-    // operation sequence. Every exit of the sequence's block — the state's
-    // terminator, its successor edges and any return — follows the last
-    // operation, so requiring the ledger closed here closes it on every exit.
-    // No state-graph join can therefore receive an open window, and the
-    // blocks argument evaluation splits off in between rejoin with the one
-    // frontier this sequence carries.
+    // operation sequence. Every normal exit follows the last operation and
+    // requires closed debt. An all-crash terminator abandons that frontier
+    // without a returning owner, cleanup, or repair. A mixed crash/normal
+    // roster still requires restoration; no state-graph join receives a hole.
+    // Blocks split off by argument evaluation rejoin with the one frontier
+    // this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     // The state's `mut` formal storage and the mutable primitive locals this
@@ -274,5 +274,15 @@ pub(super) fn emit_call_operations(
             break;
         }
     }
-    windows.require_closed()
+    if state
+        .terminator
+        .abandons_custody(&checked.facts.flow.guarded_exits)
+        .ok_or(LoweringError::Unsupported(
+            "composed abandonment roster is stale",
+        ))?
+    {
+        Ok(())
+    } else {
+        windows.require_closed()
+    }
 }

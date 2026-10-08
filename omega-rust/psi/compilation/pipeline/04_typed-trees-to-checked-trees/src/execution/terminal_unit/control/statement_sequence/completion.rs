@@ -1,6 +1,8 @@
 //! Completing a single-state body once every statement is planned.
 //!
-//! Every borrowed window must be closed. The body's structural result is
+//! The exit owner receives exact borrowed-window debt and requires closure on
+//! normal paths; this prefix cannot presume every terminator returns.
+//! The body's structural result is
 //! chosen from its final statement: a returned local, the final expression's
 //! checked value, a returned call's result, or a returned array. The checked
 //! value plans the completion the same way whatever its spelling: an existing
@@ -81,10 +83,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         structural_results,
         call_count,
     } = completion;
-    trace.phase("statement sequence: borrowed windows closed");
-    if !windows.is_closed() {
-        return None;
-    }
     let statements = program.statement_table.statements(state.statement_nodes);
     // The completion value is the final expression statement. A return and
     // its nested call arguments may each establish a structural value at this
@@ -467,6 +465,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         scalar_control,
         structural_result,
         operations,
+        windows,
         place_loans,
         structural_local_symbols,
         structural_results,

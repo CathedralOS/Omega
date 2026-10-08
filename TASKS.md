@@ -639,7 +639,7 @@ defines the complete product bar.
     bindings.
   - Missing: qualify remaining referent windows and keep evaluation order,
     disjoint siblings and exact open-place agreement across recoverable failure,
-    suspension/resume/cancellation and crash/process-exit abandonment;
+    suspension/resume/cancellation and process-exit abandonment;
     do not invent rollback. Qualify those remaining paths on supported hosts.
     The ordinary cases below still need Windows x86-64 and matching-host
     Linux x86-64 execution; the bounded
@@ -651,6 +651,11 @@ defines the complete product bar.
     Keep `pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit`
     and `fail/drops/borrowed_selected_cleanup_missing_child_requirement` for
     parent-first guarantees and child prerequisites at that captured receiver.
+    Keep `pass/ownership/runtime_{borrowed,whole_borrowed}_window_crash_exit`
+    (Trap) for projected and retained-alias whole-referent abandonment without
+    repair or normal cleanup; qualify these on the remaining native hosts.
+    Keep `fail/ownership/borrowed_window_crash_does_not_repair_return` for a
+    returning sibling that still owes restoration despite a later crash.
   - Consumers: the product parser and **BUMP-ALLOCATOR-CANARY**.
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in the

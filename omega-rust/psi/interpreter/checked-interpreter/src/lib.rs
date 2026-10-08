@@ -43,6 +43,9 @@
 //! `boundary trait` machine drive exit code / stdout. Virtual waits instead
 //! require an explicit [`VirtualClockBinding`] from the embedding owner;
 //! the engine never grants sleep behavior from a requirement's spelling.
+//! Authored crashes retain their checked cause through non-local control and
+//! the outcome report. Generic evaluator failures never become crash evidence;
+//! value-returning build evaluation still rejects both kinds of abnormal halt.
 //!
 //! ## Scope
 //! Supported: multiple machines with per-instance contained sub-objects; symbol/group-based

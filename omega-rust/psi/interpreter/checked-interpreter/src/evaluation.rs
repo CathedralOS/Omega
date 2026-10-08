@@ -19,7 +19,7 @@ impl EvaluationSemanticsIdentity {
 }
 
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
-    EvaluationSemanticsIdentity(3);
+    EvaluationSemanticsIdentity(4);
 
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.
@@ -497,7 +497,6 @@ impl BuildMachineEvaluationFailure {
     pub const fn observations(&self) -> Option<&EvaluationObservations> {
         self.observations.as_ref()
     }
-
 }
 
 impl std::fmt::Display for BuildMachineEvaluationFailure {
@@ -822,9 +821,13 @@ pub struct InterpretOutcome {
     pub stdout: Vec<u8>,
     /// Bytes written to stderr via `write_error` / `write_error_line`.
     pub stderr: Vec<u8>,
-    /// `Some` when the interpreter hit an UNSUPPORTED construct (so a harness can skip),
-    /// or a genuine trap. `None` on a clean run.
+    /// A reason ordinary completion is unavailable. Crash-aware consumers use
+    /// the typed `crash_cause`; other failures remain evaluator declines.
     pub error: Option<String>,
+    /// The cause of an executed authored crash, never inferred from failure
+    /// text or an internal evaluator trap. `error` remains populated so
+    /// consumers expecting only ordinary completion stay fail-closed.
+    pub crash_cause: Option<typed_trees::signature::CrashCause>,
     /// Deterministic work under the current evaluator-step schedule. This is a
     /// precursor usage record, not canonical-IR fuel.
     pub usage: EvaluationUsage,
@@ -842,6 +845,7 @@ impl InterpretOutcome {
             stdout,
             stderr,
             error: None,
+            crash_cause: None,
             usage,
         }
     }
@@ -857,12 +861,25 @@ impl InterpretOutcome {
             stdout,
             stderr,
             error: Some(message.into()),
+            crash_cause: None,
             usage,
         }
     }
 
-    /// Whether the interpreter declined to evaluate the program (unsupported construct or
-    /// trap). Differential harnesses skip these rather than treat them as a mismatch.
+    pub(crate) fn crashed(
+        cause: typed_trees::signature::CrashCause,
+        stdout: Vec<u8>,
+        stderr: Vec<u8>,
+        usage: EvaluationUsage,
+    ) -> Self {
+        let mut outcome = Self::error(format!("explicit crash {cause:?}"), stdout, stderr, usage);
+        outcome.crash_cause = Some(cause);
+        outcome
+    }
+
+    /// Whether ordinary completion is unavailable. Crash-aware consumers
+    /// inspect `crash_cause` first; other consumers must not treat a crash as
+    /// a successful zero exit.
     pub fn is_error(&self) -> bool {
         self.error.is_some()
     }

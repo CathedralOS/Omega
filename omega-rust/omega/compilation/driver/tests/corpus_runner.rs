@@ -61,7 +61,7 @@
 //! does not check for it records `interpreter:unchecked`. With the native leg
 //! as well, the record gains `interpreter:agrees` or `interpreter:disagrees`
 //! comparing the two exit codes. `interpreter:trapped` comes only from the
-//! core's typed Trap outcome, never a physical native signal.
+//! selected engine's typed Trap outcome, never diagnostic text or a native signal.
 //! When realization and interpretation select the same target, interpretation
 //! borrows the native report's exact Terminal artifact before publication; Build
 //! runs once for that request. A native refusal supplies no retained intermediate
@@ -795,17 +795,27 @@ fn interpret_checked_fixture(
             ..checked_interpreter::InterpretOptions::default()
         },
     );
-    let mut observation = match outcome.error.as_deref() {
-        None => terminal_execution::Observation {
+    let mut observation = match (outcome.crash_cause, outcome.error.as_deref()) {
+        (Some(typed_trees::signature::CrashCause::Trap), _) => terminal_execution::Observation {
+            facts: vec!["interpreter:trapped".to_owned()],
+            diagnostics: Vec::new(),
+        },
+        (None, None) => terminal_execution::Observation {
             facts: vec![format!("interpreter-exit:{}", outcome.exit_code)],
             diagnostics: Vec::new(),
         },
-        // The checked engine does not retain a typed Trap outcome. Diagnostic
-        // text cannot satisfy a trap oracle, even for an explicit source crash.
-        Some(error) => {
+        // Only the executed checked cause satisfies a Trap oracle. Internal
+        // evaluator errors and Abort remain distinct, regardless of wording.
+        (_, Some(error)) => {
             return terminal_execution::Observation {
                 facts: vec!["interpreter:declined".to_owned()],
                 diagnostics: vec![format!("Checked interpreter: {error}")],
+            };
+        }
+        (Some(cause), None) => {
+            return terminal_execution::Observation {
+                facts: vec!["interpreter:declined".to_owned()],
+                diagnostics: vec![format!("Checked interpreter: explicit crash {cause:?}")],
             };
         }
     };

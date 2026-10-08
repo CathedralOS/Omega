@@ -3,8 +3,9 @@
 //! Every structural result a state's operations produce has exactly one
 //! owner on each path out of the state: a later operation that consumes it,
 //! a store that writes it, a successor edge that transfers it, or a cleanup
-//! row that discards it. A result with no owner, or with two, refuses the
-//! route; case successors of a closed sum account for it per case.
+//! row that discards it. An all-crash exit abandons still-live custody without
+//! manufacturing a disposition. Normal paths with no owner and every path
+//! with duplicate dispositions refuse; closed sums account per case.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
@@ -26,6 +27,7 @@ pub(super) fn account(
 ) -> Option<()> {
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: result custody accounting");
+    let abandons_custody = terminator.abandons_custody(&facts.flow.guarded_exits)?;
     let case_successors = match terminator {
         CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
             .iter()
@@ -574,7 +576,7 @@ pub(super) fn account(
             + reference_releases
             + reference_reborrows
             + view_releases;
-        if total != 1 {
+        if total != 1 && !(total == 0 && abandons_custody) {
             trace.phase(if total == 0 {
                 "state graph: structural result has no selected disposition"
             } else {

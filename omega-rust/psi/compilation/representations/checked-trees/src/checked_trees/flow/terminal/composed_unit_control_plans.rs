@@ -283,6 +283,58 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
 }
 
 impl CheckedComposedUnitControlTerminatorPlan {
+    /// Whether every selected path abandons custody without a successor or
+    /// normal completion. The checked guard roster supplies coverage; a
+    /// missing or stale roster cannot authorize abandonment. This is shared
+    /// by window restoration and result accounting so neither manufactures
+    /// cleanup on crash paths or overlooks a returning sibling.
+    pub fn abandons_custody(&self, guarded_exits: &crate::CheckedGuardedExitPlans) -> Option<bool> {
+        let crash_arm = |arm: &CheckedConditionalReturnArm| {
+            matches!(arm, CheckedConditionalReturnArm::Crash { .. })
+        };
+        Some(match self {
+            Self::Crash { .. } => true,
+            Self::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => crash_arm(when_true) && crash_arm(when_false),
+            Self::Guarded { arms, fallback, .. } => {
+                let arms = guarded_exits.exits.span(*arms)?;
+                (!arms.is_empty() || fallback.is_some())
+                    && arms.iter().all(|arm| {
+                        matches!(
+                            arm.destination,
+                            CheckedScalarBranchDestination::Crash { .. }
+                        )
+                    })
+                    && fallback.as_ref().is_none_or(|destination| {
+                        matches!(destination, CheckedScalarBranchDestination::Crash { .. })
+                    })
+            }
+            Self::GuardedJumps { arms, fallback } => {
+                arms.iter().all(|arm| {
+                    matches!(
+                        arm, CheckedGuardedJumpArmPlan::Return(plan) if crash_arm(&plan.return_arm)
+                    )
+                }) && matches!(fallback,
+                    CheckedGuardedJumpFallbackPlan::Return(arm) if crash_arm(arm)
+                )
+            }
+            Self::ClosedSum { cases, .. } => !cases.is_empty() && cases.iter().all(|case| {
+                matches!(
+                    &case.outcome, CheckedClosedSumCaseOutcomePlan::Return(arm) if crash_arm(arm)
+                )
+            }),
+            Self::ReturnUnit
+            | Self::ReturnScalar { .. }
+            | Self::ReturnStructural { .. }
+            | Self::Jump { .. }
+            | Self::Conditional { .. }
+            | Self::ConditionalReturn { .. } => false,
+        })
+    }
+
     /// Control-flow successors of this terminator, in terminator order.
     /// Return, crash, and value exits contribute no edges.
     pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
