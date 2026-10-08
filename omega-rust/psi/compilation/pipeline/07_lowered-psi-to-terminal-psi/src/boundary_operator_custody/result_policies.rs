@@ -114,10 +114,7 @@ pub(super) fn replay(
                 if calls != 1 {
                     return Err("float result policy changed its source call coordinate");
                 }
-                let declaration = module
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == *boundary)
+                let declaration = module.boundary_machine(*boundary)
                     .ok_or("float result policy lost its boundary declaration")?;
                 if declaration.identity != requirement_identity(checked, target)? {
                     return Err("float result policy changed its original boundary target");

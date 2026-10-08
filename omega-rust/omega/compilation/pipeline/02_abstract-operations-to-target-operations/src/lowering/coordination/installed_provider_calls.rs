@@ -130,10 +130,7 @@ pub(super) fn validate_installed_provider_calls(
             ) => actual == expected,
             _ => false,
         };
-        let declared_result_matches = plan
-            .boundary_machines
-            .iter()
-            .find(|declaration| declaration.id == key.2)
+        let declared_result_matches = plan.boundary_machine(key.2)
             .is_some_and(|declaration| match (result, &declaration.result) {
                 (
                     abstract_operations::AbstractBoundaryResult::Unit,

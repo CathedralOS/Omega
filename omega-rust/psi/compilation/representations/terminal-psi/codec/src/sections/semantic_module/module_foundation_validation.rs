@@ -223,10 +223,7 @@ fn validate_provider_attachment_foundation(
                     .iter()
                     .any(|provider_field| provider_field.id == *field)
                 || !boundaries.insert(*boundary)
-                || module
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == *boundary)
+                || module.boundary_machine(*boundary)
                     .is_none_or(|declaration| {
                         declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
                     })
@@ -243,10 +240,7 @@ fn validate_provider_attachment_foundation(
             _ => None,
         })
         .filter(|boundary| {
-            module
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == *boundary)
+            module.boundary_machine(*boundary)
                 .is_some_and(|declaration| {
                     declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
                 })

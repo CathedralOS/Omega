@@ -278,10 +278,7 @@ pub(super) fn validate(
                     frontier_lower_bound: expected_frontier,
                 },
             ) => {
-                let declaration = plan
-                    .boundary_machines
-                    .iter()
-                    .find(|declaration| declaration.id == *boundary)
+                let declaration = plan.boundary_machine(*boundary)
                     .ok_or(LegalizationError::custody())?;
                 let parameters = declaration
                     .scalar_parameters

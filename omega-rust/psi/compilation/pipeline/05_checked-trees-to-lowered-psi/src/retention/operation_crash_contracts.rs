@@ -298,10 +298,7 @@ fn validate_named_site_carrier(
         );
     };
     let declaration = lowered
-        .semantic_module
-        .boundary_machines
-        .iter()
-        .find(|declaration| declaration.id == *boundary)
+        .semantic_module.boundary_machine(*boundary)
         .ok_or(LoweringError::Unsupported(
             "named operator crash invocation's boundary call names no retained declaration",
         ))?;

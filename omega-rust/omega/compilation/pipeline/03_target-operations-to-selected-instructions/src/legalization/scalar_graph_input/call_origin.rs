@@ -74,10 +74,7 @@ pub(in crate::legalization) fn installed_operation(
     {
         return Err(LegalizationError::custody());
     }
-    let declaration = plan
-        .boundary_machines
-        .iter()
-        .find(|row| row.id == *boundary)
+    let declaration = plan.boundary_machine(*boundary)
         .ok_or_else(|| LegalizationError::custody())?;
     let candidate = plan
         .functions

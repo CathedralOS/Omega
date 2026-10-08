@@ -70,10 +70,7 @@ pub(super) fn validate(
     // Rejoin that exact declaration; the admitted same-stack claim must name
     // this declaration's identity and the exact selected provider plan that
     // produced this execution binding.
-    if unit
-        .boundary_machines
-        .iter()
-        .find(|row| row.id == *boundary)
+    if unit.boundary_machine(*boundary)
         != Some(declaration)
     {
         return Err(LegalizationError::custody());

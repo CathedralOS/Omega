@@ -51,10 +51,7 @@ pub(super) fn retain(
             continue;
         };
         let declaration = lowered
-            .semantic_module
-            .boundary_machines
-            .iter()
-            .find(|declaration| declaration.id == boundary)
+            .semantic_module.boundary_machine(boundary)
             .ok_or("boundary application has no Terminal declaration")?;
         if declaration.kind != terminal_psi::BoundaryRequirementKind::Operator {
             continue;
