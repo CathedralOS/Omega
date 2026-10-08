@@ -304,6 +304,19 @@ impl TypeReferenceTable {
         handle
     }
 
+    /// The decimal value of an anonymous numeric literal `Named`
+    /// reference — an invalid symbol carrying an all-digits authored
+    /// name — or `None` for any other node shape.
+    pub fn anonymous_numeric_literal_value(&self, handle: TypeReferenceHandle) -> Option<usize> {
+        let TypeReferenceNode::Named { symbol, name } = self.type_reference(handle) else {
+            return None;
+        };
+        if symbol.is_valid() {
+            return None;
+        }
+        name.as_str().parse::<usize>().ok()
+    }
+
     /// The `Named` symbol, or the base symbol of a `Generic` whose argument
     /// span is empty — the nominal head a closed reference resolves to.
     /// `None` for every other node and for generics still carrying type

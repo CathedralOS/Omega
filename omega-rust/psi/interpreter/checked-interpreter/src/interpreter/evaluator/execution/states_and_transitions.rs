@@ -861,16 +861,18 @@ impl<'program> Evaluator<'program> {
         if depth >= 16 {
             return None;
         }
+        if let Some(value) = self
+            .program
+            .type_reference_table
+            .anonymous_numeric_literal_value(argument)
+        {
+            return Some(value);
+        }
         let typed_trees::types::TypeReferenceNode::Named { symbol, name } =
             self.program.type_reference_table.type_reference(argument)
         else {
             return None;
         };
-        if !symbol.is_valid()
-            && let Ok(value) = name.as_str().parse::<usize>()
-        {
-            return Some(value);
-        }
         let argument = self.generic_binding_argument(*symbol, name.as_str(), bindings)?;
         self.const_argument_value_with_bindings(argument, bindings, depth + 1)
     }

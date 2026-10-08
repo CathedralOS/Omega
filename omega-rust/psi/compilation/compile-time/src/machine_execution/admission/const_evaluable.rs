@@ -377,17 +377,16 @@ fn require_closed_argument(
     match kind {
         TypeParameterKind::Type => require_closed_type(program, argument, path, active_data),
         TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
-            match program.type_reference_table.type_reference(argument) {
-                TypeReferenceNode::Named { symbol, name }
-                    if !symbol.is_valid()
-                        && !name.as_str().is_empty()
-                        && name.as_str().chars().all(|c| c.is_ascii_digit()) =>
-                {
-                    Ok(())
-                }
-                _ => Err(format!(
+            if program
+                .type_reference_table
+                .anonymous_numeric_literal_value(argument)
+                .is_some()
+            {
+                Ok(())
+            } else {
+                Err(format!(
                     "{path} has a non-literal const argument and is not a closed const application"
-                )),
+                ))
             }
         }
         TypeParameterKind::Machine { .. }

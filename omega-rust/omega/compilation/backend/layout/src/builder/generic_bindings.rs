@@ -52,16 +52,17 @@ fn const_argument_value(
     if depth >= 16 {
         return None;
     }
+    if let Some(value) = program
+        .type_reference_table
+        .anonymous_numeric_literal_value(argument)
+    {
+        return Some(value);
+    }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
     else {
         return None;
     };
-    if !symbol.is_valid()
-        && let Ok(value) = name.as_str().parse::<usize>()
-    {
-        return Some(value);
-    }
     let binding = binding_for_type(*symbol, name, bindings)?;
     const_argument_value(program, binding.argument, bindings, depth + 1)
 }
