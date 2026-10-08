@@ -20,14 +20,13 @@ pub(in crate::encoding::recovery) fn applications(
             Ok(PackagePolicyBoundaryApplicationDemand {
                 operator_coordinate: operator_coordinate(reader)?,
                 producer_callable: nominal(reader)?,
-                arguments: reader.sequence(9, |reader| match reader.byte()? {
-                    0 => Ok(
-                        PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
+                arguments: reader.sequence(9, |reader| {
+                    Ok(super::super::tag!(reader => {
+                        0 => PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
                             requirement_binder_ordinal: reader.u32()?,
                             producer_binder_ordinal: reader.u32()?,
                         },
-                    ),
-                    _ => Err(Error::InvalidTag),
+                    }))
                 })?,
             })
         })?,

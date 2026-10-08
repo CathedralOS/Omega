@@ -12,7 +12,7 @@ pub(in crate::encoding::recovery) fn execution(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCompilerIntrinsicExecution, Error> {
     use PackageReviewCompilerIntrinsicExecution as Execution;
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => Execution::BuiltinFunction(
             symbols::BuiltinFunction::from_ordinal(usize::from(reader.u16()?))
                 .ok_or(Error::InvalidTag)?,
@@ -41,8 +41,7 @@ pub(in crate::encoding::recovery) fn execution(
                 integer_type,
             }
         }
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn integer_comparison(

@@ -133,13 +133,10 @@ pub(in crate::encoding::recovery) fn expression(
 pub(in crate::encoding::recovery) fn operator_meaning(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractOperatorMeaning, Error> {
-    match reader.byte()? {
-        0 => Ok(PackageReviewContractOperatorMeaning::Builtin),
-        1 => Ok(PackageReviewContractOperatorMeaning::Declared(
-            operator_coordinate(reader)?,
-        )),
-        _ => Err(Error::InvalidTag),
-    }
+    Ok(super::tag!(reader => {
+        0 => PackageReviewContractOperatorMeaning::Builtin,
+        1 => PackageReviewContractOperatorMeaning::Declared(operator_coordinate(reader)?),
+    }))
 }
 
 pub(in crate::encoding::recovery) fn binary_operator(
@@ -171,7 +168,7 @@ pub(in crate::encoding::recovery) fn binary_operator(
 pub(in crate::encoding::recovery) fn call_target(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractCallTarget, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::tag!(reader => {
         0 => PackageReviewContractCallTarget::Nominal(nominal(reader)?),
         1 => PackageReviewContractCallTarget::ByteSequencePredicate(super::tag!(reader => {
             0 => PackageReviewByteSequencePredicate::ValidUtf8,
@@ -191,8 +188,7 @@ pub(in crate::encoding::recovery) fn call_target(
         4 => PackageReviewContractCallTarget::ProofView {
             name: reader.string()?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn evidence_argument(
