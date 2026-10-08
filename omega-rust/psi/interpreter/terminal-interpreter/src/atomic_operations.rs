@@ -34,15 +34,7 @@ impl TerminalExecution<'_> {
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         machine
-            .structural_parameters
-            .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == place)
+            .structural_parameter(place)
             .filter(|parameter| {
                 let readable = matches!(
                     parameter.access,

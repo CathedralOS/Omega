@@ -403,16 +403,7 @@ pub fn byte_copied_field_predicates_at_transfer(
                 ) if declaration.id == structural_type => Some(carrier),
                 _ => None,
             })?;
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == *backing)?;
+    let parameter = machine.structural_parameter(*backing)?;
     if !matches!(
         parameter.access,
         StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow

@@ -72,17 +72,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // selects inside an aggregate; it does not select a different parameter
     // lookup or permit an undeclared destination.
     let projected = !path.is_empty();
-    let destination_type = if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == *destination)
-    {
+    let destination_type = if let Some(parameter) = machine.structural_parameter(*destination) {
         let declaration_matches = machine.structural_places.iter().any(|place| {
             if place.id != *destination {
                 return false;

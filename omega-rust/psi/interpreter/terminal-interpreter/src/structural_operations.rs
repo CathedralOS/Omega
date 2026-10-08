@@ -666,15 +666,7 @@ impl TerminalExecution<'_> {
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let access = machine
-            .structural_parameters
-            .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == destination)
+            .structural_parameter(destination)
             .filter(|parameter| {
                 matches!(
                     parameter.access,

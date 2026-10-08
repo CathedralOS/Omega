@@ -33,16 +33,7 @@ fn reference_store_carrier<'path>(
         return None;
     };
     let structural_type = structural_place_type(machine, destination)?;
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == destination);
+    let parameter = machine.structural_parameter(destination);
     let exact = if let Some(parameter) = parameter {
         parameter.multiplicity == StructuralMultiplicity::Affine
             && parameter.qualifications.is_empty()
@@ -237,17 +228,7 @@ fn field_store_parent(
     let reference = reference_store_carrier(module, machine, destination, path);
     let destination_type = if let Some((referent, _)) = reference {
         referent
-    } else if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| parameter.place == destination)
-    {
+    } else if let Some(parameter) = machine.structural_parameter(destination) {
         if !matches!(
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine

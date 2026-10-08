@@ -415,17 +415,7 @@ impl TerminalExecution<'_> {
             .get(&machine_id)
             .ok_or_else(malformed)?;
         if let Some(loan) = primitive_loan_values.get(&place) {
-            let parameter = machine
-                .structural_parameters
-                .iter()
-                .chain(
-                    machine
-                        .blocks
-                        .iter()
-                        .flat_map(|block| &block.structural_parameters),
-                )
-                .find(|parameter| parameter.place == place)
-                .ok_or_else(malformed)?;
+            let parameter = machine.structural_parameter(place).ok_or_else(malformed)?;
             if !path.is_empty()
                 || structural_values.get(&place) != Some(&loan.referent)
                 || loan.referent.structural_type != home.structural_type
@@ -455,15 +445,7 @@ impl TerminalExecution<'_> {
             .map(|structural_type| (structural_type, false))
             .or_else(|| {
                 machine
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.structural_parameters),
-                    )
-                    .find(|parameter| parameter.place == place)
+                    .structural_parameter(place)
                     .filter(|parameter| {
                         ((!path.is_empty() && parameter.access == StructuralAccess::Owned)
                             || if writing {

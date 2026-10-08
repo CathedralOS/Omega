@@ -214,17 +214,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let (access, parameter_root) = if let Some(parameter) = machine
-            .structural_parameters
-            .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == root)
-        {
+        let (access, parameter_root) = if let Some(parameter) = machine.structural_parameter(root) {
             if !parameter.is_unqualified_root() {
                 return Err(malformed());
             }
