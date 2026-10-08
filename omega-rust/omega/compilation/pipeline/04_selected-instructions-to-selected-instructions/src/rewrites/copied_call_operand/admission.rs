@@ -24,7 +24,7 @@ use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::block_edges::{block_instructions, function_at};
+use crate::rewrites::block_edges::block_instructions;
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
