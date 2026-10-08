@@ -673,35 +673,14 @@ impl crate::TypedTrees {
                 proposition: PropositionFormula::Application(expansion),
             } => {
                 visiting.push(application.proposition);
-                let expanded_binders = expansion
-                    .binder_arguments
-                    .iter()
-                    .map(|argument| {
-                        substitutions
-                            .iter()
-                            .find(|(symbol, _)| *symbol == argument.symbol)
-                            .map(|(_, label)| label.clone())
-                            .unwrap_or_else(|| display_binder_argument(argument))
-                    })
-                    .collect::<Vec<_>>();
-                let expanded_binder_identities = expansion
-                    .binder_arguments
-                    .iter()
-                    .map(|argument| {
-                        binders
-                            .iter()
-                            .zip(binder_identities)
-                            .find(|(binder, _)| binder.symbol == argument.symbol)
-                            .and_then(|(_, identity)| identity.clone())
-                            .or_else(|| exact_binder_argument_identity(self, argument))
-                    })
-                    .collect::<Vec<_>>();
-                let expanded_arguments = self
-                    .expression_table
-                    .expression_handles(expansion.arguments)
-                    .iter()
-                    .map(|argument| render_expression(self, *argument, &substitutions, &[]))
-                    .collect::<Vec<_>>();
+                let (expanded_binders, expanded_binder_identities, expanded_arguments) =
+                    expanded_application_parts(
+                        self,
+                        expansion,
+                        &substitutions,
+                        binders,
+                        binder_identities,
+                    );
                 let normalized = self.normalize_nominal_proposition_application_inner(
                     expansion,
                     &expanded_binders,
@@ -906,35 +885,14 @@ impl crate::TypedTrees {
                         })
                     }
                     PropositionFormula::Application(expansion) => {
-                        let expanded_binders = expansion
-                            .binder_arguments
-                            .iter()
-                            .map(|argument| {
-                                substitutions
-                                    .iter()
-                                    .find(|(symbol, _)| *symbol == argument.symbol)
-                                    .map(|(_, label)| label.clone())
-                                    .unwrap_or_else(|| display_binder_argument(argument))
-                            })
-                            .collect::<Vec<_>>();
-                        let expanded_binder_identities = expansion
-                            .binder_arguments
-                            .iter()
-                            .map(|argument| {
-                                binders
-                                    .iter()
-                                    .zip(binder_identities)
-                                    .find(|(binder, _)| binder.symbol == argument.symbol)
-                                    .and_then(|(_, identity)| identity.clone())
-                                    .or_else(|| exact_binder_argument_identity(self, argument))
-                            })
-                            .collect::<Vec<_>>();
-                        let expanded_arguments = self
-                            .expression_table
-                            .expression_handles(expansion.arguments)
-                            .iter()
-                            .map(|argument| render_expression(self, *argument, &substitutions, &[]))
-                            .collect::<Vec<_>>();
+                        let (expanded_binders, expanded_binder_identities, expanded_arguments) =
+                            expanded_application_parts(
+                                self,
+                                expansion,
+                                &substitutions,
+                                binders,
+                                binder_identities,
+                            );
                         self.normalize_proposition_application_inner(
                             expansion,
                             &expanded_binders,
@@ -949,6 +907,49 @@ impl crate::TypedTrees {
             }
         }
     }
+}
+
+fn expanded_application_parts(
+    program: &crate::TypedTrees,
+    expansion: &PropositionApplication,
+    substitutions: &[(SymbolHandle, String)],
+    binders: &[PropositionBinder],
+    binder_identities: &[Option<String>],
+) -> (Vec<String>, Vec<Option<String>>, Vec<String>) {
+    let expanded_binders = expansion
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            substitutions
+                .iter()
+                .find(|(symbol, _)| *symbol == argument.symbol)
+                .map(|(_, label)| label.clone())
+                .unwrap_or_else(|| display_binder_argument(argument))
+        })
+        .collect::<Vec<_>>();
+    let expanded_binder_identities = expansion
+        .binder_arguments
+        .iter()
+        .map(|argument| {
+            binders
+                .iter()
+                .zip(binder_identities)
+                .find(|(binder, _)| binder.symbol == argument.symbol)
+                .and_then(|(_, identity)| identity.clone())
+                .or_else(|| exact_binder_argument_identity(program, argument))
+        })
+        .collect::<Vec<_>>();
+    let expanded_arguments = program
+        .expression_table
+        .expression_handles(expansion.arguments)
+        .iter()
+        .map(|argument| render_expression(program, *argument, substitutions, &[]))
+        .collect::<Vec<_>>();
+    (
+        expanded_binders,
+        expanded_binder_identities,
+        expanded_arguments,
+    )
 }
 
 fn canonical_application_label(name: &str, binders: &[String], arguments: &[String]) -> String {
