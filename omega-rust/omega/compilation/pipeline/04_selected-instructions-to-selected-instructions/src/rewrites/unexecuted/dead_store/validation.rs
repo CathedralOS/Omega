@@ -834,37 +834,14 @@ fn reconstruct<'source>(
     // still requires the row's place to be the slot's staged place: a
     // `WriteLocal` naming a different place than the slot stages is no
     // coherent row.
-    let mut staging = None;
-    let storage_route = match (write.role, direct_slot) {
-        (SelectedMemoryAccessRole::WritePlace, None) => true,
-        (SelectedMemoryAccessRole::WriteLocal { slot }, None) => {
-            local_slot_is_place_storage(slot, write.place, structural_places) || {
-                staging = staging_slot(slot, write.place);
-                staging.is_some()
-            }
-        }
-        (SelectedMemoryAccessRole::WriteLocal { slot }, Some(encoded)) => {
-            slot == encoded
-                && (local_slot_is_place_storage(slot, write.place, structural_places) || {
-                    staging = staging_slot(slot, write.place);
-                    staging.is_some()
-                })
-        }
-        // A `WriteByteSequence` names a payload base, not the written
-        // position: the row is the dead store's write only on the
-        // one-byte `Store { 0, 1 }` whose byte lands at `byte_offset +
-        // index`.
-        (SelectedMemoryAccessRole::WriteByteSequence { .. }, None) => {
-            encoded_offset == 0 && encoded_size == 1 && write.byte_count == 1
-        }
-        // A `WriteByteSpan` names no encoded range — its `byte_count` is
-        // contractual zero and the `length` is the authoritative extent —
-        // so the row is the dead copy's write row only on a `CopyBytes`.
-        (SelectedMemoryAccessRole::WriteByteSpan { .. }, None) => {
-            byte_span && write.byte_count == 0
-        }
-        _ => false,
-    };
+    let (storage_route, staging) = super::write_storage_route(
+        write,
+        direct_slot,
+        encoded_offset,
+        encoded_size,
+        byte_span,
+        structural_places,
+    );
     if !storage_route
         || (!reach.dynamic()
             && (write.byte_offset != encoded_offset || write.byte_count != encoded_size))
