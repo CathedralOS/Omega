@@ -311,16 +311,6 @@ impl PackageReviewContractCallTarget {
             | Self::ProofView { .. } => None,
         }
     }
-
-    pub fn proof_view_name(&self) -> Option<&str> {
-        match self {
-            Self::ProofView { name } => Some(name),
-            Self::Nominal(_)
-            | Self::BuiltinFunction(_)
-            | Self::ByteSequencePredicate(_)
-            | Self::CollectionView(_) => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

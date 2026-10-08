@@ -181,31 +181,6 @@ impl PackageCompilationSubject {
     pub fn consumed_units(&self) -> &[ConsumedSourceUnit] {
         &self.consumed_units
     }
-
-    /// Append the counted, length-prefixed source rows directly to a production
-    /// manifest. No separately allocated row collection is retained.
-    /// Package-graph coordinates are carried separately by
-    /// `dependency_closure`; absolute routing paths never enter these bytes.
-    #[doc(hidden)]
-    pub fn append_canonical_consumed_units(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(
-            &u64::try_from(self.consumed_units.len())
-                .expect("consumed source count fits u64")
-                .to_le_bytes(),
-        );
-        for unit in &self.consumed_units {
-            // Fill the length after writing the row, avoiding both a sizing
-            // traversal and temporary row storage.
-            let length_offset = bytes.len();
-            bytes.extend_from_slice(&0u64.to_le_bytes());
-            let row_start = bytes.len();
-            append_canonical_consumed_unit(bytes, unit);
-            let row_length = u64::try_from(bytes.len() - row_start)
-                .expect("consumed source row length fits u64");
-            bytes[length_offset..row_start].copy_from_slice(&row_length.to_le_bytes());
-        }
-    }
-
     /// Construct the package/source subject from canonical parts for custody
     /// coverage. The retained shape must match what
     /// [`derive_package_compilation_subject`] produces: `root` is the closure

@@ -118,11 +118,6 @@ impl GitWorkspaceDeclaration {
     pub fn repository_path(&self) -> &str {
         &self.repository_path
     }
-
-    pub fn object_id(&self) -> &str {
-        &self.object_id
-    }
-
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }

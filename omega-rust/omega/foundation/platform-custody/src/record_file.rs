@@ -12,21 +12,6 @@ mod lock;
 mod stage;
 
 pub use lock::RecordFileLock;
-
-pub fn is_portable_record_file_name(value: &str, maximum_bytes: usize) -> bool {
-    !value.is_empty()
-        && value.len() <= maximum_bytes
-        && !value.contains('/')
-        && !value.contains('\\')
-        && !value.bytes().any(|byte| byte.is_ascii_control())
-        && !matches!(value, "." | "..")
-        && !value.ends_with('.')
-        && value.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'-' | b'_')
-        })
-        && !is_windows_reserved_path_component(value)
-}
-
 fn is_windows_reserved_path_component(component: &str) -> bool {
     let stem = component.split('.').next().unwrap_or(component);
     let uppercase = stem.to_ascii_uppercase();

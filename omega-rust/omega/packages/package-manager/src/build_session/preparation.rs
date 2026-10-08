@@ -59,13 +59,6 @@ impl PackageSourcePreparation {
             root_bindings: vec![None; closure.graph().packages().len()],
         }
     }
-
-    /// Prepare fresh sources with the stage ladder enabled.
-    pub fn collecting_timings(mut self, collect_timings: bool) -> Self {
-        self.collect_timings = collect_timings;
-        self
-    }
-
     /// Size slots to this closure's package positions. A differently shaped
     /// closure starts over empty rather than risk a misplaced checkpoint.
     pub(crate) fn size_for(&mut self, closure: &ResolvedPackageSourceClosure) {

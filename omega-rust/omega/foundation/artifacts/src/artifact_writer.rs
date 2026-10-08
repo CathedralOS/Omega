@@ -53,27 +53,6 @@ impl ArtifactWriter {
 
         Ok(path)
     }
-
-    pub fn remove_files<'a>(
-        &self,
-        file_names: impl IntoIterator<Item = &'a str>,
-    ) -> Result<(), Diagnostic> {
-        for file_name in file_names {
-            let path = self.root.join(file_name);
-            match fs::remove_file(&path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(Diagnostic::error(format!(
-                        "failed to remove stale artifact {}: {error}",
-                        path.display()
-                    )));
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 fn temp_path_for(path: &Path) -> PathBuf {

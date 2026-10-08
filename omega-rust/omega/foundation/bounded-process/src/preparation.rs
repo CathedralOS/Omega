@@ -129,21 +129,6 @@ impl BoundedProcessPrepared {
     standard_stream_disposition!(stdin, stdin_null, stdin_piped);
     standard_stream_disposition!(stdout, stdout_null, stdout_piped);
     standard_stream_disposition!(stderr, stderr_null, stderr_piped);
-
-    /// Unix only: retain one parent descriptor across the child's exec.
-    ///
-    /// The descriptor keeps its number in the child — the retained set is
-    /// the entire inheritance contract, and ambient descriptors still
-    /// receive close-on-exec. Callers pass the number to the child through
-    /// arguments or the environment; the platform never relocates it.
-    #[cfg(unix)]
-    pub fn retain_descriptor(&mut self, descriptor: impl std::os::fd::AsFd) -> &mut Self {
-        use std::os::fd::AsRawFd;
-        self.retained_descriptors
-            .push(descriptor.as_fd().as_raw_fd());
-        self
-    }
-
     #[cfg(unix)]
     pub(crate) fn retained_descriptors(&self) -> &[std::os::fd::RawFd] {
         &self.retained_descriptors

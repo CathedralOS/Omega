@@ -201,17 +201,6 @@ impl PackageCompilationInputs {
                 .collect(),
         }
     }
-
-    /// The product-scope target of `requester`'s `alias`, if declared.
-    #[doc(hidden)]
-    pub fn dependency_target(
-        &self,
-        requester: PackageKeyIdentity,
-        alias: &str,
-    ) -> Option<PackageKeyIdentity> {
-        self.dependency_target_for_purpose(requester, DependencyPurpose::Product, alias)
-    }
-
     /// The target of `requester`'s `alias` in exactly one dependency scope.
     /// Scopes never fall back to each other: a miss here does not license
     /// probing the other scope.

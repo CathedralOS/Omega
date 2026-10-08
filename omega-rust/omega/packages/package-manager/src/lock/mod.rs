@@ -27,8 +27,6 @@ pub use occurrences::{
     PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
     PackagePurposeCoverage,
 };
-pub const PACKAGE_LOCK_VERSION: u16 = 4;
-
 use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
