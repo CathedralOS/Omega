@@ -253,11 +253,11 @@ fn reconstruct<'source>(
     if interior_settlement(function, block.id, first + 1..=last) {
         return Err(CommutingRelocationError::UnsupportedPair);
     }
-    // The audit walks the plan's body and terminator instructions once;
+    // The audit walks the function's body and terminator instructions once;
     // the window audit touches every member-against-crossed operand,
     // unit, and roster-row surface plus the function's three rosters.
     let run_range = first_index - first..first_index - first + run_len;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             window
                 .iter()

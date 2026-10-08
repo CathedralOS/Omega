@@ -206,8 +206,8 @@ pub(super) fn outcome(
 }
 
 /// The validation work this audit performs, in the measured-step contract
-/// the family publishes: one step per block plus one per instruction
-/// across the plan, two scans of the reconstructed function's blocks for
+/// the family publishes: the shared rewrite scan (one step per block
+/// and instruction of the function, one per plan function), two scans of the reconstructed function's blocks for
 /// the producer audit, and the shared walk's setup and fixpoint bound at
 /// one per used flag unit.
 pub(super) fn measured_steps(
@@ -226,7 +226,7 @@ pub(super) fn measured_steps(
         .checked_mul(per_unit)
         .and_then(|total| total.checked_add(walk_setup))
         .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    crate::rewrites::plan_instruction_scan(plan)
+    crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan.checked_mul(2)?)?

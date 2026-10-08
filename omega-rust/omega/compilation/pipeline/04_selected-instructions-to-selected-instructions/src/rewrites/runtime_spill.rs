@@ -171,6 +171,8 @@ mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) mod test_support;
+#[cfg(test)]
+mod tests;
 
 use std::sync::Arc;
 
@@ -1406,14 +1408,9 @@ pub(super) fn derive_runtime_spill<'source>(
     } else {
         Some(bits_transport(environment, victim, carrier_class)?)
     };
-    // The slot-reuse search scans this function once per declared local
-    // slot. Reuse only shrinks the frame, so a search that alone would carry
-    // the pass over budget is declined rather than charged: every window then
-    // keeps the victim's private slot.
-    let slot_scan = crate::rewrites::function_scan(function)
-        .and_then(|span| function.local_storage_slots.len().checked_mul(span))
-        .ok_or(RuntimeSpillError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let function_scan =
+        crate::rewrites::function_scan(function).ok_or(RuntimeSpillError::IdentityOverflow)?;
+    let mut steps = crate::rewrites::rewrite_scan(plan, function)
         // A converted victim emits one more instruction and one more
         // register at every store and every reload, so its replay charges
         // six per use and three per definition instead of four and one.
@@ -1441,35 +1438,20 @@ pub(super) fn derive_runtime_spill<'source>(
         // The open/close decision replays once over the victim function's own
         // instructions — the crossing simulation under `UnitWriteCrossing`,
         // the span-close collection under either policy.
-        .and_then(|total| {
-            total.checked_add(function.blocks.iter().try_fold(0usize, |sum, block| {
-                sum.checked_add(block.instructions.len())?.checked_add(1)
-            })?)
-        })
-        // The structural-argument check groups the memory accesses once, then
-        // each pending binding walks its own access group. The establishment
-        // pairing above scans them twice more — once for the `AddressLocal`
-        // records on the victim's definition, once for the paired `WritePlace`
-        // stores.
+        .and_then(|total| total.checked_add(function_scan))
+        // The structural-argument check groups the memory accesses once; the
+        // establishment pairing above scans them twice more — once for the
+        // `AddressLocal` records on the victim's definition, once for the
+        // paired `WritePlace` stores. Each binding's walk of its own access
+        // group is charged where the groups are known.
         .and_then(|total| total.checked_add(function.memory_accesses.len().checked_mul(3)?))
-        .and_then(|total| {
-            total.checked_add(
-                structural_uses
-                    .len()
-                    .checked_mul(function.memory_accesses.len())?,
-            )
-        })
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     let charged =
         |steps: usize| u64::try_from(steps).map_err(|_| RuntimeSpillError::IdentityOverflow);
-    if charged(steps)? > budget.validation_steps() {
+    let ceiling = budget.validation_steps();
+    if charged(steps)? > ceiling {
         return Err(RuntimeSpillError::WorkBudgetExceeded);
     }
-    let reuse_slots = steps
-        .checked_add(slot_scan)
-        .map(charged)
-        .transpose()?
-        .is_some_and(|total| total <= budget.validation_steps());
     require_dominated_uses(function, block_index, &use_blocks)?;
     let first_instruction = function
         .blocks
@@ -1685,6 +1667,24 @@ pub(super) fn derive_runtime_spill<'source>(
         for accesses in chunk_loads.values_mut() {
             accesses.sort_by_key(|access| access.byte_offset);
         }
+        // The owner index scans the function once more, and each binding
+        // walks only the group its own edge and place recorded. Charging every
+        // binding against every memory access of the function instead made
+        // the bound quadratic where the walks are not.
+        steps = structural_uses
+            .iter()
+            .try_fold(function_scan, |total, pending| {
+                total.checked_add(
+                    chunk_loads
+                        .get(&(pending.edge, pending.place))
+                        .map_or(0, Vec::len),
+                )
+            })
+            .and_then(|walks| steps.checked_add(walks))
+            .ok_or(RuntimeSpillError::IdentityOverflow)?;
+        if charged(steps)? > ceiling {
+            return Err(RuntimeSpillError::WorkBudgetExceeded);
+        }
         let mut owners = std::collections::BTreeMap::new();
         for (owner, block) in function.blocks.iter().enumerate() {
             for (index, instruction) in block.instructions.iter().enumerate() {
@@ -1777,7 +1777,18 @@ pub(super) fn derive_runtime_spill<'source>(
     // takes the first declared spill slot the last-writer replay proves
     // disjoint from its accesses. Reuse declares nothing, so a shared slot is
     // charged to the frame once; windows no candidate admits share the
-    // victim's private slot, appended once.
+    // victim's private slot, appended once. The search scans this function
+    // once per declared local slot. Reuse only shrinks the frame, so a search
+    // that alone would carry the pass over budget is declined rather than
+    // charged: every window then keeps the victim's private slot.
+    let reuse_slots = function
+        .local_storage_slots
+        .len()
+        .checked_mul(function_scan)
+        .and_then(|slot_scan| steps.checked_add(slot_scan))
+        .map(charged)
+        .transpose()?
+        .is_some_and(|total| total <= ceiling);
     let assignment = slot::assign(
         function,
         register,

@@ -182,8 +182,8 @@ impl std::fmt::Display for ConfluenceRelocationError {
 impl std::error::Error for ConfluenceRelocationError {}
 
 /// The step base every confluence audit charges before its own surfaces:
-/// one scan of the plan's body and terminator instructions to locate the
-/// run's first member and find the join's other inflow, and each member's
+/// the shared rewrite scan, one scan of the function's body and terminator
+/// instructions to locate the run's first member and find the join's other inflow, and each member's
 /// register, implicit-def, and clobber locations.
 pub(super) fn confluence_scan_base(
     plan: &selected_instructions::SelectedInstructionPlan,
@@ -199,7 +199,7 @@ pub(super) fn confluence_scan_base(
         })
         .sum();
     let block_scan = crate::rewrites::window_hazards::block_scan_surface(function);
-    let scan = crate::rewrites::plan_instruction_scan(plan).and_then(|total| {
+    let scan = crate::rewrites::rewrite_scan(plan, function).and_then(|total| {
         function.blocks.iter().try_fold(total, |total, candidate| {
             candidate
                 .instructions

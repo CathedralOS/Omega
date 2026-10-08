@@ -282,7 +282,7 @@ pub(super) fn admit<'source>(
     {
         return Err(RedundantExtensionError::ConstraintMismatch);
     }
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             // A second full instruction scan locates and counts producers.
             function.blocks.iter().try_fold(total, |total, block| {

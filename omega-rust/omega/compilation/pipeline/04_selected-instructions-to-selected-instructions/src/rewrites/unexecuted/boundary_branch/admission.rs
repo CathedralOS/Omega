@@ -85,7 +85,7 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_mul(per_unit))
         .and_then(|total| total.checked_add(walk_setup))
         .ok_or(BoundaryBranchError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan.checked_mul(2)?)?

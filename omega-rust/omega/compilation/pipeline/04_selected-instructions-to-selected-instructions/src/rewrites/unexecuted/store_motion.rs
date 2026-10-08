@@ -201,15 +201,15 @@ struct Reconstructed<'source> {
 }
 
 /// The validation work this audit performs, in the measured-step
-/// contract the family publishes: one step per block plus one per
-/// instruction across the plan, one per walked interval position and
+/// contract the family publishes: the shared rewrite scan (one step per
+/// block and instruction of the function, one per plan function), one per walked interval position and
 /// crossed edge, and one per roster row.
 fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
     reconstructed: &Reconstructed<'_>,
 ) -> Result<u64, StoreMutationMotionError> {
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| total.checked_add(reconstructed.interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(StoreMutationMotionError::IdentityOverflow)?;

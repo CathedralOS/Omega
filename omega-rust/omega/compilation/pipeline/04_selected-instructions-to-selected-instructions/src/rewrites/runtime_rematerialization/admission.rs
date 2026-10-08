@@ -248,7 +248,7 @@ pub(super) fn admit<'source>(
     if !defined || uses == 0 {
         return Err(RuntimeRematerializationError::UnsupportedValue);
     }
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| total.checked_add(uses.checked_mul(2)?))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeRematerializationError::IdentityOverflow)?;

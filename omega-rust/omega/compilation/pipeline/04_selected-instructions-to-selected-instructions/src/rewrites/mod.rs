@@ -239,14 +239,22 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
 };
 
-/// One step per block plus one per instruction across the whole plan — the
-/// scan surface every family's measured-step contract charges first.
-pub(crate) fn plan_instruction_scan(plan: &SelectedInstructionPlan) -> Option<usize> {
-    plan.functions.iter().try_fold(0usize, |total, function| {
-        function.blocks.iter().try_fold(total, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-    })
+/// The scan surface every single-function rewrite's measured-step contract
+/// charges first: one step per block plus one per instruction of the
+/// rewritten function, and one step per plan function. Function storage is
+/// shared copy-on-write, so the proposal's plan clone, the transformed plan's
+/// identity and replay's restored-plan comparison each visit an unchanged
+/// function's shared entry once — they rehash and compare only the detached
+/// rewritten body. Charging every instruction of the plan instead made a
+/// required rewrite of a twelve-block function exceed the pass budget once
+/// the program passed a million instructions. Replay over separately
+/// allocated storage still compares the unshared bodies by content; that
+/// comparison is linear in the input it was handed and is not rewrite work.
+pub(crate) fn rewrite_scan(
+    plan: &SelectedInstructionPlan,
+    function: &SelectedFunction,
+) -> Option<usize> {
+    function_scan(function)?.checked_add(plan.functions.len())
 }
 
 /// One step per block plus one per instruction in one function — the

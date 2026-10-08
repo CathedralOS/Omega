@@ -19,8 +19,8 @@ use crate::rewrites::block_edges::terminator_successors;
 use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract
-/// the family publishes: one step per block plus one per instruction
-/// across the plan, a second scan of the reconstructed function's blocks
+/// the family publishes: the shared rewrite scan (one step per block
+/// and instruction of the function, one per plan function), a second scan of the reconstructed function's blocks
 /// together with its roster, call, and access rows, then the dead-unit
 /// audit at two block traversals plus the successor edges per published
 /// flag unit. `units` is caller-supplied so discovery can charge the
@@ -46,7 +46,7 @@ pub(crate) fn measured_steps(
                 .ok_or(DeadCompareError::IdentityOverflow)?,
         )
         .ok_or(DeadCompareError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan)?

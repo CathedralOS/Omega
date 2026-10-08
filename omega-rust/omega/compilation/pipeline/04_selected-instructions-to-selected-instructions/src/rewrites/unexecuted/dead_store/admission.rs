@@ -489,7 +489,7 @@ pub(super) fn admit<'source>(
         &killers,
         &crossed,
     )?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(DeadStoreEliminationError::IdentityOverflow)?;

@@ -1200,7 +1200,7 @@ fn copied_call_operand_candidate(
         validated_machine_effect_catalog(environment.target(), environment.constraints())
             .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
 
-    let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), block)
+    let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), function, block)
         .map_err(OptimizedPreAllocationCustodyError::CopiedCallOperand)?;
 
     let mut tried = BTreeSet::new();

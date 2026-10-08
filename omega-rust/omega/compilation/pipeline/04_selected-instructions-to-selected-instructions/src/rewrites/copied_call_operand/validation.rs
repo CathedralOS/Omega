@@ -24,9 +24,10 @@ use crate::rewrites::sealed;
 /// replay, and the executor's per-candidate budget accounting.
 pub fn copied_call_operand_measured_steps(
     plan: &SelectedInstructionPlan,
+    function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
 ) -> Result<u64, CopiedCallOperandError> {
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(block.instructions.len())?

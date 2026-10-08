@@ -21,8 +21,8 @@ use crate::rewrites::block_edges::{edge_surface, terminator_successors};
 use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract
-/// the family publishes: one step per block plus one per instruction
-/// across the plan, a second scan of the reconstructed function's blocks
+/// the family publishes: the shared rewrite scan (one step per block
+/// and instruction of the function, one per plan function), a second scan of the reconstructed function's blocks
 /// together with its roster, call, and access rows, the shared walk's
 /// setup and fixpoint bound, and the backward operand audit at one stream
 /// scan plus the crossed edges' transport surface per published unit.
@@ -61,7 +61,7 @@ pub(crate) fn measured_steps(
                 .ok_or(RedundantCompareError::IdentityOverflow)?,
         )
         .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan)?

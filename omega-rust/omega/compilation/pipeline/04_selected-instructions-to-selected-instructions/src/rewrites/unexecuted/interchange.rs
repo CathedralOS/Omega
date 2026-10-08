@@ -253,10 +253,10 @@ pub(super) fn derive_interchange<'source>(
     ) {
         return Err(InterchangeError::UnsupportedPair);
     }
-    // The search scans the plan's body and terminator instructions once;
+    // The search scans the function's body and terminator instructions once;
     // the window audit walks every member-against-crossed operand, unit,
     // and roster-row surface plus the function's three rosters.
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             window
                 .iter()

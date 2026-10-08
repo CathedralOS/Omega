@@ -6,7 +6,7 @@ use super::{AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, admissio
 use crate::ValidatedSelectedAnalysis;
 
 /// The measured-step contract the executing pass charges per evaluated
-/// candidate: the shared plan scan plus the backward producer-location scan
+/// candidate: the shared rewrite scan plus the backward producer-location scan
 /// and the base-redefinition interval scan, each bounded by the function's
 /// largest block. Admission and validation meter the same scans at the
 /// actual consumer's block, so this bound is exact whenever the candidates
@@ -21,7 +21,7 @@ pub(crate) fn measured_steps(
         .map(|block| block.instructions.len())
         .max()
         .unwrap_or(0);
-    let steps = admission::plan_scan_steps(plan)?
+    let steps = admission::rewrite_scan_steps(plan, function)?
         .checked_add(largest_block)
         .and_then(|total| total.checked_add(largest_block))
         .ok_or(AddressFoldError::IdentityOverflow)?;

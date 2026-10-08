@@ -326,7 +326,7 @@ fn reconstruct<'source>(
         .positions
         .iter()
         .flat_map(|(_, positions)| positions.iter());
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| total.checked_add(PATH_EDGE_LIMIT.saturating_mul(2)))
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, block| {

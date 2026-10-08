@@ -272,7 +272,7 @@ pub fn validate_projected_access_fold(
     // admission already paid it: a proposal validated on a starved budget
     // must not pass where admission would refuse.
     let block = &function.blocks[block_index];
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(block.instructions.len())?

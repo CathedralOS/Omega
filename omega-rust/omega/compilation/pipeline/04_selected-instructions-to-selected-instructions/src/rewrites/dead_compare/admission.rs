@@ -335,7 +335,7 @@ pub(super) fn admit<'source>(
                 .ok_or(DeadCompareError::IdentityOverflow)?,
         )
         .ok_or(DeadCompareError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             // A second pass of this function audits the operand classes,
             // roster rows, and call/access rows the compare must not be

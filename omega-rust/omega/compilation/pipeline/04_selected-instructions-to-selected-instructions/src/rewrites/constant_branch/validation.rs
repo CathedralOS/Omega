@@ -69,8 +69,8 @@ pub(crate) fn surface_sizes(
 }
 
 /// The validation work this audit performs, in the measured-step contract
-/// the family publishes: one step per block plus one per instruction
-/// across the plan, two scans of the reconstructed function's blocks for
+/// the family publishes: the shared rewrite scan (one step per block
+/// and instruction of the function, one per plan function), two scans of the reconstructed function's blocks for
 /// the producer audit, and the shared walk's setup and fixpoint bound at
 /// one per used unit — flag or not — so the bound stays independent of
 /// the partition split. The `flag_universe`, `jump_surface`, and
@@ -108,7 +108,7 @@ pub(crate) fn measured_steps(
         .checked_mul(per_unit)
         .and_then(|total| total.checked_add(walk_setup))
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan.checked_mul(2)?)?

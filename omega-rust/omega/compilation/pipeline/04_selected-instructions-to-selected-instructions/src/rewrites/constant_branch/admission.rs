@@ -279,7 +279,7 @@ pub(super) fn admit<'source>(
         .checked_mul(per_unit)
         .and_then(|total| total.checked_add(walk_setup))
         .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan.checked_mul(2)?)?

@@ -277,7 +277,7 @@ pub(super) fn admit<'source>(
     // the interval scan then audits the instructions between it and the
     // consumer for a base redefinition.
     let block = &function.blocks[block_index];
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(block.instructions.len())?

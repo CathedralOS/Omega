@@ -143,14 +143,14 @@ impl std::fmt::Display for CopyRemovalError {
 
 impl std::error::Error for CopyRemovalError {}
 
-/// The removal's measured scan: one step per plan instruction, then per
+/// The removal's measured scan: the shared rewrite scan, then per
 /// this function's body instructions, terminator edges and their binding
 /// surfaces, and each roster length — the audit's whole walk.
 pub(super) fn copy_scan(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
 ) -> Option<usize> {
-    crate::rewrites::plan_instruction_scan(plan)
+    crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, block| {
                 total

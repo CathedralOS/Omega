@@ -51,13 +51,14 @@ impl NativeRealizationRequest<'_> {
     /// Product-owned per-pass ceilings, identical for the program and callbacks.
     /// Identity staging meters traversal as well as optimizer iterations.
     pub fn optimization_budget(&self) -> optimization_core::OptimizationWorkBudget {
-        // Spill validation charges whole-plan traversal and slot-liveness scans,
-        // not just changed instructions. A complete application exceeds 100,000
-        // steps while recovering register pressure. Callee-save derivation also
-        // charges functions, blocks, instructions, operands and writes as both
-        // validation steps and iterations, and only its derived requirements as
-        // candidates. Give both traversal counters room without changing
-        // candidate/commit limits or bypassing independent replay.
+        // A spill charges the traversal of the function it rewrites, one step
+        // per plan function, and slot-liveness scans; a complete application
+        // exceeds 100,000 steps while recovering register pressure in one
+        // function. Callee-save derivation also charges functions, blocks,
+        // instructions, operands and writes as both validation steps and
+        // iterations, and only its derived requirements as candidates. Give
+        // both traversal counters room without changing candidate/commit
+        // limits or bypassing independent replay.
         optimization_core::OptimizationWorkBudget::new(
             1_000_000, 100_000, 1_000_000, 100_000, 1_000_000,
         )

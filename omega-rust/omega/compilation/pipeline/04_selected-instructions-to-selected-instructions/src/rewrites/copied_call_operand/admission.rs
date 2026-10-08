@@ -325,7 +325,7 @@ pub(super) fn admit<'source>(
     // proves the destination's last definition and the interval scan
     // audits the instructions between them for a source redefinition.
     let block = &function.blocks[block_index];
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(block.instructions.len())?

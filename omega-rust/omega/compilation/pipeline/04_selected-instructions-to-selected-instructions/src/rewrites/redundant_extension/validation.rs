@@ -25,7 +25,7 @@ pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
 ) -> Result<u64, RedundantExtensionError> {
-    let steps = crate::rewrites::plan_instruction_scan(plan)
+    let steps = crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, block| {
                 total.checked_add(block.instructions.len())

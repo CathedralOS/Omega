@@ -493,7 +493,7 @@ pub(in crate::rewrites) fn relocation_scan_steps(
                     .sum::<usize>()
         })
         .sum();
-    crate::rewrites::plan_instruction_scan(plan)
+    crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, candidate| {
                 candidate
