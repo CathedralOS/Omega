@@ -6,7 +6,7 @@
 //! `layout-plans`.
 
 use layout_plans::test_support::{
-    constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context,
+    constrained_post_handoff_plan, deeply_nested_layout, post_handoff_context, record_layout,
     recursive_record_array_report, repeated_layout, split_layout, sum_layout, symbolic_path,
 };
 
@@ -59,31 +59,15 @@ fn post_handoff_site() -> PlacementSite {
 /// resolves the same indexed boundary the standalone sum-array rung spells,
 /// folded through the recursive report instead of a top-level-only carrier.
 fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
-    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
-        LayoutPlanReport {
-            schema_report_fingerprint: fingerprint,
-            entries: fields
-                .iter()
-                .map(|&(field, offset)| LayoutFieldEntryReport {
-                    field: field.into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset },
-                })
-                .collect(),
-            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
-            size: Some(size),
-            align: 8,
-        }
-    }
     ConventionalRecursiveRecordSumPathsLayoutReport {
-        outer_layout: record(1, &[("header", 0), ("middle", 8)], 168),
+        outer_layout: record_layout(1, &[("header", 0), ("middle", 8)], 168),
         children: vec![ConventionalRecordSumChildLayoutReport {
             field: "middle".into(),
             member_identity: None,
             hop: ConventionalRecordSumChildHop::Field,
             interior: ConventionalRecordSumChildInterior::Record(
                 ConventionalRecursiveRecordSumPathsLayoutReport {
-                    outer_layout: record(
+                    outer_layout: record_layout(
                         2,
                         &[("inner", 0), ("tag", 80), ("route", 88), ("batches", 112)],
                         160,
@@ -95,7 +79,7 @@ fn recursive_sum_array_report() -> ConventionalRecursiveRecordSumPathsLayoutRepo
                             hop: ConventionalRecordSumChildHop::Field,
                             interior: ConventionalRecordSumChildInterior::Record(
                                 ConventionalRecursiveRecordSumPathsLayoutReport {
-                                    outer_layout: record(
+                                    outer_layout: record_layout(
                                         3,
                                         &[("choice", 0), ("choices", 24), ("pad", 72)],
                                         80,

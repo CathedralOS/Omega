@@ -243,25 +243,28 @@ pub fn sum_layout() -> ConventionalSumLayoutReport {
 /// every index the field spells, so `middle.neighbors[1].choice.Run.<p>`
 /// composes the element hop and the record boundary inside it under the same
 /// bounded traversal the standalone record carrier walks.
-pub fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
-    fn record(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
-        LayoutPlanReport {
-            schema_report_fingerprint: fingerprint,
-            entries: fields
-                .iter()
-                .map(|&(field, offset)| LayoutFieldEntryReport {
-                    field: field.into(),
-                    member_identity: None,
-                    placement: LayoutPlacementReport::At { offset },
-                })
-                .collect(),
-            offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
-            size: Some(size),
-            align: 8,
-        }
+/// A flat record layout: `record_layout(1, &[("a", 0), ("b", 8)], 16)` places
+/// each field at its offset in declaration order.
+pub fn record_layout(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: fingerprint,
+        entries: fields
+            .iter()
+            .map(|&(field, offset)| LayoutFieldEntryReport {
+                field: field.into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset },
+            })
+            .collect(),
+        offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+        size: Some(size),
+        align: 8,
     }
+}
+
+pub fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
     let element = || ConventionalRecursiveRecordSumPathsLayoutReport {
-        outer_layout: record(3, &[("choice", 0), ("pad", 24)], 32),
+        outer_layout: record_layout(3, &[("choice", 0), ("pad", 24)], 32),
         children: vec![ConventionalRecordSumChildLayoutReport {
             field: "choice".into(),
             member_identity: None,
@@ -270,14 +273,18 @@ pub fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLay
         }],
     };
     ConventionalRecursiveRecordSumPathsLayoutReport {
-        outer_layout: record(1, &[("header", 0), ("middle", 8)], 128),
+        outer_layout: record_layout(1, &[("header", 0), ("middle", 8)], 128),
         children: vec![ConventionalRecordSumChildLayoutReport {
             field: "middle".into(),
             member_identity: None,
             hop: ConventionalRecordSumChildHop::Field,
             interior: ConventionalRecordSumChildInterior::Record(
                 ConventionalRecursiveRecordSumPathsLayoutReport {
-                    outer_layout: record(2, &[("inner", 0), ("route", 32), ("neighbors", 56)], 120),
+                    outer_layout: record_layout(
+                        2,
+                        &[("inner", 0), ("route", 32), ("neighbors", 56)],
+                        120,
+                    ),
                     children: vec![
                         ConventionalRecordSumChildLayoutReport {
                             field: "inner".into(),
