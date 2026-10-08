@@ -1,6 +1,6 @@
 //! Primitive leaves: whole primitive storage and primitive elements.
 //!
-//! A primitive leaf is written by `WriteOnlyPrimitiveStore` over one checked
+//! A primitive leaf is the `Primitive` store leaf over one checked
 //! path from the shared destination resolver's borrowed or owned storage.
 //! The path composes fields, explicit reference crossings, literal elements, and the
 //! target's runtime elements: `self.cells[self.i] = v` is the store over
@@ -118,13 +118,13 @@ pub(super) fn store_at(
         authored.segments.is_empty(),
         primitive_type,
     )?;
-    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+    Some(CheckedUnitEffectOperationPlan::new_store(
         statement_index,
-        value_role: CheckedScalarExpressionRole::AssignmentValue,
-        destination: destination.root.destination(),
-        path: projection.path,
-        value,
-    })
+        destination.root.destination(),
+        projection.path,
+        checked_trees::CheckedStoreLeaf::Primitive,
+        checked_trees::CheckedStoreValue::assigned(value),
+    ))
 }
 
 /// The stored value of one primitive store: the statement's own call result
@@ -141,7 +141,7 @@ fn primitive_store_value(
     authored_symbol: SymbolHandle,
     authored_whole: bool,
     primitive_type: PrimitiveType,
-) -> Option<checked_trees::CheckedCallScalarArgument> {
+) -> Option<checked_trees::CheckedScalarStoreValue> {
     // Computed RHS values share the ordinary scalar evaluator. Keep the
     // authored assignment root until emission completes it, then replace storage.
     let computations = &facts.values.scalar_computations;
@@ -174,7 +174,7 @@ fn primitive_store_value(
         {
             return None;
         }
-        return Some(checked_trees::CheckedCallScalarArgument::Computation(
+        return Some(checked_trees::CheckedScalarStoreValue::Computation(
             root.root,
         ));
     }
@@ -197,14 +197,12 @@ fn primitive_store_value(
     {
         return None;
     }
-    Some(checked_trees::CheckedCallScalarArgument::Pure(
-        value.clone(),
-    ))
+    Some(checked_trees::CheckedScalarStoreValue::Pure(value.clone()))
 }
 
 /// The stores of a closed array literal written whole into a primitive-array
-/// field of exclusive borrowed or owned local storage: one `WriteOnlyPrimitiveStore`
-/// per row-major element, over the field's path plus that element's literal
+/// field of exclusive borrowed or owned local storage: one primitive store per
+/// row-major element, over the field's path plus that element's literal
 /// indices. Every element must be a closed value -- literals, parameters,
 /// locals and their compositions -- so no element observes a store the
 /// literal has already made; one that reads storage keeps declining.
@@ -249,10 +247,10 @@ pub(super) fn array_literal_stores(
         .into_iter()
         .enumerate()
         .map(|(ordinal, value)| {
-            let checked_trees::CheckedCallScalarArgument::Pure(expression) = &value else {
+            let checked_trees::CheckedCallScalarArgument::Pure(expression) = value else {
                 return None;
             };
-            if !scalar_expression_needs_no_bindings(expression) {
+            if !scalar_expression_needs_no_bindings(&expression) {
                 return None;
             }
             let mut element_path = path.clone();
@@ -261,16 +259,19 @@ pub(super) fn array_literal_stores(
                     .into_iter()
                     .map(CheckedUnitStructuralPathSegment::FixedIndex),
             );
-            Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            Some(CheckedUnitEffectOperationPlan::new_store(
                 statement_index,
-                value_role: CheckedScalarExpressionRole::ArrayElement {
-                    source: checked_trees::CheckedArrayConstructionSource::Statement,
-                    element_ordinal: u32::try_from(ordinal).ok()?,
-                },
                 destination,
-                path: element_path,
-                value,
-            })
+                element_path,
+                checked_trees::CheckedStoreLeaf::Primitive,
+                checked_trees::CheckedStoreValue::Scalar {
+                    role: CheckedScalarExpressionRole::ArrayElement {
+                        source: checked_trees::CheckedArrayConstructionSource::Statement,
+                        element_ordinal: u32::try_from(ordinal).ok()?,
+                    },
+                    value: checked_trees::CheckedScalarStoreValue::Pure(expression),
+                },
+            ))
         })
         .collect()
 }

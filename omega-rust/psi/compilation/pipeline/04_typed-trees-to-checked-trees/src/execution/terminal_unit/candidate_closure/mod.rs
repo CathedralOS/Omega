@@ -279,16 +279,8 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }
@@ -395,24 +387,11 @@ pub(super) fn retain_available(
                         },
                         call_site(call.coordinate),
                     ),
-                    CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                    | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                    // A write through a borrowed view names no callee: the
-                    // destination is a loan inside this frame and the index
-                    // and element scalars are dense, exactly as the byte-
-                    // sequence and field-store siblings above.
-                    | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-                    // A store through a recast loan local names no callee
-                    // either: the destination rejoins a loan inside this
-                    // frame and the authored value is a dense scalar.
-                    | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
-                    | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                    // Complete case replacement has no callee dependency;
-                    // its exact construction/copy and repair stay in-frame.
-                    | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    // A store names no callee: its destination is storage or
+                    // a loan inside this frame, its index and scalar value
+                    // are dense, and a sum field's copy or construction and
+                    // its window repair stay in-frame.
+                    CheckedUnitEffectOperationPlan::Store(_)
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     // A borrowed reference binds storage already owned by the

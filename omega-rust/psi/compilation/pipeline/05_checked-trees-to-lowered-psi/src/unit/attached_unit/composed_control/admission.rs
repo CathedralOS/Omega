@@ -37,18 +37,10 @@ pub(super) fn admit_calls<'a>(
             match operation {
                 _ if operation.call().is_some() => {}
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                // A representation view store writes through a loaned view;
-                // it names no callee.
-                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
+                // A store writes storage or a loan this state holds; it
+                // names no callee.
+                | CheckedUnitEffectOperationPlan::Store(_)
                 // An atomic event names no callee.
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 // The paired call carries the callee dependency; cleanup only

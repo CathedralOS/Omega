@@ -29,43 +29,48 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::{
-    CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreValue,
-    CheckedStructuralByteSequenceFieldByteStorePlan,
+    CheckedIndexedWriteDecisions, CheckedIntegerAssignmentDecision, CheckedScalarStoreValue,
+    CheckedStoreLeaf, CheckedStorePlan,
 };
 use symbols::SymbolHandle;
 
-/// The destination family of one runtime-indexed scalar write.
+/// The indexed leaf one write stores into, read from its store plan: the
+/// selector, the stored scalar and the decisions checking recorded.
 #[derive(Clone, Copy)]
-pub(crate) enum IndexedWriteLeaf<'a> {
-    /// A write through a whole `&mut` byte-view parameter.
-    ByteView(&'a CheckedByteSequenceWritePlan),
-    /// A byte replacement inside a bounded byte field under a parameter.
-    ByteField(&'a CheckedStructuralByteSequenceFieldByteStorePlan),
-    /// A write through a `&mut [T]` view rooted at a parameter or a `&mut`
-    /// local.
-    ElementView(&'a CheckedElementViewWritePlan),
+pub(crate) struct IndexedWriteLeaf<'a> {
+    statement_index: u32,
+    index: &'a CheckedScalarExpression,
+    role: CheckedScalarExpressionRole,
+    value: &'a CheckedScalarStoreValue,
+    decisions: CheckedIndexedWriteDecisions,
+    /// A view element's declared primitive and receiving-range judgment;
+    /// `None` for a byte, which stores a `u8`.
+    element: Option<(
+        PrimitiveType,
+        arena::Handle<CheckedIntegerAssignmentDecision>,
+    )>,
 }
 
-/// One indexed write as the ordered frame emits it: the leaf's plan with the
-/// lowered storage its destination resolves in.
+/// One indexed write as the ordered frame emits it: the store with the
+/// lowered storage its indexed carrier resolves in.
 #[derive(Clone, Copy)]
 pub(crate) enum IndexedWriteTarget<'a> {
-    /// The byte view names its `&mut` parameter by authored position, which
-    /// `emit` resolves in the frame's authored parameter roster.
-    ByteView(&'a CheckedByteSequenceWritePlan),
+    /// A whole `&mut` byte-view parameter, named by authored position, which
+    /// `destination` resolves in the frame's authored parameter roster.
+    ByteView(&'a CheckedStorePlan),
     /// An established bounded owner, resolved in the frame's local namespace.
     OwnedBytes {
-        write: &'a CheckedByteSequenceWritePlan,
+        store: &'a CheckedStorePlan,
         place: PlaceId,
         structural_type: StructuralTypeId,
     },
-    /// The byte field names its root parameter by authored position, which
-    /// `emit` resolves in the same roster.
-    ByteField(&'a CheckedStructuralByteSequenceFieldByteStorePlan),
+    /// A bounded byte field below a parameter named by authored position,
+    /// which `destination` resolves in the same roster.
+    ByteField(&'a CheckedStorePlan),
     /// The frame already resolved the view's home place and type from its
     /// parameter or local root.
     ElementView {
-        write: &'a CheckedElementViewWritePlan,
+        store: &'a CheckedStorePlan,
         place: PlaceId,
         structural_type: StructuralTypeId,
     },
@@ -78,31 +83,21 @@ pub(crate) struct IndexedWriteDecisions {
     pub(crate) write: bool,
 }
 
-/// The diagnostics one leaf reports. Each leaf spells its own complete
-/// messages so every rejection keeps its established `&'static str` text.
+/// Emission's operand rejection for one carrier. The byte carriers'
+/// destination custody checks report it too.
 struct Wording {
-    result_position: &'static str,
-    result_not_established: &'static str,
-    /// Emission's operand rejection. The byte leaves' destination custody
-    /// checks report it too.
     operands: &'static str,
 }
 
 const BYTE_VIEW: Wording = Wording {
-    result_position: "byte store call-result position exceeds usize",
-    result_not_established: "byte store call result is not this statement's established scalar result",
     operands: "byte-view write requires exact mutable byte custody and scalar operands",
 };
 
 const BYTE_FIELD: Wording = Wording {
-    result_position: "byte store call-result position exceeds usize",
-    result_not_established: "byte store call result is not this statement's established scalar result",
     operands: "byte replacement requires bounded bytes and exact branch-free operands",
 };
 
 const ELEMENT_VIEW: Wording = Wording {
-    result_position: "element-view store result position exceeds usize",
-    result_not_established: "element-view store call result is not this statement's established scalar result",
     operands: "element-view write requires scalar operands",
 };
 
@@ -111,66 +106,34 @@ impl<'a> IndexedWriteLeaf<'a> {
     /// index decides count conversion and plain element bounds; byte
     /// predicates additionally require the completed write-preservation mark.
     pub(crate) fn source_decisions(self) -> IndexedWriteDecisions {
-        let decisions = match self {
-            Self::ByteView(write) => write.decisions,
-            Self::ByteField(store) => store.decisions,
-            Self::ElementView(write) => write.decisions,
-        };
         IndexedWriteDecisions {
-            index: decisions.index_in_bounds,
-            write: decisions.predicates_preserved,
+            index: self.decisions.index_in_bounds,
+            write: self.decisions.predicates_preserved,
         }
     }
 
     pub(crate) fn statement_index(self) -> u32 {
-        match self {
-            Self::ByteView(write) => write.statement_index,
-            Self::ByteField(store) => store.statement_index,
-            Self::ElementView(write) => write.statement_index,
-        }
+        self.statement_index
     }
 
     pub(crate) fn index(self) -> &'a CheckedScalarExpression {
-        match self {
-            Self::ByteView(write) => &write.index,
-            Self::ByteField(store) => &store.index,
-            Self::ElementView(write) => &write.index,
-        }
+        self.index
     }
 
     /// Every leaf's value is the one shared store vocabulary.
-    pub(crate) fn value(self) -> &'a CheckedStoreValue {
-        match self {
-            Self::ByteView(write) => &write.value,
-            Self::ByteField(store) => &store.value,
-            Self::ElementView(write) => &write.value,
-        }
+    pub(crate) fn value(self) -> &'a CheckedScalarStoreValue {
+        self.value
     }
 
     /// The stored value's type as the plan records it.
     pub(crate) fn value_type(self) -> PrimitiveType {
-        match self {
-            Self::ByteView(_) | Self::ByteField(_) => PrimitiveType::U8,
-            Self::ElementView(write) => write.element,
-        }
+        self.element
+            .map_or(PrimitiveType::U8, |(element, _)| element)
     }
 
-    fn wording(self) -> &'static Wording {
-        match self {
-            Self::ByteView(_) => &BYTE_VIEW,
-            Self::ByteField(_) => &BYTE_FIELD,
-            Self::ElementView(_) => &ELEMENT_VIEW,
-        }
-    }
-
-    /// The store's value in the assignment's scalar namespace: an authored
-    /// expression rejoined at `AssignmentValue`, or the scalar result of the
-    /// call this same statement performs. That result binds no local and
-    /// carries no `AssignmentValue` row, so it is read back where the ordered
-    /// call operation established it as the most recent scalar value. A
-    /// computation is not a direct expression: the operation frame evaluates
-    /// it through the shared scalar evaluator and supplies the established
-    /// value to [`emit`] instead.
+    /// The store's value as one direct expression; a computation is
+    /// evaluated by the operation frame through the shared scalar evaluator
+    /// and supplied to [`emit`] as an established value instead.
     pub(crate) fn lower_value(
         self,
         bindings: &ScalarBindings,
@@ -178,30 +141,16 @@ impl<'a> IndexedWriteLeaf<'a> {
         state: SymbolHandle,
         values: &[ValueDeclaration],
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let wording = self.wording();
-        match self.value() {
-            CheckedStoreValue::Pure(_) => bindings.expression_at(
-                checked,
-                state,
-                self.statement_index(),
-                CheckedScalarExpressionRole::AssignmentValue,
-            ),
-            CheckedStoreValue::ScalarResult { position } => {
-                let position = usize::try_from(*position)
-                    .map_err(|_| LoweringError::Unsupported(wording.result_position))?;
-                if position.checked_add(1) != Some(values.len()) {
-                    return unsupported(wording.result_not_established);
-                }
-                let scalar_type = terminal_scalar_type(self.value_type())?;
-                Ok(LoweredDirectExpression::Local {
-                    position,
-                    scalar_type,
-                })
-            }
-            CheckedStoreValue::Computation(_) => {
-                unsupported("an indexed write's computed value is evaluated by its operation frame")
-            }
-        }
+        crate::emission::structural_scalar_store_source::direct_value(
+            checked,
+            state,
+            self.statement_index,
+            self.role,
+            self.value,
+            terminal_scalar_type(self.value_type())?,
+            bindings,
+            values,
+        )
     }
 }
 
@@ -227,13 +176,46 @@ enum DestinationShape {
 }
 
 impl<'a> IndexedWriteTarget<'a> {
-    pub(crate) fn leaf(self) -> IndexedWriteLeaf<'a> {
+    fn store(self) -> &'a CheckedStorePlan {
         match self {
-            Self::ByteView(write) => IndexedWriteLeaf::ByteView(write),
-            Self::OwnedBytes { write, .. } => IndexedWriteLeaf::ByteView(write),
-            Self::ByteField(store) => IndexedWriteLeaf::ByteField(store),
-            Self::ElementView { write, .. } => IndexedWriteLeaf::ElementView(write),
+            Self::ByteView(store) | Self::ByteField(store) => store,
+            Self::OwnedBytes { store, .. } | Self::ElementView { store, .. } => store,
         }
+    }
+
+    fn wording(self) -> &'static Wording {
+        match self {
+            Self::ByteView(_) | Self::OwnedBytes { .. } => &BYTE_VIEW,
+            Self::ByteField(_) => &BYTE_FIELD,
+            Self::ElementView { .. } => &ELEMENT_VIEW,
+        }
+    }
+
+    /// The store's indexed leaf: a byte element or a view element.
+    pub(crate) fn leaf(self) -> Result<IndexedWriteLeaf<'a>, LoweringError> {
+        let store = self.store();
+        let Some((role, value)) = store.value.scalar() else {
+            return unsupported("indexed write stores no scalar value");
+        };
+        let (index, decisions, element) = match &store.destination.leaf {
+            CheckedStoreLeaf::ByteElement { index, decisions } => (index, *decisions, None),
+            CheckedStoreLeaf::ViewElement {
+                index,
+                element,
+                range_decision,
+                decisions,
+                ..
+            } => (index, *decisions, Some((*element, *range_decision))),
+            _ => return unsupported("indexed write names no indexed element"),
+        };
+        Ok(IndexedWriteLeaf {
+            statement_index: store.statement_index,
+            index,
+            role,
+            value,
+            decisions,
+            element,
+        })
     }
 
     /// The leaf's own emission-time destination check. A byte leaf's
@@ -251,7 +233,7 @@ impl<'a> IndexedWriteTarget<'a> {
         parameters: &[(u32, StructuralParameterDeclaration)],
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<Destination, LoweringError> {
-        let operands = self.leaf().wording().operands;
+        let operands = self.wording().operands;
         match self {
             Self::OwnedBytes {
                 place,
@@ -270,8 +252,8 @@ impl<'a> IndexedWriteTarget<'a> {
                     shape: DestinationShape::ByteView,
                 })
             }
-            Self::ByteView(write) => {
-                let Some(position) = write.destination.parameter_position() else {
+            Self::ByteView(store) => {
+                let Some(position) = store.destination.root.parameter_position() else {
                     return unsupported("byte-view write destination has no parameter root");
                 };
                 let (_, parameter) = parameters
@@ -304,9 +286,12 @@ impl<'a> IndexedWriteTarget<'a> {
                 })
             }
             Self::ByteField(store) => {
-                let Some(position) = store.destination.parameter_position() else {
+                let Some(position) = store.destination.root.parameter_position() else {
                     return unsupported("byte replacement destination has no parameter root");
                 };
+                let (carrier_path, field_identity) = store.destination.field().ok_or(
+                    LoweringError::Unsupported("byte replacement destination names no byte field"),
+                )?;
                 let (_, parameter) = parameters
                     .iter()
                     .find(|(authored, _)| *authored == position)
@@ -315,11 +300,8 @@ impl<'a> IndexedWriteTarget<'a> {
                     ))?;
                 let (path, field) =
                     crate::emission::structural_scalar_store::lower_structural_field_place(
-                        store.statement_index,
-                        store.statement_index,
-                        parameter.position,
-                        &store.carrier_path,
-                        &store.field_identity,
+                        carrier_path,
+                        field_identity,
                         parameter,
                         structural_types,
                     )?;
@@ -350,10 +332,14 @@ impl<'a> IndexedWriteTarget<'a> {
                 })
             }
             Self::ElementView {
-                write,
+                store,
                 place,
                 structural_type,
             } => {
+                let CheckedStoreLeaf::ViewElement { element_path, .. } = &store.destination.leaf
+                else {
+                    return unsupported("element-view write names no view element");
+                };
                 let element = structural_types
                     .iter()
                     .find_map(|declaration| match declaration.shape {
@@ -367,7 +353,7 @@ impl<'a> IndexedWriteTarget<'a> {
                     .ok_or(LoweringError::Unsupported(
                         "element-view write destination is not an element view",
                     ))?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(&write.path)?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(element_path)?;
                 let leaf = terminal_semantics::element_view_leaf(structural_types, element, &path)
                     .ok_or(LoweringError::Unsupported(
                         "element-view write path is not an admitted scalar leaf",
@@ -392,16 +378,16 @@ impl Destination {
         leaf: IndexedWriteLeaf<'_>,
     ) -> Result<IndexedWriteDecisions, LoweringError> {
         let mut decisions = leaf.source_decisions();
-        if let (IndexedWriteLeaf::ElementView(write), DestinationShape::ElementView { leaf, .. }) =
-            (leaf, &self.shape)
+        if let (Some((element, range_decision)), DestinationShape::ElementView { leaf, .. }) =
+            (leaf.element, &self.shape)
         {
             decisions.write = decisions.index
                 && match leaf.bounds {
                     None => true,
                     Some(bounds) => super::structural_scalar_store::source_range_decided(
                         checked,
-                        write.element,
-                        write.range_decision,
+                        element,
+                        range_decision,
                         Some(bounds),
                     )?,
                 };
@@ -481,7 +467,7 @@ pub(crate) fn emit(
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<OperationKind, LoweringError> {
-    let operands = target.leaf().wording().operands;
+    let operands = target.wording().operands;
     let value_type = match value {
         IndexedWriteValue::Expression(expression) => expression.scalar_type(),
         IndexedWriteValue::Established(value) => value.scalar_type,

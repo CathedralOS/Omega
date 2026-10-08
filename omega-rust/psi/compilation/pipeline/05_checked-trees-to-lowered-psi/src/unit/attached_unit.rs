@@ -224,9 +224,9 @@ pub(crate) fn lower_unit_closure(
                     &mut structural_types,
                 )?;
             }
-            if let CheckedUnitEffectOperationPlan::ByteSequenceStore(store) = operation {
+            if let Some(value) = operation.stored_bytes() {
                 crate::emission::structural_byte_sequence_store::prepare_types(
-                    &store.value,
+                    value,
                     &mut structural_types,
                 )?;
             }

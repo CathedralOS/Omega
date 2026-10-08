@@ -1,6 +1,6 @@
 //! One emitter for the Unit effect operations every attached body lowers the
-//! same way: port writes, primitive, indexed, scalar-field and byte-sequence
-//! stores, scalar locals, view-subslice locals, borrowed-storage windows,
+//! same way: port writes, stores (`stores`: one lowering for every store
+//! leaf), scalar locals, view-subslice locals, borrowed-storage windows,
 //! call-continuation cleanup, structural-value construction, and every call
 //! shape (`calls`: internal Unit and structural calls, member calls of a
 //! construction and scalar calls; `boundary_calls`: the three boundary call
@@ -69,7 +69,6 @@ use super::signatures::MachineSignature;
 use super::view_ranges::ViewRangeSite;
 use super::{parameters, reference_results};
 use crate::emission::borrowed_window::BorrowedWindowLedger;
-use crate::emission::indexed_write::IndexedWriteTarget;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
@@ -204,15 +203,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
+                | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
@@ -263,64 +254,7 @@ impl OperationFrame<'_, '_> {
                 value,
                 ..
             } => self.port_write(service_reach, *port, *value),
-            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                statement_index,
-                value_role,
-                destination,
-                path,
-                value,
-            } => self.write_only_primitive_store(
-                *statement_index,
-                *value_role,
-                destination,
-                path,
-                value,
-            ),
-            CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
-                self.representation_view_store(write)
-            }
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                self.structural_byte_sequence_field_store(store)
-            }
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                self.indexed_write(IndexedWriteTarget::ByteField(store))
-            }
-            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                let target = match write.destination {
-                    checked_trees::CheckedStoreRoot::Parameter { .. } => {
-                        IndexedWriteTarget::ByteView(write)
-                    }
-                    checked_trees::CheckedStoreRoot::Local { symbol } => {
-                        let root = crate::emission::store_destination::local_store_root(
-                            symbol,
-                            &self.evaluation.structural_locals,
-                            self.evaluation.structural_root_parameters(),
-                            self.operations,
-                        )?;
-                        if root.argument.access != StructuralAccess::Owned {
-                            return unsupported("byte write local is not an owned home");
-                        }
-                        IndexedWriteTarget::OwnedBytes {
-                            write,
-                            place: root.argument.place,
-                            structural_type: root.structural_type,
-                        }
-                    }
-                };
-                self.indexed_write(target)
-            }
-            CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
-                self.element_view_write(write)
-            }
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                self.structural_scalar_field_store(store)
-            }
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
-                self.structural_case_field_store(store)
-            }
-            CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
-                self.structural_case_literal_field_store(store)
-            }
+            CheckedUnitEffectOperationPlan::Store(store) => self.store(store),
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
                 self.establish_scalar_local(result, value)
             }

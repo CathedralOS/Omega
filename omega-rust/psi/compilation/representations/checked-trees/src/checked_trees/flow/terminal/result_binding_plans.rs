@@ -1,7 +1,6 @@
-//! Result binding plans for scalar and structural results and the
-//! byte-sequence field stores that receive them.
+//! Result binding plans for scalar and structural results and the byte
+//! values a local or store receives.
 
-use crate::CheckedScalarExpression;
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
 };
@@ -68,38 +67,6 @@ impl Default for CheckedInitializedLocal {
             access: CheckedStructuralAccess::Owned,
         }
     }
-}
-
-/// Exact source occurrence of one byte-sequence replacement: bounded owned
-/// contents or a shared view's descriptor. The root is an exclusive borrowed
-/// parameter or an established local home; the destination names the
-/// replaced place below it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedByteSequenceStorePlan {
-    pub statement_index: u32,
-    pub root: crate::CheckedStoreRoot,
-    /// The replaced place below `root`: the whole owner or one byte field.
-    pub destination: CheckedByteSequenceStoreDestination,
-    pub value: CheckedByteSequenceValuePlan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedByteSequenceStoreDestination {
-    Whole,
-    Field {
-        carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-        field_identity: String,
-    },
-    /// One shared borrowed-view descriptor slot the value replaces; no bytes
-    /// are copied. With a field, `path` resolves from the root to the record
-    /// carrying it; without one, an empty `path` names the whole root, a
-    /// declared descriptor local. A descriptor value retains its actual
-    /// source; independent loan replay proves that source outlives every
-    /// later use of the slot.
-    Descriptor {
-        path: Vec<CheckedUnitStructuralPathSegment>,
-        field_identity: Option<String>,
-    },
 }
 
 /// Pure byte values retain authored evaluation order through arena children.
@@ -188,90 +155,4 @@ impl Default for CheckedByteSequenceValue {
     fn default() -> Self {
         Self::Literal(Vec::new())
     }
-}
-
-/// Exact source operands of a scalar byte replacement within the live prefix.
-/// The stored byte is a pure value or the statement's own call result; byte
-/// leaves lower no scalar computation, so `Computation` is refused. The root is
-/// a parameter; a local-rooted byte-field element is refused.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
-    pub statement_index: u32,
-    pub destination: crate::CheckedStoreRoot,
-    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    pub field_identity: String,
-    pub index: CheckedScalarExpression,
-    pub value: crate::CheckedStoreValue,
-    pub decisions: CheckedIndexedWriteDecisions,
-}
-
-/// What checking already proved about one runtime-indexed write, recorded
-/// against the authored indexed target so lowering never rejoins it. The two
-/// judgments stay independent: an in-bounds index supplies the count
-/// conversion but cannot authorize a byte that violates the owner's byte
-/// predicates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct CheckedIndexedWriteDecisions {
-    /// The index is proven within the destination's live extent.
-    pub index_in_bounds: bool,
-    /// The stored byte is proven to preserve the owner's byte predicates.
-    /// Element-view writes keep this `false`; their receiving range is the
-    /// separate `range_decision`.
-    pub predicates_preserved: bool,
-}
-
-/// Exact authored operands of a write through a whole mutable borrowed byte
-/// parameter or an exactly established mutable bounded-owned local. The stored
-/// byte is refused as a `Computation`, exactly as a byte replacement's.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedByteSequenceWritePlan {
-    pub statement_index: u32,
-    pub destination: crate::CheckedStoreRoot,
-    pub index: CheckedScalarExpression,
-    pub value: crate::CheckedStoreValue,
-    pub decisions: CheckedIndexedWriteDecisions,
-}
-
-/// Exact authored operands of a runtime-indexed element write through a
-/// mutable `&mut [T]` view. The destination names the view's root — a
-/// borrowed slice parameter or a locally bound `&mut` view — the index its
-/// runtime selector, and the value the element-typed scalar stored. The
-/// element's primitive type is retained so lowering validates the stored
-/// scalar against the view's declared element, never the destination type
-/// of another leaf family.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedElementViewWritePlan {
-    pub statement_index: u32,
-    pub destination: crate::CheckedStoreRoot,
-    pub index: CheckedScalarExpression,
-    /// Projection within the selected element; empty for a scalar element.
-    pub path: Vec<CheckedUnitStructuralPathSegment>,
-    pub element: PrimitiveType,
-    /// Immediate receiving-range judgment for this exact authored assignment.
-    /// The index judgment is independent and deferred invariant windows do
-    /// not authorize the scalar value through this handle.
-    pub range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
-    pub value: crate::CheckedStoreValue,
-    pub decisions: CheckedIndexedWriteDecisions,
-}
-
-/// Exact authored operands of a scalar store through a representation view:
-/// `view = v` where `view` is an immutable `&mut`/`&write` local bound by
-/// `&mut place as &mut T`. `destination` and `path` rejoin the view's
-/// loaned place so `path` ends at the leaf the view re-covers — a whole
-/// primitive field for a same-width view, or one `u8` element selected by
-/// `FixedIndex`/`RuntimeIndex` below a bounded byte field for a wider one.
-/// `element` is that leaf's declared primitive and `view` the referee's
-/// declared primitive. One authored statement mints one row: lowering
-/// expands a view wider than its leaf into one primitive store per
-/// little-endian footprint byte, each byte's index and value re-proving
-/// their own obligations against the carrier's extent.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedRepresentationViewStorePlan {
-    pub statement_index: u32,
-    pub destination: crate::CheckedStoreRoot,
-    pub path: Vec<CheckedUnitStructuralPathSegment>,
-    pub element: PrimitiveType,
-    pub view: PrimitiveType,
-    pub value: crate::CheckedStoreValue,
 }

@@ -3,21 +3,16 @@
 
 use crate::checked_trees::flow::terminal::structural_return::CheckedUnitStructuralReturnPlan;
 use crate::checked_trees::flow::terminal::{
-    CheckedBoundaryMachinePlan, CheckedByteSequenceStorePlan, CheckedByteSequenceWritePlan,
-    CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan, CheckedElementViewWritePlan,
+    CheckedBoundaryMachinePlan, CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,
     CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
-    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralScalarParameterPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
+    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
-use crate::{
-    CheckedStructuralCaseFieldStorePlan, CheckedStructuralCaseLiteralFieldStorePlan,
-    CheckedStructuralScalarFieldStorePlan,
-};
 use diagnostics::{CoverageForm, Diagnostic};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use source::SourceSpan;
@@ -353,58 +348,14 @@ pub enum CheckedUnitEffectOperationPlan {
         value: u8,
         service_reach: ServiceReachSummary,
     },
-    /// Replace one unrestricted primitive through an exclusive borrowed
-    /// parameter (by authored position) or an initialized mutable local.
-    /// Primitive store custody stays separate from immutable scalar bindings.
-    /// A nonempty declared path selects
-    /// a primitive leaf without inventing a scalar field identity: fields,
-    /// literal elements, and runtime elements (`RuntimeIndex`, whose selector
-    /// is evaluated before the value) compose in one path. Evaluate the
-    /// retained scalar expression or computation against current storage
-    /// before committing the write.
-    WriteOnlyPrimitiveStore {
-        statement_index: u32,
-        value_role: crate::CheckedScalarExpressionRole,
-        destination: crate::CheckedStoreRoot,
-        path: Vec<CheckedUnitStructuralPathSegment>,
-        value: crate::CheckedCallScalarArgument,
-    },
-    /// Replace one relevant primitive field through an exact common-field
-    /// path, optionally followed by one literal fixed-array index, below an
-    /// exclusive structural parameter. This shares the same checked
-    /// path/value custody as dynamic realization stores, but is an ordinary
-    /// attached-Unit effect and therefore carries no dispatch authority. The
-    /// bounded result form reads only the exact fixed-integer local produced
-    /// by the immediately preceding ordinary scalar call or selected
-    /// boundary-operator realization.
-    StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
-    /// Replace one relevant unrestricted-sum field through an exact common-field
-    /// path below an exclusive structural parameter. The stored value is a whole
-    /// owned place of the field's declared sum type: an unrestricted sum carries
-    /// no erased or payload custody, so the write copies whole and consumes
-    /// nothing.
-    StructuralCaseFieldStore(CheckedStructuralCaseFieldStorePlan),
-    /// Replace one sum field through the same exact path with an authored
-    /// case literal: the store itself establishes the construction into the
-    /// field's storage — tag, authored scalar operands and zero-initialized
-    /// unnamed commons — copying nothing that was ever a held place.
-    StructuralCaseLiteralFieldStore(CheckedStructuralCaseLiteralFieldStorePlan),
-    ByteSequenceStore(CheckedByteSequenceStorePlan),
+    /// One authored store `place = value` over its exact destination place
+    /// and value; the destination's leaf representation decides the
+    /// Terminal operation (see `store_plans.rs`).
+    Store(crate::CheckedStorePlan),
     /// One normalized atomic event on an exact primitive leaf, joining the
     /// source carrier's placeholder local and carrier assignment into one
     /// operation (see `atomic_plans.rs`).
     AtomicAccess(crate::CheckedAtomicAccessPlan),
-    StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
-    ByteSequenceWrite(CheckedByteSequenceWritePlan),
-    /// Write one runtime-selected element through a mutable `&mut [T]` view
-    /// (a borrowed slice parameter or a locally bound `&mut` view local):
-    /// `view[index] = element`. The live-length observation composes with
-    /// the write exactly as the byte-view write's does.
-    ElementViewWrite(CheckedElementViewWritePlan),
-    /// Replace one primitive leaf re-covered by a `&mut`/`&write`
-    /// representation view — one row for the authored `view = v`, however
-    /// many footprint bytes the view spans at lowering.
-    RepresentationViewStore(crate::CheckedRepresentationViewStorePlan),
     /// Move one whole structural field out of exclusive borrowed storage into
     /// a fresh owned binding, opening a repair window the body must close.
     /// The source is a parameter-rooted exact field chain; the result binding
@@ -611,28 +562,43 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
-    /// The authored assignment a store-family row writes: a primitive,
-    /// projected scalar, whole-sum, byte-sequence or indexed byte field store,
-    /// or a byte- or element-view write. One assignment may own several rows
-    /// of one family (each member of a record literal, each element of an
-    /// array literal). Repair stores into an open borrowed window and atomic
-    /// events keep their own statement custody and answer `None`, as does
-    /// every operation outside the store family.
+    /// The authored assignment a store writes. One assignment may own several
+    /// stores (each element of an array literal). Repair stores into an open
+    /// borrowed window and atomic events keep their own statement custody and
+    /// answer `None`, as does every operation other than a store.
     pub fn store_statement_index(&self) -> Option<u32> {
         match self {
-            Self::WriteOnlyPrimitiveStore {
-                statement_index, ..
-            } => Some(*statement_index),
-            Self::StructuralScalarFieldStore(store) => Some(store.statement_index),
-            Self::StructuralCaseFieldStore(store) => Some(store.statement_index),
-            Self::StructuralCaseLiteralFieldStore(store) => Some(store.statement_index),
-            Self::ByteSequenceStore(store) => Some(store.statement_index),
-            Self::StructuralByteSequenceFieldByteStore(store) => Some(store.statement_index),
-            Self::ByteSequenceWrite(write) => Some(write.statement_index),
-            Self::ElementViewWrite(write) => Some(write.statement_index),
-            Self::RepresentationViewStore(store) => Some(store.statement_index),
+            Self::Store(store) => Some(store.statement_index),
             _ => None,
         }
+    }
+
+    /// One store of `value` into the `leaf` that `path` names below `root`.
+    pub fn new_store(
+        statement_index: u32,
+        root: crate::CheckedStoreRoot,
+        path: Vec<CheckedUnitStructuralPathSegment>,
+        leaf: crate::CheckedStoreLeaf,
+        value: crate::CheckedStoreValue,
+    ) -> Self {
+        Self::Store(crate::CheckedStorePlan {
+            statement_index,
+            destination: crate::CheckedStoreDestination { root, path, leaf },
+            value,
+        })
+    }
+
+    /// The store this operation performs; `None` for every other operation.
+    pub fn store(&self) -> Option<&crate::CheckedStorePlan> {
+        match self {
+            Self::Store(store) => Some(store),
+            _ => None,
+        }
+    }
+
+    /// The byte value a contents or descriptor store writes.
+    pub fn stored_bytes(&self) -> Option<&crate::CheckedByteSequenceValuePlan> {
+        self.store().and_then(|store| store.value.bytes())
     }
 
     /// The authored statement this operation belongs to in the plan's
@@ -659,9 +625,6 @@ impl CheckedUnitEffectOperationPlan {
             Self::EstablishPrimitiveLocal {
                 statement_index, ..
             }
-            | Self::WriteOnlyPrimitiveStore {
-                statement_index, ..
-            }
             | Self::EstablishTrivialAffineLocal {
                 statement_index, ..
             }
@@ -679,14 +642,7 @@ impl CheckedUnitEffectOperationPlan {
             } => Some(*statement_index),
             Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),
             Self::AtomicAccess(access) => Some(access.statement_index),
-            Self::StructuralScalarFieldStore(store) => Some(store.statement_index),
-            Self::StructuralCaseFieldStore(store) => Some(store.statement_index),
-            Self::StructuralCaseLiteralFieldStore(store) => Some(store.statement_index),
-            Self::ByteSequenceStore(store) => Some(store.statement_index),
-            Self::StructuralByteSequenceFieldByteStore(store) => Some(store.statement_index),
-            Self::ByteSequenceWrite(write) => Some(write.statement_index),
-            Self::ElementViewWrite(write) => Some(write.statement_index),
-            Self::RepresentationViewStore(store) => Some(store.statement_index),
+            Self::Store(store) => Some(store.statement_index),
             Self::ContinuationCleanup { .. }
             | Self::ReleaseReference { .. }
             | Self::Complete { .. } => None,

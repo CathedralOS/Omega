@@ -1,9 +1,9 @@
 //! One scalar store through a representation view: `view = v` where `view`
 //! is an immutable `&mut`/`&write` local bound by `&mut place as &mut T`.
 //!
-//! The checked plan stays one row per authored statement, the store mirror
-//! of `CheckedScalarExpression::RepresentationView`. The destination's
-//! rejoined place decides the leaf family:
+//! The checked plan stays one `RepresentationView` store leaf per authored
+//! statement, the store mirror of `CheckedScalarExpression::RepresentationView`.
+//! The destination's rejoined place decides the leaf family:
 //!
 //! - a whole primitive field of the same integer width (`&mut self.x as
 //!   &mut u8` over an `i8` field, or a direct field of a record view whose
@@ -107,19 +107,16 @@ pub(super) fn plan(
     // store: the decomposition at lowering needs the authored pure value or
     // the statement's own call result.
     match value {
-        checked_trees::CheckedStoreValue::Computation(_) => return None,
-        checked_trees::CheckedStoreValue::Pure(_)
-        | checked_trees::CheckedStoreValue::ScalarResult { .. } => {}
+        checked_trees::CheckedScalarStoreValue::Computation(_) => return None,
+        checked_trees::CheckedScalarStoreValue::Pure(_)
+        | checked_trees::CheckedScalarStoreValue::ScalarResult { .. } => {}
     }
-    Some(CheckedUnitEffectOperationPlan::RepresentationViewStore(
-        checked_trees::CheckedRepresentationViewStorePlan {
-            statement_index,
-            destination: store_root,
-            path,
-            element,
-            view,
-            value,
-        },
+    Some(CheckedUnitEffectOperationPlan::new_store(
+        statement_index,
+        store_root,
+        path,
+        checked_trees::CheckedStoreLeaf::RepresentationView { view },
+        checked_trees::CheckedStoreValue::assigned(value),
     ))
 }
 

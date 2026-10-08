@@ -6,19 +6,22 @@
 //! path ends at. The value (`value.rs`) is resolved from the right-hand side
 //! alone: the already-checked scalar source at the value's own coordinate --
 //! a computation root, a bound pure expression, or the result of the call the
-//! statement performs. The backing representation and the leaf's declared
-//! type then pick the Terminal store operation that joins them:
+//! statement performs. Every assignment publishes one
+//! `CheckedUnitEffectOperationPlan::Store` over that destination and value;
+//! the backing representation and the leaf's declared type decide which
+//! `CheckedStoreLeaf` names the replaced place:
 //!
-//! - a primitive field takes one `StructuralScalarFieldStore`;
-//! - a scalar leaf below an element-view root takes `ElementViewWrite`,
+//! - a primitive field is a `ScalarField` leaf carrying its receiving range;
+//! - a scalar leaf below an element-view root is a `ViewElement` leaf,
 //!   independent of whether that leaf is a field, array element, or whole element;
-//! - a primitive-array place takes a closed array literal as one element
+//! - a primitive-array place takes a closed array literal as one `Primitive`
 //!   store per element (`primitive.rs`);
-//! - a payload-free sum field takes a whole owned parameter of its type;
-//! - a bounded-owned byte field or a whole borrowed byte view takes the byte
-//!   store operations of `byte_stores.rs`;
+//! - a sum field is a `SumField` leaf receiving a whole owned parameter of its
+//!   type or a case literal;
+//! - a bounded-owned byte field or a whole borrowed byte view is a
+//!   `ByteElement` or `ByteContents` leaf (`byte_stores.rs`);
 //! - a shared view descriptor slot, whether a record's field or a whole
-//!   declared view local (an empty path), takes the one descriptor store of
+//!   declared view local (an empty path), is the `ByteDescriptor` leaf of
 //!   `descriptor_store.rs`.
 //!
 //! Whole record assignments stay with ordinary structural construction and
@@ -35,10 +38,9 @@
 //! whose declared domain the stored value carries no evidence for.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
-    PrimitiveType, StatementNode, TypeReferenceNode,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
+    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
@@ -216,7 +218,15 @@ pub(super) fn build_byte_call_result_store(
         },
         trace,
     )
-    .filter(|store| matches!(store, CheckedUnitEffectOperationPlan::ByteSequenceStore(_)))
+    .filter(|store| {
+        matches!(
+            store,
+            CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+                value: checked_trees::CheckedStoreValue::Bytes(_),
+                ..
+            })
+        )
+    })
 }
 
 /// The scalar coordinate one carrier-path runtime index names at this
@@ -577,25 +587,26 @@ fn plan_assignment(
             primitive_type,
             trace,
         )?;
-        return Some(vec![
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-                CheckedStructuralScalarFieldStorePlan {
-                    range_decision: facts.proof.integer_assignment_at(
-                        machine.symbol,
-                        state.symbol,
-                        statement_index as usize,
-                        assignment.target,
-                        assignment.value,
-                    ),
-                    statement_index,
-                    destination: destination.root.destination(),
-                    carrier_path: carrier.path,
-                    field_identity: terminal_field_identity(program, field.symbol)?,
-                    primitive_type,
-                    value,
-                },
-            ),
-        ]);
+        let mut path = carrier.path;
+        path.push(CheckedUnitStructuralPathSegment::Field(
+            terminal_field_identity(program, field.symbol)?,
+        ));
+        return Some(vec![CheckedUnitEffectOperationPlan::new_store(
+            statement_index,
+            destination.root.destination(),
+            path,
+            checked_trees::CheckedStoreLeaf::ScalarField {
+                primitive_type,
+                range_decision: facts.proof.integer_assignment_at(
+                    machine.symbol,
+                    state.symbol,
+                    statement_index as usize,
+                    assignment.target,
+                    assignment.value,
+                ),
+            },
+            checked_trees::CheckedStoreValue::assigned(value),
+        )]);
     }
     let field_data =
         validation::field_domains::data_definition_for_field_type(program, field.type_reference)?;
@@ -734,22 +745,21 @@ fn case_field_store(
     {
         return None;
     }
-    Some(CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(
-        checked_trees::CheckedStructuralCaseFieldStorePlan {
-            statement_index,
-            destination: destination.root.destination(),
-            carrier_path,
-            field_identity: terminal_field_identity(program, field.symbol)?,
-            value: checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(value_index).ok()?,
-                },
-                path: value_path,
-                type_identity: super::types::base_type_identity(program, projected, &[])?,
-                access: value_plan.access,
+    sum_field_store(
+        program,
+        destination,
+        carrier_path,
+        field,
+        statement_index,
+        checked_trees::CheckedStoreValue::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(value_index).ok()?,
             },
-        },
-    ))
+            path: value_path,
+            type_identity: super::types::base_type_identity(program, projected, &[])?,
+            access: value_plan.access,
+        }),
+    )
 }
 
 /// `place.field = Sum::Case { .. }` — the literal carries no custody root, so
@@ -839,24 +849,41 @@ fn case_literal_field_store(
             expression: expression.clone(),
         });
     }
-    Some(
-        CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(
-            checked_trees::CheckedStructuralCaseLiteralFieldStorePlan {
-                statement_index,
-                destination: destination.root.destination(),
-                carrier_path,
-                field_identity: terminal_field_identity(program, field.symbol)?,
-                literal: assignment.value,
-                case_identity: variant.path_identity(),
-                type_identity: super::types::base_type_identity(
-                    program,
-                    field.type_reference,
-                    &[],
-                )?,
-                fields,
-            },
-        ),
+    sum_field_store(
+        program,
+        destination,
+        carrier_path,
+        field,
+        statement_index,
+        checked_trees::CheckedStoreValue::CaseLiteral(checked_trees::CheckedCaseLiteralValuePlan {
+            literal: assignment.value,
+            case_identity: variant.path_identity(),
+            type_identity: super::types::base_type_identity(program, field.type_reference, &[])?,
+            fields,
+        }),
     )
+}
+
+/// One whole sum field's store: the exact field below the destination's
+/// carrier, receiving a copied place or an established case literal.
+fn sum_field_store(
+    program: &dyn ::validation::CheckingInput,
+    destination: &Destination<'_>,
+    mut carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    field: &typed_trees::data::DataField,
+    statement_index: u32,
+    value: checked_trees::CheckedStoreValue,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    carrier_path.push(CheckedUnitStructuralPathSegment::Field(
+        terminal_field_identity(program, field.symbol)?,
+    ));
+    Some(CheckedUnitEffectOperationPlan::new_store(
+        statement_index,
+        destination.root.destination(),
+        carrier_path,
+        checked_trees::CheckedStoreLeaf::SumField,
+        value,
+    ))
 }
 
 /// A closed payload-free pure-sum data declaration: CheckedShape supply, no

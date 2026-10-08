@@ -11,11 +11,11 @@ use crate::{
     CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedCallScalarArgument,
     CheckedElementViewRegion, CheckedScalarCaseConstruction, CheckedScalarComputationHandle,
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
-    CheckedScalarDispatchPattern, CheckedStoreValue, CheckedStructuralAccess,
-    CheckedStructuralRecordFieldValue, CheckedStructuralValueCall, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,
-    CheckedValueFacts,
+    CheckedScalarDispatchPattern, CheckedScalarStoreValue, CheckedStoreValue,
+    CheckedStructuralAccess, CheckedStructuralRecordFieldValue, CheckedStructuralValueCall,
+    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralResultBindingPlan, CheckedValueFacts,
 };
 use symbols::SymbolHandle;
 
@@ -158,10 +158,10 @@ impl CallTransfers<'_> {
         }
     }
 
-    fn store(&self, value: &CheckedStoreValue) -> usize {
+    fn store(&self, value: &CheckedScalarStoreValue) -> usize {
         match value {
-            CheckedStoreValue::Computation(root) => self.computation(*root),
-            CheckedStoreValue::Pure(_) | CheckedStoreValue::ScalarResult { .. } => 0,
+            CheckedScalarStoreValue::Computation(root) => self.computation(*root),
+            CheckedScalarStoreValue::Pure(_) | CheckedScalarStoreValue::ScalarResult { .. } => 0,
         }
     }
 
@@ -383,8 +383,7 @@ impl CallTransfers<'_> {
                         .sum::<usize>()
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { value, .. }
-            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. }
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } => {
+            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } => {
                 self.scalar(value)
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray { elements, .. } => {
@@ -396,9 +395,12 @@ impl CallTransfers<'_> {
             CheckedUnitEffectOperationPlan::EstablishByteSequence { value, .. } => {
                 self.bytes(value, value.root)
             }
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                self.bytes(&store.value, store.value.root)
-            }
+            CheckedUnitEffectOperationPlan::Store(store) => match &store.value {
+                CheckedStoreValue::Scalar { value, .. } => self.store(value),
+                CheckedStoreValue::Bytes(value) => self.bytes(value, value.root),
+                CheckedStoreValue::Place(value) => self.argument_evaluation(value),
+                CheckedStoreValue::CaseLiteral(_) => 0,
+            },
             CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { source, .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. } => {
@@ -423,21 +425,6 @@ impl CallTransfers<'_> {
                         self.argument_evaluation(value)
                     }
             }
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
-                self.argument_evaluation(&store.value)
-            }
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                self.store(&store.value)
-            }
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                self.store(&store.value)
-            }
-            CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => self.store(&store.value),
-            CheckedUnitEffectOperationPlan::ElementViewWrite(store) => self.store(&store.value),
-            CheckedUnitEffectOperationPlan::RepresentationViewStore(store) => {
-                self.store(&store.value)
-            }
-            CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_) => 0,
             CheckedUnitEffectOperationPlan::AtomicAccess(atomic) => atomic
                 .event
                 .operands()

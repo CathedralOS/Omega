@@ -1,9 +1,8 @@
 //! Byte-sequence leaves: a whole borrowed byte view, an established mutable
-//! bounded byte local, or a bounded-owned field below an exclusive root. These
-//! leaves have their own Terminal operations (`ByteSequenceWrite`,
-//! `StructuralByteSequenceFieldStore`, `StructuralByteSequenceFieldByteStore`),
-//! but the destination and the `u8` value are resolved by the same owners as
-//! every other store.
+//! bounded byte local, or a bounded-owned field below an exclusive root. One
+//! indexed byte is a `ByteElement` store leaf and replaced live contents a
+//! `ByteContents` leaf; the destination and the `u8` value are resolved by
+//! the same owners as every other store.
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode,
     Multiplicity, TypeReferenceNode,
@@ -91,15 +90,7 @@ pub(super) fn view_write(
         source,
         trace,
     )?;
-    Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(
-        checked_trees::CheckedByteSequenceWritePlan {
-            statement_index,
-            destination: destination.root.destination(),
-            index: indexed.0,
-            value: indexed.1,
-            decisions: indexed.2,
-        },
-    ))
+    Some(indexed.store(statement_index, destination.root.destination(), Vec::new()))
 }
 
 /// A whole borrowed owner retains its caller's capacity and qualifications.
@@ -156,15 +147,13 @@ pub(super) fn whole_store(
     {
         return None;
     }
-    Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(
-        checked_trees::CheckedByteSequenceStorePlan {
-            statement_index,
-            root: checked_trees::CheckedStoreRoot::Parameter {
-                position: plan.position,
-            },
-            destination: checked_trees::CheckedByteSequenceStoreDestination::Whole,
-            value,
+    Some(contents_store(
+        statement_index,
+        checked_trees::CheckedStoreRoot::Parameter {
+            position: plan.position,
         },
+        Vec::new(),
+        value,
     ))
 }
 
@@ -192,6 +181,10 @@ pub(super) fn field_store(
     // Retain that identity: a returned reference is not a new owned record or
     // a synthetic formal parameter.
     let store_root = destination.root.destination();
+    let mut field_path = carrier_path;
+    field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+        terminal_field_identity(program, field.symbol)?,
+    ));
     let plain_domain = |symbol, literal_grant: bool| {
         program.domain_definition(symbol).is_some_and(|domain| {
             domain.establishment_routes.is_empty()
@@ -227,19 +220,7 @@ pub(super) fn field_store(
             source,
             trace,
         )?;
-        return Some(
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(
-                checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
-                    statement_index,
-                    destination: store_root,
-                    carrier_path,
-                    field_identity: terminal_field_identity(program, field.symbol)?,
-                    index: indexed.0,
-                    value: indexed.1,
-                    decisions: indexed.2,
-                },
-            ),
-        );
+        return Some(indexed.store(statement_index, store_root, field_path));
     }
     let Some(capacity) = capacity else {
         return None;
@@ -309,17 +290,29 @@ pub(super) fn field_store(
     {
         return None;
     }
-    Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(
-        checked_trees::CheckedByteSequenceStorePlan {
-            statement_index,
-            root: store_root,
-            destination: checked_trees::CheckedByteSequenceStoreDestination::Field {
-                carrier_path,
-                field_identity: terminal_field_identity(program, field.symbol)?,
-            },
-            value,
-        },
+    Some(contents_store(
+        statement_index,
+        store_root,
+        field_path,
+        value,
     ))
+}
+
+/// The store replacing a bounded-owned carrier's live contents: the whole
+/// root (an empty path) or the byte field `path` ends at.
+fn contents_store(
+    statement_index: u32,
+    root: checked_trees::CheckedStoreRoot,
+    path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    value: checked_trees::CheckedByteSequenceValuePlan,
+) -> CheckedUnitEffectOperationPlan {
+    CheckedUnitEffectOperationPlan::new_store(
+        statement_index,
+        root,
+        path,
+        checked_trees::CheckedStoreLeaf::ByteContents,
+        checked_trees::CheckedStoreValue::Bytes(value),
+    )
 }
 
 /// Preserve only the selected built-in byte law. Leaves are immutable literals
@@ -552,8 +545,36 @@ pub(super) fn field_view_is_mutable(
     }
 }
 
-/// The `(index, value)` pair an indexed byte store evaluates against one
+/// The index, value and decisions an indexed byte store evaluates against one
 /// destination root — shared by the whole-carrier and field-element lanes.
+struct IndexedByte {
+    index: checked_trees::CheckedScalarExpression,
+    value: checked_trees::CheckedScalarStoreValue,
+    decisions: checked_trees::CheckedIndexedWriteDecisions,
+}
+
+impl IndexedByte {
+    /// The store of this byte into the element of the byte carrier `path`
+    /// names below `root`.
+    fn store(
+        self,
+        statement_index: u32,
+        root: checked_trees::CheckedStoreRoot,
+        path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    ) -> CheckedUnitEffectOperationPlan {
+        CheckedUnitEffectOperationPlan::new_store(
+            statement_index,
+            root,
+            path,
+            checked_trees::CheckedStoreLeaf::ByteElement {
+                index: self.index,
+                decisions: self.decisions,
+            },
+            checked_trees::CheckedStoreValue::assigned(self.value),
+        )
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn indexed_byte_value(
     program: &dyn ::validation::CheckingInput,
@@ -566,14 +587,10 @@ fn indexed_byte_value(
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
-) -> Option<(
-    checked_trees::CheckedScalarExpression,
-    checked_trees::CheckedStoreValue,
-    checked_trees::CheckedIndexedWriteDecisions,
-)> {
-    Some((
-        value::runtime_index(facts, state, statement_index, index)?,
-        value::byte_value(
+) -> Option<IndexedByte> {
+    Some(IndexedByte {
+        index: value::runtime_index(facts, state, statement_index, index)?,
+        value: value::byte_value(
             program,
             facts,
             machine,
@@ -585,9 +602,9 @@ fn indexed_byte_value(
             trace,
         )?,
         // Both byte leaves index the authored target itself.
-        checked_trees::CheckedIndexedWriteDecisions {
+        decisions: checked_trees::CheckedIndexedWriteDecisions {
             index_in_bounds: facts.scalar_index_is_proven(assignment.target),
             predicates_preserved: facts.byte_write_is_proven(assignment.target),
         },
-    ))
+    })
 }

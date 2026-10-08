@@ -2711,20 +2711,25 @@ code and preserve check/native behavior for the named customer slices.
   Acceptance: one nominal build per machine, no dispatcher staging outside
   the published roster, corpus `--filter drops,ownership/,cleanup` unchanged.
 
-- **STORE-OPERATIONS-GENERALIZED.** (new-scope) The checked plan vocabulary
-  splits stores by shape into nine variants
-  (`omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/terminal/unit_effect_plans.rs`):
-  - `WriteOnlyPrimitiveStore`;
-  - `StructuralScalarFieldStore`, `StructuralCaseFieldStore` and
-    `StructuralCaseLiteralFieldStore`;
-  - `ByteSequenceStore` and `StructuralByteSequenceFieldByteStore`;
-  - `ElementViewWrite`, `RepresentationViewStore` and `StoreStructuralField`.
-
-  Each variant has its own stage 04 builder and stage 05 `operation_frame`
-  arm. Replace them with one store operation over a place path and a value,
-  where the representation decides the emitted bytes. Acceptance: one store
-  variant remains; corpus `--filter structs/,collections/,slices/,text/,layouts/`
-  is unchanged in check and native.
+- **STORE-OPERATIONS-GENERALIZED.** (new-scope) Every authored scalar, byte
+  and sum-field store is one `CheckedUnitEffectOperationPlan::Store`
+  (`CheckedStorePlan`: root, path, `CheckedStoreLeaf`, `CheckedStoreValue`;
+  `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/store_plans.rs`)
+  lowered by `OperationFrame::store`
+  (`pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/stores.rs`).
+  Two store variants remain, `StoreStructuralField` and
+  `RebindStructuralLocal`: the whole-value repair of a borrowed window and an
+  owned local's rebind. Their destination is the window ledger's
+  `CheckedUnitStructuralArgumentPlan` place with a dense parameter index,
+  which `MoveStructuralField`, `cleanup/replacements.rs`, `local_storage.rs`,
+  `state_graph/operation_custody.rs` and stage 05
+  `composed_control/state_graph/cleanup.rs` compare and admit directly, while
+  a `SumField` store already emits the same move/store window pair from an
+  authored `CheckedStoreRoot`. Fold them into `Store` leaves by naming window
+  places with a `CheckedStoreRoot` and path across that ledger. Acceptance:
+  one store variant remains; corpus
+  `--filter structs/,collections/,slices/,text/,layouts/` is unchanged in
+  check and native.
 
 - **LOCAL-BINDINGS-GENERALIZED.** (new-scope) Local data bindings are split
   into `EstablishPrimitiveLocal`, `EstablishScalarLocal`,

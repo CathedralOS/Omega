@@ -19,13 +19,12 @@
 //!   selects `index + j` — the folded literal offset or an exact add that
 //!   owes its own bound obligation — and carries the `value >> 8j` low byte.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError,
-    OperationKind, PrimitiveType, ScalarType, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId,
-    allocate_dense, emit_direct_expression, obligation_id, terminal_scalar_type, unsupported,
+    CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PrimitiveType,
+    ScalarType, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId, allocate_dense,
+    emit_direct_expression, obligation_id, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::structural_types::unique_declaration;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::{LoweredDirectExpression, emit_scalar_leaf};
@@ -33,11 +32,9 @@ use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
 use crate::emission::runtime_elements::{self, ProjectionStep};
-use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::wrapping_cast::wrapping_cast;
-use checked_trees::{
-    CheckedRepresentationViewStorePlan, CheckedRuntimeIndex, CheckedStoreRoot, CheckedStoreValue,
-};
+use crate::structural_types::unique_declaration;
+use checked_trees::{CheckedRuntimeIndex, CheckedStorePlan, CheckedStoreRoot};
 use semantic_vocabulary::IntegerValue;
 use symbols::SymbolHandle;
 use terminal_psi::ByteSequenceCarrier;
@@ -49,7 +46,8 @@ use terminal_psi::ByteSequenceCarrier;
 /// requires.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit(
-    write: &CheckedRepresentationViewStorePlan,
+    store: &CheckedStorePlan,
+    view: PrimitiveType,
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -73,8 +71,11 @@ pub(crate) fn emit(
             &evaluation.structural_fields,
             &evaluation.structural_cases,
         );
-    let CheckedStoreRoot::Parameter { position } = write.destination else {
+    let CheckedStoreRoot::Parameter { position } = store.destination.root else {
         return unsupported("representation view store has no parameter root");
+    };
+    let Some((role, value)) = store.value.scalar() else {
+        return unsupported("representation view store stores no scalar value");
     };
     let (_, parameter) = evaluation
         .structural_parameters
@@ -83,8 +84,8 @@ pub(crate) fn emit(
         .ok_or(LoweringError::Unsupported(
             "representation view store parameter is absent",
         ))?;
-    let view_scalar = terminal_scalar_type(write.view)?;
-    let Some((leaf, prefix)) = write.path.split_last() else {
+    let view_scalar = terminal_scalar_type(view)?;
+    let Some((leaf, prefix)) = store.destination.path.split_last() else {
         return unsupported("representation view store lost its leaf segment");
     };
     let destination = parameter.place;
@@ -99,7 +100,12 @@ pub(crate) fn emit(
             let Walked::Type(owner) = walked else {
                 return unsupported("representation view store leaf owner is not structural");
             };
-            let declaration = unique_declaration(structural_types, owner, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?;
+            let declaration = unique_declaration(
+                structural_types,
+                owner,
+                "representation view store carrier type is absent",
+                "representation view store carrier type is ambiguous",
+            )?;
             let (StructuralTypeShape::Record { fields, .. }
             | StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
             else {
@@ -120,7 +126,7 @@ pub(crate) fn emit(
                 checked,
                 machine,
                 state,
-                write.statement_index,
+                store.statement_index,
                 evaluation,
                 source_value_count,
                 values,
@@ -131,7 +137,16 @@ pub(crate) fn emit(
                 calls,
             )?;
             let path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
-            let operand = lower_value(write, &bindings, checked, state, values, view_scalar)?;
+            let operand = crate::emission::structural_scalar_store_source::direct_value(
+                checked,
+                state,
+                store.statement_index,
+                role,
+                value,
+                view_scalar,
+                &bindings,
+                values,
+            )?;
             let casted = view_leaf_image(operand, view_scalar, leaf_scalar)?;
             let value = emit_direct_expression(&casted, values, next_value, operations);
             let range_obligation =
@@ -155,12 +170,12 @@ pub(crate) fn emit(
             let destination = prepare_byte_destination(
                 destination,
                 parameter.structural_type,
-                &write.path,
+                &store.destination.path,
                 None,
                 checked,
                 machine,
                 state,
-                write.statement_index,
+                store.statement_index,
                 evaluation,
                 source_value_count,
                 values,
@@ -171,7 +186,16 @@ pub(crate) fn emit(
                 calls,
                 structural_types,
             )?;
-            let operand = lower_value(write, &bindings, checked, state, values, view_scalar)?;
+            let operand = crate::emission::structural_scalar_store_source::direct_value(
+                checked,
+                state,
+                store.statement_index,
+                role,
+                value,
+                view_scalar,
+                &bindings,
+                values,
+            )?;
             let value = ValueDeclaration {
                 qualifications: Default::default(),
                 id: emit_direct_expression(&operand, values, next_value, operations),
@@ -493,13 +517,23 @@ fn byte_capacity(
     match walked {
         Walked::Carrier(ByteSequenceCarrier::BoundedOwned { capacity, .. }) => Ok(*capacity),
         Walked::Type(array) => {
-            let StructuralTypeShape::FixedArray { element, length } =
-                &unique_declaration(types, array, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?.shape
+            let StructuralTypeShape::FixedArray { element, length } = &unique_declaration(
+                types,
+                array,
+                "representation view store carrier type is absent",
+                "representation view store carrier type is ambiguous",
+            )?
+            .shape
             else {
                 return unsupported("byte representation store carrier is not a fixed array");
             };
-            let StructuralTypeShape::PrimitiveScalar(scalar) =
-                &unique_declaration(types, *element, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?.shape
+            let StructuralTypeShape::PrimitiveScalar(scalar) = &unique_declaration(
+                types,
+                *element,
+                "representation view store carrier type is absent",
+                "representation view store carrier type is ambiguous",
+            )?
+            .shape
             else {
                 return unsupported("byte representation store carrier element is not scalar");
             };
@@ -537,7 +571,12 @@ fn walk_carrier_prefix<'a>(
         let Walked::Type(owner) = walked else {
             return unsupported("representation view store carrier path is incompatible");
         };
-        let declaration = unique_declaration(types, owner, "representation view store carrier type is absent", "representation view store carrier type is ambiguous")?;
+        let declaration = unique_declaration(
+            types,
+            owner,
+            "representation view store carrier type is absent",
+            "representation view store carrier type is ambiguous",
+        )?;
         match segment {
             CheckedUnitStructuralPathSegment::Field(identity) => {
                 let (StructuralTypeShape::Record { fields, .. }
@@ -703,47 +742,5 @@ fn leaf_scalar_type(field_type: &StructuralFieldType) -> Result<ScalarType, Lowe
         }
         StructuralFieldType::RefinedScalar(refinement) => Ok(refinement.carrier()),
         _ => unsupported("representation view store leaf is not an integer scalar"),
-    }
-}
-
-/// One structural type declaration by identity.
-
-/// Lower the store's checked value to the view carrier: a bound
-/// `AssignmentValue` expression, or the statement's own scalar result read
-/// from the dense frame's last position.
-fn lower_value(
-    write: &CheckedRepresentationViewStorePlan,
-    bindings: &ScalarBindings,
-    checked: &CheckedTrees,
-    state: SymbolHandle,
-    values: &[ValueDeclaration],
-    view_scalar: ScalarType,
-) -> Result<LoweredDirectExpression, LoweringError> {
-    match &write.value {
-        CheckedStoreValue::Pure(_) => bindings.expression_at(
-            checked,
-            state,
-            write.statement_index,
-            CheckedScalarExpressionRole::AssignmentValue,
-        ),
-        CheckedStoreValue::ScalarResult { position } => {
-            let position = usize::try_from(*position).map_err(|_| {
-                LoweringError::Unsupported(
-                    "representation view store's scalar result position overflows",
-                )
-            })?;
-            if position.checked_add(1) != Some(values.len()) {
-                return unsupported(
-                    "representation view store's scalar result is not the latest value",
-                );
-            }
-            Ok(LoweredDirectExpression::Local {
-                position,
-                scalar_type: view_scalar,
-            })
-        }
-        CheckedStoreValue::Computation(_) => {
-            unsupported("representation view store kept a computation")
-        }
     }
 }

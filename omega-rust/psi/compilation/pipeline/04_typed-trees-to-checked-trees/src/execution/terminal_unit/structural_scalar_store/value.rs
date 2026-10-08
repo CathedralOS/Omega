@@ -44,7 +44,7 @@ pub(super) fn assignment_value(
     source: AssignmentSource,
     primitive_type: PrimitiveType,
     trace: &LocalConstructionTrace,
-) -> Option<checked_trees::CheckedStoreValue> {
+) -> Option<checked_trees::CheckedScalarStoreValue> {
     let value = match source {
         AssignmentSource::StructuralCallResult { .. } => return None,
         AssignmentSource::CallResult {
@@ -62,7 +62,7 @@ pub(super) fn assignment_value(
             ) {
                 return None;
             }
-            checked_trees::CheckedStoreValue::ScalarResult { position }
+            checked_trees::CheckedScalarStoreValue::ScalarResult { position }
         }
         AssignmentSource::Authored => authored_value(
             facts,
@@ -92,7 +92,7 @@ pub(super) fn authored_value(
     authored: typed_trees::expression::ExpressionHandle,
     primitive_type: PrimitiveType,
     trace: &LocalConstructionTrace,
-) -> Option<checked_trees::CheckedStoreValue> {
+) -> Option<checked_trees::CheckedScalarStoreValue> {
     let computations = &facts.values.scalar_computations;
     if let Some(root) = computations.root_at(state.symbol, statement_index, role) {
         trace.phase("structural field store: computation source");
@@ -105,7 +105,9 @@ pub(super) fn authored_value(
         {
             return None;
         }
-        return Some(checked_trees::CheckedStoreValue::Computation(root.root));
+        return Some(checked_trees::CheckedScalarStoreValue::Computation(
+            root.root,
+        ));
     }
     trace.phase("structural field store: pure source: scalar expression row");
     let (binding, value) =
@@ -119,7 +121,7 @@ pub(super) fn authored_value(
     {
         return None;
     }
-    Some(checked_trees::CheckedStoreValue::Pure(value.clone()))
+    Some(checked_trees::CheckedScalarStoreValue::Pure(value.clone()))
 }
 
 /// Floating stores forward existing bits: an authored IEEE literal or an
@@ -132,13 +134,13 @@ pub(super) fn authored_value(
 fn admits(
     root: &Root<'_>,
     primitive_type: PrimitiveType,
-    value: &checked_trees::CheckedStoreValue,
+    value: &checked_trees::CheckedScalarStoreValue,
 ) -> bool {
     if !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
         return true;
     }
     match value {
-        checked_trees::CheckedStoreValue::Pure(expression) => matches!(
+        checked_trees::CheckedScalarStoreValue::Pure(expression) => matches!(
             expression,
             CheckedScalarExpression::IeeeFloatLiteral { .. }
                 | CheckedScalarExpression::Parameter { .. }
@@ -146,10 +148,10 @@ fn admits(
                 | CheckedScalarExpression::StructuralParameterField { .. }
                 | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         ),
-        checked_trees::CheckedStoreValue::Computation(_) => {
+        checked_trees::CheckedScalarStoreValue::Computation(_) => {
             matches!(root, Root::Parameter { .. })
         }
-        checked_trees::CheckedStoreValue::ScalarResult { .. } => true,
+        checked_trees::CheckedScalarStoreValue::ScalarResult { .. } => true,
     }
 }
 
@@ -185,7 +187,7 @@ pub(super) fn byte_value(
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
-) -> Option<checked_trees::CheckedStoreValue> {
+) -> Option<checked_trees::CheckedScalarStoreValue> {
     assignment_value(
         program,
         facts,

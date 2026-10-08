@@ -63,8 +63,11 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
             roots.push(destination.type_identity.clone());
             roots.push(value.type_identity.clone());
         }
-        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-            for (_, node) in store.value.nodes.iter() {
+        CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+            value: checked_trees::CheckedStoreValue::Bytes(value),
+            ..
+        }) => {
+            for (_, node) in value.nodes.iter() {
                 if let checked_trees::CheckedByteSequenceValue::Descriptor { source, .. } = node
                     && !matches!(source.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }) {
                     roots.push(source.type_identity.clone());

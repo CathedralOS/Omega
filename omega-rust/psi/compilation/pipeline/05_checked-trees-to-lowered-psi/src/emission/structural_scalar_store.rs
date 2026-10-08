@@ -57,12 +57,13 @@ impl LoweredStructuralScalarStore {
     pub(crate) fn bind_range_decision(
         &mut self,
         checked: &checked_trees::CheckedTrees,
-        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+        primitive_type: checked_trees::types::PrimitiveType,
+        range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
     ) -> Result<(), LoweringError> {
         self.range_decided = source_range_decided(
             checked,
-            store.primitive_type,
-            store.range_decision,
+            primitive_type,
+            range_decision,
             self.bounded_integer,
         )?;
         Ok(())
@@ -133,30 +134,20 @@ pub(crate) fn source_range_decided(
     Ok(decided)
 }
 
-/// Resolve the destination independently of the ordered source expression.
-/// Callers must validate and emit that expression in its current scalar namespace.
-/// They also rejoin the authored destination through their source-position map
-/// before supplying `parameter`. Its Terminal position is dense: scalar formals
-/// and omitted receivers can make it differ from the authored position.
+/// Resolve a scalar field store's destination below an exclusive borrowed
+/// parameter, independently of the ordered source expression. Callers
+/// validate and emit that expression in its current scalar namespace.
 pub(crate) fn lower_structural_scalar_store_place(
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
-    expected_statement_index: u32,
+    primitive_type: checked_trees::types::PrimitiveType,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
-    let scalar_type = terminal_scalar_type(store.primitive_type)?;
+    let scalar_type = terminal_scalar_type(primitive_type)?;
     let (steps, field) = lower_structural_field_place_steps(
-        store.statement_index,
-        expected_statement_index,
-        store
-            .destination
-            .parameter_position()
-            .map(|_| parameter.position)
-            .ok_or(LoweringError::Unsupported(
-                "parameter store route cannot substitute a local destination",
-            ))?,
-        &store.carrier_path,
-        &store.field_identity,
+        carrier_path,
+        field_identity,
         parameter,
         structural_types,
     )?;
@@ -168,27 +159,22 @@ pub(crate) fn lower_structural_scalar_store_place(
 /// caller checks the produced result's multiplicity, qualifications, and
 /// claims — so only the carrier geometry and field type compose here.
 pub(crate) fn lower_structural_scalar_store_local(
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    primitive_type: checked_trees::types::PrimitiveType,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
     root_type: StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
-    let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    let (steps, field) = lower_structural_field_steps(
-        root_type,
-        &store.carrier_path,
-        &store.field_identity,
-        structural_types,
-    )?;
+    let scalar_type = terminal_scalar_type(primitive_type)?;
+    let (steps, field) =
+        lower_structural_field_steps(root_type, carrier_path, field_identity, structural_types)?;
     LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
 }
 
-/// Reconstruct the exact carrier and relevant field independently of payload
-/// type, for routes whose carrier names no runtime element.
-#[allow(clippy::too_many_arguments)]
+/// Reconstruct the exact carrier and relevant field below an exclusive
+/// borrowed parameter independently of payload type, for routes whose
+/// carrier names no runtime element.
 pub(crate) fn lower_structural_field_place<'a>(
-    statement_index: u32,
-    expected_statement_index: u32,
-    destination_parameter_position: u32,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &str,
     parameter: &StructuralParameterDeclaration,
@@ -201,9 +187,6 @@ pub(crate) fn lower_structural_field_place<'a>(
     LoweringError,
 > {
     let (steps, field) = lower_structural_field_place_steps(
-        statement_index,
-        expected_statement_index,
-        destination_parameter_position,
         carrier_path,
         field_identity,
         parameter,
@@ -215,12 +198,9 @@ pub(crate) fn lower_structural_field_place<'a>(
     ))
 }
 
-/// Reconstruct the exact carrier and relevant field independently of payload type.
-#[allow(clippy::too_many_arguments)]
+/// Reconstruct the exact carrier and relevant field below an exclusive
+/// borrowed parameter independently of payload type.
 pub(crate) fn lower_structural_field_place_steps<'a>(
-    statement_index: u32,
-    expected_statement_index: u32,
-    destination_parameter_position: u32,
     carrier_path: &[CheckedUnitStructuralPathSegment],
     field_identity: &str,
     parameter: &StructuralParameterDeclaration,
@@ -233,11 +213,6 @@ pub(crate) fn lower_structural_field_place_steps<'a>(
     LoweringError,
 > {
     validate_root_access(parameter)?;
-    if statement_index != expected_statement_index
-        || destination_parameter_position != parameter.position
-    {
-        return unsupported("structural scalar store lost exact exclusive custody");
-    }
     lower_structural_field_steps(
         parameter.structural_type,
         carrier_path,

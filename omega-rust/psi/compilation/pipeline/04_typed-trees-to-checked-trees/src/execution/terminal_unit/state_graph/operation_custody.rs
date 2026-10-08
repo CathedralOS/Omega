@@ -69,34 +69,19 @@ pub(super) fn admit(
             // claims a new root.
             | CheckedUnitEffectOperationPlan::EstablishReference { .. }
             | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-            // The ordinary sequencer has already rejoined the primitive
-            // destination, RHS, and complete write frame. Crossing a state
-            // edge does not turn that non-observing write into a new family.
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            // The ordinary sequencer has already rejoined every store's
+            // destination, value and complete write frame; crossing a state
+            // edge does not turn that write into a new family. A store
+            // through a view or recast loan writes through the loan the
+            // edge carries; a sum field's window closes within the store,
+            // and literal construction or unrestricted leaf copy carries no
+            // new ownership across the selected edge. Receiving source
+            // replay and the move/restore ledger still check the exact
+            // destination and replacement independently.
+            CheckedUnitEffectOperationPlan::Store(_)
             // An atomic event's root authority and operands rejoined at
             // mint; its observed prior is an ordinary dense scalar local.
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            // A view write observes through the view's own loan: the
-            // destination borrows the slice rather than owning it, and the
-            // index and element scalars rejoined dense at mint. The edge
-            // carries the loan; the write claims no root of its own.
-            | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            // Case replacement closes its destination window within the
-            // operation. Literal construction and unrestricted leaf copy
-            // carry no new ownership across the selected edge; receiving
-            // source replay and the ordinary move/restore ledger still
-            // check the exact destination and replacement independently.
-            | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
-            // A representation view store writes through the view's own
-            // loaned destination; each footprint byte's index obligation,
-            // operand, and destination rejoined at mint. No edge carries a
-            // root the write did not already claim.
-            | CheckedUnitEffectOperationPlan::RepresentationViewStore(_) => {}
+            | CheckedUnitEffectOperationPlan::AtomicAccess(_) => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration
             // into the opened hole — carries no new custody across the

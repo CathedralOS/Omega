@@ -1182,16 +1182,8 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
+                | CheckedUnitEffectOperationPlan::Store(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }

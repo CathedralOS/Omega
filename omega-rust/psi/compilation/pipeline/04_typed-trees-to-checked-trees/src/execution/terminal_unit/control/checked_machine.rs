@@ -258,8 +258,10 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .iter()
                 .filter_map(|argument| argument.source_local_declaration_ordinal())
                 .collect::<Vec<_>>(),
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(plan) => plan
-                .value
+            CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+                value: checked_trees::CheckedStoreValue::Place(value),
+                ..
+            }) => value
                 .source_local_declaration_ordinal()
                 .into_iter()
                 .collect(),
@@ -270,15 +272,8 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::Store(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-            | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-            | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { .. }

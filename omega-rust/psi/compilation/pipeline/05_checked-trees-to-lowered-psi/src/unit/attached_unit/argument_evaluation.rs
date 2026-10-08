@@ -1005,7 +1005,7 @@ impl Evaluation {
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         statement_index: u32,
-        value: &checked_trees::CheckedStoreValue,
+        value: &checked_trees::CheckedScalarStoreValue,
         primitive_type: typed_trees::types::PrimitiveType,
         field_identity: Option<&str>,
         values: &mut Vec<ValueDeclaration>,
@@ -1036,7 +1036,7 @@ impl Evaluation {
         // no `AssignmentValue` expression row; it is reconstructed from the
         // call operation already lowered for this statement, which must be the
         // most recently established scalar value in this namespace.
-        if let checked_trees::CheckedStoreValue::ScalarResult { position } = value {
+        if let checked_trees::CheckedScalarStoreValue::ScalarResult { position } = value {
             let position = usize::try_from(*position).map_err(|_| {
                 LoweringError::Unsupported("field store call-result position exceeds usize")
             })?;

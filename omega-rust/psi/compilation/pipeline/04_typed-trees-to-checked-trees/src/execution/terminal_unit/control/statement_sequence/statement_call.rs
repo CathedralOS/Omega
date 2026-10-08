@@ -164,8 +164,11 @@ pub(super) fn plan(
                         binding_ordinal,
                     };
                 }
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                    let source = match store.value.nodes.get_mut(store.value.root) {
+                CheckedUnitEffectOperationPlan::Store(checked_trees::CheckedStorePlan {
+                    value: checked_trees::CheckedStoreValue::Bytes(value),
+                    ..
+                }) => {
+                    let source = match value.nodes.get_mut(value.root) {
                         checked_trees::CheckedByteSequenceValue::CallResult {
                             binding_ordinal: source,
                             state: source_state,

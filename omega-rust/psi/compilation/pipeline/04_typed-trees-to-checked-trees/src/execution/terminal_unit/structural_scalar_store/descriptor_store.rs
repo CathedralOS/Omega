@@ -149,27 +149,24 @@ pub(in crate::execution::terminal_unit) fn descriptor_store(
             },
         )?,
     };
-    let field_identity = match slot.field {
-        Some(field) => Some(terminal_field_identity(program, field.symbol)?),
-        // A slot without a field is the whole root itself.
-        None if slot.path.is_empty() => None,
+    // A slot without a field is the whole root itself: an empty path.
+    let mut path = slot.path;
+    match slot.field {
+        Some(field) => path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            terminal_field_identity(program, field.symbol)?,
+        )),
+        None if path.is_empty() => {}
         None => return None,
-    };
+    }
     let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
     value.root = value
         .nodes
         .insert(checked_trees::CheckedByteSequenceValue::Descriptor { expression, source });
-    Some(
-        checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceStore(
-            checked_trees::CheckedByteSequenceStorePlan {
-                statement_index,
-                root,
-                destination: checked_trees::CheckedByteSequenceStoreDestination::Descriptor {
-                    path: slot.path,
-                    field_identity,
-                },
-                value,
-            },
-        ),
-    )
+    Some(checked_trees::CheckedUnitEffectOperationPlan::new_store(
+        statement_index,
+        root,
+        path,
+        checked_trees::CheckedStoreLeaf::ByteDescriptor,
+        checked_trees::CheckedStoreValue::Bytes(value),
+    ))
 }

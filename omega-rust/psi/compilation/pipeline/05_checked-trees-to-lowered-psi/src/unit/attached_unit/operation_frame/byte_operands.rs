@@ -9,12 +9,13 @@ use checked_trees::{CheckedByteSequenceValue, CheckedUnitStructuralArgumentSourc
 impl OperationFrame<'_, '_> {
     pub(super) fn byte_descriptor_operand(
         &mut self,
-        store: &checked_trees::CheckedByteSequenceStorePlan,
+        statement_index: u32,
+        value: &checked_trees::CheckedByteSequenceValuePlan,
     ) -> Result<PlaceId, LoweringError> {
         let CheckedByteSequenceValue::Descriptor {
             expression: _,
             source,
-        } = store.value.nodes.get(store.value.root)
+        } = value.nodes.get(value.root)
         else {
             return unsupported("view field store has no descriptor operand");
         };
@@ -77,7 +78,7 @@ impl OperationFrame<'_, '_> {
             let storage = super::super::view_ranges::storage(
                 self.checked,
                 self.state,
-                store.statement_index,
+                statement_index,
                 source,
                 self.structural_types.declarations(),
             )?;
@@ -107,7 +108,7 @@ impl OperationFrame<'_, '_> {
                 self.checked,
                 ViewRangeSite {
                     state: self.state,
-                    statement: store.statement_index,
+                    statement: statement_index,
                     range,
                 },
                 range_source,

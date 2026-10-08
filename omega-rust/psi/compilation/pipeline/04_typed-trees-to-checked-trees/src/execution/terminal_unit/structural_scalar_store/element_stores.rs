@@ -62,12 +62,25 @@ pub(super) fn store(
         _ => return None,
     };
     let selected = element_selector_target(program, state, assignment.target, path)?;
-    Some(CheckedUnitEffectOperationPlan::ElementViewWrite(
-        checked_trees::CheckedElementViewWritePlan {
-            statement_index,
-            destination: destination.root.destination(),
+    let value = value::assignment_value(
+        program,
+        facts,
+        machine,
+        state,
+        &destination.root,
+        statement_index,
+        assignment,
+        source,
+        primitive_type,
+        trace,
+    )?;
+    Some(CheckedUnitEffectOperationPlan::new_store(
+        statement_index,
+        destination.root.destination(),
+        Vec::new(),
+        checked_trees::CheckedStoreLeaf::ViewElement {
             index: element_selector,
-            path: path.to_vec(),
+            element_path: path.to_vec(),
             element: primitive_type,
             range_decision: facts.proof.integer_assignment_at(
                 machine.symbol,
@@ -76,23 +89,12 @@ pub(super) fn store(
                 assignment.target,
                 assignment.value,
             ),
-            value: value::assignment_value(
-                program,
-                facts,
-                machine,
-                state,
-                &destination.root,
-                statement_index,
-                assignment,
-                source,
-                primitive_type,
-                trace,
-            )?,
             decisions: checked_trees::CheckedIndexedWriteDecisions {
                 index_in_bounds: facts.scalar_index_is_proven(selected),
                 predicates_preserved: false,
             },
         },
+        checked_trees::CheckedStoreValue::assigned(value),
     ))
 }
 

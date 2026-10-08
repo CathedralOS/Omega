@@ -599,10 +599,13 @@ pub(crate) fn loaned_store(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    root: checked_trees::CheckedStoreRoot,
+    carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    primitive_type: checked_trees::types::PrimitiveType,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Option<LoanedStore>, LoweringError> {
-    let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination else {
+    let checked_trees::CheckedStoreRoot::Local { symbol } = root else {
         return Ok(None);
     };
     let Some(loan) = loan_subject(checked, machine, state, symbol, types)? else {
@@ -612,7 +615,9 @@ pub(crate) fn loaned_store(
         return unsupported("record store requires a mutable captured loan");
     }
     let field = crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
-        store,
+        primitive_type,
+        carrier_path,
+        field_identity,
         loan.terminal,
         types,
     )?;
@@ -630,17 +635,13 @@ pub(crate) fn loaned_store(
         // destination against this checked path. Resolve normalized geometry
         // from that path directly; reconstructing a second field recognizer
         // here would discard the runtime selectors the store retained.
-        let mut scalar_path = store.carrier_path.clone();
+        let mut scalar_path = carrier_path.to_vec();
         scalar_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            store.field_identity.clone(),
+            field_identity.to_owned(),
         ));
-        Some(overlay.scalar_path(
-            checked,
-            &scalar_path,
-            terminal_scalar_type(store.primitive_type)?,
-        )?)
+        Some(overlay.scalar_path(checked, &scalar_path, terminal_scalar_type(primitive_type)?)?)
     } else {
-        path.extend(store.carrier_path.iter().cloned());
+        path.extend(carrier_path.iter().cloned());
         None
     };
     Ok(Some(LoanedStore {

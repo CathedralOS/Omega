@@ -135,7 +135,7 @@ pub(super) fn store_operand_type_identities(
     state: symbols::SymbolHandle,
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
 ) -> Vec<String> {
-    let checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceStore(store) = operation else {
+    let Some(value) = operation.stored_bytes() else {
         return Vec::new();
     };
     let Some(machine) = program.machine(machine) else {
@@ -148,8 +148,7 @@ pub(super) fn store_operand_type_identities(
     else {
         return Vec::new();
     };
-    store
-        .value
+    value
         .nodes
         .iter()
         .filter_map(|(_, node)| {

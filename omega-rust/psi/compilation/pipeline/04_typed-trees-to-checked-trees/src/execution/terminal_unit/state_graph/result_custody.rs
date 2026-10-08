@@ -550,8 +550,9 @@ pub(super) fn account(
         // The store's source replay separately rejoins the exact call.
         let copied_into_byte_store = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..].iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
-                    if store.value.completed_call_binding_ordinal() == Some(result.binding_ordinal))
+                operation.stored_bytes().is_some_and(|value| {
+                    value.completed_call_binding_ordinal() == Some(result.binding_ordinal)
+                })
             });
         // A whole unrestricted result can be copied or lent by a later call,
         // independently of whether a call or construction produced it. Every

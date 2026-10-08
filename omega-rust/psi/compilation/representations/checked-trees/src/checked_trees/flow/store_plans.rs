@@ -1,23 +1,198 @@
-//! Checked store plans shared by the Unit-effect and scalar-graph planners:
-//! the evaluated value and exact root of one scalar store, and the field
-//! replacement plans built on them.
+//! Checked store plans: one authored store `place = value` as one operation
+//! over its exact destination place and the value it receives.
+//!
+//! The destination's leaf representation decides the emitted Terminal
+//! operation: plain primitive storage, a declared scalar field, an indexed
+//! byte or element-view element, a representation view's re-covered leaf,
+//! byte contents, a byte-view descriptor slot or a whole sum field. Every
+//! judgment the store consumes — a declared field's receiving range, an
+//! indexed element's bound and byte-predicate preservation, a view's
+//! footprint width — is data on that leaf, not a separate store family.
 
 use symbols::SymbolHandle;
+use typed_trees::types::PrimitiveType;
 
 use crate::{
-    CheckedScalarCaseFieldPlan, CheckedScalarExpression, CheckedUnitStructuralArgumentPlan,
+    CheckedByteSequenceValuePlan, CheckedScalarCaseFieldPlan, CheckedScalarExpression,
+    CheckedScalarExpressionRole, CheckedUnitStructuralArgumentPlan,
 };
 
 use super::CheckedUnitStructuralPathSegment;
 
-/// Evaluated source of one scalar store: a primitive field replacement, an
-/// element-view write, a byte-view write, or a byte replacement inside a
-/// bounded byte field. Every leaf shares this one vocabulary. The two byte
-/// leaves lower no scalar computation, so their producer, replay and
-/// lowering each refuse `Computation` explicitly; an element-view write may
-/// carry one, and its replay and lowering refuse it.
+/// One authored store: the exact place it replaces and the value it writes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStorePlan {
+    pub statement_index: u32,
+    pub destination: CheckedStoreDestination,
+    pub value: CheckedStoreValue,
+}
+
+/// The exact place one store replaces: its root, the checked path below it,
+/// and the representation of the replaced leaf.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStoreDestination {
+    pub root: CheckedStoreRoot,
+    /// Exact checked path from the root to the replaced place. An indexed
+    /// element's own selection is its leaf's `index`, so the path of a
+    /// `ByteElement` or `ViewElement` leaf ends at the indexed carrier.
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub leaf: CheckedStoreLeaf,
+}
+
+impl CheckedStoreDestination {
+    /// The carrier path and identity of a leaf that is a record field: the
+    /// path's final `Field` segment.
+    pub fn field(&self) -> Option<(&[CheckedUnitStructuralPathSegment], &str)> {
+        match self.path.split_last()? {
+            (CheckedUnitStructuralPathSegment::Field(identity), carrier) => {
+                Some((carrier, identity.as_str()))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// The representation of the place one store replaces, carrying the checked
+/// judgments that representation's store consumes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedStoreLeaf {
+    /// Primitive storage with no declared field contract: a whole mutable
+    /// primitive local or borrowed primitive, or the primitive array element
+    /// or plain IEEE field a primitive projection reaches.
+    Primitive,
+    /// A declared primitive field, the path's final segment. The receiving
+    /// range judgment is the exact completed source check; zero for a
+    /// deferred or unjudged store.
+    ScalarField {
+        primitive_type: PrimitiveType,
+        range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
+    },
+    /// One live byte of the byte carrier the path names — a whole mutable
+    /// view or bounded owner (an empty path), or a byte field — selected by
+    /// `index` and stored as a `u8`.
+    ByteElement {
+        index: CheckedScalarExpression,
+        decisions: CheckedIndexedWriteDecisions,
+    },
+    /// One element of the mutable `&mut [T]` view at the root, selected by
+    /// `index`, then `element_path` within that element (empty for a scalar
+    /// element). The live-length observation composes with the write; the
+    /// element's receiving range is the separate `range_decision`.
+    ViewElement {
+        index: CheckedScalarExpression,
+        element_path: Vec<CheckedUnitStructuralPathSegment>,
+        element: PrimitiveType,
+        range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
+        decisions: CheckedIndexedWriteDecisions,
+    },
+    /// The primitive leaf a `&mut`/`&write` representation view re-covers:
+    /// a whole primitive field of the view's width, or one `u8` element
+    /// below a bounded byte field. `view` is the referee's declared
+    /// primitive, the value's carrier; a view wider than its leaf lowers to
+    /// one store per little-endian footprint byte.
+    RepresentationView { view: PrimitiveType },
+    /// The live contents of a bounded-owned byte carrier: the whole root (an
+    /// empty path) or a byte field.
+    ByteContents,
+    /// One shared borrowed-view descriptor slot: a whole declared descriptor
+    /// local (an empty path) or a record's view field. No bytes are copied;
+    /// loan replay proves the stored descriptor's source outlives the slot.
+    ByteDescriptor,
+    /// A whole sum-typed field, the path's final segment, replaced through
+    /// its borrowed window: the stored value is a whole owned place copied
+    /// in, or a case literal established in place.
+    SumField,
+}
+
+/// The value one store writes, in the shape its leaf receives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStoreValue {
+    /// A scalar evaluated at `role`: the assignment's `AssignmentValue`, or
+    /// one row-major element of a closed array literal stored element-wise.
+    Scalar {
+        role: CheckedScalarExpressionRole,
+        value: CheckedScalarStoreValue,
+    },
+    /// A byte value replacing contents or a descriptor slot.
+    Bytes(CheckedByteSequenceValuePlan),
+    /// A whole owned place of the leaf's declared unrestricted sum type: the
+    /// write copies every bit and moves nothing.
+    Place(CheckedUnitStructuralArgumentPlan),
+    /// An authored case literal the store establishes into the leaf's storage.
+    CaseLiteral(CheckedCaseLiteralValuePlan),
+}
+
+impl CheckedStoreValue {
+    /// The scalar an authored assignment's right-hand side supplies.
+    pub fn assigned(value: CheckedScalarStoreValue) -> Self {
+        Self::Scalar {
+            role: CheckedScalarExpressionRole::AssignmentValue,
+            value,
+        }
+    }
+
+    /// The scalar a scalar leaf stores, with its evaluation role.
+    pub fn scalar(&self) -> Option<(CheckedScalarExpressionRole, &CheckedScalarStoreValue)> {
+        match self {
+            Self::Scalar { role, value } => Some((*role, value)),
+            Self::Bytes(_) | Self::Place(_) | Self::CaseLiteral(_) => None,
+        }
+    }
+
+    /// The byte value a contents or descriptor leaf stores.
+    pub fn bytes(&self) -> Option<&CheckedByteSequenceValuePlan> {
+        match self {
+            Self::Bytes(value) => Some(value),
+            Self::Scalar { .. } | Self::Place(_) | Self::CaseLiteral(_) => None,
+        }
+    }
+
+    pub fn bytes_mut(&mut self) -> Option<&mut CheckedByteSequenceValuePlan> {
+        match self {
+            Self::Bytes(value) => Some(value),
+            Self::Scalar { .. } | Self::Place(_) | Self::CaseLiteral(_) => None,
+        }
+    }
+}
+
+/// `place.field = Sum::Case { .. }`: no held place supplies the stored value,
+/// so the plan retains the authored construction and its scalar operands.
+/// Each operand was bound at the statement under
+/// `StructuralValueField { expression: literal, .. }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedCaseLiteralValuePlan {
+    /// The authored case literal — the namespace subject every scalar operand
+    /// bound against under `StructuralValueField`.
+    pub literal: typed_trees::expression::ExpressionHandle,
+    pub case_identity: String,
+    /// Exact type identity of the literal's normalized type, which admission
+    /// proved equals the field's declared sum type.
+    pub type_identity: String,
+    /// Scalar operands in authored order, covering payload and named common
+    /// fields; each `field_identity` matches its terminal declaration.
+    pub fields: Vec<CheckedScalarCaseFieldPlan>,
+}
+
+/// What checking already proved about one runtime-indexed write, recorded
+/// against the authored indexed target so lowering never repeats it. The two
+/// judgments stay independent: an in-bounds index supplies the count
+/// conversion but cannot authorize a byte that violates the owner's byte
+/// predicates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CheckedIndexedWriteDecisions {
+    /// The index is proven within the destination's live extent.
+    pub index_in_bounds: bool,
+    /// The stored byte is proven to preserve the owner's byte predicates.
+    /// Element-view writes keep this `false`; their receiving range is the
+    /// separate `range_decision`.
+    pub predicates_preserved: bool,
+}
+
+/// Evaluated source of one scalar store. Every scalar leaf shares this one
+/// vocabulary. A representation view lowers no scalar computation; its
+/// producer refuses `Computation`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarStoreValue {
     /// A bound pure authored expression at the store's value role.
     Pure(CheckedScalarExpression),
     /// A scalar computation rooted at the store's own role coordinate.
@@ -33,7 +208,7 @@ pub enum CheckedStoreValue {
     ScalarResult { position: u32 },
 }
 
-impl CheckedStoreValue {
+impl CheckedScalarStoreValue {
     pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
         match self {
             Self::Pure(expression) => Some(expression),
@@ -42,15 +217,12 @@ impl CheckedStoreValue {
     }
 }
 
-/// Exact source root of one store: a primitive, field, case-field, element,
-/// byte-view, byte-field or whole-byte-owner write. A parameter position is the
-/// authored state position, never a dense structural-parameter index; a
-/// consumer holding a dense roster maps the position through the checked
-/// structural parameters, whose own `position` is authored too. A local keeps
-/// symbol identity so ordered lowering can resolve its current home after
-/// copies or moves. Byte-field source reads use that same home identity;
-/// destination leaves without local-rooted lowering still refuse `Local`
-/// explicitly in their producer, replay and lowering.
+/// Exact source root of one store. A parameter position is the authored
+/// state position, never a dense structural-parameter index; a consumer
+/// holding a dense roster maps the position through the checked structural
+/// parameters, whose own `position` is authored too. A local keeps symbol
+/// identity so ordered lowering can resolve its current home after copies or
+/// moves. Byte-field source reads use that same home identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedStoreRoot {
     Parameter { position: u32 },
@@ -65,64 +237,4 @@ impl CheckedStoreRoot {
             Self::Local { .. } => None,
         }
     }
-}
-
-/// Checked custody for one replacement of an exact primitive field.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralScalarFieldStorePlan {
-    /// Exact completed source range check. Zero for deferred or unjudged stores.
-    pub range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
-    pub statement_index: u32,
-    pub destination: CheckedStoreRoot,
-    /// Exact structural path from the destination root to the carrier;
-    /// the final primitive field is retained separately below.
-    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    pub field_identity: String,
-    pub primitive_type: typed_trees::types::PrimitiveType,
-    pub value: CheckedStoreValue,
-}
-
-/// Checked custody for one replacement of an exact unrestricted-sum field.
-/// The destination carries the same root, path and write-frame custody a
-/// scalar field store proves; the stored value is a whole owned place of the
-/// field's declared sum type, so replacement copies every bit and moves
-/// nothing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralCaseFieldStorePlan {
-    pub statement_index: u32,
-    pub destination: CheckedStoreRoot,
-    /// Exact structural path from the destination root to the carrier;
-    /// the final sum-typed field is retained separately below.
-    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    pub field_identity: String,
-    /// Whole owned place supplying the stored value; its checked type is the
-    /// field's declared unrestricted sum type.
-    pub value: CheckedUnitStructuralArgumentPlan,
-}
-
-/// Checked custody for one replacement of an exact sum field by an authored
-/// case literal: `place.field = Sum::Case { .. }`. No held place supplies
-/// the stored value — the store itself establishes the literal into the
-/// field's storage — so the plan retains the authored construction and its
-/// scalar operands instead of a source argument. Each operand was bound at
-/// the statement under `StructuralValueField { expression: literal, .. }`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralCaseLiteralFieldStorePlan {
-    pub statement_index: u32,
-    pub destination: CheckedStoreRoot,
-    /// Exact structural path from the destination root to the carrier;
-    /// the final sum-typed field is retained separately below.
-    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    pub field_identity: String,
-    /// The authored case literal — the namespace subject every scalar operand
-    /// bound against under `StructuralValueField`.
-    pub literal: typed_trees::expression::ExpressionHandle,
-    pub case_identity: String,
-    /// Exact type identity the windowed field pair names: the literal's
-    /// normalized type, which admission proved equals the field's declared
-    /// sum type.
-    pub type_identity: String,
-    /// Scalar operands in authored order, covering payload and named common
-    /// fields; each `field_identity` matches its terminal declaration.
-    pub fields: Vec<CheckedScalarCaseFieldPlan>,
 }

@@ -14,10 +14,7 @@ use crate::emission::operation_emission::buffer::{
     OperationBuffer, StructuralBinding, scalar_result_declaration,
 };
 
-use checked_trees::{
-    CheckedByteSequenceStoreDestination as Destination, CheckedByteSequenceValue as ByteValue,
-    CheckedByteSequenceValuePlan,
-};
+use checked_trees::{CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
@@ -233,8 +230,12 @@ fn descriptor_value_declaration(
     })
 }
 
+/// Replace a bounded-owned carrier's live contents: the whole root (an empty
+/// `path`) or the byte field `path` ends at.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_content_store(
-    store: &checked_trees::CheckedByteSequenceStorePlan,
+    path: &[CheckedUnitStructuralPathSegment],
+    value: &CheckedByteSequenceValuePlan,
     root: StoreRoot<'_>,
     parameters: &[(u32, StructuralParameterDeclaration)],
     locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
@@ -252,8 +253,8 @@ pub(crate) fn emit_content_store(
             return unsupported("a descriptor home holds no owned byte contents");
         }
     };
-    let field_destination = match &store.destination {
-        Destination::Whole => {
+    let field_destination = match path.split_last() {
+        None => {
             let StoreRoot::Parameter(parameter) = &root else {
                 return unsupported("whole byte store requires a borrowed bounded formal");
             };
@@ -268,16 +269,10 @@ pub(crate) fn emit_content_store(
             }
             None
         }
-        Destination::Field {
-            carrier_path,
-            field_identity,
-        } => {
+        Some((CheckedUnitStructuralPathSegment::Field(field_identity), carrier_path)) => {
             let (path, field) = match &root {
                 StoreRoot::Parameter(parameter) => {
                     crate::emission::structural_scalar_store::lower_structural_field_place(
-                        store.statement_index,
-                        store.statement_index,
-                        parameter.position,
                         carrier_path,
                         field_identity,
                         parameter,
@@ -368,12 +363,12 @@ pub(crate) fn emit_content_store(
             }
             Some((path, field.id))
         }
-        Destination::Descriptor { .. } => {
-            return unsupported("descriptor store reached the owned byte emitter");
+        Some(_) => {
+            return unsupported("byte contents store does not end at a byte field");
         }
     };
     let mut emitter = ValueEmitter {
-        plan: &store.value,
+        plan: value,
         parameters,
         locals,
         emission: ByteEmission {
@@ -385,11 +380,11 @@ pub(crate) fn emit_content_store(
             operations,
         },
     };
-    let (operand, capacity) = emitter.emit(store.value.root, 0)?;
+    let (operand, capacity) = emitter.emit(value.root, 0)?;
     let (source, length) = match operand {
         ByteSequenceOperand::Whole { source, length }
             if !matches!(
-                store.value.nodes.get(store.value.root),
+                value.nodes.get(value.root),
                 ByteValue::Whole {
                     root: checked_trees::CheckedStoreRoot::Local { .. },
                     ..
@@ -446,16 +441,14 @@ pub(crate) struct DescriptorStore {
 }
 
 pub(crate) fn prepare_descriptor_store(
-    store: &checked_trees::CheckedByteSequenceStorePlan,
     root: &StoreRoot<'_>,
     path: &[CheckedUnitStructuralPathSegment],
-    field_identity: Option<&str>,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<DescriptorStore, LoweringError> {
     let shared_view = Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
         access: Some(terminal_psi::StructuralAccess::SharedBorrow),
     });
-    let Some(field_identity) = field_identity else {
+    let Some((field_identity, carrier_path)) = path.split_last() else {
         // The whole slot is the root itself: a declared descriptor home. Its
         // write authority is the home's own; the shared access of the view
         // belongs to the referenced bytes. A standalone view type binds no
@@ -473,16 +466,12 @@ pub(crate) fn prepare_descriptor_store(
             .ok_or(LoweringError::Unsupported(
                 "whole descriptor store home type was not declared",
             ))?;
-        if !path.is_empty()
-            || !matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    }
-                )
-            )
-        {
+        if !matches!(
+            declaration.shape,
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+            })
+        ) {
             return unsupported("whole descriptor store destination is not a shared view home");
         }
         return Ok(DescriptorStore {
@@ -493,15 +482,15 @@ pub(crate) fn prepare_descriptor_store(
             requires_predicate_obligation: *qualified,
         });
     };
+    let CheckedUnitStructuralPathSegment::Field(field_identity) = field_identity else {
+        return unsupported("view-field store destination does not end at a field");
+    };
     let (destination, structural_type, (steps, field)) = match root {
         StoreRoot::Parameter(parameter) => (
             parameter.place,
             parameter.structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_place_steps(
-                store.statement_index,
-                store.statement_index,
-                parameter.position,
-                path,
+                carrier_path,
                 field_identity,
                 parameter,
                 structural_types,
@@ -519,7 +508,7 @@ pub(crate) fn prepare_descriptor_store(
             *structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_steps(
                 *structural_type,
-                path,
+                carrier_path,
                 field_identity,
                 structural_types,
             )?,

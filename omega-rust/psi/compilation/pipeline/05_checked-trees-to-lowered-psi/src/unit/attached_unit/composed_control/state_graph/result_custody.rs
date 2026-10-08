@@ -234,9 +234,10 @@ fn retired_in_body(
                 .source_structural_result_binding_ordinal()
                 .into_iter()
                 .collect(),
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => store
+            CheckedUnitEffectOperationPlan::Store(store) => store
                 .value
-                .completed_call_binding_ordinal()
+                .bytes()
+                .and_then(|value| value.completed_call_binding_ordinal())
                 .filter(|binding_ordinal| {
                     state.operations.iter().filter_map(result).any(|result| {
                         result.binding_ordinal == *binding_ordinal

@@ -1,5 +1,52 @@
-//! The computation root that supplies a projected scalar store's value.
-use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, unsupported};
+//! The sources of a scalar store's value: the computation root a projected
+//! field store completes, and the direct value an indexed or representation
+//! view store emits beside its destination.
+use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, unsupported};
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::expression_preparation::bindings::ScalarBindings;
+use terminal_psi::ValueDeclaration;
+
+/// A scalar store's value as one direct expression in the assignment's
+/// scalar namespace: the authored expression bound at the store's `role`, or
+/// the scalar result of the call this same statement performs. That result
+/// binds no local and carries no role row, so it is read back where the
+/// ordered call operation established it as the most recent scalar value. A
+/// computation is no direct expression; its store evaluates it through the
+/// shared scalar evaluator instead.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn direct_value(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    role: CheckedScalarExpressionRole,
+    value: &checked_trees::CheckedScalarStoreValue,
+    scalar_type: ScalarType,
+    bindings: &ScalarBindings,
+    values: &[ValueDeclaration],
+) -> Result<LoweredDirectExpression, LoweringError> {
+    match value {
+        checked_trees::CheckedScalarStoreValue::Pure(_) => {
+            bindings.expression_at(checked, state, statement_index, role)
+        }
+        checked_trees::CheckedScalarStoreValue::ScalarResult { position } => {
+            let position = usize::try_from(*position).map_err(|_| {
+                LoweringError::Unsupported("store call-result position exceeds usize")
+            })?;
+            if position.checked_add(1) != Some(values.len()) {
+                return unsupported(
+                    "store call result is not this statement's established scalar result",
+                );
+            }
+            Ok(LoweredDirectExpression::Local {
+                position,
+                scalar_type,
+            })
+        }
+        checked_trees::CheckedScalarStoreValue::Computation(_) => {
+            unsupported("a computed store value has no direct expression")
+        }
+    }
+}
 
 /// Select a computation only through its exact authored assignment coordinate.
 /// A whole-record replacement selects each field through the literal's own
@@ -10,7 +57,7 @@ pub(crate) fn computation_root(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement_index: u32,
-    value: &checked_trees::CheckedStoreValue,
+    value: &checked_trees::CheckedScalarStoreValue,
     field_identity: Option<&str>,
 ) -> Result<
     Option<(
@@ -28,7 +75,7 @@ pub(crate) fn computation_root(
     if roots.next().is_some() {
         return unsupported("field assignment has duplicate computation roots");
     }
-    let checked_trees::CheckedStoreValue::Computation(handle) = value else {
+    let checked_trees::CheckedScalarStoreValue::Computation(handle) = value else {
         return if root.is_none() {
             Ok(None)
         } else {
