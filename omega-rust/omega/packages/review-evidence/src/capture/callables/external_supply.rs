@@ -133,9 +133,7 @@ pub(super) fn project_external_binding(
             if !machine.attached_data_symbol.is_valid()
                 || machine.attached_data.is_none()
                 || !compilation
-                    .data_definitions()
-                    .iter()
-                    .any(|definition| definition.symbol == machine.attached_data_symbol) =>
+                    .data_definition_by_symbol(machine.attached_data_symbol).is_some() =>
         {
             rejected("has table-field supply without one exact attached provider data declaration")
         }

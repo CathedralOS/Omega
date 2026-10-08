@@ -50,9 +50,7 @@ pub fn collect_root_bindings(
                 continue;
             }
             if !typed
-                .machines()
-                .iter()
-                .any(|machine| machine.symbol == described.machine_symbol)
+                .machine(described.machine_symbol).is_some()
             {
                 return Err(vec![
                     Diagnostic::error(

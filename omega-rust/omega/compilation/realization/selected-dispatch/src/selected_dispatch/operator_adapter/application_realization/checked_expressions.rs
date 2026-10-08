@@ -64,9 +64,7 @@ fn derive_checked_expression_operator_application_realization(
     };
     if checked
         .typed
-        .machines()
-        .iter()
-        .any(|machine| machine.symbol == application.requirement_symbol)
+        .machine(application.requirement_symbol).is_some()
     {
         // A direct call to a top-level `boundary requirement` realized by a
         // checked adapter settles to an ordinary call of the adapter body and

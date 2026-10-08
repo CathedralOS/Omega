@@ -545,9 +545,7 @@ fn derive_boundary_operator_plans(
             // matching, not a second provider slot. Its machine declaration
             // owns the schema and provenance in derive_top_level_requirement_plans.
             if typed
-                .machines()
-                .iter()
-                .any(|requirement| requirement.symbol == operator.symbol)
+                .machine(operator.symbol).is_some()
             {
                 continue;
             }

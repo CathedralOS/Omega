@@ -24,9 +24,7 @@ pub(super) fn selected_executions(
             !context.contains(symbol)
                 || !checked
                     .typed
-                    .machines()
-                    .iter()
-                    .any(|machine| machine.symbol == symbol)
+                    .machine(symbol).is_some()
         }) {
             continue;
         }

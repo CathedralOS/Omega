@@ -422,9 +422,7 @@ pub fn selected_use_plan<'a>(
     if let checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin
         && !checked
             .typed
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == machine_symbol)
+            .machine(machine_symbol).is_some()
     {
         return None;
     }
@@ -435,9 +433,7 @@ pub fn selected_use_plan<'a>(
     )?;
     let is_operator = checked
         .typed
-        .operators()
-        .iter()
-        .any(|operator| operator.symbol == requirement);
+        .operator_definition_by_symbol(requirement).is_some();
     if is_operator
         && matches!(
             plan.rows.as_slice(),
