@@ -326,6 +326,24 @@ struct ParsedAsmInstruction {
     contract: language_core::inline_assembly::AsmInstructionContract,
 }
 
+impl ParsedAsmInstruction {
+    /// The parser's success tuple: the parsed instruction plus the consumed
+    /// input position.
+    fn ok<'tokens, 'source>(
+        statement: StatementHandle,
+        contract: language_core::inline_assembly::AsmInstructionContract,
+        input: Input<'tokens, 'source>,
+    ) -> ParseResult<'tokens, 'source, Self> {
+        Ok((
+            Self {
+                statement,
+                contract,
+            },
+            input,
+        ))
+    }
+}
+
 /// A `[address]` operand spells raw memory addressing, not an Omega place:
 /// the catalog's unmodeled-memory refusal applies to the operand rather than
 /// to the instruction spelling. Authorized memory data still moves through an
@@ -359,18 +377,11 @@ fn parsed_intrinsic_instruction<'tokens, 'source>(
     contract: language_core::inline_assembly::AsmInstructionContract,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedAsmInstruction> {
-    Ok((
-        ParsedAsmInstruction {
-            statement: asm_intrinsic_call(
-                syntax_trees,
-                mnemonic,
-                intrinsic_name,
-                HandleSpan::empty(),
-            ),
-            contract,
-        },
+    ParsedAsmInstruction::ok(
+        asm_intrinsic_call(syntax_trees, mnemonic, intrinsic_name, HandleSpan::empty()),
+        contract,
         input,
-    ))
+    )
 }
 
 fn asm_intrinsic_call(
@@ -475,18 +486,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 destination,
             )?;
             reject_bracketed_asm_operand(syntax_trees, mnemonic_site, mnemonic.as_str(), source)?;
-            Ok((
-                ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Assignment(
-                        TableAssignment {
-                            target: destination,
-                            value: source,
-                        },
-                    )),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Assignment(TableAssignment {
+                        target: destination,
+                        value: source,
+                    })),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::MemoryTransfer(kind) => {
             let (first, input) = parse_expression_handle(syntax_trees, input)?;
@@ -502,47 +511,36 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 AsmMemoryTransferKind::Load => (first, second),
                 AsmMemoryTransferKind::Store => (second, first),
             };
-            Ok((
-                ParsedAsmInstruction {
-                    statement: syntax_trees
-                        .statements
-                        .insert(StatementNode::Assignment(TableAssignment { target, value })),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Assignment(TableAssignment { target, value })),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::JumpState => {
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
-            Ok((
-                ParsedAsmInstruction {
-                    statement: syntax_trees.statements.insert(StatementNode::Transition(
-                        TableTransition {
-                            target,
-                            continuation: TransitionTargetHandle::invalid(),
-                            guard: TransitionGuardNode::Always,
-                            proof_selectors: HandleSpan::empty(),
-                            exit: TransitionExit::Ordinary,
-                            source_span: Default::default(),
-                        },
-                    )),
-                    contract,
-                },
-                input,
-            ))
-        }
-        AsmInstructionShape::Halt => Ok((
-            ParsedAsmInstruction {
-                statement: asm_intrinsic_call(
-                    syntax_trees,
-                    &mnemonic,
-                    "asm#hlt",
-                    HandleSpan::empty(),
-                ),
+            ParsedAsmInstruction::ok(
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Transition(TableTransition {
+                        target,
+                        continuation: TransitionTargetHandle::invalid(),
+                        guard: TransitionGuardNode::Always,
+                        proof_selectors: HandleSpan::empty(),
+                        exit: TransitionExit::Ordinary,
+                        source_span: Default::default(),
+                    })),
                 contract,
-            },
+                input,
+            )
+        }
+        AsmInstructionShape::Halt => ParsedAsmInstruction::ok(
+            asm_intrinsic_call(syntax_trees, &mnemonic, "asm#hlt", HandleSpan::empty()),
+            contract,
             input,
-        )),
+        ),
         AsmInstructionShape::PortOut => {
             let (port, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -553,18 +551,11 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let arguments = syntax_trees
                 .statements
                 .insert_expression_handles(vec![port, value]);
-            Ok((
-                ParsedAsmInstruction {
-                    statement: asm_intrinsic_call(
-                        syntax_trees,
-                        &mnemonic,
-                        "asm#port_out",
-                        arguments,
-                    ),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                asm_intrinsic_call(syntax_trees, &mnemonic, "asm#port_out", arguments),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::PortIn => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
@@ -580,13 +571,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 arguments,
                 destination,
             );
-            Ok((
-                ParsedAsmInstruction {
-                    statement,
-                    contract,
-                },
-                input,
-            ))
+            ParsedAsmInstruction::ok(statement, contract, input)
         }
         AsmInstructionShape::MemoryFence(kind) => parsed_intrinsic_instruction(
             syntax_trees,
@@ -616,18 +601,16 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             contract,
             input,
         ),
-        AsmInstructionShape::CacheOperation(kind) => Ok((
-            ParsedAsmInstruction {
-                statement: asm_intrinsic_call(
-                    syntax_trees,
-                    &mnemonic,
-                    kind.intrinsic_name(),
-                    HandleSpan::empty(),
-                ),
-                contract,
-            },
+        AsmInstructionShape::CacheOperation(kind) => ParsedAsmInstruction::ok(
+            asm_intrinsic_call(
+                syntax_trees,
+                &mnemonic,
+                kind.intrinsic_name(),
+                HandleSpan::empty(),
+            ),
+            contract,
             input,
-        )),
+        ),
         AsmInstructionShape::FlagsSnapshot => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let statement = asm_intrinsic_result_assignment(
@@ -637,26 +620,18 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 HandleSpan::empty(),
                 destination,
             );
-            Ok((
-                ParsedAsmInstruction {
-                    statement,
-                    contract,
-                },
-                input,
-            ))
+            ParsedAsmInstruction::ok(statement, contract, input)
         }
         AsmInstructionShape::FlagsRestore => {
             let (source, input) = parse_expression_handle(syntax_trees, input)?;
             let arguments = syntax_trees
                 .statements
                 .insert_expression_handles(vec![source]);
-            Ok((
-                ParsedAsmInstruction {
-                    statement: asm_intrinsic_call(syntax_trees, &mnemonic, "asm#popfq", arguments),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                asm_intrinsic_call(syntax_trees, &mnemonic, "asm#popfq", arguments),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::MsrRead => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
@@ -672,13 +647,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 arguments,
                 destination,
             );
-            Ok((
-                ParsedAsmInstruction {
-                    statement,
-                    contract,
-                },
-                input,
-            ))
+            ParsedAsmInstruction::ok(statement, contract, input)
         }
         AsmInstructionShape::MsrWrite => {
             let (index, input) = parse_expression_handle(syntax_trees, input)?;
@@ -687,13 +656,11 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let arguments = syntax_trees
                 .statements
                 .insert_expression_handles(vec![index, value]);
-            Ok((
-                ParsedAsmInstruction {
-                    statement: asm_intrinsic_call(syntax_trees, &mnemonic, "asm#wrmsr", arguments),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                asm_intrinsic_call(syntax_trees, &mnemonic, "asm#wrmsr", arguments),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::ControlRegisterRead(register) => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
@@ -704,33 +671,25 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 HandleSpan::empty(),
                 destination,
             );
-            Ok((
-                ParsedAsmInstruction {
-                    statement,
-                    contract,
-                },
-                input,
-            ))
+            ParsedAsmInstruction::ok(statement, contract, input)
         }
         AsmInstructionShape::ControlRegisterWrite(register) => {
             let (source, input) = parse_expression_handle(syntax_trees, input)?;
             let arguments = syntax_trees
                 .statements
                 .insert_expression_handles(vec![source]);
-            Ok((
-                ParsedAsmInstruction {
-                    statement: asm_intrinsic_call(
-                        syntax_trees,
-                        &mnemonic,
-                        register
-                            .write_intrinsic_name()
-                            .expect("writable control-register shape"),
-                        arguments,
-                    ),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    register
+                        .write_intrinsic_name()
+                        .expect("writable control-register shape"),
+                    arguments,
+                ),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::SystemRegisterRead(register) => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
@@ -741,33 +700,25 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 HandleSpan::empty(),
                 destination,
             );
-            Ok((
-                ParsedAsmInstruction {
-                    statement,
-                    contract,
-                },
-                input,
-            ))
+            ParsedAsmInstruction::ok(statement, contract, input)
         }
         AsmInstructionShape::SystemRegisterWrite(register) => {
             let (source, input) = parse_expression_handle(syntax_trees, input)?;
             let arguments = syntax_trees
                 .statements
                 .insert_expression_handles(vec![source]);
-            Ok((
-                ParsedAsmInstruction {
-                    statement: asm_intrinsic_call(
-                        syntax_trees,
-                        &mnemonic,
-                        register
-                            .write_intrinsic_name()
-                            .expect("writable system-register shape"),
-                        arguments,
-                    ),
-                    contract,
-                },
+            ParsedAsmInstruction::ok(
+                asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    register
+                        .write_intrinsic_name()
+                        .expect("writable system-register shape"),
+                    arguments,
+                ),
+                contract,
                 input,
-            ))
+            )
         }
         AsmInstructionShape::DerivedExit | AsmInstructionShape::DescriptorTableLoad => {
             unreachable!("deriver-only instructions refuse before source lowering")
