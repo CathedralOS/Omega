@@ -12,18 +12,6 @@ pub(super) fn apply_copy(
     super::super::work::apply_fixed_view_copy(function_index, function, copy, row, false)
 }
 
-fn terminator_instruction_id(terminator: &SelectedTerminator) -> SelectedInstructionId {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
-    }
-}
-
 /// `CopyI64` is a raw 64-bit register move: it preserves the source
 /// bit-pattern without interpreting sign, so a fixed-view copy admits any
 /// 64-bit integer source — signed or unsigned — and no narrower or
