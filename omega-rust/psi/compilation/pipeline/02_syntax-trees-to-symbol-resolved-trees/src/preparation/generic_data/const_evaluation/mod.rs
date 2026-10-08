@@ -1,5 +1,7 @@
 //! Exact source-constant evaluation used by declaration retention and synthesis.
 
+use super::{ConstDefinition, Diagnostic, HashMap, Identifier, SyntaxTrees};
+
 mod anonymous;
 mod arguments;
 mod domains;
@@ -39,3 +41,23 @@ pub(super) use values::{
     canonicalize_selected_index_expression, checked_fact_integer, const_integer_in_envelope,
     syntax_type_identity, validate_const_index_type, validate_syntax_integer_range,
 };
+
+/// A `name` selection that names a module-scoped const value or const
+/// declaration is rejected up front — the shared module-constant gate both
+/// evaluation walkers apply before their own normalization.
+fn module_constant_selection_gate(
+    syntax: &SyntaxTrees,
+    name: &Identifier,
+    const_values: &HashMap<String, i128>,
+    const_definitions: &HashMap<String, ConstDefinition>,
+) -> Result<(), Diagnostic> {
+    if const_values.contains_key(name.as_str()) || const_definitions.contains_key(name.as_str()) {
+        crate::preparation::generic_data::module_constants::reject_module_constant_selection(
+            syntax,
+            name.as_str(),
+            name.source_span(),
+        )
+        .map_err(|reason| Diagnostic::error(reason).with_source_span(name.source_span()))?;
+    }
+    Ok(())
+}
