@@ -1,6 +1,6 @@
+use super::derivation::hashing::sha256;
 use boundary_applications::BoundaryApplicationRealization;
 use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
-use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget};
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
@@ -431,10 +431,6 @@ fn ranges_overlap(
     right_end: usize,
 ) -> bool {
     left_start < right_end && right_start < left_end
-}
-
-fn sha256(bytes: &[u8]) -> [u8; 32] {
-    Sha256::digest(bytes).into()
 }
 
 #[cfg(test)]

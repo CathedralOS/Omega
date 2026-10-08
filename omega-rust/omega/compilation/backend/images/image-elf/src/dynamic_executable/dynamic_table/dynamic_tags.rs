@@ -767,34 +767,20 @@ fn non_authoritative_tag_compatibility_fingerprint(
                 hash.byte(1);
                 hash.bytes(&offset.to_le_bytes());
             }
-            ElfDynamicValue::ProcedureRelocationByteCount(count) => {
-                hash.byte(2);
-                hash.bytes(&count.to_le_bytes());
-            }
-            ElfDynamicValue::GeneralRelocationByteCount(count) => {
-                hash.byte(9);
-                hash.bytes(&count.to_le_bytes());
-            }
+            ElfDynamicValue::ProcedureRelocationByteCount(count) => tagged_u64(&mut hash, 2, count),
+            ElfDynamicValue::GeneralRelocationByteCount(count) => tagged_u64(&mut hash, 9, count),
             ElfDynamicValue::GeneralRelocationEntryByteCount(count) => {
-                hash.byte(10);
-                hash.bytes(&count.to_le_bytes());
+                tagged_u64(&mut hash, 10, count)
             }
             ElfDynamicValue::AddressPlaceholder => hash.byte(3),
-            ElfDynamicValue::DynamicStringByteCount(count) => {
-                hash.byte(4);
-                hash.bytes(&count.to_le_bytes());
-            }
-            ElfDynamicValue::DynamicSymbolEntryByteCount(count) => {
-                hash.byte(5);
-                hash.bytes(&count.to_le_bytes());
-            }
+            ElfDynamicValue::DynamicStringByteCount(count) => tagged_u64(&mut hash, 4, count),
+            ElfDynamicValue::DynamicSymbolEntryByteCount(count) => tagged_u64(&mut hash, 5, count),
             ElfDynamicValue::RelocationTag(tag) => {
                 hash.byte(6);
                 hash.bytes(&(tag as i64).to_le_bytes());
             }
             ElfDynamicValue::VersionRequirementRecordCount(count) => {
-                hash.byte(7);
-                hash.bytes(&count.to_le_bytes());
+                tagged_u64(&mut hash, 7, count)
             }
             ElfDynamicValue::Null => hash.byte(8),
         }
@@ -806,6 +792,11 @@ fn non_authoritative_tag_compatibility_fingerprint(
         hash.byte(obligation.target as u8);
     }
     hash.finish()
+}
+
+fn tagged_u64(hash: &mut Fnv1a, tag: u8, value: u64) {
+    hash.byte(tag);
+    hash.bytes(&value.to_le_bytes());
 }
 
 #[cfg(test)]

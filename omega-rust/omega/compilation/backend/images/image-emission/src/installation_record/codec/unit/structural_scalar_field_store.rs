@@ -12,10 +12,8 @@ use crate::installation_record::codec::{
     internal_unit::scalar_call::{
         decode_argument_source, decode_offset, encode_argument_source, encode_offset,
     },
-    structural::scalar::{
-        access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
-        multiplicity_tag,
-    },
+    structural::scalar::{decode_access, decode_domains, decode_multiplicity},
+    structural::signature::encode_structural_parameter,
     value_placement::{decode_direct_placement, encode_direct_placement},
 };
 use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u32, push_u64};
@@ -106,13 +104,7 @@ pub(crate) fn encode_destination(
     bytes: &mut Vec<u8>,
     destination: &StructuralParameterDeclaration,
 ) -> Result<(), InstallationError> {
-    push_u64(bytes, destination.place.get());
-    push_u32(bytes, destination.position);
-    bytes.push(multiplicity_tag(destination.multiplicity));
-    bytes.push(access_tag(destination.access));
-    bytes.push(0);
-    push_u64(bytes, destination.structural_type.get());
-    encode_domains(bytes, &destination.qualifications)?;
+    encode_structural_parameter(bytes, destination)?;
     encode_projected_qualifications(bytes, &destination.projected_qualifications)
 }
 

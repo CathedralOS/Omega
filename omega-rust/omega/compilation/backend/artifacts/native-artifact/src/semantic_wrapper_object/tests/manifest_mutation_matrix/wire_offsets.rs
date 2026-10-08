@@ -23,12 +23,7 @@ pub(super) fn wire_offsets(bytes: &[u8]) -> WireOffsets {
     let wrapper_symbol = pointer_alignment + 8;
     let continuation_symbol = wrapper_symbol + 8;
     let unavailable_start = continuation_symbol + 8 + 3 * 8;
-    let unavailable = [
-        unavailable_start,
-        unavailable_start + 1,
-        unavailable_start + 2,
-        unavailable_start + 3,
-    ];
+    let unavailable = std::array::from_fn(|index| unavailable_start + index);
     assert_eq!(bytes.len(), unavailable[3] + 1);
     WireOffsets {
         stage,

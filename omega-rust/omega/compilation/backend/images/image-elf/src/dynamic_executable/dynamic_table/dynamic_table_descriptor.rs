@@ -362,19 +362,14 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     hash.bytes(&row.payload_size.to_le_bytes());
     hash.bytes(&row.alignment.to_le_bytes());
     hash.bytes(&row.entry_size.to_le_bytes());
-    match row.link {
-        Some(kind) => {
-            hash.byte(1);
-            hash.byte(kind as u8);
+    for kind in [row.link, row.info] {
+        match kind {
+            Some(kind) => {
+                hash.byte(1);
+                hash.byte(kind as u8);
+            }
+            None => hash.byte(0),
         }
-        None => hash.byte(0),
-    }
-    match row.info {
-        Some(kind) => {
-            hash.byte(1);
-            hash.byte(kind as u8);
-        }
-        None => hash.byte(0),
     }
     hash.finish()
 }

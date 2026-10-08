@@ -105,42 +105,28 @@ pub(crate) fn encode_installation_header(
             .as_bytes(),
     );
     bytes.extend_from_slice(record.compiler_text_validation.derivation_digest.as_bytes());
-    push_u64(
-        bytes,
+    for fingerprint in [
         record
             .compiler_text_validation
             .encoded_text_report_fingerprint,
-    );
-    push_u64(
-        bytes,
         record
             .compiler_text_validation
             .final_compiler_text_report_fingerprint,
-    );
-    push_u64(
-        bytes,
         record
             .compiler_text_validation
             .relocation_envelope_report_fingerprint,
-    );
-    push_u64(
-        bytes,
         record
             .compiler_text_validation
             .checked_instruction_validation_report_fingerprint,
-    );
-    push_u64(
-        bytes,
         record
             .compiler_text_validation
             .checked_instruction_footprint_report_fingerprint,
-    );
-    push_u64(
-        bytes,
         record
             .compiler_text_validation
             .derivation_report_fingerprint,
-    );
+    ] {
+        push_u64(bytes, fingerprint);
+    }
     push_u64(bytes, text_relocation_count);
     push_u64(bytes, checked_instruction_validation_count);
     Ok(())

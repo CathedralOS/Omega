@@ -136,16 +136,12 @@ pub(crate) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, 
 }
 
 pub(crate) fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
-    match value {
-        IntegerValue::Signed(value) => {
-            bytes.extend_from_slice(&[1, 0, 0, 0]);
-            push_u128(bytes, value as u128);
-        }
-        IntegerValue::Unsigned(value) => {
-            bytes.extend_from_slice(&[2, 0, 0, 0]);
-            push_u128(bytes, value);
-        }
-    }
+    let (tag, value) = match value {
+        IntegerValue::Signed(value) => (1, value as u128),
+        IntegerValue::Unsigned(value) => (2, value),
+    };
+    bytes.extend_from_slice(&[tag, 0, 0, 0]);
+    push_u128(bytes, value);
 }
 
 pub(crate) fn decode_integer_value(

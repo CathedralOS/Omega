@@ -3,6 +3,7 @@
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
 
+use crate::installation_record::codec::structural::scalar::{decode_identity, encode_identity};
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
 
 pub(crate) fn encode_trivial_affine_local(
@@ -39,12 +40,7 @@ pub(crate) fn encode_trivial_affine_local_type(
         return Err(InstallationError::InvalidStructuralReturnLocal);
     }
     push_u64(bytes, declaration.id.get());
-    push_u32(
-        bytes,
-        u32::try_from(declaration.identity.len())
-            .map_err(|_| InstallationError::StructuralTypeIdentityTooLong)?,
-    );
-    bytes.extend_from_slice(declaration.identity.as_bytes());
+    encode_identity(bytes, &declaration.identity)?;
     push_u32(bytes, 0);
     Ok(())
 }
@@ -89,14 +85,7 @@ pub(crate) fn decode_trivial_affine_local_type(
     let id = StructuralTypeId::new(reader.u64()?).ok_or(
         InstallationError::ZeroStructuralReturnIdentity("local type declaration"),
     )?;
-    let identity_len = usize::try_from(reader.u32()?)
-        .map_err(|_| InstallationError::StructuralTypeIdentityTooLong)?;
-    let identity = std::str::from_utf8(reader.take(identity_len)?)
-        .map_err(|_| InstallationError::InvalidStructuralTypeIdentity)?
-        .to_owned();
-    if identity.is_empty() {
-        return Err(InstallationError::InvalidStructuralTypeIdentity);
-    }
+    let identity = decode_identity(reader)?;
     if reader.u32()? != 0 {
         return Err(InstallationError::InvalidStructuralReturnLocal);
     }

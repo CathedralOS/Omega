@@ -173,11 +173,9 @@ pub(crate) fn decode_structural_field(
         9 => {
             let carrier_tag = reader.u8()?;
             let access_tag = reader.u8()?;
-            let access = if access_tag == 0 {
-                None
-            } else {
-                Some(decode_access(access_tag)?)
-            };
+            let access = (access_tag != 0)
+                .then(|| decode_access(access_tag))
+                .transpose()?;
             let predicates = ByteSequencePredicateSet::from_bits(reader.u8()?)
                 .filter(|predicates| !predicates.is_empty())
                 .ok_or(InstallationError::InvalidStructuralTypeShape)?;

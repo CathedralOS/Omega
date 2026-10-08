@@ -4,7 +4,7 @@ use semantic_vocabulary::StructuralCaseId;
 use terminal_psi::StructuralCaseDeclaration;
 
 use crate::installation_record::codec::{
-    structural::field::{decode_structural_field, encode_structural_field},
+    structural::record::{decode_structural_fields, encode_structural_fields},
     structural::scalar::{decode_identity, encode_identity},
 };
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
@@ -20,14 +20,7 @@ pub(crate) fn encode_structural_cases(
     for case in cases {
         push_u64(bytes, case.id.get());
         encode_identity(bytes, &case.identity)?;
-        push_u32(
-            bytes,
-            u32::try_from(case.fields.len())
-                .map_err(|_| InstallationError::TooManyStructuralFields)?,
-        );
-        for field in &case.fields {
-            encode_structural_field(bytes, field)?;
-        }
+        encode_structural_fields(bytes, &case.fields)?;
     }
     Ok(())
 }
@@ -46,15 +39,7 @@ pub(crate) fn decode_structural_cases(
             InstallationError::ZeroStructuralReturnIdentity("structural case"),
         )?;
         let identity = decode_identity(reader)?;
-        let field_count = usize::try_from(reader.u32()?)
-            .map_err(|_| InstallationError::TooManyStructuralFields)?;
-        if field_count > reader.remaining() {
-            return Err(InstallationError::UnexpectedEnd);
-        }
-        let mut fields = Vec::with_capacity(field_count);
-        for _ in 0..field_count {
-            fields.push(decode_structural_field(reader)?);
-        }
+        let fields = decode_structural_fields(reader)?;
         cases.push(StructuralCaseDeclaration {
             id,
             identity,

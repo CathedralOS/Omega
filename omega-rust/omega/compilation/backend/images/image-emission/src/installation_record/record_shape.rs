@@ -38,8 +38,7 @@ pub(super) fn validate_record_shape(record: &InstallationRecord) -> Result<(), I
     internal_unit_calls::validate_internal_unit_calls(record, &function_by_machine)?;
     validate_semantic_code_attribution(record, &function_by_machine)?;
     validate_port_effects(record, &function_by_machine)?;
-    boundary_settlements::validate_boundary_settlements(record, &function_by_machine)?;
-    Ok(())
+    boundary_settlements::validate_boundary_settlements(record, &function_by_machine)
 }
 
 /// Record-wide preconditions: a valid derivation digest, an emittable target,

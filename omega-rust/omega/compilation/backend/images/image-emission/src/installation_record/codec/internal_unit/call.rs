@@ -17,6 +17,7 @@ use terminal_psi::{
 };
 
 use crate::installation_record::codec::{
+    boundary_result_scalar::encode_boundary_result_scalar_type,
     internal_unit::scalar_call::{decode_argument_source, encode_argument_source},
     structural::argument::{
         decode_path, decode_structural_argument, encode_path, encode_structural_argument,
@@ -26,8 +27,7 @@ use crate::installation_record::codec::{
     },
 };
 use crate::installation_record::{
-    InstallationError, InstalledInternalUnitCall, Reader, decode_boolean, push_u16, push_u32,
-    push_u64,
+    InstallationError, InstalledInternalUnitCall, Reader, decode_boolean, push_u32, push_u64,
 };
 
 pub(crate) fn encode_internal_unit_calls(
@@ -146,29 +146,7 @@ fn encode_internal_unit_call(
     push_u64(bytes, custody.target.get());
     match custody.result {
         None => bytes.extend_from_slice(&[0; 6]),
-        Some(semantic_vocabulary::ScalarType::Boolean) => {
-            bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0]);
-        }
-        Some(semantic_vocabulary::ScalarType::Integer(integer)) => {
-            bytes.push(2);
-            bytes.push(u8::from(integer.is_address()));
-            bytes.push(u8::from(matches!(
-                integer.sign(),
-                semantic_vocabulary::IntegerSign::Signed
-            )));
-            bytes.push(0);
-            push_u16(bytes, integer.bits());
-        }
-        Some(semantic_vocabulary::ScalarType::IeeeFloat(format)) => {
-            bytes.extend_from_slice(&[3, 0, 0, 0]);
-            push_u16(
-                bytes,
-                match format {
-                    semantic_vocabulary::IeeeFloatFormat::Binary32 => 32,
-                    semantic_vocabulary::IeeeFloatFormat::Binary64 => 64,
-                },
-            );
-        }
+        Some(scalar_type) => encode_boundary_result_scalar_type(bytes, scalar_type),
     }
     match &custody.semantic_result {
         Some(result) if Some(result.scalar_type) == custody.result => {

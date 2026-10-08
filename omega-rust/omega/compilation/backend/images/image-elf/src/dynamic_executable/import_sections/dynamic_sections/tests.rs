@@ -274,29 +274,20 @@ fn gnu_hash_matches_known_vectors_and_exact_canonical_chain() {
     assert_eq!(gnu_hash(b"printf"), 0x156b_2bb8);
     assert_eq!(gnu_hash(b"memcpy"), 0x0d82_7590);
 
-    let hash = build_gnu_hash(&[
+    let names = [
         b"alpha\xfe".as_slice(),
         b"alpha\xfe".as_slice(),
         b"beta".as_slice(),
         b"gamma".as_slice(),
-    ])
-    .expect("canonical GNU hash");
+    ];
+    let hash = build_gnu_hash(&names).expect("canonical GNU hash");
     assert_eq!(hash.bloom, [0x0000_0102_0090_2200]);
     assert_eq!(hash.buckets, [1]);
     assert_eq!(
         hash.chains,
         [0xf204_f288, 0xf204_f288, 0x7c94_89a0, 0x0f7d_eae9]
     );
-    validate_gnu_hash_reachability(
-        &hash,
-        &[
-            b"alpha\xfe".as_slice(),
-            b"alpha\xfe".as_slice(),
-            b"beta".as_slice(),
-            b"gamma".as_slice(),
-        ],
-    )
-    .expect("exact GNU hash reachability");
+    validate_gnu_hash_reachability(&hash, &names).expect("exact GNU hash reachability");
 }
 
 #[test]

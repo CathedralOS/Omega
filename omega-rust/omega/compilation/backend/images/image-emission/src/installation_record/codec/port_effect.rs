@@ -24,26 +24,18 @@ pub(crate) fn encode_port_effects(
         push_u16(bytes, effect.port);
         bytes.push(effect.value);
         bytes.push(0);
-        push_u64(
-            bytes,
-            u64::try_from(effect.operation_ordinal)
-                .map_err(|_| InstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-        push_u64(
-            bytes,
-            u64::try_from(installed.text_offset)
-                .map_err(|_| InstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-        push_u64(
-            bytes,
-            u64::try_from(effect.code_offset)
-                .map_err(|_| InstallationError::PortEffectOffsetNotRepresentable)?,
-        );
-        push_u64(
-            bytes,
-            u64::try_from(effect.byte_count)
-                .map_err(|_| InstallationError::PortEffectOffsetNotRepresentable)?,
-        );
+        for offset in [
+            effect.operation_ordinal,
+            installed.text_offset,
+            effect.code_offset,
+            effect.byte_count,
+        ] {
+            push_u64(
+                bytes,
+                u64::try_from(offset)
+                    .map_err(|_| InstallationError::PortEffectOffsetNotRepresentable)?,
+            );
+        }
     }
     Ok(())
 }

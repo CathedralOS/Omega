@@ -273,10 +273,9 @@ pub(crate) fn decode_direct_placement(
                         return Err(InstallationError::UnsupportedInternalUnitCallPlacement);
                     }
                 };
-                let copy_stack_byte_offset = match decode_boolean(reader.u8()?)? {
-                    true => Some(reader.u32()?),
-                    false => None,
-                };
+                let copy_stack_byte_offset = decode_boolean(reader.u8()?)?
+                    .then(|| reader.u32())
+                    .transpose()?;
                 ValueLocation::Indirect {
                     pointer,
                     copy_stack_byte_offset,

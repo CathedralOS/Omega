@@ -2,12 +2,10 @@
 
 use machine_code::{ParameterFunctionAbiRecord, UnitEntryRegisterSpillRecord};
 use semantic_vocabulary::ValueId;
-use target_operations::ScalarAbiValue;
 
 use super::{
+    scalar::abi::{decode_abi_value, encode_abi_value},
     scalar::call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
-    unit::scalar::{decode_scalar_type, encode_scalar_type},
-    value_placement::{decode_direct_placement, encode_direct_placement},
     value_placement::{decode_register, register_tag},
 };
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
@@ -28,9 +26,7 @@ pub(crate) fn encode_parameter_abi(
             .map_err(|_| InstallationError::TooManyScalarCallPlanValues)?,
     );
     for parameter in &abi.parameters {
-        push_u64(bytes, parameter.value.get());
-        encode_scalar_type(bytes, parameter.scalar_type)?;
-        encode_direct_placement(bytes, &parameter.placement)?;
+        encode_abi_value(bytes, parameter)?;
     }
     push_u32(
         bytes,
@@ -83,12 +79,7 @@ pub(crate) fn decode_parameter_abi(
             }
             let mut parameters = Vec::with_capacity(parameter_count);
             for _ in 0..parameter_count {
-                parameters.push(ScalarAbiValue {
-                    value: ValueId::new(reader.u64()?)
-                        .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
-                    scalar_type: decode_scalar_type(reader)?,
-                    placement: decode_direct_placement(reader)?,
-                });
+                parameters.push(decode_abi_value(reader)?);
             }
             Ok(Some(ParameterFunctionAbiRecord {
                 call_plan,

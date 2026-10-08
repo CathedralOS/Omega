@@ -281,24 +281,9 @@ fn adversarial_lengths_counts_indexes_and_offsets_reject_without_panicking() {
     for bytes in [Vec::new(), vec![0; 7], vec![0xff; 8], vec![0; 12]] {
         assert!(decode_sysv_hash(&bytes).is_err());
     }
-    let out_of_range_hash = [
-        1u32.to_le_bytes(),
-        2u32.to_le_bytes(),
-        u32::MAX.to_le_bytes(),
-        0u32.to_le_bytes(),
-        0u32.to_le_bytes(),
-    ]
-    .concat();
+    let out_of_range_hash = [1u32, 2, u32::MAX, 0, 0].map(u32::to_le_bytes).concat();
     assert!(decode_sysv_hash(&out_of_range_hash).is_err());
-    let cyclic_hash = [
-        1u32.to_le_bytes(),
-        3u32.to_le_bytes(),
-        1u32.to_le_bytes(),
-        0u32.to_le_bytes(),
-        1u32.to_le_bytes(),
-        0u32.to_le_bytes(),
-    ]
-    .concat();
+    let cyclic_hash = [1u32, 3, 1, 0, 1, 0].map(u32::to_le_bytes).concat();
     assert!(decode_sysv_hash(&cyclic_hash).is_err());
 
     for bytes in [

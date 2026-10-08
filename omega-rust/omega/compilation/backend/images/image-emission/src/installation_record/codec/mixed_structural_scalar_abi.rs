@@ -1,15 +1,12 @@
 //! Canonical installation transport for the exact mixed scalar/structural ABI.
 
-use semantic_vocabulary::{PlaceId, StructuralTypeId, ValueId};
-use target_operations::{
-    MixedStructuralScalarFunctionAbi, ScalarAbiValue, TargetStructuralParameter,
-};
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use target_operations::{MixedStructuralScalarFunctionAbi, TargetStructuralParameter};
 
 use super::{
     scalar::abi::{decode_abi_value, encode_abi_value},
     scalar::call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
     structural::scalar::{access_tag, decode_access, decode_multiplicity, multiplicity_tag},
-    unit::scalar::{decode_scalar_type, encode_scalar_type},
     unit::structural_scalar_field_store::{
         decode_projected_qualifications, encode_projected_qualifications,
     },
@@ -52,9 +49,7 @@ pub(crate) fn encode_mixed_structural_scalar_abi(
         encode_shape(bytes, parameter.shape)?;
         encode_direct_placement(bytes, &parameter.placement)?;
     }
-    push_u64(bytes, abi.result.value.get());
-    encode_scalar_type(bytes, abi.result.scalar_type)?;
-    encode_direct_placement(bytes, &abi.result.placement)
+    encode_abi_value(bytes, &abi.result)
 }
 
 pub(crate) fn decode_mixed_structural_scalar_abi(
@@ -113,12 +108,7 @@ pub(crate) fn decode_mixed_structural_scalar_abi(
                 call_plan,
                 scalar_parameters,
                 structural_parameters,
-                result: ScalarAbiValue {
-                    value: ValueId::new(reader.u64()?)
-                        .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
-                    scalar_type: decode_scalar_type(reader)?,
-                    placement: decode_direct_placement(reader)?,
-                },
+                result: decode_abi_value(reader)?,
             }))
         }
         tag => Err(InstallationError::InvalidPresenceFlag(tag)),
