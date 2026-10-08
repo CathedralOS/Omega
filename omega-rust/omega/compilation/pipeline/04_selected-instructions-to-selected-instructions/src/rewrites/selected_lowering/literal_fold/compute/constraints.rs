@@ -5,11 +5,11 @@ use register_model::{
     TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
 };
 use selected_instructions::{
-    MachineEffectDeclaration, MachineSemanticKind, SelectedInstructionKind,
-    ValidatedMachineEffectCatalog,
+    MachineEffectDeclaration, SelectedInstructionKind, ValidatedMachineEffectCatalog,
 };
 
 use crate::rewrites::enabled_pair_rules;
+use crate::rewrites::operand_probes::effect_declaration;
 use crate::{
     LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
     SelectedInstructionPairRule,
@@ -92,23 +92,6 @@ impl<'a> AdmittedPairs<'a> {
             .iter()
             .find(|pair| pair.rule.matches_consumer(kind) && pair.row.key == key)
     }
-}
-
-/// The single catalog declaration for `semantic` bound to `constraint`, or
-/// none when the catalog does not declare exactly one such form.
-pub(super) fn effect_declaration(
-    catalog: &ValidatedMachineEffectCatalog,
-    semantic: MachineSemanticKind,
-    constraint: RegisterConstraintKey,
-) -> Option<&MachineEffectDeclaration> {
-    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
-        declaration.semantic == semantic && declaration.constraint == constraint
-    });
-    let declaration = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    Some(declaration)
 }
 
 pub(super) fn select_admitted_pairs<'a>(

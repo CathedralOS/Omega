@@ -9,8 +9,9 @@ use semantic_vocabulary::{IntegerValue, ScalarType};
 
 use crate::{LiteralFoldAction, PairLiteralPosition, PairOperandShape, PairResultDisposition};
 
-use super::constraints::{AdmittedPairs, effect_declaration};
+use super::constraints::AdmittedPairs;
 use super::function_rewrite::rewritten_consumer;
+use crate::rewrites::operand_probes::effect_declaration;
 
 /// The sole-use site a nominated literal folds into: the consumer's position
 /// in the literal's own block and the operand number its `Use` record
@@ -141,8 +142,7 @@ fn register_admits(
     victim: VirtualRegisterId,
     value: u128,
 ) -> bool {
-    let Some(register) = function.virtual_register(victim)
-    else {
+    let Some(register) = function.virtual_register(victim) else {
         return false;
     };
     let ScalarType::Integer(integer) = register.scalar_type else {
