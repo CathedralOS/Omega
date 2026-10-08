@@ -38,6 +38,35 @@ pub fn post_handoff_context() -> MaterializationContext {
     ))
 }
 
+/// A field entry row with no member identity — the common fixture row.
+pub fn layout_field_entry(
+    field: &str,
+    placement: LayoutPlacementReport,
+) -> LayoutFieldEntryReport {
+    LayoutFieldEntryReport {
+        field: field.into(),
+        member_identity: None,
+        placement,
+    }
+}
+
+/// A report shell at fingerprint 1 — fixture tests vary only the rows and
+/// the derived geometry, never the schema fingerprint.
+pub fn layout_report(
+    entries: Vec<LayoutFieldEntryReport>,
+    offsets: Option<Vec<u64>>,
+    size: Option<u64>,
+    align: u64,
+) -> LayoutPlanReport {
+    LayoutPlanReport {
+        schema_report_fingerprint: 1,
+        entries,
+        offsets,
+        size,
+        align,
+    }
+}
+
 pub fn split_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,

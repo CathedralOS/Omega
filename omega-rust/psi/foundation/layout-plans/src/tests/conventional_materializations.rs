@@ -1,4 +1,4 @@
-use super::{entry, post_handoff_context, split_layout};
+use super::{entry, layout_field_entry, layout_report, post_handoff_context, split_layout};
 use crate::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConventionalSumCaseLayoutReport,
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, EntryStubId,
@@ -249,9 +249,7 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
     assert!(error.0.contains("identity names both"), "{}", error.0);
     assert_eq!(resolutions, 0);
 
-    let aggregate_layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
+    let aggregate_layout = layout_report(vec![
             LayoutFieldEntryReport {
                 field: "legacy_payload".into(),
                 member_identity: Some(9),
@@ -262,11 +260,7 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
                 member_identity: Some(9),
                 placement: LayoutPlacementReport::At { offset: 4 },
             },
-        ],
-        offsets: Some(vec![0, 4]),
-        size: Some(8),
-        align: 4,
-    };
+        ], Some(vec![0, 4]), Some(8), 4);
     let schema = AggregateFieldSchema::new_repeated_numbered("payload", 9, 4, 4, 2)
         .expect("numbered repeated aggregate");
     let value = AggregateFieldValue::new("payload", vec![0; 8]).expect("aggregate value");
@@ -305,24 +299,10 @@ fn normalized_layout_identity_distinguishes_dynamic_from_full_width_size() {
 
 #[test]
 fn owned_aggregate_materializer_places_complete_values_atomically() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "header".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 4 },
-            },
-            LayoutFieldEntryReport {
-                field: "payload".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 12 },
-            },
-        ],
-        offsets: Some(vec![4, 12]),
-        size: Some(20),
-        align: 4,
-    };
+    let layout = layout_report(vec![
+            layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 4 },),
+            layout_field_entry("payload".into(), LayoutPlacementReport::At { offset: 12 },),
+        ], Some(vec![4, 12]), Some(20), 4);
     let fields = [
         AggregateFieldSchema::new("header", 4).expect("header schema"),
         AggregateFieldSchema::new("payload", 6).expect("payload schema"),
@@ -410,17 +390,11 @@ fn owned_aggregate_materializer_places_complete_values_atomically() {
 
 #[test]
 fn numbered_aggregate_materialization_rejoins_renamed_fields_by_identity() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
+    let layout = layout_report(vec![LayoutFieldEntryReport {
             field: "legacy_payload".into(),
             member_identity: Some(7),
             placement: LayoutPlacementReport::At { offset: 4 },
-        }],
-        offsets: Some(vec![4]),
-        size: Some(12),
-        align: 4,
-    };
+        }], Some(vec![4]), Some(12), 4);
     let schema = [AggregateFieldSchema::new_numbered("payload", 7, 4)
         .expect("compiler-derived numbered schema")];
     let values = [AggregateFieldValue::new("payload", [1, 2, 3, 4]).expect("complete payload")];
@@ -496,11 +470,7 @@ fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
         schema_report_fingerprint: 1,
         entries: offsets
             .iter()
-            .map(|offset| LayoutFieldEntryReport {
-                field: "items".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: *offset },
-            })
+            .map(|offset| layout_field_entry("items".into(), LayoutPlacementReport::At { offset: *offset },))
             .collect(),
         offsets: None,
         size: Some(32),
@@ -538,49 +508,23 @@ fn repeated_aggregate_materializer_rejects_invalid_geometry_atomically() {
 
 #[test]
 fn aggregate_materialization_applies_scalar_placements_beside_whole_extents() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "id".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::IntegerAt {
+    let layout = layout_report(vec![
+            layout_field_entry("id".into(), LayoutPlacementReport::IntegerAt {
                     offset: 0,
                     stored_width: 16,
                     interpretation: IntegerInterpretation::Unsigned,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "flags".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+                },),
+            layout_field_entry("flags".into(), LayoutPlacementReport::Bits {
                     container: 2,
                     container_width: 16,
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 10,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "pair".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 4 },
-            },
-            LayoutFieldEntryReport {
-                field: "items".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 8 },
-            },
-            LayoutFieldEntryReport {
-                field: "items".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 10 },
-            },
-        ],
-        offsets: None,
-        size: Some(12),
-        align: 4,
-    };
+                },),
+            layout_field_entry("pair".into(), LayoutPlacementReport::At { offset: 4 },),
+            layout_field_entry("items".into(), LayoutPlacementReport::At { offset: 8 },),
+            layout_field_entry("items".into(), LayoutPlacementReport::At { offset: 10 },),
+        ], None, Some(12), 4);
     let fields = [
         AggregateFieldSchema::new("id", 4).expect("id carrier"),
         AggregateFieldSchema::new("flags", 2).expect("flags carrier"),
@@ -631,36 +575,22 @@ fn aggregate_materialization_applies_scalar_placements_beside_whole_extents() {
 #[test]
 fn aggregate_materialization_shares_fragment_bytes_but_rejects_bit_drift() {
     // Two fields may tile disjoint destination bits of one container byte.
-    let shared = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "low".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+    let shared = layout_report(vec![
+            layout_field_entry("low".into(), LayoutPlacementReport::Bits {
                     container: 4,
                     container_width: 8,
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 4,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "high".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+                },),
+            layout_field_entry("high".into(), LayoutPlacementReport::Bits {
                     container: 4,
                     container_width: 8,
                     destination_lsb: 4,
                     source_lsb: 0,
                     width: 4,
-                },
-            },
-        ],
-        offsets: None,
-        size: Some(8),
-        align: 1,
-    };
+                },),
+        ], None, Some(8), 1);
     let fields = [
         AggregateFieldSchema::new("low", 1).expect("low carrier"),
         AggregateFieldSchema::new("high", 1).expect("high carrier"),
@@ -925,9 +855,7 @@ fn aggregate_materialization_rejects_scalar_placement_misuse_atomically() {
 
 #[test]
 fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
+    let layout = layout_report(vec![
             LayoutFieldEntryReport {
                 field: "legacy_counter".into(),
                 member_identity: Some(7),
@@ -955,11 +883,7 @@ fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity(
                 member_identity: Some(9),
                 placement: LayoutPlacementReport::At { offset: 2 },
             },
-        ],
-        offsets: None,
-        size: Some(4),
-        align: 2,
-    };
+        ], None, Some(4), 2);
     let values = [
         ScalarFieldValue::new_numbered("counter", 7, 16, 0x1234).expect("numbered counter"),
         ScalarFieldValue::new_numbered("status", 9, 16, 0xabcd).expect("numbered status"),
@@ -1030,32 +954,18 @@ fn numbered_scalar_materialization_and_decode_rejoin_renamed_fields_by_identity(
 
 #[test]
 fn ordinary_scalar_materializer_round_trips_stored_integers() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "signed".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::IntegerAt {
+    let layout = layout_report(vec![
+            layout_field_entry("signed".into(), LayoutPlacementReport::IntegerAt {
                     offset: 0,
                     stored_width: 8,
                     interpretation: IntegerInterpretation::Signed,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "unsigned".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::IntegerAt {
+                },),
+            layout_field_entry("unsigned".into(), LayoutPlacementReport::IntegerAt {
                     offset: 1,
                     stored_width: 16,
                     interpretation: IntegerInterpretation::Unsigned,
-                },
-            },
-        ],
-        offsets: None,
-        size: Some(3),
-        align: 1,
-    };
+                },),
+        ], None, Some(3), 1);
     let values = [
         ScalarFieldValue::new("signed", 64, (-9_i64) as u64).expect("signed"),
         ScalarFieldValue::new("unsigned", 64, 0x1234).expect("unsigned"),
@@ -1096,21 +1006,11 @@ fn ordinary_scalar_materializer_round_trips_stored_integers() {
 
 #[test]
 fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "value".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
+    let layout = layout_report(vec![layout_field_entry("value".into(), LayoutPlacementReport::IntegerAt {
                 offset: 0,
                 stored_width: 8,
                 interpretation: IntegerInterpretation::Signed,
-            },
-        }],
-        offsets: None,
-        size: Some(1),
-        align: 1,
-    };
+            },)], None, Some(1), 1);
     let mut bytes = [0xa5_u8];
     let error = materialize_scalar_layout_into(
         &layout,
@@ -1135,36 +1035,22 @@ fn ordinary_scalar_stored_integer_write_is_fit_checked_and_atomic() {
 
 #[test]
 fn scalar_materialization_is_complete_and_atomic() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "low".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+    let layout = layout_report(vec![
+            layout_field_entry("low".into(), LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 8,
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 4,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "high".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+                },),
+            layout_field_entry("high".into(), LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 8,
                     destination_lsb: 4,
                     source_lsb: 0,
                     width: 4,
-                },
-            },
-        ],
-        offsets: None,
-        size: Some(1),
-        align: 1,
-    };
+                },),
+        ], None, Some(1), 1);
     let mut bytes = [0xa5_u8];
     let error = materialize_scalar_layout_into(
         &layout,
@@ -1199,24 +1085,10 @@ fn scalar_materialization_is_complete_and_atomic() {
 
 #[test]
 fn symbolic_write_geometry_rejects_before_any_resolver_invocation() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "first".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "second".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 16 },
-            },
-        ],
-        offsets: Some(vec![0, 16]),
-        size: Some(16),
-        align: 8,
-    };
+    let layout = layout_report(vec![
+            layout_field_entry("first".into(), LayoutPlacementReport::At { offset: 0 },),
+            layout_field_entry("second".into(), LayoutPlacementReport::At { offset: 16 },),
+        ], Some(vec![0, 16]), Some(16), 8);
     let symbolic_fields = [
         SymbolicFieldValue::new("first", 64, entry()).expect("first symbolic field"),
         SymbolicFieldValue::new("second", 64, entry()).expect("second symbolic field"),
@@ -1241,33 +1113,15 @@ fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
     let unrelated = RelocationTarget::Entry(
         EntryStubId::from_normalized_identity(0x66bb).expect("unrelated entry identity"),
     );
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "first".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "unrelated".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 8 },
-            },
-            LayoutFieldEntryReport {
-                field: "narrow".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::IntegerAt {
+    let layout = layout_report(vec![
+            layout_field_entry("first".into(), LayoutPlacementReport::At { offset: 0 },),
+            layout_field_entry("unrelated".into(), LayoutPlacementReport::At { offset: 8 },),
+            layout_field_entry("narrow".into(), LayoutPlacementReport::IntegerAt {
                     offset: 16,
                     stored_width: 8,
                     interpretation: IntegerInterpretation::Unsigned,
-                },
-            },
-        ],
-        offsets: None,
-        size: Some(24),
-        align: 8,
-    };
+                },),
+        ], None, Some(24), 8);
     let symbolic_fields = [
         SymbolicFieldValue::new("first", 64, first).expect("first symbolic field"),
         SymbolicFieldValue::new("unrelated", 64, unrelated).expect("unrelated symbolic field"),

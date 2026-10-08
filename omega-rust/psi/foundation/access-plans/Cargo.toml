@@ -13,3 +13,6 @@ extents = { path = "../extents" }
 language-core = { path = "../language-core" }
 layout-plans = { path = "../layout-plans" }
 sha2 = "0.10"
+
+[dev-dependencies]
+layout-plans = { path = "../layout-plans", features = ["test-support"] }

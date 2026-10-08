@@ -9,6 +9,7 @@ use crate::{
 use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
+use layout_plans::test_support::{layout_field_entry, layout_report};
 
 #[test]
 fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
@@ -42,21 +43,11 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
 
 #[test]
 fn stored_integer_geometry_uses_the_exact_encoded_width() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "value".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::IntegerAt {
+    let layout = layout_report(vec![layout_field_entry("value".into(), LayoutPlacementReport::IntegerAt {
                 offset: 3,
                 stored_width: 16,
                 interpretation: IntegerInterpretation::Signed,
-            },
-        }],
-        offsets: None,
-        size: Some(8),
-        align: 1,
-    };
+            },)], None, Some(8), 1);
     let (offset, logical, effect) = validate_entry_geometry("value", 16, &layout, 8)
         .expect("the access transfer matches the stored integer width");
     assert_eq!(offset, 3);
@@ -207,17 +198,7 @@ fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
 
 #[test]
 fn access_identity_covers_operation_width_and_exposure() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![LayoutFieldEntryReport {
-            field: "word".into(),
-            member_identity: None,
-            placement: LayoutPlacementReport::At { offset: 0 },
-        }],
-        offsets: Some(vec![0]),
-        size: Some(8),
-        align: 8,
-    };
+    let layout = layout_report(vec![layout_field_entry("word".into(), LayoutPlacementReport::At { offset: 0 },)], Some(vec![0]), Some(8), 8);
     let validate = |access: FieldAccess| {
         validate_access_plan(access_plan(&layout, &[("word", access)]), &layout)
             .expect("identity test plan")
@@ -487,16 +468,8 @@ fn destructive_access_requires_one_whole_snapshot_accessor() {
     let aliased_layout = LayoutPlanReport {
         schema_report_fingerprint: 0xdead,
         entries: vec![
-            LayoutFieldEntryReport {
-                field: "snapshot".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "status".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
+            layout_field_entry("snapshot".into(), LayoutPlacementReport::At { offset: 0 },),
+            layout_field_entry("status".into(), LayoutPlacementReport::At { offset: 0 },),
         ],
         offsets: Some(vec![0, 0]),
         size: Some(4),
@@ -560,16 +533,8 @@ fn overlapping_atomic_fields_cannot_select_mixed_widths() {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0xa70,
         entries: vec![
-            LayoutFieldEntryReport {
-                field: "wide".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 0 },
-            },
-            LayoutFieldEntryReport {
-                field: "upper".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::At { offset: 4 },
-            },
+            layout_field_entry("wide".into(), LayoutPlacementReport::At { offset: 0 },),
+            layout_field_entry("upper".into(), LayoutPlacementReport::At { offset: 4 },),
         ],
         offsets: Some(vec![0, 4]),
         size: Some(8),
@@ -599,36 +564,22 @@ fn overlapping_atomic_fields_cannot_select_mixed_widths() {
 
 #[test]
 fn multi_container_fragments_are_not_one_access() {
-    let layout = LayoutPlanReport {
-        schema_report_fingerprint: 1,
-        entries: vec![
-            LayoutFieldEntryReport {
-                field: "entry".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+    let layout = layout_report(vec![
+            layout_field_entry("entry".into(), LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 32,
                     destination_lsb: 0,
                     source_lsb: 0,
                     width: 16,
-                },
-            },
-            LayoutFieldEntryReport {
-                field: "entry".into(),
-                member_identity: None,
-                placement: LayoutPlacementReport::Bits {
+                },),
+            layout_field_entry("entry".into(), LayoutPlacementReport::Bits {
                     container: 4,
                     container_width: 32,
                     destination_lsb: 0,
                     source_lsb: 16,
                     width: 16,
-                },
-            },
-        ],
-        offsets: None,
-        size: Some(8),
-        align: 4,
-    };
+                },),
+        ], None, Some(8), 4);
     let error = validate_access_plan(
         access_plan(
             &layout,
