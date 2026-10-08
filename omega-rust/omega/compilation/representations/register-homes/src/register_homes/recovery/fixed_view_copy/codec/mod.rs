@@ -9,7 +9,7 @@ mod content;
 mod copy;
 mod decoding;
 mod envelope;
-mod evidence;
+pub(crate) mod evidence;
 mod primitives;
 mod selected;
 mod values;

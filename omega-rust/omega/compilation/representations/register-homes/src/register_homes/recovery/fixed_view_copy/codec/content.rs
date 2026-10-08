@@ -53,7 +53,7 @@ pub(super) fn encode_v7(
         plan,
         selected_instructions::selected_instruction_plan_identity(&plan.transformed),
     );
-    super::evidence::encode(bytes, plan.source_evidence);
+    super::evidence::encode_source_evidence(bytes, plan.source_evidence);
     encode_selected_plan(bytes, &plan.transformed)
 }
 

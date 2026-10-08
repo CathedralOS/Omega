@@ -1,4 +1,5 @@
 use crate::identity::encode_fixed_constraint_site_identity;
+use super::codec::evidence::encode_source_evidence;
 use optimization_unit::encode_value_definition_site_identity;
 use register_model::RegisterConstraintFamily;
 use selected_instructions::{FixedViewCopyIdentity, selected_instruction_plan_identity};
@@ -48,21 +49,6 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     FixedViewCopyIdentity::from_canonical_bytes(&bytes)
 }
 
-fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {
-    match evidence {
-        FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1 => bytes.push(0),
-        FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
-            fixed_intervals,
-            split_requirements,
-            segment_homes,
-        } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&fixed_intervals.bytes());
-            bytes.extend_from_slice(&split_requirements.bytes());
-            bytes.extend_from_slice(&segment_homes.bytes());
-        }
-    }
-}
 
 const fn constraint_family(family: RegisterConstraintFamily) -> u8 {
     match family {

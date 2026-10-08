@@ -6,7 +6,7 @@ use crate::{
 
 use super::primitives::Cursor;
 
-pub(super) fn encode(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {
+pub(crate) fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {
     match evidence {
         FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1 => bytes.push(0),
         FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
