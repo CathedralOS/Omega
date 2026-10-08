@@ -232,6 +232,16 @@ impl PsiOptimizationFunction {
         self.blocks.iter_mut().find(|row| row.id == block)
     }
 
+    /// The structural parameter arriving at `place`, when declared.
+    pub fn structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+
     /// The structural place keyed `place`, when the function declares it.
     pub fn structural_place(&self, place: PlaceId) -> Option<&StructuralPlaceDeclaration> {
         self.structural_places.iter().find(|row| row.id == place)
@@ -321,5 +331,18 @@ impl PsiOptimizationFunction {
             _ => return None,
         }
         Some(parameter)
+    }
+}
+
+
+impl OptimizationBlock {
+    /// The structural parameter arriving at `place`, when declared.
+    pub fn structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
     }
 }

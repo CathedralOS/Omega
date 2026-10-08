@@ -34,6 +34,18 @@ pub struct TargetControlBlock {
     pub terminator: TargetControlTerminator,
 }
 
+impl TargetControlBlock {
+    /// The structural parameter arriving at `place`, when declared.
+    pub fn structural_parameter(
+        &self,
+        place: semantic_vocabulary::PlaceId,
+    ) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetScalarBlockParameter {
     pub value: ValueId,

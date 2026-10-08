@@ -76,6 +76,29 @@ impl AbstractFunction {
         }
         found
     }
+    /// The structural parameter arriving at `place`, when declared.
+    pub fn structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+
+}
+
+
+impl AbstractBlockEntry {
+    /// The structural parameter arriving at `place`, when declared.
+    pub fn structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
