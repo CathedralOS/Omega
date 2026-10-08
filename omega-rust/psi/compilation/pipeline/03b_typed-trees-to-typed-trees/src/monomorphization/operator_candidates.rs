@@ -8,10 +8,7 @@ use crate::monomorphization::{
 };
 use typed_trees::operator::ClosedOperatorApplicationArgument;
 use validation::collect_expression_tree;
-use validation::contract_identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
-    normalized_machine_identity,
-};
+use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 /// One exact authored conformance edge. This is internal elaboration data,
 /// never a provider choice supplied by Omega or the compiler coordinator.
@@ -23,7 +20,6 @@ pub(crate) struct GenericOperatorCandidate {
 
 pub(crate) struct OperatorCandidateTemplates {
     authored: TypedTrees,
-    service_reaches: flow_effects::ServiceReachInferencePlan,
 }
 
 impl OperatorCandidateTemplates {
@@ -77,16 +73,9 @@ impl OperatorCandidateTemplates {
         if selected.is_empty() {
             return None;
         }
-        // Infer against the complete authored graph before saved-call replay
-        // can redirect a call to an instance owned only by the live program.
-        let operational = validation::infer_operational_may(program);
-        let service_reaches = validation::infer_service_reaches(program, &operational);
         let mut authored = program.typed_program().clone();
         materialize_static_argument_types(&mut authored);
-        Some(Self {
-            authored,
-            service_reaches,
-        })
+        Some(Self { authored })
     }
 }
 
@@ -101,7 +90,6 @@ pub(crate) fn specialize_operator_candidates(
     materialize_static_argument_types(program);
     let mut diagnostics = Vec::new();
     let mut materialized = 0_usize;
-    let service_reaches = &templates.service_reaches;
     let templates = &templates.authored;
 
     for request in selected {
@@ -235,11 +223,6 @@ pub(crate) fn specialize_operator_candidates(
             .map(|(_, candidate)| candidate)
             .collect::<Vec<_>>();
 
-        let canonical_template_contract_bytes =
-            canonical_template_contract_bytes(&source, machine_index, service_reaches)
-                .map_err(|diagnostic| vec![diagnostic])?;
-        let template_contract_commitment =
-            machine_template_commitment(&canonical_template_contract_bytes);
         let normalized_template_identity = normalized_machine_identity(&source, &template_machine)
             .expect("selected generic provider has a normalized template identity");
         let accepted_template_commitment = accepted_template_commitment(&source, machine_index);
@@ -250,8 +233,6 @@ pub(crate) fn specialize_operator_candidates(
                 program,
                 candidate,
                 ordinal,
-                template_contract_commitment,
-                canonical_template_contract_bytes.clone(),
                 normalized_template_identity.clone(),
                 accepted_template_commitment.clone(),
             ) {

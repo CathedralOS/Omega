@@ -2208,7 +2208,6 @@ dependencies = [
  "arena",
  "checked-trees",
  "diagnostics",
- "flow-effects",
  "language-core",
  "language-semantics",
  "numerics",

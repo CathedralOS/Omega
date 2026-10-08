@@ -211,6 +211,7 @@ fn check_program(
         validation::contract_identities::prepare_specialization_contract_identities(
             &program,
             &facts.contract_plans,
+            &prepared_effects,
         )?;
 
     checks::check_checked_facts_recording_with_mutation_summaries(

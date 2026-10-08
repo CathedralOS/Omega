@@ -24,10 +24,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::finite_family::{FamilyProbe, FamilyTuple};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use validation::contract_identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
-    normalized_machine_identity,
-};
+use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 /// Generate every missing tuple specialization demanded by the program's
 /// dynamic conformance selections and by each authored boundary conformance
@@ -122,8 +119,6 @@ pub(crate) fn generate_dynamic_family_specializations(
         return Ok(0);
     }
 
-    let operational = validation::infer_operational_may(program);
-    let service_reaches = validation::infer_service_reaches(program, &operational);
     let mut generated = 0;
     for (template_symbol, tuples) in demands {
         let Some(machine_index) = program
@@ -139,7 +134,7 @@ pub(crate) fn generate_dynamic_family_specializations(
             if tuple_specialization_exists(program, template_symbol, tuple) {
                 continue;
             }
-            generate_tuple_specialization(program, machine_index, tuple, &service_reaches)?;
+            generate_tuple_specialization(program, machine_index, tuple)?;
             generated += 1;
         }
     }
@@ -276,7 +271,6 @@ fn generate_tuple_specialization(
     program: &mut TypedTrees,
     machine_index: usize,
     tuple: &FamilyTuple,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut candidate = candidate::from_machine(program, machine_index);
     if !candidate.template.machine_parameters.is_empty()
@@ -297,14 +291,6 @@ fn generate_tuple_specialization(
         *binding = Some(type_reference);
     }
 
-    let canonical_template_contract_bytes = canonical_template_contract_bytes(
-        program,
-        candidate.template.machine_index,
-        service_reaches,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    let template_contract_commitment =
-        machine_template_commitment(&canonical_template_contract_bytes);
     let normalized_template_identity = normalized_machine_identity(
         program,
         &program.machines()[candidate.template.machine_index],
@@ -322,8 +308,6 @@ fn generate_tuple_specialization(
         program,
         &candidate,
         ordinal,
-        template_contract_commitment,
-        canonical_template_contract_bytes,
         normalized_template_identity,
         accepted_template_commitment,
     )

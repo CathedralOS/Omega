@@ -168,30 +168,41 @@ pub(crate) fn retain_closed_reach_applications(
                     // A selected generic schema may produce several closed
                     // callees with different tuples/rows. One binder-level
                     // callee cannot stand in for those per-call applications.
-                    let schema = if checked.machine_type_parameters(selected_machine).is_empty() {
-                        None
-                    } else {
-                        // An unused family has a selected public contract but
-                        // no executable tuple. Retain that contract without
-                        // manufacturing a body or a template opening. Search
-                        // the whole retained module so used and unused bindings
-                        // of the same selection agree on any available schema.
-                        checked
-                            .machine_specializations
-                            .iter()
-                            .find(|application| {
-                                application.template == selected_machine.symbol
-                                    && source_machines
-                                        .iter()
-                                        .any(|(source, _)| *source == application.instance)
-                            })
-                            .map(|application| ClosedReachSchema {
-                                template_identity: application.normalized_template_identity.clone(),
-                                template_commitment: application
-                                    .template_contract_commitment
-                                    .as_bytes(),
-                            })
-                    };
+                    let schema =
+                        if checked.machine_type_parameters(selected_machine).is_empty() {
+                            None
+                        } else {
+                            // An unused family has a selected public contract but
+                            // no executable tuple. Retain that contract without
+                            // manufacturing a body or a template opening. Search
+                            // the whole retained module so used and unused bindings
+                            // of the same selection agree on any available schema.
+                            checked
+                                .machine_specializations
+                                .iter()
+                                .find(|application| {
+                                    application.template == selected_machine.symbol
+                                        && source_machines
+                                            .iter()
+                                            .any(|(source, _)| *source == application.instance)
+                                })
+                                .map(|application| -> Result<ClosedReachSchema, LoweringError> {
+                                    let identity = checked.facts.specialization_identities
+                                    .for_instance(application.instance)
+                                    .ok_or(LoweringError::Unsupported(
+                                        "closed reach schema lost its checked template commitment",
+                                    ))?;
+                                    Ok(ClosedReachSchema {
+                                        template_identity: application
+                                            .normalized_template_identity
+                                            .clone(),
+                                        template_commitment: identity
+                                            .template_contract_commitment
+                                            .as_bytes(),
+                                    })
+                                })
+                                .transpose()?
+                        };
                     // An unresolved installation selection keeps its effective
                     // row here: provider bounds are already part of the
                     // conservative contract rows, and the requirement axis is
@@ -394,7 +405,7 @@ pub(crate) fn retain_closed_reach_applications(
         }
         terminal_owner.closed_reach_application = Some(ClosedReachApplication {
             template_identity: specialization.normalized_template_identity.clone(),
-            template_commitment: specialization.template_contract_commitment.as_bytes(),
+            template_commitment: checked_identity.template_contract_commitment.as_bytes(),
             specialization_commitment: checked_identity.commitment.as_bytes(),
             telescope,
             fixed,

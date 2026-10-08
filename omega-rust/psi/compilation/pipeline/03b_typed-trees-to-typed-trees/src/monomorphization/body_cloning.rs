@@ -53,8 +53,6 @@ pub(super) fn clone_specialized_machine(
     program: &mut TypedTrees,
     candidate: &Candidate,
     ordinal: usize,
-    template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
-    canonical_template_contract_bytes: Vec<u8>,
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Diagnostic> {
@@ -618,8 +616,6 @@ pub(super) fn clone_specialized_machine(
                 .collect(),
             conformance_applications,
             operator_realizations,
-            template_contract_commitment,
-            canonical_template_contract_bytes,
             normalized_template_identity,
             accepted_template_commitment,
         });

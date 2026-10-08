@@ -296,8 +296,6 @@ pub struct MachineSpecializationSnapshot {
     pub conformance_application_count: usize,
     pub operator_realization_count: usize,
     pub normalized_template_identity: String,
-    pub canonical_template_contract_byte_count: usize,
-    pub template_contract_commitment: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_template_commitment: Option<String>,
 }
@@ -619,12 +617,6 @@ impl TypedTreesSnapshot {
                     normalized_template_identity: specialization
                         .normalized_template_identity
                         .clone(),
-                    canonical_template_contract_byte_count: specialization
-                        .canonical_template_contract_bytes
-                        .len(),
-                    template_contract_commitment: hex_digest(
-                        &specialization.template_contract_commitment.as_bytes(),
-                    ),
                     accepted_template_commitment: specialization
                         .accepted_template_commitment
                         .clone(),

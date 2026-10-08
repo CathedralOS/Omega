@@ -1,8 +1,11 @@
 //! Canonical template and application commitments. Contract clauses use the
 //! shared declared-contract projection; type leaves are normalized by symbol
 //! before length framing. Diagnostic spelling never supplies binder identity.
-//! Preparation and checking share this readonly owner; instance construction
-//! and substitution stay in the pipeline stage that mutates typed trees.
+//! Instance construction retains exact template and argument identities, not
+//! commitments. Checking encodes each retained authored template once against
+//! the completed immutable effect graph. Its nominal binder dependencies remain
+//! separate from each concrete instance's substituted reach; hashing an emitted
+//! body's row would silently narrow the universal contract.
 
 use crate::contract_structure;
 use diagnostics::Diagnostic;
@@ -290,39 +293,79 @@ pub fn accepted_template_commitment(
         .then(|| machine.name.as_str().to_owned())
 }
 
-/// MP5: specialization runs before checked contract plans exist, so it
-/// leaves each instance's selected machine-contract commitments and its
-/// specialization commitment empty. This is their one computation: read the
-/// selected contracts from the plans and fold them, with the identities
-/// specialization recorded, into the commitment Terminal Psi and package
-/// review carry.
+/// Publish universal template and application commitments after checking has
+/// produced the public contract plans. Authored generic declarations remain
+/// generic through preparation, so this reads them directly; no early graph
+/// snapshot, per-round inference, or preparation-produced digest is authority.
+/// Equal template symbols share their encoding within this readonly invocation.
 pub fn prepare_specialization_contract_identities(
     program: &dyn crate::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
+    effects: &crate::PreparedEffectPlans,
 ) -> Result<checked_trees::CheckedSpecializationIdentities, Vec<Diagnostic>> {
-    let operational = crate::infer_operational_may(program);
-    let identities: Result<Vec<_>, _> = program
-        .machine_specializations
-        .iter()
-        .map(|specialization| {
-            machine_specialization_identity(program, contracts, specialization, &operational)
-        })
-        .collect();
-    identities
-        .map(checked_trees::CheckedSpecializationIdentities::with_rows)
-        .map_err(|diagnostic| vec![diagnostic])
+    let mut templates: Vec<(
+        SymbolHandle,
+        Vec<u8>,
+        typed_trees::typed_trees::MachineTemplateCommitment,
+    )> = Vec::new();
+    let mut identities = Vec::with_capacity(program.machine_specializations.len());
+    for specialization in &program.machine_specializations {
+        let template_index = match templates
+            .iter()
+            .position(|(symbol, _, _)| *symbol == specialization.template)
+        {
+            Some(template_index) => template_index,
+            None => {
+                let machine_index = program
+                    .machines()
+                    .iter()
+                    .position(|machine| machine.symbol == specialization.template)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "generic specialization lost its authored template declaration",
+                        )]
+                    })?;
+                let bytes = canonical_template_contract_bytes(
+                    program,
+                    machine_index,
+                    &effects.service_reaches,
+                )
+                .map_err(|diagnostic| vec![diagnostic])?;
+                let commitment = machine_template_commitment(&bytes);
+                let template_index = templates.len();
+                templates.push((specialization.template, bytes, commitment));
+                template_index
+            }
+        };
+        let (_, template_bytes, template_commitment) = &templates[template_index];
+        identities.push(
+            machine_specialization_identity(
+                program,
+                contracts,
+                specialization,
+                &effects.operational,
+                template_bytes,
+                *template_commitment,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?,
+        );
+    }
+    Ok(checked_trees::CheckedSpecializationIdentities::with_rows(
+        identities,
+    ))
 }
 
 /// Encode one specialization's identity from the template contract and
-/// arguments specialization recorded plus the selected machines' contract
-/// identities. Specialization already validated the template commitment,
-/// the accepted-template custody and the closed conformance applications it
-/// recorded; this reads them as given.
+/// arguments specialization retained plus the selected machines' checked
+/// contracts. Template authority is produced here, not accepted from the
+/// derivation loop; closed conformance inputs have their ordinary admission.
 fn machine_specialization_identity(
     program: &dyn crate::CheckingInput,
     contracts: &checked_trees::MachineContractPlans,
     specialization: &typed_trees::typed_trees::MachineSpecialization,
     operational: &flow_effects::OperationalPlan,
+    template_contract_bytes: &[u8],
+    template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
 ) -> Result<checked_trees::CheckedMachineSpecializationIdentity, Diagnostic> {
     let instance = program
         .machine_by_symbol(specialization.instance)
@@ -367,11 +410,8 @@ fn machine_specialization_identity(
     }
 
     let mut bytes = Vec::new();
-    encode_identity_bytes(
-        &specialization.canonical_template_contract_bytes,
-        &mut bytes,
-    );
-    bytes.extend(specialization.template_contract_commitment.as_bytes());
+    encode_identity_bytes(template_contract_bytes, &mut bytes);
+    bytes.extend(template_contract_commitment.as_bytes());
     encode_identity_text(&specialization.normalized_template_identity, &mut bytes);
     encode_identity_text(&instance_identity, &mut bytes);
     encode_identity_texts(&specialization.type_argument_identities, &mut bytes);
@@ -410,6 +450,7 @@ fn machine_specialization_identity(
     strong.update(&bytes);
     Ok(checked_trees::CheckedMachineSpecializationIdentity {
         instance: specialization.instance,
+        template_contract_commitment,
         machine_argument_contract_commitments: machine_contract_commitments.into_boxed_slice(),
         commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
             strong.finalize().into(),

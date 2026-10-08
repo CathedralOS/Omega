@@ -1,13 +1,17 @@
 //! Checked specialization commitments join the prepared instance symbol with
 //! the selected machines' proved public contracts. Typed preparation retains
-//! the template and argument roster, but cannot publish this conclusion before
-//! checking has produced those contracts. Consumers read it here, never from a
+//! the generic declaration and argument roster; neither an early template hash
+//! nor an emitted instance's narrowed effect row supplies its universal contract.
+//! Checking publishes both commitments after producing the public contract plans.
+//! Consumers read them here, never from a
 //! checking-time rewrite of the typed program.
 
 /// One prepared instance's checked portable identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedMachineSpecializationIdentity {
     pub instance: symbols::SymbolHandle,
+    /// Universal authored contract, never the selected instance's narrowed row.
+    pub template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
     pub machine_argument_contract_commitments: Box<[[u8; 32]]>,
     pub commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
 }

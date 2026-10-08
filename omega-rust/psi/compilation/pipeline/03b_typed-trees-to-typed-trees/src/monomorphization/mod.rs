@@ -35,10 +35,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use typed_trees::signature::StateSignature;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use validation::contract_identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
-    normalized_machine_identity,
-};
+use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 mod applications;
 mod candidate;
@@ -204,10 +201,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             applications::retain_call(program, &candidate, selection);
         }
         result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
-        // All templates in this round share the complete original call graph.
-        // Per-instance inference would mix capture with newly selected clones.
-        let operational = validation::infer_operational_may(program);
-        let service_reaches = validation::infer_service_reaches(program, &operational);
         let mut diagnostics = Vec::new();
         let mut applied_any = false;
         for (candidate_index, candidate) in candidates.iter().enumerate() {
@@ -238,13 +231,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 )));
                 continue;
             }
-            match apply_call_specializations(
-                program,
-                candidate,
-                &selections,
-                candidate_index,
-                &service_reaches,
-            ) {
+            match apply_call_specializations(program, candidate, &selections, candidate_index) {
                 Ok(changed) => applied_any |= changed,
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
@@ -456,7 +443,6 @@ fn apply_call_specializations(
     template: &Candidate,
     selections: &[CallSelection],
     candidate_index: usize,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<bool, Vec<Diagnostic>> {
     let groups = unique_complete_selections(program, selections, candidate_index);
     if groups.is_empty() {
@@ -467,14 +453,6 @@ fn apply_call_specializations(
         .map(|(_, members)| candidate_for_selection(template, &selections[members[0]]))
         .collect();
 
-    let canonical_template_contract_bytes = canonical_template_contract_bytes(
-        program,
-        template.template.machine_index,
-        service_reaches,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    let template_contract_commitment =
-        machine_template_commitment(&canonical_template_contract_bytes);
     let normalized_template_identity = normalized_machine_identity(
         program,
         &program.machines()[template.template.machine_index],
@@ -521,8 +499,6 @@ fn apply_call_specializations(
                 program,
                 candidate,
                 ordinal,
-                template_contract_commitment,
-                canonical_template_contract_bytes.clone(),
                 normalized_template_identity.clone(),
                 accepted_template_commitment.clone(),
             )

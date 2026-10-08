@@ -25,7 +25,7 @@ checking (04) without renumbering their existing downstream consumers.
 ## Specialization
 
 [Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
-discover call tuples, retain their exact bindings, prepare the round's contract analyses,
+discover call tuples, retain their exact bindings,
 materialize missing instances, then rewrite calls. Source operand formation
 does not run in those rounds. [Authored selections](src/preparation/selections.rs)
 retain each application's declaration, operands and lexical owner before
@@ -38,8 +38,11 @@ and conformance operands in the existing typed application arenas. Their
 original declarations own the requirements; display identities do not grant
 admission. Conformance closure is fallible derivation before clone allocation,
 not an assumption that bound fitting succeeded. Private compile-time programs
-admit once before execution. Template effect/commitment inference remains
-loop work.
+admit once before execution. Universal template and application commitments
+belong to immutable checking: it reads the retained generic declarations and
+their completed fixed-service/binder dependencies, then publishes the digests
+in checked specialization facts. Derivation neither infers effects nor hashes
+an early graph snapshot.
 Authored templates remain generic and unchanged. Application candidates borrow
 the round's immutable template metadata while owning their bindings.
 [Selection](src/monomorphization/selection.rs),
@@ -51,8 +54,8 @@ rediscovering their enclosing statement trees for each call. The collected
 subjects preserve the first lexical owner and exact generational handles.
 Separate saved operator-provider templates retain their distinct-source path.
 
-Operator-candidate elaboration prepares its immutable authored snapshot and reach
-summary once per invocation, only when generic checked candidates exist. Build
+Operator-candidate elaboration prepares its immutable authored snapshot once
+per invocation, only when generic checked candidates exist. Build
 selection is not an input: all authored conformance candidates participate.
 Fixed-point rounds
 avoid a working graph copy when all demanded tuples already have exact receipts.

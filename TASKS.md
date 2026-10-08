@@ -2787,24 +2787,14 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  now derives executable tuples without whole-roster static-machine admission.
-  Erased source applications retain original declaration/operand identities and
-  lexical owners in typed arenas; frozen checking judges authored type/const
-  formation (binder kinds, named carriers, literal landing and structural type
-  scope) and callable formation once before bodies
-  and concrete effect ceilings once against the cleanup-complete graph.
-  Generic contract entailment and conformance application admission belong to
-  immutable checking; private compile-time graphs admit once before execution.
-  Derived type/const/evidence operands retain their exact binder and declaration
-  identities; immutable checking admits bounds from live applications and instances,
-  without ordinary/operator/dynamic/saved-call gates in derivation.
-  Remaining: authored-template effect/commitment inference inside specialization.
-  The loop also repeats
-  `bind_selected_operator_calls` (3 + N runs),
+  still repeats `bind_selected_operator_calls` (3 + N runs),
   `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
   (2) and `land_float_literal_destinations` (2–3). The loop must specialize
-  and bind only; run each remaining pass once at its required point. Coordinate with
-  **TYPED-FROZEN-BEFORE-CHECKING**, which qualifies the immutable boundary after this stage.
+  and bind only; run each remaining pass once at its required point.
+  Immutable checking owns authored argument/callable formation, tuple bounds,
+  completed effects and template commitments, not the derivation loop. Private
+  compile-time graphs admit once before execution. Coordinate with
+  **TYPED-FROZEN-BEFORE-CHECKING**, which qualifies the immutable boundary.
   Acceptance: each named pass runs once per check except the per-iteration
   specialize/bind step; the generic-value-call fence and call-contract
   diagnostics are unchanged; corpus `--filter generics,operators,traits/`
@@ -2987,36 +2977,18 @@ of a check the same flow already performed, not the check itself.
   commitment fallback is permitted.
 
   Remaining: coordinate the repeated specialization/rebinding passes with
-  **SPECIALIZATION-LOOP-ONCE**, now owned by the preparation stage;
+  **SPECIALIZATION-LOOP-ONCE** in the preparation stage;
   run each pass once at its required point without losing authored requirement
-  identity or call-contract diagnostics. Erased applications and clone
-  correspondence now remain typed input; lexical owners survive folding, and
-  data/machine copies substitute copied named type nodes, including those
-  nested in static operands. Immutable checking admits authored argument/callable
-  formation and completed effects, without preparation-granted contract
-  exemptions or repeated selection tables. Exact inferred operands now remain in
-  typed application arenas; bound judgments use their actual declaration, distinct
-  from an authored trait requirement, and only live roots own private-graph work.
-  Keep authored template dependencies separate from instance
-  effects when completing commitments. Runtime selected-provider choices are
-  not a preparation input; source checks every candidate before Omega selection.
-
-  The checking invocation also owns every derived index, memo and recursion
-  stack in explicit arena/context storage passed by borrow. Program-scope slots,
-  restore guards and direct operational inference state are removed; completed
-  cleanup effects are explicit checking inputs. Declaration relationships stay
-  typed-owned, custody and call-signature answers stay invocation-owned, and the
-  intermediate conformance-carrier cache is gone. Root currency reads authored
-  spans directly; field-domain queries live with custody checking and use
-  invocation-owned rows; structural declaration relationships use typed-owned
-  indexes, without copied machine/data rosters or parameter fingerprints.
-  Range branches borrow a worker-owned bound lookup; contract evaluation uses
-  ordinary mutable recursion stacks; return-body inference carries its capture
-  policy explicitly. The whole checking/stage-04 source guard rejects ambient
-  caches and runtime borrow cells. Complete the remaining once-only
-  specialization/rebinding work, preserving source and native outcomes.
-  Do not port runtime borrow checking into
-  Omega.
+  identity or call-contract diagnostics. Preserve exact erased applications,
+  clone correspondence and lexical owners through folding and substitution;
+  tuple bounds use the actual binding declaration, not an authored trait
+  requirement. Only live private-graph roots own admission work. Universal
+  template commitments use the retained authored graph, never a concrete
+  instance's narrower effects. Runtime selected-provider choices are not a
+  preparation input; source checks every candidate before Omega selection.
+  Checking indexes, memo and recursion state stay invocation-owned and explicit;
+  declaration relationships stay typed-owned. Do not port runtime borrow
+  checking into Omega.
 
   Acceptance: the immutable-boundary source guard, full check corpus and focused
   native cohort are unchanged, with no writes to `CheckedTrees.typed` after

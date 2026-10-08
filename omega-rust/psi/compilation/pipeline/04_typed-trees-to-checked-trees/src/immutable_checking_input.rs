@@ -82,6 +82,10 @@ fn checking_does_not_reopen_typed_preparation() {
                         "refinement_fit_diagnostics",
                         "validate_static_machine_bindings",
                         "validated closed conformance application",
+                        "infer_operational_may",
+                        "infer_service_reaches",
+                        "canonical_template_contract_bytes",
+                        "machine_template_commitment",
                     ] {
                         assert!(
                             !source.contains(forbidden),

@@ -97,13 +97,6 @@ pub struct MachineSpecialization {
     /// is distinct from provider-authored conformance arguments and from
     /// checked use-site demand.
     pub operator_realizations: Vec<crate::operator::ClosedOperatorRealizationApplication>,
-    /// Domain-separated commitment to the exact canonical universal-template
-    /// bytes below.
-    pub template_contract_commitment: MachineTemplateCommitment,
-    /// Exact canonical universal-template encoding captured before in-place
-    /// substitution consumes its generic parameter declarations. Checking
-    /// folds it into checked commitments once contract plans exist.
-    pub canonical_template_contract_bytes: Vec<u8>,
     /// Package-qualified normalized overload identity of the authored generic
     /// template before substitution. ProviderPlan checked-adapter joins and
     /// Terminal Psi closed reach applications name the template by it.
