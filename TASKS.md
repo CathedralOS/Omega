@@ -1958,7 +1958,7 @@ crash and native exit behavior.
   that product and target-keyed Build rows. This DRI owns integration and
   acceptance across **PSI-TARGET-FAMILIES**, **BUILD-EVALUATES-ONCE**,
   **PROVIDER-SELECTION-AFTER-TERMINAL**, **ONE-DRIVER-PER-STAGE**,
-  **STAGE05-SOURCE-REREAD-DELETED**, **STAGE05-PLAN-REVALIDATION-DELETED**,
+  **STAGE05-PLAN-REVALIDATION-DELETED**,
   **ONE-TRANSITION-LOWERING**, **ONE-CALL-LOWERING** and the route-retirement
   items. Contributors may own those slices; a slice landing or an architecture
   lint alone does not close this outcome.
@@ -1970,7 +1970,7 @@ crash and native exit behavior.
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
     checked/lowered sidecars (`CheckedBoundaryOperatorApplicationScope`, source
     call occurrences and selected comparison occurrences) beside the canonical
-    artifact; stage 05 rereads source tables and selects shape-specific routes.
+    artifact; stage 05 selects shape-specific routes.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from
@@ -2590,44 +2590,8 @@ routes in dependency order. New capability work
 never a new per-route case. Land coherent cuts that delete their superseded
 code and preserve check/native behavior for the named customer slices.
 
-- **STAGE05-SOURCE-REREAD-DELETED.** (new-scope) Stage 05 re-reads the
-  authored typed program to obtain values its stage 04 plan rows do not
-  carry. The validators that only re-confirmed a row against its source are
-  deleted, and plan rows now carry dispatch subject kinds and call roles,
-  guarded exit ordinals, view-range endpoints, sites and inclusivity, and
-  indexed-write proof decisions. What remains:
-  - `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/`
-    (0.9k lines): the captured-place walk behind silent `&place` loans
-    (with `scalar_lowering/computations/fields.rs`), comparison meanings and
-    structural view carriers;
-  - readers that rejoin a result binding or scalar local to its `let` by
-    statement index (`composed_control/state_graph/result_custody.rs`,
-    `structural_values/{emission,locals}.rs`,
-    `operation_frame/{calls,locals,boundary_calls}.rs`, `primitive_locals.rs`,
-    `byte_locals.rs`, `argument_evaluation.rs`,
-    `retention/suspension_call_plan.rs`).
-
-  Calls already show the pattern: `FlowCallFact` carries each call's
-  authored site, callee, arguments, receiver, result use, closing-arm
-  status and whether it runs on a selected path, recorded where stage 04
-  joins the call to its source; its row position is its evaluation order; and
-  `src/call_sites.rs` reads those rows without touching source tables.
-
-  Move each value into the stage 04 plan and delete its reader. Some readers
-  also refuse shapes stage 05 cannot lower; those refusals stay until the
-  route items admit the shapes. Then add a source-scanning guard in stage 05 that lists the few
-  files allowed to read `statement_table`, `expression_table`,
-  `StatementNode::` or `ExpressionNode::`; today there are 95 such
-  references across 19 files. The same guard refuses any stage 05 reference to
-  `validation::reference_result_custody`, which no longer has one: the last 5
-  were deleted rather than recorded, because classifying every site by what
-  stage 05 did with the answer found 4 pure refusal guards and 1 computation
-  whose result was never read. Acceptance: `source_custody/` is gone, the guard
-  passes, and the full check corpus and the native corpus are unchanged.
-
-- **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on
-  **STAGE05-SOURCE-REREAD-DELETED**. Delete stage 05's validation of the plan
-  it receives. Ordinary-body admission now only collects the boundary
+- **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Delete stage 05's
+  validation of the plan it receives. Ordinary-body admission now only collects the boundary
   roster, and composed admission admits edges and closed-sum arms from the
   plan (`edges::admit_transfers`, `cases::validate`). What remains:
   - every refusal whose message asserts a stage 04 invariant ("disagrees

@@ -94,6 +94,9 @@ pub struct OutcomeSpecificGuaranteeFact {
     pub result_case: SymbolHandle,
     pub public_selector: Option<String>,
     pub fact: Handle<typed_trees::domain::ProofFact>,
+    /// `fact` is the literal `true`, the one unnamed guarantee lowering
+    /// emits (as a truth proposition).
+    pub fact_is_truth: bool,
     pub evidence_term: Option<Handle<CheckedEvidenceTerm>>,
 }
 

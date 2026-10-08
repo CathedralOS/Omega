@@ -181,17 +181,7 @@ pub(crate) fn lower_outcome_specific_ensures(
                     )
                 }
                 (None, None) => {
-                    let checked_trees::domain::ProofFact::Expression(expression) =
-                        checked.typed.proof_facts.get(guarantee.fact)
-                    else {
-                        return unsupported(
-                            "unnamed guarded guarantee is outside the bounded truth proposition",
-                        );
-                    };
-                    if !matches!(
-                        checked.typed.expression_table.expression(*expression),
-                        checked_trees::expression::ExpressionNode::Boolean(true)
-                    ) {
+                    if !guarantee.fact_is_truth {
                         return unsupported(
                             "unnamed guarded guarantee is outside the bounded truth proposition",
                         );

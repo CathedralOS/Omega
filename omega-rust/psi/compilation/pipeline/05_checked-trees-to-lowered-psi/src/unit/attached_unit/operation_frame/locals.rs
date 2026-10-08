@@ -36,12 +36,11 @@ impl OperationFrame<'_, '_> {
             CheckedScalarExpressionRole::Return
         } else {
             CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal:
-                    crate::expression_preparation::source_custody::source_local_ordinal(
-                        self.checked,
-                        self.state,
-                        result.statement_index,
-                    )?,
+                binding_ordinal: self
+                    .checked
+                    .facts
+                    .state_locals
+                    .scalar_locals_before(self.state, result.statement_index),
             }
         };
         let lowered = self.evaluation.source_value(
@@ -78,12 +77,12 @@ impl OperationFrame<'_, '_> {
         statement_index: u32,
         value: ValueDeclaration,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let Some(checked_trees::statement::StatementNode::LocalData(local)) = self
+        let Some(local) = self
             .checked
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index as usize)
+            .facts
+            .state_locals
+            .at_statement(self.state, statement_index)
+            .copied()
         else {
             return Ok(value);
         };
@@ -92,7 +91,7 @@ impl OperationFrame<'_, '_> {
         }
         let primitive_type = self
             .checked
-            .primitive_type_reference(local.type_reference)
+            .primitive_type_reference(local.declared_type)
             .ok_or(LoweringError::Unsupported(
                 "scalar local lost its primitive type",
             ))?;
@@ -103,11 +102,11 @@ impl OperationFrame<'_, '_> {
         // retain the catalog's independent rejection of unsupported theories.
         crate::expression_preparation::qualifications::type_atoms(
             self.checked,
-            local.type_reference,
+            local.declared_type,
         )?;
         let predicates = validation::scalar_type_refinement_predicates(
             &self.checked.typed,
-            local.type_reference,
+            local.declared_type,
             checked_trees::CheckedScalarExpression::Parameter {
                 position: self.values.len(),
                 primitive_type,
@@ -249,26 +248,19 @@ impl OperationFrame<'_, '_> {
         // Extraction completes an owned value just like any other structural
         // producer. Reuse its checked establishment identities rather than
         // dropping contained claims because the source home was borrowed.
-        let authored_state = crate::declarations::state_declaration(self.checked, self.state)?.1;
-        let prepared_claims = match self
-            .checked
-            .statement_table
-            .statements(authored_state.statement_nodes)
-            .get(statement_index as usize)
-        {
-            Some(checked_trees::statement::StatementNode::LocalData(local)) => {
-                crate::emission::claim_bindings::prepare_establishment_claims(
-                    self.checked,
-                    self.machine,
-                    self.state,
-                    statement_index as usize,
-                    facts::PlaceRoot::Symbol(local.symbol),
-                    local.type_reference,
-                )?
-            }
-            // A displacement is not a new lexical establishment. Its old
-            // value is governed by the selected replacement death instead.
-            _ => Vec::new(),
+        // A displacement is not a new lexical establishment. Its old value
+        // is governed by the selected replacement death instead.
+        let prepared_claims = if result.local.is_named() {
+            crate::emission::claim_bindings::prepare_establishment_claims(
+                self.checked,
+                self.machine,
+                self.state,
+                statement_index as usize,
+                facts::PlaceRoot::Symbol(result.local.symbol),
+                result.local.declared_type,
+            )?
+        } else {
+            Vec::new()
         };
         let mut result_claims = crate::emission::claim_bindings::emit_establishment_claims(
             &prepared_claims,

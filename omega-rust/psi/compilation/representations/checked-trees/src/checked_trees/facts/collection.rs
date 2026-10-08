@@ -61,6 +61,9 @@ pub struct CheckFacts {
     /// re-entering checking to reclassify a state's completion at each of
     /// its call sites.
     pub state_reference_custody: crate::StateReferenceCustodyFacts,
+    /// Every declared state's `let` locals, recorded beside its reference
+    /// custody so lowering never scans a state's statements for them.
+    pub state_locals: crate::StateLocalFacts,
     /// Every type reference's ownership and content classification,
     /// classified once over the frozen type table. Lowering reads these rows
     /// instead of re-running checking's recursive contents walk at each of

@@ -263,6 +263,7 @@ fn check_program(
     // before specialization or authored-selection finalization would miss the
     // generated bodies; lowering must not repair an incomplete table itself.
     facts.resolved_types = crate::facts::resolved_types::resolve_program_types(&finalized);
+    facts.state_locals = crate::facts::state_locals::record_state_locals(&finalized);
     drop(finalized);
 
     let checked = CheckedTrees::with_roots(program, facts);

@@ -294,8 +294,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 checked,
                                 source.type_reference,
                             )?, validation::ContentsRequirement::OwnedOrSharedView)
-                        && !validation::reference_result_custody::is_reference_record(
-                            &checked.typed,
+                        && !crate::reference_custody::is_reference_record(
+                            checked,
                             source.type_reference,
                         ))
                 {

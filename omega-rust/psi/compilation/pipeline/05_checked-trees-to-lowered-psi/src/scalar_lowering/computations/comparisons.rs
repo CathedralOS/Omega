@@ -9,7 +9,7 @@
 use super::{Expansion, LoweringError, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::expression_preparation::source_custody::comparisons::occurrence;
+use crate::emission::selected_comparison::occurrence;
 
 impl Expansion<'_> {
     pub(super) fn comparison_binding(

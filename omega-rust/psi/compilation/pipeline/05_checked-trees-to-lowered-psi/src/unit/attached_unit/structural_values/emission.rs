@@ -19,7 +19,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
-use crate::expression_preparation::source_custody;
+use crate::expression_preparation::byte_literals;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -529,8 +529,7 @@ fn prepare_owners(
             owners.push(owner.clone());
         }
     }
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-    let statements = checked.statement_table.statements(authored.statement_nodes);
+    let locals = checked.facts.state_locals.locals(state);
     for crate::expression_preparation::bindings::StructuralLocalBinding {
         root, argument, ..
     } in &evaluation.structural_locals
@@ -541,18 +540,23 @@ fn prepare_owners(
         if owners.iter().any(|owner| owner.symbol == *symbol) || !available(*symbol)? {
             continue;
         }
-        let (ordinal, local) = checked.state_local_declaration(authored, *symbol).ok_or(
-            LoweringError::Unsupported("selection survivor has no authored local"),
-        )?;
-        if checked.type_multiplicity(local.type_reference) != Multiplicity::Affine {
+        let local =
+            checked
+                .facts
+                .state_locals
+                .named(state, *symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "selection survivor has no authored local",
+                ))?;
+        if checked.type_multiplicity(local.declared_type) != Multiplicity::Affine {
             continue;
         }
-        if ordinal >= statement as usize
+        if local.statement_index >= statement
             || !argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
             || !crate::content_classes::plain_owned_with_numeric_constraints(
                 checked,
-                local.type_reference,
+                local.declared_type,
             )
         {
             return unsupported("selection survivor requires whole plain-affine custody");
@@ -576,9 +580,7 @@ fn prepare_owners(
         }
         owners.push(argument_evaluation::StructuralValueOwner {
             symbol: *symbol,
-            statement: u32::try_from(ordinal).map_err(|_| {
-                LoweringError::Unsupported("selection survivor statement exceeds u32")
-            })?,
+            statement: local.statement_index,
             value: value.clone(),
         });
     }
@@ -666,9 +668,11 @@ fn prepare_owners(
             .any(|parameter| parameter.symbol == owner.symbol);
         (!is_parameter, owner.statement)
     });
-    for source in statements.iter().take(statement as usize) {
-        if let checked_trees::statement::StatementNode::LocalData(local) = source
-            && checked.type_multiplicity(local.type_reference) == Multiplicity::Affine
+    for local in locals
+        .iter()
+        .take_while(|local| local.statement_index < statement)
+    {
+        if checked.type_multiplicity(local.declared_type) == Multiplicity::Affine
             && available(local.symbol)?
             && !owners.iter().any(|owner| owner.symbol == local.symbol)
         {
@@ -1275,7 +1279,7 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } = &argument.source {
-                    let domains = source_custody::byte_literals::validate(
+                    let domains = byte_literals::validate(
                         self.checked, self.type_reference, &argument,
                     )?;
                     let qualifications = domains.into_iter().map(|domain|

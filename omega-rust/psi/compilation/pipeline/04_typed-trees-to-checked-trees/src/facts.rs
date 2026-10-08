@@ -37,6 +37,7 @@ mod qualification_facts;
 mod requirement_call_specializations;
 pub(crate) mod resolved_types;
 pub(crate) mod review_sources;
+pub(crate) mod state_locals;
 
 pub(crate) use ::validation::field_domains::domain_is_vacuous;
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};

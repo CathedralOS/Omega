@@ -74,7 +74,7 @@ mod structural_types;
 mod terminal_identities;
 
 #[cfg(test)]
-mod checked_type_reads;
+mod source_guards;
 
 // The entrance, and the failure vocabulary its callers match on.
 pub use lowering_error::LoweringError;

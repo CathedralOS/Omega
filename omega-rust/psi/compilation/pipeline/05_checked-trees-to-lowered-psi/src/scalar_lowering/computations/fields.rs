@@ -50,7 +50,6 @@ use crate::scalar_lowering::branch_states::structural_values;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
-use typed_trees::statement::StatementNode;
 
 impl super::Expansion<'_> {
     #[allow(clippy::too_many_arguments)]
@@ -1108,13 +1107,10 @@ pub(crate) fn type_roots(
         .find(|owner| owner.symbol == machine)
     {
         for state in checked.machine_states(owner) {
-            for statement in checked.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
+            for local in checked.facts.state_locals.locals(state.symbol) {
                 let TypeReferenceNode::Reference { referee, .. } = checked
                     .type_reference_table
-                    .type_reference(local.type_reference)
+                    .type_reference(local.declared_type)
                 else {
                     continue;
                 };

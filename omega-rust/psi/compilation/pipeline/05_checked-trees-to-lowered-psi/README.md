@@ -15,8 +15,8 @@ arenas. Place and result remain separate: a borrowed place is not a by-value
 result, and arithmetic cannot inherit an operand's refinement. Lowering reads
 the exact generational handle's decision; absent types have no reconstruction
 fallback. Stored facts and their read APIs both use zero handles for absence,
-not optional handle wrappers. The source guard in `src/checked_type_reads.rs`
-protects this boundary.
+not optional handle wrappers. The source guards in `src/source_guards.rs`
+protect this boundary.
 
 [Machine selection](src/machine_lowering/machine_dispatch.rs) owns plan precedence. Each selected
 producer supplies its source closure and a shared
@@ -126,10 +126,12 @@ place allocation stays there too.
 joins the checked expression to its authored role, prepares its scalar or Boolean
 form before returning it. Its
 [bindings](src/expression_preparation/bindings/mod.rs) resolve current
-storage and structural paths. [Source custody](src/expression_preparation/source_custody/mod.rs)
-holds the lookups that still read the authored program (structural places,
-comparison meanings, view carriers) until their values move into stage 04's
-plans (STAGE05-SOURCE-REREAD-DELETED). These operations use shared
+storage and structural paths. Lowering reads no authored statement or
+expression: a state's declared `let` locals come from
+`CheckFacts::state_locals`, and every other value from the plan rows stage 04
+hands over. [Byte literals](src/expression_preparation/byte_literals.rs)
+catalog a constructor literal's byte predicates against its declared carrier.
+These operations use shared
 [checked-graph queries](src/expression_preparation/computation_graph.rs), not
 the producer's block expansion. [Qualifications](src/expression_preparation/qualifications.rs)
 prepare the selected closure's declaration namespace. No preparation module

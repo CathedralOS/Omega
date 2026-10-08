@@ -122,6 +122,14 @@ pub(crate) fn build_proof_facts_with_operators(
                         .as_ref()
                         .map(|binding| binding.as_str().to_owned()),
                     fact,
+                    fact_is_truth: matches!(
+                        program.proof_facts.get(fact),
+                        typed_trees::domain::ProofFact::Expression(expression)
+                            if matches!(
+                                program.expression_table.expression(*expression),
+                                typed_trees::expression::ExpressionNode::Boolean(true)
+                            )
+                    ),
                     evidence_term,
                 });
             }

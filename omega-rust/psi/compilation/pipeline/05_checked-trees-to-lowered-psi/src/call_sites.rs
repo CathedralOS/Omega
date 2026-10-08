@@ -112,9 +112,7 @@ pub(crate) fn locate(
         };
         if parameter.is_const
             || (parameter.is_mutable
-                && !crate::expression_preparation::source_custody::supported_mutable_parameter(
-                    primitive,
-                ))
+                && !(matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()))
         {
             return unsupported("call passes a primitive the callee cannot receive by value");
         }

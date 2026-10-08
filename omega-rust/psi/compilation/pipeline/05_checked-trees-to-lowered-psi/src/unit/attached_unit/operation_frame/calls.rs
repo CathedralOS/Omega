@@ -430,18 +430,10 @@ impl OperationFrame<'_, '_> {
         // local initializer receives it. Use the retained value occurrence,
         // not an assumption that every structural producer is a declaration.
         let occurrence = checked.facts.values.structural_values.nodes.get(*value);
-        let authored_state = crate::declarations::state_declaration(checked, state)?.1;
-        let owner = match checked
-            .statement_table
-            .statements(authored_state.statement_nodes)
-            .get(result.statement_index as usize)
-        {
-            Some(checked_trees::statement::StatementNode::LocalData(local))
-                if local.initial_value == occurrence.expression =>
-            {
-                facts::PlaceRoot::Symbol(local.symbol)
-            }
-            _ => facts::PlaceRoot::Expression(occurrence.expression),
+        let owner = if result.local.is_named() {
+            facts::PlaceRoot::Symbol(result.local.symbol)
+        } else {
+            facts::PlaceRoot::Expression(occurrence.expression)
         };
         let prepared_claims = crate::emission::claim_bindings::prepare_establishment_claims(
             checked,

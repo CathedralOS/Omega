@@ -51,6 +51,7 @@ mod specialization_identities;
 pub use specialization_identities::{
     CheckedMachineSpecializationIdentity, CheckedSpecializationIdentities,
 };
+mod state_locals;
 mod state_reference_custody;
 mod stored_integer_writes;
 pub use stored_integer_writes::{CheckedStoredIntegerWrite, StoredIntegerWriteSite};
@@ -119,6 +120,7 @@ pub use resolved_types::{ResolvedCarrierType, ResolvedExpressionType, ResolvedTy
 pub use service_reaches::{
     CallServiceReachRows, MachineServiceReachRows, ServiceReachFacts, StateServiceReachRows,
 };
+pub use state_locals::{CheckedStateLocal, StateLocalFacts};
 pub use state_reference_custody::{StateReferenceCustodyFacts, StateReferenceCustodyRow};
 pub use suspensions::{MachineSuspensionFact, SuspensionFacts};
 pub use synchronous_invocations::{MachineSynchronousInvocationFact, SynchronousInvocationFacts};

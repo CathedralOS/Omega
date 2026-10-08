@@ -29,127 +29,11 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::unit::StructuralTypeDeclaration;
-use checked_trees::CheckedCallScalarArgument;
-use checked_trees::statement::{StatementNode, TableLocalData};
 
 #[derive(Clone, Copy)]
 pub(crate) struct PrimitiveLocal {
     pub symbol: symbols::SymbolHandle,
     pub declaration: StructuralPlaceDeclaration,
-}
-
-/// The one authored mutable primitive declaration of `symbol` in `state`
-/// before statement `before`.
-fn declaration(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    symbol: symbols::SymbolHandle,
-    before: u32,
-) -> Result<&TableLocalData, LoweringError> {
-    let (_, state) = crate::declarations::state_declaration(checked, state)?;
-    let mut matches = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| match statement {
-            StatementNode::LocalData(local)
-                if local.symbol == symbol && ordinal < before as usize =>
-            {
-                Some(local)
-            }
-            _ => None,
-        });
-    let local = matches.next().ok_or(LoweringError::Unsupported(
-        "primitive local has no preceding authored declaration",
-    ))?;
-    if matches.next().is_some()
-        || !symbol.is_valid()
-        || !local.is_mutable
-        || !validation::is_plain_scalar_storage(&checked.typed, local.type_reference)
-        || checked
-            .primitive_type_reference(local.type_reference)
-            .is_none()
-    {
-        return unsupported("primitive local does not have exact mutable primitive custody");
-    }
-    Ok(local)
-}
-
-/// Rejoin one establishment to its authored declaration, declared type and
-/// exact retained initializer: the bound pure expression, or the computation
-/// rooted at the declaration's `StorageInitializer` coordinate together with
-/// the source custody of every call that computation performs. The plan's type
-/// identity names storage, so arithmetic policy remains on the authored type
-/// and checked computations, not on the primitive storage carrier. Declaration
-/// validation rejects every other qualification before this projection.
-fn validate_establishment(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-        statement_index,
-        symbol,
-        type_identity: _,
-        primitive_type,
-        value,
-    } = operation
-    else {
-        return unsupported("primitive local establishment received another operation");
-    };
-    let next = statement_index
-        .checked_add(1)
-        .ok_or(LoweringError::Unsupported(
-            "primitive local statement ordinal exhausted",
-        ))?;
-    let local = declaration(checked, state, *symbol, next)?;
-    let (_, _) = crate::declarations::state_declaration(checked, state)?;
-    let role = CheckedScalarExpressionRole::StorageInitializer;
-    match value {
-        CheckedCallScalarArgument::Pure(_) => {
-            let (_, _) = checked
-                .facts
-                .values
-                .scalar_expressions
-                .bound_expression_at(state, *statement_index, role)
-                .ok_or(LoweringError::Unsupported(
-                    "primitive local lost its exact initializer",
-                ))?;
-        }
-        CheckedCallScalarArgument::Computation(handle) => {
-            let computations = &checked.facts.values.scalar_computations;
-            let mut roots = computations
-                .roots
-                .iter()
-                .map(|(_, root)| root)
-                .filter(|root| {
-                    root.state == state
-                        && root.statement_ordinal == *statement_index
-                        && root.role == role
-                });
-            let root = roots.next().ok_or(LoweringError::Unsupported(
-                "primitive local lost its initializer computation",
-            ))?;
-            if roots.next().is_some()
-                || root.machine != machine
-                || root.root != *handle
-                || !computations.nodes.is_valid(*handle)
-                || computations.nodes.get(*handle).authored_root != local.initial_value
-                || computations.nodes.get(*handle).primitive_type != *primitive_type
-                || checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .expression_at(state, *statement_index, role)
-                    .is_some()
-            {
-                return unsupported("primitive local substituted its initializer computation");
-            }
-        }
-    }
-    Ok(())
 }
 
 /// One `mut` scalar formal's storage, established before the first statement.
@@ -315,7 +199,6 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("primitive local is established more than once");
         }
-        validate_establishment(self.checked, self.machine, self.state, operation)?;
         // The initializer completes on the ordinary operand schedule: a
         // computation evaluates its calls and selections in authored order
         // before the storage exists, so it can never read its own local.
@@ -508,24 +391,18 @@ impl super::argument_evaluation::Evaluation {
         let Some(facts::PlaceRoot::Symbol(symbol)) = root else {
             return Ok(false);
         };
-        let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
-        let Some((statement, local)) = checked.typed.state_local_declaration(state, symbol) else {
+        let locals = &checked.facts.state_locals;
+        let Some(local) = locals.named(state_symbol, symbol) else {
             return Ok(false);
         };
-        let Some(primitive) = checked.primitive_type_reference(local.type_reference) else {
+        let Some(primitive) = checked.primitive_type_reference(local.declared_type) else {
             return Ok(false);
         };
         if local.is_mutable {
             return Ok(false);
         }
         let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
-        let ordinal = crate::expression_preparation::source_custody::source_local_ordinal(
-            checked,
-            state_symbol,
-            u32::try_from(statement).map_err(|_| {
-                LoweringError::Unsupported("primitive local statement ordinal overflow")
-            })?,
-        )?;
+        let ordinal = locals.scalar_locals_before(state_symbol, local.statement_index);
         let bindings = &self.scalar_bindings;
         let position = bindings.immutable_local_value(ordinal as usize, scalar_type)?;
         let value = values.get(position).ok_or(LoweringError::Unsupported(

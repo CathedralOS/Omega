@@ -774,8 +774,11 @@ pub(super) fn lower_unit_structural_domains(
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
         for operation in body.operations() {
-            crate::expression_preparation::source_custody::byte_literals::collect_operation_requirements(
-                checked, *symbol, operation, &mut selected,
+            crate::expression_preparation::byte_literals::collect_operation_requirements(
+                checked,
+                *symbol,
+                operation,
+                &mut selected,
             )?;
         }
         for domain in body
