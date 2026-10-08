@@ -493,10 +493,7 @@ impl TerminalExecution<'_> {
         )?
         .pop()
         .ok_or_else(malformed)?;
-        let Some(fields) = self
-            .program
-            .structural_types()
-            .record_fields(&parent.structural_type)
+        let Some(fields) = self.program.record_fields(&parent.structural_type)
         else {
             return Err(malformed());
         };
@@ -609,10 +606,7 @@ impl TerminalExecution<'_> {
         )?
         .pop()
         .ok_or_else(malformed)?;
-        let Some(fields) = self
-            .program
-            .structural_types()
-            .record_fields(&parent.structural_type)
+        let Some(fields) = self.program.record_fields(&parent.structural_type)
         else {
             return Err(malformed());
         };

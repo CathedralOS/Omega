@@ -296,10 +296,7 @@ impl TerminalExecution<'_> {
             // the descriptor and leave the caller's bytes unchanged.
             self.resolve_live_projection(root, path, requested)?
         };
-        let Some(fields) = self
-            .program
-            .structural_types()
-            .record_fields(&parent.structural_type)
+        let Some(fields) = self.program.record_fields(&parent.structural_type)
         else {
             return Err(malformed());
         };
