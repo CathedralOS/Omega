@@ -26,7 +26,6 @@ pub(super) fn call_reference_custody(
     argument: &StructuralArgument,
 ) -> Result<AccessReferenceCustody, LoweringError> {
     let mut current = source_contract(function, live, argument.place)
-        .map(|(contract, _)| contract)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     for segment in &argument.path {
         current = match segment {
@@ -75,7 +74,6 @@ pub(super) fn access_reference_custody(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut current = source_contract(function, live, argument.place)
-        .map(|(contract, _)| contract)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let mut cursors = vec![(argument.place, Vec::new(), Vec::new())];
     let cursor_budget = live
@@ -121,7 +119,6 @@ pub(super) fn access_reference_custody(
         for (place, mut selected_path, ancestors) in cursors {
             selected_path.extend_from_slice(prefix);
             let root_type = source_contract(function, live, place)
-                .map(|(contract, _)| contract)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             let candidates = descriptor_candidates(
                 function,
@@ -133,7 +130,6 @@ pub(super) fn access_reference_custody(
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
             for path in candidates {
                 if source_contract(function, live, place)
-                    .map(|(contract, _)| contract)
                     .and_then(|contract| leaf_type(types, contract, &path))
                     != Some(reference_type)
                 {
@@ -178,12 +174,9 @@ pub(super) fn access_reference_custody(
                                 let origin_path = &origin.path;
                                 let origin_place = origin.root;
                                 origin_place == place
-                                    && source_contract(function, live, origin_place)
-                                        .map(|(contract, _)| contract)
-                                        .and_then(|contract| {
-                                            leaf_type(types, contract, origin_path)
-                                        })
-                                        == Some(enclosing.referent)
+                                    && source_contract(function, live, origin_place).and_then(
+                                        |contract| leaf_type(types, contract, origin_path),
+                                    ) == Some(enclosing.referent)
                                     && terminal_semantics::structural_paths_may_overlap(
                                         origin_path,
                                         &path,
@@ -203,7 +196,6 @@ pub(super) fn access_reference_custody(
                         let place = origin.root;
                         let path = origin.path;
                         if source_contract(function, live, place)
-                            .map(|(contract, _)| contract)
                             .and_then(|contract| leaf_type(types, contract, &path))
                             != Some(referent)
                         {

@@ -1,10 +1,19 @@
 //! Storage coordinates are not always standalone value endpoints. A byte window
 //! keeps its enclosing backing type and exact interval; treating it as a fresh
 //! array would lose custody or admit value copies that call admission forbids.
-//! Formation, bounds evidence and access remain the owning operation's checks.
+//! A byte field keeps its owning record: an inline owner's capacity and live
+//! length, or a stored view's descriptor, have no standalone type identity
+//! (`canonical_leaf_shape`), so the field coordinate itself is the storage a
+//! call presentation borrows. Formation, bounds evidence and access remain the
+//! owning operation's checks.
 
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};
+use terminal_psi::{
+    ByteSequenceCarrier, ByteSequencePredicateSet, StructuralPathSegment, StructuralTypeDeclaration,
+};
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructuralStorageProjection {
@@ -14,11 +23,19 @@ pub enum StructuralStorageProjection {
         offset: u64,
         length: u64,
     },
+    /// A byte field with no declared standalone endpoint, named through its
+    /// owning record. It grants no reference formation or value copy; a call
+    /// presents it only through the inline-owner or stored-view routes.
+    ByteField {
+        carrier: ByteSequenceCarrier,
+        predicates: ByteSequencePredicateSet,
+    },
 }
 
 impl StructuralStorageProjection {
-    /// Rebinding preserves endpoint presentation, or both the backing and exact
-    /// interval of a region. Neither equality nor presentation grants custody.
+    /// Rebinding preserves endpoint presentation, the backing and exact
+    /// interval of a region, or a byte field's exact declared carrier and
+    /// predicates. Neither equality nor presentation grants custody.
     pub fn matches<'types>(
         self,
         declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
@@ -43,6 +60,9 @@ impl StructuralStorageProjection {
                 offset == expected_offset
                     && length == expected_length
                     && terminal_semantics::borrowed_referent_matches(declarations, actual, expected)
+            }
+            (actual @ Self::ByteField { .. }, expected @ Self::ByteField { .. }) => {
+                actual == expected
             }
             _ => false,
         }
@@ -70,7 +90,46 @@ pub fn structural_storage_projection<'types>(
             length: window.length,
         })
     } else {
-        super::paths::structural_projection_type(declarations, root, path)
+        super::paths::structural_projection_type(declarations.clone(), root, path)
             .map(StructuralStorageProjection::Endpoint)
+            .or_else(|| byte_field(declarations, root, path))
     }
+}
+
+/// The byte field a path ends at, including a selected case payload's field.
+/// A catalog declaration of the same carrier resolves first as an endpoint
+/// above, so one catalog spells each field storage once.
+fn byte_field<'types>(
+    declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralStorageProjection> {
+    let (StructuralPathSegment::Field(identity), container) = path.split_last()? else {
+        return None;
+    };
+    let (container, case) = match container.split_last() {
+        Some((StructuralPathSegment::Case(case), container)) => (container, Some(case)),
+        _ => (container, None),
+    };
+    let owner = super::paths::structural_projection_type(declarations.clone(), root, container)?;
+    let shape = &declarations
+        .into_iter()
+        .find(|declaration| declaration.id == owner)?
+        .shape;
+    let fields = match case {
+        Some(case) => shape
+            .sum_cases()?
+            .iter()
+            .find(|candidate| candidate.id == *case)?
+            .fields
+            .as_slice(),
+        None => shape.direct_fields()?,
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    Some(StructuralStorageProjection::ByteField {
+        carrier: field.field_type.byte_sequence_carrier()?,
+        predicates: field.field_type.byte_predicates(),
+    })
 }

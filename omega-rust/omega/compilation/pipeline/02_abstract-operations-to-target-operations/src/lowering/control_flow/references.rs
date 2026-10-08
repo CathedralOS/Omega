@@ -652,21 +652,26 @@ pub(super) fn leaf_type(
 }
 
 /// The structural contract a place currently carries: a signature parameter, a
-/// block-entry parameter, an ordinary home, or a live bare carrier result.
+/// block-entry parameter, an ordinary home, a live established view, or a live
+/// bare carrier result. A shared view has no home of its own; its descriptor
+/// still names the element or byte geometry a loan through it selects.
 fn source_contract(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     place: PlaceId,
-) -> Option<(StructuralTypeId, StructuralMultiplicity)> {
+) -> Option<StructuralTypeId> {
     if let Some(parameter) = function.arrival_parameter(place) {
-        return Some((parameter.structural_type, parameter.multiplicity));
+        return Some(parameter.structural_type);
     }
     if let Some(home) = live.structural_homes.get(&place) {
-        return Some((home.structural_type(), home.multiplicity()));
+        return Some(home.structural_type());
+    }
+    if let Some((_, view)) = live.views.get(&place) {
+        return Some(*view);
     }
     live.references
         .get(&(place, Vec::new()))
-        .map(|leaf| (leaf.result.structural_type, leaf.result.multiplicity))
+        .map(|leaf| leaf.result.structural_type)
 }
 
 /// Borrow storage through its published contract, regardless of whether it
@@ -735,7 +740,7 @@ pub(super) fn reference_source_type(
         return None;
     }
     if source.path.contains(&StructuralPathSegment::Referent) {
-        let mut current = source_contract(function, live, source.place)?.0;
+        let mut current = source_contract(function, live, source.place)?;
         let mut start = 0;
         for (position, segment) in source.path.iter().enumerate() {
             if *segment != StructuralPathSegment::Referent {
@@ -792,7 +797,6 @@ fn shared_source_compatible(
 ) -> bool {
     access == StructuralAccess::SharedBorrow
         && source_contract(function, live, *carrier)
-            .map(|(root, _)| root)
             .and_then(|root| leaf_type(types, root, path))
             .and_then(|leaf| types.get(&leaf))
             .is_some_and(|declaration| {
@@ -815,7 +819,7 @@ fn storage_projection(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<optimization_unit_semantics::StructuralStorageProjection> {
-    let carrier = source_contract(function, live, source.place)?.0;
+    let carrier = source_contract(function, live, source.place)?;
     optimization_unit_semantics::structural_storage_projection(
         types.values().copied(),
         carrier,
@@ -875,7 +879,7 @@ fn normalized_direct_source(
             // The member leaf of a carrier never held as a live reference
             // borrows that carrier's own storage; only a non-reference member
             // may root there — a missing reference carrier is a custody gap.
-            let (carrier, _) = source_contract(function, live, source.place)
+            let carrier = source_contract(function, live, source.place)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
                 types
@@ -1040,7 +1044,7 @@ pub(super) fn is_suspended_storage_region(
 ) -> bool {
     let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
         let Some(origin) = source_contract(function, live, place)
-            .and_then(|(root, _)| leaf_type(types, root, origin_path))
+            .and_then(|root| leaf_type(types, root, origin_path))
             .and_then(|identity| types.get(&identity))
         else {
             return true;
@@ -1134,7 +1138,7 @@ pub(super) fn check_projected_access(
     path: &[StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> bool {
-    let Some((root, _)) = source_contract(function, live, place) else {
+    let Some(root) = source_contract(function, live, place) else {
         return check_root_access(live, place);
     };
     let region =
@@ -1155,7 +1159,7 @@ pub(super) fn check_projected_shared_access(
     path: &[StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> bool {
-    let Some((root, _)) = source_contract(function, live, place) else {
+    let Some(root) = source_contract(function, live, place) else {
         return check_root_access(live, place);
     };
     if path.contains(&StructuralPathSegment::Referent) {
@@ -1275,7 +1279,7 @@ pub(super) fn check_operation_access(
             // must not detach a suspended parent or touch borrowed backing,
             // but a live descriptor in a disjoint sibling is not a whole-root
             // loan. Use the same regional transfer judgment as owned operands.
-            let Some((contract, _)) = source_contract(function, live, place) else {
+            let Some(contract) = source_contract(function, live, place) else {
                 return true;
             };
             let Some(projection) = terminal_semantics::structural_window_projection(
@@ -1329,7 +1333,7 @@ pub(super) fn call_arguments(
             continue;
         }
         if source_contract(function, live, argument.place)
-            .is_some_and(|(contract, _)| contains_reference(types, contract))
+            .is_some_and(|contract| contains_reference(types, contract))
         {
             let authority = function
                 .arrival_parameter(argument.place)
@@ -1350,7 +1354,7 @@ pub(super) fn call_arguments(
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let (contract, _) = source_contract(function, live, argument.place)
+            let contract = source_contract(function, live, argument.place)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             let selected = leaf_type(types, contract, &argument.path)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
@@ -1609,7 +1613,7 @@ pub(super) fn release(
             let origin_path = &origin.path;
             origin.root == *source
                 && source_contract(function, live, *source)
-                    .and_then(|(contract, _)| leaf_type(types, contract, origin_path))
+                    .and_then(|contract| leaf_type(types, contract, origin_path))
                     == Some(enclosing.referent)
                 && terminal_semantics::structural_paths_may_overlap(origin_path, path)
         })
@@ -1664,7 +1668,7 @@ pub(super) fn discard_subtree(
     source: PlaceId,
     prefix: &[StructuralPathSegment],
 ) -> Result<bool, LoweringError> {
-    let Some((contract, _)) = source_contract(function, live, source) else {
+    let Some(contract) = source_contract(function, live, source) else {
         return Ok(false);
     };
     let selected = leaf_type(types, contract, prefix)
@@ -1721,7 +1725,7 @@ pub(super) fn subtree_leaves(
     if !contains_reference(types, nested) {
         return Ok(());
     }
-    let (contract, _) = source_contract(function, live, argument.place)
+    let contract = source_contract(function, live, argument.place)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if leaf_type(types, contract, &argument.path) != Some(nested) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1971,7 +1975,7 @@ pub(super) fn return_custody(
     if !contains_reference(types, result.structural_type) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (contract, _) = source_contract(function, live, source)
+    let contract = source_contract(function, live, source)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if contract != result.structural_type
         || live
