@@ -354,6 +354,12 @@ pub enum BuiltinFunction {
 }
 
 impl BuiltinFunction {
+    /// The float shorthand intrinsics — `min`, `max`, `sqrt` calls whose
+    /// operand-directed float meaning is selected during call binding.
+    pub const fn is_float_shorthand(self) -> bool {
+        matches!(self, Self::Min | Self::Max | Self::Sqrt)
+    }
+
     /// These source operations are expanded after resolution and never name
     /// a runtime intrinsic in Terminal Psi or a target backend.
     pub const fn is_source_normalization(self) -> bool {

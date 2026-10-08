@@ -179,16 +179,10 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) if matches!(
-                    program
-                        .symbols
-                        .builtin_function_for_symbol(call.target_symbol),
-                    Some(
-                        symbols::BuiltinFunction::Min
-                            | symbols::BuiltinFunction::Max
-                            | symbols::BuiltinFunction::Sqrt
-                    )
-                ) =>
+                ) if program
+                    .symbols
+                    .builtin_function_for_symbol(call.target_symbol)
+                    .is_some_and(symbols::BuiltinFunction::is_float_shorthand) =>
                 {
                     None
                 }

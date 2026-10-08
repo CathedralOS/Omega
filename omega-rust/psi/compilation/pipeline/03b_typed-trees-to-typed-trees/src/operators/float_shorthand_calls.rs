@@ -30,16 +30,11 @@ pub(super) fn bind(
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             continue;
         };
-        if !matches!(
-            program
-                .symbols
-                .builtin_function_for_symbol(call.target_symbol),
-            Some(
-                symbols::BuiltinFunction::Min
-                    | symbols::BuiltinFunction::Max
-                    | symbols::BuiltinFunction::Sqrt
-            )
-        ) || call.receiver.is_valid()
+        if !program
+            .symbols
+            .builtin_function_for_symbol(call.target_symbol)
+            .is_some_and(symbols::BuiltinFunction::is_float_shorthand)
+            || call.receiver.is_valid()
             || !call.carries_only_positional_arguments()
             || !call.selects_only_nominal_route()
         {
