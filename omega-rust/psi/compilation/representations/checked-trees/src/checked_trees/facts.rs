@@ -91,7 +91,7 @@ pub use contract_plans::{
     DeclaredContractStructure, DeclaredProgressPremise, DeclaredTermination,
     MachineContractCommitment, MachineContractIdentity, MachineContractPlan, MachineContractPlans,
     RealizedMachineContractEnvelope, contract_declarations_commitment, contract_identity,
-    declared_termination_commitment,
+    contract_plan_by_machine, declared_termination_commitment,
 };
 pub use domains::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
 pub use dynamic_conformances::{

@@ -188,11 +188,12 @@ pub use checked_trees::{
     SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact, SuspensionCrossingStorage,
     SuspensionCrossingValueOrigin, SuspensionFacts, SynchronousInvocationFacts, TerminationFacts,
     VacuousQualificationUse, admissibility, borrow, byte_predicates,
-    canonical_suspension_crossing_id, contract_declarations_commitment, contract_identity, data,
-    declared_termination_commitment, domain, expression, facts, finite_family, flow,
-    forwards_qualified_parameter, identity, is_borrowed_view, is_bounded_nominal_cleanup_record,
-    is_partial_affine_field_type, machine, name, operators, proof, proof_only, proposition,
-    ranking, service_parameter, signature, state, statement, trait_definition, types, values, wire,
+    canonical_suspension_crossing_id, contract_declarations_commitment, contract_identity,
+    contract_plan_by_machine, data, declared_termination_commitment, domain, expression, facts,
+    finite_family, flow, forwards_qualified_parameter, identity, is_borrowed_view,
+    is_bounded_nominal_cleanup_record, is_partial_affine_field_type, machine, name, operators,
+    proof, proof_only, proposition, ranking, service_parameter, signature, state, statement,
+    trait_definition, types, values, wire,
 };
 /// The identity request a consumer builds when it asks the typed program
 /// behind a checked carrier for a binder-aware type identity.

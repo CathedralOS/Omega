@@ -67,7 +67,7 @@ pub struct MachineContractPlans {
 
 impl MachineContractPlans {
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineContractPlan> {
-        self.machines.iter().find(|plan| plan.machine == machine)
+        contract_plan_by_machine(&self.machines, machine)
     }
 
     pub fn crash_capsule(
@@ -153,6 +153,14 @@ impl MachineContractPlans {
         }
         Ok(())
     }
+}
+
+/// The contract plan for `machine` in a plan roster, if present.
+pub fn contract_plan_by_machine<'plans>(
+    plans: &'plans [MachineContractPlan],
+    machine: SymbolHandle,
+) -> Option<&'plans MachineContractPlan> {
+    plans.iter().find(|plan| plan.machine == machine)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -211,9 +211,7 @@ pub(super) fn attach_checked_crash_calls(
                 continue;
             };
             let local_target = program.machine_by_symbol(target_machine_symbol);
-            let local_plan = plans
-                .iter()
-                .find(|plan| plan.machine == target_machine_symbol);
+            let local_plan = checked_trees::contract_plan_by_machine(plans, target_machine_symbol);
             let (
                 target_parameters,
                 target_parameter_names,

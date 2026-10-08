@@ -52,9 +52,7 @@ pub(crate) fn infer_private_body_summaries(
         let before = nodes.len();
         nodes.retain(|node| {
             node.invocations.iter().all(|invocation| {
-                if let Some(plan) = plans
-                    .iter()
-                    .find(|plan| plan.machine == invocation.target_machine)
+                if let Some(plan) = checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
                 {
                     program
                         .machine_by_symbol(plan.machine)
@@ -112,9 +110,7 @@ pub(crate) fn infer_private_body_summaries(
             .expect("a retained summary invocation has its typed call site");
             let arguments = validation::call_site_argument_expressions(program, &call_site);
 
-            if let Some(target_plan) = plans
-                .iter()
-                .find(|plan| plan.machine == invocation.target_machine)
+            if let Some(target_plan) = checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
             {
                 let target_machine = program
                     .machine_by_symbol(invocation.target_machine)
@@ -459,9 +455,7 @@ fn private_dependency_reaches(
             continue;
         };
         pending.extend(node.invocations.iter().filter_map(|invocation| {
-            plans
-                .iter()
-                .find(|plan| plan.machine == invocation.target_machine)
+            checked_trees::contract_plan_by_machine(plans, invocation.target_machine)
                 .filter(|plan| {
                     program
                         .machine_by_symbol(plan.machine)

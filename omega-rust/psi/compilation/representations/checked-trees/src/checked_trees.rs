@@ -90,7 +90,7 @@ pub use facts::{
     SuspensionCrossingLiveValueFact, SuspensionCrossingStorage, SuspensionCrossingValueOrigin,
     SuspensionFacts, SynchronousInvocationFacts, TerminationFacts, VacuousQualificationUse,
     canonical_suspension_crossing_id, contract_declarations_commitment, contract_identity,
-    declared_termination_commitment,
+    contract_plan_by_machine, declared_termination_commitment,
 };
 pub use flow::{
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,
