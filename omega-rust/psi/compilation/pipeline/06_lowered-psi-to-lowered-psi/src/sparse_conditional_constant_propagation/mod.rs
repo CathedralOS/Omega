@@ -38,14 +38,11 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
             &before.semantic_module.boundary_application_demands,
         );
     }
-    if let Err(error) = validate_sparse_conditional_constant_propagation(
+    validate_sparse_conditional_constant_propagation(
         &before.semantic_module,
         &after.semantic_module,
-    ) {
-        return Err(
-            PsiOptimizationStageError::InvalidSparseConditionalConstantPropagationRewrite(error),
-        );
-    }
+    )
+    .map_err(PsiOptimizationStageError::InvalidSparseConditionalConstantPropagationRewrite)?;
     if let Some(debug) = after.debug_map.as_mut() {
         debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
             .map_err(PsiOptimizationStageError::InvalidSemantic)?;

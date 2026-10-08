@@ -71,11 +71,8 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     for machine in &mut after.semantic_module.machines {
         equivalents::deduplicate(machine, &before.source_call_occurrences, &retained_values);
     }
-    if let Err(error) =
-        validate_global_value_numbering(&before.semantic_module, &after.semantic_module)
-    {
-        return Err(PsiOptimizationStageError::InvalidGlobalValueNumberingRewrite(error));
-    }
+    validate_global_value_numbering(&before.semantic_module, &after.semantic_module)
+        .map_err(PsiOptimizationStageError::InvalidGlobalValueNumberingRewrite)?;
     if let Some(debug) = after.debug_map.as_mut() {
         let operations = after
             .semantic_module

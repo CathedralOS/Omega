@@ -84,13 +84,8 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
         &sidecar_edges,
         &sidecar_values,
     );
-    if let Err(error) =
-        validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
-    {
-        return Err(PsiOptimizationStageError::InvalidControlFlowCleanupRewrite(
-            error,
-        ));
-    }
+    validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
+        .map_err(PsiOptimizationStageError::InvalidControlFlowCleanupRewrite)?;
     if let Some(debug) = after.debug_map.as_mut() {
         let surviving_machines = after
             .semantic_module
