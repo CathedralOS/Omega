@@ -5,7 +5,9 @@ use register_model::{
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 use selected_instructions::{
-    MachineEffectDeclaration, MachineSemanticKind, SelectedConstraintKeys, SelectedFunction,
+    MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, SelectedConstraintKeys, SelectedFunction,
     SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
     ValidatedMachineEffectCatalog,
 };
@@ -459,4 +461,16 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
             MachineSemanticKind::NormalizedForeignCall
         }
     }
+}
+
+/// A plain materializable alternative: no implicit effects beyond its operands.
+pub(crate) fn machine_alternative_is_transparent(alternative: &MachineAlternative) -> bool {
+    let encoded = &alternative.encoded;
+    encoded.memory == MachineEncodedMemoryEffect::NoneV1
+        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
+        && encoded.control == MachineEncodedControlEffect::FallThroughV1
+        && encoded.implicit_unit_uses.is_empty()
+        && encoded.implicit_unit_defs.is_empty()
+        && encoded.implicit_unit_clobbers.is_empty()
 }

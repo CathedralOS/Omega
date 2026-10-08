@@ -45,7 +45,9 @@ use selected_instructions::{
 };
 use semantic_vocabulary::IntegerValue;
 
-use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::analyses::machine_effects::{
+    machine_alternative_is_transparent, machine_semantic_kind,
+};
 use crate::rewrites::condition_state::{ConditionOperandResolution, resolved_unit_surface};
 
 /// The implicit physical-unit relationship the rewrite asserts between the
@@ -283,7 +285,7 @@ impl ConditionMaterializationRule {
                         .alternatives
                         .iter()
                         .all(|alternative| materialization_alternative(alternative, flag_universe))
-                    && rewritten.alternatives.iter().all(materialize_alternative)
+                    && rewritten.alternatives.iter().all(machine_alternative_is_transparent)
             }
         }
     }
@@ -382,16 +384,3 @@ fn materialization_alternative(
         && encoded.implicit_unit_clobbers.is_empty()
 }
 
-/// The encoded surface a materialization alternative must carry: no memory
-/// access, unchanged stack, no trap surface, a plain fall-through — and no
-/// implicit unit traffic at all.
-fn materialize_alternative(alternative: &MachineAlternative) -> bool {
-    let encoded = &alternative.encoded;
-    encoded.memory == MachineEncodedMemoryEffect::NoneV1
-        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
-        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
-        && encoded.control == MachineEncodedControlEffect::FallThroughV1
-        && encoded.implicit_unit_uses.is_empty()
-        && encoded.implicit_unit_defs.is_empty()
-        && encoded.implicit_unit_clobbers.is_empty()
-}

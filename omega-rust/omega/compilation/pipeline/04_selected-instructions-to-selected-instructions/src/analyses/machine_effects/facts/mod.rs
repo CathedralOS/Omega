@@ -4,7 +4,7 @@ mod compute;
 mod foreign_call;
 mod validate;
 
-pub(crate) use compute::machine_semantic_kind;
+pub(crate) use compute::{machine_alternative_is_transparent, machine_semantic_kind};
 pub use selected_instructions::{
     PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
 };

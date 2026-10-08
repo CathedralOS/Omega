@@ -47,7 +47,9 @@ use selected_instructions::{
     MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
 };
 
-use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::analyses::machine_effects::{
+    machine_alternative_is_transparent, machine_semantic_kind,
+};
 
 /// The operand relationship the rewrite asserts: how the producer's
 /// projected register reaches the consumer's pointer operand and what the
@@ -354,22 +356,12 @@ fn isolated_projection(declaration: &MachineEffectDeclaration) -> bool {
         && declaration.barrier == MachineBarrier::None
         && declaration.call == MachineCallEffect::NoneV1
         && declaration.cleanup == MachineCleanupEffect::NoneV1
-        && declaration.alternatives.iter().all(projection_alternative)
+        && declaration.alternatives.iter().all(machine_alternative_is_transparent)
 }
 
 /// The encoded surface a projection alternative must carry: no memory
 /// access, unchanged stack, no trap surface, a plain fall-through, and no
 /// implicit unit traffic at all.
-fn projection_alternative(alternative: &MachineAlternative) -> bool {
-    let encoded = &alternative.encoded;
-    encoded.memory == MachineEncodedMemoryEffect::NoneV1
-        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
-        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
-        && encoded.control == MachineEncodedControlEffect::FallThroughV1
-        && encoded.implicit_unit_uses.is_empty()
-        && encoded.implicit_unit_defs.is_empty()
-        && encoded.implicit_unit_clobbers.is_empty()
-}
 
 /// The declared surface the access row — the consumer's and the rewritten
 /// form's alike — must carry: the dereference's own memory effect over
