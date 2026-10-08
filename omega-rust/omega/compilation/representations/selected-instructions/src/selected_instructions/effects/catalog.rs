@@ -907,6 +907,28 @@ pub struct MachineEffectCatalog {
     pub declarations: Vec<MachineEffectDeclaration>,
 }
 
+impl MachineEffectCatalog {
+    /// The effect declaration for `constraint`, when the catalog carries it.
+    pub fn declaration(
+        &self,
+        constraint: RegisterConstraintKey,
+    ) -> Option<&MachineEffectDeclaration> {
+        self.declarations
+            .iter()
+            .find(|declaration| declaration.constraint == constraint)
+    }
+
+    /// The effect declaration for `semantic`, when the catalog carries it.
+    pub fn declaration_by_semantic(
+        &self,
+        semantic: MachineSemanticKind,
+    ) -> Option<&MachineEffectDeclaration> {
+        self.declarations
+            .iter()
+            .find(|declaration| declaration.semantic == semantic)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedMachineEffectCatalog {
     catalog: MachineEffectCatalog,
