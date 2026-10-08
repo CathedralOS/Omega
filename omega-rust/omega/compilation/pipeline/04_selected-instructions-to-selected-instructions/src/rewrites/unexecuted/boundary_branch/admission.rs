@@ -38,9 +38,7 @@ impl From<ConditionStateError> for BoundaryBranchError {
 
 /// What the resolved operand poles force on the branch's strict ordering
 /// over `left - right`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-
-
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
     pub block_index: usize,
