@@ -210,3 +210,70 @@ pub(super) fn outcome(signed: bool, left: Option<u64>, right: Option<u64>) -> Op
     }
     None
 }
+
+/// The constant collapse's surface agreement: the jump row that replaces the
+/// branch's must observe every non-flag unit the branch read and carry the
+/// same definition and clobber sets — the audit both the admission and the
+/// replay run before keeping the jump row.
+pub(super) fn constant_row<'a>(
+    jump_row: &'a register_model::RegisterInstructionConstraint,
+    branch_instruction: &selected_instructions::SelectedInstruction,
+    flag_universe: &std::collections::BTreeSet<register_model::RegisterUnitId>,
+    jump_surface: &std::collections::BTreeSet<register_model::RegisterUnitId>,
+) -> Result<Option<&'a register_model::RegisterInstructionConstraint>, BoundaryBranchError> {
+    use std::collections::BTreeSet;
+    if branch_instruction
+        .implicit_uses
+        .iter()
+        .any(|unit| !flag_universe.contains(unit) && !jump_surface.contains(unit))
+    {
+        return Err(BoundaryBranchError::UnsupportedUse);
+    }
+    if !jump_row.operands.is_empty()
+        || BTreeSet::from_iter(jump_row.implicit_defs.iter().copied())
+            != BTreeSet::from_iter(branch_instruction.implicit_defs.iter().copied())
+        || BTreeSet::from_iter(jump_row.clobbers.iter().copied())
+            != BTreeSet::from_iter(branch_instruction.clobbers.iter().copied())
+    {
+        return Err(BoundaryBranchError::ConstraintMismatch);
+    }
+    Ok(Some(jump_row))
+}
+
+/// The nonzero collapse's flag resolution: every flag-universe unit must
+/// reach from the same compare at this position and be among its published
+/// definitions — the audit both the admission and the replay run.
+pub(super) fn nonzero_flag_resolution(
+    function: &selected_instructions::SelectedFunction,
+    entry: usize,
+    successors: &[Vec<usize>],
+    cone: &[bool],
+    block_index: usize,
+    read_position: usize,
+    flag_universe: &std::collections::BTreeSet<register_model::RegisterUnitId>,
+    branch_instruction: &selected_instructions::SelectedInstruction,
+    compare_instruction: &selected_instructions::SelectedInstruction,
+    compare_site: crate::rewrites::condition_state::EventSite,
+    keys: &selected_instructions::SelectedConstraintKeys,
+) -> Result<(), BoundaryBranchError> {
+    use crate::rewrites::condition_state::reaching_event;
+    if branch_instruction.constraint != keys.conditional_branch {
+        return Err(BoundaryBranchError::ConstraintMismatch);
+    }
+    for unit in flag_universe {
+        let event = reaching_event(
+            function,
+            entry,
+            successors,
+            cone,
+            block_index,
+            read_position,
+            *unit,
+        )
+        .map_err(|_| BoundaryBranchError::UnsupportedUse)?;
+        if event != compare_site || !compare_instruction.implicit_defs.contains(unit) {
+            return Err(BoundaryBranchError::UnsupportedUse);
+        }
+    }
+    Ok(())
+}

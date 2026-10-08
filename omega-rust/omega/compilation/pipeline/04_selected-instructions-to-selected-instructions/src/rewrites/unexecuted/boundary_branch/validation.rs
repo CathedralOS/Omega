@@ -194,58 +194,22 @@ fn reconstruct<'source>(
     let outcome = outcome(signed, left, right).ok_or(BoundaryBranchError::UnsupportedLiteral)?;
     let row = match outcome {
         Outcome::Constant(_) => {
-            // The rebuilt terminator publishes the jump row's surface
-            // where the branch's stood, so the two must agree on
-            // definitions and clobbers: a definition or clobber the jump
-            // lacks would hand downstream readers an older event at this
-            // site, and one the branch lacked would publish new state the
-            // source never had. The branch's non-flag observations — its
-            // program-counter read — must likewise survive inside the
-            // jump row's own implicit surface.
-            if branch_instruction
-                .implicit_uses
-                .iter()
-                .any(|unit| !flag_universe.contains(unit) && !jump_surface.contains(unit))
-            {
-                return Err(BoundaryBranchError::UnsupportedUse);
-            }
-            if !jump_row.operands.is_empty()
-                || BTreeSet::from_iter(jump_row.implicit_defs.iter().copied())
-                    != BTreeSet::from_iter(branch_instruction.implicit_defs.iter().copied())
-                || BTreeSet::from_iter(jump_row.clobbers.iter().copied())
-                    != BTreeSet::from_iter(branch_instruction.clobbers.iter().copied())
-            {
-                return Err(BoundaryBranchError::ConstraintMismatch);
-            }
-            Some(jump_row)
+            super::constant_row(jump_row, branch_instruction, &flag_universe, &jump_surface)?
         }
         Outcome::NonZero => {
-            // The collapse keeps the branch's own row — the
-            // conditional-branch kinds share it — so the rebuilt
-            // instruction retains the complete implicit surface while its
-            // kind alone changes. Because the nonzero reader can observe
-            // any flag unit its encoding implies, every flag-universe
-            // unit must resolve to the same compare at this position —
-            // not only the units the source branch happened to declare —
-            // and must be among the compare's published definitions.
-            if branch_instruction.constraint != keys.conditional_branch {
-                return Err(BoundaryBranchError::ConstraintMismatch);
-            }
-            for unit in &flag_universe {
-                let event = reaching_event(
-                    function,
-                    entry,
-                    &successors,
-                    &cone,
-                    block_index,
-                    read_position,
-                    *unit,
-                )
-                .map_err(|_| BoundaryBranchError::UnsupportedUse)?;
-                if event != compare_site || !compare_instruction.implicit_defs.contains(unit) {
-                    return Err(BoundaryBranchError::UnsupportedUse);
-                }
-            }
+            super::nonzero_flag_resolution(
+                function,
+                entry,
+                &successors,
+                &cone,
+                block_index,
+                read_position,
+                &flag_universe,
+                branch_instruction,
+                compare_instruction,
+                compare_site,
+                &keys,
+            )?;
             None
         }
     };
