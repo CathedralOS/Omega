@@ -413,6 +413,7 @@ fn prepare_linux_x86_64(
     object: object_file::ObjectPlan,
     storage: ReceiverStorage,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
+    let entry = artifact.entry_function();
     let mut bytes = Vec::with_capacity(LINUX_X86_64_RECEIVER_SHIM_BYTES);
     bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
     bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
@@ -432,6 +433,7 @@ fn prepare_linux_x86_64(
             (3, storage.scratch),
             (10, storage.stack_top),
             (17, storage.receiver),
+            (22, entry.symbol),
         ],
         |symbol, offset| crate::hosted_unit_entry::EntryShim::LinuxReceiver { symbol, offset },
     )
