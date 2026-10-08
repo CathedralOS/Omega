@@ -1,6 +1,6 @@
 //! Independent object replay for whole-root non-observing primitive stores.
 
-use super::super::exact_attribution_count;
+use super::super::{exact_attribution_count, zero_code_store_source_is_consistent};
 use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
@@ -122,7 +122,10 @@ fn validate_store(
                     home.defining_operation != defining_operation
                         && home.source_value != source_value
                 })
-                && zero_code_source_is_consistent(function, store.source),
+                && zero_code_store_source_is_consistent(
+                        &function.unit_write_only_primitive_stores,
+                        store.source,
+                    ),
             ScalarType::Boolean,
             1,
             Some(u64::from(value)),
@@ -160,7 +163,10 @@ fn validate_store(
                         home.defining_operation != defining_operation
                             && home.source_value != source_value
                     })
-                    && zero_code_source_is_consistent(function, store.source),
+                    && zero_code_store_source_is_consistent(
+                        &function.unit_write_only_primitive_stores,
+                        store.source,
+                    ),
                 ScalarType::IeeeFloat(value.format()),
                 byte_size,
                 Some(bits),
@@ -307,28 +313,6 @@ pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape
     }
 }
 
-fn zero_code_source_is_consistent(
-    function: &MachineCodeFunction,
-    source: UnitWriteOnlyPrimitiveStoreSourceRecord,
-) -> bool {
-    let Some(defining_operation) = source.defining_operation() else {
-        return false;
-    };
-    let source_value = source.source_value();
-    function
-        .unit_write_only_primitive_stores
-        .iter()
-        .all(|candidate| {
-            let candidate_source = candidate.source;
-            if candidate_source.defining_operation() == Some(defining_operation)
-                || candidate_source.source_value() == source_value
-            {
-                candidate_source == source
-            } else {
-                true
-            }
-        })
-}
 
 fn exact_zero_code_definition_count(
     function: &MachineCodeFunction,

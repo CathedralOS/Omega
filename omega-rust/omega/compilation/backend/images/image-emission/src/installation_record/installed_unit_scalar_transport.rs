@@ -16,6 +16,7 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape
 
 use super::{InstallationError, InstallationRecord, InstalledFunction};
 use crate::object_artifact::replay::unit::call_custody::{fixed_integer_shape, unit_scalar_shape};
+use crate::object_artifact::replay::{zero_code_field_store_source_is_consistent, zero_code_store_source_is_consistent};
 
 
 pub(super) fn installed_function_scalar_transport_is_canonical(
@@ -512,8 +513,8 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                                 home.defining_operation != defining_operation
                                     && home.source_value != source_value
                             })
-                            && installed_projected_zero_code_source_is_consistent(
-                                function,
+                            && zero_code_field_store_source_is_consistent(
+                                &function.unit_structural_scalar_field_stores,
                                 store.source,
                             ),
                         1,
@@ -650,37 +651,6 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
     Ok(())
 }
 
-fn installed_projected_zero_code_source_is_consistent(
-    function: &InstalledFunction,
-    source: machine_code::InternalUnitScalarArgumentSourceRecord,
-) -> bool {
-    let machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
-        defining_operation,
-        source_value,
-        ..
-    } = source
-    else {
-        return false;
-    };
-    function
-        .unit_structural_scalar_field_stores
-        .iter()
-        .all(|candidate| {
-            let candidate_source = candidate.source;
-            if matches!(
-                candidate_source,
-                machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
-                    defining_operation: candidate_operation,
-                    source_value: candidate_value,
-                    ..
-                } if candidate_operation == defining_operation || candidate_value == source_value
-            ) {
-                candidate_source == source
-            } else {
-                true
-            }
-        })
-}
 
 pub(super) fn validate_installed_unit_write_only_primitive_stores(
     record: &InstallationRecord,
@@ -844,8 +814,8 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                                 home.defining_operation != defining_operation
                                     && home.source_value != source_value
                             })
-                            && installed_zero_code_store_source_is_consistent(
-                                function,
+                            && zero_code_store_source_is_consistent(
+                                &function.unit_write_only_primitive_stores,
                                 store.source,
                             ),
                         semantic_vocabulary::ScalarType::Boolean,
@@ -886,8 +856,8 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                                 home.defining_operation != defining_operation
                                     && home.source_value != source_value
                             })
-                            && installed_zero_code_store_source_is_consistent(
-                                function,
+                            && zero_code_store_source_is_consistent(
+                                &function.unit_write_only_primitive_stores,
                                 store.source,
                             ),
                         semantic_vocabulary::ScalarType::IeeeFloat(value.format()),
@@ -1073,25 +1043,3 @@ fn installed_native_scalar_shape(
     }
 }
 
-fn installed_zero_code_store_source_is_consistent(
-    function: &InstalledFunction,
-    source: machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord,
-) -> bool {
-    let Some(defining_operation) = source.defining_operation() else {
-        return false;
-    };
-    let source_value = source.source_value();
-    function
-        .unit_write_only_primitive_stores
-        .iter()
-        .all(|candidate| {
-            let candidate_source = candidate.source;
-            if candidate_source.defining_operation() == Some(defining_operation)
-                || candidate_source.source_value() == source_value
-            {
-                candidate_source == source
-            } else {
-                true
-            }
-        })
-}

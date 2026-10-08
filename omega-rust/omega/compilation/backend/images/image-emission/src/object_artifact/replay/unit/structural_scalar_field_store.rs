@@ -1,7 +1,7 @@
 //! Independent object replay for fixed-width immediate stores into staged
 //! attached-Unit structural parameter homes.
 
-use super::super::exact_attribution_count;
+use super::super::{exact_attribution_count, zero_code_field_store_source_is_consistent};
 use machine_code::{
     InternalUnitScalarArgumentSourceRecord, MachineCodeFunction, SemanticCodeSite,
     UnitStructuralScalarFieldStoreRecord,
@@ -156,7 +156,10 @@ fn validate_store(
                         home.defining_operation != defining_operation
                             && home.source_value != source_value
                     })
-                    && zero_code_source_is_consistent(function, store.source),
+                    && zero_code_field_store_source_is_consistent(
+                        &function.unit_structural_scalar_field_stores,
+                        store.source,
+                    ),
                 1,
                 Some(u64::from(value)),
             )
@@ -241,37 +244,6 @@ fn validate_store(
     Some(())
 }
 
-fn zero_code_source_is_consistent(
-    function: &MachineCodeFunction,
-    source: InternalUnitScalarArgumentSourceRecord,
-) -> bool {
-    let InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
-        defining_operation,
-        source_value,
-        ..
-    } = source
-    else {
-        return false;
-    };
-    function
-        .unit_structural_scalar_field_stores
-        .iter()
-        .all(|candidate| {
-            let candidate_source = candidate.source;
-            if matches!(
-                candidate_source,
-                InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
-                    defining_operation: candidate_operation,
-                    source_value: candidate_value,
-                    ..
-                } if candidate_operation == defining_operation || candidate_value == source_value
-            ) {
-                candidate_source == source
-            } else {
-                true
-            }
-        })
-}
 
 
 pub(crate) fn integer_bits(scalar_type: IntegerType, value: IntegerValue) -> Option<u64> {

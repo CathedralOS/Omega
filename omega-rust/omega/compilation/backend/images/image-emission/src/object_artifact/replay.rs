@@ -46,3 +46,52 @@ pub(crate) fn exact_attribution_count(
         })
         .count()
 }
+
+pub(crate) fn zero_code_store_source_is_consistent(
+    stores: &[machine_code::UnitWriteOnlyPrimitiveStoreRecord],
+    source: machine_code::UnitWriteOnlyPrimitiveStoreSourceRecord,
+) -> bool {
+    let Some(defining_operation) = source.defining_operation() else {
+        return false;
+    };
+    let source_value = source.source_value();
+    stores.iter().all(|candidate| {
+        let candidate_source = candidate.source;
+        if candidate_source.defining_operation() == Some(defining_operation)
+            || candidate_source.source_value() == source_value
+        {
+            candidate_source == source
+        } else {
+            true
+        }
+    })
+}
+
+pub(crate) fn zero_code_field_store_source_is_consistent(
+    stores: &[machine_code::UnitStructuralScalarFieldStoreRecord],
+    source: machine_code::InternalUnitScalarArgumentSourceRecord,
+) -> bool {
+    let machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+        defining_operation,
+        source_value,
+        ..
+    } = source
+    else {
+        return false;
+    };
+    stores.iter().all(|candidate| {
+        let candidate_source = candidate.source;
+        if matches!(
+            candidate_source,
+            machine_code::InternalUnitScalarArgumentSourceRecord::BooleanImmediate {
+                defining_operation: candidate_operation,
+                source_value: candidate_value,
+                ..
+            } if candidate_operation == defining_operation || candidate_value == source_value
+        ) {
+            candidate_source == source
+        } else {
+            true
+        }
+    })
+}
