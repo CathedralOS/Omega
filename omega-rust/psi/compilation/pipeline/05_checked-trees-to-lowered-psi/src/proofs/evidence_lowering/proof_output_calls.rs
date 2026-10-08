@@ -6,11 +6,10 @@ use crate::proofs::evidence_lowering::{
     checked_requirement_family_rows,
 };
 use crate::proofs::{
-    CheckedPropositionBinderArgumentKind, CheckedTrees, EvidenceProjectionIdentity, EvidenceTermId,
-    LoweringError, MachineId, OperationKind, PrimitiveType, ProofOutput, ProofOutputCall,
-    ProofOutputRuntimeCall, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionDeclaration, PropositionId,
-    StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
+    CheckedTrees, EvidenceProjectionIdentity, EvidenceTermId, LoweringError, MachineId,
+    OperationKind, PrimitiveType, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity, PropositionDeclaration,
+    PropositionId, StaticRequirementDispatch, TerminalModule, terminal_scalar_type, unsupported,
 };
 use terminal_psi::ProofOutputRuntimeResult;
 
@@ -476,17 +475,7 @@ fn terminal_proposition_application_id(
                 })
                 .transpose()?;
             Ok(PropositionBinderArgumentIdentity {
-                kind: match argument.kind {
-                    CheckedPropositionBinderArgumentKind::Type => {
-                        PropositionBinderArgumentKind::Type
-                    }
-                    CheckedPropositionBinderArgumentKind::Const => {
-                        PropositionBinderArgumentKind::Const
-                    }
-                    CheckedPropositionBinderArgumentKind::Machine => {
-                        PropositionBinderArgumentKind::Machine
-                    }
-                },
+                kind: super::binder_argument_kind(argument.kind),
                 identity: argument.identity.clone(),
                 evidence_projection,
             })

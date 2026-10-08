@@ -4,12 +4,11 @@
 use crate::proofs::evidence_lowering::checked_evidence_requirement_identity;
 use crate::proofs::evidence_lowering::proof_output_calls::proof_output_forwarded_source;
 use crate::proofs::{
-    BTreeMap, BTreeSet, CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind,
-    CheckedPropositionEvidence, CheckedTrees, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
-    EvidenceTermDeclaration, EvidenceTermId, LoweringError, MachineId,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    BTreeMap, BTreeSet, CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedTrees,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceInterfaceIdentity,
+    EvidenceProjectionIdentity, EvidenceRequirementIdentity, EvidenceTermDeclaration,
+    EvidenceTermId, LoweringError, MachineId, PropositionApplicationIdentity,
+    PropositionBinderArgumentIdentity, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, PropositionId, proposition_id,
 };
 
@@ -147,17 +146,7 @@ pub(crate) fn lower_proposition_vocabulary(
                 None
             };
             binder_arguments.push(PropositionBinderArgumentIdentity {
-                kind: match argument.kind {
-                    CheckedPropositionBinderArgumentKind::Type => {
-                        PropositionBinderArgumentKind::Type
-                    }
-                    CheckedPropositionBinderArgumentKind::Const => {
-                        PropositionBinderArgumentKind::Const
-                    }
-                    CheckedPropositionBinderArgumentKind::Machine => {
-                        PropositionBinderArgumentKind::Machine
-                    }
-                },
+                kind: super::binder_argument_kind(argument.kind),
                 identity: argument.identity.clone(),
                 evidence_projection,
             });
@@ -404,17 +393,7 @@ pub(crate) fn lower_evidence_terms(
                     })
                     .transpose()?;
                 Ok(PropositionBinderArgumentIdentity {
-                    kind: match argument.kind {
-                        CheckedPropositionBinderArgumentKind::Type => {
-                            PropositionBinderArgumentKind::Type
-                        }
-                        CheckedPropositionBinderArgumentKind::Const => {
-                            PropositionBinderArgumentKind::Const
-                        }
-                        CheckedPropositionBinderArgumentKind::Machine => {
-                            PropositionBinderArgumentKind::Machine
-                        }
-                    },
+                    kind: super::binder_argument_kind(argument.kind),
                     identity: argument.identity.clone(),
                     evidence_projection,
                 })

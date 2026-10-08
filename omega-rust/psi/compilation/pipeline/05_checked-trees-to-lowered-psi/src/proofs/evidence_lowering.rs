@@ -83,6 +83,23 @@ fn hex_bytes(bytes: &[u8]) -> String {
     rendered
 }
 
+/// Lowered kind of one proposition binder argument.
+pub(super) fn binder_argument_kind(
+    kind: crate::proofs::CheckedPropositionBinderArgumentKind,
+) -> terminal_psi::PropositionBinderArgumentKind {
+    match kind {
+        crate::proofs::CheckedPropositionBinderArgumentKind::Type => {
+            terminal_psi::PropositionBinderArgumentKind::Type
+        }
+        crate::proofs::CheckedPropositionBinderArgumentKind::Const => {
+            terminal_psi::PropositionBinderArgumentKind::Const
+        }
+        crate::proofs::CheckedPropositionBinderArgumentKind::Machine => {
+            terminal_psi::PropositionBinderArgumentKind::Machine
+        }
+    }
+}
+
 pub(crate) fn checked_evidence_requirement_identity(
     checked: &CheckedTrees,
     declaring_trait: symbols::SymbolHandle,
