@@ -66,17 +66,7 @@ pub(super) fn structural_sequence_length(
     } = program.type_reference_table.type_reference(extent_type)
     {
         let length = u64::try_from(*length).ok()?;
-        let literal = numerics::literals::IntegerLiteral::from_parts(
-            false,
-            numerics::literals::IntegerRadix::Decimal,
-            &length.to_string(),
-        )
-        .ok()?
-        .with_landing(numerics::literals::IntegerLanding {
-            landed_type: numerics::literals::LandedIntegerType::U64,
-            domain: ArithmeticDomain::Exact,
-        });
-        return Some(CheckedScalarExpression::IntegerLiteral { literal });
+        return facts::u64_integer_literal(length, PrimitiveType::U64);
     }
     if path.is_empty() {
         // A whole bounded owner observes the live length stored beside its
