@@ -123,23 +123,6 @@ impl BuildSnapshotRequest {
         self
     }
 
-    /// Assign caller-captured immutable inputs to exact dependency
-    /// occurrences. Each name is an input slot in canonical relative form,
-    /// not a host path; a duplicate (occurrence, name) pair or a
-    /// noncanonical name rejects the request.
-    pub fn with_dependency_inputs(
-        mut self,
-        inputs: impl IntoIterator<Item = (BuildDependencyOccurrence, Vec<u8>, CapturedBuildSourceInput)>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        for (occurrence, name, input) in inputs {
-            insert_named_input(
-                self.dependency_inputs.entry(occurrence).or_default(),
-                name,
-                input,
-            )?;
-        }
-        Ok(self)
-    }
 
     /// Required sealed output paths in canonical slash-separated form. An
     /// empty roster still runs against the captured source snapshot.

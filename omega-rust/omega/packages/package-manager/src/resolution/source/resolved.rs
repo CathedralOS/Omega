@@ -87,9 +87,6 @@ impl<S> ResolvedPackageSource<S> {
         )
     }
 
-    pub fn into_source(self) -> S {
-        self.source
-    }
 }
 
 /// Assemble the resolved-package-source record shared by local and

@@ -8,8 +8,7 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure, resolve_external_local_project_closure,
     resolve_locked_local_project_closure,
 };
-use crate::resolution::package_compilation_inputs;
-use package_compilation::{PackageCompilationInputError, PackageCompilationInputs};
+use package_compilation::PackageCompilationInputError;
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
@@ -52,32 +51,6 @@ pub(super) struct PreparedProjectTarget {
 }
 
 impl PreparedLocalProject {
-    /// Extract acquisition-only inputs for a direct compiler consumer. These
-    /// inputs deliberately omit dependencies' private build edges; a nested
-    /// activation must instead use the review-aware check/production route,
-    /// which executes prerequisites and carries their generated source.
-    ///
-    /// The inputs are assembled here rather than during preparation: assembling
-    /// them captures the root's canonical source index, and the review routes
-    /// that every ordinary check and compile takes dropped that work unread.
-    pub fn try_into_parts(
-        self,
-    ) -> Result<(PathBuf, PackageCompilationInputs), PrepareLocalProjectError> {
-        let graph = self.source_closure.graph();
-        if let Some(package) = graph.packages().iter().find(|package| {
-            package.source().key() != graph.root()
-                && package.dependencies().iter().any(|dependency| {
-                    dependency.purpose() == crate::declarations::DependencyPurpose::Build
-                })
-        }) {
-            return Err(PrepareLocalProjectError::NestedBuildActivationRequired {
-                package: package.source().key().clone(),
-            });
-        }
-        let package_inputs = package_compilation_inputs(&self.source_closure)
-            .map_err(PrepareLocalProjectError::CompilerInputs)?;
-        Ok((self.entry_path, package_inputs))
-    }
 
     /// Split for one exact target's review route: the shared entry and source
     /// closure plus that target's accepted policy section. A prepared project

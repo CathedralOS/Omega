@@ -209,12 +209,6 @@ impl PackageLock {
         &self.targets
     }
 
-    /// Retain one exact target's accepted policy without copying other sections.
-    pub fn into_target(self, profile: TargetProfile) -> Option<PackageLockTarget> {
-        self.targets
-            .into_iter()
-            .find(|target| target.target() == profile)
-    }
 
     pub fn target(&self, profile: TargetProfile) -> Option<&PackageLockTarget> {
         self.targets

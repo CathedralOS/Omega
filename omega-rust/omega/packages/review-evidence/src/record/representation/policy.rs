@@ -1,6 +1,5 @@
 //! Complete inert representation policy for one reviewed package and target.
 
-mod agreement;
 mod validation;
 
 use crate::record::{

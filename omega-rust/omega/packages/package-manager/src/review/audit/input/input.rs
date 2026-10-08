@@ -1,7 +1,4 @@
-use crate::review::{
-    CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchLimits, PackageTriageDecision,
-    PackageTriageDisposition, PackageTriageReason,
-};
+use crate::review::{CompilerReviewTriage, PackageSourcePatch, PackageSourcePatchLimits};
 
 use super::error::PackageSourceReviewRenderError;
 
@@ -61,14 +58,6 @@ impl PackageSourceReviewInput {
         &self.source_patches
     }
 
-    /// Whether compiler-owned policy already recommends an audit independently
-    /// of any optional review tooling.
-    pub fn deterministic_audit_recommended(&self) -> bool {
-        self.triage
-            .decisions()
-            .iter()
-            .any(deterministic_decision_recommends_audit)
-    }
 
     pub fn render_bounded(
         &self,
@@ -103,21 +92,6 @@ impl PackageSourceReviewInput {
     }
 }
 
-fn deterministic_decision_recommends_audit(decision: &PackageTriageDecision) -> bool {
-    decision.disposition() == PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
-        || decision.reasons().iter().any(|reason| {
-            matches!(
-                reason,
-                PackageTriageReason::BaselineSourceUnavailable
-                    | PackageTriageReason::BuildObservationChanged
-                    | PackageTriageReason::RepresentationTcbIntroducedOrChanged
-                    | PackageTriageReason::ExternalExecutableSupplyRequiresResolution
-                    | PackageTriageReason::TerminalAuthorityPermissionRequiresResolution
-                    | PackageTriageReason::RetainedDangerousAuthority(_)
-                    | PackageTriageReason::DangerousAuthoritySlack(_)
-            )
-        })
-}
 
 fn required_review_input_bytes(triage: &str, patches: &[PackageSourcePatch]) -> usize {
     let mut required = REVIEW_INPUT_SCHEMA.len();

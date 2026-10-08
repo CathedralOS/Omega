@@ -92,15 +92,7 @@ macro_rules! package_source_surface_accessors {
             self.dependency_projections.requests(purpose)
         }
 
-        /// Authored product-purpose requests, in requester-local order.
-        pub fn product_dependency_requests(&self) -> &[DependencySourceRequest] {
-            self.dependency_requests(DependencyPurpose::Product)
-        }
 
-        /// Authored build-purpose requests, in requester-local order.
-        pub fn build_dependency_requests(&self) -> &[DependencySourceRequest] {
-            self.dependency_requests(DependencyPurpose::Build)
-        }
 
         pub const fn dependency_projections(&self) -> &DependencyProjections {
             &self.dependency_projections

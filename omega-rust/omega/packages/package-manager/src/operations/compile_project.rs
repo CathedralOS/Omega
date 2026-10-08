@@ -101,16 +101,6 @@ impl PreparedLocalProjectNativeRequest {
         self
     }
 
-    /// Supply an explicit receiving permission policy. Calling this is the
-    /// only way package production claims receiver admission; the policy is
-    /// adjudicated exactly as supplied, including an explicit empty policy.
-    pub fn with_receiving_terminal_authority_permission_policy(
-        mut self,
-        policy: TerminalAuthorityPermissionPolicy,
-    ) -> Self {
-        self.receiving_terminal_authority_permission_policy = Some(policy);
-        self
-    }
 }
 
 #[derive(Debug)]
