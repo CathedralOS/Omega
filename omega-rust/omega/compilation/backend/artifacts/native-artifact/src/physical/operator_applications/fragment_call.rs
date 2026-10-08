@@ -20,10 +20,7 @@ pub(super) fn derive(
         | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
         _ => return Ok(None),
     };
-    let function = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == occurrence.machine())
+    let function = object.function_on_machine(occurrence.machine())
         .ok_or("D29 fragment call names an absent caller")?;
     let mut calls = function
         .unit_call_stacks
@@ -42,10 +39,7 @@ pub(super) fn derive(
     if calls.next().is_some() || call_target != expected_callee {
         return Err("D29 fragment call changed its unique owner or callee");
     }
-    let callee = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == expected_callee)
+    let callee = object.function_on_machine(expected_callee)
         .ok_or("D29 fragment call names an absent callee")?;
     let opcode = match target.architecture {
         Architecture::X86_64 => call_offset.checked_sub(1),

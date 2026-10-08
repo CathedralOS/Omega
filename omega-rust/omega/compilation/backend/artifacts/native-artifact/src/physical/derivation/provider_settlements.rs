@@ -108,10 +108,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     if !settlement_completion_custody_is_exact(settlement) {
         return Err("installed D41 settlement changed its completion custody");
     }
-    let function = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == occurrence.machine())
+    let function = object.function_on_machine(occurrence.machine())
         .ok_or("installed D41 settlement names an absent object function")?;
     if !function.provenance.operations.contains(&operation.id) {
         return Err("installed D41 settlement operation left its function provenance");

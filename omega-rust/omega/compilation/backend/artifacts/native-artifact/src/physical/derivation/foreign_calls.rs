@@ -607,10 +607,7 @@ pub(crate) fn derive_normalized_foreign_child(
         return Err("normalized foreign D41 call custody changed before final-image emission");
     }
 
-    let function = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == occurrence.machine())
+    let function = object.function_on_machine(occurrence.machine())
         .ok_or("normalized foreign D41 child names an absent object function")?;
     let matching_attributions = object
         .semantic_code_attribution()

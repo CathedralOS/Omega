@@ -124,10 +124,7 @@ fn derive_checked_call_span(
         | OperationKind::CallStructuralWithScalarArguments { callee, .. } => *callee,
         _ => return Ok(None),
     };
-    let function = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == occurrence.machine())
+    let function = object.function_on_machine(occurrence.machine())
         .ok_or("D29 checked call names an absent object function")?;
     let calls = function
         .internal_unit_calls
@@ -259,10 +256,7 @@ fn derive_fma_span(
     ) {
         return Ok(None);
     }
-    let function = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == occurrence.machine())
+    let function = object.function_on_machine(occurrence.machine())
         .ok_or("D29 FMA names an absent object function")?;
     let matching = function
         .x86_scalar_fma_occurrences
@@ -310,10 +304,7 @@ fn derive_integer_comparison_span(
     ) {
         return Err("D29 integer comparison rejoined a mismatched intrinsic realization");
     }
-    let function = object
-        .functions()
-        .iter()
-        .find(|function| function.machine == occurrence.machine())
+    let function = object.function_on_machine(occurrence.machine())
         .ok_or("D29 integer comparison names an absent object function")?;
     let mut attributed = object.semantic_code_attribution().iter().filter(|row| {
         row.machine == function.machine

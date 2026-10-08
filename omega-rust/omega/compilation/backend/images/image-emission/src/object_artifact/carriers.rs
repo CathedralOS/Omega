@@ -133,14 +133,21 @@ impl ObjectArtifact {
         &self.functions
     }
 
+    /// The function carrying the given machine, when one exists. Functions
+    /// are keyed by machine id throughout the artifact; consumers name a
+    /// missing entry in their own error.
+    pub fn function_on_machine(&self, machine: MachineId) -> Option<&ObjectFunction> {
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    }
+
     pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
         &self.private_functions
     }
 
     pub fn entry_function(&self) -> &ObjectFunction {
-        self.functions
-            .iter()
-            .find(|function| function.machine == self.entry)
+        self.function_on_machine(self.entry)
             .expect("artifact construction requires one entry function")
     }
 
