@@ -325,9 +325,7 @@ pub(in crate::execution) fn admit_replayed(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(operation) else {
         return None;
     };
-    let ExpressionNode::Range(authored) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
+    let authored = program.expression_table.range_node(indexed.index)?;
     let statement_ordinal = u32::try_from(statement_index).ok()?;
     let endpoint = |endpoint: ExpressionHandle, role| {
         if !endpoint.is_valid() {

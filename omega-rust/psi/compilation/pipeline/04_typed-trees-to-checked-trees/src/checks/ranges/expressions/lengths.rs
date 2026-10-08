@@ -71,9 +71,7 @@ fn range_result_length(
     index: ExpressionHandle,
     length: usize,
 ) -> Option<usize> {
-    let ExpressionNode::Range(range) = program.expression_table.expression(index) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(index)?;
     let (start, end) = provable_range_bounds(program, facts, range)?;
     let start = usize::try_from(start).ok()?;
     let end = end.map(usize::try_from).transpose().ok()?.unwrap_or(length);
@@ -92,9 +90,7 @@ fn fixed_range_window_length(
     facts: &RangeFacts<'_>,
     index: ExpressionHandle,
 ) -> Option<usize> {
-    let ExpressionNode::Range(range) = program.expression_table.expression(index) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(index)?;
     let (start, end) = provable_range_bounds(program, facts, range)?;
     let end = end?;
     let start = usize::try_from(start).ok()?;

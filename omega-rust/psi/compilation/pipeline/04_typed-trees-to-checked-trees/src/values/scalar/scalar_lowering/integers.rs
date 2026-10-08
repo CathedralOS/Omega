@@ -251,9 +251,7 @@ pub(super) fn exact_inline_literal_subslice_length(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(receiver) else {
         return None;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(indexed.index)?;
     if !range.start.is_valid() || !range.end.is_valid() {
         return None;
     }

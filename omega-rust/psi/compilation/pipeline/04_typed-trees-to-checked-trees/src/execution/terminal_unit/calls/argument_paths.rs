@@ -804,9 +804,7 @@ pub(crate) fn open_byte_range_path(
     let (facts::PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
         return None;
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(*expression) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(*expression)?;
     let start = if range.start.is_valid() {
         usize::try_from(
             program

@@ -89,10 +89,7 @@ fn proves_range(
 ) -> Option<bool> {
     // Source custody, not normalized display strings, selects the endpoints.
     let custody = program.ranking_expression_custody_for(machine.symbol)?;
-    let ExpressionNode::Range(range) = program.expression_table.expression(custody.rank_range?)
-    else {
-        return None;
-    };
+    let range = program.expression_table.range_node(custody.rank_range?)?;
     // Named-state transport needs a proof of the subject and endpoint bounds
     // at each exact arrival; entry parameter declarations cannot stand in for it.
     if program.machine_states(machine).len() != 1 {

@@ -100,10 +100,7 @@ pub(super) fn builtin(
             ) {
                 return None;
             }
-            let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
-            else {
-                return None;
-            };
+            let range = program.expression_table.range_node(indexed.index)?;
             for endpoint in [range.start, range.end] {
                 if endpoint.is_valid() {
                     builtin(program, machine, state, endpoint, depth + 1)?;

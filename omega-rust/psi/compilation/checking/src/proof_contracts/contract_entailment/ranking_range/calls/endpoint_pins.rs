@@ -199,10 +199,7 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
             if !member.range.is_valid() {
                 continue;
             }
-            let ExpressionNode::Range(range) = program.expression_table.expression(member.range)
-            else {
-                return None;
-            };
+            let range = program.expression_table.range_node(member.range)?;
             let mut inputs = Vec::new();
             for endpoint in [range.start, range.end] {
                 endpoint_inputs(

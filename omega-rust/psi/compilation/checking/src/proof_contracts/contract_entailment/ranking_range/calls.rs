@@ -54,9 +54,7 @@ pub(crate) fn prove_ranking_range_call_entry(
     let prove = || -> Option<bool> {
         let (state, measure) = scalar_entry(program, &member)?;
         admit_member(program, &member, state, measure)?;
-        let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
-            return None;
-        };
+        let range = program.expression_table.range_node(member.range)?;
         // Every authored range keeps the state-edge owner's endpoint
         // formation bar: an exact integer formal, an exact declared
         // projection, or a bounded integer expression -- never a selected
@@ -578,9 +576,7 @@ pub(crate) fn prove_ranking_range_call(
     if !engine.requires_unsatisfiable
         && let Some((floor, ceiling, _)) = &source_range
     {
-        let ExpressionNode::Range(range) = program.expression_table.expression(caller.range) else {
-            return None;
-        };
+        let range = program.expression_table.range_node(caller.range)?;
         for endpoint in &caller_deferred_endpoints {
             let polynomial = if *endpoint == range.start {
                 floor
@@ -764,9 +760,7 @@ pub(crate) fn prove_ranking_range_call(
     // feeds must be a defined interval of the callee's carrier here, not only
     // inside the callee's own entry proof.
     if let Some((floor, ceiling, _)) = &destination_range {
-        let ExpressionNode::Range(range) = program.expression_table.expression(callee.range) else {
-            return None;
-        };
+        let range = program.expression_table.range_node(callee.range)?;
         for endpoint in &callee_deferred_endpoints {
             let polynomial = if *endpoint == range.start {
                 floor
@@ -868,9 +862,7 @@ fn admit_member(
         meanings::builtin(program, member.machine, state, member.paired_subject, 0)?;
     }
     if member.range.is_valid() {
-        let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
-            return None;
-        };
+        let range = program.expression_table.range_node(member.range)?;
         for expression in [range.start, range.end] {
             meanings::builtin(program, member.machine, state, expression, 0)?;
         }
@@ -1592,9 +1584,7 @@ fn member_call_range(
     if !member.range.is_valid() {
         return Some(None);
     }
-    let ExpressionNode::Range(range) = program.expression_table.expression(member.range) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(member.range)?;
     for endpoint in [range.start, range.end] {
         meanings::install_nonpolynomial_terms(program, member.machine, state, engine, endpoint, 0)?;
     }

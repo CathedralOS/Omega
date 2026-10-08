@@ -150,7 +150,9 @@ fn install_expression(
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<()> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     // These handles are metadata projections only. A slice Name stays outside
     // the scalar language, including in expressions that algebraically cancel.
     if matches!(node, ExpressionNode::Member(_)) {
@@ -233,7 +235,9 @@ fn evaluate_length(
     engine: &mut Engine<'_>,
     depth: usize,
 ) -> Option<Polynomial> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     if let ExpressionNode::Borrow(borrow) = node {
         if !matches!(
             borrow.access,
@@ -275,14 +279,10 @@ fn evaluate_length(
         Some(state),
         expression,
     ) {
-        let Some(indexed) = program.expression_table.indexed_node(expression)
-        else {
+        let Some(indexed) = program.expression_table.indexed_node(expression) else {
             return None;
         };
-        let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
-        else {
-            return None;
-        };
+        let range = program.expression_table.range_node(indexed.index)?;
         // Constant-extent queries also enter here without the call owner's
         // meaning pass. Never interpret an authored operator as arithmetic
         // merely because its operands happen to normalize to constants.

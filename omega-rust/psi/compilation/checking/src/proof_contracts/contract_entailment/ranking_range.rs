@@ -32,7 +32,7 @@ pub use identity_views::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
     find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, 
+    measure_constraints_cover_subject,
 };
 
 pub(crate) use calls::{
@@ -233,9 +233,7 @@ pub fn ranking_range_required_symbols(
     measure: RankingRangeMeasure,
     premises: RankingRangePremises,
 ) -> Option<Vec<symbols::SymbolHandle>> {
-    let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(range)?;
     state_aliases::required_symbols(program, machine, range, measure, premises)
 }
 
@@ -253,9 +251,7 @@ pub fn ranking_range_premise_symbols(
     measure: RankingRangeMeasure,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     let range = if range.is_valid() {
-        let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
-            return None;
-        };
+        let range = program.expression_table.range_node(range)?;
         Some(range)
     } else {
         None
@@ -551,9 +547,7 @@ fn prove_edge(
         }
         _ => None,
     };
-    let ExpressionNode::Range(range) = program.expression_table.expression(range) else {
-        return None;
-    };
+    let range = program.expression_table.range_node(range)?;
     // An endpoint that is not statically formed still owes a carrier-landing
     // proof under this edge's installed hypotheses; it is deferred, not
     // rejected, until that engine exists below. Every measure owes it: the

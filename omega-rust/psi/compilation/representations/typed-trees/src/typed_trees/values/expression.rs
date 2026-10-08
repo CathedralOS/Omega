@@ -610,6 +610,14 @@ impl ExpressionTable {
         }
     }
 
+    /// The typed `Range` node, or `None` for every other kind.
+    pub fn range_node(&self, handle: ExpressionHandle) -> Option<&TableRangeExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Range(node) => Some(node),
+            _ => None,
+        }
+    }
+
     /// The typed `Call` node, or `None` for every other kind.
     pub fn call_node(&self, handle: ExpressionHandle) -> Option<&TableCallExpression> {
         match self.expression(handle) {
