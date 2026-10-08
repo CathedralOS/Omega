@@ -7,6 +7,12 @@ use crate::interpreter::evaluator::{
 };
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+    /// The path a live virtual descriptor was opened on — the lookup every
+    /// descriptor-scoped call performs before dispatching on its semantics.
+    fn virtual_descriptor_path(&self, fd: i32) -> Option<Vec<u8>> {
+        self.virtual_fds.get(&fd).map(|descriptor| descriptor.path.clone())
+    }
+
     pub(super) fn serve_read(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
         let PreparedFilesystemCall::Read { fd, buffer, count } = call else {
             unreachable!("dispatched serve_read")
@@ -158,10 +164,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. The
             // hermetic model tracks EXCLUSIVE ownership per path; a
             // non-blocking acquire on a path another fd holds is EWOULDBLOCK.
-            let path = self
-                .virtual_fds
-                .get(&fd)
-                .map(|descriptor| descriptor.path.clone());
+            let path = self.virtual_descriptor_path(fd);
             match path {
                 None => {
                     self.virtual_errno = 9; // EBADF
@@ -213,10 +216,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 return Ok(0);
             };
             let flags = flags as i32;
-            let path = self
-                .virtual_fds
-                .get(&fd)
-                .map(|descriptor| descriptor.path.clone());
+            let path = self.virtual_descriptor_path(fd);
             match path {
                 None => {
                     self.virtual_errno = 6; // ERROR_INVALID_HANDLE
@@ -255,10 +255,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
                 self.virtual_errno = 6; // ERROR_INVALID_HANDLE
                 return Ok(0);
             };
-            let path = self
-                .virtual_fds
-                .get(&fd)
-                .map(|descriptor| descriptor.path.clone());
+            let path = self.virtual_descriptor_path(fd);
             match path {
                 None => {
                     self.virtual_errno = 6; // ERROR_INVALID_HANDLE
@@ -509,10 +506,7 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             // the fd to its path, then fill the same stat record (a held `File`
             // is always a regular file here). EBADF for an unknown fd. Never
             // touches the cursor.
-            let path = self
-                .virtual_fds
-                .get(&fd)
-                .map(|descriptor| descriptor.path.clone());
+            let path = self.virtual_descriptor_path(fd);
             let meta = path.and_then(|path| {
                 // A `set_file_times` mtime shows through; else the modeled epoch.
                 let mtime = self
