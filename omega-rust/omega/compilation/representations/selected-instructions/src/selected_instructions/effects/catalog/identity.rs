@@ -470,7 +470,6 @@ fn encode_units<Sink: MachineIdentityBytes + ?Sized>(
     }
 }
 
-
 pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     match kind {
         MachineSemanticKind::CopyBytes => 59,

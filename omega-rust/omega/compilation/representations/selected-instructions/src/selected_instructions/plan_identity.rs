@@ -641,7 +641,6 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     }
 }
 
-
 fn encode_option_u16(bytes: &mut Vec<u8>, value: Option<u16>) {
     match value {
         Some(value) => {

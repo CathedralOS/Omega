@@ -15,7 +15,6 @@ pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
 }
 
-
 pub(super) fn encode_units(bytes: &mut Vec<u8>, units: &[RegisterUnitId]) {
     encode_len(bytes, units.len());
     for unit in units {
