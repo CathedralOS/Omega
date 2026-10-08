@@ -4,6 +4,7 @@
 //! executable's preferred address.  A PIE image also has to name that exact
 //! pointer site to dyld so the loader can add the image slide.
 
+use super::write_uleb128;
 use diagnostics::Diagnostic;
 use image::{
     FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbolHandle,
@@ -156,19 +157,6 @@ pub(crate) fn macho_rebase_info(image: &FinalImage) -> Result<MachoRebaseInfo, D
     Ok(MachoRebaseInfo { bytes, sites })
 }
 
-fn write_uleb128(bytes: &mut Vec<u8>, mut value: u64) {
-    loop {
-        let mut byte = (value & 0x7f) as u8;
-        value >>= 7;
-        if value != 0 {
-            byte |= 0x80;
-        }
-        bytes.push(byte);
-        if value == 0 {
-            break;
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
