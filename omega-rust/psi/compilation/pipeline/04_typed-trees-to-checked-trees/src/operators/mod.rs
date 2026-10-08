@@ -93,16 +93,7 @@ pub(crate) fn derive_checked_operator_crash_contracts(
                     bucket.unconditional = true;
                     continue;
                 }
-                for offset in 0..contract.facts.count() {
-                    let fact = arena::Handle::from_parts(
-                        contract
-                            .facts
-                            .start()
-                            .arena_index()
-                            .checked_add(offset)
-                            .expect("operator crash fact handle index overflow"),
-                        contract.facts.start().generation(),
-                    );
+                for fact in contract.facts.handles() {
                     let is_true = matches!(
                         program.proof_facts.get(fact),
                         ProofFact::Expression(expression)

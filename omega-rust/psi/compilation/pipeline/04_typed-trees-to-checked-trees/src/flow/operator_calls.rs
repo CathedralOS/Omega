@@ -443,16 +443,7 @@ fn append_operator_ensures_context(
         if contract.kind != typed_trees::signature::SignatureContractKind::Ensures {
             continue;
         }
-        for offset in 0..contract.facts.count() {
-            let fact_handle = Handle::from_parts(
-                contract
-                    .facts
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("operator contract fact handle overflow"),
-                contract.facts.start().generation(),
-            );
+        for fact_handle in contract.facts.handles() {
             match program.proof_facts.get(fact_handle) {
                 typed_trees::domain::ProofFact::Membership(membership) => {
                     let Some(relative) =

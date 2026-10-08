@@ -183,15 +183,7 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
             let authorized_ensures = contract.kind == SignatureContractKind::Ensures
                 && contract.facts.count() > 0
                 && (0..contract.facts.count()).all(|offset| {
-                    let fact = arena::Handle::from_parts(
-                        contract
-                            .facts
-                            .start()
-                            .arena_index()
-                            .checked_add(offset)
-                            .expect("proof fact handle index overflow"),
-                        contract.facts.start().generation(),
-                    );
+                    let fact = contract.facts.handle_at(offset);
                     crate::facts::qualification_evidence::boundary_qualification_authorization(
                         program,
                         owner_symbol,
@@ -423,16 +415,7 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
         if contract.kind != SignatureContractKind::Ensures {
             continue;
         }
-        for offset in 0..contract.facts.count() {
-            let fact = arena::Handle::from_parts(
-                contract
-                    .facts
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .expect("proof fact handle index overflow"),
-                contract.facts.start().generation(),
-            );
+        for fact in contract.facts.handles() {
             if crate::facts::qualification_evidence::boundary_qualification_authorization(
                 program,
                 owner_symbol,
