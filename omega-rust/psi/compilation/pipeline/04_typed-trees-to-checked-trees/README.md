@@ -8,7 +8,7 @@ identities, then transfers the frozen typed owner and preparation judgments.
 Preparation and specialization are independent of checking; this package
 contains no typed elaboration or fallback route.
 [finalize_execution.rs](src/execution/finalize_execution.rs) consumes completed
-check facts, finalizes scalar graphs, assembles structural control cleanup and
+check facts, adopts inline construction shapes, assembles structural control cleanup and
 the Unit closure, then completes affine cleanup. It returns the facts only after
 cleanup diagnostics clear; the checker never publishes an intermediate plan set.
 There is no production re-entry for rebuilding plans after provider settlement.
@@ -89,7 +89,7 @@ runs for every checking caller, independently of Omega's later provider selectio
 and native permission checks.
 
 Unit planning passes a `ScalarCalleeClosure` marker when it builds the candidate
-closure, where a call may target a scalar graph callee. Preliminary call-free
+closure, where a call may target another scalar-result Unit body. Preliminary call-free
 discovery passes none; it cannot read a partially published closure from
 `CheckFacts`. Provider installation consumes these source-derived plans rather
 than rebuilding them. The test-only evidence-mutation helper reconstructs plans

@@ -11,5 +11,5 @@ pub use lowered_psi::{
     CallbackTerminalLoweringReceipt, LoweredBoundaryApplicationOccurrence, LoweredPsi,
     LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
     LoweredSelectedIntegerComparisonOperandOrder, LoweredSelectedIntegerComparisonOperation,
-    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceCustody,
+    LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceCustody, LoweredStateBlock,
 };

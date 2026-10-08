@@ -261,7 +261,7 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
     Some(retained)
 }
 
-/// Project the same Nat-descending judgment onto a fused scalar graph: the
+/// Project the same Nat-descending judgment onto a fused state roster: the
 /// member set spans states authored under sibling machines, so the SCC and
 /// every edge resolve per member rather than inside one machine's adjacency.
 /// Each member still ranks its own authored formal through its own witness —

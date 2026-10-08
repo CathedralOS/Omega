@@ -440,9 +440,8 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
             // an authored two-bound range back as a single `And` -- so the
             // facts join here rather than becoming separate rows. Reading
             // only the one-fact spelling left every multi-fact clause
-            // unlowered as `None`: harmless while such machines took the Unit
-            // route, and fail-closed once they reach the scalar graph's
-            // `covered_requires`. The facts share one predicate budget
+            // unlowered as `None`, so the clause could not be enforced. The
+            // facts share one predicate budget
             // because they are one clause.
             let mut remaining = 4096;
             let mut conjunction: Option<checked_trees::CheckedBooleanExpression> = None;

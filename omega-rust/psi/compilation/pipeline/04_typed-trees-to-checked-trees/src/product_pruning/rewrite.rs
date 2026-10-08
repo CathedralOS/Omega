@@ -290,21 +290,12 @@ fn apply_fact_pruning(
         .terminal_debug
         .machines
         .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
-        .terminal_scalar_graphs
-        .machines
-        .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
-        .guarded_exits
-        .tails
-        .retain(|row| {
-            index
-                .state_machine
-                .get(&row.state)
-                .is_none_or(|machine| retained.contains(machine))
-        });
+    facts.flow.guarded_exits.tails.retain(|row| {
+        index
+            .state_machine
+            .get(&row.state)
+            .is_none_or(|machine| retained.contains(machine))
+    });
     facts
         .flow
         .terminal_unit_effects

@@ -7,7 +7,7 @@ use checked_trees::{
     CheckedFloatSemanticApplicationOperand, CheckedProofOnlyValueType, CheckedTrees,
     types::PrimitiveType,
 };
-use semantic_vocabulary::{BlockId, IeeeFloatFormat, MachineId, ScalarType};
+use semantic_vocabulary::{IeeeFloatFormat, MachineId, ScalarType};
 use terminal_psi::{
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
     DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
@@ -181,6 +181,7 @@ pub(crate) fn resolve_direct_float_source_binding(
     terminal_machines: &[TerminalMachine],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+    state_blocks: &[lowered_psi::LoweredStateBlock],
     projection: CheckedFloatMeaningProjection,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let owner_machine = match &projection.source {
@@ -263,6 +264,7 @@ pub(crate) fn resolve_direct_float_source_binding(
                 source_machine,
                 terminal_machine,
                 *terminal_owner,
+                state_blocks,
                 parameter,
             )
         }
@@ -387,16 +389,17 @@ fn resolve_direct_float_parameter(
 }
 
 /// Rejoin a checked nested-state parameter to the exact Terminal block and
-/// scalar parameter identity. Source-state blocks occupy the machine's dense
-/// block namespace before every synthesized block, so the lowest block
-/// identity is the checked graph entry and each state's block follows it by
-/// position. The entry state itself is refused: its parameters already carry
-/// the machine-parameter class, never block parameters.
+/// scalar parameter identity. The state graph emitter records each emitted
+/// state's header block (`LoweredStateBlock`), and the state's block takes
+/// its scalar formals as parameters in plan order. The entry state itself is
+/// refused: its parameters already carry the machine-parameter class, never
+/// block parameters.
 fn resolve_direct_block_float_parameter(
     checked: &CheckedTrees,
     source_machine: &checked_trees::machine::Machine,
     terminal_machine: &TerminalMachine,
     terminal_owner: MachineId,
+    state_blocks: &[lowered_psi::LoweredStateBlock],
     parameter: checked_trees::CheckedDirectBlockFloatParameter,
 ) -> Result<Option<FloatMeaningSource>, LoweringError> {
     let invalid_source = || {
@@ -405,19 +408,21 @@ fn resolve_direct_block_float_parameter(
         )
     };
     let format = projection_format(parameter.fallback.primitive).map_err(|_| invalid_source())?;
-    let graph = checked
+    let plan = checked
         .facts
         .flow
-        .terminal_scalar_graphs
-        .for_machine(source_machine.symbol)
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.machine == source_machine.symbol)
         .ok_or_else(invalid_source)?;
-    let position = graph
+    let position = plan
         .states
         .iter()
         .position(|state| state.state == parameter.owner_state)
         .ok_or_else(invalid_source)?;
     if position == 0
-        || graph
+        || plan
             .states
             .iter()
             .skip(position + 1)
@@ -425,26 +430,22 @@ fn resolve_direct_block_float_parameter(
     {
         return Err(invalid_source());
     }
-    let graph_entry = terminal_machine
-        .blocks
+    let mut headers = state_blocks
         .iter()
-        .map(|block| block.id)
-        .min()
-        .ok_or_else(invalid_source)?;
-    let expected = graph_entry
-        .get()
-        .checked_add(u64::try_from(position).map_err(|_| invalid_source())?)
-        .and_then(BlockId::new)
-        .ok_or_else(invalid_source)?;
+        .filter(|row| row.machine == terminal_owner && row.state == parameter.owner_state);
+    let header = headers.next().ok_or_else(invalid_source)?;
+    if headers.next().is_some() {
+        return Err(invalid_source());
+    }
     let mut blocks = terminal_machine
         .blocks
         .iter()
-        .filter(|block| block.id == expected);
+        .filter(|block| block.id == header.block);
     let block = blocks.next().ok_or_else(invalid_source)?;
     if blocks.next().is_some() {
         return Err(invalid_source());
     }
-    let graph_state = &graph.states[position];
+    let graph_state = &plan.states[position];
     if block.parameters.len() != graph_state.scalar_parameters.len() {
         return Err(invalid_source());
     }

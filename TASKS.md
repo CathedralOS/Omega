@@ -2603,16 +2603,14 @@ code and preserve check/native behavior for the named customer slices.
 - **ONE-TRANSITION-LOWERING.** (new-scope) Stage 05 lowers successor
   transitions with parameter transfer only through the composed route,
   `unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`,
-  after `state_graph/edges.rs` re-checks each edge against source; the
-  scalar graph route is deleted. Stage 04 still builds two successor plans:
-  `CheckedStructuralControlSuccessorPlan` in
-  `execution/terminal_unit/state_graph/successors.rs` (also for
+  after `state_graph/edges.rs` re-checks each edge against source. Stage 04
+  still builds two successor plans: `CheckedStructuralControlSuccessorPlan`
+  in `execution/terminal_unit/state_graph/successors.rs` (also for
   `state_graph/closed_sum.rs`), and `CheckedScalarSuccessor` in
-  `execution/terminal_scalar/successors.rs` for the scalar graph plans,
-  which go with **SCALAR-GRAPH-ROUTE-RETIRED**. Only the scalar successor
-  carried continuation arguments; if a continuation still needs them, carry
-  them on `CheckedStructuralControlSuccessorPlan` rather than in a second
-  plan. Acceptance:
+  `execution/terminal_scalar/mod.rs::checked_successor`, which names only the
+  target, arity and continuation identity inside a state's
+  `CheckedScalarStateTerminator`. Carry continuation identity on
+  `CheckedStructuralControlSuccessorPlan` and build one plan. Acceptance:
   a source-scanning guard finds a single constructor and a single lowering
   of successor transfers; corpus `--filter control_flow/,transitions,termination/,calls/`
   is unchanged in check and native.
@@ -2622,7 +2620,7 @@ code and preserve check/native behavior for the named customer slices.
   (`unit/attached_unit/operation_frame/calls.rs`), and `DirectCall` selects
   every direct Terminal call kind. Separate call emitters remain:
   - `operation_emission/calls.rs::emit_direct_call_operation` and
-    `operation_emission/boundary_calls.rs` for scalar-graph bindings and
+    `operation_emission/boundary_calls.rs` for binding-prefix calls and
     computation calls;
   - `scalar_graph_effects.rs` `LoweredScalarEffect::Call`.
 
@@ -2635,8 +2633,8 @@ code and preserve check/native behavior for the named customer slices.
   `parameters::lower_structural_arguments` and again by
   `ScalarBindings`/`scalar_computations/structural_arguments.rs`; the path
   step (`prepare_structural_argument_path`) is already shared. Stage 04
-  builds every `CheckedUnitCallPlan` through `build_call_operation`; the
-  scalar graph (`terminal_scalar/mod.rs` `DirectCall` bindings) and scalar
+  builds every `CheckedUnitCallPlan` through `build_call_operation`; scalar
+  binding prefixes (`terminal_scalar/mod.rs` `DirectCall` bindings) and scalar
   computations (`CheckedScalarComputationKind::Call`) keep their own call
   records. Make one argument preparation and one call emitter, keeping the
   real boundary versus machine and result-kind distinctions.
@@ -2656,43 +2654,20 @@ code and preserve check/native behavior for the named customer slices.
   for the callee's Unit-body exit. Coordinate operator returns with
   **OPERATOR-BOUNDARY-CALLS**.
 
-- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Stage 05 lowers every
-  scalar machine through its Unit or composed body; the graph lowering route
-  is deleted and `machine_dispatch.rs` picks the scalar-entry closure by the
-  ordinary body's scalar completion. Delete the stage 04 graph builder
-  `execution/terminal_scalar/` (3.6k lines) and `CheckedScalarGraphPlans`
-  once nothing reads `facts.flow.terminal_scalar_graphs`, and rename
-  `05_.../src/scalar_graph/`, whose 10k remaining lines (computation
-  expansion, contracts, effects, scalar call lowering) all serve Unit
-  bodies. Remaining readers (paths under `04_.../src` and `05_.../src`):
-  - `proofs/float_meaning_projection.rs` maps a nested state's parameter to
-    a Terminal block by its position in the graph states plus the machine's
-    lowest block; the composed emitter allocates state blocks densely in
-    plan order but first allocates an invocation block when the entry is
-    re-entered, so the rule needs the emitter's state-to-block mapping;
-  - `terminal_scalar/mod.rs::build_checked_terminal_machine_selections`
-    exempts a machine with `graph.ranked_scc` from the older rank checks,
-    before Unit plans exist; ranked loops should use the general rank plans
-    and retire `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne`,
-    with a fixture for resumable (fuel-suspended) ranked execution. Making
-    more machines eligible changes which stage reports their failure, so
-    gate the fail fixtures' expected fragments.
+- **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Neither stage has a scalar
+  graph: stage 05 lowers every scalar machine through its Unit or composed
+  body, and stage 04 builds no graph plans. Left:
+  - rename `05_.../src/scalar_graph/`, whose 10k lines (computation
+    expansion, contracts, effects, scalar call lowering) all serve Unit
+    bodies;
+  - a composed state keeps a `mut` scalar formal as an SSA value in its
+    binding prefix, so it refuses the formal's later stores and borrows;
+    give it the entry storage an ordinary body takes from
+    `CheckedUnitParameterStoragePlan`.
 
-  Also account for continuation-arm custody
-  (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),
-  later-state mutable scalar stores (a composed state keeps a `mut` scalar
-  formal as an SSA value in its binding prefix, so it refuses the formal's
-  later stores and borrows; give it the entry storage an ordinary body
-  takes from `CheckedUnitParameterStoragePlan`), crash predicates and float
-  prefix initializers. The terminator and binding helpers and the plan
-  types the Unit plans embed (`CheckedScalarStateTerminator`,
-  `CheckedScalarGuardedExit`, `CheckedScalarBinding`) survive the builder.
-
-  Acceptance: no stage reads `terminal_scalar_graphs`; distinct
-  exits returning 20 and 30 under `ensures result >= 20` still hold;
-  constant-stack mutual tail fusion and `pass/calls/mutual_cycle_tail_admitted_exit`
-  (exit 70) still hold; and the full check corpus and the native corpus are
-  unchanged.
+  Acceptance: no stage 05 module is named for a scalar graph; a composed
+  machine whose later state assigns and borrows a `mut` scalar formal runs
+  natively; the full check corpus and the native corpus are unchanged.
 
 - **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 still builds nominal
   cleanup twice: the Unit candidates pass in

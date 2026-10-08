@@ -95,7 +95,6 @@
 //! its two RUN siblings execute natively (canary_suite layouts_and_pending
 //! erased_parameter_* tests).
 
-use crate::execution::terminal_unit::calls::free_structural_scalar_signature;
 use crate::execution::terminal_unit::cleanup::build_nominal_affine_unit_cleanup_machine;
 use crate::execution::terminal_unit::control::{
     LocalConstructionTrace, build_boundary_machine, build_checked_machine_traced,
@@ -170,11 +169,12 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
+pub(crate) use state_graph::fused_countdown_ranks;
 pub(crate) use types::{is_reference, strips_erased_parameter};
 
 /// Present when the planning pass ends in the candidate closure, which
-/// resolves each scalar call to its callee's scalar graph or ordinary
-/// scalar-result body. A pass without it (provider settlement) has no closure
+/// resolves each scalar call to its callee's composed or ordinary
+/// scalar-result Unit body. A pass without it (provider settlement) has no closure
 /// to defer to and admits only callees it can settle itself.
 #[derive(Clone, Copy)]
 pub(crate) struct ScalarCalleeClosure;
@@ -1011,157 +1011,6 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
 
 // Shape and signature admission shared by the plan builders above.
 
-/// Whether a state's authored parameters fit the scalar graph's structural
-/// carrier contract: owned plain contents, closed primitive arrays, borrowed
-/// slices, and named borrowed referees carry; anything else keeps the state
-/// off the graph.
-pub(crate) fn structural_scalar_graph_parameter_admission(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-) -> bool {
-    !program.state_parameters(state).iter().any(|parameter| {
-        if parameter.relevance.is_erased() {
-            return false;
-        }
-        // Numeric constraints retain their separate scalar contract owner;
-        // they do not qualify an owned structural carrier.
-        if program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
-            return !validation::has_contents(
-                program,
-                parameter.type_reference,
-                validation::ContentsRequirement::NumericOwned,
-            );
-        }
-        // Whole array payloads include empty dimensions. Their exact recursive
-        // type, not the nominal owned-storage classifier below, admits copying.
-        if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
-            return parameter.is_mutable;
-        }
-        let reference = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference {
-                access, referee, ..
-            } => {
-                // A borrowed slice view is a structural carrier in its own
-                // right: its extent is a stored runtime length, not a
-                // declared bound, so the referent stays outside the owned
-                // payload admission this signature applies to plain data.
-                if matches!(
-                    program.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Slice { .. }
-                ) {
-                    return false;
-                }
-                // A borrowed fixed primitive array is a bounded-view carrier:
-                // the referent stays caller-owned and the graph forwards the
-                // same borrow on each re-entry edge.
-                if validation::is_closed_primitive_array_type(program, *referee) {
-                    return false;
-                }
-                // Borrowed records carry caller-owned storage, not an owned
-                // payload. Signature construction validates their exact shape
-                // and access; successor replay retains the same loan. In
-                // particular a Binding field does not prevent lending the
-                // record: its provider receipt remains in the shape catalog,
-                // and this signature grants no construction or copy authority.
-                if program.primitive_type_reference(*referee).is_none() {
-                    let TypeReferenceNode::Named { symbol, .. } =
-                        program.type_reference_table.type_reference(*referee)
-                    else {
-                        return true;
-                    };
-                    let Some(data) = program
-                        .data_definitions()
-                        .iter()
-                        .find(|data| data.symbol == *symbol)
-                    else {
-                        return true;
-                    };
-                    if !matches!(
-                        access,
-                        language_semantics::ReferenceAccess::Shared
-                            | language_semantics::ReferenceAccess::Mutable
-                    ) || !matches!(
-                        typed_trees::data::DataDefinition::shape_kind_from_members(
-                            program.data_members(data)
-                        ),
-                        DataShapeKind::Empty | DataShapeKind::Record
-                    ) {
-                        return true;
-                    }
-                }
-                *referee
-            }
-            _ => {
-                if parameter.is_mutable
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-                {
-                    return true;
-                }
-                // A record whose non-plain leaves are exactly its stored
-                // loans (`Indirect { target: &mut Wrap; }`) rides the same
-                // owned-carrier lane: the edge transfers the whole value, so
-                // each captured loan keeps its checked ingress instead of
-                // minting fresh borrow authority.
-                if !validation::has_contents(
-                    program,
-                    parameter.type_reference,
-                    validation::ContentsRequirement::NumericOwned,
-                ) && !validation::reference_result_custody::is_reference_record(
-                    program,
-                    parameter.type_reference,
-                ) {
-                    return true;
-                }
-                parameter.type_reference
-            }
-        };
-        !matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
-        )
-    })
-}
-
-/// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
-pub(super) fn structural_scalar_graph_signature(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-    Vec<CheckedUnitStructuralTypePlan>,
-)> {
-    if !structural_scalar_graph_parameter_admission(program, state) {
-        return None;
-    }
-    let mut shapes = ShapeCollector::new(program);
-    let (structural, scalar) = free_structural_scalar_signature(program, &mut shapes, state, &[])?;
-    if structural.iter().any(|parameter| {
-        !matches!(
-            (parameter.access, parameter.multiplicity),
-            (_, Multiplicity::Unrestricted)
-                | (
-                    CheckedStructuralAccess::Owned
-                        | CheckedStructuralAccess::SharedBorrow
-                        | CheckedStructuralAccess::MutableBorrow
-                        | CheckedStructuralAccess::WriteOnlyBorrow,
-                    Multiplicity::Affine
-                )
-        ) || !parameter.qualifications.is_empty()
-    }) {
-        return None;
-    }
-    Some((structural, scalar, shapes.types.into_values().collect()))
-}
-
 /// A computed structural operand owns its storage vocabulary independently of
 /// source parameters. Access and evaluation remain with its operation plan.
 pub(super) fn scalar_operand_shapes(
@@ -1183,47 +1032,6 @@ pub(super) fn scalar_case_value_shapes(
     // A primitive result owns no structural value shape.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } =
         state_graph::returns::signature(program, &mut shapes, reference)?
-    {
-        return None;
-    }
-    Some(shapes.types.into_values().collect())
-}
-
-/// Scalar control retains complete fresh-record storage in the same declaration
-/// namespace as the ordinary structural value emitter, including nested bounds.
-pub(super) fn scalar_graph_record_shapes(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
-    if !validation::has_contents(
-        program,
-        reference,
-        validation::ContentsRequirement::NumericOwned,
-    ) || !matches!(
-        program.type_multiplicity(reference),
-        Multiplicity::Affine | Multiplicity::Unrestricted
-    ) || !matches!(
-        program.type_reference_table.type_reference(reference),
-        TypeReferenceNode::Named { .. }
-    ) {
-        return None;
-    }
-    let mut shapes = ShapeCollector::new(program);
-    shapes.add_type(reference, &[], &[])?;
-    if !shapes.domains.is_empty()
-        || !shapes.types.values().all(|declaration| {
-            matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields, .. }
-            if fields.iter().all(|field| {
-                if field.relevance.is_erased() {
-                    matches!(field.field_type, CheckedUnitStructuralFieldType::Erased { .. })
-                } else {
-                    matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
-                        | CheckedUnitStructuralFieldType::BoundedInteger(_)
-                        | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-                        | CheckedUnitStructuralFieldType::Structural { .. })
-                }
-            }))
-        })
     {
         return None;
     }

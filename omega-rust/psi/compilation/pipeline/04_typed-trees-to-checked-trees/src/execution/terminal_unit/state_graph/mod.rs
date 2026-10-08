@@ -76,12 +76,37 @@ pub(super) fn result_plan(
     .then_some(result)
 }
 
+/// Whether the composed body of `machine` ranks a cycle spelled through
+/// sibling machines' entries by the fused countdown judgment: its fused
+/// roster reaches beyond its own states and the judgment proves a component
+/// over it. Terminal machine selection asks this before any plan exists, so
+/// a machine ranked that way is not vetoed by the machine-local recognizers,
+/// which cannot see the cycle.
+pub(crate) fn fused_countdown_ranks(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let fused = fused_states(program, machine);
+    fused.len() != program.machine_states(machine).len()
+        && crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
+            program,
+            &fused
+                .iter()
+                .map(|(_, state)| state.symbol)
+                .collect::<Vec<_>>(),
+            call_frames,
+        )
+        .is_some_and(|ranks| !ranks.is_empty())
+}
+
 /// Project the shared runtime rank judgment onto a fused roster: the one
 /// runtime component whose states all lie in `members` ranks each of its
 /// states by its measured unsigned parameter, and its non-strict edges are
 /// the graph's preserving rank edges. The judgment has already proved every
-/// edge of the component; the scalar graph projects it the same way
-/// (`terminal_scalar/ranking.rs`).
+/// edge of the component, and the terminal machine selection exempts a
+/// machine it covers from the legacy machine-local rank recognizers
+/// (`terminal_scalar::build_checked_terminal_machine_selections`).
 fn runtime_component_ranks(
     program: &dyn ::validation::CheckingInput,
     members: &[symbols::SymbolHandle],
@@ -179,8 +204,7 @@ pub(super) fn build_traced(
     // actions. Plan its graph here; the shared candidate selection keeps one
     // body when the ordinary sequence also supplies a complete implementation.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
-        // A scalar graph does not own the body: stage 05 lowers this Unit body
-        // whenever it exists and falls back to the graph only without one.
+        // This Unit body is the one lowering of a scalar-result state graph.
         // A result guarantee (`ensures`, a closed result range) is the
         // machine's normal-return obligation, published on its contract and
         // proved at its exits, exactly as for an ordinary single-state body.
@@ -215,6 +239,8 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: natural ranks");
+    // Keep `fused_countdown_ranks` in step with this choice: terminal machine
+    // selection asks it before any plan exists.
     let mut preserving_rank_edges = Vec::new();
     let natural_ranks = if fused.len() != states.len()
         && fused

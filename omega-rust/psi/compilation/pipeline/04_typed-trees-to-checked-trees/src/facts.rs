@@ -306,21 +306,10 @@ pub(crate) fn build_check_facts(
         &values.scalar_expressions,
         &values.scalar_computations,
     );
-    flow.terminal_scalar_graphs =
-        crate::execution::terminal_scalar::build_checked_scalar_graph_plans_with_call_frames(
-            program,
-            &values.scalar_expressions,
-            &values.scalar_computations,
-            &values.structural_values,
-            &values.proof_terms,
-            call_frames.as_ref(),
-            &operators,
-        );
     flow.terminal_machines =
         crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
             program,
             call_frames.as_ref(),
-            &flow.terminal_scalar_graphs,
         );
     flow.terminal_debug =
         crate::execution::terminal_debug::build_checked_terminal_debug_plans(program);

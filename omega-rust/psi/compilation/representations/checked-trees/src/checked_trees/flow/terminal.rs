@@ -1,7 +1,8 @@
 //! Checked terminal plans: the plan carriers every terminal machine kind
 //! produces for lowering.
 //!
-//! `terminal_selections.rs` selects machines, `scalar_graph_plans.rs`,
+//! `terminal_selections.rs` selects machines, `scalar_state_plans.rs`
+//! carries a state's scalar bindings, terminator and guarded exits,
 //! `structural_control_plans.rs` and `composed_unit_control_plans.rs` carry
 //! control graphs, `structural_return.rs` carries a Unit body's structural result,
 //! `structural_type_plans.rs` and `structural_argument_plans.rs` carry
@@ -20,7 +21,7 @@ mod boundary_machine_plans;
 mod composed_unit_control_plans;
 mod dynamic_slot_plans;
 mod result_binding_plans;
-mod scalar_graph_plans;
+mod scalar_state_plans;
 mod structural_argument_plans;
 mod structural_control_plans;
 mod structural_return;
@@ -60,12 +61,10 @@ pub use result_binding_plans::{
     CheckedRepresentationViewStorePlan, CheckedStructuralByteSequenceFieldByteStorePlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
 };
-pub use scalar_graph_plans::{
-    CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
-    CheckedScalarBranchDestination, CheckedScalarGraphPlans, CheckedGuardedExitPlans, CheckedScalarGuardedExit,
-    CheckedScalarGuardedTail, CheckedScalarMachineGraph, CheckedScalarParameterStorage,
-    CheckedScalarPrimitiveLocalPlan, CheckedScalarStateGraph, CheckedScalarStateTerminator,
-    CheckedScalarSuccessor,
+pub use scalar_state_plans::{
+    CheckedGuardedExitPlans, CheckedScalarBinding, CheckedScalarBindingDestination,
+    CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedScalarGuardedTail, CheckedScalarStateTerminator, CheckedScalarSuccessor,
 };
 pub use structural_argument_plans::{
     CheckedCallScalarArgument, CheckedReferenceStorage, CheckedStructuralScalarParameterPlan,
@@ -76,8 +75,6 @@ pub use structural_control_plans::{
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
     CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
-    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
-    CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};

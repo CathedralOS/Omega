@@ -1,5 +1,4 @@
-//! Structural control plans: cleanup edges, ranked strongly connected
-//! components and control transfers.
+//! Structural control plans: cleanup edges and control transfers.
 
 use crate::checked_trees::flow::terminal::{
     CheckedOperandSequence, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
@@ -59,59 +58,6 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     /// terminal producer resolves these positions against its independently
     /// checked structural signature before assigning terminal `PlaceId`s.
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
-}
-
-/// One canonical Nat-descending component. Bounds are the exact unsigned
-/// carrier bounds, not authored text. Each retained edge names the checked
-/// transition coordinate and either its direct countdown proof or the
-/// runtime component judgment's strict/nonincreasing comparison.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralRankedSccPlan {
-    pub header_state: SymbolHandle,
-    pub rank_scalar_parameter_index: u32,
-    pub rank_primitive_type: PrimitiveType,
-    pub rank_lower_bound: u128,
-    pub rank_upper_bound: u128,
-    pub covered_cyclic_edges: Vec<CheckedStructuralRankedSccEdgePlan>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CheckedStructuralRankedSccEdgePlan {
-    pub source_state: SymbolHandle,
-    pub target_state: SymbolHandle,
-    pub statement_ordinal: u32,
-    pub guard: CheckedStructuralRankedGuardPlan,
-    pub successor_argument: CheckedStructuralRankedArgumentPlan,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedStructuralRankedGuardPlan {
-    /// The runtime component judgment proved this edge under its exact
-    /// authored premises, not necessarily a syntactic positive guard.
-    SourceRankingJudgment,
-    UnsignedParameterPositive {
-        scalar_parameter_index: u32,
-        primitive_type: PrimitiveType,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedStructuralRankedArgumentPlan {
-    /// Exact natural rank lanes compared by the runtime component judgment.
-    /// `strict = false` means nonincrease, not an assertion of equality.
-    UnsignedParameterComparison {
-        argument_ordinal: u32,
-        source_scalar_parameter_index: u32,
-        target_scalar_parameter_index: u32,
-        primitive_type: PrimitiveType,
-        strict: bool,
-    },
-    UnsignedParameterMinusOne {
-        argument_ordinal: u32,
-        source_scalar_parameter_index: u32,
-        target_scalar_parameter_index: u32,
-        primitive_type: PrimitiveType,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

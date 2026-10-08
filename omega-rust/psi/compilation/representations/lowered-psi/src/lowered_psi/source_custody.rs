@@ -187,3 +187,14 @@ pub struct LoweredSourceCallOccurrence {
     /// this lowering route does not expose an exact scalar frontier mapping.
     pub source_values_before_call: Vec<ValueDeclaration>,
 }
+
+/// The header block one emitted state graph state took. Like a call
+/// occurrence it is an ephemeral source-to-Terminal join: consumers read it
+/// while both representations are available, instead of inferring the block
+/// from the state's position in some roster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredStateBlock {
+    pub machine: MachineId,
+    pub state: symbols::SymbolHandle,
+    pub block: BlockId,
+}

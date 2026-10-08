@@ -11,16 +11,6 @@ pub(crate) fn finalize_execution(
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
     crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
-    // Finalize the discovered graph shapes against completed ownership facts.
-    crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans(
-        program,
-        &facts.flow.ownership,
-        &facts.flow.control,
-        &facts.values.scalar_computations,
-        &facts.values.structural_values,
-        &mut facts.flow.terminal_scalar_graphs,
-    );
-
     // This plan must be assembled only after multiplicity and carry checking:
     // their ownership events and claim policies are the authority for the
     // structural/Unit terminal slice.

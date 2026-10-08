@@ -1,8 +1,8 @@
 //! Whether an authored two-guard tail needs no fallback because its second
-//! guard holds exactly where the first fails. The Unit and scalar graph
-//! producers both ask this of the selected Guard rows, through the one
-//! predicate in `checked_trees::values::guard_complement`, so both graph
-//! families admit the same guard pairs.
+//! guard holds exactly where the first fails. Unit planning and the guarded
+//! exit plans both ask this of the selected Guard rows, through the one
+//! predicate in `checked_trees::values::guard_complement`, so both admit the
+//! same guard pairs.
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionPlans,

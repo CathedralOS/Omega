@@ -37,6 +37,7 @@ pub(crate) fn retain_float_meanings(
                 &lowered.semantic_module.machines,
                 &lowered.semantic_module.structural_types,
                 &lowered.source_call_occurrences,
+                &lowered.state_blocks,
                 projection.clone(),
             )?;
             lower_float_meaning_projection(projection, direct_source)

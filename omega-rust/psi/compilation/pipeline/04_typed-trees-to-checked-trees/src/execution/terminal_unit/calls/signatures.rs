@@ -316,8 +316,8 @@ fn structural_scalar_signature_with_storage(
     ))
 }
 
-/// A scalar graph's explicit parameters and the structural shapes they require.
-pub(crate) fn ambient_self_scalar_graph_signature(
+/// A scalar body's explicit parameters and the structural shapes they require.
+pub(crate) fn ambient_self_scalar_signature(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

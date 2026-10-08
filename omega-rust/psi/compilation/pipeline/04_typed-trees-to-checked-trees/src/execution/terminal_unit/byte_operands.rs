@@ -44,7 +44,7 @@ pub(crate) fn plan(
         return Some(subject);
     }
     let parameters = if machine.attached_data.is_some() {
-        calls::ambient_self_scalar_graph_signature(program, machine, state)?.0
+        calls::ambient_self_scalar_signature(program, machine, state)?.0
     } else {
         calls::free_structural_scalar_signature(
             program,

@@ -36,6 +36,8 @@ pub(in crate::unit::attached_unit) struct ComposedOccurrences {
         Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
     pub(in crate::unit::attached_unit) source_checked_obligations:
         Vec<semantic_vocabulary::ObligationId>,
+    /// The header block of each live state, in plan order.
+    pub(in crate::unit::attached_unit) state_blocks: Vec<lowered_psi::LoweredStateBlock>,
 }
 
 impl ComposedOccurrences {

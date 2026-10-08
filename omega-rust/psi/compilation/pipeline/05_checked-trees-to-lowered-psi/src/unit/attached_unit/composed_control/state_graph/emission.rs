@@ -437,7 +437,19 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         entry_reentered,
         &state_views,
     )?;
-    let occurrences = super::super::ComposedOccurrences::default();
+    let mut occurrences = super::super::ComposedOccurrences::default();
+    occurrences.state_blocks = plan
+        .states
+        .iter()
+        .zip(&state_ids)
+        .zip(&admitted.live)
+        .filter(|(_, live)| **live)
+        .map(|((state, block), _)| lowered_psi::LoweredStateBlock {
+            machine: terminal_machine,
+            state: state.state,
+            block: *block,
+        })
+        .collect();
     let block_ranks = std::collections::BTreeMap::new();
     let rank_edges = std::collections::BTreeMap::new();
     let mut emission = StateGraphEmission {

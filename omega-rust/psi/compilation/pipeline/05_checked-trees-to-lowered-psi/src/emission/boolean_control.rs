@@ -215,7 +215,6 @@ pub(crate) fn boolean_decision_block_count(decision: &LoweredBooleanDecision) ->
 /// dispatch, plus the entry block each case edge takes into an outcome that is
 /// not its own reserved test: the selected case's into a shared successor, and
 /// every unselected case's into the false outcome.
-
 pub(crate) fn boolean_guard_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
     match decision {
         LoweredBooleanDecision::Value(_) => 0,
@@ -734,4 +733,3 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         .truncate(incoming_field_lengths);
     block
 }
-

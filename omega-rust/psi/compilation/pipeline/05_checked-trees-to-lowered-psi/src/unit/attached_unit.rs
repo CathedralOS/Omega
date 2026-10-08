@@ -394,6 +394,7 @@ pub(crate) fn lower_unit_closure(
             occurrences
                 .source_checked_obligations
                 .extend(composed.source_checked_obligations);
+            occurrences.state_blocks.extend(composed.state_blocks);
             scalar_block_invariants.append(&mut invariants);
             scalar_qualification_coercions.append(&mut coercions);
             continue;
@@ -510,6 +511,7 @@ pub(crate) fn lower_unit_closure(
         source_call_occurrences: occurrences.source_calls,
         selected_ieee_float_comparison_occurrences: occurrences.ieee_float_comparisons,
         selected_integer_comparison_occurrences: occurrences.integer_comparisons,
+        state_blocks: occurrences.state_blocks,
     };
     crate::producer_result::SourceMappedLowered::new(lowered, machine_ids)
 }
@@ -524,6 +526,7 @@ struct ClosureOccurrences {
     ieee_float_comparisons: Vec<lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence>,
     integer_comparisons: Vec<lowered_psi::LoweredSelectedIntegerComparisonOccurrence>,
     source_checked_obligations: Vec<semantic_vocabulary::ObligationId>,
+    state_blocks: Vec<lowered_psi::LoweredStateBlock>,
 }
 
 impl ClosureOccurrences {

@@ -5,6 +5,7 @@ pub use source_custody::{
     CallbackTerminalLoweringReceipt, LoweredSelectedIeeeFloatComparisonOccurrence,
     LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
     LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence, LoweredSourceCallSite,
+    LoweredStateBlock,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 
@@ -39,6 +40,9 @@ pub struct LoweredPsi {
     /// are joined through these rows before the source companions are gone;
     /// Publication discards them; native settlement reads canonical demands.
     pub selected_integer_comparison_occurrences: Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    /// Ephemeral joins from each emitted state graph state to its header
+    /// block. Proof publication reads them; Omega does not.
+    pub state_blocks: Vec<LoweredStateBlock>,
 }
 
 impl LoweredPsi {
