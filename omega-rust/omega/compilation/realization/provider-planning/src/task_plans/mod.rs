@@ -33,7 +33,6 @@ use crate::task_plans::start_selections::{exact_task_activation_target, task_sta
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use task_plans::{
     ActivationPlanCandidate, CallingPlanId, MachineContractId, MachineEntryId,
@@ -222,25 +221,6 @@ pub fn elaborate_task_activation_plans(
     Ok(TaskActivationPlanSet { activations })
 }
 
-/// Derive and commit the complete compiler-owned task-activation sidecar.
-/// The checked program and selected providers remain shared read-only inputs;
-/// a failed derivation leaves the previously retained sidecar unchanged.
-pub fn settle_task_activation_plans(
-    retained: &mut Arc<TaskActivationPlanSet>,
-    program: &CheckedTrees,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-    target: NativeTarget,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-) -> Result<(), Vec<Diagnostic>> {
-    let task_activations = elaborate_task_activation_plans(
-        program,
-        selected_provider_plans,
-        target,
-        opaque_representation_selections,
-    )?;
-    *retained = Arc::new(task_activations);
-    Ok(())
-}
 
 fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
     let mut hash = StableHash::new();

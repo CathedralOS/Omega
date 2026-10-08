@@ -58,32 +58,6 @@ impl CheckedX86ScalarFmaPlanAssociation {
         self.admitted_provider
     }
 
-    /// Rejoin this association to the exact selected closure and provider.
-    /// Future native lowering must use this predicate or consume the complete
-    /// checked compilation rather than trusting compact plan coordinates.
-    pub fn matches_checked_inputs(
-        &self,
-        selected: &effects::SelectedProviderPlanFacts,
-        admitted_provider: AdmittedX86ScalarFmaProvider,
-    ) -> bool {
-        let expected_requirement = X86FeatureRequirement::scalar_fma(admitted_provider.profile());
-        admitted_provider == self.admitted_provider
-            && admitted_provider.has_canonical_identity()
-            && expected_requirement == Some(admitted_provider.requirement())
-            && admitted_provider.admits(admitted_provider.requirement(), self.slot)
-            && slot_for_builtin(self.selected_builtin) == Some(self.slot)
-            && self.selected_plan.target == admitted_provider.profile().target_name()
-            && matches!(
-                self.selected_plan.rows.as_slice(),
-                [row] if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. })
-            )
-            && selected
-                .plan_by_exact_evidence(
-                    self.selected_plan.report_fingerprint(),
-                    &self.selected_plan,
-                )
-                .is_some()
-    }
 }
 
 pub fn bind_checked_x86_scalar_fma_plan_associations(
