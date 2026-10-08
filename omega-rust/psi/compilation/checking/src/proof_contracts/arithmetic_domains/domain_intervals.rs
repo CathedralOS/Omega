@@ -157,7 +157,6 @@ fn self_predicate_bounds(
     indices: &[(symbols::SymbolHandle, numerics::bignum::BigInt)],
     bound: &mut impl FnMut(Option<numerics::bignum::BigInt>, Option<numerics::bignum::BigInt>),
 ) -> bool {
-    use numerics::bignum::BigInt;
     use typed_trees::expression::BinaryOperator;
     if !crate::has_builtin_domain_decomposed_guard_meaning(program, definition, expression) {
         return false;
@@ -200,27 +199,38 @@ fn self_predicate_bounds(
     }) else {
         return false;
     };
-    let one = BigInt::from_i64(1);
-    // `self OP value` when the subject is on the left; otherwise the mirrored
-    // reading of `value OP self`.
-    let (low, high) = match (binary.operator, subject_on_left) {
-        (BinaryOperator::LessOrEqual, true) | (BinaryOperator::GreaterOrEqual, false) => {
-            (None, Some(value))
-        }
-        (BinaryOperator::Less, true) | (BinaryOperator::Greater, false) => {
-            (None, Some(value.sub(&one)))
-        }
-        (BinaryOperator::GreaterOrEqual, true) | (BinaryOperator::LessOrEqual, false) => {
-            (Some(value), None)
-        }
-        (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
-            (Some(value.add(&one)), None)
-        }
-        (BinaryOperator::Equal, _) => (Some(value.clone()), Some(value)),
-        _ => return false,
+    let Some((low, high)) =
+        closed_interval_from_comparison(binary.operator, subject_on_left, value)
+    else {
+        return false;
     };
     bound(low, high);
     true
+}
+
+/// The closed bounds one comparison states: `subject OP value` when the
+/// subject is on the left, the mirrored reading otherwise. `!=` and the
+/// non-comparison operators bound nothing closed.
+pub fn closed_interval_from_comparison(
+    operator: typed_trees::expression::BinaryOperator,
+    subject_on_left: bool,
+    value: numerics::bignum::BigInt,
+) -> Option<(
+    Option<numerics::bignum::BigInt>,
+    Option<numerics::bignum::BigInt>,
+)> {
+    use numerics::bignum::BigInt;
+    use typed_trees::expression::BinaryOperator as Op;
+    let one = BigInt::from_i64(1);
+    let (low, high) = match (operator, subject_on_left) {
+        (Op::LessOrEqual, true) | (Op::GreaterOrEqual, false) => (None, Some(value)),
+        (Op::Less, true) | (Op::Greater, false) => (None, Some(value.sub(&one))),
+        (Op::GreaterOrEqual, true) | (Op::LessOrEqual, false) => (Some(value), None),
+        (Op::Greater, true) | (Op::Less, false) => (Some(value.add(&one)), None),
+        (Op::Equal, _) => (Some(value.clone()), Some(value)),
+        _ => return None,
+    };
+    Some((low, high))
 }
 
 /// Bind the declaration's static telescope without consulting runtime values

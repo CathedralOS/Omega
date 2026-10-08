@@ -134,23 +134,9 @@ fn comparison_bound_with_operator(
 /// The interval one comparison states, with the unconstrained side left at the
 /// carrier-independent extreme.
 fn endpoints(operator: BinaryOperator, subject_on_left: bool, value: BigInt) -> (BigInt, BigInt) {
-    let one = BigInt::from_i64(1);
-    let (low, high) = match (operator, subject_on_left) {
-        (BinaryOperator::LessOrEqual, true) | (BinaryOperator::GreaterOrEqual, false) => {
-            (None, Some(value))
-        }
-        (BinaryOperator::Less, true) | (BinaryOperator::Greater, false) => {
-            (None, Some(value.sub(&one)))
-        }
-        (BinaryOperator::GreaterOrEqual, true) | (BinaryOperator::LessOrEqual, false) => {
-            (Some(value), None)
-        }
-        (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
-            (Some(value.add(&one)), None)
-        }
-        (BinaryOperator::Equal, _) => (Some(value.clone()), Some(value)),
-        _ => (None, None),
-    };
+    let (low, high) =
+        ::validation::closed_interval_from_comparison(operator, subject_on_left, value)
+            .unwrap_or((None, None));
     (
         low.unwrap_or_else(|| BigInt::from_i64(i64::MIN)),
         high.unwrap_or_else(|| BigInt::from_i64(i64::MAX)),

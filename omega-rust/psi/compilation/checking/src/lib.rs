@@ -47,8 +47,8 @@ pub use machine_calls::structural_call_custody::{
     structural_state_contract_scalar_predicates, view_result_carrier_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
-    declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
-    exact_declared_domain_interval,
+    closed_interval_from_comparison, declared_domain_predicate_bounds,
+    exact_declared_domain_carrier_interval, exact_declared_domain_interval,
 };
 pub use proof_contracts::collection_predicates::premises_prove_expression;
 pub use proof_contracts::contract_results::{
