@@ -140,15 +140,7 @@ mod tests {
             content_partition_compositions: Vec::new(),
             entry: BlockId::new(1).expect("entry"),
             blocks: Vec::new(),
-            contract: MachineContract {
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                id: ContractId::new(1).expect("contract"),
-                crash_routes: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
+            contract: terminal_psi::MachineContract::empty(ContractId::new(1).expect("contract")),
         };
         let abi = MixedStructuralScalarFunctionAbi {
             scalar_parameters: vec![ScalarAbiValue {

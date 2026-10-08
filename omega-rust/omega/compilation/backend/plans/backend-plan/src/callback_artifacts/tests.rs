@@ -70,15 +70,9 @@ fn machine(id: u64, entry_block: u64) -> terminal_psi::TerminalMachine {
         content_partition_compositions: Vec::new(),
         entry: semantic_vocabulary::BlockId::new(entry_block).expect("nonzero block id"),
         blocks: vec![block(entry_block)],
-        contract: terminal_psi::MachineContract {
-            id: semantic_vocabulary::ContractId::new(id).expect("nonzero contract id"),
-            crash_routes: Vec::new(),
-            erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
-            requires: Vec::new(),
-            ensures: Vec::new(),
-            outcome_specific_ensures: Vec::new(),
-        },
+        contract: terminal_psi::MachineContract::empty(
+            semantic_vocabulary::ContractId::new(id).expect("nonzero contract id"),
+        ),
     }
 }
 

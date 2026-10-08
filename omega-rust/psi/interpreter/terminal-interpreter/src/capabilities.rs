@@ -288,15 +288,9 @@ mod tests {
             published_service_ceiling: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
-            contract: terminal_psi::MachineContract {
-                id: semantic_vocabulary::ContractId::new(1).unwrap(),
-                crash_routes: Vec::new(),
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
+            contract: terminal_psi::MachineContract::empty(
+                semantic_vocabulary::ContractId::new(1).unwrap(),
+            ),
         }
     }
 

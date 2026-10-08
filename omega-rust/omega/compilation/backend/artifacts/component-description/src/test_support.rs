@@ -62,15 +62,9 @@ pub fn bare_module() -> TerminalModule {
                     cleanup_actions: Vec::new(),
                 },
             }],
-            contract: MachineContract {
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                id: ContractId::new(1).expect("contract identity"),
-                crash_routes: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
+            contract: terminal_psi::MachineContract::empty(
+                ContractId::new(1).expect("contract identity"),
+            ),
         }],
         ..TerminalModule::for_entry(machine_id(1))
     }

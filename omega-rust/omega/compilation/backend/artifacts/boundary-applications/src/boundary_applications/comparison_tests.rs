@@ -50,15 +50,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
                     cleanup_actions: Vec::new(),
                 },
             }],
-            contract: MachineContract {
-                id: ContractId::new(1).unwrap(),
-                crash_routes: Vec::new(),
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
+            contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
         }],
         ..TerminalModule::for_entry(machine)
     }

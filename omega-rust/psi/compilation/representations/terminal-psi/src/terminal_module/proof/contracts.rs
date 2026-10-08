@@ -25,6 +25,21 @@ pub struct MachineContract {
     pub outcome_specific_ensures: Vec<OutcomeSpecificEnsure>,
 }
 
+impl MachineContract {
+    /// A contract with no obligations: every roster empty.
+    pub fn empty(id: ContractId) -> Self {
+        Self {
+            id,
+            crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        }
+    }
+}
+
 /// Exact nominal result-case guard for one semantic guarantee row.
 ///
 /// This is independent from the proposition and evidence-term identities. It
