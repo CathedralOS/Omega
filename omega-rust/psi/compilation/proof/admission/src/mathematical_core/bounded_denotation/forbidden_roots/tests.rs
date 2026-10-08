@@ -4,12 +4,11 @@
 
 use std::collections::BTreeSet;
 
-use super::super::Elaboration;
+use super::super::{Elaboration, verify_bounded_certificate_on_current_thread};
 use super::Law;
 use crate::{
     Budget, CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
     IntegerCorrelatedForbiddenRootWitness, ProofError, ProofNode, ProofRule,
-    verify_bounded_certificate_with_machine_parameters,
 };
 use semantic_vocabulary::{
     IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,
@@ -277,7 +276,7 @@ fn negative_multiplier_fixture() -> Fixture {
 /// only the fixed law roster, interned numeral equations and the cited
 /// premises/axioms close the assumption set.
 fn check(fixture: &Fixture, laws: &[Law]) {
-    verify_bounded_certificate_with_machine_parameters(
+    verify_bounded_certificate_on_current_thread(
         &fixture.context,
         &fixture.goal,
         &fixture.premises,
@@ -477,7 +476,7 @@ fn forbidden_roots_rejects_mutated_conclusion() {
         },
     };
     assert!(matches!(
-        verify_bounded_certificate_with_machine_parameters(
+        verify_bounded_certificate_on_current_thread(
             &fixture.context,
             &proof.conclusion,
             &fixture.premises,
@@ -509,7 +508,7 @@ fn forbidden_roots_rejects_mutated_witness() {
         rule: ProofRule::IntegerCorrelatedForbiddenRoots { witness: drifted },
     };
     assert!(
-        verify_bounded_certificate_with_machine_parameters(
+        verify_bounded_certificate_on_current_thread(
             &fixture.context,
             &fixture.goal,
             &fixture.premises,
