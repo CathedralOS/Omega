@@ -81,17 +81,8 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_call_structural_scalar")
         };
         let result = operation.result.scalar().ok_or(malformed())?;
-        let scalar_arguments = arguments
-            .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        let (scalar_arguments, prepared_arguments) =
+            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
         self.begin_structural_scalar_call(
             callee,
             result,
@@ -160,17 +151,8 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let callee = catalog.row(table, slot).ok_or(malformed())?;
-        let scalar_arguments = arguments
-            .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        let (scalar_arguments, prepared_arguments) =
+            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
         match operation.result {
             terminal_psi::OperationResult::Unit => self.begin_unit_call(
                 callee,
@@ -235,17 +217,8 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_call_structural_with_scalar_arguments")
         };
         let result = operation.result.structural().cloned().ok_or(malformed())?;
-        let scalar_arguments = arguments
-            .iter()
-            .map(|argument| {
-                self.values
-                    .get(argument)
-                    .copied()
-                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let prepared_arguments =
-            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        let (scalar_arguments, prepared_arguments) =
+            self.resolve_call_arguments(callee, arguments, structural_arguments)?;
         self.begin_structural_result_call(
             callee,
             result,

@@ -10,8 +10,8 @@ use crate::custody::bind_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
-use crate::values::{TerminalScalarCaseValue, TerminalStructuralValue};
-use semantic_vocabulary::{MachineId, PlaceId};
+use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use semantic_vocabulary::{MachineId, PlaceId, ValueId};
 use std::collections::BTreeMap;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -64,6 +64,28 @@ impl StructuralCallArguments {
 }
 
 impl TerminalExecution<'_> {
+    /// Resolves the scalar argument values and prepares the structural
+    /// arguments for one call site.
+    pub(crate) fn resolve_call_arguments(
+        &self,
+        callee: MachineId,
+        arguments: &[ValueId],
+        structural_arguments: &[StructuralArgument],
+    ) -> Result<(Vec<TerminalScalarValue>, StructuralCallArguments), TerminalInterpretError> {
+        let scalar_arguments = arguments
+            .iter()
+            .map(|argument| {
+                self.values
+                    .get(argument)
+                    .copied()
+                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let prepared_arguments =
+            self.prepare_structural_call_arguments(callee, structural_arguments)?;
+        Ok((scalar_arguments, prepared_arguments))
+    }
+
     pub(crate) fn prepare_structural_call_arguments(
         &self,
         callee: MachineId,
@@ -141,10 +163,7 @@ impl TerminalExecution<'_> {
                     .is_some_and(|declaration| {
                         matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
                             || declaration.shape.is_borrowed_byte_carrier()
-                            || matches!(
-                                declaration.shape,
-                                StructuralTypeShape::FixedArray { .. }
-                            )
+                            || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
                             || declaration.shape.is_bounded_owned_byte_sequence()
                     })
             })
