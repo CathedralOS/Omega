@@ -200,7 +200,7 @@ impl<'program> Engine<'program> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<()> {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return None;
         };
@@ -235,7 +235,7 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
         count_bits: u32,
     ) -> Option<()> {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return None;
         };
@@ -261,7 +261,7 @@ impl<'program> Engine<'program> {
         bits: u32,
         signed: bool,
     ) -> Option<()> {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return None;
         };

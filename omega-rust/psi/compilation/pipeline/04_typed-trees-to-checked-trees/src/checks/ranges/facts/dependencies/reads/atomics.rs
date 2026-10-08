@@ -278,7 +278,7 @@ pub(super) fn atomic_compare_exchange_operands(
     let ExpressionNode::Binary(equal) = program.expression_table.expression(product.left) else {
         return None;
     };
-    let ExpressionNode::Binary(difference) = program.expression_table.expression(product.right)
+    let Some(difference) = program.expression_table.binary_node(product.right)
     else {
         return None;
     };

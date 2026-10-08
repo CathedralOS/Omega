@@ -172,7 +172,7 @@ fn check_law_conformance_with_matches(
 
     let result_binder = RESULT_BINDER.to_owned();
     for law_conjunct in &law_conjuncts {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(*law_conjunct)
+        let Some(binary) = program.expression_table.binary_node(*law_conjunct)
         else {
             continue;
         };

@@ -192,7 +192,7 @@ fn product_coupling_conjunct(
             None
         }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
-            let ExpressionNode::Binary(product) = program.expression_table.expression(binary.left)
+            let Some(product) = program.expression_table.binary_node(binary.left)
             else {
                 return None;
             };

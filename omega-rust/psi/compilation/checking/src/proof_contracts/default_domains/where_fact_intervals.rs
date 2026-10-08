@@ -64,7 +64,7 @@ fn field_fact_interval(
         })
         .collect::<Vec<_>>();
     while let Some(fact_expression) = conjuncts.pop() {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact_expression)
+        let Some(binary) = program.expression_table.binary_node(fact_expression)
         else {
             continue;
         };
@@ -469,7 +469,7 @@ fn factor_lower_bound(
         let typed_trees::domain::ProofFact::Expression(expression) = fact else {
             continue;
         };
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        let Some(binary) = program.expression_table.binary_node(*expression)
         else {
             continue;
         };

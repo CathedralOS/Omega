@@ -541,7 +541,7 @@ fn const_extent_requires_floor(
             ) {
                 continue;
             }
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+            let Some(binary) = program.expression_table.binary_node(expression)
             else {
                 continue;
             };

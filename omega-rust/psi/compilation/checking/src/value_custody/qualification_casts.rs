@@ -218,7 +218,7 @@ fn literal_mint_discharges(
             ExpressionNode::Boolean(false) => return MintJudgment::FactFalse,
             _ => {}
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        let Some(binary) = program.expression_table.binary_node(*expression)
         else {
             return MintJudgment::NotProved;
         };
@@ -278,7 +278,7 @@ fn interval_mint_judgment(
             ExpressionNode::Boolean(false) => return Some(MintJudgment::FactFalse),
             _ => {}
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        let Some(binary) = program.expression_table.binary_node(*expression)
         else {
             return None;
         };

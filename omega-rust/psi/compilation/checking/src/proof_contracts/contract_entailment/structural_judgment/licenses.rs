@@ -56,7 +56,7 @@ fn for_each_ensures_equality(
         let mut conjuncts = Vec::new();
         collect_equality_conjuncts(program, expression, &mut conjuncts);
         for conjunct in conjuncts {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+            let Some(binary) = program.expression_table.binary_node(conjunct)
             else {
                 continue;
             };

@@ -534,6 +534,15 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    /// The typed binary application node, or `None` for every other kind.
+    /// Recursive walks open with this check on every expression they visit.
+    pub fn binary_node(&self, handle: ExpressionHandle) -> Option<&TableBinaryExpression> {
+        match self.expression(handle) {
+            ExpressionNode::Binary(binary) => Some(binary),
+            _ => None,
+        }
+    }
+
     /// Whether an exact generational handle still names a live expression.
     /// Custody checks must distinguish a real zero literal from dummy storage.
     #[inline]

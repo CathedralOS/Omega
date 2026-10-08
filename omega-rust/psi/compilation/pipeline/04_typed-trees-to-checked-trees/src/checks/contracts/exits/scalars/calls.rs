@@ -67,7 +67,7 @@ impl ExitScalars<'_, '_> {
         call: NormalReturnCall<'_>,
         guarantee: ExpressionHandle,
     ) -> Option<usize> {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(guarantee)
+        let Some(binary) = self.program.expression_table.binary_node(guarantee)
         else {
             return None;
         };

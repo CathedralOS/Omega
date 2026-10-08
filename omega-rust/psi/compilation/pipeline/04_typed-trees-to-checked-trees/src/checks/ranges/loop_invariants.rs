@@ -434,7 +434,7 @@ fn classify_counter_write(
     ) {
         return CounterWrite::Other;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(assignment.value)
+    let Some(binary) = program.expression_table.binary_node(assignment.value)
     else {
         return CounterWrite::Other;
     };

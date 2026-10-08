@@ -296,7 +296,7 @@ impl BooleanLowering<'_> {
         {
             return Some(value);
         }
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return self.expression(expression);
         };

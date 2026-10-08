@@ -86,7 +86,7 @@ pub(super) fn state_has_proven_self_loop(
             else {
                 return false;
             };
-            let ExpressionNode::Binary(subtraction) = program.expression_table.expression(value)
+            let Some(subtraction) = program.expression_table.binary_node(value)
             else {
                 return false;
             };

@@ -457,7 +457,7 @@ impl ReturnReader<'_, '_> {
         if !self.stable(condition, before, 0) {
             return;
         }
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(condition)
+        let Some(binary) = self.program.expression_table.binary_node(condition)
         else {
             return;
         };

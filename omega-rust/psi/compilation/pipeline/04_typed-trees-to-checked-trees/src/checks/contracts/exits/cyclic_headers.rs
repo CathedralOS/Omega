@@ -444,7 +444,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         expression: ExpressionHandle,
         holds: bool,
     ) -> (ExpressionHandle, bool) {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return (expression, holds);
         };

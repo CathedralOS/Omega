@@ -911,7 +911,7 @@ impl<'program> StructuralJudge<'program> {
         if super::structural_terms::is_case_observation(program, ensures_fact) {
             return None;
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(ensures_fact)
+        let Some(binary) = program.expression_table.binary_node(ensures_fact)
         else {
             return None;
         };

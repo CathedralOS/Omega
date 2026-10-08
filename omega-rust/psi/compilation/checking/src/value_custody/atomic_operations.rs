@@ -69,7 +69,7 @@ pub(crate) fn carried_atomic_operation(
         AtomicOrderingPlan::Load(_) => None,
         AtomicOrderingPlan::Store(ordering) => Some(AtomicAccessOperation::Store(ordering)),
         AtomicOrderingPlan::ReadModifyWrite(ordering) => {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(atomic.value)
+            let Some(binary) = program.expression_table.binary_node(atomic.value)
             else {
                 return None;
             };

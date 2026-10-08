@@ -96,7 +96,7 @@ pub(crate) fn apply_handle_condition_complement(
     {
         return apply_handle_condition(proof_plan, range, argument, unary.operand);
     }
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
     else {
         return range;
     };
@@ -142,7 +142,7 @@ fn place_refined_binary_range(
     value: ExpressionHandle,
     narrow: impl FnOnce(&ProofPlan, IntegerRange, ExpressionHandle) -> IntegerRange,
 ) -> IntegerRange {
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(value)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(value)
     else {
         return range;
     };
@@ -457,7 +457,7 @@ fn guard_narrowed_operand_range(
         }
     }
 
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(handle)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(handle)
     else {
         return (narrowed != neutral_range()).then_some(narrowed);
     };

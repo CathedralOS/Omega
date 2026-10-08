@@ -94,7 +94,7 @@ pub(crate) fn unwrap_true_guard_condition(
     proof_plan: &ProofPlan,
     condition: ExpressionHandle,
 ) -> ExpressionHandle {
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
     else {
         return condition;
     };
@@ -129,7 +129,7 @@ pub(crate) fn apply_handle_condition(
     {
         return apply_handle_condition_complement(proof_plan, range, argument, unary.operand);
     }
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
     else {
         return range;
     };
@@ -193,7 +193,7 @@ pub(crate) fn apply_source_condition(
                 .map(|state| dehoisted_condition(proof_plan.program, state, condition))
         })
         .unwrap_or(condition);
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
     else {
         return range;
     };

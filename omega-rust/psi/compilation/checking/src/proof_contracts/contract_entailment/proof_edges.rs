@@ -112,7 +112,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
             // BEFORE any raw intake: a fieldless `b == Nat::Succ`
             // substitution would win first and mask the payload (first
             // binding wins), leaving `b`'s prev unreachable.
-            let ExpressionNode::Binary(comparison) = program.expression_table.expression(guard)
+            let Some(comparison) = program.expression_table.binary_node(guard)
             else {
                 judge.intake(program, guard);
                 continue;

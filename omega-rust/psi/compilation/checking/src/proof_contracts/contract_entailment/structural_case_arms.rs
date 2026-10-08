@@ -456,7 +456,7 @@ fn recognize_structural_state_leaves(
             let mut branch_hypotheses = case_hypotheses.clone();
             let mut branch_equations = case_equations.clone();
             if let TransitionGuardNode::When(guard) = transition.guard {
-                let ExpressionNode::Binary(comparison) = program.expression_table.expression(guard)
+                let Some(comparison) = program.expression_table.binary_node(guard)
                 else {
                     return None;
                 };

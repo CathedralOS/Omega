@@ -848,7 +848,7 @@ fn each_proof_conjunct<'program>(
         };
         let mut conjuncts = vec![*expression];
         while let Some(conjunct) = conjuncts.pop() {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+            let Some(binary) = program.expression_table.binary_node(conjunct)
             else {
                 continue;
             };

@@ -28,7 +28,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<CheckedScalarComputationHandle> {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return None;
         };

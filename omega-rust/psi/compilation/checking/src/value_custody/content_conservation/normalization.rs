@@ -26,7 +26,7 @@ pub(super) fn normalize_equation(
     context: &NormalizationContext<'_, '_>,
     expression: ExpressionHandle,
 ) -> Result<(ContentAlgebraIdentity, ContentConservationEquation), String> {
-    let ExpressionNode::Binary(binary) = context.program.expression_table.expression(expression)
+    let Some(binary) = context.program.expression_table.binary_node(expression)
     else {
         return Err(
             "the contract must be one equality over exact projection and `separate(...)` terms"

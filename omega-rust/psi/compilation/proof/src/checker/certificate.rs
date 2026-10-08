@@ -795,7 +795,7 @@ fn guarded_refold_certificate(
     seed: u64,
 ) -> Option<BoundedValueCertificate> {
     let program = proof_plan.program;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(obligation.argument)
+    let Some(binary) = program.expression_table.binary_node(obligation.argument)
     else {
         return None;
     };

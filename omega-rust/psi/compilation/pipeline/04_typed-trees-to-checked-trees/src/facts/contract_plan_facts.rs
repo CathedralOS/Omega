@@ -369,7 +369,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
         else {
             return None;
         };
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(*expression)
+        let Some(binary) = program.expression_table.binary_node(*expression)
         else {
             return None;
         };

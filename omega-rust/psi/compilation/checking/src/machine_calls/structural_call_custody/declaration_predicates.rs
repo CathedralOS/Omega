@@ -662,7 +662,7 @@ impl FactSpelling<'_> {
             _ => return None,
         };
         if matches!(operand_type, PrimitiveType::F32 | PrimitiveType::F64) {
-            let ExpressionNode::Binary(binary) = self.program.expression_table.expression(authored)
+            let Some(binary) = self.program.expression_table.binary_node(authored)
             else {
                 return None;
             };

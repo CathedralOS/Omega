@@ -158,7 +158,7 @@ fn scan_conversion_equalities<'program, R>(
             program.operator_contracts(operator),
         )
     {
-        let ExpressionNode::Binary(equality) = program.expression_table.expression(expression)
+        let Some(equality) = program.expression_table.binary_node(expression)
         else {
             continue;
         };

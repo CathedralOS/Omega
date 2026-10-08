@@ -87,7 +87,7 @@ impl EnsuredResultBounds {
             self.fold_conjunct(program, atomic.value);
             return;
         }
-        let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct)
+        let Some(comparison) = program.expression_table.binary_node(conjunct)
         else {
             return;
         };

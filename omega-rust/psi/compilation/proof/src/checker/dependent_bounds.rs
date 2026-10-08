@@ -51,7 +51,7 @@ fn guard_conjunct_proves_dependent_upper(
     max_field: &Identifier,
     max_offset: i64,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(guard)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(guard)
     else {
         return false;
     };
@@ -559,7 +559,7 @@ fn sibling_conjunct_proves(
     sibling_label: &str,
     max_offset: i64,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(guard)
+    let Some(binary) = proof_plan.program.expression_table.binary_node(guard)
     else {
         return false;
     };

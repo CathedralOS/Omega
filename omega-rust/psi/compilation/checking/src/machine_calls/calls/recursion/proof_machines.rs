@@ -67,7 +67,7 @@ fn guarded_integer_predecessor_call(
                 }
                 _ => guard,
             };
-            let ExpressionNode::Binary(positive) = program.expression_table.expression(guard)
+            let Some(positive) = program.expression_table.binary_node(guard)
             else {
                 return false;
             };

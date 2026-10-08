@@ -298,7 +298,7 @@ pub(crate) fn check_operator_contract_conformance(
         else {
             return false;
         };
-        let ExpressionNode::Binary(provider) = program.expression_table.expression(provider_fact)
+        let Some(provider) = program.expression_table.binary_node(provider_fact)
         else {
             return false;
         };

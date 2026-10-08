@@ -330,10 +330,7 @@ impl TypeReferenceTable {
 
     /// The declared symbol of the carrier behind every `Constrained` shell —
     /// `unconstrained_type_reference` followed by the `Named` node check.
-    pub fn unconstrained_named_symbol(
-        &self,
-        handle: TypeReferenceHandle,
-    ) -> Option<SymbolHandle> {
+    pub fn unconstrained_named_symbol(&self, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
         match self.type_reference(self.unconstrained_type_reference(handle)) {
             TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
             _ => None,
@@ -1266,9 +1263,7 @@ impl PrimitiveType {
 }
 
 /// The builtin type atom a landed literal integer type denotes.
-pub fn builtin_type_atom(
-    kind: numerics::literals::LandedIntegerType,
-) -> symbols::BuiltinTypeAtom {
+pub fn builtin_type_atom(kind: numerics::literals::LandedIntegerType) -> symbols::BuiltinTypeAtom {
     use numerics::literals::LandedIntegerType;
     use symbols::BuiltinTypeAtom;
     match kind {

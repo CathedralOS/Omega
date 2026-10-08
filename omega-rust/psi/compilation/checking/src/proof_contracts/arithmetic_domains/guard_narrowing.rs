@@ -86,7 +86,7 @@ pub(crate) fn requires_value_environment(
     // Both interval and joint-relation projection must consume the selected
     // comparison, not its token. Other fact kinds retain their existing owners.
     let comparison_meaning_is_available = |expression| {
-        let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression)
+        let Some(comparison) = program.expression_table.binary_node(expression)
         else {
             return true;
         };
@@ -134,7 +134,7 @@ pub(crate) fn requires_value_environment(
         environment.set(name, Interval { low, high });
     }
     each_available_comparison(&mut |expression| {
-        let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression)
+        let Some(comparison) = program.expression_table.binary_node(expression)
         else {
             return;
         };
@@ -1250,7 +1250,7 @@ struct EnsuresProjection<'a> {
 
 impl EnsuresProjection<'_> {
     fn seed_conjunct(&self, conjunct: ExpressionHandle, environment: &mut ValueEnvironment) {
-        let ExpressionNode::Binary(comparison) = self.program.expression_table.expression(conjunct)
+        let Some(comparison) = self.program.expression_table.binary_node(conjunct)
         else {
             return;
         };

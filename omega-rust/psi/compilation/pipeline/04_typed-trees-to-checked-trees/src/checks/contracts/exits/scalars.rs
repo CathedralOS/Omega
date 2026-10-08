@@ -207,7 +207,7 @@ impl ExitScalars<'_, '_> {
         if self.proves_bounds(expression) {
             return true;
         }
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        let Some(binary) = self.program.expression_table.binary_node(expression)
         else {
             return false;
         };

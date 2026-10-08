@@ -399,7 +399,7 @@ fn bound_leaf_initializer(
     if local.is_mutable || !local.initial_value.is_valid() {
         return None;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(local.initial_value)
+    let Some(binary) = program.expression_table.binary_node(local.initial_value)
     else {
         return None;
     };
