@@ -16,6 +16,7 @@ use crate::{
     serialize_elf_dynamic_sections,
 };
 use arena::Handle;
+use crate::dynamic_executable::interpreter_path;
 use image::{
     FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
     FinalImageSection, FinalImageSymbol,
@@ -48,13 +49,6 @@ const IMPORTS: [ImportFixture; 2] = [
     },
 ];
 
-fn interpreter_path(target: TargetProfile) -> &'static [u8] {
-    match target {
-        TargetProfile::LinuxX64 => b"/lib64/ld-linux-\xfc-x86-64.so.2",
-        TargetProfile::LinuxArm64 => b"/lib/ld-linux-\xfb-aarch64.so.1",
-        _ => unreachable!("descriptor fixture uses a Linux target"),
-    }
-}
 
 fn templates(
     target: TargetProfile,
