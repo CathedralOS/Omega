@@ -56,11 +56,7 @@ fn validate_boundary_requirements(
                     if !membership.domain_symbol.is_valid() {
                         continue;
                     }
-                    let Some(domain) = program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == membership.domain_symbol)
-                    else {
+                    let Some(domain) = program.domain_definition(membership.domain_symbol) else {
                         continue;
                     };
 
@@ -193,9 +189,7 @@ fn validate_external_machine_claims(
                     continue;
                 }
                 let domain_name = program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == membership.domain_symbol)
+                    .domain_definition(membership.domain_symbol)
                     .map(|domain| domain.name.as_str())
                     .unwrap_or("<unknown>");
                 diagnostics.push(Diagnostic::error(format!(

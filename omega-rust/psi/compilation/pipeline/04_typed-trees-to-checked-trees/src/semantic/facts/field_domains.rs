@@ -479,9 +479,7 @@ fn state_parameter_domain_is_resource_claim(
     crate::checks::type_multiplicity(program, type_reference)
         == language_semantics::Multiplicity::Linear
         && program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == domain_symbol)
+            .domain_definition(domain_symbol)
             .is_some_and(|domain| {
                 domain.predicate_body == language_semantics::DomainPredicateBody::Bodyless
             })

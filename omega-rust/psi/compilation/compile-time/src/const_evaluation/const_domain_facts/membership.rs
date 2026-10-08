@@ -15,11 +15,7 @@ pub(super) fn evaluate_membership(
     admission: &BuildTimeAdmissionPlan,
     pending: &PendingMembership,
 ) -> Result<Option<bool>, String> {
-    let Some(domain) = typed
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == pending.membership.domain_symbol)
-    else {
+    let Some(domain) = typed.domain_definition(pending.membership.domain_symbol) else {
         return Ok(None);
     };
     let ExpressionNode::Integer(literal) =
@@ -49,11 +45,7 @@ pub(in crate::const_evaluation) fn evaluate_closed_membership(
     domain_symbol: symbols::SymbolHandle,
     value: &numerics::bignum::BigInt,
 ) -> Result<Option<bool>, String> {
-    let Some(domain) = typed
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = typed.domain_definition(domain_symbol) else {
         return Ok(None);
     };
     let value = value.to_i64().ok_or_else(|| {
@@ -123,11 +115,7 @@ pub(super) fn domain_facts_need_operator_selection(
     if visiting.contains(&domain_symbol) {
         return false;
     }
-    let Some(domain) = typed
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = typed.domain_definition(domain_symbol) else {
         return false;
     };
     visiting.push(domain_symbol);
@@ -287,11 +275,7 @@ fn evaluate_nested_domain_membership(
     if visiting.contains(&domain_symbol) {
         return Ok(None);
     }
-    let Some(domain) = typed
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = typed.domain_definition(domain_symbol) else {
         return Ok(None);
     };
 

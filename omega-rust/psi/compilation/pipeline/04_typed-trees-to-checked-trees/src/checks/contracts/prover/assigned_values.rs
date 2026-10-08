@@ -336,12 +336,7 @@ impl AssignedValues<'_> {
         if !symbol.is_valid() || active.contains(&symbol) {
             return false;
         }
-        let Some(domain) = self
-            .program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-        else {
+        let Some(domain) = self.program.domain_definition(symbol) else {
             return false;
         };
         if let Some(literal) = self.literal(subject)

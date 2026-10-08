@@ -63,10 +63,7 @@ fn judge_qualification_cast(
             .join(", ");
         name = format!("{name}<{arguments}>");
     }
-    let declared = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == cast.semantic_domain_symbol);
+    let declared = program.domain_definition(cast.semantic_domain_symbol);
     match declared {
         Some(domain) => {
             // A predicate proof is not an authorized origin. In particular,

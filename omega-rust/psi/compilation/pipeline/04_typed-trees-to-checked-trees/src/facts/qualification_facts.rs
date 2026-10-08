@@ -80,10 +80,7 @@ pub(crate) fn build_qualification_facts(
                 // selected before validation. Checked facts consume that
                 // identity directly rather than repeating short-name lookup.
                 if cast.semantic_domain_symbol.is_valid()
-                    && let Some(domain) = program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == cast.semantic_domain_symbol)
+                    && let Some(domain) = program.domain_definition(cast.semantic_domain_symbol)
                 {
                     let semantic_id = if cast.semantic_domain_id.is_valid() {
                         cast.semantic_domain_id

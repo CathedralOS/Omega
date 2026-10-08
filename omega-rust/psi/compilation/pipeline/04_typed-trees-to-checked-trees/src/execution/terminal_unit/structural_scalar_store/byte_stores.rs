@@ -192,20 +192,16 @@ pub(super) fn field_store(
     // a synthetic formal parameter.
     let store_root = destination.root.destination();
     let plain_domain = |symbol, literal_grant: bool| {
-        program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-            .is_some_and(|domain| {
-                domain.establishment_routes.is_empty()
-                    && domain.semantic_roles == Default::default()
-                    && (!literal_grant
-                        || validation::field_domains::string_literal_expression_grants_domain(
-                            program,
-                            assignment.value,
-                            symbol,
-                        ))
-            })
+        program.domain_definition(symbol).is_some_and(|domain| {
+            domain.establishment_routes.is_empty()
+                && domain.semantic_roles == Default::default()
+                && (!literal_grant
+                    || validation::field_domains::string_literal_expression_grants_domain(
+                        program,
+                        assignment.value,
+                        symbol,
+                    ))
+        })
     };
     let domains =
         validation::field_domains::domain_constraint_symbols(program, field.type_reference);

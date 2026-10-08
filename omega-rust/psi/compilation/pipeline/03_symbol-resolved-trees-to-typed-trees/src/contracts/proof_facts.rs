@@ -174,9 +174,7 @@ fn lower_membership_domain_arguments(
     }
     if let Some(domain) = lowerer
         .typed_trees
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == membership.domain_symbol)
+        .domain_definition(membership.domain_symbol)
     {
         check_membership_argument_count(&lowerer.typed_trees, domain, arguments.len())
             .map_err(|diagnostic| with_optional_source_span(diagnostic, source_span))?;
@@ -223,11 +221,7 @@ pub(crate) fn intern_proof_membership_instances(
         if membership.domain_arguments.is_empty() || !membership.domain_symbol.is_valid() {
             continue;
         }
-        let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == membership.domain_symbol)
-        else {
+        let Some(domain) = program.domain_definition(membership.domain_symbol) else {
             continue;
         };
         let source_span = program.proof_fact_source_span(handle);

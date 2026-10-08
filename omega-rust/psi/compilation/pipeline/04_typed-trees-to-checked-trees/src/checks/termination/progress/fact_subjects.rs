@@ -23,9 +23,7 @@ pub(crate) fn fact_domain(
     };
     // Progress premises carry declaration identities, not application indices.
     program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
+        .domain_definition(domain_symbol)
         .filter(|domain| {
             typed_trees::domain::index_parameters(program, domain).is_empty()
                 && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)

@@ -69,10 +69,7 @@ pub(super) fn predicate_only_domain_labels(
         return None;
     };
     let subject_label = facts.semantic.place_label(program, place_handle);
-    let domain = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)?;
+    let domain = program.domain_definition(domain_symbol)?;
     Some(
         predicate_only_domain_predicates(program, domain_symbol)?
             .iter()
@@ -108,10 +105,7 @@ pub(super) fn predicate_only_domain_interval(
     let FactPlace::Place(place_handle) = fact.place else {
         return None;
     };
-    let domain = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)?;
+    let domain = program.domain_definition(domain_symbol)?;
     if domain.alias.is_some()
         || !domain.index_arguments.is_empty()
         || !domain.establishment_routes.is_empty()

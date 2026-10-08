@@ -39,15 +39,9 @@ pub(in crate::execution::terminal_unit) fn value_plan(
     let domains =
         validation::field_domains::domain_constraint_symbols(program, local.type_reference);
     let plain_byte_domain = |symbol| {
-        program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-            .is_some_and(|domain| {
-                domain.establishment_routes.is_empty()
-                    && domain.semantic_roles == Default::default()
-            })
-            && typed_trees::byte_predicates::domain_byte_predicate(program, symbol).is_some()
+        program.domain_definition(symbol).is_some_and(|domain| {
+            domain.establishment_routes.is_empty() && domain.semantic_roles == Default::default()
+        }) && typed_trees::byte_predicates::domain_byte_predicate(program, symbol).is_some()
     };
     if !domains.iter().copied().all(plain_byte_domain) {
         return None;
@@ -100,17 +94,11 @@ pub(in crate::execution::terminal_unit) fn expression_octets(
     }
     let domains = validation::field_domains::domain_constraint_symbols(program, reference);
     let plain_literal_domain = |symbol| {
-        program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-            .is_some_and(|domain| {
-                domain.establishment_routes.is_empty()
-                    && domain.semantic_roles == Default::default()
-            })
-            && validation::field_domains::string_literal_expression_grants_domain(
-                program, expression, symbol,
-            )
+        program.domain_definition(symbol).is_some_and(|domain| {
+            domain.establishment_routes.is_empty() && domain.semantic_roles == Default::default()
+        }) && validation::field_domains::string_literal_expression_grants_domain(
+            program, expression, symbol,
+        )
     };
     domains
         .into_iter()

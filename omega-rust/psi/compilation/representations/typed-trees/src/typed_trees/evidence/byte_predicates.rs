@@ -53,10 +53,7 @@ pub fn domain_byte_predicate(
     program: &TypedTrees,
     domain_symbol: SymbolHandle,
 ) -> Option<ByteSequencePredicate> {
-    let domain = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)?;
+    let domain = program.domain_definition(domain_symbol)?;
     if domain.alias.is_some()
         || !domain.index_arguments.is_empty()
         || !domain.establishment_routes.is_empty()

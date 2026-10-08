@@ -126,11 +126,7 @@ pub(super) fn append_unevidenced_cast_mint_diagnostic(
     if !cast.semantic_domain_symbol.is_valid() {
         return;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == cast.semantic_domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(cast.semantic_domain_symbol) else {
         return;
     };
     if domain.predicate_body.is_present() || !domain.establishment_routes.is_empty() {
@@ -240,8 +236,6 @@ pub(super) fn is_bodyless_domain_family(
     family: SymbolHandle,
 ) -> bool {
     program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == family)
+        .domain_definition(family)
         .is_some_and(|domain| !domain.predicate_body.is_present())
 }

@@ -261,9 +261,7 @@ fn signature_selects_domain(
                             && program.expression_table.display_name(membership.value)
                                 == binding_name))
                     && program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == domain_symbol)
+                        .domain_definition(domain_symbol)
                         .is_some_and(|domain| domain.semantic_roles.denotation_dimension.is_some())
             }
             ProofFact::Expression(_) => false,

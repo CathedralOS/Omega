@@ -322,9 +322,7 @@ fn scalar_domain_establishment_routes(
     symbol: SymbolHandle,
 ) -> Result<Vec<ScalarDomainEstablishmentRoute>, LoweringError> {
     let domain = checked
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == symbol)
+        .domain_definition(symbol)
         .ok_or(LoweringError::Unsupported(
             "scalar qualification lost its domain declaration",
         ))?;
@@ -539,9 +537,7 @@ pub(crate) fn declared_atoms(
         active.push(symbol);
         for constituent in &alias.constituents {
             let identity = checked
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == constituent.domain_symbol)
+                .domain_definition(constituent.domain_symbol)
                 .map(|domain| domain.semantic_id)
                 .ok_or(LoweringError::Unsupported(
                     "scalar qualification has an unresolved alias atom",

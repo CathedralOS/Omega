@@ -519,9 +519,7 @@ fn push_unique_domain_application(domains: &mut Vec<DomainApplication>, domain: 
 
 fn domain_name(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> &str {
     program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == symbol)
+        .domain_definition(symbol)
         .map(|domain| domain.name.as_str())
         .unwrap_or("<unknown domain>")
 }

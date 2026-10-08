@@ -136,10 +136,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         let supplied_by_return = exit_return_call(program, facts, exit)
             .is_some_and(|call| call_result_has_domain(program, call.target_symbol, constraint));
         let satisfied = supplied_by_return || (returned.is_valid() && (transported
-            || program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == domain_symbol)
+            || program.domain_definition(domain_symbol)
             .is_some_and(|domain| {
                 // A route identifying the declaration does not by itself
                 // identify any of its indexed applications.

@@ -14,10 +14,7 @@ pub(crate) fn domain_definition(
     program: &dyn ::validation::CheckingInput,
     domain_symbol: SymbolHandle,
 ) -> Option<&typed_trees::domain::DomainDefinition> {
-    program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
+    program.domain_definition(domain_symbol)
 }
 
 pub(crate) fn boundary_qualification_authorization(

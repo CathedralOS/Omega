@@ -281,11 +281,7 @@ fn container_member_type_position(
             if grandparent.is_valid()
                 && program.symbols.get(grandparent).kind == symbols::SymbolKind::Domain =>
         {
-            let Some(domain) = program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == grandparent)
-            else {
+            let Some(domain) = program.domain_definition(grandparent) else {
                 return ContainerOutcome::Unmapped;
             };
             let Some(operator) = program

@@ -85,11 +85,7 @@ pub fn restates_structural_parameter_qualification(
     if program.primitive_type_reference(reference).is_some() {
         return false;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == membership.domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(membership.domain_symbol) else {
         return false;
     };
     structural_result_qualifications(program, reference)
@@ -173,10 +169,7 @@ pub fn structural_state_contract_scalar_predicates(
                     ) else {
                         return None;
                     };
-                    let domain = program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == membership.domain_symbol)?;
+                    let domain = program.domain_definition(membership.domain_symbol)?;
                     // A scalar parameter's interval membership is carried as its
                     // closed interval; a scalar tag is carried by the qualified
                     // Terminal signature itself and needs no row. The

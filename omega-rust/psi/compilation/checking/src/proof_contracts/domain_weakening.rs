@@ -503,11 +503,7 @@ fn append_declared_atom(
     if !symbol.is_valid() || stack.contains(&symbol) {
         return;
     }
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == symbol)
-    else {
+    let Some(domain) = program.domain_definition(symbol) else {
         return;
     };
     if let Some(alias) = domain.alias.as_ref() {
@@ -607,9 +603,7 @@ fn atoms_equivalent(
             }
             let semantic_id = |symbol| {
                 program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == symbol)
+                    .domain_definition(symbol)
                     .map(|domain| domain.semantic_id)
             };
             matches!((semantic_id(*left_family), semantic_id(*right_family)), (Some(left), Some(right)) if left.is_valid() && left == right)

@@ -183,11 +183,7 @@ fn validate_data_default_domain(
         let typed_trees::domain::ProofFact::Membership(membership) = fact else {
             continue;
         };
-        let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == membership.domain_symbol)
-        else {
+        let Some(domain) = program.domain_definition(membership.domain_symbol) else {
             continue;
         };
         let typed_trees::expression::ExpressionNode::Name(path) =

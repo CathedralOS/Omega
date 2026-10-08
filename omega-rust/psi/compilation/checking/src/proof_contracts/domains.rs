@@ -598,8 +598,5 @@ fn domain_definition_by_symbol(
         return None;
     }
 
-    program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == symbol)
+    program.domain_definition(symbol)
 }

@@ -101,11 +101,7 @@ pub(super) fn establishes_scalar_predicates(
             else {
                 continue;
             };
-            let Some(candidate) = program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == domain_symbol)
-            else {
+            let Some(candidate) = program.domain_definition(domain_symbol) else {
                 continue;
             };
             if !semantic_domain.is_valid()

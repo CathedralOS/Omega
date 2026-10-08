@@ -660,12 +660,7 @@ pub(crate) fn refresh_closed_domain_instance_identities(
             if constraint.arguments.is_empty() || !constraint.symbol.is_valid() {
                 continue;
             }
-            let Some(domain) = program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == constraint.symbol)
-                .cloned()
-            else {
+            let Some(domain) = program.domain_definition(constraint.symbol).cloned() else {
                 continue;
             };
             let index_parameters = typed_trees::domain::index_parameters(program, &domain);
@@ -713,12 +708,7 @@ pub(crate) fn refresh_closed_domain_instance_identities(
         .collect::<Vec<_>>();
     let mut cast_updates = Vec::new();
     for (handle, symbol, arguments) in cast_sites {
-        let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-            .cloned()
-        else {
+        let Some(domain) = program.domain_definition(symbol).cloned() else {
             continue;
         };
         let index_parameters = typed_trees::domain::index_parameters(program, &domain);
@@ -753,9 +743,7 @@ pub(crate) fn refresh_closed_domain_instance_identities(
             continue;
         }
         let domain = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == membership.domain_symbol)
+            .domain_definition(membership.domain_symbol)
             .ok_or_else(|| Diagnostic::error("membership instance has no declared domain"))?;
         let arguments = program
             .type_reference_table

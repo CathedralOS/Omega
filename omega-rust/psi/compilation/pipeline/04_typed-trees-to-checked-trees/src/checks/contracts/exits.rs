@@ -198,9 +198,7 @@ pub(super) fn check_exit_ensures(
             };
             let route_predicates_satisfied = match fact.payload {
                 facts::FactPayload::ContractDomainMembership { domain_symbol, .. } => program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == domain_symbol)
+                    .domain_definition(domain_symbol)
                     .is_none_or(|domain| !domain.predicate_body.is_present() || proved),
                 _ => true,
             };

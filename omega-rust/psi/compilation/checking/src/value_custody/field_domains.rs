@@ -827,18 +827,10 @@ pub fn domain_membership_implies(
         return true;
     }
 
-    let Some(source) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == source_domain)
-    else {
+    let Some(source) = program.domain_definition(source_domain) else {
         return false;
     };
-    let Some(target) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == target_domain)
-    else {
+    let Some(target) = program.domain_definition(target_domain) else {
         return false;
     };
     if !is_fixed_byte_carrier(program, source.target_type)
@@ -932,14 +924,10 @@ pub fn string_literal_grants_view_domains(
         .into_iter()
         .all(|symbol| {
             domain_byte_predicate(program, symbol).is_some()
-                && program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == symbol)
-                    .is_some_and(|domain| {
-                        domain.establishment_routes.is_empty()
-                            && domain.semantic_roles == Default::default()
-                    })
+                && program.domain_definition(symbol).is_some_and(|domain| {
+                    domain.establishment_routes.is_empty()
+                        && domain.semantic_roles == Default::default()
+                })
                 && string_literal_expression_grants_domain(program, expression, symbol)
         })
 }

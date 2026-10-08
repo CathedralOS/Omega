@@ -214,11 +214,7 @@ pub(super) fn lower_program_local_root_introductions(
         else {
             continue;
         };
-        let Some(domain) = checked
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == projection.domain)
-        else {
+        let Some(domain) = checked.domain_definition(projection.domain) else {
             // Synthetic and older checked fixtures may retain a qualification
             // row without the authored declaration that could authorize root
             // introduction. Preserve the ordinary requirement, but emit no

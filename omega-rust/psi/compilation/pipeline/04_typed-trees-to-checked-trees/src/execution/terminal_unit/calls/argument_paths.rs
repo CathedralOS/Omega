@@ -1188,10 +1188,7 @@ pub(crate) fn byte_sequence_literal_argument(
             for symbol in
                 validation::field_domains::domain_constraint_symbols(program, parameter_type)
             {
-                let domain = program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == symbol)?;
+                let domain = program.domain_definition(symbol)?;
                 if !domain.establishment_routes.is_empty()
                     || domain.semantic_roles != Default::default()
                     || !validation::field_domains::string_literal_expression_grants_domain(

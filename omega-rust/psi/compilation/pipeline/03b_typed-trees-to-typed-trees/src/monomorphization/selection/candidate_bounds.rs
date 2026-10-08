@@ -108,15 +108,13 @@ pub(crate) fn validate_candidate_conformance_bounds(
             continue;
         }
         if let Some(refinement) = carrier.refinement {
-            diagnostics.extend(
-                validation::refinement_fit::refinement_fit_diagnostics(
-                    program,
-                    refinement,
-                    selected,
-                    candidate.template.template_name.as_str(),
-                    bound.binder_name.as_str(),
-                ),
-            );
+            diagnostics.extend(validation::refinement_fit::refinement_fit_diagnostics(
+                program,
+                refinement,
+                selected,
+                candidate.template.template_name.as_str(),
+                bound.binder_name.as_str(),
+            ));
         }
     }
     if diagnostics.is_empty() {
@@ -183,8 +181,7 @@ pub(crate) fn conformance_application_arguments_match_candidate(
     // parameters agree only after that instantiation; comparing the binder's
     // own arguments against a base application comes out right by accident
     // only for a head that passes its parameters through in order.
-    let carrier =
-        validation::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
+    let carrier = validation::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let required = match carrier
         .refinement
         .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))

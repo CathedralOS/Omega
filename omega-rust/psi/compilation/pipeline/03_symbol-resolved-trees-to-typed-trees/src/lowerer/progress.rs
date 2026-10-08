@@ -200,11 +200,7 @@ fn authored_premises(
             let typed::domain::ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            let Some(domain) = program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == membership.domain_symbol)
-            else {
+            let Some(domain) = program.domain_definition(membership.domain_symbol) else {
                 continue;
             };
             if domain.classification

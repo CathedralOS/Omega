@@ -528,12 +528,8 @@ fn index_free_membership(
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
     // Byte-predicate extraction has no substitution environment for domain indices.
-    program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == symbol)
-        .is_some_and(|domain| {
-            typed_trees::domain::index_parameters(program, domain).is_empty()
-                && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
-        })
+    program.domain_definition(symbol).is_some_and(|domain| {
+        typed_trees::domain::index_parameters(program, domain).is_empty()
+            && (!semantic_domain.is_valid() || semantic_domain == domain.semantic_id)
+    })
 }
