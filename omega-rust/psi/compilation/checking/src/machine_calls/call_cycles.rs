@@ -19,6 +19,7 @@ use typed_trees::types::TypeReferenceHandle;
 pub(crate) mod runtime_ranking;
 pub use runtime_ranking::{
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
+    internal_state_index,
 };
 
 /// The one closed ranking relation currently admitted for a proof-only call

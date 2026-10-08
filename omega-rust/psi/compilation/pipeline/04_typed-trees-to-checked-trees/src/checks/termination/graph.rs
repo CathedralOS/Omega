@@ -201,22 +201,5 @@ pub(crate) fn named_transition_target_state_index(
     machine: &typed_trees::machine::Machine,
     target_symbol: symbols::SymbolHandle,
 ) -> Option<usize> {
-    if target_symbol == machine.symbol {
-        let entry_name = machine
-            .name
-            .as_str()
-            .rsplit("::")
-            .next()
-            .unwrap_or_default();
-        return program
-            .machine_states(machine)
-            .iter()
-            .position(|state| state.name.as_str() == entry_name)
-            .or_else(|| (!program.machine_states(machine).is_empty()).then_some(0));
-    }
-
-    program
-        .machine_states(machine)
-        .iter()
-        .position(|state| state.symbol == target_symbol)
+    ::validation::internal_state_index(program, machine, target_symbol)
 }

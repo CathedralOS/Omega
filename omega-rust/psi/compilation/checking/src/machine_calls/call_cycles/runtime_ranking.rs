@@ -1092,7 +1092,7 @@ pub(crate) fn internal_arrivals<'program>(
 /// `machine`, exactly as the telescope's discovery does: a transition back to
 /// the machine's declared entry names the machine symbol, while transitions
 /// to subordinate states name the state symbol.
-pub(crate) fn internal_state_index(
+pub fn internal_state_index(
     program: &dyn crate::CheckingInput,
     machine: &typed_trees::machine::Machine,
     target_symbol: SymbolHandle,

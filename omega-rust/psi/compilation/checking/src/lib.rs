@@ -136,8 +136,9 @@ pub use crate::machine_calls::call_cycles::{
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
-    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, machine_call_dependency_symbols,
-    validated_runtime_natural_components, validated_runtime_recursive_components,
+    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, internal_state_index,
+    machine_call_dependency_symbols, validated_runtime_natural_components,
+    validated_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins, LocalWriteOrigin, LocalWriteSource,
