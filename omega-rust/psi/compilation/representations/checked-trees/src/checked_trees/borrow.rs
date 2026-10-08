@@ -630,11 +630,7 @@ impl BorrowFacts {
                 .iter()
                 .enumerate()
                 .map(move |(loan_ordinal, source)| {
-                    let handle = Handle::from_parts(
-                        loans.start().arena_index() + loan_ordinal as u32,
-                        loans.start().generation(),
-                    );
-                    (handle, source)
+                    (loans.handle_at(loan_ordinal as u32), source)
                 }),
         )
     }
