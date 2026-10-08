@@ -63,6 +63,8 @@ pub(crate) fn bind_checked_body_call_source_spans(
             ),
         >::new();
         let statements = program.statement_table.statements(state.statement_nodes);
+        let mut selected_by_statement =
+            std::collections::HashMap::<usize, SelectedEvaluation>::new();
         let control = &mut flow.control;
         for checked_call in control.calls.span_mut_or_empty(checked_state.calls) {
             let (call_sites, dispatch_calls) = call_sites_by_statement
@@ -151,6 +153,21 @@ pub(crate) fn bind_checked_body_call_source_spans(
                     && closing_invocation(program, state, checked_call.statement_index);
             checked_call.authored_dispatch_role =
                 dispatch_calls.role(checked_call.authored_expression);
+            let selected = selected_by_statement
+                .entry(checked_call.statement_index)
+                .or_insert_with(|| {
+                    statements
+                        .get(checked_call.statement_index)
+                        .map(|statement| selected_evaluation(program, machine, statement))
+                        .unwrap_or_default()
+                });
+            checked_call.authored_selected = match &call_site {
+                CallSite::Statement(_) => false,
+                CallSite::Expression { expression, .. } => {
+                    selected.expressions.contains(expression)
+                }
+                CallSite::TransitionNamed { .. } => selected.transition_targets,
+            };
             checked_call.authored_site = site;
             checked_call.authored_target = target;
             checked_call.authored_arguments = control
@@ -419,4 +436,114 @@ fn closing_invocation(
             TransitionTargetNode::Named { static_machine_parameter, .. }
                 if !static_machine_parameter.is_valid()
         )
+}
+
+/// One statement's selected evaluation: the expressions that run only on a
+/// selected path, and whether its transition targets are selected.
+#[derive(Default)]
+struct SelectedEvaluation {
+    expressions: Vec<typed_trees::expression::ExpressionHandle>,
+    transition_targets: bool,
+}
+
+/// Mark what runs only on a selected path of `statement`: the right operand
+/// of `&&`/`||`, a match arm's pattern and value, and a transition's target
+/// and continuation, except an unguarded transition into another machine,
+/// whose call every path performs. Selection is inherited by every nested
+/// expression.
+fn selected_evaluation(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    statement: &StatementNode,
+) -> SelectedEvaluation {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+    use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+
+    let table = &program.statement_table;
+    let mut pending = Vec::new();
+    let mut transition_targets = false;
+    match statement {
+        StatementNode::Call(call) => pending.extend(
+            table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| (*argument, false)),
+        ),
+        StatementNode::LocalData(local) => pending.push((local.initial_value, false)),
+        StatementNode::Assignment(assignment) => {
+            pending.push((assignment.target, false));
+            pending.push((assignment.value, false));
+        }
+        StatementNode::Expression(expression) => pending.push((*expression, false)),
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                pending.push((guard, false));
+            }
+            // The machine head and its states are internal jumps, not calls.
+            let internal = |target: symbols::SymbolHandle| {
+                target == machine.symbol
+                    || program
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == target)
+            };
+            transition_targets = !(transition.guard == TransitionGuardNode::Always
+                && matches!(
+                    table.transition_target(transition.target),
+                    TransitionTargetNode::Named { path, .. } if !internal(path.symbol)
+                ));
+            for target in [transition.target, transition.continuation] {
+                if !table.transition_target_is_valid(target) {
+                    continue;
+                }
+                match table.transition_target(target) {
+                    TransitionTargetNode::Value(expression) => {
+                        pending.push((*expression, transition_targets));
+                    }
+                    TransitionTargetNode::Named { arguments, .. } => pending.extend(
+                        table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .map(|argument| (*argument, transition_targets)),
+                    ),
+                    TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+        _ => {}
+    }
+    let mut expressions = Vec::new();
+    let mut visited = Vec::new();
+    while let Some((expression, selected)) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            continue;
+        }
+        visited.push(expression);
+        if selected {
+            expressions.push(expression);
+        }
+        let node = program.expression_table.expression(expression);
+        let mut position = 0;
+        ::validation::expression_traversal::children(program, node, |child| {
+            let child_selected = selected
+                || match node {
+                    ExpressionNode::Binary(binary) => {
+                        matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                            && position == 1
+                    }
+                    // The subject runs on every path; patterns and arm values
+                    // run only on the arms they select.
+                    ExpressionNode::Match(_) => position > 0,
+                    _ => false,
+                };
+            pending.push((child, child_selected));
+            position += 1;
+        });
+    }
+    SelectedEvaluation {
+        expressions,
+        transition_targets,
+    }
 }

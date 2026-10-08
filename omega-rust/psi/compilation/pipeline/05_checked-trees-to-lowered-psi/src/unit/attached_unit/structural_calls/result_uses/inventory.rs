@@ -5,7 +5,6 @@
 //! Only an unconditional exact source occurrence can retire whole caller debt.
 
 use super::*;
-use crate::emission::call_source_custody::authored::nested;
 
 pub(crate) fn with_expression_consumers(
     checked: &CheckedTrees,
@@ -81,13 +80,10 @@ pub(crate) fn with_expression_consumers(
                             })
                         })
             });
-            let position = if retires_body_result {
-                nested::unconditional_call_position(checked, caller.state, call.coordinate)?
-            } else {
-                // Even a non-consuming observation retains its exact authored
-                // position; selected alternatives remain independent occurrences.
-                nested::authored_call_position(checked, caller.state, call.coordinate)?
-            };
+            // Even a non-consuming observation retains its exact evaluation
+            // position; selected alternatives remain independent occurrences.
+            let position =
+                evaluation_position(checked, caller.state, call.coordinate, retires_body_result)?;
             expressions.push((position, operation, preparation));
         }
     }
@@ -115,8 +111,7 @@ pub(crate) fn with_expression_consumers(
             }
             if statement == coordinate.statement_index {
                 let after = if let Some(call) = candidate.call() {
-                    nested::authored_call_position(checked, caller.state, call.coordinate)?
-                        > *position
+                    evaluation_position(checked, caller.state, call.coordinate, false)? > *position
                 } else {
                     // Establishment follows evaluation of its source value.
                     true
@@ -187,4 +182,38 @@ pub(crate) fn with_expression_consumers(
         }
     }
     Ok(operations)
+}
+
+/// A call's position among its state's flow rows, which stage 04 appends in
+/// evaluation order, so it orders one statement's calls as they execute. A
+/// call that retires a whole owned result must run on every path that reaches
+/// it: no earlier transition, and no selected position in its statement
+/// (`FlowCallFact::authored_selected`).
+fn evaluation_position(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    unconditional: bool,
+) -> Result<usize, LoweringError> {
+    let control = &checked.facts.flow.control;
+    let statement = coordinate.statement_index as usize;
+    let ordinal = coordinate.call_ordinal as usize;
+    let call = control
+        .call_at(state, statement, ordinal)
+        .ok_or(LoweringError::Unsupported(
+            "result consumer has no flow call row",
+        ))?;
+    if unconditional {
+        if control.transition_before(state, statement) {
+            return unsupported("result consumer follows a conditional state exit");
+        }
+        if call.authored_selected {
+            return unsupported("conditional call cannot retire an enclosing result");
+        }
+    }
+    control
+        .call_position(state, statement, ordinal)
+        .ok_or(LoweringError::Unsupported(
+            "result consumer has no flow call row",
+        ))
 }

@@ -30,7 +30,6 @@ use crate::terminal_identities::{
 };
 
 pub(crate) mod affine_cleanup;
-pub(crate) mod call_source_custody;
 pub(crate) mod claim_bindings;
 pub(crate) mod control_flow;
 pub(crate) mod indexed_write;

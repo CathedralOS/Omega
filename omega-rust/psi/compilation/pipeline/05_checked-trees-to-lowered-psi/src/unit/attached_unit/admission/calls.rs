@@ -3,9 +3,8 @@
 //!
 //! Both arrangements emit their calls through
 //! `operation_frame::OperationFrame::emit_call`, so both rejoin each call to
-//! its checked custody here, before any identity is allocated: the exact
-//! authored call site and operands (`call_source_custody::validate_operation`),
-//! the reconstructed structural call custody, the target's checked
+//! its checked custody here, before any identity is allocated: the
+//! reconstructed structural call custody, the target's checked
 //! signature, contract and reach, and how each structural operand's producer
 //! is consumed. `CallerView` is the one caller both routes build: an ordinary
 //! body's whole operation roster, or one state's. Each call shape therefore

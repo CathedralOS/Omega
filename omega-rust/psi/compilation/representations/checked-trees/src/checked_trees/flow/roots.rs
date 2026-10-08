@@ -177,6 +177,44 @@ impl FlowControlFacts {
         })
     }
 
+    /// The evaluation position of a call among `state`'s rows: the flow walk
+    /// appends each row after its evaluated operands, so the position orders
+    /// one statement's calls as they execute.
+    pub fn call_position(
+        &self,
+        state: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<usize> {
+        let (_, state) = self
+            .states
+            .iter()
+            .find(|(_, candidate)| candidate.state_symbol == state)?;
+        self.calls
+            .span_or_empty(state.calls)
+            .iter()
+            .position(|call| {
+                call.statement_index == statement_index && call.call_ordinal == call_ordinal
+            })
+    }
+
+    /// Whether `state` has an authored transition before `statement_index`,
+    /// after which a later statement runs only on the paths that stayed.
+    pub fn transition_before(&self, state: SymbolHandle, statement_index: usize) -> bool {
+        self.states
+            .iter()
+            .find(|(_, candidate)| candidate.state_symbol == state)
+            .is_some_and(|(_, state)| {
+                self.outgoing
+                    .span_or_empty(state.outgoing)
+                    .iter()
+                    .any(|outgoing| {
+                        outgoing.statement_index < statement_index
+                            && outgoing.transition_target.is_valid()
+                    })
+            })
+    }
+
     /// Whether `call`, a row of `state`, was retired by selected execution.
     pub fn is_retired(&self, state: SymbolHandle, call: &FlowCallFact) -> bool {
         self.retired_calls.iter().any(|retired| {

@@ -57,6 +57,11 @@ pub struct FlowCallFact {
     /// The part this occurrence plays in a closed-case dispatch whose subject
     /// is a call.
     pub authored_dispatch_role: FlowCallDispatchRole,
+    /// Whether the occurrence runs only on a selected path of its statement:
+    /// the right operand of `&&`/`||`, a match arm's pattern or value, or a
+    /// transition's target or continuation other than an unguarded machine
+    /// call. Such a call cannot retire a result every path still owes.
+    pub authored_selected: bool,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,

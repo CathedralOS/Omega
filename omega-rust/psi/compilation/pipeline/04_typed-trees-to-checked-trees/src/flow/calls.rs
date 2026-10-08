@@ -152,6 +152,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         authored_result: Default::default(),
         authored_closing_invocation: false,
         authored_dispatch_role: Default::default(),
+        authored_selected: false,
         operands: HandleSpan::empty(),
         receiver_symbol: borrow_call.receiver_symbol,
         target_symbol: borrow_call.target_symbol,
