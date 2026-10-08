@@ -217,21 +217,10 @@ fn replay_block(
     let successor_rows = match &block.terminator {
         SelectedTerminator::ConditionalBranch {
             instruction,
-            when_nonzero,
-            when_zero,
-        } => [when_nonzero, when_zero]
-            .into_iter()
-            .enumerate()
-            .map(|(ordinal, successor)| SuccessorLiveness {
-                terminator: instruction.id,
-                polarity_ordinal: ordinal as u8,
-                psi_edge: successor.psi_edge,
-                target: successor.block,
-                virtual_live: collect(&v_in[&successor.block]),
-                unit_live: collect(&u_in[&successor.block]),
-            })
-            .collect(),
-        SelectedTerminator::ConditionalBranchU64LessThan {
+            when_nonzero: when_less,
+            when_zero: when_not_less,
+        }
+        | SelectedTerminator::ConditionalBranchU64LessThan {
             instruction,
             when_less,
             when_not_less,

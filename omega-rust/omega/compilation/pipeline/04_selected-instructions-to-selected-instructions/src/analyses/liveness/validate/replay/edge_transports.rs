@@ -107,11 +107,11 @@ impl EdgeTransports {
 fn successors(terminator: &SelectedTerminator) -> impl Iterator<Item = &SelectedSuccessor> {
     let edges = match terminator {
         SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
+            when_nonzero: when_less,
+            when_zero: when_not_less,
             ..
-        } => [Some(when_nonzero), Some(when_zero)],
-        SelectedTerminator::ConditionalBranchU64LessThan {
+        }
+        | SelectedTerminator::ConditionalBranchU64LessThan {
             when_less,
             when_not_less,
             ..
