@@ -435,12 +435,7 @@ pub fn declared_result_field_domain_paths(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Vec<FieldDomainIdentity> {
-    let mut reference = type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    let reference = program.type_reference_table.unconstrained_type_reference(type_reference);
     if let Some(data) = owned_nominal_data_definition(program, reference) {
         return declared_field_domain_paths(program, data);
     }
@@ -538,12 +533,7 @@ fn declared_owned_field_domain_identities_uncached(
             language_semantics::SemanticDomainId,
         )>,
     ) {
-        let mut carrier = reference;
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(carrier)
-        {
-            carrier = *base_type;
-        }
+        let carrier = program.type_reference_table.unconstrained_type_reference(reference);
         if matches!(
             program.type_reference_table.type_reference(carrier),
             TypeReferenceNode::Reference { .. }

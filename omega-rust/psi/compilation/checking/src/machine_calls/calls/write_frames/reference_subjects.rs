@@ -26,11 +26,7 @@ pub(super) fn carrier_storage_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    reference = program.type_reference_table.unconstrained_type_reference(reference);
     if let TypeReferenceNode::Reference {
         access, referee, ..
     } = program.type_reference_table.type_reference(reference)
@@ -623,11 +619,7 @@ pub(super) fn validate_owned_projection(
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<()> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    reference = program.type_reference_table.unconstrained_type_reference(reference);
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(reference)
     {

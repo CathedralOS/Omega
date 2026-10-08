@@ -18,12 +18,9 @@ pub(crate) fn scalar_result_domains(
 ) -> Vec<&typed_trees::types::DomainConstraint> {
     // Reference and nominal field obligations retain their existing owners.
     // All primitive scalar carriers participate, not only integer predicates.
-    let mut carrier = return_type;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier)
-    {
-        carrier = *base_type;
-    }
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(return_type);
     if matches!(
         program.type_reference_table.type_reference(carrier),
         TypeReferenceNode::Reference { .. }

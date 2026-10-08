@@ -198,11 +198,7 @@ fn shared_referee_matches(
     }) {
         return true;
     }
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(actual)
-    {
-        actual = *base_type;
-    }
+    actual = program.type_reference_table.unconstrained_type_reference(actual);
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
@@ -277,11 +273,7 @@ fn fixed_array_binds_open_length(
     else {
         return false;
     };
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(actual)
-    {
-        actual = *base_type;
-    }
+    actual = program.type_reference_table.unconstrained_type_reference(actual);
     let TypeReferenceNode::FixedArray {
         element_type: actual_element,
         length: actual_length,
@@ -518,11 +510,7 @@ fn owned_array_projects_to_slice(
     else {
         return false;
     };
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(actual)
-    {
-        actual = *base_type;
-    }
+    actual = program.type_reference_table.unconstrained_type_reference(actual);
     let TypeReferenceNode::FixedArray {
         element_type: actual_element,
         ..
@@ -723,11 +711,7 @@ pub(crate) fn place_forwards_mutable_reference(
     let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
         return false;
     };
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(selected)
-    {
-        selected = *base_type;
-    }
+    selected = program.type_reference_table.unconstrained_type_reference(selected);
     matches!(
         program.type_reference_table.type_reference(selected),
         TypeReferenceNode::Reference {
@@ -741,11 +725,7 @@ pub(crate) fn declared_reference_access(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    reference = program.type_reference_table.unconstrained_type_reference(reference);
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference { access, .. } => Some(*access),
         _ => None,
@@ -787,11 +767,7 @@ pub(crate) fn place_permits_reference_borrow(
     let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
         return false;
     };
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(selected)
-    {
-        selected = *base_type;
-    }
+    selected = program.type_reference_table.unconstrained_type_reference(selected);
     match program.type_reference_table.type_reference(selected) {
         TypeReferenceNode::Reference {
             access: source_access,

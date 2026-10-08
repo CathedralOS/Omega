@@ -78,12 +78,9 @@ pub(crate) fn local_reference_storage_before_statement(
     if declarations.next().is_some() {
         return None;
     }
-    let mut reference = local.type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(local.type_reference);
     if !matches!(
         program.type_reference_table.type_reference(reference),
         TypeReferenceNode::Reference { .. }

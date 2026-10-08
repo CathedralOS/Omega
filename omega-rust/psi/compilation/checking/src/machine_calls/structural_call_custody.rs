@@ -845,11 +845,7 @@ pub fn structural_owned_path(
     let mut path = Vec::with_capacity(segments.len());
     for segment in segments {
         structural_result_qualifications(program, reference)?;
-        while let TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(reference)
-        {
-            reference = *base_type;
-        }
+        reference = program.type_reference_table.unconstrained_type_reference(reference);
         match (
             segment,
             program.type_reference_table.type_reference(reference),

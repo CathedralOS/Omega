@@ -261,7 +261,7 @@ fn indexed_read_has_builtin_meaning(
     collection_type: TypeReferenceHandle,
     index: ExpressionHandle,
 ) -> bool {
-    use language_core::OperatorSpelling;
+
     let Some((machine_index, state_index)) =
         program.state_position_for_parameter_symbols(parameters)
     else {

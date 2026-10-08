@@ -28,13 +28,11 @@ pub(super) fn places_may_overlap(
 /// untouched (`callee_leaves_demanded_path_unwritten`).
 pub(super) fn frozen_input_reference(
     program: &dyn ::validation::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> bool {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    let reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Reference { access, .. } => {
             *access == language_semantics::ReferenceAccess::Shared

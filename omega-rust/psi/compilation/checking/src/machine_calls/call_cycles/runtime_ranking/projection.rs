@@ -607,11 +607,7 @@ fn unsigned_carrier_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<PrimitiveType> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    reference = program.type_reference_table.unconstrained_type_reference(reference);
     let primitive = crate::value_custody::recasts::exact_primitive_type(program, reference)?;
     matches!(
         primitive,

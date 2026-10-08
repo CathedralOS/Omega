@@ -487,14 +487,12 @@ fn has_symbolic_origin(
             root: PlaceRoot::Symbol(root),
             segments: path[..length].to_vec(),
         };
-        if let Some(mut reference) =
+        if let Some(reference) =
             validation::canonical_place_type_reference(program, source_state, statement, &source)
         {
-            while let TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(reference)
-            {
-                reference = *base_type;
-            }
+            let reference = program
+                .type_reference_table
+                .unconstrained_type_reference(reference);
             if let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
                 && program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter

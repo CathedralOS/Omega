@@ -150,11 +150,7 @@ fn projected_type_is_reference(
             },
         };
     }
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
+    reference = program.type_reference_table.unconstrained_type_reference(reference);
     reference.is_valid().then(|| {
         matches!(
             program.type_reference_table.type_reference(reference),
