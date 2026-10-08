@@ -6,6 +6,7 @@ use crate::{
     CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
 };
 use diagnostics::Diagnostic;
+use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use object_file::{RelocationKind, RelocationPlan, SectionKind, relocation_kind_tag};
 use sha2::{Digest, Sha256};
 
@@ -174,34 +175,34 @@ pub fn validate_final_text_relocation_envelope(
         relocation_digest.update((*width as u64).to_le_bytes());
         relocation_digest.update([*kind]);
         relocation_digest.update(addend.to_le_bytes());
-        fingerprint_into(
+        fingerprint_bytes(
             &mut relocation_envelope_report_fingerprint,
             &(*offset as u64).to_le_bytes(),
         );
-        fingerprint_into(
+        fingerprint_bytes(
             &mut relocation_envelope_report_fingerprint,
             &(*width as u64).to_le_bytes(),
         );
-        fingerprint_into(&mut relocation_envelope_report_fingerprint, &[*kind]);
-        fingerprint_into(
+        fingerprint_bytes(&mut relocation_envelope_report_fingerprint, &[*kind]);
+        fingerprint_bytes(
             &mut relocation_envelope_report_fingerprint,
             &addend.to_le_bytes(),
         );
     }
     let mut derivation_report_fingerprint = FNV_OFFSET;
-    fingerprint_into(
+    fingerprint_bytes(
         &mut derivation_report_fingerprint,
         &encoded_text_report_fingerprint.to_le_bytes(),
     );
-    fingerprint_into(
+    fingerprint_bytes(
         &mut derivation_report_fingerprint,
         &final_compiler_text_report_fingerprint.to_le_bytes(),
     );
-    fingerprint_into(
+    fingerprint_bytes(
         &mut derivation_report_fingerprint,
         &relocation_envelope_report_fingerprint.to_le_bytes(),
     );
-    fingerprint_into(
+    fingerprint_bytes(
         &mut derivation_report_fingerprint,
         &(text_relocations.len() as u64).to_le_bytes(),
     );
@@ -226,20 +227,13 @@ pub fn validate_final_text_relocation_envelope(
 }
 
 
-const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 
 fn report_fingerprint_bytes(bytes: &[u8]) -> u64 {
     let mut fingerprint = FNV_OFFSET;
-    fingerprint_into(&mut fingerprint, bytes);
+    fingerprint_bytes(&mut fingerprint, bytes);
     fingerprint
 }
 
-fn fingerprint_into(fingerprint: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *fingerprint ^= u64::from(*byte);
-        *fingerprint = fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-}
 
 fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = Sha256::new();

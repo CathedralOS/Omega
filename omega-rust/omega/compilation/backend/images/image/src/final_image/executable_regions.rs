@@ -606,7 +606,7 @@ pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
 }
 
 pub(crate) fn byte_report_fingerprint(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut hash = FNV_OFFSET;
     fingerprint_bytes(&mut hash, bytes);
     hash
 }
@@ -618,7 +618,7 @@ pub(crate) fn executable_inventory_report_fingerprint(
     regions: &[PlacedExecutableRegion],
     gaps: &[PlacedExecutableGap],
 ) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut hash = FNV_OFFSET;
     fingerprint_bytes(&mut hash, &text_address.to_le_bytes());
     fingerprint_bytes(&mut hash, &(text_byte_count as u64).to_le_bytes());
     fingerprint_bytes(&mut hash, &text_report_fingerprint.to_le_bytes());
@@ -656,6 +656,8 @@ pub(crate) fn executable_inventory_report_fingerprint(
     }
     hash
 }
+
+pub(crate) const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 
 pub(crate) fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
     for byte in bytes {

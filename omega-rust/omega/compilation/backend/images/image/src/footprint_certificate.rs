@@ -12,6 +12,7 @@ use crate::{
     FinalCompilerTextDigest,
 };
 use diagnostics::Diagnostic;
+use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 use sha2::{Digest, Sha256};
 
 pub const FINAL_FOOTPRINT_CERTIFICATE_MARKER: &str = "omega.final-footprint-certificate.current";
@@ -664,14 +665,7 @@ fn certificate_report_fingerprint(
     hash
 }
 
-const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 
-fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *hash ^= u64::from(*byte);
-        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-}
 
 #[cfg(test)]
 mod tests;

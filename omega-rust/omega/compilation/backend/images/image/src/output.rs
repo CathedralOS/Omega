@@ -2,6 +2,7 @@
 //! bindings, and the image output kinds that carry them.
 
 use sha2::{Digest, Sha256};
+use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
 
 macro_rules! image_evidence_digest {
     ($name:ident) => {
@@ -181,7 +182,7 @@ impl CompilerEntryRegionBindingEvidence {
     }
 
     pub fn recomputed_evidence_report_fingerprint(&self) -> u64 {
-        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        let mut hash = FNV_OFFSET;
         let identity = self.function_identity;
         let role_tag = if identity.source_key().is_some() {
             1u8
@@ -283,7 +284,7 @@ impl CompilerEntryFootprintBindingEvidence {
     }
 
     pub fn recomputed_evidence_report_fingerprint(self) -> u64 {
-        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        let mut hash = FNV_OFFSET;
         for value in [
             self.entry_region_evidence_report_fingerprint,
             self.final_region_binding_report_fingerprint,
@@ -377,18 +378,12 @@ impl CompilerFunctionValidationEvidence {
     /// Compact reporting coordinate only. This is not evidence, admission,
     /// publication, or replay authority; use [`Self::evidence_digest`].
     pub fn evidence_report_fingerprint(self) -> u64 {
-        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        let mut hash = FNV_OFFSET;
         fingerprint_bytes(&mut hash, self.evidence_digest().as_bytes());
         hash
     }
 }
 
-fn fingerprint_bytes(hash: &mut u64, bytes: &[u8]) {
-    for byte in bytes {
-        *hash ^= u64::from(*byte);
-        *hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-}
 
 macro_rules! compiler_text_digest {
     ($name:ident) => {
