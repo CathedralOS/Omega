@@ -305,11 +305,7 @@ impl<T: Default> Arena<T> {
 
         insert_items(&mut inserter);
 
-        if inserter.count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(Handle::from_arena_index(start_index), inserter.count)
-        }
+        HandleSpan::from_parts_or_empty(Handle::from_arena_index(start_index), inserter.count)
     }
 
     pub fn try_insert_many_with<E>(

@@ -81,14 +81,10 @@ impl Iterator for SupplementalChildHandles<'_> {
                     start.generation(),
                 );
                 let remaining = self.children.count() - ordinal as u32 - 1;
-                self.children = if remaining == 0 {
-                    HandleSpan::empty()
-                } else {
-                    HandleSpan::from_parts(
-                        SymbolHandle::from_parts(selected.arena_index() + 1, selected.generation()),
-                        remaining,
-                    )
-                };
+                self.children = HandleSpan::from_parts_or_empty(
+                    SymbolHandle::from_parts(selected.arena_index() + 1, selected.generation()),
+                    remaining,
+                );
                 return Some(selected);
             }
             ordinal -= self.children.len();
