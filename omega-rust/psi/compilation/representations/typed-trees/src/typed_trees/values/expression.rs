@@ -1412,6 +1412,20 @@ pub enum BinaryOperator {
 }
 
 impl BinaryOperator {
+    /// `left <self> right` evaluated as an ordering comparison; `None` when
+    /// the operator is not one of the six comparisons.
+    pub fn evaluate_comparison<T: Ord>(self, left: &T, right: &T) -> Option<bool> {
+        Some(match self {
+            BinaryOperator::Equal => left == right,
+            BinaryOperator::NotEqual => left != right,
+            BinaryOperator::Less => left < right,
+            BinaryOperator::LessOrEqual => left <= right,
+            BinaryOperator::Greater => left > right,
+            BinaryOperator::GreaterOrEqual => left >= right,
+            _ => return None,
+        })
+    }
+
     /// The comparison expressing this operator's negation, when one exists.
     pub fn complement(self) -> Option<BinaryOperator> {
         match self {

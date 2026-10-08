@@ -337,15 +337,7 @@ pub(crate) fn lower_closed_integer_literal_guard(
     };
     let left = left.value_bignum()?;
     let right = right.value_bignum()?;
-    let value = match binary.operator {
-        BinaryOperator::Equal => left == right,
-        BinaryOperator::NotEqual => left != right,
-        BinaryOperator::Less => left < right,
-        BinaryOperator::LessOrEqual => left <= right,
-        BinaryOperator::Greater => left > right,
-        BinaryOperator::GreaterOrEqual => left >= right,
-        _ => return None,
-    };
+    let value = binary.operator.evaluate_comparison(&left, &right)?;
     Some(CheckedBooleanExpression::Constant(value))
 }
 

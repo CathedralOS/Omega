@@ -989,15 +989,9 @@ pub(super) fn fold_scalar_binary(
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual => {
-            let verdict = match operator {
-                BinaryOperator::Equal => left == right,
-                BinaryOperator::NotEqual => left != right,
-                BinaryOperator::Less => left < right,
-                BinaryOperator::LessOrEqual => left <= right,
-                BinaryOperator::Greater => left > right,
-                BinaryOperator::GreaterOrEqual => left >= right,
-                _ => unreachable!(),
-            };
+            let verdict = operator
+                .evaluate_comparison(&left, &right)
+                .expect("comparison operator");
             return Some(StructuralTerm::Constructor {
                 data: "bool".to_owned(),
                 case: verdict.to_string(),

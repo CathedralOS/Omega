@@ -1090,15 +1090,9 @@ fn closed_compare(
             BinaryOperator::NotEqual => Some(left != right),
             _ => None,
         },
-        (ClosedScalar::Integer(left), ClosedScalar::Integer(right)) => Some(match operator {
-            BinaryOperator::Equal => left == right,
-            BinaryOperator::NotEqual => left != right,
-            BinaryOperator::Less => left < right,
-            BinaryOperator::LessOrEqual => left <= right,
-            BinaryOperator::Greater => left > right,
-            BinaryOperator::GreaterOrEqual => left >= right,
-            _ => return None,
-        }),
+        (ClosedScalar::Integer(left), ClosedScalar::Integer(right)) => {
+            operator.evaluate_comparison(&left, &right)
+        }
         (ClosedScalar::Boolean(_), _) | (_, ClosedScalar::Boolean(_)) => None,
         _ => {
             let left = closed_exact_float(left, format)?;

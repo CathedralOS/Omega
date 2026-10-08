@@ -45,7 +45,6 @@ pub(in crate::checks::contracts) fn has_builtin_operators(
     }
 }
 
-
 pub(in crate::checks::contracts) fn evaluate(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
@@ -167,15 +166,7 @@ pub(in crate::checks::contracts) fn evaluate_with_atoms(
                     }
                 }
                 (ScalarValue::Integer(left), ScalarValue::Integer(right)) => {
-                    match binary.operator {
-                        BinaryOperator::Equal => left == right,
-                        BinaryOperator::NotEqual => left != right,
-                        BinaryOperator::Less => left < right,
-                        BinaryOperator::LessOrEqual => left <= right,
-                        BinaryOperator::Greater => left > right,
-                        BinaryOperator::GreaterOrEqual => left >= right,
-                        _ => return None,
-                    }
+                    binary.operator.evaluate_comparison(&left, &right)?
                 }
                 _ => return None,
             };
