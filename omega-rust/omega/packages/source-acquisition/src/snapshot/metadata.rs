@@ -1,6 +1,7 @@
 //! Snapshot identity records and published-snapshot verification.
 
 use crate::SourceResolveError;
+use crate::{take_framed_bytes, take_u64};
 use crate::custody::tree::{CacheCustodyKind, read_bounded_cache_record};
 use crate::error::local_snapshot_invalid;
 use crate::identity::digest::append_framed_bytes;
@@ -128,15 +129,4 @@ pub(crate) fn local_snapshot_content_identity(
     Ok(parse_local_snapshot_metadata(&bytes, &metadata_path)?.content_identity)
 }
 
-fn take_u64(bytes: &mut &[u8]) -> Option<u64> {
-    let value = u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?);
-    *bytes = &bytes[8..];
-    Some(value)
-}
 
-fn take_framed_bytes<'a>(bytes: &mut &'a [u8]) -> Option<&'a [u8]> {
-    let length = usize::try_from(take_u64(bytes)?).ok()?;
-    let value = bytes.get(..length)?;
-    *bytes = &bytes[length..];
-    Some(value)
-}
