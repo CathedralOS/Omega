@@ -1114,6 +1114,24 @@ impl PrimitiveType {
         }
     }
 
+    /// The landed literal integer type this primitive lands as, or `None`
+    /// for `Selector`, `Bool` and the floats.
+    pub fn landed_landing(self) -> Option<numerics::literals::LandedIntegerType> {
+        use numerics::literals::LandedIntegerType;
+        Some(match self {
+            Self::I8 => LandedIntegerType::I8,
+            Self::I16 => LandedIntegerType::I16,
+            Self::I32 => LandedIntegerType::I32,
+            Self::I64 => LandedIntegerType::I64,
+            Self::U8 => LandedIntegerType::U8,
+            Self::U16 => LandedIntegerType::U16,
+            Self::U32 => LandedIntegerType::U32,
+            Self::U64 => LandedIntegerType::U64,
+            Self::Addr => LandedIntegerType::Addr,
+            Self::Selector | Self::Bool | Self::F32 | Self::F64 => return None,
+        })
+    }
+
     /// The sign and bit width of the eight fixed-width integers
     /// (`i8`–`u64`); `Addr`, `Selector`, `Bool` and the floats return `None`.
     pub fn integer_sign_bits(self) -> Option<(semantic_vocabulary::IntegerSign, u16)> {

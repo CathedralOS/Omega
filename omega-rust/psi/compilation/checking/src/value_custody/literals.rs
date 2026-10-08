@@ -45,18 +45,7 @@ mod literal_widths;
 /// The landed integer type a primitive lands as, or `None` for a primitive
 /// without an integer landing.
 pub(crate) fn primitive_landing_type(primitive: PrimitiveType) -> Option<LandedIntegerType> {
-    Some(match primitive {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr => LandedIntegerType::Addr,
-        _ => return None,
-    })
+    primitive.landed_landing()
 }
 
 fn named_transition_arguments<'program>(

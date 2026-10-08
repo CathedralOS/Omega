@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 use language_semantics::const_value::{
     CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
 };
-use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
@@ -128,20 +128,7 @@ fn integer_value(
     literal: IntegerLiteral,
 ) -> Option<ExpressionNode> {
     let primitive = program.type_reference_table.primitive_type(declared_type)?;
-    let landed_type = match primitive {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr => LandedIntegerType::Addr,
-        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
-            return None;
-        }
-    };
+    let landed_type = primitive.landed_landing()?;
     Some(ExpressionNode::Integer(
         literal.with_landing(IntegerLanding {
             landed_type,

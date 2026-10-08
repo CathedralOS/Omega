@@ -297,20 +297,7 @@ pub(super) fn land_anonymous_zero(
     if literal.landing().is_some() || literal.value_i64() != Some(0) {
         return None;
     }
-    let landed_type = match primitive_type {
-        PrimitiveType::I8 => LandedIntegerType::I8,
-        PrimitiveType::I16 => LandedIntegerType::I16,
-        PrimitiveType::I32 => LandedIntegerType::I32,
-        PrimitiveType::I64 => LandedIntegerType::I64,
-        PrimitiveType::U8 => LandedIntegerType::U8,
-        PrimitiveType::U16 => LandedIntegerType::U16,
-        PrimitiveType::U32 => LandedIntegerType::U32,
-        PrimitiveType::U64 => LandedIntegerType::U64,
-        PrimitiveType::Addr => LandedIntegerType::Addr,
-        PrimitiveType::Selector | PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => {
-            return None;
-        }
-    };
+    let landed_type = primitive_type.landed_landing()?;
     Some(CheckedScalarExpression::IntegerLiteral {
         literal: literal.with_landing(IntegerLanding {
             landed_type,
