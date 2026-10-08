@@ -1,7 +1,10 @@
-//! A contiguous native byte view assembled from authenticated scalar loans.
+//! A demanded native byte prefix assembled from authenticated scalar loans.
 //! Native placement selects byte coordinates; captured backing selects access,
 //! codecs and field restrictions. Neither can substitute for the other. Every
-//! byte must belong to exactly one scalar: padding and pointers are not invented.
+//! accessed byte must belong to exactly one scalar: padding and pointers are not
+//! invented. Unaccessed padding is not a reason to refuse a backed prefix. Keep
+//! a complete captured scalar when the prefix ends inside it, so writeback can
+//! preserve its unread bytes; fields outside the prefix receive no replacement.
 
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{
@@ -27,6 +30,7 @@ impl CapturedStorage {
         buffers: &[TerminalBoundaryScalarBuffer],
         access: StructuralAccess,
         layout: Option<&NativeBorrowedStorageLayout>,
+        byte_count: usize,
     ) -> Result<Self, TerminalEffectRejection> {
         let mut segments = Vec::with_capacity(buffers.len());
         for (buffer_index, buffer) in buffers.iter().enumerate() {
@@ -90,6 +94,27 @@ impl CapturedStorage {
             segments.push((buffer_index, byte_offset, byte_size));
         }
         segments.sort_unstable_by_key(|(_, offset, _)| *offset);
+        let layout_extent = layout
+            .map(|layout| usize::try_from(layout.byte_size).map_err(|_| invalid_operands()))
+            .transpose()?;
+        let mut previous_end = 0usize;
+        for (_, offset, size) in &segments {
+            let end = offset.checked_add(*size).ok_or_else(invalid_operands)?;
+            if *offset < previous_end || layout_extent.is_some_and(|extent| end > extent) {
+                return Err(invalid_operands());
+            }
+            previous_end = end;
+        }
+        let native_extent = layout_extent.unwrap_or(previous_end);
+        if byte_count > native_extent {
+            return Err(TerminalEffectRejection::new(
+                "descriptor byte count exceeds the exact borrowed storage extent",
+            ));
+        }
+        // Native pointer/count semantics demand this prefix, not a snapshot of
+        // the entire object. Authenticate all supplied coordinates above, then
+        // retain only complete scalars touched by the actual byte interval.
+        segments.retain(|(_, offset, _)| *offset < byte_count);
         let mut extent = 0usize;
         for (_, offset, size) in &segments {
             if *offset != extent {
@@ -99,8 +124,10 @@ impl CapturedStorage {
             }
             extent = extent.checked_add(*size).ok_or_else(invalid_operands)?;
         }
-        if layout.is_some_and(|layout| usize::try_from(layout.byte_size).ok() != Some(extent)) {
-            return Err(invalid_operands());
+        if extent < byte_count {
+            return Err(TerminalEffectRejection::new(
+                "borrowed storage has padding, overlap or unmodeled bytes",
+            ));
         }
         let mut bytes = vec![0; extent];
         for (buffer_index, offset, size) in &segments {

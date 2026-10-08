@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_clock_padded_out_parameter_prefix_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}

@@ -375,22 +375,17 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     }
                     _ => return Err(invalid_operands()),
                 };
+                let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
                 captured = Some(CapturedStorage::capture(
                     scalar_buffers,
                     formal.access,
                     layout,
+                    count,
                 )?);
                 let storage = captured.as_ref().ok_or_else(invalid_operands)?;
-                let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
                 // A logical integer formal can observe a narrower captured
                 // codec. Only its authenticated physical bytes are offered;
                 // the formal's width grants neither padding nor adjacent data.
-                let extent = storage.bytes.len();
-                if count > extent {
-                    return Err(TerminalEffectRejection::new(
-                        "descriptor byte count exceeds the exact borrowed storage extent",
-                    ));
-                }
                 (storage.bytes.as_slice(), count)
             }
         };

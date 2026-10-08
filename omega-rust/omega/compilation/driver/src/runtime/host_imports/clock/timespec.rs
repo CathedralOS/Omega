@@ -2,7 +2,7 @@
 //! The SDK's time_t and long occupy two signed 64-bit words. Any authenticated,
 //! aligned contiguous backing covering those 16 bytes can receive the write;
 //! captured codecs and restrictions still decide whether it can commit. A
-//! larger loan keeps its suffix. Padding, pointers and invented storage reject
+//! larger loan keeps its suffix. Accessed padding, pointers and invented storage reject
 //! through the common borrowed-storage capture rather than acquiring values.
 
 use std::sync::{Arc, Mutex};
@@ -84,7 +84,7 @@ pub(super) fn read(
         return Err(invalid());
     }
     let mut storage =
-        CapturedStorage::capture(buffers, StructuralAccess::MutableBorrow, Some(layout))?;
+        CapturedStorage::capture(buffers, StructuralAccess::MutableBorrow, Some(layout), 16)?;
     let reading = clock
         .lock()
         .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?

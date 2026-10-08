@@ -1769,7 +1769,7 @@ then independent claimed restoration slices -> final closure.
   demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, padding-containing, reference-bearing or atomic host buffers,
+  loans, accesses into actual padding, reference-bearing or atomic host buffers,
   non-hosted roots and required
   receiver qualifications. Preserve
   `host/runtime_descriptor_binding_{state_forwarding_input,record_result}_exit`
@@ -1807,6 +1807,8 @@ then independent claimed restoration slices -> final closure.
   Helpers, captures and fixed arrays keep backing; unwritten suffixes and sibling
   storage remain unchanged. Unsupported selectors need their actual time model,
   never invented CPU accounting.
+  Keep `time/runtime_clock_padded_out_parameter_prefix_exit`: the fixed timespec
+  footprint cannot demand or synthesize unaccessed tail padding in a larger loan.
   Preserve `host/runtime_descriptor_output_streams_exit`,
   `host/runtime_descriptor_direct_array_exit` and
   `host/runtime_descriptor_nested_array_window_exit` while extending host buffers:
@@ -1838,6 +1840,10 @@ then independent claimed restoration slices -> final closure.
   Preserve `host/{runtime_descriptor_record_loan_input_exit,runtime_descriptor_nested_record_loan_input_exit}`:
   whole-record loans retain original scalar fields, nested arrays and restrictions;
   native placement supplies byte coordinates without inventing padding or pointers.
+  Preserve `host/runtime_descriptor_padded_prefix_loans_exit`: read/write demand
+  covers only the accessed byte prefix, retains unread bytes inside a touched
+  scalar and leaves neighboring fields unchanged. Padding outside that interval
+  supplies no bytes and cannot invalidate an otherwise backed prefix.
   Preserve `host/runtime_descriptor_local_array_loan_input_exit`: shared and mutable
   whole-array loans keep their owner's activation across calls and state edges;
   only owned occurrences copy payload, and short reads retain unread elements.

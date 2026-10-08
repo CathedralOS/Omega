@@ -1,0 +1,58 @@
+// The demanded prefix has scalar backing; later interior/trailing padding is
+// outside the foreign read/write interval and must not acquire invented bytes.
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+pub data Packet [copy] { header: u16; payload: u64; ending: u8; }
+pub boundary trait DescriptorIo {
+    machine read(descriptor: i32, packet: &mut Packet, count: u64) -> i64 blocks;
+    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64;
+}
+pub data DescriptorImports {}
+data Holder { before: u64; packet: Packet; after: u64; }
+data Main { io: Binding<DescriptorIo>; holder: Holder; }
+
+pub macos_arm64 machine read_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+    } }
+}
+pub macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+    } }
+}
+macos_arm64 boundary machine DescriptorImports::read(descriptor: i32, packet: &mut Packet, count: u64) -> i64
+    satisfies DescriptorIo::read via read_binding();
+macos_arm64 boundary machine DescriptorImports::write(descriptor: i32, packet: &Packet, count: u64) -> i64
+    satisfies DescriptorIo::write via write_binding();
+
+machine receive(io: &Binding<DescriptorIo>, packet: &mut Packet, count: u64) -> i64
+    reaches DescriptorIo blocks; {
+    block io.read(0, packet, count)
+}
+
+machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
+    main.holder.before = 17;
+    main.holder.packet.header = 16706;
+    main.holder.packet.payload = 123456789;
+    main.holder.packet.ending = 29;
+    main.holder.after = 31;
+    let zero: i64 = block receive(&main.io, &mut main.holder.packet, 0);
+    let moved: i64 = block receive(&main.io, &mut main.holder.packet, 1);
+    let saved: u16 = main.holder.packet.header;
+    let written: i64 = main.io.write(1, &main.holder.packet, 2);
+    let tail: i64 = block receive(&main.io, &mut main.holder.packet, 1);
+    let at_end: i64 = block receive(&main.io, &mut main.holder.packet, 2);
+    let newline: i64 = main.io.write(1, &main.holder.packet, 1);
+    transition zero == 0 && moved == 1 && tail == 1 && at_end == 0
+        && written == 2 && newline == 1 && saved == 16707
+        && main.holder.packet.header == 16650
+        && main.holder.packet.payload == 123456789 && main.holder.packet.ending == 29
+        && main.holder.before == 17 && main.holder.after == 31 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
