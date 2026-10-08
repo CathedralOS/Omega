@@ -127,3 +127,37 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         }
     }
 }
+
+fn declared_size_matches(knowledge: selected_instructions::MachineSizeKnowledge, actual: u64) -> bool {
+    match knowledge {
+        selected_instructions::MachineSizeKnowledge::ExactBytes(expected) => {
+            u64::from(expected) == actual
+        }
+        selected_instructions::MachineSizeKnowledge::EncoderResolved {
+            minimum_bytes,
+            maximum_bytes,
+        } => {
+            actual >= u64::from(minimum_bytes)
+                && maximum_bytes.is_none_or(|maximum| actual <= u64::from(maximum))
+        }
+    }
+}
+
+fn is_admitted_canonical_shape(function: &selected_instructions::SelectedFunction) -> bool {
+    !function.blocks.is_empty()
+        && function
+            .blocks
+            .iter()
+            .any(|block| block.id == function.entry_block)
+}
+
+fn is_single_entry(function: &selected_instructions::SelectedFunction) -> bool {
+    let [block] = function.blocks.as_slice() else {
+        return false;
+    };
+    function.entry_block == block.id
+        && matches!(
+            block.terminator,
+            selected_instructions::SelectedTerminator::Return { .. }
+        )
+}

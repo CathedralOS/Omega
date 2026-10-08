@@ -1,6 +1,9 @@
-use selected_instructions::{SelectedFunction, SelectedInstructionPlan, SelectedTerminator};
+use selected_instructions::{SelectedInstructionPlan, SelectedTerminator};
 
-use super::super::{OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy};
+use super::super::{
+    OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,
+    is_admitted_canonical_shape, is_single_entry,
+};
 
 pub(super) fn derive(
     selected: &SelectedInstructionPlan,
@@ -44,18 +47,4 @@ pub(super) fn derive(
     }
 }
 
-fn is_admitted_canonical_shape(function: &SelectedFunction) -> bool {
-    !function.blocks.is_empty()
-        && function
-            .blocks
-            .iter()
-            .any(|block| block.id == function.entry_block)
-}
 
-fn is_single_entry(function: &SelectedFunction) -> bool {
-    let [block] = function.blocks.as_slice() else {
-        return false;
-    };
-    function.entry_block == block.id
-        && matches!(block.terminator, SelectedTerminator::Return { .. })
-}

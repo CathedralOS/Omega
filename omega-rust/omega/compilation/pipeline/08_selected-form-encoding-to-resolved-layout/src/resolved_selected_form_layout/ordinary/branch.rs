@@ -15,13 +15,13 @@ use isa_x86_64::{
 use physical_instructions::PostAllocationMachineInstruction;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{
-    MachineEncodedEffects, MachineSizeKnowledge, SelectedBlock, SelectedBlockId,
+    MachineEncodedEffects, SelectedBlock, SelectedBlockId,
     SelectedInstruction, SelectedInstructionId, SelectedTerminator,
 };
 use target::Architecture;
 
 use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence,
+    OptimizedResolvedSelectedFormLayoutError, ResolvedBranchEvidence, declared_size_matches,
     ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate, ResolvedJumpEvidence,
 };
 
@@ -323,18 +323,6 @@ fn encode(
     }
 }
 
-fn declared_size_matches(knowledge: MachineSizeKnowledge, actual: u64) -> bool {
-    match knowledge {
-        MachineSizeKnowledge::ExactBytes(expected) => u64::from(expected) == actual,
-        MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes,
-            maximum_bytes,
-        } => {
-            actual >= u64::from(minimum_bytes)
-                && maximum_bytes.is_none_or(|maximum| actual <= u64::from(maximum))
-        }
-    }
-}
 
 const fn branch_size(architecture: Architecture) -> u64 {
     match architecture {
