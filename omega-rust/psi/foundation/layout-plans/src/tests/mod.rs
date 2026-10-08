@@ -3,7 +3,7 @@
 
 use crate::test_support::{
     deeply_nested_layout, post_handoff_context, post_handoff_context_with,
-    recursive_record_array_report, repeated_layout, split_layout, sum_layout,
+    recursive_record_array_report, repeated_layout, split_layout, sum_layout, symbolic_path,
 };
 
 mod conventional_materializations;

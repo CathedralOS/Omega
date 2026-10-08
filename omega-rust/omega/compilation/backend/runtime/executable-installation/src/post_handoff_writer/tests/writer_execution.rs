@@ -7,7 +7,7 @@
 
 use layout_plans::test_support::{
     deeply_nested_layout, post_handoff_context, post_handoff_context_with,
-    recursive_record_array_report, repeated_layout, split_layout, sum_layout,
+    recursive_record_array_report, repeated_layout, split_layout, sum_layout, symbolic_path,
 };
 
 use crate::post_handoff_writer::{
@@ -566,16 +566,10 @@ fn symbolic_inner_materialization_composes_through_a_second_record_boundary() {
     let symbolic = [
         SymbolicFieldValue::new("slot", 64, entry())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("sub")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-            ),
+            .with_inner_segment(symbolic_path(&["sub", "entry"])),
         SymbolicFieldValue::new("slot", 64, data())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("sub")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
-            ),
+            .with_inner_segment(symbolic_path(&["sub", "flags"])),
         SymbolicFieldValue::new("slot", 64, data())
             .expect("outer record field")
             .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
@@ -646,10 +640,7 @@ fn symbolic_mixed_sum_array_materialization_assigns_common_and_case_members() {
             .with_inner_segment(SymbolicFieldPathSegment::new("sequence")),
         SymbolicFieldValue::new_indexed("mixed", 0, 64, entry())
             .expect("repeated mixed field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("Run")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-            ),
+            .with_inner_segment(symbolic_path(&["Run", "callback"])),
     ];
     let plan = derive_symbolic_materialization_with_inner_layouts(
         &layout,
@@ -709,10 +700,7 @@ fn symbolic_mixed_sum_array_materialization_assigns_common_and_case_members() {
     // common field is the leaf of a mixed sum path, same as a case payload.
     let continues = SymbolicFieldValue::new_indexed("mixed", 0, 8, data())
         .expect("repeated mixed field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("sequence")
-                .with_inner_segment(SymbolicFieldPathSegment::new("deeper")),
-        );
+        .with_inner_segment(symbolic_path(&["sequence", "deeper"]));
     let error = derive_symbolic_materialization_with_inner_layouts(
         &layout,
         std::slice::from_ref(&carrier),
@@ -760,63 +748,40 @@ fn symbolic_recursive_sum_array_materialization_composes_indexed_boundaries() {
         SymbolicFieldValue::new("header", 64, data()).expect("scalar field"),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("inner").with_inner_segment(
-                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                    ),
-                ),
-            ),
+            .with_inner_segment(symbolic_path(&["inner", "choice", "Run", "callback"])),
         SymbolicFieldValue::new("middle", 64, entry())
             .expect("outer record field")
             .with_inner_segment(
                 SymbolicFieldPathSegment::new("inner").with_inner_segment(
-                    SymbolicFieldPathSegment::new_indexed("choices", 0).with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                    ),
+                    SymbolicFieldPathSegment::new_indexed("choices", 0)
+                        .with_inner_segment(symbolic_path(&["Run", "callback"])),
                 ),
             ),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
             .with_inner_segment(
                 SymbolicFieldPathSegment::new("inner").with_inner_segment(
-                    SymbolicFieldPathSegment::new_indexed("choices", 1).with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
-                    ),
+                    SymbolicFieldPathSegment::new_indexed("choices", 1)
+                        .with_inner_segment(symbolic_path(&["Run", "clock"])),
                 ),
             ),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("inner")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("pad")),
-            ),
+            .with_inner_segment(symbolic_path(&["inner", "pad"])),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("route").with_inner_segment(
-                    SymbolicFieldPathSegment::new("Run")
-                        .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                ),
-            ),
+            .with_inner_segment(symbolic_path(&["route", "Run", "callback"])),
         SymbolicFieldValue::new("middle", 64, entry())
             .expect("outer record field")
             .with_inner_segment(
-                SymbolicFieldPathSegment::new_indexed("batches", 0).with_inner_segment(
-                    SymbolicFieldPathSegment::new("Run")
-                        .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
-                ),
+                SymbolicFieldPathSegment::new_indexed("batches", 0)
+                    .with_inner_segment(symbolic_path(&["Run", "clock"])),
             ),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
             .with_inner_segment(
-                SymbolicFieldPathSegment::new_indexed("batches", 1).with_inner_segment(
-                    SymbolicFieldPathSegment::new("Run")
-                        .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                ),
+                SymbolicFieldPathSegment::new_indexed("batches", 1)
+                    .with_inner_segment(symbolic_path(&["Run", "callback"])),
             ),
     ];
     let plan = derive_symbolic_materialization_with_inner_layouts(
@@ -924,12 +889,8 @@ fn symbolic_recursive_record_array_materialization_composes_element_boundaries()
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
             .with_inner_segment(
-                SymbolicFieldPathSegment::new_indexed("neighbors", 1).with_inner_segment(
-                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                    ),
-                ),
+                SymbolicFieldPathSegment::new_indexed("neighbors", 1)
+                    .with_inner_segment(symbolic_path(&["choice", "Run", "callback"])),
             ),
         SymbolicFieldValue::new("middle", 64, entry())
             .expect("outer record field")
@@ -939,22 +900,10 @@ fn symbolic_recursive_record_array_materialization_composes_element_boundaries()
             ),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("inner").with_inner_segment(
-                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
-                    ),
-                ),
-            ),
+            .with_inner_segment(symbolic_path(&["inner", "choice", "Run", "clock"])),
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
-            .with_inner_segment(
-                SymbolicFieldPathSegment::new("route").with_inner_segment(
-                    SymbolicFieldPathSegment::new("Run")
-                        .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                ),
-            ),
+            .with_inner_segment(symbolic_path(&["route", "Run", "callback"])),
     ];
     let plan = derive_symbolic_materialization_with_inner_layouts(
         &report.outer_layout,

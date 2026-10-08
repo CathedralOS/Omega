@@ -1,7 +1,7 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context,
     post_handoff_context_with, record_interior, reject_inner_layout_materialization,
-    repeated_layout, split_layout,
+    repeated_layout, split_layout, symbolic_path,
 };
 use crate::{
     ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
@@ -398,10 +398,7 @@ fn symbolic_inner_materialization_rejects_deeper_path_faults() {
             deep_path("entry"),
             SymbolicFieldValue::new("slot", 64, data())
                 .expect("outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new("sub")
-                        .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-                ),
+                .with_inner_segment(symbolic_path(&["sub", "entry"])),
         ],
         "the same deeper path cannot be supplied twice",
     );
@@ -457,10 +454,7 @@ fn symbolic_inner_materialization_bounds_each_record_boundary() {
     ));
     let ambiguous = SymbolicFieldValue::new("slot", 64, entry())
         .expect("outer record field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("subs")
-                .with_inner_segment(SymbolicFieldPathSegment::new("entry")),
-        );
+        .with_inner_segment(symbolic_path(&["subs", "entry"]));
     // `slot` spans offset 8 of the 40-byte outer plan, so its interior is
     // bounded to 32 bytes; the repeated-`subs` carrier legitimately claims 48,
     // so the outer plan must offer the room before the ambiguity check runs.

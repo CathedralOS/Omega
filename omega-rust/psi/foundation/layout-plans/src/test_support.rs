@@ -6,8 +6,18 @@ use crate::{
     ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, MaterializationContext, PlacementConstraints,
-    PlacementPhase, SymbolicFieldInnerLayout,
+    PlacementPhase, SymbolicFieldInnerLayout, SymbolicFieldPathSegment,
 };
+
+/// A nested symbolic path: `symbolic_path(&["a", "b"])` is `a` containing `b`.
+pub fn symbolic_path(segments: &[&str]) -> SymbolicFieldPathSegment {
+    let (innermost, outer) = segments.split_last().expect("a path needs a head");
+    let mut segment = SymbolicFieldPathSegment::new(*innermost);
+    for name in outer.iter().rev() {
+        segment = SymbolicFieldPathSegment::new(*name).with_inner_segment(segment);
+    }
+    segment
+}
 
 /// The post-handoff materialization context with a caller-chosen placement.
 pub fn post_handoff_context_with(placement: PlacementConstraints) -> MaterializationContext {

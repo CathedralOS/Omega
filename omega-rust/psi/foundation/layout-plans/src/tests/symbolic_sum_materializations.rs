@@ -1,7 +1,7 @@
 use super::{
     data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
     recursive_record_array_report, recursive_sum_report, reject_inner_layout_materialization,
-    sum_array_layout, sum_field_layout, sum_layout,
+    sum_array_layout, sum_field_layout, sum_layout, symbolic_path,
 };
 use crate::{
     CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumChildHop,
@@ -259,10 +259,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     // A spelled case must exist in the bound interior.
     let missing_case = SymbolicFieldValue::new("choice", 64, entry())
         .expect("direct sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Bogus")
-                .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-        );
+        .with_inner_segment(symbolic_path(&["Bogus", "callback"]));
     let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
@@ -281,10 +278,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     // the sum: `flags` only exists on `Small`, so `choice.Run.flags` rejects.
     let wrong_case_payload = SymbolicFieldValue::new("choice", 64, entry())
         .expect("direct sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run")
-                .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "flags"]));
     let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
@@ -301,12 +295,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     // below it.
     let continues = SymbolicFieldValue::new("choice", 64, entry())
         .expect("direct sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run").with_inner_segment(
-                SymbolicFieldPathSegment::new("callback")
-                    .with_inner_segment(SymbolicFieldPathSegment::new("deeper")),
-            ),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "callback", "deeper"]));
     let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
@@ -365,10 +354,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_paths() {
     // cannot address `Small.flags`'s single byte.
     let oversized = SymbolicFieldValue::new("choice", 64, entry())
         .expect("direct sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Small")
-                .with_inner_segment(SymbolicFieldPathSegment::new("flags")),
-        );
+        .with_inner_segment(symbolic_path(&["Small", "flags"]));
     let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
@@ -390,10 +376,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
     // path never crosses still rejects as stale.
     let path = SymbolicFieldValue::new("choice", 64, entry())
         .expect("direct sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run")
-                .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "callback"]));
     let error = derive_symbolic_materialization(
         &layout,
         std::slice::from_ref(&path),
@@ -488,10 +471,7 @@ fn symbolic_sum_materialization_rejects_malformed_sum_carriers() {
     let zero_count = SymbolicFieldInnerLayout::new_sum_array("sums", sum_layout(), 0, 24);
     let indexed_path = SymbolicFieldValue::new_indexed("sums", 0, 64, entry())
         .expect("repeated sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run")
-                .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "callback"]));
     let error = reject_inner_layout_materialization(
         &array_layout,
         &[zero_count],
@@ -529,10 +509,7 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     // offset.
     let unindexed = SymbolicFieldValue::new("sums", 64, entry())
         .expect("repeated sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run")
-                .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "callback"]));
     let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
@@ -549,10 +526,7 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     // any offset composes.
     let out_of_range = SymbolicFieldValue::new_indexed("sums", 2, 64, entry())
         .expect("repeated sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run")
-                .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "callback"]));
     let error = reject_inner_layout_materialization(
         &layout,
         std::slice::from_ref(&carrier),
@@ -582,10 +556,7 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
         .collect();
     let indexed = SymbolicFieldValue::new_indexed("sums", 1, 64, entry())
         .expect("repeated sum field")
-        .with_inner_segment(
-            SymbolicFieldPathSegment::new("Run")
-                .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-        );
+        .with_inner_segment(symbolic_path(&["Run", "callback"]));
     let materialization = derive_symbolic_materialization_with_inner_layouts(
         &per_element,
         std::slice::from_ref(&carrier),
@@ -873,12 +844,7 @@ fn symbolic_recursive_record_array_paths_stay_symbolic_until_assignment() {
         SymbolicFieldValue::new("middle", 64, data())
             .expect("outer record field")
             .with_inner_segment(
-                segment.with_inner_segment(
-                    SymbolicFieldPathSegment::new("choice").with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                    ),
-                ),
+                segment.with_inner_segment(symbolic_path(&["choice", "Run", "callback"])),
             )
     };
     // The record hop still needs its own carriers traversed: `inner` and
@@ -887,22 +853,10 @@ fn symbolic_recursive_record_array_paths_stay_symbolic_until_assignment() {
         [
             SymbolicFieldValue::new("middle", 64, data())
                 .expect("outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new("inner").with_inner_segment(
-                        SymbolicFieldPathSegment::new("choice").with_inner_segment(
-                            SymbolicFieldPathSegment::new("Run")
-                                .with_inner_segment(SymbolicFieldPathSegment::new("clock")),
-                        ),
-                    ),
-                ),
+                .with_inner_segment(symbolic_path(&["inner", "choice", "Run", "clock"])),
             SymbolicFieldValue::new("middle", 64, data())
                 .expect("outer record field")
-                .with_inner_segment(
-                    SymbolicFieldPathSegment::new("route").with_inner_segment(
-                        SymbolicFieldPathSegment::new("Run")
-                            .with_inner_segment(SymbolicFieldPathSegment::new("callback")),
-                    ),
-                ),
+                .with_inner_segment(symbolic_path(&["route", "Run", "callback"])),
         ]
     };
 
