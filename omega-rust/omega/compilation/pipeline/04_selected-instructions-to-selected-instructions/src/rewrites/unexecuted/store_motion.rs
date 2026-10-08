@@ -106,6 +106,7 @@
 //! content.
 
 mod admission;
+mod motion;
 mod rewrite;
 mod validation;
 
