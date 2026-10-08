@@ -25,7 +25,7 @@ use super::super::semantic_bindings::{
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
 };
-use crate::declarations::DependencyPurpose;
+use crate::declarations::{DependencyPurpose, purpose_slot};
 use crate::declarations::PackageKey;
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
@@ -154,12 +154,6 @@ pub(super) enum TargetEntryDiscovery {
     Dependencies,
 }
 
-fn purpose_slot(purpose: DependencyPurpose) -> usize {
-    match purpose {
-        DependencyPurpose::Product => 0,
-        DependencyPurpose::Build => 1,
-    }
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compile_dependency_closure(

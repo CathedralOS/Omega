@@ -11,7 +11,7 @@ use crate::build_session::{
     PackageBuildSession, PackageSourcePreparation, PreparedPackageSource,
     dependency_first_package_order, publish_checked_component, reconcile_build_inputs,
 };
-use crate::declarations::{DependencyPurpose, PackageKey};
+use crate::declarations::{DependencyPurpose, PackageKey, purpose_slot};
 use crate::lock::{PackageCheckedContext, PackageLockTarget, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{
@@ -48,12 +48,6 @@ struct OccurrenceProducts {
     description: Option<IndependentComponentDescription>,
 }
 
-fn purpose_slot(purpose: DependencyPurpose) -> usize {
-    match purpose {
-        DependencyPurpose::Product => 0,
-        DependencyPurpose::Build => 1,
-    }
-}
 
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::Compilation {

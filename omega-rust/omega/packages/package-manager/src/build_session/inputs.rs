@@ -1,16 +1,10 @@
 //! Reconcile complete named Build-input assignments before execution.
 
-use crate::declarations::DependencyPurpose;
+use crate::declarations::{DependencyPurpose, purpose_slot};
 use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use diagnostics::Diagnostic;
 
-fn purpose_slot(purpose: DependencyPurpose) -> usize {
-    match purpose {
-        DependencyPurpose::Product => 0,
-        DependencyPurpose::Build => 1,
-    }
-}
 
 pub(crate) struct OccurrenceBuildInputs {
     incoming: package_compilation::BuildDependencyOccurrence,

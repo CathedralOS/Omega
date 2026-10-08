@@ -26,3 +26,13 @@ pub use roles::{
     PackageDeclaration, WorkspaceDeclaration, WorkspaceMemberPath, extract_build_declaration,
     extract_package_declaration,
 };
+
+/// Flat roster position for one build-dependency purpose: product
+/// dependencies occupy slot 0 and build dependencies slot 1 in the
+/// per-occurrence parallel arrays the package workflows share.
+pub(crate) fn purpose_slot(purpose: DependencyPurpose) -> usize {
+    match purpose {
+        DependencyPurpose::Product => 0,
+        DependencyPurpose::Build => 1,
+    }
+}
