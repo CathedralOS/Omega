@@ -21,14 +21,13 @@ use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, Selected
 
 use super::InflowRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{function_at, 
-    CrossingDirection, all_edges, crossed_window, edge_surface, plain_edge, terminator_instruction,
+use crate::rewrites::block_edges::{
+    CrossingDirection, all_edges, crossed_window, function_at, plain_edge, terminator_instruction,
     terminator_successors,
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
-    surface,
+    RunRelocationRejection, admit_run_relocation, relocation_scan_steps, schedulable, speculatable,
 };
 
 pub(super) struct Admission {
@@ -209,83 +208,16 @@ pub(super) fn admit(
     // each crossed position's and each crossed edge's own surface; the
     // dead-path audit rescans a block's stream and edge surfaces only
     // while its entry set grows — at most once per member location per
-    // block.
-    let member_locations = register_writes(member_instruction).count()
-        + member_instruction.implicit_defs.len()
-        + member_instruction.clobbers.len();
-    let block_scan: usize = function
-        .blocks
-        .iter()
-        .map(|block| {
-            block
-                .instructions
-                .iter()
-                .chain(std::iter::once(terminator_instruction(&block.terminator)))
-                .map(surface)
-                .sum::<usize>()
-                + terminator_successors(&block.terminator)
-                    .iter()
-                    .map(|edge| edge_surface(edge))
-                    .sum::<usize>()
-        })
-        .sum();
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            function.blocks.iter().try_fold(total, |total, candidate| {
-                candidate
-                    .instructions
-                    .iter()
-                    .chain(std::iter::once(terminator_instruction(
-                        &candidate.terminator,
-                    )))
-                    .try_fold(total, |total, _| total.checked_add(1))
-            })
-        })
-        .and_then(|total| {
-            function.blocks.iter().try_fold(total, |total, candidate| {
-                total.checked_add(terminator_successors(&candidate.terminator).len())
-            })
-        })
-        .and_then(|total| total.checked_add(edge_limit))
-        .and_then(|total| {
-            crossing
-                .positions
-                .iter()
-                .try_fold(total, |total, (crossed_block, positions)| {
-                    positions.iter().try_fold(total, |total, position| {
-                        total
-                            .checked_add(surface(member_instruction))?
-                            .checked_add(surface(
-                                &function.blocks[*crossed_block].instructions[*position],
-                            ))
-                    })
-                })
-        })
-        .and_then(|total| {
-            crossing.edges.iter().try_fold(total, |total, edge| {
-                total
-                    .checked_add(surface(member_instruction))?
-                    .checked_add(surface(edge.instruction))?
-                    .checked_add(edge_surface(edge.successor))
-            })
-        })
-        .and_then(|total| {
-            total
-                .checked_add(function.memory_accesses.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.boundary_settlements.len())
-        })
-        .and_then(|total| {
-            total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
-        })
-        .ok_or(InflowRelocationError::IdentityOverflow)?;
+    // block. The inflow scan also touches each block's successor edges.
+    let steps = relocation_scan_steps(
+        plan,
+        function,
+        member_instruction,
+        &crossing,
+        edge_limit,
+        &|candidate| terminator_successors(&candidate.terminator).len(),
+    )
+    .ok_or(InflowRelocationError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| InflowRelocationError::IdentityOverflow)?
         > budget.validation_steps()
     {

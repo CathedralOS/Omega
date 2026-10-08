@@ -5,12 +5,14 @@
 //! that window is one owner.
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedBlockId, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    VirtualRegisterId,
 };
 
 use crate::rewrites::block_edges::{
-    RelocationCrossing, edge_accounted, plain_edge, transport_conflict,
+    RelocationCrossing, edge_accounted, edge_surface, plain_edge, terminator_instruction,
+    terminator_successors, transport_conflict,
 };
 
 /// Register locations an operand reads or writes. `UseDef` participates in
@@ -433,4 +435,96 @@ pub(in crate::rewrites) fn admit_run_relocation(
         }
     }
     Ok(())
+}
+
+/// The bounded cost of admitting one single-member relocation: locating
+/// the member and the destination once per instruction surface, the
+/// window audit's per-position and per-edge surface walks, and the
+/// dead-path audit's rescan of a block's stream and edge surfaces only
+/// while its entry set grows — at most once per member location per
+/// block. `per_block_extra` adds each rule's own per-block term (the
+/// successor scan the cross-block audits run); a rule with no such scan
+/// passes `&|_| 0`. `None` when the count overflows.
+pub(in crate::rewrites) fn relocation_scan_steps(
+    plan: &SelectedInstructionPlan,
+    function: &SelectedFunction,
+    member_instruction: &SelectedInstruction,
+    crossing: &RelocationCrossing<'_>,
+    edge_limit: usize,
+    per_block_extra: &dyn Fn(&SelectedBlock) -> usize,
+) -> Option<usize> {
+    let member_locations = register_writes(member_instruction).count()
+        + member_instruction.implicit_defs.len()
+        + member_instruction.clobbers.len();
+    let block_scan: usize = function
+        .blocks
+        .iter()
+        .map(|block| {
+            block
+                .instructions
+                .iter()
+                .chain(std::iter::once(terminator_instruction(&block.terminator)))
+                .map(surface)
+                .sum::<usize>()
+                + terminator_successors(&block.terminator)
+                    .iter()
+                    .map(|edge| edge_surface(edge))
+                    .sum::<usize>()
+        })
+        .sum();
+    plan.functions
+        .iter()
+        .try_fold(0usize, |total, function| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block.instructions.len())?.checked_add(1)
+            })
+        })
+        .and_then(|total| {
+            function.blocks.iter().try_fold(total, |total, candidate| {
+                candidate
+                    .instructions
+                    .iter()
+                    .chain(std::iter::once(terminator_instruction(
+                        &candidate.terminator,
+                    )))
+                    .try_fold(total, |total, _| total.checked_add(1))
+            })
+        })
+        .and_then(|total| {
+            function.blocks.iter().try_fold(total, |total, candidate| {
+                total.checked_add(per_block_extra(candidate))
+            })
+        })
+        .and_then(|total| total.checked_add(edge_limit))
+        .and_then(|total| {
+            crossing
+                .positions
+                .iter()
+                .try_fold(total, |total, (crossed_block, positions)| {
+                    positions.iter().try_fold(total, |total, position| {
+                        total
+                            .checked_add(surface(member_instruction))?
+                            .checked_add(surface(
+                                &function.blocks[*crossed_block].instructions[*position],
+                            ))
+                    })
+                })
+        })
+        .and_then(|total| {
+            crossing.edges.iter().try_fold(total, |total, edge| {
+                total
+                    .checked_add(surface(member_instruction))?
+                    .checked_add(surface(edge.instruction))?
+                    .checked_add(edge_surface(edge.successor))
+            })
+        })
+        .and_then(|total| {
+            total
+                .checked_add(function.memory_accesses.len())?
+                .checked_add(function.calls.len())?
+                .checked_add(function.boundary_settlements.len())
+        })
+        .and_then(|total| {
+            total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
+        })
 }
