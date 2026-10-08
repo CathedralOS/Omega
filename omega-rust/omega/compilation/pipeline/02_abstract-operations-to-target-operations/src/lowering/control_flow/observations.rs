@@ -53,11 +53,7 @@ pub(super) fn lower(
                     function,
                     structural_types,
                     &prepared.parameters,
-                    element_views::ElementViewBackings::new(
-                        &live.structural_homes,
-                        &live.address_joins,
-                        crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
-                    ),
+                    live.element_view_backings(),
                     &mut values,
                     &live.lengths,
                     &mut provenance.operations,
@@ -71,11 +67,7 @@ pub(super) fn lower(
                 function,
                 structural_types,
                 &prepared.parameters,
-                element_views::ElementViewBackings::new(
-                    &live.structural_homes,
-                    &live.address_joins,
-                    crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
-                ),
+                live.element_view_backings(),
                 &mut values,
                 &live.lengths,
                 &mut provenance.operations,
@@ -90,11 +82,7 @@ pub(super) fn lower(
                 function,
                 structural_types,
                 &prepared.parameters,
-                element_views::ElementViewBackings::new(
-                    &live.structural_homes,
-                    &live.address_joins,
-                    crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
-                ),
+                live.element_view_backings(),
                 &mut values,
                 &live.lengths,
                 &mut provenance.operations,
@@ -118,11 +106,7 @@ pub(super) fn lower(
                     function,
                     structural_types,
                     &prepared.parameters,
-                    crate::lowering::scalar::element_views::ElementViewBackings::new(
-                        &live.structural_homes,
-                        &live.address_joins,
-                        crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
-                    ),
+                    live.element_view_backings(),
                     &mut values,
                     &live.lengths,
                     &mut provenance.operations,
@@ -141,11 +125,7 @@ pub(super) fn lower(
             function,
             structural_types,
             &prepared.parameters,
-            element_views::ElementViewBackings::new(
-                &live.structural_homes,
-                &live.address_joins,
-                crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
-            ),
+            live.element_view_backings(),
             &values,
             &live.lengths,
             result.place,
@@ -175,11 +155,7 @@ pub(super) fn lower(
             function,
             structural_types,
             &prepared.parameters,
-            crate::lowering::scalar::element_views::ElementViewBackings::new(
-                &live.structural_homes,
-                &live.address_joins,
-                crate::lowering::control_flow::scalar_sources::ScalarSources::from(&*live),
-            ),
+            live.element_view_backings(),
             &values,
             &live.lengths,
             result.place,
@@ -691,9 +667,7 @@ pub(super) fn bounded_owner_storage(
     let bounded_owner = |structural_type| {
         structural_types
             .get(&structural_type)
-            .is_some_and(|declaration| {
-                declaration.shape.is_bounded_owned_byte_sequence()
-            })
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
     };
     (live.address_joins.contains(&source)
         && super::transfers::address_parameter(function, live, source)

@@ -437,15 +437,16 @@ pub(super) fn validate_successors(
                             &binding.argument,
                         ))
                     || (!binding.argument.path.is_empty()
-                        && (!abstract_operations::control_flow::address_joins::is_static_projection(&binding.argument.path)
+                        && (!abstract_operations::control_flow::address_joins::is_static_projection(
+                            &binding.argument.path,
+                        ) || (parameter.access != terminal_psi::StructuralAccess::Owned
+                            && references::is_suspended_root(live, place))
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
-                                && references::is_suspended_root(live, place))
-                            || (parameter.access != terminal_psi::StructuralAccess::Owned
-                                && !structural_types.get(&parameter.structural_type).is_some_and(
-                                    |declaration| {
+                                && !structural_types
+                                    .get(&parameter.structural_type)
+                                    .is_some_and(|declaration| {
                                         declaration.shape.is_bounded_owned_byte_sequence()
-                                    },
-                                ))))
+                                    }))))
                     || !matches!(
                         parameter.access,
                         terminal_psi::StructuralAccess::SharedBorrow

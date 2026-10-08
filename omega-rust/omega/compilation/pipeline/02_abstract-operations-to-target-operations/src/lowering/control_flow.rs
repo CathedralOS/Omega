@@ -89,6 +89,16 @@ struct LiveDefinitions {
 }
 
 impl LiveDefinitions {
+    /// Every element view resolves its collection backing over the same live
+    /// home map, join set, and scalar sources.
+    fn element_view_backings(&self) -> super::scalar::element_views::ElementViewBackings<'_> {
+        super::scalar::element_views::ElementViewBackings::new(
+            &self.structural_homes,
+            &self.address_joins,
+            scalar_sources::ScalarSources::from(self),
+        )
+    }
+
     fn reference_edge_exit(&self, target: semantic_vocabulary::BlockId) -> ReferenceEdgeCustody {
         ReferenceEdgeCustody {
             target,

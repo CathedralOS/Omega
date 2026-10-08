@@ -10,9 +10,7 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::IntegerSign;
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::control_flow::ByteSequenceOperand;
-use terminal_psi::{
-    StructuralAccess, StructuralMultiplicity,
-};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn lower(
     operation: &AbstractOperation,
@@ -39,9 +37,7 @@ pub(super) fn lower(
         || !result.qualification_establishments.is_empty()
         || !types
             .get(&result.structural_type)
-            .is_some_and(|declaration| {
-                declaration.shape.is_bounded_owned_byte_sequence()
-            })
+            .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

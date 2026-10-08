@@ -779,7 +779,5 @@ fn bounded_owned_byte_type(
 ) -> bool {
     structural_types
         .get(&structural_type)
-        .is_some_and(|declaration| {
-            declaration.shape.is_bounded_owned_byte_sequence()
-        })
+        .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
 }

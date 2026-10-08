@@ -587,9 +587,9 @@ fn bounded_owned_byte_result(
     structural_type: StructuralTypeId,
     types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    types.get(&structural_type).is_some_and(|declaration| {
-        declaration.shape.is_bounded_owned_byte_sequence()
-    })
+    types
+        .get(&structural_type)
+        .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
 }
 
 /// One scalar argument resolves through the dominating scalar sources and must
