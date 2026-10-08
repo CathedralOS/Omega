@@ -509,19 +509,17 @@ impl TerminalExecution<'_> {
                             Some(StructuralTypeShape::PrimitiveScalar(_))
                         )
                         || (parameter.access == StructuralAccess::SharedBorrow
-                            && matches!(
-                                self.program
-                                    .structural_types()
-                                    .get(&parameter.structural_type)
-                                    .map(|declaration| &declaration.shape),
-                                Some(
-                                    StructuralTypeShape::Record { .. }
-                                        | StructuralTypeShape::FixedArray { .. }
-                                        | StructuralTypeShape::Sum { .. }
-                                        | StructuralTypeShape::Mixed { .. }
-                                        | StructuralTypeShape::FusedServiceBinding
-                                )
-                            )) =>
+                            && self
+                                .program
+                                .structural_types()
+                                .get(&parameter.structural_type)
+                                .is_some_and(|declaration| {
+                                    declaration.shape.is_composite_shape()
+                                        || matches!(
+                                            declaration.shape,
+                                            StructuralTypeShape::FusedServiceBinding
+                                        )
+                                })) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self

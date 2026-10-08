@@ -124,12 +124,7 @@ fn complete_carriers(
                 // transfers and reverse declaration-order cleanup.
                 return scheduled_transfer.then_some((place, operation.id));
             };
-            if result.multiplicity != StructuralMultiplicity::Affine
-                || !result.claims.is_empty()
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
-                || !result.qualification_establishments.is_empty()
-            {
+            if !result.is_affine_plain() || !result.qualification_establishments.is_empty() {
                 return None;
             }
             let mut declarations = types

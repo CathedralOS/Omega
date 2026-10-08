@@ -125,6 +125,14 @@ impl StructuralTypeShape {
         }
     }
 
+    /// Whether this shape is a bounded owned `[u8; N]` carrier.
+    pub const fn is_bounded_owned_byte_sequence(&self) -> bool {
+        matches!(
+            self,
+            Self::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+        )
+    }
+
     /// Whether this shape is a borrowed `[u8]` view readable through shared
     /// access: an explicit shared borrow or no bound access at all.
     pub const fn is_shared_readable_byte_view(&self) -> bool {

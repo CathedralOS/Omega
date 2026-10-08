@@ -1472,10 +1472,7 @@ pub(super) fn establish(
     let referent = referent(types, result.structural_type)
         .or_else(|| plain_record_referent(types, result.structural_type))
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    if result.multiplicity != StructuralMultiplicity::Affine
-        || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
+    if !result.is_affine_plain()
         || live.structural_homes.contains_key(&result.place)
         || live
             .references

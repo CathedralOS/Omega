@@ -571,16 +571,8 @@ pub(crate) fn owned_storage_shape(
         .iter()
         .find(|declaration| declaration.id == structural_type)
         .filter(|declaration| {
-            matches!(
-                declaration.shape,
-                StructuralTypeShape::Record { .. }
-                    | StructuralTypeShape::FixedArray { .. }
-                    | StructuralTypeShape::Sum { .. }
-                    | StructuralTypeShape::Mixed { .. }
-                    | StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-            )
+            declaration.shape.is_composite_shape()
+                || declaration.shape.is_bounded_owned_byte_sequence()
         })?;
     stored_value_shape(structural_type, declarations)
 }

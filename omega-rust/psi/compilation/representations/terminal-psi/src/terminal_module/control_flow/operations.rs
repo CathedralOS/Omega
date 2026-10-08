@@ -103,6 +103,15 @@ impl StructuralOperationResult {
             && self.projected_qualifications.is_empty()
             && self.claims.is_empty()
     }
+
+    /// Whether the result is an affine root carrying no obligations: no
+    /// declared or projected qualifications and no claim occurrences.
+    pub fn is_affine_plain(&self) -> bool {
+        self.multiplicity == StructuralMultiplicity::Affine
+            && self.qualifications.is_empty()
+            && self.projected_qualifications.is_empty()
+            && self.claims.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
