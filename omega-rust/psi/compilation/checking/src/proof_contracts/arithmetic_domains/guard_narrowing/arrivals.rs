@@ -528,11 +528,8 @@ impl ArrivalWalk<'_, '_> {
         if !symbol.is_valid() {
             return;
         }
-        let Some(index) = self
-            .program
-            .machine_states(self.machine)
-            .iter()
-            .position(|state| state.symbol == symbol)
+        let Some(index) =
+            typed_trees::state::state_position(self.program.machine_states(self.machine), symbol)
         else {
             return;
         };

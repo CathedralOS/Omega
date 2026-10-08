@@ -55,10 +55,12 @@ pub(crate) fn lower_outcome_specific_ensures(
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless producer result data is absent",
         ))?;
-    let terminal_machine = module.machine(terminal_machine_id)
-        .ok_or(LoweringError::Unsupported(
-            "guarded payloadless terminal machine is absent",
-        ))?;
+    let terminal_machine =
+        module
+            .machine(terminal_machine_id)
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless terminal machine is absent",
+            ))?;
     let terminal_result =
         terminal_machine
             .result
@@ -66,7 +68,8 @@ pub(crate) fn lower_outcome_specific_ensures(
             .ok_or(LoweringError::Unsupported(
                 "guarded payloadless terminal result is not structural",
             ))?;
-    let declaration = module.structural_type(terminal_result.structural_type)
+    let declaration = module
+        .structural_type(terminal_result.structural_type)
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless terminal result type is absent",
         ))?;

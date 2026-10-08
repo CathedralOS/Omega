@@ -443,10 +443,7 @@ pub(crate) fn entry_storage_origins(
     if !solved.storage_available {
         return None;
     }
-    let index = program
-        .machine_states(machine)
-        .iter()
-        .position(|candidate| candidate.symbol == state.symbol)?;
+    let index = typed_trees::state::state_position(program.machine_states(machine), state.symbol)?;
     transport_storage(program, machine, solved.rows.get(index)?, source)
         .into_iter()
         .collect()
@@ -460,10 +457,8 @@ pub(crate) fn state_origins(
     state: &typed_trees::state::State,
     solved: &MachineParameterOrigins,
 ) -> Vec<(SymbolHandle, SymbolHandle)> {
-    let Some(state_index) = program
-        .machine_states(machine)
-        .iter()
-        .position(|candidate| candidate.symbol == state.symbol)
+    let Some(state_index) =
+        typed_trees::state::state_position(program.machine_states(machine), state.symbol)
     else {
         return Vec::new();
     };

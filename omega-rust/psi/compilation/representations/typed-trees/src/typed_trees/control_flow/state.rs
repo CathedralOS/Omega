@@ -20,3 +20,8 @@ pub struct State {
 pub fn state_by_symbol(states: &[State], symbol: SymbolHandle) -> Option<&State> {
     states.iter().find(|state| state.symbol == symbol)
 }
+
+/// The position of the state keyed `symbol`, when declared.
+pub fn state_position(states: &[State], symbol: SymbolHandle) -> Option<usize> {
+    states.iter().position(|state| state.symbol == symbol)
+}

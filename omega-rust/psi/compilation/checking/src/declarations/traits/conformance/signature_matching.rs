@@ -41,10 +41,8 @@ fn specialized_instance_realized_tail(
     };
     // Cloned states keep template order, so the checked state's positional
     // counterpart in the template supplies the authored parameter count.
-    let Some(state_ordinal) = program
-        .machine_states(machine)
-        .iter()
-        .position(|candidate| candidate.symbol == state.symbol)
+    let Some(state_ordinal) =
+        typed_trees::state::state_position(program.machine_states(machine), state.symbol)
     else {
         return 0;
     };
@@ -170,10 +168,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                         == program.machine_trait_conformances(machine)
             });
             let source_state = template.and_then(|template| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .position(|candidate| candidate.symbol == state.symbol)
+                typed_trees::state::state_position(program.machine_states(machine), state.symbol)
                     .and_then(|ordinal| program.machine_states(template).get(ordinal))
             });
             let Some((template, source_state)) = template

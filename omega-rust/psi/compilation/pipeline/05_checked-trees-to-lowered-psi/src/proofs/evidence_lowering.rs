@@ -162,14 +162,13 @@ pub(crate) fn checked_requirement_family_rows(
         .ok_or(LoweringError::Unsupported(
             "conformance family row has no exact realization template machine",
         ))?;
-    let state_position = checked
-        .typed
-        .machine_states(template)
-        .iter()
-        .position(|state| state.symbol == realization_state)
-        .ok_or(LoweringError::Unsupported(
-            "conformance family row has no exact realization template state",
-        ))?;
+    let state_position = typed_trees::state::state_position(
+        checked.typed.machine_states(template),
+        realization_state,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "conformance family row has no exact realization template state",
+    ))?;
     tuples
         .iter()
         .map(|tuple| {

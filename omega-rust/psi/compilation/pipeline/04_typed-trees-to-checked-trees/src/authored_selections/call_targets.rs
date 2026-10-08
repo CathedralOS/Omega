@@ -269,10 +269,8 @@ fn authored_contextual_root(
     let Some(template) = program.machine_by_symbol(template_symbol) else {
         return selected;
     };
-    let Some(state_ordinal) = program
-        .machine_states(machine)
-        .iter()
-        .position(|candidate| candidate.symbol == state.symbol)
+    let Some(state_ordinal) =
+        typed_trees::state::state_position(program.machine_states(machine), state.symbol)
     else {
         return selected;
     };

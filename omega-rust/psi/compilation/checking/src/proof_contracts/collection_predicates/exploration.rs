@@ -484,11 +484,9 @@ fn named_target(
     current_machine: usize,
     symbol: symbols::SymbolHandle,
 ) -> Option<(usize, usize)> {
-    if let Some(state) = program
-        .machine_states(frame.machine)
-        .iter()
-        .position(|state| state.symbol == symbol)
-        .filter(|position| *position != 0)
+    if let Some(state) =
+        typed_trees::state::state_position(program.machine_states(frame.machine), symbol)
+            .filter(|position| *position != 0)
     {
         return Some((current_machine, state));
     }

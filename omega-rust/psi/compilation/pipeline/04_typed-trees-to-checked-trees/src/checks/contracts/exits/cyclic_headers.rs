@@ -535,12 +535,11 @@ impl<'program, 'facts> Header<'program, 'facts> {
             })
             .collect::<Vec<_>>();
         let mut bindings = self.atoms_of(&parameters, format!("arrival:{:?}", caller.symbol));
-        let origins = self
-            .program
-            .machine_states(self.machine)
-            .iter()
-            .position(|state| state.symbol == caller.symbol)
-            .and_then(|index| self.origins.get(index));
+        let origins = typed_trees::state::state_position(
+            self.program.machine_states(self.machine),
+            caller.symbol,
+        )
+        .and_then(|index| self.origins.get(index));
         let formals = self.formal_roster();
         if let Some(origins) = origins {
             for (parameter, binding) in parameters.iter().zip(&mut bindings) {
