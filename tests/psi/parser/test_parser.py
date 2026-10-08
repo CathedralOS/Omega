@@ -1759,6 +1759,25 @@ def main() -> None:
     ), f"state-requires:\n{actual.clauses}"
     assert actual.states[0][7:9] == (0, 2), f"state-requires:\n{actual.states}"
     assert actual.machines[0][11:13] == (0, 0), f"state-requires:\n{actual.machines}"
+
+    # `requires` and `ensures` facts continue after `,` like `where` facts:
+    # each fact is its own clause row, spanning from its first token.
+    source = b"machine f(n: u64) ensures n > 0, n < 9 { state s(n: u64) requires n < 9, n > 0, {} }"
+    status, payload = run(program, source)
+    assert status == 0, f"fact-lists: status {status}"
+    actual = decode(payload)
+    ensures = source.index(b"ensures")
+    requires = source.index(b"requires")
+    second_ensures = source.index(b"n < 9 {")
+    second_requires = source.index(b"n > 0, {}")
+    assert actual.clauses == (
+        (7, 0, 0, 1, 2, 1, ensures, ensures + len(b"ensures n > 0")),
+        (7, 0, 0, 1, 5, 1, second_ensures, second_ensures + len(b"n < 9")),
+        (6, 0, 0, 1, 8, 1, requires, requires + len(b"requires n < 9")),
+        (6, 0, 0, 1, 11, 1, second_requires, second_requires + len(b"n > 0")),
+    ), f"fact-lists:\n{actual.clauses}"
+    assert actual.machines[0][11:13] == (0, 2), f"fact-lists:\n{actual.machines}"
+    assert actual.states[0][7:9] == (2, 2), f"fact-lists:\n{actual.states}"
     admission_rejections = (
         ("state-ensures", b"machine f() { state s ensures 1 {} }", 105, (22, 29), {}),
         ("state-reaches", b"machine f() { state s reaches A {} }", 105, (22, 29), {}),

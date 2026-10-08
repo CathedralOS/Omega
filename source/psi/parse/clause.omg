@@ -247,34 +247,37 @@ crashes Trap
         parser.output.clauses[parser.output.clause_count] = clause;
         parser.output.clause_count = parser.output.clause_count + 1;
         transition clause.kind {
-            ClauseKind::Where -> where_separator(parser, input, owner)
+            ClauseKind::Requires -> fact_separator(parser, input, owner, clause.kind)
+            ClauseKind::Ensures -> fact_separator(parser, input, owner, clause.kind)
+            ClauseKind::Where -> fact_separator(parser, input, owner, clause.kind)
             _ -> next(parser, input, owner)
         }
     }
 
-    // `where` facts continue after `,`; a trailing comma ends them.
-    state where_separator(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+    // `requires`, `ensures` and `where` facts continue after `,`, each its
+    // own clause row of the same kind; a trailing comma ends them.
+    state fact_separator(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let comma: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
         transition comma {
-            true -> where_continues(parser, input, owner)
+            true -> fact_continues(parser, input, owner, kind)
             _ -> next(parser, input, owner)
         }
     }
 
-    state where_continues(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+    state fact_continues(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         Parser::take_current(parser, input);
         let body: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
         let end: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition body || end {
             true -> next(parser, input, owner)
-            _ -> where_fact(parser, input, owner)
+            _ -> next_fact(parser, input, owner, kind)
         }
     }
 
-    state where_fact(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
+    state next_fact(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let token: Token = input.tokens[parser.current_index];
         parser.clause_start = token.start;
-        transition { _ -> fact(parser, input, owner, ClauseKind::Where) }
+        transition { _ -> fact(parser, input, owner, kind) }
     }
 
     state reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
