@@ -166,7 +166,6 @@ fn zero_storage_binary_is_builtin(
     expression: ExpressionHandle,
     binary: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    use language_core::OperatorSpelling;
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         return true;
     }
