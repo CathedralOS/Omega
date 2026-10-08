@@ -20,6 +20,11 @@ use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
+/// The callee/place pair every structural argument type rejection spells.
+fn argument_type_mismatch(callee: MachineId, place: PlaceId) -> LoweringError {
+    LoweringError::StructuralCallArgumentTypeMismatch { callee, place }
+}
+
 /// Resolve an ordinary call operand independently of the callee's return kind.
 /// Fixed-array views retain the caller's actual storage and exact extent; the
 /// descriptor is an ABI presentation, not a change to the source place's type.
@@ -65,10 +70,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         )?;
         let owner = home.layout.shape();
         if shape != structural_parameter_shape(owner, argument.access) {
-            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                callee,
-                place: argument.place,
-            });
+            return Err(argument_type_mismatch(callee, argument.place));
         }
         return Ok(TargetStructuralArgument {
             place: argument.place,
@@ -114,10 +116,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             || structural_type != callee_parameter.structural_type
             || shape != ValueShape::borrowed_reference(16, 8)
         {
-            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                callee,
-                place: argument.place,
-            });
+            return Err(argument_type_mismatch(callee, argument.place));
         }
         return Ok(TargetStructuralArgument {
             place: argument.place,
@@ -289,10 +288,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                         None,
                     )
                 } else {
-                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee,
-                        place: argument.place,
-                    });
+                    return Err(argument_type_mismatch(callee, argument.place));
                 }
             }
             [StructuralPathSegment::FixedIndex(index)] => {
@@ -301,16 +297,10 @@ pub(in crate::lowering) fn lower_structural_argument(
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(source_structural_type))?;
                 let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee,
-                        place: argument.place,
-                    });
+                    return Err(argument_type_mismatch(callee, argument.place));
                 };
                 if *index >= length {
-                    return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee,
-                        place: argument.place,
-                    });
+                    return Err(argument_type_mismatch(callee, argument.place));
                 }
                 let element_shape =
                     structural_shape(element, structural_types, shape_cache, active)?;
@@ -381,10 +371,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                                 active,
                             )?
                             else {
-                                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                    callee,
-                                    place: argument.place,
-                                });
+                                return Err(argument_type_mismatch(callee, argument.place));
                             };
                             byte_field_capacity = Some(capacity);
                             (
@@ -404,10 +391,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                 }
             }
             _ => {
-                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                    callee,
-                    place: argument.place,
-                });
+                return Err(argument_type_mismatch(callee, argument.place));
             }
         };
     // A bounded inline byte field lends its live bytes through a fresh
@@ -476,10 +460,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                 .and_then(|end| end.checked_add(capacity))
                 .is_none_or(|end| end > u64::from(source_shape.byte_size))
         {
-            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                callee,
-                place: argument.place,
-            });
+            return Err(argument_type_mismatch(callee, argument.place));
         }
         return Ok(TargetStructuralArgument {
             place: argument.place,
@@ -510,10 +491,7 @@ pub(in crate::lowering) fn lower_structural_argument(
             .checked_add(source_byte_offset)
             .is_none_or(|end| end > source_shape.byte_size)
     {
-        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-            callee,
-            place: argument.place,
-        });
+        return Err(argument_type_mismatch(callee, argument.place));
     }
     Ok(TargetStructuralArgument {
         place: argument.place,
