@@ -314,7 +314,7 @@ fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionC
 }
 
 fn constraint_key(bytes: &mut Vec<u8>, family: RegisterConstraintFamily, variant: u32) {
-    byte(bytes, constraint_family(family));
+    byte(bytes, family.tag());
     bytes.extend_from_slice(&variant.to_le_bytes());
 }
 
@@ -431,16 +431,6 @@ const fn reservation_reason(value: crate::ReservationReason) -> u8 {
         crate::ReservationReason::Syscall => 6,
         crate::ReservationReason::InlineAssembly => 7,
         crate::ReservationReason::Backend => 8,
-    }
-}
-
-const fn constraint_family(value: RegisterConstraintFamily) -> u8 {
-    match value {
-        RegisterConstraintFamily::Call => 0,
-        RegisterConstraintFamily::Return => 1,
-        RegisterConstraintFamily::SystemCall => 2,
-        RegisterConstraintFamily::InlineAssembly => 3,
-        RegisterConstraintFamily::Instruction => 4,
     }
 }
 

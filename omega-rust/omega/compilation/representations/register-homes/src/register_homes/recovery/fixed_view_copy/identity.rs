@@ -1,7 +1,6 @@
 use crate::identity::encode_fixed_constraint_site_identity;
 use super::codec::evidence::encode_source_evidence;
 use optimization_unit::encode_value_definition_site_identity;
-use register_model::RegisterConstraintFamily;
 use selected_instructions::{FixedViewCopyIdentity, selected_instruction_plan_identity};
 
 use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
@@ -42,23 +41,13 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         }
         bytes.extend_from_slice(&copy.copy_instruction.0.to_le_bytes());
         bytes.extend_from_slice(&copy.result_virtual_register.0.to_le_bytes());
-        bytes.push(constraint_family(copy.copy_constraint.family));
+        bytes.push(copy.copy_constraint.family.tag());
         bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
     FixedViewCopyIdentity::from_canonical_bytes(&bytes)
 }
 
-
-const fn constraint_family(family: RegisterConstraintFamily) -> u8 {
-    match family {
-        RegisterConstraintFamily::Call => 0,
-        RegisterConstraintFamily::Return => 1,
-        RegisterConstraintFamily::SystemCall => 2,
-        RegisterConstraintFamily::InlineAssembly => 3,
-        RegisterConstraintFamily::Instruction => 4,
-    }
-}
 
 fn encode_len(bytes: &mut Vec<u8>, value: usize) {
     bytes.extend_from_slice(

@@ -30,6 +30,19 @@ pub enum RegisterConstraintFamily {
     Instruction,
 }
 
+impl RegisterConstraintFamily {
+    /// Stable byte discriminant used by every constraint-family encoder.
+    pub const fn tag(self) -> u8 {
+        match self {
+            Self::Call => 0,
+            Self::Return => 1,
+            Self::SystemCall => 2,
+            Self::InlineAssembly => 3,
+            Self::Instruction => 4,
+        }
+    }
+}
+
 /// Stable target-owned identity for one constrained instruction form.
 ///
 /// `variant` is assigned by the target owner. It distinguishes calling
