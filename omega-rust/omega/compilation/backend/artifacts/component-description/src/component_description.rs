@@ -1182,19 +1182,11 @@ impl<'a> Reader<'a> {
     }
 
     fn u32(&mut self) -> Result<u32, DescriptionDecodeRejection> {
-        let bytes: [u8; 4] = self
-            .take(4)?
-            .try_into()
-            .map_err(|_| DescriptionDecodeRejection::Corrupt("truncated u32"))?;
-        Ok(u32::from_le_bytes(bytes))
+        Ok(u32::from_le_bytes(self.array()?))
     }
 
     fn u64(&mut self) -> Result<u64, DescriptionDecodeRejection> {
-        let bytes: [u8; 8] = self
-            .take(8)?
-            .try_into()
-            .map_err(|_| DescriptionDecodeRejection::Corrupt("truncated u64"))?;
-        Ok(u64::from_le_bytes(bytes))
+        Ok(u64::from_le_bytes(self.array()?))
     }
 
     fn array<const N: usize>(&mut self) -> Result<[u8; N], DescriptionDecodeRejection> {
