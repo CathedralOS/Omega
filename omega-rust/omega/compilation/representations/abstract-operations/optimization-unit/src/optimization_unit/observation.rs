@@ -73,7 +73,9 @@ pub struct PsiNodeObservation {
 
 impl PsiNodeObservation {
     pub fn edge(&self, psi_edge: EdgeId) -> Option<&OptimizationEdge> {
-        self.successors.iter().find(|edge| edge.psi_edge == psi_edge)
+        self.successors
+            .iter()
+            .find(|edge| edge.psi_edge == psi_edge)
     }
 }
 

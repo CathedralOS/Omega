@@ -41,12 +41,7 @@ pub(super) fn projection_base(
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
     let byte_view = crate::selection::established_view_input::view_type(source, place).is_some();
     let view_offset = if byte_view {
-        builder
-            .transport
-            .views
-            .iter()
-            .find(|view| view.place == place)
-            .map(|view| view.byte_offset)
+        builder.transport.view(place).map(|view| view.byte_offset)
     } else {
         builder
             .transport

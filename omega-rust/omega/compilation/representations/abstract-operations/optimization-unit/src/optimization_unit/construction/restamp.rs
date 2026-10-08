@@ -69,9 +69,7 @@ pub fn restamp_psi_function_derived_metadata(
             // settlement, matched by its Psi edge identity.
             let mut successors = operation_edges(&node.operation);
             for edge in &mut successors {
-                if let Some(existing) = node
-                    .edge(edge.psi_edge)
-                {
+                if let Some(existing) = node.edge(edge.psi_edge) {
                     edge.provenance = existing.provenance.clone();
                     edge.fuel = existing.fuel.clone();
                 }

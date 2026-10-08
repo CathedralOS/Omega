@@ -191,12 +191,7 @@ fn byte_sequence_read(
         return Err(invalid());
     }
     let pointer = backing_pointer(function, builder, row, source)?;
-    let view = builder
-        .transport
-        .views
-        .iter()
-        .find(|view| view.place == source)
-        .copied();
+    let view = builder.transport.view(source).copied();
     let physical_index = if let Some(view) = view {
         let offset = transport_register(builder, source, 0)?;
         // The view chain proves O + L <= R <= U64::MAX. The checked read i < L
@@ -295,12 +290,7 @@ pub(super) fn backing_pointer(
     row: &LegalizedScalarInstruction,
     source: PlaceId,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    if let Some(view) = builder
-        .transport
-        .views
-        .iter()
-        .find(|view| view.place == source)
-    {
+    if let Some(view) = builder.transport.view(source) {
         return Ok(view.backing_pointer);
     }
     let descriptor = builder
@@ -357,12 +347,7 @@ fn byte_sequence_length(
     {
         return Err(invalid());
     }
-    if let Some(view) = builder
-        .transport
-        .views
-        .iter()
-        .find(|view| view.place == source)
-    {
+    if let Some(view) = builder.transport.view(source) {
         let input = view.byte_length;
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
         builder.emit(

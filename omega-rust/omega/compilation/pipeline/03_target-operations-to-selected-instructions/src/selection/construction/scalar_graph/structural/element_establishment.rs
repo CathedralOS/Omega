@@ -56,8 +56,7 @@ pub(super) fn establish(
     let Some(signature) = function.structural.as_ref() else {
         return Err(invalid());
     };
-    let Some(place) = signature.structural_place(*destination)
-    else {
+    let Some(place) = signature.structural_place(*destination) else {
         return Err(invalid());
     };
     if !matches!(
@@ -69,8 +68,7 @@ pub(super) fn establish(
     ) {
         return Err(invalid());
     }
-    let Some(declaration) = signature.structural_type(result.structural_type)
-    else {
+    let Some(declaration) = signature.structural_type(result.structural_type) else {
         return Err(invalid());
     };
     match &declaration.shape {
@@ -83,7 +81,8 @@ pub(super) fn establish(
         // length, the same access-bearing descriptor a `&[u8]` spells.
         StructuralTypeShape::ByteSequence(_)
             if declaration.shape.is_borrowed_byte_carrier()
-                && signature.structural_type(*element)
+                && signature
+                    .structural_type(*element)
                     .is_some_and(|element_declaration| {
                         matches!(
                             element_declaration.shape,
@@ -122,9 +121,7 @@ pub(super) fn establish(
         .find_map(|block| {
             (block.id != function.entry_block)
                 .then_some(block)
-                .and_then(|block| {
-                    block.structural_parameter(source.place)
-                })
+                .and_then(|block| block.structural_parameter(source.place))
         })
         .filter(|parameter| {
             matches!(
@@ -133,7 +130,8 @@ pub(super) fn establish(
             ) && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
-                && signature.structural_type(parameter.structural_type)
+                && signature
+                    .structural_type(parameter.structural_type)
                     .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
         });
     let Some(root) = parameter

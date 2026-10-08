@@ -142,13 +142,7 @@ pub(super) fn replace(
     let mut source_pointer = byte_views::backing_pointer(function, builder, row, *source)?;
     // A subslice retains root backing plus a view offset. Its own first byte,
     // rather than the backing's first byte, is the copy's source.
-    if let Some(view) = builder
-        .transport
-        .views
-        .iter()
-        .find(|view| view.place == *source)
-        .copied()
-    {
+    if let Some(view) = builder.transport.view(*source).copied() {
         let address = transport_register(builder, *source, 0)?;
         builder.emit(
             SelectedInstructionKind::ByteViewAddress,

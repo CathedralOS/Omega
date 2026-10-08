@@ -198,9 +198,7 @@ impl WholeFunctionExitContract {
         &self,
         machine: semantic_vocabulary::MachineId,
     ) -> Option<&WholeFunctionExitEvidence> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function(machine)
     }
 }
 

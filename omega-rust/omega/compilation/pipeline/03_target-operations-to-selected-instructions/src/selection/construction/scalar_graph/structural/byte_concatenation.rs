@@ -143,13 +143,7 @@ pub(super) fn operand_pointer(
     match operand {
         ByteSequenceOperand::Whole { source, .. } => {
             let pointer = byte_views::backing_pointer(function, builder, row, *source)?;
-            if let Some(view) = builder
-                .transport
-                .views
-                .iter()
-                .find(|view| view.place == *source)
-                .copied()
-            {
+            if let Some(view) = builder.transport.view(*source).copied() {
                 let address = transport_register(builder, *source, 0)?;
                 builder.emit(
                     SelectedInstructionKind::ByteViewAddress,

@@ -56,12 +56,7 @@ pub(super) fn create(
         return Err(invalid());
     }
     let backing = backing_pointer(function, builder, row, *source)?;
-    let parent = builder
-        .transport
-        .views
-        .iter()
-        .find(|view| view.place == *source)
-        .copied();
+    let parent = builder.transport.view(*source).copied();
     let (byte_offset, root_length) = if let Some(parent) = parent {
         let byte_offset = transport_register(builder, result.place, 0)?;
         // With parent offset O, length L, and root length R, the retained chain

@@ -26,10 +26,7 @@ pub struct TargetOperationPlan {
 impl TargetOperationPlan {
     /// The target function for `machine`, when the plan carries it.
     pub fn function(&self, machine: MachineId) -> Option<&TargetFunction> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
-    
+        self.function(machine)
     }
 }
 

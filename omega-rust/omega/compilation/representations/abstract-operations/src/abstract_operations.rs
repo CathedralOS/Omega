@@ -48,10 +48,7 @@ impl AbstractOperationPlan {
 
     /// The abstract function for `machine`, when the plan carries it.
     pub fn function(&self, machine: MachineId) -> Option<&AbstractFunction> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
-    
+        self.function(machine)
     }
 }
 

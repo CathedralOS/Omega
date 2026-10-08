@@ -72,6 +72,13 @@ pub(super) struct Transport {
     pub settlements: Vec<SelectedBoundarySettlement>,
 }
 
+impl Transport {
+    /// The byte view arriving at `place`, when one was registered.
+    pub(super) fn view(&self, place: PlaceId) -> Option<&ByteViewHomes> {
+        self.views.iter().find(|view| view.place == place)
+    }
+}
+
 #[track_caller]
 fn invalid() -> SelectedInstructionError {
     SelectedInstructionError::custody()

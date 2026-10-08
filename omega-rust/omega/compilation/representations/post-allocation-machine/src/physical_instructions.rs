@@ -65,9 +65,7 @@ impl PostAllocationMachinePlan {
         &self,
         machine: semantic_vocabulary::MachineId,
     ) -> Option<&PostAllocationMachineFunction> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function(machine)
     }
 
     /// Every function's blocks, in function order.

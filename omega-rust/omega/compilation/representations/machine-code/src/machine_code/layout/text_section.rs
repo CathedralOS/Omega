@@ -85,9 +85,7 @@ pub struct RelocationFreeTextSectionPlacement {
 impl RelocationFreeTextSectionPlacement {
     /// The placed fragment for `machine`, when the section carries it.
     pub fn function(&self, machine: MachineId) -> Option<&PlacedFunctionFragment> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function(machine)
     }
 
     pub fn recomputed_identity(&self) -> TerminalRelocationFreeTextSectionIdentity {
