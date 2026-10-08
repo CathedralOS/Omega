@@ -22,7 +22,9 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use super::FixedViewCopyPlan;
+use super::{
+    FixedViewCopyPlan, copy::decode_copy, primitives::Cursor,
+};
 
 mod golden;
 mod rejection;
@@ -399,4 +401,23 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         }
         .into(),
     }
+}
+
+pub(super) fn transformed_identity_offset(encoded: &[u8]) -> usize {
+    let mut cursor = Cursor::new(encoded);
+    cursor.take(44 + (5 * 32) + 1 + 40 + 40).unwrap();
+    let copy_count = cursor.length().unwrap();
+    for _ in 0..copy_count {
+        decode_copy(&mut cursor).unwrap();
+    }
+    cursor.offset
+}
+
+pub(super) fn selected_payload_offset(encoded: &[u8]) -> usize {
+    let mut cursor = Cursor::new(encoded);
+    cursor
+        .take(transformed_identity_offset(encoded) + 32)
+        .unwrap();
+    super::evidence::decode(&mut cursor).unwrap();
+    cursor.offset
 }

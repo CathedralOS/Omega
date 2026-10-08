@@ -1,30 +1,14 @@
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 
+use super::{selected_payload_offset, transformed_identity_offset};
 use super::{
     super::{
-        copy::decode_copy, primitives::Cursor, selected::decode_kind, values::decode_fixed_site,
+        primitives::Cursor, selected::decode_kind, values::decode_fixed_site,
     },
     plan, with_stale_version,
 };
 
-fn transformed_identity_offset(encoded: &[u8]) -> usize {
-    let mut cursor = Cursor::new(encoded);
-    cursor.take(44 + (5 * 32) + 1 + 40 + 40).unwrap();
-    let copy_count = cursor.length().unwrap();
-    for _ in 0..copy_count {
-        decode_copy(&mut cursor).unwrap();
-    }
-    cursor.offset
-}
 
-fn selected_payload_offset(encoded: &[u8]) -> usize {
-    let mut cursor = Cursor::new(encoded);
-    cursor
-        .take(transformed_identity_offset(encoded) + 32)
-        .unwrap();
-    super::super::evidence::decode(&mut cursor).unwrap();
-    cursor.offset
-}
 
 #[test]
 fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {

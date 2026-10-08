@@ -1,6 +1,6 @@
 //! Ordinary structural metadata and envelope custody.
+use super::selected_payload_offset;
 use super::{
-    super::{copy::decode_copy, primitives::Cursor},
     plan,
 };
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
@@ -105,24 +105,7 @@ fn structural_function() -> SelectedFunction {
     }];
     function
 }
-fn transformed_identity_offset(encoded: &[u8]) -> usize {
-    let mut cursor = Cursor::new(encoded);
-    cursor.take(44 + (5 * 32) + 1 + 40 + 40).unwrap();
-    let copy_count = cursor.length().unwrap();
-    for _ in 0..copy_count {
-        decode_copy(&mut cursor).unwrap();
-    }
-    cursor.offset
-}
 
-fn selected_payload_offset(encoded: &[u8]) -> usize {
-    let mut cursor = Cursor::new(encoded);
-    cursor
-        .take(transformed_identity_offset(encoded) + 32)
-        .unwrap();
-    super::super::evidence::decode(&mut cursor).unwrap();
-    cursor.offset
-}
 
 #[test]
 fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
