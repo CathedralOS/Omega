@@ -1,5 +1,5 @@
-use crate::cursor::Cursor;
 use super::super::{TextSectionPlacementPolicy, TextSectionRelocationRequirements};
+use crate::cursor::Cursor;
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentTextSectionManifestIdentity,
@@ -262,4 +262,3 @@ fn decode_target(
         pointer_alignment,
     })
 }
-

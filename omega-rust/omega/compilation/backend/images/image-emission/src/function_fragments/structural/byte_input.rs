@@ -120,9 +120,7 @@ pub(super) fn settlement(
         return Err(invalid());
     }
     let span = fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == instruction.id)
         .ok_or_else(invalid)?;
     let offset =
@@ -222,9 +220,7 @@ pub(super) fn validate(
         return Err(invalid());
     }
     let span = fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == row.id)
         .ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;

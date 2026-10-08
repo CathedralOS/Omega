@@ -43,9 +43,7 @@ pub(super) fn settlement(
         ));
     }
     let span = fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == instruction.id)
         .ok_or(Error::Mismatch("selected byte output span"))?;
     let native = container.source().text_section().target;
@@ -155,9 +153,7 @@ pub(super) fn validate(
         return Err(invalid());
     }
     let span = fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == row.id)
         .ok_or_else(invalid)?;
     let frame = source::frame(container, machine)?.ok_or_else(invalid)?;

@@ -74,9 +74,7 @@ pub(super) fn result(
         return Err(invalid());
     }
     let mut instructions = selected
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|instruction| instruction.id == contract.instruction);
     let instruction = instructions.next().ok_or_else(invalid)?;
     let output = instruction

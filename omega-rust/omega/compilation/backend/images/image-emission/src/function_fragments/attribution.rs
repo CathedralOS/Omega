@@ -59,7 +59,7 @@ pub(super) fn produce(
     source: &AbstractFunction,
 ) -> Result<Vec<SemanticCodeAttribution>, Error> {
     let mut rows = Vec::new();
-    for instruction in fragment.blocks.iter().flat_map(|block| &block.instructions) {
+    for instruction in fragment.instructions() {
         let offset = host(instruction.offset)?;
         let length = instruction.bytes.len();
         let mut push = |site, code_offset, byte_count| -> Result<(), Error> {
@@ -203,7 +203,7 @@ pub(super) fn validate(
             "object semantic attribution order is not canonical",
         ));
     }
-    for instruction in fragment.blocks.iter().flat_map(|block| &block.instructions) {
+    for instruction in fragment.instructions() {
         let present = |site, offset, length| {
             rows.iter().any(|row| {
                 row.site == site
@@ -350,9 +350,7 @@ fn interval_is_exact(
     // rather than the branch instruction's bytes.
     if row.byte_count == 0
         && fragment
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .any(|instruction| supports(instruction, row.site, row.code_offset, 0))
     {
         return Ok(true);
@@ -365,7 +363,7 @@ fn interval_is_exact(
     let mut maximum = 0usize;
     let mut covered = 0usize;
     let mut found = false;
-    for instruction in fragment.blocks.iter().flat_map(|block| &block.instructions) {
+    for instruction in fragment.instructions() {
         let start = host(instruction.offset)?;
         let instruction_end = start
             .checked_add(instruction.bytes.len())

@@ -59,19 +59,15 @@ pub(super) fn derive(
                 {
                     return Err(TargetFrameLayoutError::FunctionRosterMismatch);
                 }
-                let contains_call = machine_function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
-                    .any(|instruction| {
-                        matches!(
-                            instruction.alternative.key.family,
-                            MachineAlternativeFamily::CallScalar
-                                | MachineAlternativeFamily::CallUnit
-                                | MachineAlternativeFamily::CallAggregate
-                                | MachineAlternativeFamily::NormalizedForeignCall
-                        )
-                    });
+                let contains_call = machine_function.instructions().any(|instruction| {
+                    matches!(
+                        instruction.alternative.key.family,
+                        MachineAlternativeFamily::CallScalar
+                            | MachineAlternativeFamily::CallUnit
+                            | MachineAlternativeFamily::CallAggregate
+                            | MachineAlternativeFamily::NormalizedForeignCall
+                    )
+                });
                 // A frame-address materialization on an activation-local
                 // slot loans that slot's stable coordinate to whatever
                 // observes the pointer. Allocator spill slots only gain the
@@ -79,9 +75,7 @@ pub(super) fn derive(
                 // are consumed inside the same window, so they are never
                 // loans.
                 let stable_address_loans = machine_function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.instructions)
+                    .instructions()
                     .filter_map(|instruction| match instruction.address {
                         Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
                             slot: selected_instructions::FrameStorageSlotId::Local(slot),

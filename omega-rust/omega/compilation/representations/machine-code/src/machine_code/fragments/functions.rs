@@ -22,6 +22,13 @@ pub struct FunctionFragment {
     pub blocks: Vec<FunctionFragmentBlockSpan>,
 }
 
+impl FunctionFragment {
+    /// Every block's instruction spans, in block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &FunctionFragmentInstructionSpan> + '_ {
+        self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentBlockSpan {
     pub block: SelectedBlockId,

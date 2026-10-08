@@ -113,9 +113,7 @@ pub(in crate::function_fragments) fn validate_function(
             })
             .ok_or_else(invalid)?;
         let call_span = fragment
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .find(|row| row.instruction == contract.instruction)
             .ok_or_else(invalid)?;
         if actual.owner != contract.owner
@@ -561,9 +559,7 @@ pub(in crate::function_fragments) fn validate_settlement_attributions(
                 })
                 .ok_or_else(invalid)?;
             fragment
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
+                .instructions()
                 .find(|span| span.instruction == instruction.id)
                 .ok_or_else(invalid)?
                 .bytes
@@ -676,7 +672,7 @@ fn validate_copy(
     let mut seen = Vec::new();
     let mut first = None;
     let mut last_end = 0;
-    for span in fragment.blocks.iter().flat_map(|block| &block.instructions) {
+    for span in fragment.instructions() {
         let matches = memory
             .iter()
             .filter(|row| row.instruction == span.instruction)

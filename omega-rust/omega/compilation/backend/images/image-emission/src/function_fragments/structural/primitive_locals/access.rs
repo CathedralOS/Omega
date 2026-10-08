@@ -77,9 +77,7 @@ pub(in crate::function_fragments) fn operation_retained(
         return false;
     }
     let mut instructions = selected
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|row| row.id == access.instruction);
     let Some(instruction) = instructions.next() else {
         return false;

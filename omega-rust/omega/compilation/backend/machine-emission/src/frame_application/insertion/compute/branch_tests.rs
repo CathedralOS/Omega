@@ -84,9 +84,8 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
             },
         ];
         function.bytes = function
-            .blocks
-            .iter()
-            .flat_map(|block| block.instructions.iter().flat_map(|row| row.bytes.clone()))
+            .instructions()
+            .flat_map(|row| row.bytes.clone())
             .collect();
         function.byte_count = function.bytes.len() as u64;
         source.identity = source.recomputed_identity();

@@ -335,7 +335,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::PrimitiveScalarRead { .. } => {
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
-                AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.blocks.iter().flat_map(|block|&block.instructions).filter(|instruction|
+                AbstractOperation::SelectImplementation {psi_operation,table,..} => selected.instructions().filter(|instruction|
                     matches!(instruction.kind,selected_instructions::SelectedInstructionKind::ImmutableImageAddress {reference:selected_instructions::SelectedImageAddressReference::ImplementationTable {table:retained}} if retained==*table)
                     && instruction.provenance.operations.contains(psi_operation)).count()==1,
                 AbstractOperation::CallStructural {psi_operation,callee:abstract_operations::AbstractCallTarget::Dynamic {selector,interface,slot},result:AbstractStructuralCallResult::Scalar(result),..} => {
@@ -611,9 +611,7 @@ fn ieee_float_arithmetic_retained(
     };
     row_boundary == *boundary
         && selected
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .filter(|instruction| {
                 instruction.kind
                     == selected_instructions::SelectedInstructionKind::NearestIeeeFloatArithmetic {
@@ -907,7 +905,7 @@ pub(super) fn temporary_stack_bytes(
         .ok_or(Error::Mismatch(
             "missing current fragment for temporary stack replay",
         ))?;
-    Ok(if fragment.blocks.iter().flat_map(|block| &block.instructions).any(|instruction| {
+    Ok(if fragment.instructions().any(|instruction| {
         matches!(instruction.alternative.family, selected_instructions::MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)
             if form.operation.rounding_direction().is_some())
     }) { 16 } else { 0 })

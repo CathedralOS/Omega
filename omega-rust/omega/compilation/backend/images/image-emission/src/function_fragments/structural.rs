@@ -304,9 +304,7 @@ fn copy_extent(
             )
     }) {
         let span = fragment
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .find(|span| span.instruction == access.instruction)
             .ok_or(Error::Mismatch("memory operation has no physical span"))?;
         spans.push((host(span.offset)?, span.bytes.len()));
@@ -359,9 +357,7 @@ fn settlement_offset(
         return Err(Error::Mismatch("settlement position is outside block"));
     };
     fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == instruction.id)
         .ok_or(Error::Mismatch("settlement has no physical anchor"))
         .and_then(|span| host(span.offset))
@@ -434,9 +430,7 @@ pub(super) fn populate(
             })
             .ok_or(Error::Mismatch("Unit call has no attributed span"))?;
         let call_span = fragment
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .find(|row| row.instruction == contract.instruction)
             .ok_or(Error::Mismatch("Unit call has no instruction span"))?;
         let frame_bytes = u32::try_from(

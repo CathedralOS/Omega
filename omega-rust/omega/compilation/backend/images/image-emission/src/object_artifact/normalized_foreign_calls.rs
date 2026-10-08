@@ -342,9 +342,7 @@ pub fn fragment_instruction_span(
     instruction: selected_instructions::SelectedInstructionId,
 ) -> Option<(u64, u64)> {
     fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == instruction)
         .map(|span| (span.section_offset, span.byte_count))
 }
@@ -502,25 +500,21 @@ pub fn scalar_observation_producer(
     operation: semantic_vocabulary::OperationId,
     source_value: semantic_vocabulary::ValueId,
 ) -> Option<selected_instructions::SelectedInstructionId> {
-    let mut producers = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
-        .filter(|instruction| {
-            instruction.provenance.operations.contains(&operation)
-                && instruction.operands.iter().any(|operand| {
-                    function
-                        .virtual_registers
-                        .get(operand.virtual_register.0 as usize)
-                        .is_some_and(|register| {
-                            register.origin
-                                == selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                                    instruction: instruction.id,
-                                    source_value,
-                                }
-                        })
-                })
-        });
+    let mut producers = function.instructions().filter(|instruction| {
+        instruction.provenance.operations.contains(&operation)
+            && instruction.operands.iter().any(|operand| {
+                function
+                    .virtual_registers
+                    .get(operand.virtual_register.0 as usize)
+                    .is_some_and(|register| {
+                        register.origin
+                            == selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                                instruction: instruction.id,
+                                source_value,
+                            }
+                    })
+            })
+    });
     let producer = producers.next()?;
     if producers.next().is_some() {
         return None;
@@ -1438,9 +1432,7 @@ pub fn scalar_call_result_producer(
         return false;
     }
     let Some(producer) = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|instruction| instruction.id == producer)
     else {
         return false;

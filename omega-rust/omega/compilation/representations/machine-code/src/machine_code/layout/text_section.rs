@@ -106,6 +106,13 @@ pub struct PlacedBlockSpan {
     pub instructions: Vec<PlacedInstructionSpan>,
 }
 
+impl PlacedFunctionFragment {
+    /// Every block's instruction spans, in block order.
+    pub fn instructions(&self) -> impl Iterator<Item = &PlacedInstructionSpan> + '_ {
+        self.blocks.iter().flat_map(|block| &block.instructions)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlacedInstructionSpan {
     pub instruction: SelectedInstructionId,

@@ -146,10 +146,10 @@ fn encode_bytes(hasher: &mut Sha256, bytes: &[u8]) {
 #[cfg(test)]
 mod tests {
     use super::super::{
-        FuelScheduleIdentity, FunctionFragmentEmissionIdentity, MachineId,
-        PlacedBlockSpan, PlacedFunctionFragment, PlacedInstructionSpan,
-        PlacedInternalMachineCallResolution, SelectedBlockId, SelectedInstructionId,
-        SelectedInstructionPlanIdentity, TerminalPsiIdentity,
+        FuelScheduleIdentity, FunctionFragmentEmissionIdentity, MachineId, PlacedBlockSpan,
+        PlacedFunctionFragment, PlacedInstructionSpan, PlacedInternalMachineCallResolution,
+        SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
+        TerminalPsiIdentity,
     };
     use super::{
         InternalMachineCallResolutionKind, InternalMachineCallResolutionState, NativeTarget,

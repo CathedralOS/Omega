@@ -63,7 +63,7 @@ pub(super) fn operation(
             let Some(tag_byte_offset) = observations.next() else { return false; };
             result.scalar_type == semantic_vocabulary::ScalarType::Boolean
                 && observations.next().is_none()
-                && selected.blocks.iter().flat_map(|block| &block.instructions).filter(|row|
+                && selected.instructions().filter(|row|
                     row.provenance.operations == [*psi_operation] && row.provenance.values == [result.value]
                         && match row.kind {
                             selected_instructions::SelectedInstructionKind::Load32 { byte_offset } => byte_offset == tag_byte_offset,

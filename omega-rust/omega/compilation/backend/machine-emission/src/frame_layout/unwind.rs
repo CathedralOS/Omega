@@ -43,9 +43,7 @@ pub(super) fn body_writes_link_register(
         .view_named(view)
         .ok_or(TargetFrameLayoutError::MissingLinkRegisterView)?;
     Ok(function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .flat_map(|instruction| {
             instruction
                 .unit_defs

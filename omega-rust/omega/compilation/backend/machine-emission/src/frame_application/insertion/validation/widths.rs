@@ -26,7 +26,7 @@ pub(super) fn validate_widths(
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    let short_count = source.blocks.iter().flat_map(|block| &block.instructions)
+    let short_count = source.instructions()
         .filter(|row| architecture == Architecture::X86_64 && row.bytes.len() == 2 && matches!(row.branch.as_deref(),
             Some(FunctionFragmentBranchEvidence::Conditional(branch)) if branch.predicate == FunctionFragmentConditionalBranchPredicate::NonZeroV1))
         .count();

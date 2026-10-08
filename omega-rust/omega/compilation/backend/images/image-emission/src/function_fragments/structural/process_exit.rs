@@ -49,9 +49,7 @@ pub(super) fn settlement(
         return Err(Error::Mismatch("process exit source substitution"));
     }
     let span = fragment
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .find(|span| span.instruction == instruction.id)
         .ok_or(Error::Mismatch("process exit span"))?;
     if span.control

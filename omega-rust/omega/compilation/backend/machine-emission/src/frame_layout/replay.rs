@@ -64,19 +64,15 @@ pub(super) fn validate_layout(
         if source.machine != requirement.machine || source.machine != storage.machine {
             return Err(Error::FunctionRosterMismatch);
         }
-        let calls = source
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .any(|instruction| {
-                matches!(
-                    instruction.alternative.key.family,
-                    MachineAlternativeFamily::CallScalar
-                        | MachineAlternativeFamily::CallUnit
-                        | MachineAlternativeFamily::CallAggregate
-                        | MachineAlternativeFamily::NormalizedForeignCall
-                )
-            });
+        let calls = source.instructions().any(|instruction| {
+            matches!(
+                instruction.alternative.key.family,
+                MachineAlternativeFamily::CallScalar
+                    | MachineAlternativeFamily::CallUnit
+                    | MachineAlternativeFamily::CallAggregate
+                    | MachineAlternativeFamily::NormalizedForeignCall
+            )
+        });
         let shadow = if calls && required.abi == FrameAbiPreservationConvention::MicrosoftX64 {
             32_u64
         } else {
@@ -148,9 +144,7 @@ pub(super) fn validate_layout(
         // appear. The canonical roster is ascending and duplicate-free,
         // which exact equality with the recovered set enforces.
         let stable_address_loans = source
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
+            .instructions()
             .filter_map(|instruction| match instruction.address {
                 Some(physical_instructions::PhysicalAddressOperation::FrameAddress {
                     slot: selected_instructions::FrameStorageSlotId::Local(slot),

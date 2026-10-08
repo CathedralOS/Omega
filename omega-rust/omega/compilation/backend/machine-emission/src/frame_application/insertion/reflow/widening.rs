@@ -17,9 +17,7 @@ pub(super) fn widen_out_of_range_branches(
         return Ok(());
     }
     let short_count = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.instructions)
+        .instructions()
         .filter(|row| {
             row.bytes.len() == 2
                 && matches!(row.branch.as_deref(),

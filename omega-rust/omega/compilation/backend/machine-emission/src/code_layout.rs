@@ -213,9 +213,7 @@ fn instruction_regions(
         .checked_add(fragment.byte_count)
         .ok_or(CodeLayoutError::OffsetOverflow)?;
     let mut spans: Vec<(u64, u64)> = fragment
-        .blocks
-        .iter()
-        .flat_map(|block| block.instructions.iter())
+        .instructions()
         .map(|span| (span.section_offset, span.byte_count))
         .collect();
     spans.sort_unstable();

@@ -59,9 +59,8 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
         return Err("normalized foreign D41 child cannot rejoin one selected call");
     };
     let (block, instruction) =
-        image_emission::unique_block_instruction(function, record.instruction).ok_or(
-            "normalized foreign D41 roster row names an absent instruction",
-        )?;
+        image_emission::unique_block_instruction(function, record.instruction)
+            .ok_or("normalized foreign D41 roster row names an absent instruction")?;
     if !image_emission::foreign_invocation_provenance_matches(
         &instruction.provenance,
         record.invocation_site,
@@ -156,9 +155,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 .find(|fragment| fragment.machine == occurrence.machine())
                 .ok_or("kernel entry has no placed caller")?;
             let span = fragment
-                .blocks
-                .iter()
-                .flat_map(|block| &block.instructions)
+                .instructions()
                 .find(|span| span.instruction == instruction.id)
                 .ok_or("kernel entry has no placed instruction")?;
             let start =
