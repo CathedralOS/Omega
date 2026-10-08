@@ -145,43 +145,19 @@ pub fn validate_projected_access_fold(
     if !register_only(producer) {
         return Err(ProjectedAccessError::UnsupportedProducer);
     }
-    let [base_operand, result_operand] = producer.operands.as_slice() else {
-        return Err(ProjectedAccessError::UnsupportedProducer);
-    };
-    if base_operand.operand != 0
-        || base_operand.access != RegisterOperandAccess::Use
-        || result_operand.operand != 1
-        || result_operand.access != RegisterOperandAccess::Def
-        || result_operand.virtual_register != pointer
-    {
-        return Err(ProjectedAccessError::UnsupportedProducer);
-    }
-    let base = base_operand.virtual_register;
-    if base == pointer {
-        return Err(ProjectedAccessError::UnsupportedProducer);
-    }
-    let base_register = find_register(base).ok_or(ProjectedAccessError::UnsupportedUse)?;
-    if base_register.class != pointer_operand.class {
-        return Err(ProjectedAccessError::UnsupportedUse);
-    }
-    let producer_row = environment
-        .constraint(producer.constraint)
-        .ok_or(ProjectedAccessError::ConstraintMismatch)?;
-    if producer_row.operands.len() != 2
-        || producer_row.operands[0].operand != 0
-        || producer_row.operands[0].access != RegisterOperandAccess::Use
-        || producer_row.operands[0].class != base_operand.class
-        || base_operand.class != base_register.class
-        || producer_row.operands[1].operand != 1
-        || producer_row.operands[1].access != RegisterOperandAccess::Def
-        || producer_row.operands[1].class != result_operand.class
-        || result_operand.class != pointer_register.class
-        || !producer_row.implicit_uses.is_empty()
-        || !producer_row.implicit_defs.is_empty()
-        || !producer_row.clobbers.is_empty()
-    {
-        return Err(ProjectedAccessError::ConstraintMismatch);
-    }
+    let base = super::producer_surface(
+        function,
+        producer,
+        pointer,
+        pointer_operand,
+        pointer_register,
+        environment,
+        |producer_row| {
+            !producer_row.implicit_uses.is_empty()
+                || !producer_row.implicit_defs.is_empty()
+                || !producer_row.clobbers.is_empty()
+        },
+    )?;
     // The open interval between the projection and the access must leave
     // the base alone: the folded operand reads the base at the consumer's
     // position.

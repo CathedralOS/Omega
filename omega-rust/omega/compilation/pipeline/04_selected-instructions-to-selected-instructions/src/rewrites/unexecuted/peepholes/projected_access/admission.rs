@@ -168,45 +168,15 @@ pub(super) fn admit<'source>(
         consumer_kind,
         "every declared projected-access pair rewrites to the consumer's own semantic"
     );
-    let [base_operand, result_operand] = producer.operands.as_slice() else {
-        return Err(ProjectedAccessError::UnsupportedProducer);
-    };
-    if base_operand.operand != 0
-        || base_operand.access != RegisterOperandAccess::Use
-        || result_operand.operand != 1
-        || result_operand.access != RegisterOperandAccess::Def
-        || result_operand.virtual_register != pointer
-    {
-        return Err(ProjectedAccessError::UnsupportedProducer);
-    }
-    let base = base_operand.virtual_register;
-    if base == pointer {
-        return Err(ProjectedAccessError::UnsupportedProducer);
-    }
-    let base_register = find_register(base).ok_or(ProjectedAccessError::UnsupportedUse)?;
-    // The rebound operand keeps the consumer operand's declared class, so
-    // the base register must publish that class — and the producer's own
-    // row must declare the `[use, def]` shape its operands carry at the
-    // classes the roster assigns.
-    if base_register.class != pointer_operand.class {
-        return Err(ProjectedAccessError::UnsupportedUse);
-    }
-    let producer_row = environment
-        .constraint(producer.constraint)
-        .ok_or(ProjectedAccessError::ConstraintMismatch)?;
-    if producer_row.operands.len() != 2
-        || producer_row.operands[0].operand != 0
-        || producer_row.operands[0].access != RegisterOperandAccess::Use
-        || producer_row.operands[0].class != base_operand.class
-        || base_operand.class != base_register.class
-        || producer_row.operands[1].operand != 1
-        || producer_row.operands[1].access != RegisterOperandAccess::Def
-        || producer_row.operands[1].class != result_operand.class
-        || result_operand.class != pointer_register.class
-        || !rule.admits_row_units(producer_row)
-    {
-        return Err(ProjectedAccessError::ConstraintMismatch);
-    }
+    let base = super::producer_surface(
+        function,
+        producer,
+        pointer,
+        pointer_operand,
+        pointer_register,
+        environment,
+        |producer_row| !rule.admits_row_units(producer_row),
+    )?;
     // Between the producer and the consumer nothing may redefine the base:
     // the folded operand reads the base at the consumer's position, which
     // must be the value the producer offset. The producer itself cannot be

@@ -117,6 +117,7 @@ fn access_alternative(
 
 use crate::ValidatedSelectedAnalysis;
 use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
     MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
@@ -124,7 +125,8 @@ use selected_instructions::{
     MachineSemanticKind, MachineTrapBehavior,
 };
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, ValidatedMachineEffectCatalog,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedOperand,
+    ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
 };
 
 mod admission;
@@ -271,4 +273,62 @@ pub(super) fn locate_access<'source>(
         position,
         consumer,
     })
+}
+
+/// The producer's operand-and-row surface both sides re-prove against the
+/// function's own records: the `[use base, def pointer]` operand pair at
+/// the roster's classes, a distinct published base, and the producer's
+/// fixed two-operand row — `row_extra` audits each side's remaining row
+/// obligation (admission's unit axes, replay's implicit-effects emptiness).
+pub(super) fn producer_surface(
+    function: &SelectedFunction,
+    producer: &SelectedInstruction,
+    pointer: VirtualRegisterId,
+    pointer_operand: &SelectedOperand,
+    pointer_register: &VirtualRegister,
+    environment: &ValidatedTargetRegisterEnvironment,
+    row_extra: impl Fn(&RegisterInstructionConstraint) -> bool,
+) -> Result<VirtualRegisterId, ProjectedAccessError> {
+    let find_register = |register| {
+        function
+            .virtual_registers
+            .iter()
+            .find(|entry| entry.id == register)
+    };
+    let [base_operand, result_operand] = producer.operands.as_slice() else {
+        return Err(ProjectedAccessError::UnsupportedProducer);
+    };
+    if base_operand.operand != 0
+        || base_operand.access != RegisterOperandAccess::Use
+        || result_operand.operand != 1
+        || result_operand.access != RegisterOperandAccess::Def
+        || result_operand.virtual_register != pointer
+    {
+        return Err(ProjectedAccessError::UnsupportedProducer);
+    }
+    let base = base_operand.virtual_register;
+    if base == pointer {
+        return Err(ProjectedAccessError::UnsupportedProducer);
+    }
+    let base_register = find_register(base).ok_or(ProjectedAccessError::UnsupportedUse)?;
+    if base_register.class != pointer_operand.class {
+        return Err(ProjectedAccessError::UnsupportedUse);
+    }
+    let producer_row = environment
+        .constraint(producer.constraint)
+        .ok_or(ProjectedAccessError::ConstraintMismatch)?;
+    if producer_row.operands.len() != 2
+        || producer_row.operands[0].operand != 0
+        || producer_row.operands[0].access != RegisterOperandAccess::Use
+        || producer_row.operands[0].class != base_operand.class
+        || base_operand.class != base_register.class
+        || producer_row.operands[1].operand != 1
+        || producer_row.operands[1].access != RegisterOperandAccess::Def
+        || producer_row.operands[1].class != result_operand.class
+        || result_operand.class != pointer_register.class
+        || row_extra(producer_row)
+    {
+        return Err(ProjectedAccessError::ConstraintMismatch);
+    }
+    Ok(base)
 }
