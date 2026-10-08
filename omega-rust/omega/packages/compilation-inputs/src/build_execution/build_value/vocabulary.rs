@@ -78,11 +78,7 @@ pub fn build_reaches_filesystem_facet(
             continue;
         }
         visited.push(symbol);
-        let Some(machine) = operational
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == symbol)
-        else {
+        let Some(machine) = operational.machine_by_symbol(symbol) else {
             continue;
         };
         for state in operational.states.span_or_empty(machine.states) {

@@ -61,6 +61,11 @@ impl OperationalPlan {
     pub fn machine_index_by_symbol(&self, symbol: SymbolHandle) -> Option<usize> {
         self.with_machine_index(|index| index.get(&symbol).copied())
     }
+
+    /// `machines()` member keyed `symbol`, through the plan-owned index.
+    pub fn machine_by_symbol(&self, symbol: SymbolHandle) -> Option<&MachineOperational> {
+        self.machines().get(self.machine_index_by_symbol(symbol)?)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

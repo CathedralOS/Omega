@@ -204,11 +204,7 @@ fn selected_body_dependencies(program: &TypedTrees, execution: &mut Vec<SymbolHa
     let mut pending_machine_position = 0;
     while let Some(&symbol) = execution.get(pending_machine_position) {
         pending_machine_position += 1;
-        let Some(machine) = operational
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == symbol)
-        else {
+        let Some(machine) = operational.machine_by_symbol(symbol) else {
             continue;
         };
         for state in operational.states.span_or_empty(machine.states) {

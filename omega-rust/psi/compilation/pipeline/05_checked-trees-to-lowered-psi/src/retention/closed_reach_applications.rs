@@ -286,9 +286,7 @@ pub(crate) fn retain_closed_reach_applications(
         }
         let mut calls = Vec::new();
         let caller = operational
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == specialization.instance)
+            .machine_by_symbol(specialization.instance)
             .ok_or(LoweringError::Unsupported(
                 "closed reach application has no operational owner",
             ))?;
