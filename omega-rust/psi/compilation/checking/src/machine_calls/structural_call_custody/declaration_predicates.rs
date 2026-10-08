@@ -231,7 +231,11 @@ impl RowEmitter<'_, '_> {
                 element_type,
                 length: FixedArrayLength::Literal(length),
             } => {
-                if owned_data_definition(self.program, *element_type).is_none() {
+                // Visiting every element of an array whose elements reach
+                // no row-emitting definition emits nothing; skip it whole.
+                if owned_data_definition(self.program, *element_type).is_none()
+                    || !storage_carries_rows(self.program, *element_type, visited)
+                {
                     return;
                 }
                 for index in 0..*length {
@@ -267,25 +271,7 @@ impl RowEmitter<'_, '_> {
         visited: &mut Vec<SymbolHandle>,
     ) {
         self.definition_rows(prefix, definition);
-        for member in self.program.data_members(definition) {
-            let DataMember::Field(field) = member else {
-                continue;
-            };
-            if !field.symbol.is_valid() || field.relevance.is_erased() {
-                continue;
-            }
-            // A borrowed field's referee is not this storage.
-            if matches!(
-                self.program.type_reference_table.type_reference(
-                    crate::value_custody::type_shapes::unconstrained_base(
-                        self.program,
-                        field.type_reference
-                    )
-                ),
-                TypeReferenceNode::Reference { .. }
-            ) {
-                continue;
-            }
+        for field in owned_storage_fields(self.program, definition) {
             prefix.push(CheckedStructuralPredicatePathSegment::Field(
                 field.path_identity(),
             ));
@@ -299,10 +285,7 @@ impl RowEmitter<'_, '_> {
         prefix: &[CheckedStructuralPredicatePathSegment],
         definition: &DataDefinition,
     ) {
-        if definition.zero_gated
-            || definition.where_facts.is_empty()
-            || crate::data_where_field_intervals(self.program, definition).is_some()
-        {
+        if !definition_emits_rows(self.program, definition) {
             return;
         }
         let spelling = FactSpelling {
@@ -447,6 +430,80 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
         PrimitiveType::U64 => (0, i128::from(u64::MAX)),
         _ => return None,
     })
+}
+
+/// Whether `definition` contributes rows of its own: it has facts that are
+/// neither interval-only (carried by its fields' carriers) nor zero-gated
+/// (owned by its construction).
+fn definition_emits_rows(program: &dyn crate::CheckingInput, definition: &DataDefinition) -> bool {
+    !(definition.zero_gated
+        || definition.where_facts.is_empty()
+        || crate::data_where_field_intervals(program, definition).is_some())
+}
+
+/// The relevant fields whose storage `definition` owns inline. A borrowed
+/// field's referee is not this storage, and an erased field has none.
+fn owned_storage_fields<'program>(
+    program: &'program dyn crate::CheckingInput,
+    definition: &'program DataDefinition,
+) -> impl Iterator<Item = &'program DataField> {
+    program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            _ => None,
+        })
+        .filter(move |field| {
+            field.symbol.is_valid()
+                && !field.relevance.is_erased()
+                && !matches!(
+                    program.type_reference_table.type_reference(
+                        crate::value_custody::type_shapes::unconstrained_base(
+                            program,
+                            field.type_reference
+                        )
+                    ),
+                    TypeReferenceNode::Reference { .. }
+                )
+        })
+}
+
+/// Whether the storage of `type_reference` reaches a definition that emits
+/// rows, by the same descent `RowEmitter::descend` takes, without visiting
+/// array elements one by one. `visited` is the definition stack on this path.
+fn storage_carries_rows(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    visited: &mut Vec<SymbolHandle>,
+) -> bool {
+    let carrier = crate::value_custody::type_shapes::unconstrained_base(program, type_reference);
+    match program.type_reference_table.type_reference(carrier) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => {
+            *length > 0
+                && owned_data_definition(program, *element_type).is_some()
+                && storage_carries_rows(program, *element_type, visited)
+        }
+        _ => {
+            let Some(definition) = owned_data_definition(program, carrier) else {
+                return false;
+            };
+            if visited.contains(&definition.symbol) {
+                return false;
+            }
+            if definition_emits_rows(program, definition) {
+                return true;
+            }
+            visited.push(definition.symbol);
+            let carries = owned_storage_fields(program, definition)
+                .any(|field| storage_carries_rows(program, field.type_reference, visited));
+            visited.pop();
+            carries
+        }
+    }
 }
 
 /// The nominal data definition a field or parameter carrier owns inline.
