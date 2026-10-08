@@ -668,11 +668,7 @@ pub(super) fn move_event_is_production_target(
     let Some(statement_index) = event_statement_index(event.source) else {
         return false;
     };
-    let Some(statement) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    else {
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
         return false;
     };
     let target = match statement {

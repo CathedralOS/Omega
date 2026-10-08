@@ -497,6 +497,15 @@ impl StatementTable {
         self.statements.span_or_empty(span)
     }
 
+    /// The `index`th statement inside `state`'s statement list, if present.
+    pub fn statement_at(
+        &self,
+        state: &crate::state::State,
+        index: usize,
+    ) -> Option<&StatementNode> {
+        self.statements(state.statement_nodes).get(index)
+    }
+
     pub fn iter_statements(
         &self,
         span: HandleSpan<StatementNode>,

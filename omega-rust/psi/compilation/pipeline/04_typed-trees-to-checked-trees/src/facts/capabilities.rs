@@ -365,11 +365,7 @@ fn call_receiver_provenance(
     state: &State,
     statement_index: usize,
 ) -> ReceiverProvenance {
-    let Some(statement) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    else {
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
         return ReceiverProvenance::Unknown;
     };
 
@@ -486,11 +482,7 @@ fn call_stored_into_field(
     state: &State,
     statement_index: usize,
 ) -> bool {
-    let Some(statement) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    else {
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
         return false;
     };
 

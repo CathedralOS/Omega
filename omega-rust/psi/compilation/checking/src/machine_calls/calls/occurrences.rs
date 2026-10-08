@@ -108,11 +108,7 @@ pub fn collect_call_sites_in_statement<'program>(
     statement_index: usize,
 ) -> Vec<CallSite<'program>> {
     let mut collected = Vec::new();
-    let Some(statement) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index)
-    else {
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
         return collected;
     };
     let mut traversal = CallSiteTraversal::collecting(program, machine, state, &mut collected);

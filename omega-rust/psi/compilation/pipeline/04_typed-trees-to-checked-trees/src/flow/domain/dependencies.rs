@@ -106,11 +106,7 @@ fn compute_domain_dependency_segments(
     }
 
     let mut dependencies = Vec::new();
-    let Some(domain) = program
-        .domain_definitions()
-        .iter()
-        .find(|domain| domain.symbol == domain_symbol)
-    else {
+    let Some(domain) = program.domain_definition(domain_symbol) else {
         visiting.remove(&domain_key);
         return vec![Vec::new()];
     };
