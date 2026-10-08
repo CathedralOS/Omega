@@ -1010,19 +1010,14 @@ defines the complete product bar.
     `resolve_structural_byte_sequence_field`. Find a site with an env-gated
     `std::backtrace::Backtrace::force_capture()` in `errors::malformed()`; the
     last trace before the failure is the refusing site.
-  - Recast views of restricted scalar fields
-    (`pass/recast/runtime_bool_representation_recast_exit`,
-    `pass/recast/runtime_boolean_view_decision_exit`,
-    `pass/recast/runtime_mutable_equivalent_range_recast_exit`) fail Terminal
-    validation with "structural path must retain structural custody": since
-    b71b6a7afa7 the view forms an `EstablishReference` whose source leaf is a
-    `BoundedInteger` field (a record data `where` bound), and
-    `StructuralFieldType::canonical_leaf_shape` gives restricted leaves no
-    shape. Per [recast checking](omega-rust/psi/compilation/checking/recasts.md),
-    either the view stays a proved scalar observation or Terminal reconstructs
-    the carrier relation from the leaf's bounds (shared: implication; mutable:
-    equal sets) in `validate_establish_reference` and the reference
-    compatibility judgment, with the interpreter and Omega consumers following.
+  - A restricted scalar field passed by reference as a call argument
+    (`take(&byte.value)` into a `&u8` formal, where `byte.value` carries a
+    record `where` bound) fails Terminal validation with "structural path must
+    retain structural custody". The `let` capture and place-value producers
+    keep such loans on the place-observation route
+    ([recast checking](omega-rust/psi/compilation/checking/recasts.md)), but
+    call-argument presentation still forms a reference to the
+    `BoundedInteger` leaf.
   - **OPERATOR-BOUNDARY-CALLS**: `pass/float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`,
     `pass/expressions/match_float_{interpretation,subjects}`;
     `pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps}`

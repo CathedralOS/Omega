@@ -295,6 +295,17 @@ impl Builder<'_, '_> {
                 self.statement_index,
                 &place,
             )?;
+        // A restricted field has no borrowed shape; its loan stays the place
+        // observation that transports the field invariant to each read.
+        if let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last()
+            && crate::execution::terminal_unit::types::field_retains_scalar_restriction(
+                self.program,
+                *symbol,
+                projected,
+            )
+        {
+            return None;
+        }
         if let TypeReferenceNode::Reference {
             referee, access, ..
         } = self.program.type_reference_table.type_reference(projected)

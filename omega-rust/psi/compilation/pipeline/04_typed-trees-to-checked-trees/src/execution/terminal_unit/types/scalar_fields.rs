@@ -4,11 +4,73 @@
 //! General domain predicates use the shared declaration-owned projection and
 //! remain conjoined with every retained interval shell.
 use super::{
-    CheckedUnitStructuralFieldType, PrimitiveType, SymbolHandle, TypeReferenceHandle,
+    CheckedUnitStructuralFieldType, DataMember, PrimitiveType, SymbolHandle, TypeReferenceHandle,
     TypeReferenceNode,
 };
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+
+/// Whether the record or case-payload field `field` keeps a scalar
+/// restriction in its Terminal declaration: a bound or predicate from its type
+/// or its owner's interval-only `where` facts, or an atomic cell. `leaf_type`
+/// is the field's type as the projecting place sees it.
+///
+/// Terminal keeps such restrictions out of borrowed shapes, so a restricted
+/// field never lends its storage to a reference carrier. Its observations and
+/// stores reach it through the owning record, where reads transport the
+/// declared invariant and writes re-prove it. This applies the same retention
+/// as shape collection; it is a predicate, not a second field catalog.
+pub(crate) fn field_retains_scalar_restriction(
+    program: &dyn ::validation::CheckingInput,
+    field: SymbolHandle,
+    leaf_type: TypeReferenceHandle,
+) -> bool {
+    let Some(primitive) = program.primitive_type_reference(leaf_type) else {
+        return false;
+    };
+    !matches!(
+        retain_scalar_field(
+            program,
+            leaf_type,
+            &[],
+            primitive,
+            stated_field_interval(program, field),
+        ),
+        Some(CheckedUnitStructuralFieldType::Scalar(_))
+    )
+}
+
+/// The owner's interval-only `where` bound on `field`: the record's facts for
+/// a direct field, the selected case's facts for a payload field.
+fn stated_field_interval(
+    program: &dyn ::validation::CheckingInput,
+    field: SymbolHandle,
+) -> Option<(Option<i64>, Option<i64>)> {
+    let (definition, _) = program.any_field_owner(field)?;
+    let intervals = if program.data_field(definition, field).is_some() {
+        validation::data_where_field_intervals(program, definition)
+    } else {
+        let variant = program
+            .data_members(definition)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant)
+                    if program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .any(|payload| payload.symbol == field) =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })?;
+        validation::case_where_field_intervals(program, variant)
+    }?;
+    intervals
+        .into_iter()
+        .find(|(symbol, _, _)| *symbol == field)
+        .map(|(_, low, high)| (low, high))
+}
 
 pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     program: &dyn ::validation::CheckingInput,

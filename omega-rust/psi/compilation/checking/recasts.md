@@ -93,6 +93,13 @@ views use this route. A view justified only by contextual facts, such as a
 observation instead of claiming that every source-carrier representation is
 valid at the target. The source recast fact owner makes that distinction;
 Terminal independently reconstructs the total carrier relation.
+A record field whose Terminal declaration retains a restriction (a bound or
+predicate from its type or its owner's `where` facts, or an atomic cell) has
+no borrowed shape. Stage 04 forms no reference carrier at it, whether through
+a `let` capture (`control/reference_captures.rs`) or a shared place-borrow
+value, and whatever the view's totality. Its shared and mutable loans and
+views keep the place observation: reads transport the field invariant and
+writes re-prove it.
 
 A record-as-record view retains its source leaf at Terminal: stage 05 reads
 each view field at the same offset under the source's declaration

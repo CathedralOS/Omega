@@ -17,6 +17,7 @@ use checked_trees::{
 use typed_trees::type_identity::TypeIdentityRequest;
 
 mod scalar_fields;
+pub(crate) use scalar_fields::field_retains_scalar_restriction;
 pub(super) use scalar_fields::retain_scalar_field;
 
 pub(super) use validation::has_contents;
