@@ -93,6 +93,18 @@ impl StructuralTypeDeclaration {
 }
 
 impl StructuralTypeShape {
+    /// Whether this shape composes other structural types by value: record,
+    /// fixed array, sum, or mixed interiors.
+    pub fn is_composite_shape(&self) -> bool {
+        matches!(
+            self,
+            StructuralTypeShape::Record { .. }
+                | StructuralTypeShape::FixedArray { .. }
+                | StructuralTypeShape::Sum { .. }
+                | StructuralTypeShape::Mixed { .. }
+        )
+    }
+
     /// Whether this shape carries bytes behind an immutable borrowed view.
     pub fn is_borrowed_view_byte_sequence(&self) -> bool {
         matches!(

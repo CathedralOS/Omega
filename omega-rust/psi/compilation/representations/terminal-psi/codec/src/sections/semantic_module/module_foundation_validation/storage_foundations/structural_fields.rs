@@ -457,14 +457,7 @@ fn owns_observed_storage(
 ) -> bool {
     access == terminal_psi::StructuralAccess::Owned
         && module.structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Record { .. }
-                        | StructuralTypeShape::Mixed { .. }
-                        | StructuralTypeShape::Sum { .. }
-                        | StructuralTypeShape::FixedArray { .. }
-                )
+            declaration.id == structural_type && (declaration.shape).is_composite_shape()
         })
 }
 

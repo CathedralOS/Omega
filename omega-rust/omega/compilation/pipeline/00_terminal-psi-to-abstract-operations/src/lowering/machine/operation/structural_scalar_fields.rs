@@ -351,14 +351,7 @@ fn readable_source_type(
     let owned_storage = |structural_type, access| {
         access == StructuralAccess::Owned
             && structural_types.iter().any(|declaration| {
-                declaration.id == structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::Mixed { .. }
-                            | StructuralTypeShape::Sum { .. }
-                            | StructuralTypeShape::FixedArray { .. }
-                    )
+                declaration.id == structural_type && (declaration.shape).is_composite_shape()
             })
     };
     let has_entry_claim = machine

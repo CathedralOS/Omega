@@ -301,15 +301,7 @@ impl TerminalExecution<'_> {
         self.program
             .structural_types()
             .get(&root)
-            .is_some_and(|row| {
-                matches!(
-                    row.shape,
-                    StructuralTypeShape::Record { .. }
-                        | StructuralTypeShape::FixedArray { .. }
-                        | StructuralTypeShape::Sum { .. }
-                        | StructuralTypeShape::Mixed { .. }
-                )
-            })
+            .is_some_and(|row| (row.shape).is_composite_shape())
             && terminal_semantics::descriptor_results::plain_owned_shape(
                 self.program.structural_types().values(),
                 root,

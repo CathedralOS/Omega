@@ -1097,15 +1097,7 @@ fn readable_field_type(
     if signature.access == terminal_psi::StructuralAccess::Owned
         && structural_types
             .get(&signature.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::Record { .. }
-                        | terminal_psi::StructuralTypeShape::Mixed { .. }
-                        | terminal_psi::StructuralTypeShape::Sum { .. }
-                        | terminal_psi::StructuralTypeShape::FixedArray { .. }
-                )
-            })
+            .is_some_and(|declaration| (declaration.shape).is_composite_shape())
     {
         return Some((signature.structural_type, signature.access));
     }

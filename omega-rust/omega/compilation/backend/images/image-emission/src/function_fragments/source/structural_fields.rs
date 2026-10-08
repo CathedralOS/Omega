@@ -1463,14 +1463,7 @@ fn owned_observation_storage(
     structural_type: semantic_vocabulary::StructuralTypeId,
 ) -> bool {
     types.iter().any(|declaration| {
-        declaration.id == structural_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::Record { .. }
-                    | terminal_psi::StructuralTypeShape::Mixed { .. }
-                    | terminal_psi::StructuralTypeShape::Sum { .. }
-                    | terminal_psi::StructuralTypeShape::FixedArray { .. }
-            )
+        declaration.id == structural_type && (declaration.shape).is_composite_shape()
     })
 }
 
