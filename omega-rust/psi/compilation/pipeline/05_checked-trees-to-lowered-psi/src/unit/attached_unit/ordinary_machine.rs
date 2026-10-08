@@ -359,18 +359,10 @@ pub(super) fn emit(
         structural_types,
         &evaluation.place_observations,
     );
-    // A borrow of a `mut` formal lends its storage, never a home rebuilt from
-    // the incoming value.
-    for storage in &parameter_storage {
-        evaluation.scalar_bindings.register_scalar_parameter_home(
-            u32::try_from(storage.position).map_err(|_| {
-                LoweringError::Unsupported("parameter storage position exceeds u32")
-            })?,
-            storage.local.declaration.id,
-            storage.scalar_type,
-            terminal_psi::StructuralAccess::MutableBorrow,
-        )?;
-    }
+    primitive_locals::register_mut_formal_storage_homes(
+        &mut evaluation.scalar_bindings,
+        &parameter_storage,
+    )?;
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let subslice_places = Vec::new();

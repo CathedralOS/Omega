@@ -246,18 +246,10 @@ impl StateGraphEmission<'_, '_> {
             &self.catalogs.structural_types,
             &evaluation.place_observations,
         );
-        // A loan of a `mut` formal lends its storage, never a home rebuilt
-        // from the arriving value.
-        for storage in &parameter_storage {
-            evaluation.scalar_bindings.register_scalar_parameter_home(
-                u32::try_from(storage.position).map_err(|_| {
-                    LoweringError::Unsupported("parameter storage position exceeds u32")
-                })?,
-                storage.local.declaration.id,
-                storage.scalar_type,
-                terminal_psi::StructuralAccess::MutableBorrow,
-            )?;
-        }
+        super::super::super::super::primitive_locals::register_mut_formal_storage_homes(
+            &mut evaluation.scalar_bindings,
+            &parameter_storage,
+        )?;
         evaluation.structural_types = self.catalogs.structural_types.as_ref().into();
         evaluation.structural_fields =
             crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(

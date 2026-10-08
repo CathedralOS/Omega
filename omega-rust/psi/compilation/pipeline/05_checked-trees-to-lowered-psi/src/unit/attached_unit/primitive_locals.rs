@@ -160,6 +160,26 @@ pub(super) struct ParameterStorage {
     pub(super) scalar_type: semantic_vocabulary::ScalarType,
 }
 
+/// A `mut` formal's storage is lent, never a home rebuilt from the arriving
+/// value, so each storage binds as a mutable-borrow parameter home before the
+/// first statement.
+pub(super) fn register_mut_formal_storage_homes(
+    bindings: &mut crate::expression_preparation::bindings::ScalarBindings,
+    parameter_storage: &[ParameterStorage],
+) -> Result<(), LoweringError> {
+    for storage in parameter_storage {
+        bindings.register_scalar_parameter_home(
+            u32::try_from(storage.position).map_err(|_| {
+                LoweringError::Unsupported("parameter storage position exceeds u32")
+            })?,
+            storage.local.declaration.id,
+            storage.scalar_type,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )?;
+    }
+    Ok(())
+}
+
 /// Establish storage for each `mut` scalar formal of an ordinary body or a
 /// composed state, initialized from the formal's incoming value. Checking
 /// reads such a formal only through its storage, so the storage dominates
