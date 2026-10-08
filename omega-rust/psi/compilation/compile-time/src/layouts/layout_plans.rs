@@ -187,9 +187,7 @@ fn normalize_private_callback_demands(
             .trait_definition_by_symbol(requirement_parent)
             .expect("boundary callback owner was found above");
         let requirement_row = typed
-            .trait_machine_signatures(requirement_trait)
-            .iter()
-            .find(|row| row.symbol == *requirement)
+            .trait_machine_signature_by_symbol(requirement_trait, *requirement)
             .ok_or_else(|| {
                 format!(
                     "private layout conformance `{}` callback requirement was not retained in its declaring trait",

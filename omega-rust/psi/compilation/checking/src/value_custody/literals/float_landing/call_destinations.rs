@@ -41,9 +41,7 @@ fn parameters<'program>(
     }
     for trait_definition in program.traits() {
         if let Some(signature) = program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == call.target_symbol)
+            .trait_machine_signature_by_symbol(trait_definition, call.target_symbol)
         {
             return Some(program.state_signature_parameters(signature));
         }

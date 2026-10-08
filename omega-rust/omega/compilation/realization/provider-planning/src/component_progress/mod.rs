@@ -252,9 +252,7 @@ fn exact_boundary_requirement(
     program.traits().iter().find_map(|owner| {
         owner.is_boundary.then_some(()).and_then(|_| {
             program
-                .trait_machine_signatures(owner)
-                .iter()
-                .find(|requirement| requirement.symbol == symbol)
+                .trait_machine_signature_by_symbol(owner, symbol)
                 .map(|requirement| {
                     (
                         program.symbols.symbol_package_identity(owner.symbol),

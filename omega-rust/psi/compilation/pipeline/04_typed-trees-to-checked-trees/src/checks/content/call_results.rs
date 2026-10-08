@@ -485,9 +485,7 @@ fn authorized_ensures_signature(
         .trait_definition_by_symbol(owner_symbol)
         .and_then(|owner| {
             program
-                .trait_machine_signatures(owner)
-                .iter()
-                .find(|signature| signature.symbol == state_symbol)
+                .trait_machine_signature_by_symbol(owner, state_symbol)
         })
         .is_some_and(|signature| {
             crate::facts::qualification_evidence::boundary_qualification_authorization(
@@ -517,9 +515,7 @@ fn boundary_requirement_signature<'a>(
                 .any(|signature| signature.symbol == target_symbol)
     })?;
     let signature = program
-        .trait_machine_signatures(owner)
-        .iter()
-        .find(|signature| signature.symbol == target_symbol)?;
+        .trait_machine_signature_by_symbol(owner, target_symbol)?;
     domain
         .establishment_routes
         .iter()

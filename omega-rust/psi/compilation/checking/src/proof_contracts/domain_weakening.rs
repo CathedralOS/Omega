@@ -352,9 +352,7 @@ fn callable_signature_contracts<'program>(
     let parent = program.symbols.get(target).parent;
     let definition = program.trait_definition_by_symbol(parent)?;
     let signature = program
-        .trait_machine_signatures(definition)
-        .iter()
-        .find(|signature| signature.symbol == target)?;
+        .trait_machine_signature_by_symbol(definition, target)?;
     Some(
         program
             .state_signature_contracts(signature)

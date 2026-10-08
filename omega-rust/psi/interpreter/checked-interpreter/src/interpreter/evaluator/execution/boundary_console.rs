@@ -176,9 +176,7 @@ impl<'program> Evaluator<'program> {
             .filter(|definition| definition.is_boundary)
             .find_map(|definition| {
                 self.program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == symbol)
+                    .trait_machine_signature_by_symbol(definition, symbol)
                     .map(|signature| (definition, signature))
             })
     }

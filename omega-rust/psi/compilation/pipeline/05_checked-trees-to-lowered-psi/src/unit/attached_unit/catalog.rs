@@ -958,9 +958,7 @@ fn establishment_requirement_identity(
         ))?;
     let signature = checked
         .typed
-        .trait_machine_signatures(definition)
-        .iter()
-        .find(|signature| signature.symbol == requirement_symbol)
+        .trait_machine_signature_by_symbol(definition, requirement_symbol)
         .ok_or(LoweringError::Unsupported(
             "domain establishment route names an absent requirement",
         ))?;

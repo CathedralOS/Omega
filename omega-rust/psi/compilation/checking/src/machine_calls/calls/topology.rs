@@ -178,9 +178,7 @@ pub fn call_target_parameters(
         .iter()
         .find_map(|trait_definition| {
             program
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|signature| signature.symbol == target_state_symbol)
+                .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
         })
         .map(|signature| program.state_signature_parameters(signature))
 }

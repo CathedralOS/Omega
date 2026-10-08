@@ -460,9 +460,7 @@ fn nested_requirement_identity(
     }
     typed.traits().iter().find_map(|definition| {
         typed
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|signature| signature.symbol == requirement)
+            .trait_machine_signature_by_symbol(definition, requirement)
             .and_then(|signature| {
                 let identity =
                     typed.trait_requirement_callable_identity_text(definition, signature);

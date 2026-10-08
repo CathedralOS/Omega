@@ -162,9 +162,7 @@ pub(crate) fn build_dynamic_slot_plans(
             continue;
         };
         let Some(requirement) = program
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|signature| signature.symbol == slot.requirement)
+            .trait_machine_signature_by_symbol(definition, slot.requirement)
         else {
             continue;
         };

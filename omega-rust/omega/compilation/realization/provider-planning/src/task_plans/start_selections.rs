@@ -141,9 +141,7 @@ fn append_task_start_selection(
             return None;
         }
         program
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|signature| signature.symbol == requirement)
+            .trait_machine_signature_by_symbol(definition, requirement)
             .and_then(|signature| {
                 let result = program.display_type_reference(signature.return_type);
                 match (signature.name.as_str(), result.as_str()) {

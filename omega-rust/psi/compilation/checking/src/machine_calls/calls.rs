@@ -345,9 +345,7 @@ fn requirement_call_result_type(
         return None;
     }
     let signature = program
-        .trait_machine_signatures(definition)
-        .iter()
-        .find(|signature| signature.symbol == target)?;
+        .trait_machine_signature_by_symbol(definition, target)?;
     if !signature.type_parameters.is_empty() || !signature.return_type.is_valid() {
         return None;
     }

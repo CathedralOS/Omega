@@ -217,9 +217,7 @@ fn requirement_owner<'program>(
     if let Some(dispatch) = &call.static_requirement_dispatch {
         let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
         return program
-            .trait_machine_signatures(definition)
-            .iter()
-            .find(|requirement| requirement.symbol == dispatch.requirement)
+            .trait_machine_signature_by_symbol(definition, dispatch.requirement)
             .map(RequirementOwner::Signature);
     }
     selected_machine(program, call.target_symbol)

@@ -382,9 +382,7 @@ fn unconditional_termination(
             .and_then(|definition| {
                 checked
                     .typed
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == plan.machine)
+                    .trait_machine_signature_by_symbol(definition, plan.machine)
             })
             .map(|signature| &signature.termination_guarantee),
         // The current operator requirement vocabulary publishes no progress

@@ -48,9 +48,7 @@ pub(crate) fn task_specialization_commitment(
             )]
         })?;
     let requirement = program
-        .trait_machine_signatures(requirement_owner)
-        .iter()
-        .find(|signature| signature.symbol == selection.requirement)
+        .trait_machine_signature_by_symbol(requirement_owner, selection.requirement)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "task specialization is missing its exact TaskRuntime requirement",

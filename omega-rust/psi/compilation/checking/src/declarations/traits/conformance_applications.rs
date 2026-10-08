@@ -723,9 +723,7 @@ fn application_identity(
             .trait_definition_by_symbol(row.declaring_trait)
             .and_then(|definition| {
                 program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == row.requirement)
+                    .trait_machine_signature_by_symbol(definition, row.requirement)
             })
         {
             let signature_bytes =

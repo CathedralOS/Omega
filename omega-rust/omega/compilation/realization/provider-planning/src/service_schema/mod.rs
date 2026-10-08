@@ -425,9 +425,7 @@ fn service_progress_establishment_routes(
                 .trait_definition_by_symbol(route.source_symbol())
                 .expect("normalized progress establishment route must name one trait owner");
             let requirement = program
-                .trait_machine_signatures(owner)
-                .iter()
-                .find(|requirement| requirement.symbol == route.requirement_symbol())
+                .trait_machine_signature_by_symbol(owner, route.requirement_symbol())
                 .expect("normalized progress establishment route must name one requirement");
             let kind = match route {
                 language_semantics::DomainEstablishmentRoute::CheckedRequirement { .. } => {

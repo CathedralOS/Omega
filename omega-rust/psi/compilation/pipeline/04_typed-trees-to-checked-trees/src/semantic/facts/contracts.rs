@@ -318,9 +318,7 @@ fn inherited_contract_scope_parts<'program>(
         .get(contract.inherited_scope?);
     let trait_definition = program.trait_definition_by_symbol(scope.declaring_trait)?;
     let requirement = program
-        .trait_machine_signatures(trait_definition)
-        .iter()
-        .find(|signature| signature.symbol == scope.requirement)?;
+        .trait_machine_signature_by_symbol(trait_definition, scope.requirement)?;
     let ContractProofFactOwner::MachineState { state_symbol, .. } = contract.owner else {
         return None;
     };
@@ -561,9 +559,7 @@ fn instantiate_call_contract_payload(
             .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
                 program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|requirement| requirement.symbol == dispatch.requirement)
+                    .trait_machine_signature_by_symbol(definition, dispatch.requirement)
             })
         else {
             return;

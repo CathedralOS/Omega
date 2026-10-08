@@ -235,9 +235,7 @@ fn container_member_type_position(
                 return ContainerOutcome::Unmapped;
             };
             let Some(signature) = program
-                .trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|signature| signature.symbol == parent)
+                .trait_machine_signature_by_symbol(trait_definition, parent)
             else {
                 return ContainerOutcome::Unmapped;
             };

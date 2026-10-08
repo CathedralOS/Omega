@@ -121,9 +121,7 @@ fn validate_closed_rows(
             continue;
         };
         let Some(requirement) = program
-            .trait_machine_signatures(declaring_trait)
-            .iter()
-            .find(|requirement| requirement.symbol == row.requirement)
+            .trait_machine_signature_by_symbol(declaring_trait, row.requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "closed conformance `{implementation_name} satisfies {}` retains an unresolved requirement `{}::{}`",

@@ -552,9 +552,7 @@ fn boundary_capability(
             return None;
         }
         program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == target_symbol)
+            .trait_machine_signature_by_symbol(trait_definition, target_symbol)
             .map(|signature| (trait_definition.symbol, Some(signature)))
     }) {
         return Some(found);

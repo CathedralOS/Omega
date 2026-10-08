@@ -67,9 +67,7 @@ pub(crate) fn dynamic_selector_call<'program>(
         return Err("dynamic call names an unresolved trait".to_owned());
     };
     let Some(signature) = program
-        .trait_machine_signatures(declaring)
-        .iter()
-        .find(|signature| signature.symbol == target)
+        .trait_machine_signature_by_symbol(declaring, target)
     else {
         return Err(format!(
             "`{}` declares no requirement named `{}`",

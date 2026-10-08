@@ -257,9 +257,7 @@ fn resultless_state_signature(
         .trait_definition_by_symbol(owner_symbol)
         .and_then(|definition| {
             program
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|signature| signature.symbol == state_symbol)
+                .trait_machine_signature_by_symbol(definition, state_symbol)
                 .map(|signature| signature.return_type)
         })
         .or_else(|| {

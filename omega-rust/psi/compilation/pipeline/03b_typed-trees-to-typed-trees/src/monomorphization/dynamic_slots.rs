@@ -71,9 +71,7 @@ fn instantiate_slot(
         )]);
     };
     let Some(signature) = program
-        .trait_machine_signatures(definition)
-        .iter()
-        .find(|signature| signature.symbol == demand.requirement)
+        .trait_machine_signature_by_symbol(definition, demand.requirement)
         .cloned()
     else {
         return Err(vec![Diagnostic::error(

@@ -189,9 +189,7 @@ fn machine_domain_establishment_origin(
             } => {
                 let trait_definition = program.trait_definition_by_symbol(*trait_definition)?;
                 let requirement = program
-                    .trait_machine_signatures(trait_definition)
-                    .iter()
-                    .find(|signature| signature.symbol == *requirement)?;
+                    .trait_machine_signature_by_symbol(trait_definition, *requirement)?;
                 program
                     .machine_trait_conformances(machine)
                     .iter()

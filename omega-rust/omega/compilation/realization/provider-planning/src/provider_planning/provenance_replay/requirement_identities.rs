@@ -25,9 +25,7 @@ pub(crate) fn exact_satisfied_requirement_identity(
         return String::new();
     };
     typed
-        .trait_machine_signatures(definition)
-        .iter()
-        .find(|signature| signature.symbol == requirement_symbol)
+        .trait_machine_signature_by_symbol(definition, requirement_symbol)
         .map(|signature| typed.trait_requirement_callable_identity_text(definition, signature))
         .unwrap_or_default()
 }

@@ -113,9 +113,7 @@ pub(super) fn signature_environment(
         (definition.symbol == owner_symbol)
             .then(|| {
                 program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == state_symbol)
+                    .trait_machine_signature_by_symbol(definition, state_symbol)
             })
             .flatten()
     }) {

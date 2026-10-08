@@ -513,9 +513,7 @@ fn instantiated_parameter_proposition(
             .trait_definition_by_symbol(dispatch.declaring_trait)
             .and_then(|definition| {
                 program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|requirement| requirement.symbol == dispatch.requirement)
+                    .trait_machine_signature_by_symbol(definition, dispatch.requirement)
             })
             .map(|requirement| program.state_signature_parameters(requirement))?
     } else {

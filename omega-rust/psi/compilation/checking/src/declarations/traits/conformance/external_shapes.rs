@@ -50,9 +50,7 @@ pub(crate) fn validate_external_leaf_native_shapes(
             continue;
         }
         let Some(requirement) = program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|requirement| requirement.symbol == conformance.requirement_symbol)
+            .trait_machine_signature_by_symbol(trait_definition, conformance.requirement_symbol)
         else {
             continue;
         };

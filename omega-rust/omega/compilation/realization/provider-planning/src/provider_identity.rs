@@ -176,9 +176,7 @@ pub(crate) fn named_provider_row<'a>(
             return false;
         };
         let Some(requirement) = typed
-            .trait_machine_signatures(owner)
-            .iter()
-            .find(|requirement| requirement.symbol == entry.requirement)
+            .trait_machine_signature_by_symbol(owner, entry.requirement)
         else {
             return false;
         };
