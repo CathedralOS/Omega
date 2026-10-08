@@ -4,7 +4,9 @@ use optimization_core::OptimizationWorkUsage;
 
 use crate::FixedViewCopyError;
 
-use selected_instructions::VirtualFixedConstraintSite;
+use selected_instructions::{
+    LiveRangeEdgeConnector, SelectedBlockId, SelectedInstructionId, VirtualFixedConstraintSite,
+};
 
 use super::{
     FixedViewCopy, TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
@@ -220,4 +222,28 @@ pub(super) fn roots_align(
         return Err(FixedViewCopyError::RootMismatch);
     }
     Ok(())
+}
+
+/// The copy's insertion site: the dominating exit connector when every
+/// member departs through one, else the first member's own block just before
+/// its site instruction — rejected when that site is not an operand site.
+pub(super) fn transition_site(
+    exit: Option<LiveRangeEdgeConnector>,
+    member_site: VirtualFixedConstraintSite,
+    first_block: SelectedBlockId,
+    first_register: u32,
+    function_index: usize,
+) -> Result<(SelectedBlockId, SelectedInstructionId), FixedViewCopyError> {
+    Ok(match exit {
+        Some(connector) => (connector.source, connector.terminator),
+        None => {
+            let VirtualFixedConstraintSite::Operand { instruction, .. } = member_site else {
+                return Err(FixedViewCopyError::UnsupportedTransitionSite {
+                    function: function_index,
+                    register: first_register,
+                });
+            };
+            (first_block, instruction)
+        }
+    })
 }
