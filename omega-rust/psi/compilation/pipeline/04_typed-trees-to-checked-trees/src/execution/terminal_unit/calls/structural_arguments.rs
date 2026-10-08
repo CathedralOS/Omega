@@ -725,7 +725,13 @@ pub(crate) fn exact_structural_argument_access(
                     source_state,
                     u32::try_from(call.statement_index).ok()?,
                 )
-                .map(|loans| loans.into_iter().map(|(_, loan)| loan).collect::<Vec<_>>());
+                .and_then(|leaves| {
+                    let mut captured = Vec::new();
+                    for (_, group) in leaves {
+                        captured.extend(facts.borrow.loan_group(group)?.map(|(loan, _)| loan));
+                    }
+                    Some(captured)
+                });
             }
             let result = CheckedUnitStructuralResultBindingPlan {
                 statement_index: u32::try_from(call.statement_index).ok()?,

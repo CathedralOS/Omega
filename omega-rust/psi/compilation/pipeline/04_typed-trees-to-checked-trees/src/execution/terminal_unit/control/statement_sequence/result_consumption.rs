@@ -206,9 +206,11 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             result.statement_index,
         )?;
         if !retains_siblings
-            && local_loans
-                .iter()
-                .any(|(_, loan)| !retirement.children_retired(*loan))
+            && local_loans.iter().any(|(_, group)| {
+                !facts.borrow.loan_group(*group).is_some_and(|mut loans| {
+                    loans.all(|(loan, _)| retirement.children_retired(loan))
+                })
+            })
         {
             continue;
         }
@@ -216,19 +218,22 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
             local_loans
                 .into_iter()
                 .rev()
-                .filter(|(source, loan)| {
-                    retirement.children_retired(*loan)
-                        && !transferred_paths.iter().any(|path| {
-                            path.starts_with(&source.path) || source.path.starts_with(path)
+                .filter(|(source, group)| {
+                    facts.borrow.loan_group(*group).is_some_and(|mut loans| {
+                        loans.all(|(loan, _)| retirement.children_retired(loan))
+                    }) && !transferred_paths
+                        .iter()
+                        .any(|path| path.starts_with(&source.path) || source.path.starts_with(path))
+                        && latest_loan_release_boundary(facts, *group, |loan| {
+                            validation::reference_result_custody::release_statement(
+                                facts, machine, state, loan,
+                            )
                         })
-                        && validation::reference_result_custody::release_statement(
-                            facts, machine, state, *loan,
-                        )
                         .is_some_and(|boundary| boundary <= statement_index)
                         && !operations.iter().chain(&pending).any(|operation| {
                             matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference {
                             loans: released, ..
-                        } if facts.borrow.loans_contain(*released, *loan))
+                        } if *released == *group)
                         })
                 })
                 .collect::<Vec<_>>()
@@ -259,13 +264,13 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         // siblings remain established storage; the later whole death schedule
         // is completed from the exact released-path complement during lowering.
         if retains_siblings {
-            for (source, loan) in leaf_releases {
+            for (source, group) in leaf_releases {
                 pending.push(CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index,
                     binding_ordinal: result.binding_ordinal,
                     path: source.path,
                     defer_to_exit: false,
-                    loans: arena::HandleSpan::from_parts(loan, 1),
+                    loans: group,
                 });
             }
             continue;

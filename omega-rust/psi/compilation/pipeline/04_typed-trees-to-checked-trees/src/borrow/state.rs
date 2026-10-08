@@ -5,7 +5,7 @@ use checked_trees::{
 
 use super::calls::collect_statement_borrow_calls;
 use super::last_uses::update_state_loan_last_uses;
-use super::loans::statement_borrow_loans;
+use super::loans::{StatementBorrowLoan, statement_borrow_loans};
 use super::roots::{append_state_writable_roots, mutable_parameter_count};
 use super::tracker::StateLoanTracker;
 
@@ -68,7 +68,7 @@ pub(super) fn append_state_borrow_facts(
             call_frames,
             &mut current_loans,
         );
-        for pending in pending_loans {
+        for pending in grouped_carrier_loans(pending_loans) {
             let loan_segments = arenas
                 .access_segments
                 .insert_many(pending.place.segments.clone());
@@ -138,6 +138,55 @@ pub(super) fn append_state_borrow_facts(
         calls: calls_span,
         loans: loans_span,
     });
+}
+
+/// Arena layout groups one descriptor's alternative origins contiguously.
+/// This is allocation order, not execution order: formation expressions and
+/// statement boundaries still name each event. Repeated declared candidates
+/// form a set, so forwarding a group cannot multiply identical obligations.
+fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBorrowLoan> {
+    loans.sort_by_cached_key(|loan| {
+        (
+            loan.owner_symbol.arena_index(),
+            loan.owner_symbol.generation(),
+            loan.owner_path
+                .iter()
+                .map(|segment| match segment {
+                    checked_trees::BorrowLoanOwnerSegment::Field(symbol) => {
+                        (0u8, symbol.arena_index() as u64, symbol.generation())
+                    }
+                    checked_trees::BorrowLoanOwnerSegment::Case(symbol) => {
+                        (1u8, symbol.arena_index() as u64, symbol.generation())
+                    }
+                    checked_trees::BorrowLoanOwnerSegment::FixedIndex(element) => {
+                        (2u8, *element as u64, 0)
+                    }
+                    checked_trees::BorrowLoanOwnerSegment::DynamicIndex => (3u8, 0, 0),
+                })
+                .collect::<Vec<_>>(),
+        )
+    });
+    let mut grouped: Vec<StatementBorrowLoan> = Vec::with_capacity(loans.len());
+    for loan in loans {
+        let duplicate = grouped
+            .iter()
+            .rev()
+            .take_while(|previous| {
+                previous.owner_symbol == loan.owner_symbol && previous.owner_path == loan.owner_path
+            })
+            .any(|previous| {
+                previous.formation_expression == loan.formation_expression
+                    && previous.source_owner_symbol == loan.source_owner_symbol
+                    && previous.place == loan.place
+                    && previous.kind == loan.kind
+                    && previous.lineage == loan.lineage
+                    && previous.call_result == loan.call_result
+            });
+        if !duplicate {
+            grouped.push(loan);
+        }
+    }
+    grouped
 }
 
 /// A write through a reference retains its descriptor. Replacing a carrier

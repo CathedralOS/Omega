@@ -492,7 +492,6 @@ pub fn construction_sources(
         reference,
         &mut vec![state.symbol],
     )
-    .map(|sources| sources.into_iter().map(|source| source.value).collect())
 }
 
 /// Completion and call substitution share the complete normal-edge origin
@@ -538,42 +537,21 @@ pub fn tail_return_expression(
     }
 }
 
-/// A leaf retains both its ultimate backing and the holder supplying its loan.
-/// Flattening these into backing alone loses ordinary local-to-record and
-/// record-to-record transfers; a call is not the only operation that moves a loan.
-struct ConstructionSource {
-    value: checked_trees::CheckedReferenceResultSourcePlan,
-    holder: SymbolHandle,
-    holder_path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-}
-
+/// Source-only returned-origin reconstruction. Captured local custody comes
+/// from the borrow ledger, not this body's selected return relation.
 fn construction_sources_with_calls(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if stored_loan_parts(program, reference).is_some()
         && let Some(source) = initializer_source(program, state, expression, reference)
     {
-        let holder = match program.expression_table.expression(expression) {
-            ExpressionNode::Name(name)
-                if program
-                    .state_local_declaration(state, name.symbol)
-                    .is_some() =>
-            {
-                name.symbol
-            }
-            _ => SymbolHandle::default(),
-        };
-        return Some(vec![ConstructionSource {
-            value: checked_trees::CheckedReferenceResultSourcePlan {
-                path: Vec::new(),
-                source,
-            },
-            holder,
-            holder_path: Vec::new(),
+        return Some(vec![checked_trees::CheckedReferenceResultSourcePlan {
+            path: Vec::new(),
+            source,
         }]);
     }
     if crate::has_contents(
@@ -622,13 +600,7 @@ fn construction_sources_with_calls(
                 active_origins,
             );
             active_origins.pop();
-            return sources.map(|mut sources| {
-                for source in &mut sources {
-                    source.holder = local.symbol;
-                    source.holder_path = source.value.path.clone();
-                }
-                sources
-            });
+            return sources;
         }
         let (ordinal, parameter) = program
             .state_parameters(state)
@@ -667,13 +639,6 @@ fn construction_sources_with_calls(
                 }
             }
             sources
-                .into_iter()
-                .map(|value| ConstructionSource {
-                    value,
-                    holder: SymbolHandle::default(),
-                    holder_path: Vec::new(),
-                })
-                .collect()
         });
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
@@ -819,16 +784,16 @@ fn aggregate_projection(
     })
 }
 
-/// Selecting an existing value preserves the backing and immediate holder of
-/// every selected descriptor. The projection removes only its owner prefix;
-/// the holder path stays relative to the storage actually supplying the loan.
+/// Selecting an existing value preserves its source-only returned origins.
+/// The projection removes the selected owner prefix; captured descriptor
+/// custody remains independently available in the borrow ledger.
 fn projected_construction_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let projection = aggregate_projection(program, state, expression)?;
     if program.normalized_type_identity(projection.selected_type)
         != program.normalized_type_identity(reference)
@@ -846,8 +811,8 @@ fn projected_construction_sources(
         sources
             .into_iter()
             .filter_map(|mut source| {
-                let suffix = source.value.path.strip_prefix(projection.path.as_slice())?;
-                source.value.path = suffix.to_vec();
+                let suffix = source.path.strip_prefix(projection.path.as_slice())?;
+                source.path = suffix.to_vec();
                 Some(source)
             })
             .collect(),
@@ -863,7 +828,7 @@ fn call_sources_with_calls(
     arguments: &[typed_trees::expression::ExpressionHandle],
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let (machine, destination) =
         crate::machine_calls::calls::machine_state_by_symbol(program, target).or_else(|| {
             let machine = program.machine_by_symbol(target)?;
@@ -889,7 +854,7 @@ fn call_sources_with_calls(
     let mut output = Vec::new();
     for source in sources? {
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            source.value.source.source
+            source.source.source
         else {
             return None;
         };
@@ -911,7 +876,7 @@ fn call_sources_with_calls(
         )?;
         let borrowed_formal = stored_loan_parts(program, parameter.type_reference);
         let selected_path = if let Some((referent, access)) = borrowed_formal {
-            if !reference_access_can_supply(access, source.value.source.access) {
+            if !reference_access_can_supply(access, source.source.access) {
                 return None;
             }
             // The callee's source reconstruction already authenticates each
@@ -920,15 +885,15 @@ fn call_sources_with_calls(
             // existing backing path then precedes the callee's projection.
             let identity = program.normalized_type_identity(referent);
             if actual_sources.iter().any(|actual| {
-                !actual.value.path.is_empty()
-                    || actual.value.source.type_identity != identity.as_str()
-                    || !reference_access_can_supply(actual.value.source.access, access)
+                !actual.path.is_empty()
+                    || actual.source.type_identity != identity.as_str()
+                    || !reference_access_can_supply(actual.source.access, access)
             }) {
                 return None;
             }
             &[][..]
         } else {
-            let (last, path) = source.value.source.path.split_last()?;
+            let (last, path) = source.source.path.split_last()?;
             if *last != checked_trees::CheckedUnitStructuralPathSegment::Referent
                 || !is_reference_record(program, parameter.type_reference)
             {
@@ -942,24 +907,19 @@ fn call_sources_with_calls(
         let before = output.len();
         for mut actual in actual_sources
             .into_iter()
-            .filter(|actual| actual.value.path == selected_path)
+            .filter(|actual| actual.path == selected_path)
         {
-            if !reference_access_can_supply(actual.value.source.access, source.value.source.access)
-            {
+            if !reference_access_can_supply(actual.source.access, source.source.access) {
                 return None;
             }
             if borrowed_formal.is_some() {
-                actual
-                    .value
-                    .source
-                    .path
-                    .extend_from_slice(&source.value.source.path);
-                actual.value.source.type_identity = source.value.source.type_identity.clone();
-            } else if actual.value.source.type_identity != source.value.source.type_identity {
+                actual.source.path.extend_from_slice(&source.source.path);
+                actual.source.type_identity = source.source.type_identity.clone();
+            } else if actual.source.type_identity != source.source.type_identity {
                 return None;
             }
-            actual.value.path = source.value.path.clone();
-            actual.value.source.access = source.value.source.access;
+            actual.path = source.path.clone();
+            actual.source.access = source.source.access;
             output.push(actual);
             if output.len() > MAX_REFERENCE_ORIGIN_LEAVES {
                 return None;
@@ -994,7 +954,7 @@ fn reference_access_can_supply(
 fn whole_reference_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     let (referent, access) = stored_loan_parts(program, state.return_type)?;
     let origins = crate::CallFrameResolver::new(program)?.reference_result_origins(state.symbol)?;
     if origins.is_empty() || origins.len() > MAX_REFERENCE_ORIGIN_LEAVES {
@@ -1108,13 +1068,9 @@ fn whole_reference_sources(
             type_identity: program.normalized_type_identity(referent).into_string(),
             access,
         };
-        sources.push(ConstructionSource {
-            value: checked_trees::CheckedReferenceResultSourcePlan {
-                path: Vec::new(),
-                source,
-            },
-            holder: SymbolHandle::invalid(),
-            holder_path: Vec::new(),
+        sources.push(checked_trees::CheckedReferenceResultSourcePlan {
+            path: Vec::new(),
+            source,
         });
     }
     Some(sources)
@@ -1124,7 +1080,7 @@ fn returned_sources_with_calls(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
     active_origins: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     if stored_loan_parts(program, state.return_type).is_some() {
         return whole_reference_sources(program, state);
     }
@@ -1162,10 +1118,9 @@ fn returned_sources_with_calls(
             TransitionTargetNode::Terminal => return None,
         };
         for source in returned {
-            if !sources
-                .iter()
-                .any(|existing: &ConstructionSource| existing.value == source.value)
-            {
+            if !sources.iter().any(
+                |existing: &checked_trees::CheckedReferenceResultSourcePlan| existing == &source,
+            ) {
                 sources.push(source);
             }
         }
@@ -1182,10 +1137,7 @@ fn returned_sources_with_calls(
             state.return_type,
             active_origins,
         )? {
-            if !sources
-                .iter()
-                .any(|existing| existing.value == source.value)
-            {
+            if !sources.iter().any(|existing| existing == &source) {
                 sources.push(source);
             }
         }
@@ -1199,7 +1151,6 @@ pub fn returned_reference_sources(
     state: &typed_trees::state::State,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     returned_sources_with_calls(program, state, &mut vec![state.symbol])
-        .map(|sources| sources.into_iter().map(|source| source.value).collect())
 }
 
 /// A terminal invocation forwards its reference directly to the state's return.
@@ -1258,7 +1209,6 @@ pub fn terminal_call_reference_sources(
         state.return_type,
         &mut vec![state.symbol],
     )
-    .map(|sources| sources.into_iter().map(|source| source.value).collect())
 }
 
 /// A stored carrier transports its existing reference leaves. The source path
@@ -1356,7 +1306,7 @@ fn aggregate_construction_sources(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
     // Enumerate semantic children once, then compose every child's captured
     // loans through its exact stored path. A field and an array slot differ
     // in their projection, not in the ownership of the reference they hold.
@@ -1424,7 +1374,7 @@ fn aggregate_construction_sources(
         for mut source in
             construction_sources_with_calls(program, state, expression, reference, active_origins)?
         {
-            source.value.path.insert(0, segment.clone());
+            source.path.insert(0, segment.clone());
             output.push(source);
         }
     }
@@ -1445,20 +1395,25 @@ pub fn local_owes_record_loans(
     is_reference_record(program, reference) && shared_borrowed_parts(program, reference).is_none()
 }
 
-/// Join each stored carrier leaf to its exact captured loan and activation.
-/// Similar lifetime spelling and UnretainedDerived alone are not authority.
+/// A descriptor leaf retains a complete group of possible backing origins.
+/// The borrow producer already admitted those sources. Join its published
+/// occurrences to declared storage paths instead of replaying the initializer:
+/// body-selected origins cannot erase declaration-level lifetime obligations.
+pub type RecordLeafLoans = (
+    checked_trees::CheckedReferenceResultSourcePlan,
+    arena::HandleSpan<checked_trees::BorrowLoanFact>,
+);
+
+/// Join every declared carrier leaf to its captured formation group. Storage
+/// identity and the checked activation distinguish this establishment from a
+/// later replacement; similar lifetime spelling alone grants no authority.
 pub fn local_record_loans(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
     statement_index: u32,
-) -> Option<
-    Vec<(
-        checked_trees::CheckedReferenceResultSourcePlan,
-        arena::Handle<checked_trees::BorrowLoanFact>,
-    )>,
-> {
+) -> Option<Vec<RecordLeafLoans>> {
     let StatementNode::LocalData(local) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1466,222 +1421,100 @@ pub fn local_record_loans(
     else {
         return None;
     };
-    if !is_reference_record(program, local.type_reference) {
-        return None;
-    }
-    let sources = construction_sources_with_calls(
-        program,
-        state,
-        local.initial_value,
-        local.type_reference,
-        &mut vec![state.symbol],
-    )?;
-    let mut borrowing_states =
-        facts
-            .borrow
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .filter(|candidate| {
-                candidate.machine_symbol == machine && candidate.state_symbol == state.symbol
-            });
-    let borrowing = borrowing_states.next()?;
-    if borrowing_states.next().is_some() {
+    let mut states = facts.borrow.states.iter().filter_map(|(_, borrowing)| {
+        (borrowing.machine_symbol == machine && borrowing.state_symbol == state.symbol)
+            .then_some(borrowing)
+    });
+    let borrowing = states.next()?;
+    if states.next().is_some() {
         return None;
     }
     let loans = facts
         .borrow
-        .loans
-        .iter()
-        .filter(|(handle, loan)| {
-            // This query reconstructs one establishment occurrence. A mutable
-            // binding may acquire different loans later; neither those later
-            // occurrences nor binding mutability change this capture's identity.
-            facts.borrow.state_owns_loan(borrowing, *handle)
-                && loan.owner_symbol == local.symbol
-                && loan.statement_index == statement_index as usize
-        })
-        .collect::<Vec<_>>();
-    if sources.len() != loans.len() {
-        return None;
-    }
+        .local_loans(borrowing, local.symbol, statement_index as usize)?;
     let flow = state_flow(facts, machine, state.symbol)?;
-    let mut output = Vec::new();
-    for origin in sources {
-        let source = &origin.value;
-        // Both sides resolve through the declared aggregate. Owner paths use
-        // symbols/ordinals while result paths use declaration identities; the
-        // same typed projection walk authenticates fields and fixed slots.
-        let owner_path = loan_owner_path(program, local.type_reference, &source.path)?;
-        let mut matching = loans
-            .iter()
-            .filter(|(_, loan)| facts.borrow.loan_owner_path(loan) == owner_path);
-        let (handle, loan) = *matching.next()?;
-        // A stored carrier's loan kind is the access its field declared: a
-        // shared `&T` captures a read loan, exclusive carriers capture their
-        // mutable or write-only loan -- the same kind derivation
-        // `result_loan` applies to shared views.
-        let expected_kind = source.source.access.borrow_access_kind()?;
-        if matching.next().is_some()
-            || loan.statement_index != statement_index as usize
-            || loan.kind != expected_kind
-        {
-            return None;
-        }
-        if let Some((owner, prior)) =
-            construction_source_loan(program, facts, machine, state, statement_index, &origin)?
-        {
-            let previous = facts.borrow.loans.get(prior);
-            if loan.source_owner_symbol != owner
-                || loan.incoming_reference != previous.incoming_reference
-                || loan.root_symbol != previous.root_symbol
-                || loan.kind != previous.kind
-                || facts.borrow.loan_segments(loan) != facts.borrow.loan_segments(previous)
-            {
-                return None;
-            }
-        } else {
-            if loan.incoming_reference.is_valid() {
-                if !incoming_source_matches_loan(program, facts, machine, state, source, loan) {
-                    return None;
-                }
-                // This establishment transports an input descriptor. Its
-                // opaque referent is not a direct capture of parameter bytes.
-            } else {
-                // Direct captures establish backing geometry. A transferred carrier
-                // already has that geometry in its exact supplying loan above;
-                // its capture may cross a descriptor rather than spell that backing.
-                let (root_symbol, root_type) = match source.source.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index,
-                    } => {
-                        let parameter = program
-                            .state_parameters(state)
-                            .iter()
-                            .filter(|parameter| {
-                                !parameter.is_const
-                                    && program
-                                        .primitive_type_reference(parameter.type_reference)
-                                        .is_none()
-                            })
-                            .nth(parameter_index as usize)?;
-                        (parameter.symbol, parameter.type_reference)
-                    }
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    }
-                    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-                        symbol,
-                    } => {
-                        let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
-                        if ordinal >= statement_index as usize {
-                            return None;
-                        }
-                        (symbol, referent.type_reference)
-                    }
-                    _ => return None,
-                };
-                let expected_segments =
-                    loan_place_segments(program, root_type, &source.source.path)?;
-                if loan.source_owner_symbol.is_valid()
-                    || loan.root_symbol != root_symbol
-                    || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
-                {
-                    return None;
-                }
-            }
-        }
-        let mut activations = facts
-            .flow
-            .borrow_lifetimes
-            .activations
-            .span_or_empty(flow.borrow_activations)
+    let activations = facts
+        .flow
+        .borrow_lifetimes
+        .activations
+        .span(flow.borrow_activations)?;
+    let mut captured = Vec::new();
+    for (handle, _) in facts.borrow.loan_group(loans)? {
+        let mut matching = activations
             .iter()
             .filter(|activation| activation.loan == handle);
-        if activations.next()?.source
+        if matching.next()?.source
             != (checked_trees::FlowInvalidationSource::Statement {
                 statement_index: statement_index as usize,
             })
-            || activations.next().is_some()
+            || matching.next().is_some()
         {
             return None;
         }
-        output.push((origin.value, handle));
+        captured.push(handle);
     }
-    Some(output)
+    record_leaf_loan_groups(
+        program,
+        facts,
+        local.type_reference,
+        local.symbol,
+        &captured,
+    )
 }
 
-fn incoming_source_matches_loan(
+/// Loan rows for one descriptor are contiguous in the producer's arena, even
+/// when that descriptor retains several possible origins. Every captured row
+/// belongs to one declared leaf; neither an omitted leaf nor an extra path is
+/// permission to dispose of only a convenient subset of the custody.
+fn record_leaf_loan_groups(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    source: &checked_trees::CheckedReferenceResultSourcePlan,
-    loan: &checked_trees::BorrowLoanFact,
-) -> bool {
-    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-        source.source.source
-    else {
-        return false;
-    };
-    let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| {
-            !parameter.is_const
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .nth(parameter_index as usize)
-    else {
-        return false;
-    };
-    if !facts
-        .borrow
-        .incoming_references
-        .is_valid(loan.incoming_reference)
-    {
-        return false;
-    }
-    let incoming = facts
-        .borrow
-        .incoming_references
-        .get(loan.incoming_reference);
-    let Some(carrier) = input_carrier_type(program, parameter.type_reference) else {
-        return false;
-    };
-    if incoming.machine_symbol != machine
-        || incoming.state_symbol != state.symbol
-        || incoming.parameter_symbol != parameter.symbol
-        || incoming.carrier_type != carrier
-        || loan.root_symbol != parameter.symbol
-        || loan.source_owner_symbol != parameter.symbol
-        || !facts.borrow.loan_segments(loan).is_empty()
-    {
-        return false;
-    }
-    let Some(mut declared) = record_carrier_sources(program, carrier, source.source.source.clone())
-    else {
-        return false;
-    };
-    if crate::reference_shell(program, parameter.type_reference).is_some() {
-        for leaf in &mut declared {
-            leaf.source
-                .path
-                .insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    reference: TypeReferenceHandle,
+    owner: SymbolHandle,
+    loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
+) -> Option<Vec<RecordLeafLoans>> {
+    let sources = record_carrier_sources(
+        program,
+        reference,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner },
+    )?;
+    let mut grouped_count = 0usize;
+    let mut output = Vec::with_capacity(sources.len());
+    for source in sources {
+        let owner_path = loan_owner_path(program, reference, &source.path)?;
+        let access = source.source.access.borrow_access_kind()?;
+        let mut group = arena::HandleSpan::empty();
+        let mut formation = None;
+        for handle in loans.iter().copied() {
+            let loan = facts.borrow.loans.get(handle);
+            if facts.borrow.loan_owner_path(loan) != owner_path {
+                continue;
+            }
+            if loan.owner_symbol != owner
+                || loan.kind != access
+                || formation.is_some_and(|statement| statement != loan.statement_index)
+                || (!group.is_empty()
+                    && (handle.generation() != group.start().generation()
+                        || handle.arena_index()
+                            != group.start().arena_index().checked_add(group.count())?))
+            {
+                return None;
+            }
+            formation = Some(loan.statement_index);
+            let start = if group.is_empty() {
+                handle
+            } else {
+                group.start()
+            };
+            group = arena::HandleSpan::from_parts(start, group.count().checked_add(1)?);
+            grouped_count = grouped_count.checked_add(1)?;
         }
+        if group.is_empty() {
+            return None;
+        }
+        output.push((source, group));
     }
-    declared.iter().any(|leaf| {
-        leaf.source == source.source
-            && loan_owner_path(program, carrier, &leaf.path).is_some_and(|path| {
-                path.as_slice()
-                    == facts
-                        .borrow
-                        .owner_segments
-                        .span_or_empty(incoming.owner_path)
-            })
-    })
+    (grouped_count == loans.len()).then_some(output)
 }
 
 /// The loan segments a borrowed initializer source projects under its
@@ -1759,75 +1592,12 @@ pub fn loan_owner_path(
         .collect()
 }
 
-/// Reconstruct the supplying holder independently of the surrounding operation.
-/// Its exact captured leaf must still be live when construction transfers it.
-/// This establishes correspondence, not a new reborrow: the owned carrier and
-/// its existing permission move together.
-fn construction_source_loan(
-    program: &dyn crate::CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    source: &ConstructionSource,
-) -> Option<Option<(SymbolHandle, arena::Handle<checked_trees::BorrowLoanFact>)>> {
-    if !source.holder.is_valid() {
-        return Some(None);
-    }
-    let (prior_index, prior_local) = program
-        .state_local_declaration(state, source.holder)
-        .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
-    let prior = if stored_loan_parts(program, prior_local.type_reference).is_some() {
-        // A bare reference has one empty owner path. Join its exact formation
-        // occurrence; its captured backing may cross another stored descriptor.
-        if !source.holder_path.is_empty() {
-            return None;
-        }
-        let mut candidates = facts.borrow.loans.iter().filter(|(handle, loan)| {
-            loan.owner_symbol == prior_local.symbol
-                && loan.statement_index == prior_index
-                && facts.borrow.loan_owner_path(loan).is_empty()
-                && facts.borrow.states.iter().any(|(_, borrowing)| {
-                    borrowing.machine_symbol == machine
-                        && borrowing.state_symbol == state.symbol
-                        && facts.borrow.state_owns_loan(borrowing, *handle)
-                })
-        });
-        let (handle, _) = candidates.next()?;
-        if candidates.next().is_some() {
-            return None;
-        }
-        handle
-    } else {
-        let prior = active_record_loans(
-            program,
-            facts,
-            machine,
-            state,
-            statement_index,
-            u32::try_from(prior_index).ok()?,
-        )?;
-        let mut matching = prior
-            .iter()
-            .filter(|(origin, _)| origin.path == source.holder_path);
-        let (_, handle) = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
-        *handle
-    };
-    if !record_loan_is_active(facts, machine, state.symbol, statement_index, prior) {
-        return None;
-    }
-    Some(Some((prior_local.symbol, prior)))
-}
-
 /// Join one leaf of a call's returned-leaf roster through the call's exact
-/// actual to a caller-side local's captured loan. This is the operand form of
+/// actual to a caller-side local's captured loan group. This is the operand form of
 /// construction's holder join: the producing call is named by its authored
 /// expression rather than a `let` statement's initializer, and the consuming
 /// statement's activity or last-use discipline is checked by the caller.
-fn call_actual_leaf_loan(
+fn call_actual_leaf_loans(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -1836,7 +1606,7 @@ fn call_actual_leaf_loan(
     call: &typed_trees::expression::TableCallExpression,
     destination: &typed_trees::state::State,
     source: &checked_trees::CheckedReferenceResultSourcePlan,
-) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
+) -> Option<arena::HandleSpan<checked_trees::BorrowLoanFact>> {
     let [
         path @ ..,
         checked_trees::CheckedUnitStructuralPathSegment::Referent,
@@ -1926,18 +1696,6 @@ fn statement_entry_constraints(
         .span(entry.entry_constraints)
 }
 
-fn record_loan_is_active(
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    statement_index: u32,
-    loan: arena::Handle<checked_trees::BorrowLoanFact>,
-) -> bool {
-    statement_entry_constraints(facts, machine, state, statement_index).is_some_and(|constraints|
-            constraints.iter().filter(|constraint| matches!(constraint.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: active } if active == loan)).count() == 1)
-        && facts.borrow.loans.get(loan).statement_index < statement_index as usize
-}
-
 /// Join the current carrier's declared leaves to the active captured occurrences.
 /// Its declaration identifies storage and type, not the initializer's lifetime:
 /// replacement can install a new occurrence in that same home. Operand custody
@@ -1949,12 +1707,7 @@ fn active_record_loans(
     state: &typed_trees::state::State,
     statement_index: u32,
     declaration_statement: u32,
-) -> Option<
-    Vec<(
-        checked_trees::CheckedReferenceResultSourcePlan,
-        arena::Handle<checked_trees::BorrowLoanFact>,
-    )>,
-> {
+) -> Option<Vec<RecordLeafLoans>> {
     if declaration_statement >= statement_index {
         return None;
     }
@@ -1965,45 +1718,28 @@ fn active_record_loans(
     else {
         return None;
     };
-    let sources = record_carrier_sources(
-        program,
-        local.type_reference,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-            symbol: local.symbol,
-        },
-    )?;
     let constraints = statement_entry_constraints(facts, machine, state.symbol, statement_index)?;
-    let loans = constraints
+    let mut loans = constraints
         .iter()
         .filter_map(|constraint| {
             let checked_trees::FlowConstraintKind::BorrowLoan { loan } = constraint.kind else {
                 return None;
             };
-            (facts.borrow.loans.get(loan).owner_symbol == local.symbol).then_some(loan)
+            let captured = facts.borrow.loans.get(loan);
+            (captured.owner_symbol == local.symbol).then_some(loan)
         })
         .collect::<Vec<_>>();
-    if sources.len() != loans.len() {
+    // Flow contexts preserve their own constraint order. Arena order owns the
+    // contiguous descriptor groups; do not make context insertion order part
+    // of the custody join.
+    loans.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+    if loans
+        .iter()
+        .any(|handle| facts.borrow.loans.get(*handle).statement_index >= statement_index as usize)
+    {
         return None;
     }
-    let mut output = Vec::new();
-    for source in sources {
-        let owner_path = loan_owner_path(program, local.type_reference, &source.path)?;
-        let mut matching = loans.iter().copied().filter(|handle| {
-            let loan = facts.borrow.loans.get(*handle);
-            facts.borrow.loan_owner_path(loan) == owner_path
-        });
-        let handle = matching.next()?;
-        let loan = facts.borrow.loans.get(handle);
-        let access = source.source.access.borrow_access_kind()?;
-        if matching.next().is_some()
-            || loan.statement_index >= statement_index as usize
-            || loan.kind != access
-        {
-            return None;
-        }
-        output.push((source, handle));
-    }
-    Some(output)
+    record_leaf_loan_groups(program, facts, local.type_reference, local.symbol, &loans)
 }
 
 /// Whole owned operands retain every captured leaf until their consuming call.
@@ -2103,9 +1839,9 @@ pub fn projected_record_argument(
 
 /// A projected operand may root at a nested call's anonymous result instead
 /// of a named local: `select(forward_outer(outer).inner)`. Every leaf the
-/// nested result publishes under the projected edge must replay one
-/// caller-side local's captured leaf loan through the call's exact actual,
-/// and each such loan must stay live until the consuming call — the same
+/// nested result publishes under the projected edge must retain the complete
+/// caller-side captured leaf group through the call's exact actual,
+/// and every candidate must stay live until the consuming call — the same
 /// custody `projected_record_argument` proves for a stored carrier. The
 /// anonymous carrier itself is consumed whole by the projection, so its
 /// entire returned leaf roster must live under the edge.
@@ -2139,7 +1875,7 @@ pub fn nested_call_record_argument(
 }
 
 /// Every admitted returned leaf source replays through the call's exact
-/// actual to an active leaf loan at this statement.
+/// actual to the complete active leaf group at this statement.
 #[allow(clippy::too_many_arguments)]
 fn sources_replay_active_leaf_loans(
     program: &dyn crate::CheckingInput,
@@ -2155,7 +1891,7 @@ fn sources_replay_active_leaf_loans(
     !sources.is_empty()
         && sources.iter().all(|source| {
             admits(source)
-                && call_actual_leaf_loan(
+                && call_actual_leaf_loans(
                     program,
                     facts,
                     machine,
@@ -2165,15 +1901,13 @@ fn sources_replay_active_leaf_loans(
                     destination,
                     source,
                 )
-                .is_some_and(|loan| {
-                    record_loan_is_active(facts, machine, state.symbol, statement_index, loan)
-                })
+                .is_some()
         })
 }
 
 /// The call's reference-record destination state + its returned leaf
 /// sources — `None` when the call does not return a reference record.
-/// Callers then require each source's active leaf loan, filtered per site.
+/// Callers then require each source's complete active leaf group, filtered per site.
 fn reference_record_call_sources<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
@@ -2192,7 +1926,7 @@ fn reference_record_call_sources<'program>(
 /// A nested call's anonymous reference-record result has no `let` destination:
 /// `select(forward_outer(outer).inner)` captures `forward_outer`'s returned
 /// leaves directly into the consuming call. Each returned leaf must replay
-/// through the call's exact actual to one caller-side local's captured loan
+/// through the call's exact actual to the caller-side captured loan group
 /// that stays live at the containing statement — the same leaf join
 /// `nested_call_record_argument` proves under the consumer's projected edge,
 /// here required of the complete returned roster.
@@ -2277,10 +2011,8 @@ pub fn record_argument(
         statement_index,
         result.statement_index,
     )?;
-    let (source, loan) = loans.iter().find(|(source, _)| source.path == path)?;
-    if !record_loan_is_active(facts, machine, state.symbol, statement_index, *loan)
-        || source.source.type_identity != program.normalized_type_identity(referent).as_str()
-    {
+    let (source, _) = loans.iter().find(|(source, _)| source.path == path)?;
+    if source.source.type_identity != program.normalized_type_identity(referent).as_str() {
         return None;
     }
     path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
@@ -2579,10 +2311,7 @@ pub fn source_parameter(
     state: &typed_trees::state::State,
 ) -> Option<usize> {
     let sources = whole_reference_sources(program, state)?;
-    if sources
-        .iter()
-        .any(|source| !source.value.source.path.is_empty())
-    {
+    if sources.iter().any(|source| !source.source.path.is_empty()) {
         return None;
     }
     let position = reference_sources_parameter(program, state, &sources)?;
@@ -2605,7 +2334,7 @@ pub fn source_leaf(
         return None;
     };
     let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-        source.value.source.source
+        source.source.source
     else {
         return None;
     };
@@ -2623,7 +2352,7 @@ pub fn source_leaf(
     if stored_loan_parts(program, parameter.type_reference).is_some()
         || !is_reference_record(program, parameter.type_reference)
         || !matches!(
-            source.value.source.path.as_slice(),
+            source.source.path.as_slice(),
             [
                 _,
                 ..,
@@ -2633,26 +2362,25 @@ pub fn source_leaf(
     {
         return None;
     }
-    Some((position, source.value.source.clone()))
+    Some((position, source.source.clone()))
 }
 
 /// Every normal completion must retain the same caller ingress at the declared
 /// result access. The complete relation owns internal jumps and captured alias
 /// substitution; distinct projected paths remain alternatives, not permissions.
-
 fn reference_sources_parameter(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
-    sources: &[ConstructionSource],
+    sources: &[checked_trees::CheckedReferenceResultSourcePlan],
 ) -> Option<usize> {
     let (_, access) = stored_loan_parts(program, state.return_type)?;
     let mut parameter = None;
     for source in sources {
-        if !source.value.path.is_empty() || source.value.source.access != access {
+        if !source.path.is_empty() || source.source.access != access {
             return None;
         }
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            source.value.source.source
+            source.source.source
         else {
             return None;
         };
@@ -2771,8 +2499,10 @@ pub fn whole_local_release_boundary(
         return None;
     }
     let mut boundary = statement_index.checked_add(1)?;
-    for (_, loan) in loans {
-        boundary = boundary.max(release_statement(facts, machine, state.symbol, loan)?);
+    for (_, group) in loans {
+        for (loan, _) in facts.borrow.loan_group(group)? {
+            boundary = boundary.max(release_statement(facts, machine, state.symbol, loan)?);
+        }
     }
     for (index, statement) in statements
         .iter()

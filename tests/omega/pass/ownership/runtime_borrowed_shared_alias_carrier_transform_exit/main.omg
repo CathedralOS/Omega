@@ -24,6 +24,10 @@ machine transform<'storage>(carrier: Carrier<'storage>) -> Carrier<'storage> {
 machine repair<'storage>(holder: &mut Holder<'storage>) -> i32 {
     let removed: Carrier<'storage> = holder.carrier;
     holder.carrier = transform(removed);
+    let removed_again: Carrier<'storage> = holder.carrier;
+    holder.carrier = transform(removed_again);
+    let removed_third: Carrier<'storage> = holder.carrier;
+    holder.carrier = transform(removed_third);
     holder.carrier.reference
 }
 

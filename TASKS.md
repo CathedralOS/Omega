@@ -642,14 +642,8 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: complete multi-source lifetime groups on descriptor leaves.
-    In `runtime_borrowed_shared_alias_carrier_transform_exit`, adding a second
-    extraction and `transform` repair inside `repair` leaves the second call
-    without exact captured-leaf custody:
-    `omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs`
-    still requires one origin per leaf. Preserve all declared lifetime candidates as one
-    descriptor's group, not duplicate descriptor releases. Qualify whole-root,
-    referent and nominal-cleanup windows. Keep evaluation order, disjoint
+  - Missing: qualify whole-root, referent and nominal-cleanup windows.
+    Keep evaluation order, disjoint
     siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
     do not invent rollback. Qualify the remaining paths on supported hosts.
@@ -669,6 +663,10 @@ defines the complete product bar.
   `fail/borrows/replaced_carrier_keeps_new_backing_loan` for the installed loan.
   Keep `pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit` (42) for
   observing primitive backing through the restored incoming descriptor.
+  Keep `runtime_borrowed_shared_alias_carrier_transform_exit` (42) for repeated
+  repair with complete multi-source descriptor groups and
+  `fail/borrows/record_result_retains_declared_lifetime_origins` for retaining
+  candidates a body does not select.
   Missing repair, early return, stale reads, overlapping loans, wrong-place
   repair, repeated extraction and whole-owner cleanup reject, including
   `fail/ownership/borrowed_storage_boundary_call` and

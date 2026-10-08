@@ -360,10 +360,12 @@ impl Retirement<'_> {
                     && candidate.statement_index == destination.statement_index as usize
                     && self.facts.borrow.loan_owner_path(candidate) == path
             });
-            let Some((received, _)) = receiving.next() else {
-                return false;
-            };
-            if receiving.next().is_some() || !self.holder_retired_following(received, active) {
+            let mut found_receiver = false;
+            if !receiving.all(|(received, _)| {
+                found_receiver = true;
+                self.holder_retired_following(received, active)
+            }) || !found_receiver
+            {
                 return false;
             }
         }
