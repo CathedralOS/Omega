@@ -277,11 +277,7 @@ pub(crate) fn linux_write_line_custody_is_exact(
     settlement: &machine_code::BoundarySettlementRecord,
     function_bytes: &[u8],
 ) -> bool {
-    image_emission::linux_write_line_custody_is_exact(
-        target,
-        settlement,
-        Some(function_bytes),
-    )
+    image_emission::linux_write_line_custody_is_exact(target, settlement, Some(function_bytes))
 }
 
 /// Replay the object validator's completion-custody responsibility after the
@@ -302,7 +298,7 @@ pub(crate) fn settlement_completion_custody_is_exact(
     }) {
         return false;
     }
-    if !settlement_completion_receipts_have_exact_custody(
+    if !image_emission::completion_receipts_have_exact_custody(
         &settlement.arguments,
         &settlement.completion_claim_sources,
         &settlement.completion_receipts,
@@ -317,102 +313,4 @@ pub(crate) fn settlement_completion_custody_is_exact(
         return false;
     };
     expected == settlement.completion_provider_custody
-}
-
-/// Replay the verifier's exact claim-source matching, claim uniqueness, and
-/// canonical receipt ordering for one retained settlement.
-fn settlement_completion_receipts_have_exact_custody(
-    arguments: &[terminal_psi::StructuralArgument],
-    sources: &[CompletionClaimSource],
-    receipts: &[terminal_psi::CompletionReceipt],
-) -> bool {
-    let mut source_claims = BTreeSet::<semantic_vocabulary::ClaimId>::new();
-    if sources.windows(2).any(|pair| pair[0] >= pair[1])
-        || sources.iter().any(|source| {
-            !source_claims.insert(source.claim()) || !claim_source_is_canonical(source)
-        })
-    {
-        return false;
-    }
-
-    let expected = arguments
-        .iter()
-        .enumerate()
-        .flat_map(|(index, argument)| {
-            sources.iter().filter_map(move |source| {
-                let argument_index = u32::try_from(index).ok()?;
-                (source.input() == argument.place
-                    && match &source.entry {
-                        Some(source) => argument.path.is_empty() || source.path == argument.path,
-                        None => true,
-                    })
-                .then_some((argument_index, source.claim()))
-            })
-        })
-        .collect::<BTreeSet<_>>();
-    let actual = receipts
-        .iter()
-        .map(|receipt| (receipt.argument_index, receipt.claim))
-        .collect::<BTreeSet<_>>();
-    let mut receipt_claims = BTreeSet::<semantic_vocabulary::ClaimId>::new();
-    receipts.windows(2).all(|pair| pair[0] < pair[1])
-        && receipts
-            .iter()
-            .all(|receipt| receipt_claims.insert(receipt.claim))
-        && actual == expected
-}
-
-fn claim_source_is_canonical(source: &CompletionClaimSource) -> bool {
-    let entry_is_canonical = source.entry.as_ref().is_none_or(|entry| {
-        entry.claim == source.claim
-            && entry.path.iter().all(|segment| {
-                !matches!(segment, terminal_psi::StructuralPathSegment::Field(identity) if identity.is_empty())
-            })
-    });
-    let content_is_canonical = source.content.as_ref().is_none_or(|content| {
-        content.claim == source.claim
-            && content.input.version == semantic_vocabulary::ContentPlaceVersion::Entry
-            && !content.projections.is_empty()
-            && !content
-                .projections
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
-            && content.input.segments.iter().all(|segment| {
-                !matches!(
-                    segment,
-                    semantic_vocabulary::ContentPlaceSegment::Case(identity)
-                        | semantic_vocabulary::ContentPlaceSegment::Field(identity)
-                        if identity.is_empty()
-                )
-            })
-            && content.projections.iter().all(|projection| {
-                projection.projection.projection_report_fingerprint != 0
-                    && !projection.algebra.parameter.is_empty()
-            })
-    });
-    let paired_sources_match =
-        match (&source.entry, &source.content) {
-            (Some(entry), Some(content)) => {
-                entry.input == content.input.root
-                    && entry.path.len() == content.input.segments.len()
-                    && entry.path.iter().zip(&content.input.segments).all(
-                        |(entry, content)| match (entry, content) {
-                            (
-                                terminal_psi::StructuralPathSegment::Field(entry),
-                                semantic_vocabulary::ContentPlaceSegment::Field(content),
-                            ) => entry == content,
-                            (
-                                terminal_psi::StructuralPathSegment::FixedIndex(entry),
-                                semantic_vocabulary::ContentPlaceSegment::FixedIndex(content),
-                            ) => entry == content,
-                            _ => false,
-                        },
-                    )
-            }
-            _ => true,
-        };
-    (source.entry.is_some() || source.content.is_some())
-        && entry_is_canonical
-        && content_is_canonical
-        && paired_sources_match
 }
