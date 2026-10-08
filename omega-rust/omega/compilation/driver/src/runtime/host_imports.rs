@@ -4,6 +4,7 @@
 //! Output stays buffered; input consumes only the caller's finite replay stream
 //! with an instance-private cursor. Checked compound operations remain guest code.
 
+mod borrowed_storage;
 mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
@@ -105,9 +106,12 @@ pub(super) fn bind<'host>(
                         .ok_or(TerminalRuntimeError::InvalidProvision(
                             "foreign host provision names no demanded import",
                         ))?;
-                if let Some(adapter) =
-                    clock::ClockImport::admit(declaration, binding, clock.as_ref().cloned())?
-                {
+                if let Some(adapter) = clock::ClockImport::admit(
+                    declaration,
+                    binding,
+                    provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
+                    clock.as_ref().cloned(),
+                )? {
                     instance
                         .bind_import(*slot, adapter)
                         .map_err(TerminalRuntimeError::Binding)?;

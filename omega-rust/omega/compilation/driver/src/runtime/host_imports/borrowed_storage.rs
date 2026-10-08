@@ -1,9 +1,8 @@
-//! A contiguous descriptor buffer assembled from authenticated scalar loans.
+//! A contiguous native byte view assembled from authenticated scalar loans.
 //! Native placement selects byte coordinates; captured backing selects access,
 //! codecs and field restrictions. Neither can substitute for the other. Every
 //! byte must belong to exactly one scalar: padding and pointers are not invented.
 
-use super::invalid_operands;
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue,
@@ -17,6 +16,10 @@ use terminal_psi::StructuralAccess;
 pub(super) struct CapturedStorage {
     pub bytes: Vec<u8>,
     segments: Vec<(usize, usize, usize)>,
+}
+
+fn invalid_operands() -> TerminalEffectRejection {
+    TerminalEffectRejection::new("borrowed native storage differs from its captured scalar layout")
 }
 
 impl CapturedStorage {
@@ -91,7 +94,7 @@ impl CapturedStorage {
         for (_, offset, size) in &segments {
             if *offset != extent {
                 return Err(TerminalEffectRejection::new(
-                    "descriptor storage has padding, overlap or unmodeled bytes",
+                    "borrowed storage has padding, overlap or unmodeled bytes",
                 ));
             }
             extent = extent.checked_add(*size).ok_or_else(invalid_operands)?;

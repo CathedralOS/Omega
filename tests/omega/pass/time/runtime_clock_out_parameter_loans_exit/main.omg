@@ -1,0 +1,76 @@
+// Timespec and scalar reads share one supplied clock model. Out-parameters
+// retain the original record/array backing through helpers and captures.
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+pub data Instant [copy] { seconds: i64; nanoseconds: i64; marker: i64; }
+data Holder { prefix: i64; instant: Instant; suffix: i64; }
+data Main { clock: Binding<ClockProbe>; holder: Holder; pair: [i64; 2]; }
+pub boundary trait ClockProbe {
+    machine read(selector: u32, instant: &mut Instant) -> i32;
+    machine read_pair(selector: u32, pair: &mut [i64; 2]) -> i32;
+    machine nanoseconds(selector: u32) -> u64;
+    machine wait(pointer: u64, count: u32, milliseconds: i32) -> i32;
+}
+data ClockImports {}
+
+macos_arm64 machine timespec_binding() -> ForeignBinding<26, 14, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime"
+    } }
+}
+macos_arm64 machine nanoseconds_binding() -> ForeignBinding<26, 22, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
+    } }
+}
+macos_arm64 machine poll_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
+    } }
+}
+macos_arm64 machine ClockImports::read(selector: u32, instant: &mut Instant) -> i32
+    satisfies ClockProbe::read via timespec_binding();
+macos_arm64 machine ClockImports::read_pair(selector: u32, pair: &mut [i64; 2]) -> i32
+    satisfies ClockProbe::read_pair via timespec_binding();
+macos_arm64 machine ClockImports::nanoseconds(selector: u32) -> u64
+    satisfies ClockProbe::nanoseconds via nanoseconds_binding();
+macos_arm64 machine ClockImports::wait(pointer: u64, count: u32, milliseconds: i32) -> i32
+    satisfies ClockProbe::wait via poll_binding();
+
+machine read(clock: &Binding<ClockProbe>, selector: u32, instant: &mut Instant) -> i32
+    reaches ClockProbe { clock.read(selector, instant) }
+
+machine Main::main(main: &mut Main) reaches ClockProbe crashes Trap {
+    main.holder.prefix = 17;
+    main.holder.suffix = 29;
+    main.holder.instant.seconds = -1;
+    main.holder.instant.nanoseconds = -1;
+    main.holder.instant.marker = 31;
+    main.pair[0] = -1;
+    main.pair[1] = -1;
+    let first_status: i32 = read(&main.clock, 6, &mut main.holder.instant);
+    let before_seconds: i64 = main.holder.instant.seconds;
+    let before_nanoseconds: i64 = main.holder.instant.nanoseconds;
+    let before: u64 = main.clock.nanoseconds(6);
+    let waited: i32 = main.clock.wait(0, 0, 3);
+    let captured: &mut Instant = &mut main.holder.instant;
+    let second_status: i32 = read(&main.clock, 6, captured);
+    let after: u64 = main.clock.nanoseconds(6);
+    let wall_status: i32 = main.clock.read_pair(0, &mut main.pair);
+    transition first_status == 0 && second_status == 0 && wall_status == 0 && waited == 0
+        && before_seconds >= 0 && before_nanoseconds >= 0 && before_nanoseconds < 1000000000
+        && main.holder.instant.nanoseconds >= 0 && main.holder.instant.nanoseconds < 1000000000
+        && (main.holder.instant.seconds > before_seconds
+            || (main.holder.instant.seconds == before_seconds
+                && main.holder.instant.nanoseconds > before_nanoseconds))
+        && after > before && main.holder.prefix == 17 && main.holder.suffix == 29
+        && main.holder.instant.marker == 31
+        && main.pair[0] > 1767225600 && main.pair[0] < 3350000000
+        && main.pair[1] >= 0 && main.pair[1] < 1000000000 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

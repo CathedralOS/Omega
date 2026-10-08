@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 4.69, "load1_start": 3.59, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.02, "load1_start": 1.55, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -277,6 +277,8 @@ fail/borrows/case_reference_from_immutable_bytes rejected 296ms expected @69d297
 	construction of `Selection` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/case_reference_through_shared_container rejected 301ms expected @69d297ae3ee5
 	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/clock_out_parameter_mutable_from_shared rejected 4222ms expected @5dbb9140bf0a+wt
+	argument `instant` for state `read` is declared `&mut` (`&mut Instant`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/constructor_case_owner_mismatch rejected 230ms expected @69d297ae3ee5
 	construction of `Holder` field `choice` expects the `Correct` data type but got `Other` in the `field` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/borrows/constructor_reference_element_mismatch rejected 228ms expected @69d297ae3ee5
@@ -3708,6 +3710,7 @@ pass/text/utf8_boundary_established checked 302ms @2d8ed253669f
 pass/text/view_field_literal_store_outlives_helper_exit checked 1252ms check-target:macos_arm64 @5676dbe78a95+wt
 pass/text/zii_default_string_equality_exit checked 1968ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms check-target:macos_arm64 @8778c440081
+pass/time/runtime_clock_out_parameter_loans_exit checked 12761ms check-target:macos_arm64 @5dbb9140bf0a+wt
 pass/time/runtime_clock_shared_import_slots_exit checked 12996ms check-target:macos_arm64 @b8b69519109d+wt
 pass/time/runtime_duration_core_exit checked 24317ms check-target:macos_arm64 @ca8c127c90c5
 pass/time/runtime_fs_mtime_system_time_interop_exit checked 8313ms check-target:macos_arm64 @ad65d2640206+wt

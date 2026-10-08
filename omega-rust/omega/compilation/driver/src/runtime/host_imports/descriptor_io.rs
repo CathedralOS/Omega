@@ -27,8 +27,7 @@ use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
 };
 
-mod captured_storage;
-use captured_storage::CapturedStorage;
+use super::borrowed_storage::{self, CapturedStorage};
 
 #[derive(Clone, Copy)]
 enum DescriptorOperation {
@@ -147,7 +146,7 @@ impl<'input> DescriptorIoImport<'input> {
             .map(|row| &row.shape)
         {
             Some(StructuralTypeShape::PrimitiveScalar(scalar))
-                if captured_storage::scalar_extent(*scalar).is_ok() =>
+                if borrowed_storage::scalar_extent(*scalar).is_ok() =>
             {
                 DescriptorBuffer::Scalar(*scalar)
             }

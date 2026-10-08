@@ -1794,13 +1794,19 @@ then independent claimed restoration slices -> final closure.
   and explicit payload events address original backing through nested fields.
   Tag preservation must not preserve scalar observations, authorize ordinary
   shared writes, or turn atomic storage into a scalar dispatch snapshot.
-  Complete clock imports beyond the admitted Darwin nanosecond reads and
+  Complete clock imports beyond the admitted Darwin nanosecond/timespec reads and
   descriptorless finite poll waits: descriptor readiness needs actual custody,
   CPU clocks need accounting, and other target locators need exact adapters.
   Preserve `time/runtime_clock_shared_import_slots_exit` across those repairs:
   all selected read/wait slots share one invocation's explicitly supplied time
   model, with unchanged checked calibration; simulation is not native latency
-  evidence. Preserve `host/runtime_descriptor_output_streams_exit`,
+  evidence. Preserve `time/runtime_clock_out_parameter_loans_exit`: both clock
+  result formats share that model; timespec writes use retained native byte
+  placement and authenticated original loans, not record names or field order.
+  Helpers, captures and fixed arrays keep backing; unwritten suffixes and sibling
+  storage remain unchanged. Unsupported selectors need their actual time model,
+  never invented CPU accounting.
+  Preserve `host/runtime_descriptor_output_streams_exit`,
   `host/runtime_descriptor_direct_array_exit` and
   `host/runtime_descriptor_nested_array_window_exit` while extending host buffers:
   nonzero and empty windows retain the original backing and exact interval,

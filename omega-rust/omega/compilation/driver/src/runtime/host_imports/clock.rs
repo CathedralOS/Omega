@@ -5,6 +5,9 @@
 //! foreign behavior. Checked calibration, wait splitting and retries stay in
 //! guest code. One supplied snapshot backs every selected clock and poll slot;
 //! reads do not advance it and finite descriptorless waits advance all clocks.
+//! Scalar reads and borrowed timespec writes observe that same snapshot. Native
+//! byte placement and authenticated loans jointly select the out-parameter;
+//! neither record names nor host pointers enter execution.
 //! There are no simulated host suspensions, CPU usage or descriptor readiness.
 //! Consequently this model cannot establish native latency or arbitrary clock
 //! behavior. Unsupported operations reject before modifying the snapshot.
@@ -13,17 +16,21 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
+use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue,
+    TerminalBoundaryByteBuffer, TerminalBoundaryScalarBuffer, TerminalEffect,
+    TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
+    TerminalImportSignature, TerminalScalarValue,
 };
 use terminal_psi::{
     BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
 };
 
 use super::TerminalRuntimeError;
+
+mod timespec;
 
 /// Initial nanosecond readings for an isolated clock domain. Each invocation
 /// owns its copy. Supplying a snapshot explicitly licenses modeled time, not
@@ -35,6 +42,19 @@ pub struct TerminalClockSnapshot {
 }
 
 impl TerminalClockSnapshot {
+    fn reading(&self, selector: u128) -> Result<u64, TerminalEffectRejection> {
+        // Darwin SDK _time.h: realtime 0, monotonic 6, monotonic raw
+        // 4/5, uptime raw 8/9. Without suspension these simulated
+        // monotonic families share elapsed time, not CPU accounting.
+        match selector {
+            0 => Ok(self.unix_nanoseconds),
+            4 | 5 | 6 | 8 | 9 => Ok(self.monotonic_nanoseconds),
+            _ => Err(TerminalEffectRejection::new(
+                "clock selector requires an unavailable clock model",
+            )),
+        }
+    }
+
     /// Capture the host epoch once, with a fresh zero monotonic origin. Guest
     /// waits subsequently advance only this private domain, never sleep the host.
     pub fn capture_host_epoch() -> Result<Self, TerminalRuntimeError> {
@@ -54,18 +74,20 @@ impl TerminalClockSnapshot {
 }
 
 #[derive(Clone, Copy)]
-enum ClockOperation {
+enum ClockImplementation {
     Read,
+    ReadTimespec,
     Poll,
 }
 
-impl ClockOperation {
+impl ClockImplementation {
     fn locator(self) -> Result<target::NormalizedForeignLocator, TerminalRuntimeError> {
         target::normalize_foreign_locator(
             target::ForeignLocatorCandidate::MachODylibSymbol {
                 install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
                 symbol: match self {
                     Self::Read => b"_clock_gettime_nsec_np".to_vec(),
+                    Self::ReadTimespec => b"_clock_gettime".to_vec(),
                     Self::Poll => b"_poll".to_vec(),
                 },
             },
@@ -75,6 +97,12 @@ impl ClockOperation {
             TerminalRuntimeError::InvalidProvision("clock implementation has an invalid locator")
         })
     }
+}
+
+enum ClockOperation {
+    Read,
+    ReadTimespec(NativeBorrowedStorageLayout),
+    Poll,
 }
 
 pub(super) struct ClockImport {
@@ -89,13 +117,18 @@ impl ClockImport {
     pub(super) fn admit(
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
+        storage_layouts: &[NativeBorrowedStorageLayout],
         clock: Option<Arc<Mutex<TerminalClockSnapshot>>>,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
         let Some((locator, _)) = binding.import() else {
             return Ok(None);
         };
         let mut operation = None;
-        for offered in [ClockOperation::Read, ClockOperation::Poll] {
+        for offered in [
+            ClockImplementation::Read,
+            ClockImplementation::ReadTimespec,
+            ClockImplementation::Poll,
+        ] {
             if offered.locator()? == *locator {
                 operation = Some(offered);
                 break;
@@ -114,17 +147,32 @@ impl ClockImport {
         let wide = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
         let signature = TerminalImportSignature::from(declaration);
         let scalar = ScalarType::Integer;
-        let shape_valid = match operation {
-            ClockOperation::Read => {
+        let (operation, shape_valid, parameter_order) = match operation {
+            ClockImplementation::Read => (
+                ClockOperation::Read,
                 signature.scalar_parameters == [scalar(unsigned)]
                     && signature.result == BoundaryMachineResult::Scalar(scalar(wide))
-            }
-            ClockOperation::Poll => {
+                    && signature.structural_parameters.is_empty(),
+                vec![BoundaryParameterKind::Scalar],
+            ),
+            ClockImplementation::ReadTimespec => (
+                ClockOperation::ReadTimespec(timespec::admit(&signature, storage_layouts)?),
+                signature.scalar_parameters == [scalar(unsigned)]
+                    && signature.result == BoundaryMachineResult::Scalar(scalar(signed)),
+                vec![
+                    BoundaryParameterKind::Scalar,
+                    BoundaryParameterKind::Structural,
+                ],
+            ),
+            ClockImplementation::Poll => (
+                ClockOperation::Poll,
                 matches!(signature.scalar_parameters.as_slice(), [pointer, count, timeout]
                 if *pointer == scalar(wide) && (*count == scalar(unsigned) || *count == scalar(wide)) && *timeout == scalar(signed))
                     && (signature.result.is_unit()
                         || signature.result == BoundaryMachineResult::Scalar(scalar(signed)))
-            }
+                    && signature.structural_parameters.is_empty(),
+                vec![BoundaryParameterKind::Scalar; 3],
+            ),
         };
         let mut native_signature = CallSignature {
             parameters: Vec::new(),
@@ -139,6 +187,11 @@ impl ClockImport {
                 .parameters
                 .push(ValueShape::integer(u32::from(bytes), bytes));
         }
+        if matches!(operation, ClockOperation::ReadTimespec(_)) {
+            // This exact C ABI appends a thin timespec pointer after clockid_t.
+            // The semantic loan remains separately authenticated by the core.
+            native_signature.parameters.push(ValueShape::integer(8, 8));
+        }
         native_signature.result = match signature.result.scalar() {
             Some(ScalarType::Integer(integer)) => {
                 let bytes = integer.bits() / 8;
@@ -148,9 +201,7 @@ impl ClockImport {
         };
         if !shape_valid
             || signature.completion != BoundaryCompletion::NormalReturn
-            || !signature.structural_parameters.is_empty()
-            || declaration.parameter_order
-                != vec![BoundaryParameterKind::Scalar; signature.scalar_parameters.len()]
+            || declaration.parameter_order != parameter_order
             || !binding.has_valid_entry_mechanism()
             || binding.requirement_identity() != declaration.identity
             || binding.provider_plan_report_identity() == 0
@@ -206,6 +257,38 @@ impl TerminalImportAdapter for ClockImport {
 }
 
 impl TerminalEffectHandler for ClockImport {
+    fn scalar_storage_arguments(
+        &self,
+        _boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> &[usize] {
+        match self.operation {
+            ClockOperation::ReadTimespec(_) => &[0],
+            _ => &[],
+        }
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        byte_buffers: &mut [TerminalBoundaryByteBuffer],
+        scalar_buffers: &mut [TerminalBoundaryScalarBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        if !byte_buffers.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "clock imports do not accept byte-view arguments",
+            ));
+        }
+        match &self.operation {
+            ClockOperation::ReadTimespec(layout) => {
+                timespec::read(effect, scalar_buffers, &self.signature, layout, &self.clock)
+            }
+            _ if scalar_buffers.is_empty() => self.handle_effect_result(effect),
+            _ => Err(TerminalEffectRejection::new(
+                "scalar clock imports do not accept borrowed storage",
+            )),
+        }
+    }
+
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
             "clock imports require result-aware dispatch",
@@ -234,7 +317,7 @@ impl TerminalEffectHandler for ClockImport {
             .clock
             .lock()
             .map_err(|_| TerminalEffectRejection::new("clock snapshot lock is poisoned"))?;
-        match self.operation {
+        match &self.operation {
             ClockOperation::Read => {
                 let [
                     TerminalScalarValue::Integer {
@@ -245,20 +328,12 @@ impl TerminalEffectHandler for ClockImport {
                 else {
                     return Err(invalid());
                 };
-                // Darwin SDK _time.h: realtime 0, monotonic 6, monotonic raw
-                // 4/5, uptime raw 8/9. Without suspension these simulated
-                // monotonic families share elapsed time, not CPU accounting.
-                let reading = match selector {
-                    0 => clock.unix_nanoseconds,
-                    4 | 5 | 6 | 8 | 9 => clock.monotonic_nanoseconds,
-                    _ => {
-                        return Err(TerminalEffectRejection::new(
-                            "clock selector requires an unavailable clock model",
-                        ));
-                    }
-                };
+                let reading = clock.reading(*selector)?;
                 self.scalar_result(IntegerValue::Unsigned(u128::from(reading)))
             }
+            ClockOperation::ReadTimespec(_) => Err(TerminalEffectRejection::new(
+                "timespec reads require authenticated borrowed storage dispatch",
+            )),
             ClockOperation::Poll => {
                 let [
                     TerminalScalarValue::Integer {

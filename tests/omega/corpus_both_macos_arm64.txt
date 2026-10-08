@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.65, "load1_start": 3.54, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.02, "load1_start": 1.66, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -426,6 +426,7 @@ pass/text/runtime_view_local_reassign_exit built 2139ms exit:70 interpreter-exit
 pass/text/runtime_view_local_record_local_field_store_exit built 1066ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/runtime_view_local_state_transfer_exit built 1069ms exit:70 interpreter-exit:70 interpreter:agrees @f76d8aa42d2a
 pass/text/zii_default_string_equality_exit built 1986ms exit:70 interpreter-exit:70 interpreter:agrees @7e2fff8c80ba+wt
+pass/time/runtime_clock_out_parameter_loans_exit built 12826ms exit:0 interpreter-exit:0 interpreter:agrees @5dbb9140bf0a+wt
 pass/time/runtime_clock_shared_import_slots_exit built 11288ms exit:0 interpreter-exit:0 interpreter:agrees @b8b69519109d+wt
 pass/time/runtime_time_host_native_darwin_exit built 12509ms exit:70 interpreter-exit:70 interpreter:agrees @b8b69519109d+wt
 pass/traits/runtime_dyn_data_argument_counts_exit built 993ms exit:70 interpreter-exit:70 interpreter:agrees @2424b17e715c
