@@ -521,6 +521,25 @@ impl CheckedStructuralValueCall {
 }
 
 impl CheckedUnitEffectOperationPlan {
+    /// The exact source of an established reference carrier. Direct completion
+    /// and structural value construction name the same semantic establishment;
+    /// its expression position does not choose another custody interface.
+    pub fn established_reference_source<'plans>(
+        &'plans self,
+        values: &'plans crate::CheckedStructuralValuePlans,
+    ) -> Option<&'plans CheckedUnitStructuralArgumentPlan> {
+        match self {
+            Self::EstablishReference { source, .. } => Some(source),
+            Self::EstablishStructuralValue { value, .. } if values.nodes.is_valid(*value) => {
+                match &values.nodes.get(*value).kind {
+                    crate::CheckedStructuralValueKind::Reference { source } => Some(source),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// The binding this operation adds to the shared structural namespace.
     /// Literal declarations and constructed/called values use the same dense
     /// ordinal space; their distinct storage and ownership remain on the variant.

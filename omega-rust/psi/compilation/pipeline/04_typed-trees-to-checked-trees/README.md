@@ -450,6 +450,18 @@ target task activation and stack realization remain outside checked Psi.
 
 ## Mutation and reference origins
 
+`values/reference_sources.rs` joins reference establishments to their exact
+checked storage source. A local slice descriptor substitutes only its unique
+declaration-owned loan; the resulting static selection retains the original
+array's complete field/index geometry. Stored reference carriers keep their
+captured address instead of replaying an initializer or choosing a possible
+origin. Direct completion and branch/enum return values use this same join.
+`CheckedUnitEffectOperationPlan::established_reference_source` exposes both
+producer representations to source custody accounting and receiving return
+admission, so control topology cannot decide whether a reborrow exists.
+Borrow checking and Terminal origin reconstruction remain independent
+authorities over access, liveness, bounds and the complete returned-origin set.
+
 The shared implementation and conservative fallback rules live beside
 [validation](../../checking/README.md#write-frames-and-reference-origins).
 Flow invalidation projects its complete-or-opaque result into structured places;

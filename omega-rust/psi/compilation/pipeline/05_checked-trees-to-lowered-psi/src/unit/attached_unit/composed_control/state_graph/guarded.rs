@@ -42,7 +42,7 @@ pub(super) fn validate_structural_return(
             }
         }
         CheckedUnitEffectOperationPlan::EstablishReference { .. } if reference_result => {
-            validate_reference_return(plan, state, operation)?;
+            validate_reference_return(checked, plan, state, operation)?;
         }
         _ => return unsupported("ordered return lost its structural producer"),
     }
@@ -69,17 +69,19 @@ pub(super) fn validate_structural_return(
 /// A selected reference producer names an ingress parameter its own state
 /// plan declares.
 pub(super) fn validate_reference_return(
+    checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let (
-        checked_trees::CheckedControlResultPlan::Structural(_),
-        CheckedUnitEffectOperationPlan::EstablishReference { source, .. },
-    ) = (&plan.result, operation)
-    else {
+    let checked_trees::CheckedControlResultPlan::Structural(_) = &plan.result else {
         return unsupported("reference return lost its structural producer or signature");
     };
+    let source = operation
+        .established_reference_source(&checked.facts.values.structural_values)
+        .ok_or(LoweringError::Unsupported(
+            "reference return lost its structural producer or signature",
+        ))?;
     let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
         &source.source
     else {

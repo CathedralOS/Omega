@@ -288,9 +288,12 @@ impl Builder<'_, '_> {
                         .find(|state| state.symbol == self.state)
                 })?;
             CheckedStructuralValueKind::Reference {
-                source: validation::reference_result_custody::initializer_source(
+                source: crate::values::reference_sources::plan(
                     self.program,
+                    self.borrow,
+                    self.program.machine_by_symbol(self.machine)?,
                     state,
+                    self.statement_index,
                     expression,
                     expected,
                 )?,

@@ -98,9 +98,7 @@ pub(crate) use signatures::{
     parameter_signatures, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::{call_claim_transfers, exact_structural_borrow_access};
-pub(crate) use structural_result_call::{
-    view_data_member_symbol, view_source_parameter_is_mutable,
-};
+pub(crate) use structural_result_call::view_source_parameter_is_mutable;
 /// Rejoin a bodyless external leaf (a compiler intrinsic or an evaluated
 /// foreign binding) to the exact boundary-trait requirement whose call it
 /// realizes. Provider selection may resolve a call to the target satisfier

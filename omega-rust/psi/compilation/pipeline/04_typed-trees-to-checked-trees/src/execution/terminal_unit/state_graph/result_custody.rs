@@ -243,11 +243,9 @@ pub(super) fn account(
             operations[producer_index + 1..]
                 .iter()
                 .filter(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
-                            if exact_view_reborrow(source)
-                    )
+                    operation
+                        .established_reference_source(&facts.values.structural_values)
+                        .is_some_and(&exact_view_reborrow)
                 })
                 .count()
         } else {
@@ -368,15 +366,12 @@ pub(super) fn account(
                             ) => transferred(successor),
                             checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
                                 checked_trees::CheckedConditionalReturnArm::Structural(returned),
-                            ) => match (view_source, returned) {
-                                (
-                                    Some(_),
-                                    CheckedUnitEffectOperationPlan::EstablishReference {
-                                        source,
-                                        ..
-                                    },
-                                ) => exact_view_reborrow(source),
-                                (None, operation) => {
+                            ) => match view_source {
+                                Some(_) => returned
+                                    .established_reference_source(&facts.values.structural_values)
+                                    .is_some_and(&exact_view_reborrow),
+                                None => {
+                                    let operation = returned;
                                     operation.with_value_calls().skip(1).any(|operation| {
                                         terminator_call_consumes_result(
                                             operation,
@@ -384,7 +379,6 @@ pub(super) fn account(
                                         )
                                     })
                                 }
-                                _ => false,
                             },
                             _ => false,
                         });
@@ -393,17 +387,15 @@ pub(super) fn account(
                             return None;
                         }
                         closed_sum_all_reference_returns = cases.iter().all(|case| {
-                            matches!(
-                                &case.outcome,
-                                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
-                                    checked_trees::CheckedConditionalReturnArm::Structural(
-                                        CheckedUnitEffectOperationPlan::EstablishReference {
-                                            source,
-                                            ..
-                                        },
-                                    ),
-                                ) if exact_view_reborrow(source)
-                            )
+                            let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+                                checked_trees::CheckedConditionalReturnArm::Structural(returned),
+                            ) = &case.outcome
+                            else {
+                                return false;
+                            };
+                            returned
+                                .established_reference_source(&facts.values.structural_values)
+                                .is_some_and(&exact_view_reborrow)
                         });
                         result.multiplicity == Multiplicity::Unrestricted
                             && reference_reborrows == 0

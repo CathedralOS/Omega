@@ -472,7 +472,7 @@ pub(super) fn validate(
                             "Unit case reference return lost its structural producer",
                         );
                     };
-                    super::guarded::validate_reference_return(plan, state, operation)?;
+                    super::guarded::validate_reference_return(checked, plan, state, operation)?;
                 }
                 super::result_custody::local_discards(checked, owner, source, state, None)?;
                 continue;

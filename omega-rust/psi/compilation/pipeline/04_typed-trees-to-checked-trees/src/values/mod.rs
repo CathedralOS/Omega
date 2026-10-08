@@ -20,6 +20,7 @@ use proof::obligations::ProofPlan;
 pub(crate) mod bounds;
 mod evaluation;
 pub(crate) mod float_predicates;
+pub(crate) mod reference_sources;
 mod snapshots;
 pub(crate) use evaluation::evaluate as evaluate_checked_scalar;
 pub(crate) use evaluation::{

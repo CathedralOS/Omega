@@ -1326,6 +1326,11 @@ defines the complete product bar.
 
   The Dungeon Crawler is migrated to explicit parameters and meets its README
   runtime oracle natively within the sample gate's 300 s per-call timeout.
+  Interpreted composition remains open: on macOS ARM64,
+  `borrows/branch_selected_record_composed_receiver_exit` exits 70 natively
+  but Terminal execution refuses with `Execution(VerifiedOperationMalformed)`.
+  Reproduce with `python tools/corpus_gate.py --both --filter branch_selected_record_composed_receiver_exit`;
+  retain the authored qualified-byte and enum-field behavior.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
@@ -3871,8 +3876,6 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   70 on macOS, Linux x86-64 and Windows without a dummy read),
   `borrows/returned_record_field_read_exit` (70) and
   `borrows/static_record_reference_return_exit` (0) in both engines.
-  Unverified: whether `unread_multistate_receiver_exit` agrees in the
-  interpreter (no `--both` record).
 
   Acceptance: corpus fixtures execute caller-visible projected/forwarded
   writes, owned-field mutable/write-only subloans, synchronized shared

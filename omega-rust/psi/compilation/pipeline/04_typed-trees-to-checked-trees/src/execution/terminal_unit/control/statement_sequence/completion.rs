@@ -270,7 +270,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         shapes,
         machine,
         state,
-        structural_parameters,
         &mut structural_count,
     ) {
         operations.push(operation);

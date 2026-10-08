@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 2.22, "load1_start": 2.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 3.43, "load1_start": 3.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -36,8 +36,10 @@ pass/borrow/runtime_exclusive_loan_local_write_exit built 5556ms exit:70 interpr
 pass/borrow/runtime_write_only_record_array_argument_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrows/branch_selected_record_composed_receiver_exit built 2950ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
+pass/borrows/branch_selected_record_receiver_exit built 1765ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
 pass/borrows/case_payload_shared_transition_exit built 1499ms exit:70 interpreter-exit:70 interpreter:agrees @53e6e3215d6a
 pass/borrows/case_payload_state_loan_exit built 1422ms exit:70 interpreter-exit:70 interpreter:agrees @53e6e3215d6a
+pass/borrows/enum_selected_view_reference_exit built 1767ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
 pass/borrows/indexed_record_field_replacement_exit built 6044ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8134ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/loop_descriptor_reformation_exit built 6344ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
@@ -178,6 +180,7 @@ pass/calls/runtime_stored_reference_computation_argument_exit built 1923ms exit:
 pass/calls/runtime_terminal_requirement_projected_context_exit built 946ms exit:0 interpreter-exit:0 interpreter:agrees @560687158d28
 pass/calls/runtime_value_call_return_types_exit built 2072ms exit:70 interpreter-exit:70 interpreter:agrees @70f761d06258
 pass/calls/scalar_local_record_view_call_exit built 1263ms exit:70 interpreter-exit:70 interpreter:agrees @d16744b4f8fb
+pass/calls/unread_multistate_receiver_exit built 1256ms exit:70 interpreter-exit:70 interpreter:agrees @635072c0b89e+wt
 pass/capabilities/acquires_through_helper_return built 3368ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
 pass/capabilities/runtime_qualified_record_return_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
 pass/collections/record_array_field_access_exit built 1498ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3b6b4258b4af+wt

@@ -315,7 +315,6 @@ pub(in crate::execution::terminal_unit) fn returned_mutable_view(
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    parameters: &[CheckedUnitStructuralParameterPlan],
     count: &mut usize,
 ) -> Option<(
     CheckedUnitStructuralReturnPlan,
@@ -339,7 +338,6 @@ pub(in crate::execution::terminal_unit) fn returned_mutable_view(
         shapes,
         machine,
         state,
-        parameters,
         count,
         statement_ordinal,
         expression,

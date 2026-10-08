@@ -14,7 +14,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::machine_binders;
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitStructuralResultBindingPlan,
-    Multiplicity, SymbolHandle, TypeReferenceNode,
+    Multiplicity, SymbolHandle,
 };
 
 pub(super) fn build(
@@ -258,52 +258,4 @@ pub(crate) fn view_source_parameter_is_mutable(
             parameter.type_reference,
         )
         .is_some()
-}
-
-/// The field symbol `root` names inside this state's data binding, when that
-/// binding is mutably borrowed — the root a minted view loan publishes for
-/// `main.<field>` storage. `None` for roots that are not members of the
-/// binding's record and whenever the binding is not mutably borrowed.
-///
-/// The binding is the parameter declaring the machine's attached data, which
-/// `data_binding_parameter` names. The retired `self` flag no longer marks
-/// it, so asking for that flag refused every state unconditionally.
-pub(crate) fn view_data_member_symbol(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    machine: SymbolHandle,
-    root: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let owner = program.machine_by_symbol(machine)?;
-    let data_binding = program.data_binding_parameter(owner, program.state_parameters(state))?;
-    if !view_source_parameter_is_mutable(program, data_binding) {
-        return None;
-    }
-    let mut type_reference = data_binding.type_reference;
-    let mut symbol = loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-            TypeReferenceNode::Named { symbol, .. } => break *symbol,
-            _ => return None,
-        }
-    };
-    // A `&mut Self` referee names the machine's `Self` alias rather than the
-    // data declaration; resolve it through the machine's attached data owner.
-    if symbol == machine {
-        symbol = owner.attached_data_symbol;
-    }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)?;
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.symbol == root => {
-                Some(field.symbol)
-            }
-            _ => None,
-        })
 }
