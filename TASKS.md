@@ -2652,60 +2652,56 @@ code and preserve check/native behavior for the named customer slices.
 
 - **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Lower scalar machines through
   the same body route as Unit machines and delete
-  `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (18.6k lines) and
-  the plan-presence matrix in `machine_lowering/machine_dispatch.rs`. Stage 04
-  plans a Unit body for a graph-owned scalar machine, and
-  `CheckedScalarCallee::find_for_unit_call` lowers that body whenever it
-  exists; the graph is only the fallback. Unit bodies carry scalar tags,
-  generic ones included, on their formals and results; Unit scalar calls take
-  their operand and result types from the callee's signature; and an
-  ordinary body owns entry storage for its `mut` scalar formals. A census
-  over the full checked corpus (2026-10-07, a temporary probe on the graph
-  branch of `find_for_unit_call`) finds one scalar machine still lowered
-  through a graph. Known remaining graph users:
-  - the two specializations of `retag_i64` in
-    `pass/generics/closed_indexed_quantity`
-    (`-> i64 [0..=100] in Quantity<To>`): "result contract". Each
-    specialized `Quantity<Units::METER>` is a semantic atom with its own
-    exact identity, but not a `scalar_type_tags` tag: `vacuous_scalar_tag`
-    refuses `Quantity` because its declaration has a denotation-dimension
-    role. Admitting denotation roles as tags then refuses this fixture with
-    "retained scalar operand disagrees with its destination type" in
-    `scalar_computations`, likely where `Quantity<Units::METER>` and
-    `Quantity<Units::METER_REORDERED>` must compare equal;
-  - ranked loops through the general rank plans, retiring the
-    `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
-    case, with a fixture for resumable (fuel-suspended) ranked execution.
-    The state graph already ranks a fused cross-machine cycle by the shared
-    runtime judgment (`runtime_component_ranks`), with weak hops as
-    `Preserving` Terminal edges.
+  `.../05_checked-trees-to-lowered-psi/src/scalar_graph/` (18.8k lines, part
+  shared with Unit bodies) and the plan-presence matrix in
+  `machine_lowering/machine_dispatch.rs`. A census over the full checked
+  corpus (2026-10-07, a temporary probe on the graph branch of
+  `CheckedScalarCallee::find_for_unit_call`) finds no scalar machine body
+  lowered through a graph: every one has a Unit or composed body. What still
+  reads `facts.flow.terminal_scalar_graphs` (paths under `04_.../src` and
+  `05_.../src`):
+  - stage 04 Unit planning: `state_graph/{guards,returns,terminator}.rs` and
+    `control/statement_sequence.rs::returning_terminator` read the
+    `guarded_exits`/`guarded_tails` lanes; stage 05
+    `composed_control/state_graph/{guarded,admission}.rs` and
+    `scalar_completion/control.rs` read the same arena. `guarded_exits::build`
+    runs for every machine apart from graph admission, so the lanes can
+    become their own flow fact;
+  - `terminal_unit/scalar_targets/mod.rs` treats a graph callee as
+    `Registered` and takes its signature from graph `states[0]`; without the
+    graph it needs the `OrdinaryBody`/`ComposedBody` dependency edges;
+  - `machine_dispatch.rs` routes a machine whose graph states all return
+    scalars to `lower_scalar_effect_closure`, which alone publishes the
+    checked debug map (`DebugPublication::FromCheckedPlan`); the Unit routes
+    omit it although `terminal_debug` needs no graph;
+  - `scalar_contracts.rs::caller_erased_proof_roster` and
+    `unit_operations.rs::Caller::published` prefer the graph's erased-proof
+    roster over the Unit entry's identical one;
+  - `proofs/float_meaning_projection.rs` maps graph state positions to
+    Terminal blocks, and the scalar-result branch of
+    `proofs/evidence_lowering/proof_output_calls.rs` counts graph
+    `DirectCall` bindings; the Unit branch handles only `CallUnit`;
+  - `terminal_scalar/mod.rs::build_checked_terminal_machine_selections`
+    exempts a machine with `graph.ranked_scc` from the older rank checks,
+    before Unit plans exist; ranked loops should use the general rank plans
+    and retire `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne`,
+    with a fixture for resumable (fuel-suspended) ranked execution;
+  - fallbacks to graph data in `structural_value_calls.rs` and
+    `attached_unit/catalog.rs::selected_declaration`.
 
   Also account for continuation-arm custody
   (`CheckedStructuralControlSuccessorPlan` lacks continuation identity),
   later-state mutable scalar stores (a composed state keeps a `mut` scalar
   formal as an SSA value in its binding prefix, so it refuses the formal's
   later stores and borrows; give it the entry storage an ordinary body
-  takes from `CheckedUnitParameterStoragePlan`), crash predicates, float prefix
-  initializers and debug maps. Map of stage 05 (2026-10-07): `call_catalog`
-  already moves every Unit-bodied scalar callee into the Unit closure, so
-  `scalar_callees.rs` and `PreparedScalarCallee` serve graph callees only.
-  Graph-only code is 18 files, 7,070 lines: `scalar_graph_lowering/`
-  `graph_preparation`, `bindings`, `field_stores`, `branch_destinations`,
-  `contract_lowering`, `cycles`, `graph_validation`, `known_evaluation`,
-  `state_contracts`, `primitive_locals`, `scalar_computations/erased_scope`,
-  and `scalar_graph_module` with its submodules. The rest is shared with Unit
-  bodies and moves to a shared owner: `scalar_computations` (`Expansion`),
-  `scalar_contracts` (proof terms, clauses, erased formals),
+  takes from `CheckedUnitParameterStoragePlan`), crash predicates and float
+  prefix initializers. `scalar_computations`, `scalar_contracts`,
   `prepared_graph`'s branch and effect types, `guards`, `structural_values`,
-  `unit_operations`, `scalar_graph_effects`, and the qualification emitter.
-  Graph presence, rather than callee kind, still decides
-  `machine_dispatch.rs`, `caller_erased_proof_roster` and
-  `Caller::published` (they prefer the graph's erased-proof roster),
-  `proofs/float_meaning_projection.rs` and the scalar-result branch of
-  `proofs/evidence_lowering/proof_output_calls.rs` (both require a graph).
-  In stage 04, Unit planning reads the graph builder's `guarded_tails` and
-  `guarded_exits` (guard order, coverage and destinations), which need an
-  owner of their own before the graph roster can go.
+  `unit_operations`, `scalar_graph_effects` and the qualification emitter are
+  shared with Unit bodies and move to a shared owner; the terminator and
+  binding helpers and plan types the Unit plans embed
+  (`CheckedScalarStateTerminator`, `CheckedScalarGuardedExit`,
+  `CheckedScalarBinding`) survive.
 
   Acceptance: `machine_dispatch.rs` selects no route by plan presence; distinct
   exits returning 20 and 30 under `ensures result >= 20` still hold;

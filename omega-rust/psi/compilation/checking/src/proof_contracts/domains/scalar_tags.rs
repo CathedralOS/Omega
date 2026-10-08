@@ -148,6 +148,12 @@ pub fn scalar_interval_domains(
     })
 }
 
+/// A tag has no predicate, fact or establishment route. A denotation role
+/// (`Quantity<Units::METER>` with its own operators) is still a tag: it
+/// selects operator meaning, not membership, and `as` may introduce it
+/// (domains.md, "Exact coercion and erasure"). Arithmetic policies are
+/// `ArithmeticDomain` constraints with their own owners; a domain carrying an
+/// arithmetic policy role would change arithmetic, so it is not a tag.
 fn vacuous_scalar_tag(
     program: &dyn crate::CheckingInput,
     declaration: &DomainDefinition,
@@ -160,7 +166,7 @@ fn vacuous_scalar_tag(
         || declaration.predicate_body.is_present()
         || !declaration.facts.is_empty()
         || !declaration.establishment_routes.is_empty()
-        || declaration.semantic_roles != Default::default()
+        || declaration.semantic_roles.arithmetic_policy.is_some()
         || (!typed_trees::domain::has_generic_carrier(program, declaration)
             && program.primitive_type_reference(declaration.target_type) != Some(primitive))
     {

@@ -549,7 +549,14 @@ impl Evaluation {
             .iter()
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
-        let result_type = terminal_scalar_type(control.primitive_type)?;
+        // The completion carries the body's declared result, tags included,
+        // as every other Unit scalar result does.
+        let result_type = crate::unit::attached_unit::parameters::unit_scalar_result_type(
+            checked,
+            state,
+            terminal_scalar_type(control.primitive_type)?,
+            qualifications,
+        )?;
         let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
             checked,
             qualifications,
@@ -565,7 +572,7 @@ impl Evaluation {
         .with_fields(&self.record_fields)
         .enter_proof_scope(&self.erased_proof_formals);
         let mut completion_types = source_types.clone();
-        completion_types.push(result_type.into());
+        completion_types.push(result_type);
         let completions = cleanups
             .iter()
             .map(|cleanup| {
@@ -602,7 +609,7 @@ impl Evaluation {
                     state,
                     &bindings,
                     &source_types,
-                    result_type.into(),
+                    result_type,
                     &CheckedScalarBranchDestination::Return {
                         statement_ordinal: *statement_ordinal,
                         is_continuation: false,
@@ -628,7 +635,7 @@ impl Evaluation {
                     state,
                     &bindings,
                     &source_types,
-                    result_type.into(),
+                    result_type,
                     *guard_statement_ordinal,
                     when_true,
                 )?;
@@ -637,7 +644,7 @@ impl Evaluation {
                     state,
                     &bindings,
                     &source_types,
-                    result_type.into(),
+                    result_type,
                     *guard_statement_ordinal,
                     when_false,
                 )? {
@@ -662,7 +669,7 @@ impl Evaluation {
                         state,
                         &bindings,
                         &source_types,
-                        result_type.into(),
+                        result_type,
                         when_false,
                     )?,
                 };
@@ -686,7 +693,7 @@ impl Evaluation {
                             state,
                             &bindings,
                             &source_types,
-                            result_type.into(),
+                            result_type,
                             vec![first, second],
                             None,
                             &completions,
@@ -705,7 +712,7 @@ impl Evaluation {
                             state,
                             &bindings,
                             &source_types,
-                            result_type.into(),
+                            result_type,
                             when_false,
                             &completions,
                         )?;
@@ -734,7 +741,7 @@ impl Evaluation {
                             state,
                             &bindings,
                             &source_types,
-                            result_type.into(),
+                            result_type,
                             when_true,
                             &completions,
                         )?;
@@ -753,7 +760,7 @@ impl Evaluation {
                             state,
                             &bindings,
                             &source_types,
-                            result_type.into(),
+                            result_type,
                             when_true,
                             &completions,
                         )?;
@@ -763,7 +770,7 @@ impl Evaluation {
                             state,
                             &bindings,
                             &source_types,
-                            result_type.into(),
+                            result_type,
                             when_false,
                             &completions,
                         )?;
@@ -804,7 +811,7 @@ impl Evaluation {
                         state,
                         &bindings,
                         &source_types,
-                        result_type.into(),
+                        result_type,
                         guard.guard_statement_ordinal,
                         &guard.destination,
                     )?);
@@ -824,7 +831,7 @@ impl Evaluation {
                         state,
                         &bindings,
                         &source_types,
-                        result_type.into(),
+                        result_type,
                         dispatches,
                         fallback.as_ref(),
                         &completions,
@@ -845,7 +852,7 @@ impl Evaluation {
                                 state,
                                 &bindings,
                                 &source_types,
-                                result_type.into(),
+                                result_type,
                                 &guard.destination,
                                 &completions,
                             )?,
@@ -859,7 +866,7 @@ impl Evaluation {
                             state,
                             &bindings,
                             &source_types,
-                            result_type.into(),
+                            result_type,
                             fallback,
                             &completions,
                         )?
@@ -955,7 +962,7 @@ impl Evaluation {
         let completed = self.complete_expansion(
             &states,
             entry,
-            &[result_type.into()],
+            &[result_type],
             values,
             next_value,
             next_block,
