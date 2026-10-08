@@ -458,9 +458,6 @@ PATH_TOKEN = re.compile(r"`?([A-Za-z_][\w.-]*/[\w.-]+(?:/[\w.-]+)*)`?")
 SCALE_CRATE_LIMIT = 4
 
 
-JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-
-
 def jev_fence_verdict(item_name, item_text, owning_paths):
     """Advisory estimate check: does owning_paths cover the item's likely edit
     surface? None when unavailable/suppressed; the caller treats None as
@@ -471,7 +468,7 @@ def jev_fence_verdict(item_name, item_text, owning_paths):
     key = typesafe_key.find_key(None)
     if not key:
         return None
-    request = {"model": "jev-1.13.0",
+    request = {"model": typesafe_key.MODEL,
                "state": {"item_name": item_name,
                          "item_text": item_text[:2000],
                          "owning_paths": owning_paths},
@@ -493,7 +490,7 @@ def jev_fence_verdict(item_name, item_text, owning_paths):
                        "over_fenced": "claims surfaces this item will not "
                                       "touch"}}}}
     http = urllib.request.Request(
-        JEV_ENDPOINT, data=json.dumps(request).encode(),
+        typesafe_key.ENDPOINT, data=json.dumps(request).encode(),
         headers={"Authorization": f"Bearer {key}",
                  "Content-Type": "application/json"}, method="POST")
     try:

@@ -9,6 +9,10 @@ import urllib.error
 import urllib.request
 
 
+ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+MODEL = "jev-1.13.0"
+
+
 def read_key(path):
     if not path.exists():
         return ""

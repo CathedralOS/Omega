@@ -159,10 +159,15 @@ import platform
 import subprocess
 import tempfile
 import sys
-import urllib.request
 import threading
 
 import corpus_records
+
+try:
+    import typesafe_key
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import typesafe_key
 
 ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = ROOT / "tests" / "omega" / "corpus_outcomes.txt"
@@ -441,48 +446,6 @@ def run_runner(binary: Path) -> list[dict]:
 # reliability 4/4; per-diff labels inside a batch are contaminated by the
 # worst member, so low verdicts re-ask each diff alone to localize.
 
-JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-JEV_MODEL = "jev-1.13.0"
-
-
-def jev_key() -> str:
-    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
-    if key:
-        return key
-    try:
-        done = subprocess.run(
-            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            capture_output=True, text=True, timeout=15)
-        roots = [Path("build"), Path(done.stdout.strip()).parent / "build"]
-    except (OSError, subprocess.SubprocessError):
-        roots = [Path("build")]
-    for root in roots:
-        path = root / "typesafe.env.txt"
-        if path.is_file():
-            keys = [line.partition("=")[2].strip().strip("\"'")
-                    for line in path.read_text(encoding="utf-8-sig").splitlines()
-                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-            if len(keys) == 1:
-                return keys[0]
-    path = Path.home() / ".config" / "typesafe" / "typesafe.env.txt"
-    if path.is_file():
-        keys = [line.partition("=")[2].strip().strip("\"'")
-                for line in path.read_text(encoding="utf-8-sig").splitlines()
-                if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-        if len(keys) == 1:
-            return keys[0]
-    return ""
-
-
-def jev_post(payload: dict, key: str) -> dict:
-    request = urllib.request.Request(
-        JEV_ENDPOINT, data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
-
-
 def diff_questions(diffs: list) -> dict:
     questions = {}
     for index in range(len(diffs)):
@@ -520,7 +483,7 @@ def jev_advise(diffs: list) -> None:
         return
     if not diffs:
         return
-    key = jev_key()
+    key = typesafe_key.find_key(None)
     if not key:
         return
     try:
@@ -533,9 +496,12 @@ def jev_advise(diffs: list) -> None:
         state = {"commit_subject": subject,
                  "files_touched": files,
                  "fixture_diffs": diffs[:30]}
-        request = {"model": JEV_MODEL, "state": state,
+        request = {"model": typesafe_key.MODEL, "state": state,
                    "questions": diff_questions(diffs[:30])}
-        response = jev_post(request, key)
+        response = typesafe_key.post(typesafe_key.ENDPOINT, key, request,
+                                     timeout=30)
+        if response is None:
+            raise RuntimeError("no response")
         answers = response.get("answers", {})
         safe = answers.get("record_safe", {}).get("noul", 0.5)
         verdict = ("looks safe to --record" if safe >= 0.5
@@ -550,7 +516,7 @@ def jev_advise(diffs: list) -> None:
             # commit" with "intended". Ask the causal question instead:
             # could THIS commit plausibly produce this diff?
             for index in flagged[:10]:
-                solo = {"model": JEV_MODEL,
+                solo = {"model": typesafe_key.MODEL,
                         "state": {"commit_subject": subject,
                                   "files_touched": files,
                                   "fixture_diffs": [diffs[index]]},
@@ -569,8 +535,12 @@ def jev_advise(diffs: list) -> None:
                                 "false": "unexplained by this commit — "
                                          "suspicious"}}}}
                 try:
-                    one = jev_post(solo, key).get("answers", {})
-                    caused = one.get("caused_by_commit", {}).get("noul", 0.5)
+                    one = typesafe_key.post(typesafe_key.ENDPOINT, key, solo,
+                                            timeout=30)
+                    if one is None:
+                        raise RuntimeError("no response")
+                    caused = (one.get("answers", {})
+                              .get("caused_by_commit", {}).get("noul", 0.5))
                 except Exception:
                     caused = 0.5
                 if caused < 0.5:

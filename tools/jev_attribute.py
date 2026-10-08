@@ -8,33 +8,24 @@ candidates (batch labels are contaminated by the worst member, per
 build/experiments/failure-triage/CLASSIFY.md).
 
 Usage:
-    jev_attribute.py --signature "TEXT" --range BASE..HEAD [--diff-lines 60]
-    jev_attribute.py --signature "TEXT" --commits SHA1,SHA2,...
+    jev_attribute.py --signature "TEXT" --window BASE..HEAD [--with-diff 60]
+    jev_attribute.py --signature "TEXT" --window SHA1,SHA2,...
 
 Silent no-op exit 2 without TYPESAFE_API_KEY; OMEGA_JEV_OFFLINE=1 suppresses.
+Key resolution: TYPESAFE_API_KEY, build/typesafe.env.txt (in this or the
+main checkout), ~/.config/typesafe/typesafe.env.txt.
 """
 import argparse
-import json
 import os
+from pathlib import Path
 import subprocess
 import sys
-import urllib.request
 
-JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-JEV_MODEL = "jev-1.13.0"
-
-
-def jev_key() -> str:
-    return os.environ.get("TYPESAFE_API_KEY", "").strip()
-
-
-def jev_post(payload: dict, key: str) -> dict:
-    request = urllib.request.Request(
-        JEV_ENDPOINT, data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {key}",
-                 "Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.load(response)
+try:
+    import typesafe_key
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import typesafe_key
 
 
 def git(*args) -> str:
@@ -126,7 +117,7 @@ def main() -> int:
 
     if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
         return 2
-    key = jev_key()
+    key = typesafe_key.find_key(None)
     if not key:
         print("no TYPESAFE_API_KEY", file=sys.stderr)
         return 2
@@ -148,13 +139,17 @@ def main() -> int:
 
     state = {"failing_signature": options.signature,
              "candidate_commits": cands}
-    request = {"model": JEV_MODEL, "state": state,
+    request = {"model": typesafe_key.MODEL, "state": state,
                "questions": questions(len(cands))}
     try:
-        answers = jev_post(request, key).get("answers", {})
+        response = typesafe_key.post(typesafe_key.ENDPOINT, key, request)
     except Exception as error:
         print(f"jev unavailable: {type(error).__name__}", file=sys.stderr)
         return 2
+    if response is None:
+        print("jev unavailable: no response", file=sys.stderr)
+        return 2
+    answers = response.get("answers", {})
 
     verdicts = {}
     no_suspect = answers.get("no_suspect", {}).get("noul", 0.5)
@@ -170,17 +165,21 @@ def main() -> int:
     # to the one guilty commit contaminating innocent neighbors.
     solo = {}
     for cand in flagged[:10]:
-        request = {"model": JEV_MODEL,
+        request = {"model": typesafe_key.MODEL,
                    "state": {"failing_signature": options.signature,
                              "candidate_commits": [cand]},
                    "questions": solo_questions()}
         try:
-            one = jev_post(request, key).get("answers", {})
-            solo[cand["sha"]] = (
-                one.get("evidence_0", {}).get("choice", "inconclusive"),
-                one.get("introduces_0", {}).get("noul", 0.5))
+            one = typesafe_key.post(typesafe_key.ENDPOINT, key, request)
         except Exception:
+            one = None
+        if one is None:
             solo[cand["sha"]] = ("inconclusive", 0.5)
+        else:
+            solo_answers = one.get("answers", {})
+            solo[cand["sha"]] = (
+                solo_answers.get("evidence_0", {}).get("choice", "inconclusive"),
+                solo_answers.get("introduces_0", {}).get("noul", 0.5))
 
     rank_verdict = {"contains": 2, "inconclusive": 1, "absent": 0}
 

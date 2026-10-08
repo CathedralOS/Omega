@@ -177,5 +177,34 @@ class GitChangesTests(unittest.TestCase):
                 affected.changed_paths(root, "nonexistent-commit")
 
 
+class JevAugmentTests(unittest.TestCase):
+    def test_flagged_catalog_candidate_is_added(self):
+        with tempfile.TemporaryDirectory() as directory:
+            response = {"answers": {"needs_run::std_package_check":
+                                    {"noul": 0.9}}}
+            commands = []
+            with patch.object(affected.typesafe_key, "find_key",
+                              return_value="k"), \
+                    patch.object(affected.typesafe_key, "post",
+                                 return_value=response):
+                summary = affected.jev_augment(
+                    Path(directory), "runner", ["omega-rust/psi/x.rs"],
+                    ["some-crate"], commands, False, False)
+            self.assertEqual(summary["state"], "augmented")
+            self.assertIn("std_package_check", summary["added"])
+            self.assertTrue(commands)
+
+    def test_no_key_is_silent_unconfigured_noop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(affected.typesafe_key, "find_key",
+                              return_value=""), \
+                    patch.object(affected.typesafe_key, "post") as post:
+                summary = affected.jev_augment(
+                    Path(directory), "runner", ["omega-rust/psi/x.rs"],
+                    ["some-crate"], [], False, False)
+            self.assertEqual(summary["state"], "unconfigured")
+            post.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -27,8 +27,6 @@ from pathlib import Path
 
 import typesafe_key
 
-ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-MODEL = "jev-1.13.0"
 NONE = "none_in_window"
 LAYERS = {
     "name_resolution": "lexing/parsing/name resolution",
@@ -76,7 +74,7 @@ def make_request(command, failure, commits):
     options = {c["sha"]: c["subject"] for c in commits}
     options[NONE] = ("the failure is infrastructure, environment, or a change "
                      "older than this window — no listed commit introduced it")
-    return {"model": MODEL,
+    return {"model": typesafe_key.MODEL,
             "state": {"command": command,
                       "failure_output": failure[:12000],
                       "recent_commits": commits},
@@ -168,7 +166,7 @@ def main():
               file=sys.stderr)
         return 0
     request = make_request(arguments.command, failure, commits)
-    response = typesafe_key.post(ENDPOINT, key, request)
+    response = typesafe_key.post(typesafe_key.ENDPOINT, key, request)
     if response is None:
         print("  = triage advisory unavailable: TypeSafe request failed",
               file=sys.stderr)

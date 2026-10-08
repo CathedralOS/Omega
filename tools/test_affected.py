@@ -23,7 +23,12 @@ import re
 import shutil
 import subprocess
 import sys
-import urllib.request
+
+try:
+    import typesafe_key
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import typesafe_key
 
 
 # terminal-codec embeds these crates' source. Record those edges explicitly,
@@ -183,28 +188,12 @@ def slow_tail_filter(excluded):
     return " | ".join(clauses)
 
 
-JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-JEV_MODEL = "jev-1.13.0"
 JEV_FLAG = 0.5
 JEV_TIMEOUT_S = 15
 JEV_CATALOG = Path(__file__).with_name("test_select_candidates.json")
 JEV_CACHE = "build/test-select-cache"
 JEV_MAX_PATHS = 60
 
-
-def jev_api_key(root):
-    """Resolve the TypeSafe key; None means the augment is unconfigured."""
-    if os.environ.get("TYPESAFE_API_KEY"):
-        return os.environ["TYPESAFE_API_KEY"]
-    for candidate in (root / "build/typesafe.env.txt",
-                      Path.home() / ".config/typesafe/typesafe.env.txt"):
-        if candidate.exists():
-            keys = [line.partition("=")[2].strip().strip('"\'')
-                    for line in candidate.read_text(encoding="utf-8-sig").splitlines()
-                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
-            if len(keys) == 1 and keys[0]:
-                return keys[0]
-    return None
 
 
 def jev_payload(paths, affected, candidates):
@@ -234,7 +223,7 @@ def jev_payload(paths, affected, candidates):
                 "false": "cannot observe this change, or the baseline already "
                          "covers it"}}
         for c in candidates}
-    return {"model": JEV_MODEL,
+    return {"model": typesafe_key.MODEL,
             "state": {"change": {"changed_paths": paths[:JEV_MAX_PATHS],
                                  "total_changed": len(paths)},
                       "baseline_runs": baseline,
@@ -248,12 +237,10 @@ def jev_post(root, payload, key):
     cache = root / JEV_CACHE / (hashlib.sha256(body).hexdigest() + ".json")
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8"))
-    request = urllib.request.Request(
-        JEV_ENDPOINT, data=json.dumps(payload).encode(),
-        headers={"Authorization": "Bearer " + key,
-                 "Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(request, timeout=JEV_TIMEOUT_S) as response:
-        result = json.load(response)
+    result = typesafe_key.post(typesafe_key.ENDPOINT, key, payload,
+                               timeout=JEV_TIMEOUT_S)
+    if result is None:
+        raise RuntimeError("no response")
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(result), encoding="utf-8")
     return result
@@ -304,8 +291,8 @@ def jev_augment(root, runner, paths, affected, commands, disabled, full):
     if full:
         summary["state"] = "skipped (--full selects everything)"
         return summary
-    key = jev_api_key(root)
-    if key is None or not JEV_CATALOG.exists():
+    key = typesafe_key.find_key(None)
+    if not key or not JEV_CATALOG.exists():
         return summary
     candidates = catalog_candidates()
     payload = jev_payload(paths, affected, candidates)
@@ -462,14 +449,14 @@ def attribute_failures(root, base, log_path, disabled):
     if disabled or os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
         key = ""
     else:
-        key = jev_api_key(root)
+        key = typesafe_key.find_key(None)
     if not key:
         print("test_affected attribute: advisory unavailable "
               "(no TYPESAFE_API_KEY)", file=sys.stderr)
         return 0
     subject = output(root, ["git", "log", "-1", "--format=%s"]).strip()
     for failure in failures:
-        payload = {"model": "jev-1.13.0",
+        payload = {"model": typesafe_key.MODEL,
                    "state": {"candidate_subject": subject,
                              "changed_paths": paths[:40],
                              "failure": failure},

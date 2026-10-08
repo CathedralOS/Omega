@@ -110,7 +110,12 @@ moves, no regression), 2 usage error, 3 regressed (a fixture verdict of
 `--record` refusal), 4 infrastructure failure (runner build failed, no
 binary, runner exited nonzero, unreadable records). `--bisect` remaps for
 `git bisect run`: regressed -> 1 (bad), infrastructure -> 125 (skip),
-anything else -> 0 (good), usage -> 255 (abort). `--json PATH` writes the
+anything else -> 0 (good), usage -> 255 (abort). Before bisecting, `python
+tools/jev_attribute.py --signature "<failing test or diagnostic>" --window
+BASE..HEAD --with-diff 60` ranks the window's commits by which could carry
+the failure's evidence (SUSPECT rows first; exit 2 when no key is
+configured, silent under `OMEGA_JEV_OFFLINE=1`), so the bisect or a direct
+check starts at the likely commit. `--json PATH` writes the
 full per-fixture verdict document on every outcome, including
 infrastructure failure and record refusal. Diagnostics compare against the
 golden after prefix normalization (`corpus_records.DIAGNOSTIC_PREFIX_ALIASES`),
@@ -164,7 +169,11 @@ python3 -c "import json; [print(r['fixture'], r['after']['diagnostics']) \
 Then rerun ONLY the moved names against the base you suspect
 (`--filter <comma list>` from a worktree detached at that commit). A row that
 moves there too is not yours. Attribute every row before re-pinning any of
-them: a bulk `--record` pins whatever another lane broke as expected.
+them: a bulk `--record` pins whatever another lane broke as expected. Adding
+`--jev` to the same diffing invocation asks the advisory `record_safe`
+verdict, which names suspect rows through the causal "could this commit
+produce this diff" question — advisory only; it does not replace
+attributing each row.
 
 Two measurement hazards, both of which have produced a wrong mechanism here.
 The compiler caches resolved package snapshots under its user cache
@@ -552,7 +561,8 @@ full baseline.
 ## Jev semantic augment
 
 When a TypeSafe API key is configured (`TYPESAFE_API_KEY`, or
-`build/typesafe.env.txt`, or `~/.config/typesafe/typesafe.env.txt`), the plan
+`build/typesafe.env.txt` in this or — from a linked worktree — the main
+checkout, or `~/.config/typesafe/typesafe.env.txt`), the plan
 additionally asks a System One model which entries of
 [test_select_candidates.json](test_select_candidates.json) the diff could break
 *beyond what the deterministic baseline already covers*, and appends commands

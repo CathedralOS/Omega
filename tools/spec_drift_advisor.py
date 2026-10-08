@@ -34,8 +34,6 @@ import sys
 import typesafe_key
 import urllib.request
 
-ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-MODEL = "jev-1.13.0"
 PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./{}-]+/[-A-Za-z0-9_./{}]+)`")
 CLAIM_LINE = re.compile(
     r"(`[A-Za-z0-9_./{}-]+/[-A-Za-z0-9_./{}]+`|--[a-z-]+|"
@@ -165,7 +163,7 @@ def evidence_for(root, claim):
 
 
 def jev_verdict(source, claim, evidence, key):
-    request = {"model": MODEL,
+    request = {"model": typesafe_key.MODEL,
                "state": {"document": source, "claim": claim,
                          "evidence": evidence},
                "questions": {"verdict": {
@@ -182,7 +180,7 @@ def jev_verdict(source, claim, evidence, key):
                        "drifted": "evidence shows the claim is stale or false",
                        "unverifiable": "evidence insufficient to decide"}}}}
     http = urllib.request.Request(
-        ENDPOINT, data=json.dumps(request).encode(),
+        typesafe_key.ENDPOINT, data=json.dumps(request).encode(),
         headers={"Authorization": f"Bearer {key}",
                  "Content-Type": "application/json"}, method="POST")
     try:

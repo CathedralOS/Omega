@@ -37,8 +37,6 @@ import urllib.request
 
 import typesafe_key
 
-ENDPOINT = "https://api.typesafe.ai/v1/systemone"
-MODEL = "jev-1.13.0"
 FLAG = 0.5
 
 # The residue class this advisory classifies: the engine proved a falsehood,
@@ -132,7 +130,7 @@ def make_request(source, diagnostics):
                     "logically false claim, select the single clause that carries "
                     "the falsehood. If no clause is false, choose none."),
                 "criteria": criteria}
-    return {"model": MODEL,
+    return {"model": typesafe_key.MODEL,
             "state": {"programs": {"p0": {"source": source}},
                       "diagnostics": {f"r{i}": d for i, d in enumerate(diagnostics)}},
             "questions": questions}
@@ -235,7 +233,7 @@ def main():
     # corpus and sample programs are single-file.
     source = arguments.root.read_text(encoding="utf-8")
     request = make_request(source, diagnostics)
-    response = typesafe_key.post(ENDPOINT, key, request)
+    response = typesafe_key.post(typesafe_key.ENDPOINT, key, request)
     if response is None:
         sys.stderr.write(completed.stderr)
         print("  = advisory unavailable: TypeSafe request failed",
