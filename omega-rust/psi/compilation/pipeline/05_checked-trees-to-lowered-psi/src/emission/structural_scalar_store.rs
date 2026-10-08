@@ -494,8 +494,9 @@ pub(crate) enum WindowLeaf<'a> {
     /// The route's last segment names a record member; the hole's declared
     /// type is that field's structural type.
     Field(&'a terminal_psi::StructuralFieldDeclaration),
-    /// The route ends in an element selection of the declared type.
-    Element { element_type: StructuralTypeId },
+    /// The route selects a complete subtree without an additional field.
+    /// This includes an element or the referent selected by a root crossing.
+    Subtree { structural_type: StructuralTypeId },
 }
 
 /// Walk a window operation's spelled path — record fields and fixed-array
@@ -572,8 +573,8 @@ pub(crate) fn lower_window_path<'a>(
                 if rest.is_empty() {
                     return Ok((
                         steps,
-                        WindowLeaf::Element {
-                            element_type: *element,
+                        WindowLeaf::Subtree {
+                            structural_type: *element,
                         },
                     ));
                 }
@@ -596,8 +597,8 @@ pub(crate) fn lower_window_path<'a>(
                 if rest.is_empty() {
                     return Ok((
                         steps,
-                        WindowLeaf::Element {
-                            element_type: *element,
+                        WindowLeaf::Subtree {
+                            structural_type: *element,
                         },
                     ));
                 }
@@ -605,5 +606,10 @@ pub(crate) fn lower_window_path<'a>(
             _ => return unsupported("structural window carrier path is unsupported"),
         }
     }
-    unsupported("structural window path has no leaf segment")
+    Ok((
+        steps,
+        WindowLeaf::Subtree {
+            structural_type: field_owner.id,
+        },
+    ))
 }

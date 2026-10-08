@@ -3,6 +3,7 @@ use optimization_unit_semantics::byte_field_root;
 use terminal_psi::find_structural_type;
 
 pub(in crate::legalization) fn scalar_store_destination(
+    function: &PsiOptimizationFunction,
     destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &[terminal_psi::StructuralPathSegment],
     types: &[terminal_psi::StructuralTypeDeclaration],
@@ -11,11 +12,6 @@ pub(in crate::legalization) fn scalar_store_destination(
     abstract_operations::StructuralScalarStoreDestination,
     Vec<terminal_psi::StructuralPathSegment>,
 )> {
-    let abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } =
-        destination
-    else {
-        return Some((destination.clone(), path.to_vec()));
-    };
     if !matches!(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
@@ -23,13 +19,16 @@ pub(in crate::legalization) fn scalar_store_destination(
         return Some((destination.clone(), path.to_vec()));
     }
     let resolved = super::reference_custody::writable_referent_destination(
+        function,
         custody,
         types,
-        result.place,
+        destination.place(),
         path,
     )?;
-    (resolved.producer == *producer && resolved.result == *result)
-        .then(|| (destination.clone(), path.to_vec()))
+    (destination.parameter().is_none()
+        && destination.multiplicity() == terminal_psi::StructuralMultiplicity::Affine
+        && resolved.carrier_type == destination.structural_type())
+    .then(|| (destination.clone(), path.to_vec()))
 }
 
 pub(in crate::legalization) fn replacement(
@@ -148,6 +147,7 @@ pub(in crate::legalization) fn replacement(
         )
     } else {
         let resolved = super::reference_custody::writable_referent_destination(
+            function,
             custody,
             types,
             *destination,
@@ -217,9 +217,13 @@ pub(in crate::legalization) fn view_replacement(
             terminal_psi::StructuralAccess::Owned,
             path.clone(),
         )
-    } else if let Some(resolved) =
-        super::reference_custody::writable_referent_destination(custody, types, *destination, path)
-    {
+    } else if let Some(resolved) = super::reference_custody::writable_referent_destination(
+        function,
+        custody,
+        types,
+        *destination,
+        path,
+    ) {
         (
             resolved.referent,
             terminal_psi::StructuralAccess::MutableBorrow,

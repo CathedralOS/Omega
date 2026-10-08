@@ -269,10 +269,7 @@ fn writable_byte_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (root_type, access) = if let Some(reference) = &reference_destination {
-        (
-            reference.result.structural_type,
-            StructuralAccess::MutableBorrow,
-        )
+        (reference.carrier_type, StructuralAccess::MutableBorrow)
     } else {
         super::primitive_storage::field_root(
             function,

@@ -29,6 +29,17 @@ use checked_trees::CheckFacts;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::ExpressionHandle;
 
+/// Restoration debt and the selected access route are separate coordinates.
+/// Canonical storage identifies the hole even through forwarding; the emitted
+/// operand must still use the retained loan whose child suspends that storage's
+/// original parameter. Replacing the route by the debt root loses authority.
+pub(in crate::execution::terminal_unit) struct WindowPlace {
+    parameter_index: u32,
+    storage_path: Vec<CheckedUnitStructuralPathSegment>,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    path: Vec<CheckedUnitStructuralPathSegment>,
+}
+
 /// The exact field chain beneath an exclusive borrowed structural parameter.
 /// An empty path pins the whole referent, not its loan descriptor; a fixed or
 /// retained runtime element step selects the element the window pins.
@@ -49,7 +60,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     place: &CanonicalPlace,
     target: ExpressionHandle,
-) -> Option<(u32, Vec<CheckedUnitStructuralPathSegment>)> {
+) -> Option<WindowPlace> {
     let PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -99,24 +110,51 @@ pub(in crate::execution::terminal_unit) fn window_place(
             )
         })
         .flatten();
-    let path = segments
-        .iter()
-        .map(|segment| match segment {
-            PlaceSegment::Field { symbol } => terminal_field_identity(program, *symbol)
-                .map(CheckedUnitStructuralPathSegment::Field),
-            PlaceSegment::FixedIndex { index } => Some(
-                CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
-            ),
-            PlaceSegment::Index { expression } => selectors
-                .as_ref()
-                .and_then(|selectors| selectors.runtime_segment(*expression)),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let lower_path = |segments: &[PlaceSegment]| {
+        segments
+            .iter()
+            .map(|segment| match segment {
+                PlaceSegment::Field { symbol } => terminal_field_identity(program, *symbol)
+                    .map(CheckedUnitStructuralPathSegment::Field),
+                PlaceSegment::FixedIndex { index } => Some(
+                    CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
+                ),
+                PlaceSegment::Index { expression } => selectors
+                    .as_ref()
+                    .and_then(|selectors| selectors.runtime_segment(*expression)),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+    };
+    let storage_path = lower_path(&segments)?;
     // Checked argument sources use the retained structural lane, not the
     // authored parameter list containing scalar and erased formals. Keep the
     // same dense coordinate in the window ledger and both emitted plans.
-    Some((u32::try_from(parameter_index).ok()?, path))
+    let parameter_index = u32::try_from(parameter_index).ok()?;
+    let (source, path) = if program
+        .state_local_declaration(state, root_symbol)
+        .is_some_and(|(ordinal, local)| {
+            ordinal < statement_index
+                && crate::checks::type_reference_is_reference(program, local.type_reference)
+        }) {
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: root_symbol,
+            },
+            lower_path(&place.segments)?,
+        )
+    } else {
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+            storage_path.clone(),
+        )
+    };
+    Some(WindowPlace {
+        parameter_index,
+        storage_path,
+        source,
+        path,
+    })
 }
 
 /// Rebase a place written through a reference-typed local onto the referent
@@ -232,7 +270,7 @@ impl OpenWindows {
         let place = move_out_candidate(program, state, index, local)?;
         let multiplicity = program.type_multiplicity(local.type_reference);
         let statements = program.statement_table.statements(state.statement_nodes);
-        let (position, path) = window_place(
+        let place = window_place(
             program,
             facts,
             machine,
@@ -253,17 +291,18 @@ impl OpenWindows {
                 program, machine, state, local,
             ),
         };
-        if !self.open.insert((position, path.clone())) {
+        if !self
+            .open
+            .insert((place.parameter_index, place.storage_path))
+        {
             return None;
         }
         Some((
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: result.clone(),
                 source: CheckedUnitStructuralArgumentPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index: position,
-                    },
-                    path,
+                    source: place.source,
+                    path: place.path,
                     type_identity,
                     access: CheckedStructuralAccess::Owned,
                 },
@@ -340,6 +379,7 @@ impl OpenWindows {
                 index: usize::try_from(*element).ok()?,
             });
         }
+        let access_place = destination_place.clone();
         let (resolved_root, resolved_segments) = resolve_storage_place(
             program,
             state,
@@ -405,7 +445,7 @@ impl OpenWindows {
                 occupied,
             )
         } else {
-            let (position, path) = window_place(
+            let place = window_place(
                 program,
                 facts,
                 machine,
@@ -413,15 +453,15 @@ impl OpenWindows {
                 program.statement_table.statements(state.statement_nodes),
                 index,
                 structural_parameters,
-                &destination_place,
+                &access_place,
                 assignment.target,
             )?;
-            let needs_displacement = !self.open.remove(&(position, path.clone()));
+            let needs_displacement = !self
+                .open
+                .remove(&(place.parameter_index, place.storage_path));
             (
-                CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: position,
-                },
-                path,
+                place.source,
+                place.path,
                 needs_displacement,
                 needs_displacement && produced.multiplicity == Multiplicity::Affine,
             )

@@ -89,76 +89,6 @@ impl TerminalExecution<'_> {
         )
     }
 
-    fn prepare_cleanup_geometry(
-        &self,
-        structural_arguments: &[StructuralArgument],
-        actions: &[terminal_psi::TerminalAffineCleanupAction],
-    ) -> Result<(), TerminalInterpretError> {
-        // Projected owned arguments move exact affine children; cleanup
-        // actions select the established remainder. Check selected
-        // storage on a scratch frontier before charging or mutating state;
-        // source checking, not reserved storage geometry, owns completeness.
-        let mut projected_frontier = None;
-        for argument in structural_arguments.iter().filter(|argument| {
-            argument.access == StructuralAccess::Owned && !argument.path.is_empty()
-        }) {
-            self.consume_affine_projection(
-                projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
-                argument,
-            )?;
-        }
-        for (place, path, structural_type) in
-            actions
-                .iter()
-                .enumerate()
-                .filter_map(|(position, action)| match action {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some((
-                        discard.place,
-                        discard.path.as_slice(),
-                        discard.structural_type,
-                    )),
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                        if !cleanup.path.is_empty()
-                            && cleanup.consumed_claims.is_empty()
-                            && !crate::custody::cleanup_retains_descendants(
-                                cleanup,
-                                actions.get(position + 1),
-                            ) =>
-                    {
-                        Some((
-                            cleanup.place,
-                            cleanup.path.as_slice(),
-                            cleanup.structural_type,
-                        ))
-                    }
-                    _ => None,
-                })
-        {
-            // Linear hooks consume their exact claims, not an affine residual.
-            // Their disposition is staged with the selected cleanup action.
-            let root = self.structural_values.get(&place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(place),
-            )?;
-            if path.is_empty()
-                || resolve_structural_path_type(
-                    &self.program.structural_types(),
-                    root.structural_type,
-                    path,
-                )? != structural_type
-            {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-            self.consume_affine_projection(
-                projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
-                &StructuralArgument {
-                    place,
-                    path: path.to_vec(),
-                    access: StructuralAccess::Owned,
-                },
-            )?;
-        }
-        Ok(())
-    }
 
     fn settle_successor(
         &mut self,
@@ -173,9 +103,8 @@ impl TerminalExecution<'_> {
             structural_arguments,
             cleanup_actions,
         } = successor;
-        self.prepare_cleanup_geometry(structural_arguments, cleanup_actions)?;
         let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
-        bindings.validate_cleanup_actions(self, cleanup_actions)?;
+        bindings.validate_cleanup_actions(self, structural_arguments, cleanup_actions)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -280,8 +209,7 @@ impl TerminalExecution<'_> {
             bindings.push((parameter.id, scalar));
         }
         let bindings = block_bindings::BlockBindings::from_scalars(bindings);
-        self.prepare_cleanup_geometry(&[], &successor.cleanup_actions)?;
-        bindings.validate_cleanup_actions(self, &successor.cleanup_actions)?;
+        bindings.validate_cleanup_actions(self, &[], &successor.cleanup_actions)?;
         if let Err(error) = meter.charge_edge(successor.edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -313,8 +241,7 @@ impl TerminalExecution<'_> {
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(malformed());
         }
-        self.prepare_cleanup_geometry(&[], cleanup_actions)?;
-        block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
+        block_bindings::BlockBindings::default().validate_cleanup_actions(self, &[], cleanup_actions)?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -345,8 +272,7 @@ impl TerminalExecution<'_> {
         if machine.result != TerminalMachineResult::Unit {
             return Err(malformed());
         }
-        self.prepare_cleanup_geometry(&[], cleanup_actions)?;
-        block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
+        block_bindings::BlockBindings::default().validate_cleanup_actions(self, &[], cleanup_actions)?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }

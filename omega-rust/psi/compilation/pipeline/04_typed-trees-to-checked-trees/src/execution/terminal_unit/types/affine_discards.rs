@@ -8,7 +8,6 @@ use super::*;
 /// reference, projected or whole, borrows backing and leaves its source owner
 /// on the checked cleanup roster; a returned descriptor carries its own loan.
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
-    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -154,9 +153,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         }
         let parameter_index = parameter_index?;
         let parameter = &structural_parameters[parameter_index];
-        let source_parameter = source_parameters.get(parameter.position as usize)?;
         if parameter.multiplicity != Multiplicity::Affine
-            || type_graph_requires_nominal_drop(program, source_parameter.type_reference)
             || output.contains(&(parameter_index as u32))
         {
             return None;

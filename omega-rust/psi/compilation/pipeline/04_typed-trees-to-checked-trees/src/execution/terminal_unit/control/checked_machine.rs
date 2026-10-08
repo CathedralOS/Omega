@@ -325,7 +325,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     }
     let (trivial_affine_discards, residual_affine_discards, has_projected_parameter_moves) =
         return_unit_affine_discards(
-            program,
             facts,
             machine.symbol,
             state.symbol,
@@ -337,6 +336,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         )?;
     operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
+        parameter_cleanup_actions: Vec::new(),
         trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
             .rev()
             .map(|ordinal| u32::try_from(ordinal).ok())

@@ -127,7 +127,7 @@ impl BorrowedWindowLedger {
         let place = resolve_window_place(
             moved,
             parameters,
-            &evaluation.evaluation.structural_locals,
+            evaluation.evaluation,
             operations,
             structural_types,
             type_ids,
@@ -218,7 +218,7 @@ impl BorrowedWindowLedger {
         let place = resolve_window_place(
             destination,
             parameters,
-            &evaluation.evaluation.structural_locals,
+            evaluation.evaluation,
             operations,
             structural_types,
             type_ids,
@@ -343,7 +343,7 @@ pub(crate) struct WindowEvaluation<'a, 'calls> {
 fn resolve_window_place(
     plan: &CheckedUnitStructuralArgumentPlan,
     parameters: &[StructuralParameterDeclaration],
-    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
     type_ids: &[(String, StructuralTypeId)],
@@ -377,18 +377,21 @@ fn resolve_window_place(
             // A window uses the same exclusive destination as an ordinary
             // field store. Referent traversal below retains the loan carrier;
             // accepting a local never substitutes its payload for its storage.
-            let (source, root_type) = super::store_destination::unqualified_local_store_root(
-                symbol, locals, operations,
-            ).map_err(|_| unpinned(
-                &spelling,
-                "the local root is not an established structural local with unqualified exclusive custody",
-            ))?;
-            let (argument, _) =
-                super::store_destination::local_store_root(symbol, locals, operations)?;
+            let root = super::store_destination::local_store_root(
+                symbol,
+                &evaluation.structural_locals,
+                evaluation.structural_root_parameters(),
+                operations,
+            )
+            .map_err(|error| match error {
+                LoweringError::Unsupported(reason) => unpinned(&spelling, reason),
+                error => error,
+            })?;
+            root.require_unqualified()?;
             (
-                source,
-                root_type,
-                argument.access != StructuralAccess::Owned,
+                root.argument.place,
+                root.structural_type,
+                root.argument.access != StructuralAccess::Owned,
             )
         }
         _ => {
@@ -409,16 +412,12 @@ fn resolve_window_place(
     // loan: the hole is the loan's whole referent, of the parameter's own
     // declared type. An owned local's whole value moves by ordinary
     // transfer, never through a window.
-    if plan.path.is_empty() {
-        if !matches!(
+    if plan.path.is_empty()
+        && matches!(
             plan.source,
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-        ) {
-            return Err(unpinned(
-                &spelling,
-                "whole-root routes open a window only beneath an exclusive `&mut` parameter loan",
-            ));
-        }
+        )
+    {
         if lookup_type_id(type_ids, &plan.type_identity)? != root_type {
             return Err(unpinned(
                 &spelling,
@@ -456,8 +455,14 @@ fn resolve_window_place(
             };
             (Some(field.id), hole_type)
         }
-        WindowLeaf::Element { element_type } => (None, element_type),
+        WindowLeaf::Subtree { structural_type } => (None, structural_type),
     };
+    if steps.is_empty() && field.is_none() {
+        return Err(unpinned(
+            &spelling,
+            "an owned whole local transfers without a restoration window",
+        ));
+    }
     if lookup_type_id(type_ids, &plan.type_identity)? != hole_type {
         return Err(unpinned(
             &spelling,

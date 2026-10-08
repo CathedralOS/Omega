@@ -9,7 +9,7 @@
 //! This is geometry, not permission: consumers still authenticate the root,
 //! runtime bounds, live loan, value custody and exact restoration debt.
 
-use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
@@ -18,6 +18,31 @@ use terminal_psi::{
 pub struct StructuralWindowProjection {
     pub path: Vec<StructuralPathSegment>,
     pub structural_type: StructuralTypeId,
+}
+
+/// Authenticate every reconstructed backing of a whole-referent window as
+/// exclusive parameter storage. The caller must obtain these roots from live
+/// loan custody, not pointer bits or a producer origin assertion. A reference
+/// carrier alone supplies no whole-root authority, and no possible origin may
+/// be discarded just because another candidate is an exclusive parameter.
+pub fn structural_window_parameter_origins<'parameters>(
+    parameters: impl Iterator<Item = &'parameters terminal_psi::StructuralParameterDeclaration> + Clone,
+    origins: impl IntoIterator<Item = PlaceId>,
+) -> bool {
+    let mut found_origin = false;
+    for root in origins {
+        found_origin = true;
+        if !parameters.clone().any(|parameter| {
+            parameter.place == root
+                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        }) {
+            return false;
+        }
+    }
+    found_origin
 }
 
 /// Whether the window selects a child of the storage root it reaches. Crossing

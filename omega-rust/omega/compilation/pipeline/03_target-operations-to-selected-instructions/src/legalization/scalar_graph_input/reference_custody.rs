@@ -157,13 +157,13 @@ impl Custody {
 /// Live permission and referent-relative geometry behind a materialized carrier.
 /// Candidate roots constrain authority; its pointer payload selects the address.
 pub(in crate::legalization) struct WritableReferentDestination {
-    pub(in crate::legalization) producer: OperationId,
-    pub(in crate::legalization) result: StructuralOperationResult,
+    pub(in crate::legalization) carrier_type: StructuralTypeId,
     pub(in crate::legalization) referent: StructuralTypeId,
     pub(in crate::legalization) path: Vec<StructuralPathSegment>,
 }
 
 fn materialized_mutable_record_projection(
+    function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     carrier: PlaceId,
@@ -173,10 +173,14 @@ fn materialized_mutable_record_projection(
         return None;
     };
     let leaf = custody.leaf(carrier, &[])?;
+    // Formation provenance survives transport; the current declaration
+    // supplies carrier custody, not authority over the loan's backing.
+    let carrier_type =
+        optimization_unit_semantics::unqualified_owned_reference_carrier(function, carrier)?;
     let StructuralTypeShape::Reference {
         referent,
         access: StructuralAccess::MutableBorrow,
-    } = &find_structural_type(types, leaf.result.structural_type)?.shape
+    } = &find_structural_type(types, carrier_type)?.shape
     else {
         return None;
     };
@@ -188,38 +192,31 @@ fn materialized_mutable_record_projection(
     ) {
         return None;
     }
-    let producer = leaf.operation?;
     if *referent != leaf.referent
         || custody
             .leaves
             .values()
             .any(|child| child.parents.contains(&leaf.identity))
-        || leaf.result.place != carrier
-        || leaf.result.multiplicity != StructuralMultiplicity::Affine
-        || !leaf.result.qualification_establishments.is_empty()
-        || !leaf.result.qualifications.is_empty()
-        || !leaf.result.projected_qualifications.is_empty()
-        || !leaf.result.claims.is_empty()
     {
         return None;
     }
     // The retained formation has already authenticated backing and view
     // interpretation. Origin type equality would erase byte-backed views.
     Some(WritableReferentDestination {
-        producer,
-        result: leaf.result.clone(),
+        carrier_type,
         referent: *referent,
         path: tail.to_vec(),
     })
 }
 
 pub(in crate::legalization) fn writable_referent_destination(
+    function: &PsiOptimizationFunction,
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
     carrier: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<WritableReferentDestination> {
-    materialized_mutable_record_projection(custody, types, carrier, path)
+    materialized_mutable_record_projection(function, custody, types, carrier, path)
 }
 
 #[track_caller]

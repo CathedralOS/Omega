@@ -414,6 +414,9 @@ pub enum CheckedUnitEffectOperationPlan {
     /// binding or scalar control result when present, and Unit otherwise.
     Complete {
         statement_index: u32,
+        /// Checked normal-edge parameter dispositions, including nominal hooks
+        /// and linear claims. These retain the owner's selected action order.
+        parameter_cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
         /// Exact local declaration coordinates cleaned before parameters, in
         /// reverse declaration order.
         trivial_affine_local_discard_ordinals: Vec<u32>,
@@ -479,6 +482,7 @@ impl Default for CheckedStructuralValueCall {
             operands: CheckedOperandSequence::default(),
             operation: CheckedUnitEffectOperationPlan::Complete {
                 statement_index: 0,
+                parameter_cleanup_actions: Vec::new(),
                 trivial_affine_local_discard_ordinals: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },

@@ -263,19 +263,19 @@ impl OperationFrame<'_, '_> {
                         IndexedWriteTarget::ByteView(write)
                     }
                     checked_trees::CheckedStoreRoot::Local { symbol } => {
-                        let (argument, produced) =
-                            crate::emission::store_destination::local_store_root(
-                                symbol,
-                                &self.evaluation.structural_locals,
-                                self.operations,
-                            )?;
-                        if argument.access != StructuralAccess::Owned {
+                        let root = crate::emission::store_destination::local_store_root(
+                            symbol,
+                            &self.evaluation.structural_locals,
+                            self.evaluation.structural_root_parameters(),
+                            self.operations,
+                        )?;
+                        if root.argument.access != StructuralAccess::Owned {
                             return unsupported("byte write local is not an owned home");
                         }
                         IndexedWriteTarget::OwnedBytes {
                             write,
-                            place: argument.place,
-                            structural_type: produced.structural_type,
+                            place: root.argument.place,
+                            structural_type: root.structural_type,
                         }
                     }
                 };

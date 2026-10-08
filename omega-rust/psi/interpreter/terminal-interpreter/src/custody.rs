@@ -176,34 +176,81 @@ pub(crate) fn commit_cleanup_action(
             }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            if cleanup.consumed_claims.is_empty() && !cleanup_retains_descendants(cleanup, next) {
-                consume_affine_projection(
-                    structural_types,
-                    structural_values,
-                    structural_cases,
-                    frontier,
-                    &StructuralArgument {
-                        place: cleanup.place,
-                        path: cleanup.path.clone(),
-                        access: StructuralAccess::Owned,
-                    },
-                )?;
-                // Reserve exactly this pending hook until normal completion.
-                // The enclosing frame is suspended, so it cannot consume the
-                // selected obligation a second time while the hook runs.
-                frontier.insert(StructuralAffineDiscard {
-                    place: cleanup.place,
-                    path: cleanup.path.clone(),
-                    structural_type: cleanup.structural_type,
-                });
-            }
-            for claim in &cleanup.consumed_claims {
-                live_claims.remove(claim);
-            }
+            begin_nominal_cleanup(
+                structural_types,
+                structural_values,
+                structural_cases,
+                frontier,
+                live_claims,
+                cleanup,
+                next,
+            )?;
             return Ok(Some((cleanup.clone(), value)));
         }
     }
     Ok(None)
+}
+
+/// Begin an owner-authorized disposition before lending its intact value.
+/// A linear parent's claim covers its contents once, not one extra claim per
+/// transparent child. Once that claim is consumed, retain the selected region
+/// as structural cleanup debt until the subsequent child actions finish. This
+/// reservation cannot transfer a value or mint a claim; retirement still requires
+/// the complete ordered disposal partition.
+pub(crate) fn begin_nominal_cleanup(
+    structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_cases: &BTreeMap<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: &mut BTreeMap<ClaimId, LiveClaim>,
+    cleanup: &NominalAffineCleanup,
+    next: Option<&TerminalAffineCleanupAction>,
+) -> Result<(), TerminalInterpretError> {
+    let retains_descendants = cleanup_retains_descendants(cleanup, next);
+    if cleanup.consumed_claims.is_empty() && !retains_descendants {
+        consume_affine_projection(
+            structural_types,
+            values,
+            structural_cases,
+            frontier,
+            &StructuralArgument {
+                place: cleanup.place,
+                path: cleanup.path.clone(),
+                access: StructuralAccess::Owned,
+            },
+        )?;
+        frontier.insert(StructuralAffineDiscard {
+            place: cleanup.place,
+            path: cleanup.path.clone(),
+            structural_type: cleanup.structural_type,
+        });
+    }
+    for claim in &cleanup.consumed_claims {
+        claims.remove(claim);
+    }
+    if retains_descendants && !cleanup.consumed_claims.is_empty() {
+        if !frontier.insert(StructuralAffineDiscard {
+            place: cleanup.place,
+            path: cleanup.path.clone(),
+            structural_type: cleanup.structural_type,
+        }) {
+            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        }
+        exclude_linear_regions(
+            structural_types,
+            frontier,
+            claims
+                .values()
+                .filter(|claim| {
+                    claim.place == Some(cleanup.place) && claim.path.starts_with(&cleanup.path)
+                })
+                .map(|claim| (cleanup.place, claim.path.as_slice())),
+        )?;
+    }
+    Ok(())
 }
 
 /// Validate the complete cleanup transaction before the value is lent. The
@@ -338,7 +385,7 @@ pub(crate) fn complete_nominal_cleanup(
 /// has finished, so reserved geometry for never-established fields is not debt.
 /// This event is not a wildcard disposal, claim discharge, or loan restoration;
 /// backing retained by captured outgoing values survives the frame binding.
-fn retire_cleanup_home(
+pub(crate) fn retire_cleanup_home(
     values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,

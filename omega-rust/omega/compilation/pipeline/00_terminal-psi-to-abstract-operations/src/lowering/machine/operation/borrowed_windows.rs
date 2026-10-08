@@ -167,7 +167,18 @@ fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<Str
         )
         && has_empty_structural_custody(machine, place)
     {
-        return Some(StructuralWindowRoot::BorrowedParameter(parameter));
+        return Some(StructuralWindowRoot::Parameter(parameter));
+    }
+    if let Some((block, parameter)) =
+        super::primitive_storage::owned_state_parameter(machine, place)
+        && block != machine.entry
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+    {
+        return Some(StructuralWindowRoot::OwnedBlockParameter {
+            block,
+            parameter: parameter.clone(),
+        });
     }
     // Rejoin the unique operation-result declaration rather than recognize
     // how its producer was spelled. The verified window and the field-shape
@@ -189,7 +200,11 @@ fn root_window_loan(
     field: Option<StructuralFieldId>,
 ) -> bool {
     terminal_semantics::structural_window_selects_child(path, field)
-        || (path.is_empty() && matches!(root, StructuralWindowRoot::BorrowedParameter(_)))
+        // This is the declared route, not live authority. Current loan replay
+        // authenticates all of its parameter origins before realization.
+        || (path.first() == Some(&StructuralPathSegment::Referent)
+            && root.parameter().is_none())
+        || (path.is_empty() && matches!(root, StructuralWindowRoot::Parameter(_)))
 }
 
 /// The declared `Structural` type of the field a window operation names,
@@ -206,21 +221,21 @@ fn declared_window_field_type(
     // explicit crossing changes geometry; keep the original root and path on
     // the emitted operation for loan replay and native pointer transport.
     let (root, path) = if let Some((StructuralPathSegment::Referent, suffix)) = path.split_first() {
-        let StructuralWindowRoot::OwnedResult { result, .. } = root else {
+        if root.parameter().is_some() {
             return None;
-        };
+        }
         let StructuralTypeShape::Reference {
             referent,
             access: StructuralAccess::MutableBorrow,
         } = structural_types
             .iter()
-            .find(|row| row.id == result.structural_type)?
+            .find(|row| row.id == root.structural_type())?
             .shape
         else {
             return None;
         };
-        if result.multiplicity != StructuralMultiplicity::Affine
-            || !result.qualification_establishments.is_empty()
+        if root.multiplicity() != StructuralMultiplicity::Affine
+            || matches!(root, StructuralWindowRoot::OwnedResult { result, .. } if !result.qualification_establishments.is_empty())
             || !matches!(
                 structural_types
                     .iter()

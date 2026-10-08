@@ -12,9 +12,7 @@ use checked_trees::{
     CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan, FlowClaimJoinExit,
     FlowClaimJoinExitKind,
 };
-use terminal_psi::{
-    StructuralAffineDiscard, StructuralParameterDeclaration, TerminalAffineCleanupAction,
-};
+use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};
 
 pub(super) fn destination(
     _checked: &CheckedTrees,
@@ -278,43 +276,38 @@ pub(super) fn for_exit(
         })
         .collect::<Vec<_>>();
     let discharged = discharged_in_body(state);
-    let rows = selected_exit.actions.iter().filter(|action|
-        !discharged.iter().any(|committed| *committed == *action)
-    ).map(|action| {
-        let (place, root_type) = evaluation.cleanup_storage(action.source(), parameters, |binding_ordinal| {
-            let (_, result) = operations.structural_values.iter()
-                .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                .ok_or(LoweringError::Unsupported("cleanup result is not established"))?;
-            Ok((result.place(), result.structural_type()))
-        })?;
-        match action {
-            CheckedNormalCleanupAction::RetireHome { .. } => {
-                Ok(TerminalAffineCleanupAction::RetireHome(place))
-            }
-            CheckedNormalCleanupAction::Discard(discard) => {
-                let structural_type = crate::terminal_identities::lookup_type_id(&catalogs.type_ids, &discard.type_identity)?;
-                if discard.path.is_empty() {
-                    Ok(TerminalAffineCleanupAction::DiscardRoot(place))
-                } else {
-                    let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                        &discard.path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
-                    )?;
-                    Ok(TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard { place, path, structural_type }))
-                }
-            }
-            CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
-                let structural_type = crate::terminal_identities::lookup_type_id(&catalogs.type_ids, &cleanup.type_identity)?;
-                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                    &cleanup.path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
-                )?;
-                Ok(TerminalAffineCleanupAction::InvokeNominal(crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                    cleanup, place, structural_type, path,
-                    &catalogs.scalar_calls.machine_ids, &receivers, &catalogs.scalar_calls.requirement_counts,
-                    &mut catalogs.scalar_calls.next_call_obligation,
-                )?))
-            }
-        }
-    }).collect::<Result<Vec<_>, _>>()?;
+    let rows = crate::unit::unit_cleanup::lower_checked_cleanup_actions(
+        selected_exit
+            .actions
+            .iter()
+            .filter(|action| !discharged.iter().any(|committed| *committed == *action)),
+        &catalogs.structural_types,
+        &catalogs.type_ids,
+        |source| {
+            evaluation.cleanup_storage(source, parameters, |binding_ordinal| {
+                let (_, result) = operations
+                    .structural_values
+                    .iter()
+                    .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                    .ok_or(LoweringError::Unsupported(
+                        "cleanup result is not established",
+                    ))?;
+                Ok((result.place(), result.structural_type()))
+            })
+        },
+        |cleanup, place, structural_type, path| {
+            crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                cleanup,
+                place,
+                structural_type,
+                path,
+                &catalogs.scalar_calls.machine_ids,
+                &receivers,
+                &catalogs.scalar_calls.requirement_counts,
+                &mut catalogs.scalar_calls.next_call_obligation,
+            )
+        },
+    )?;
     let mut actions = deferred_carrier_releases(state, evaluation, operations)?;
     actions.retain(|carrier| !rows.iter().any(|row| row.place() == carrier.place()));
     actions.extend(rows);

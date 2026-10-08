@@ -250,7 +250,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // A moved value retains its declared linear frontier. Result claim-path
     // structure is checked by the common result foundation; current custody
     // and its transfer are not a second storage-shape classification here.
-    let Some(root_type) = window_root_type(machine, *source, path, *field) else {
+    let Some(root_type) = window_root_type(module, machine, *source, path, *field) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -280,7 +280,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) = window_root_type(machine, *destination, path, *field) else {
+    let Some(root_type) = window_root_type(module, machine, *destination, path, *field) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -317,16 +317,37 @@ fn declared_scalar_type(
 }
 
 fn window_root_type(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     if !terminal_semantics::structural_window_selects_child(path, field) {
-        if !path.is_empty() {
+        if path.is_empty() {
+            return mutable_borrowed_parameter_type(machine, place);
+        }
+        // Serialization proves the carrier and referent geometry. Ordered
+        // custody must additionally authenticate the reference's backing as
+        // exclusive parameter storage, with no live descendants.
+        if path.first() != Some(&terminal_psi::StructuralPathSegment::Referent) {
             return None;
         }
-        mutable_borrowed_parameter_type(machine, place)
+        let root_type = borrowed_field_store_root_type(machine, place)?;
+        module
+            .structural_types
+            .iter()
+            .any(|declaration| {
+                declaration.id == root_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference {
+                            access: terminal_psi::StructuralAccess::MutableBorrow,
+                            ..
+                        }
+                    )
+            })
+            .then_some(root_type)
     } else {
         borrowed_field_store_root_type(machine, place)
     }
@@ -341,24 +362,29 @@ fn borrowed_field_store_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    if let Some(structural_type) = mutable_borrowed_parameter_type(machine, place) {
-        return Some(structural_type);
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == place)
+        && matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
+        )
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && (parameter.access == terminal_psi::StructuralAccess::Owned
+            || parameter.is_unqualified_root())
+    {
+        return Some(parameter.structural_type);
     }
     machine
         .operations()
-        .filter(|producer| {
-            matches!(
-                producer.kind,
-                OperationKind::EstablishStructuralArray { .. }
-                    | OperationKind::EstablishRecord { .. }
-                    | OperationKind::EstablishZeroedStructural { .. }
-                    | OperationKind::EstablishStructuralLocal { .. }
-                    | OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. }
-                    | OperationKind::StructuralLeafCopy { .. }
-                    | OperationKind::StructuralCaseLeafCopy { .. }
-            )
-        })
         .filter_map(|producer| producer.result.structural())
         .find(|result| {
             result.place == place

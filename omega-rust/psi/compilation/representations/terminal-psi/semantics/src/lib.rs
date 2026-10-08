@@ -102,9 +102,8 @@ pub use record_field::{
 };
 pub use reference_views::{
     reference_source_compatible, reference_storage_byte_width, reference_storage_fixed_byte_width,
-    reference_storage_source_compatible,
-    reference_storage_view_is_compatible, scalar_reference_view_is_total,
-    scalar_reference_view_value,
+    reference_storage_source_compatible, reference_storage_view_is_compatible,
+    scalar_reference_view_is_total, scalar_reference_view_value,
 };
 pub use scalar_array::scalar_array_leaf_shape;
 pub use scalar_field_requirements::{
@@ -148,7 +147,8 @@ pub use structural_effect::{
     validate_structural_effect_semantic_rows,
 };
 pub use structural_window::{
-    StructuralWindowProjection, structural_window_projection, structural_window_selects_child,
+    StructuralWindowProjection, structural_window_parameter_origins, structural_window_projection,
+    structural_window_selects_child,
 };
 pub use zeroed_structural::{
     EstablishedErasedStructuralField, ZeroedStructuralLeaf, zeroed_structural_leaves,

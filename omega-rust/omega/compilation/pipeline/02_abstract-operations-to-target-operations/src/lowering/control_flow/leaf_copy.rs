@@ -83,7 +83,7 @@ pub(super) fn copy_extent(
         {
             Some(
                 super::references::writable_referent_destination(live, types, source, path)
-                    .filter(|referent| referent.result.structural_type == root_type)
+                    .filter(|referent| referent.carrier_type == root_type)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
             )
         }

@@ -157,7 +157,7 @@ pub(super) fn reseat(
         return Err(invalid());
     };
     let destination_admits = match destination {
-        abstract_operations::StructuralWindowRoot::BorrowedParameter(destination) => {
+        abstract_operations::StructuralWindowRoot::Parameter(destination) => {
             destination.access == terminal_psi::StructuralAccess::MutableBorrow
                 && (source.structural.as_ref().is_some_and(|signature| {
                     signature
@@ -172,6 +172,10 @@ pub(super) fn reseat(
         // An owned completed home's authority is its live transport pointer,
         // resolved against `destination.place` below.
         abstract_operations::StructuralWindowRoot::OwnedResult { .. } => true,
+        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
+            crate::selection::aggregate_result_input::block_home(source, parameter.place)
+                == Some((*block, parameter))
+        }
     };
     if row.result.is_some() || !destination_admits {
         return Err(invalid());
@@ -198,19 +202,9 @@ pub(super) fn reseat(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
-        let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } =
-            destination
-        else {
-            return Err(invalid());
-        };
-        if crate::selection::aggregate_result_input::home(source, result.place)
-            != Some((*producer, result))
-        {
-            return Err(invalid());
-        }
-        crate::selection::reference_input::mutable_projection(source, result.place, path)
+        crate::selection::reference_input::store_destination(source, destination, path)
             .ok_or(invalid())?;
-        super::reference::load(builder, row, result.place, root)?
+        super::reference::load(builder, row, destination.place(), root)?
     } else {
         root
     };

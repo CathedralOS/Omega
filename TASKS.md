@@ -637,14 +637,7 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: preserve a retained local reference's access route when opening
-    or repairing a whole-referent window. `let alias: &mut T = parameter;`
-    followed by `let removed: T = alias; alias = transform(removed);` currently
-    rebases the window operation to the original parameter while the alias
-    suspends it; native realization rejects in
-    `02_abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs`.
-    Preserve that access authority alongside canonical restoration debt,
-    rather than exempting a suspended parent. Qualify remaining referent
+  - Missing: qualify remaining referent
     windows and complete nominal old-value replacement in the checked-tree
     interpreter: `runtime_borrowed_nominal_replacement_exit` currently declines
     there, while its native and Terminal executions produce the authored 0.
@@ -674,6 +667,9 @@ defines the complete product bar.
   candidates a body does not select.
   Keep `pass/ownership/runtime_whole_borrowed_transform_exit` (42) for
   whole-parameter extraction and both fresh and identity result repair, and
+  `pass/ownership/runtime_retained_alias_referent_transform_exit` (42) for
+  retained and forwarded aliases, projected nonzero-offset caller storage
+  and nested linear cleanup, and
   `fail/ownership/whole_borrowed_{missing_repair,stale_observation,shared_extraction,live_descendant,forwarded_live_descendant}`
   for exact restoration and exclusive-route admission.
   Missing repair, early return, stale reads, overlapping loans, wrong-place

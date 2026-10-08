@@ -219,6 +219,28 @@ fn check_window_access(
             path,
             field,
         )?;
+        if !terminal_semantics::structural_window_selects_child(path, field) {
+            let origin = live
+                .iter()
+                .find(|loan| loan.carrier == root.place() && loan.carrier_path.is_empty())
+                .map(|loan| origin_place(&loan.root));
+            if !terminal_semantics::structural_window_parameter_origins(
+                function.structural_parameters.iter().chain(
+                    function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
+                ),
+                origin,
+            ) {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "whole-referent restoration requires an exclusive parameter origin",
+                ));
+            }
+        }
     }
     let hole = window_hole(
         function,

@@ -45,10 +45,51 @@ pub(crate) fn continuation_cleanups(
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
             } => Some(cleanup_actions),
+            CheckedUnitEffectOperationPlan::Complete {
+                parameter_cleanup_actions,
+                ..
+            } => Some(parameter_cleanup_actions),
             _ => None,
         })
         .flatten()
         .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+}
+
+/// Lower an ordered checked disposition in the caller's live storage namespace.
+/// Call continuations and normal exits share action geometry; the caller supplies
+/// its binding resolution and hook-obligation allocator, not another cleanup policy.
+pub(crate) fn lower_checked_cleanup_actions<'action>(
+    actions: impl IntoIterator<Item = &'action checked_trees::CheckedNormalCleanupAction>,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    type_ids: &[(String, StructuralTypeId)],
+    mut storage: impl FnMut(
+        &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+    ) -> Result<(PlaceId, StructuralTypeId), LoweringError>,
+    mut nominal: impl FnMut(
+        &CheckedUnitNominalAffineCleanupPlan,
+        PlaceId,
+        StructuralTypeId,
+        Vec<terminal_psi::StructuralPathSegment>,
+    ) -> Result<NominalAffineCleanup, LoweringError>,
+) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
+    actions.into_iter().map(|action| {
+        let (place, root_type) = storage(action.source())?;
+        match action {
+            checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => Ok(terminal_psi::TerminalAffineCleanupAction::RetireHome(place)),
+            checked_trees::CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty() => Ok(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)),
+            _ => {
+                let structural_type = lookup_type_id(type_ids, action.type_identity())?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    action.path(), root_type, types, None, &mut std::iter::empty(), None,
+                )?;
+                match action {
+                    checked_trees::CheckedNormalCleanupAction::Discard(_) => Ok(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard { place, path, structural_type })),
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => Ok(terminal_psi::TerminalAffineCleanupAction::InvokeNominal(nominal(cleanup, place, structural_type, path)?)),
+                    checked_trees::CheckedNormalCleanupAction::RetireHome { .. } => Err(LoweringError::Unsupported("home retirement has no subtree action")),
+                }
+            }
+        }
+    }).collect()
 }
 
 pub(crate) fn computation_cleanups(

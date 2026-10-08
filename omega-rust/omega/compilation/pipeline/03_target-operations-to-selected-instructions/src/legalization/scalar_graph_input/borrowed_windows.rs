@@ -49,28 +49,41 @@ pub(in crate::legalization) fn extent(
     custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
     let referent = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
-        let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } = root
-        else {
+        if root.parameter().is_some() {
             return Err(LegalizationError::custody());
-        };
+        }
         let referent = super::reference_custody::writable_referent_destination(
+            function,
             custody,
             &plan.structural_types,
             root.place(),
             path,
         )
         .ok_or(LegalizationError::custody())?;
-        if referent.producer != *producer || referent.result != *result {
+        if referent.carrier_type != root.structural_type()
+            || root.multiplicity() != terminal_psi::StructuralMultiplicity::Affine
+        {
             return Err(LegalizationError::custody());
         }
         Some(referent)
     } else {
         None
     };
-    let root_type =
-        match root {
-            abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
-                if root.access != StructuralAccess::MutableBorrow
+    let root_type = match root {
+        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
+            if parameter.access != StructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || !function.blocks.iter().any(|candidate| {
+                    candidate.id == *block && candidate.structural_parameters.contains(parameter)
+                })
+            {
+                return Err(LegalizationError::custody());
+            }
+            parameter.structural_type
+        }
+        abstract_operations::StructuralWindowRoot::Parameter(root) => {
+            if root.access != StructuralAccess::MutableBorrow
                 || !(function.structural_parameters.contains(root)
                     || (function
                         .blocks
@@ -80,36 +93,53 @@ pub(in crate::legalization) fn extent(
                             root,
                             &plan.structural_types,
                         )))
-                || function.entry_claim_declarations.iter().any(|claim| claim.input == root.place)
+                || function
+                    .entry_claim_declarations
+                    .iter()
+                    .any(|claim| claim.input == root.place)
             {
                 return Err(LegalizationError::custody());
             }
-                root.structural_type
+            root.structural_type
+        }
+        // An owned completed local home carries no borrowed-window custody;
+        // its authority was admitted upstream from the completing producer.
+        abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => {
+            if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
+                return Err(LegalizationError::custody());
             }
-            // An owned completed local home carries no borrowed-window custody;
-            // its authority was admitted upstream from the completing producer.
-            abstract_operations::StructuralWindowRoot::OwnedResult { result, .. } => {
-                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
-                {
-                    return Err(LegalizationError::custody());
-                }
-                result.structural_type
-            }
-        };
+            result.structural_type
+        }
+    };
     let (root_type, path) = referent.as_ref().map_or((root_type, path), |referent| {
         (referent.referent, referent.path.as_slice())
     });
     let types = &plan.structural_types;
     // Reference crossings retain whole-root authority requirements; only a
     // following field or element selects a child of that referent.
-    if !terminal_semantics::structural_window_selects_child(path, field)
-        && (!path.is_empty()
-            || !matches!(
-                root,
-                abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
-            ))
-    {
-        return Err(LegalizationError::custody());
+    if !terminal_semantics::structural_window_selects_child(path, field) {
+        let authenticated = if referent.is_some() {
+            custody.leaf(root.place(), &[]).is_some_and(|loan| {
+                terminal_semantics::structural_window_parameter_origins(
+                    function.structural_parameters.iter().chain(
+                        function
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters),
+                    ),
+                    loan.root.origins().into_iter().map(|origin| origin.root),
+                )
+            })
+        } else {
+            path.is_empty()
+                && matches!(
+                    root,
+                    abstract_operations::StructuralWindowRoot::Parameter(_)
+                )
+        };
+        if !authenticated {
+            return Err(LegalizationError::custody());
+        }
     }
     let projection =
         terminal_semantics::structural_window_projection(types.iter(), root_type, path, field)

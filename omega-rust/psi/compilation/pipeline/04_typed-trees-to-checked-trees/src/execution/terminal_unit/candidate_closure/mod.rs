@@ -211,17 +211,14 @@ fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
 /// Prune both catalogs to the bodies whose every call dependency is available,
 /// returning one gap per dropped machine that names the direct dependency
 /// that failed at its call site.
-/// `nominal_cleanup_edges` carries each seeded nominal consuming machine to the
-/// exact owner-attached `::drop` hook its return edge will invoke. The hook is
-/// not an operation in the synthetic body, so the closure needs the edge named
-/// here: a dropped hook body drops the consuming machine with it.
+/// Completion and continuation actions publish their hook dependencies in the
+/// same body vocabulary as authored calls; no synthetic dispatcher edge exists.
 pub(super) fn retain_available(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     boundary_symbols: &[SymbolHandle],
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed_machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
-    nominal_cleanup_edges: &[(SymbolHandle, SymbolHandle)],
 ) -> Vec<CheckedUnitPlanGap> {
     let mut closure = CandidateClosure::new(
         candidates
@@ -298,8 +295,23 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::Complete { .. } => {}
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
+                CheckedUnitEffectOperationPlan::Complete {
+                    parameter_cleanup_actions,
+                    ..
+                } => {
+                    for cleanup in parameter_cleanup_actions
+                        .iter()
+                        .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+                    {
+                        closure.require_entry(
+                            caller_index,
+                            cleanup.cleanup_machine,
+                            cleanup.cleanup_state,
+                            GapSite::State(plan.state),
+                        );
+                    }
+                }
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
                     boundary,
                     cleanup_actions,
@@ -323,25 +335,6 @@ pub(super) fn retain_available(
         }
         if !closure.retained[caller_index] {
             continue;
-        }
-        for (_, hook_machine) in nominal_cleanup_edges
-            .iter()
-            .filter(|(caller, _)| *caller == plan.machine)
-        {
-            let hook_state = program
-                .machine_by_symbol(*hook_machine)
-                .and_then(|hook| program.machine_states(hook).first())
-                .map(|state| state.symbol);
-            match hook_state {
-                Some(state) => {
-                    closure.require_entry(caller_index, *hook_machine, state, GapSite::Machine)
-                }
-                None => closure.drop_candidate(
-                    caller_index,
-                    CheckedUnitPlanGapReason::Callee(*hook_machine),
-                    GapSite::Machine,
-                ),
-            }
         }
     }
     for (composed_index, plan) in composed_machines.iter().enumerate() {

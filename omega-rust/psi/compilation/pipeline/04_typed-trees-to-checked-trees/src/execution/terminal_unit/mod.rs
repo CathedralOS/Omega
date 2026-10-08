@@ -244,57 +244,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             construction_gaps.insert(gap_key(machine.symbol), trace.gap(program, machine.symbol));
         }
     }
-    let targets = candidates
-        .iter()
-        .map(CheckedUnitEffectMachinePlan::callable_entry)
-        .chain(
-            composed_machines
-                .iter()
-                .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
-        )
-        .collect::<Vec<_>>();
-    // A free consuming machine (a `drop<T>` specialization) whose parameters
-    // carry an exact owner-attached `::drop` hook has no authored body, so the
-    // ordinary builder omits it at completion. It is still a real call target:
-    // seed its synthetic complete-only plan before closure pruning so callers
-    // transfer custody into it, and the exact hook edge rides the nominal
-    // cleanup roster into lowering. Requirement diagnostics stay owned by the
-    // finalize-time pass over the retained roster.
-    let mut nominal_diagnostics = Vec::new();
-    let nominal_candidates = program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            machine.supply_mode == MachineSupplyMode::CheckedBody
-                && machine.attached_data.is_none()
-                && construction_gaps.contains_key(&gap_key(machine.symbol))
-        })
-        .filter_map(|machine| {
-            build_nominal_affine_unit_cleanup_machine(
-                program,
-                facts,
-                &targets,
-                &mut shapes,
-                machine,
-                &mut nominal_diagnostics,
-            )
-        })
-        .collect::<Vec<_>>();
-    drop(targets);
-    candidates.extend(
-        nominal_candidates
-            .iter()
-            .map(|nominal| nominal.machine.clone()),
-    );
-    let nominal_cleanup_edges = nominal_candidates
-        .iter()
-        .flat_map(|nominal| {
-            nominal
-                .cleanups
-                .iter()
-                .map(|cleanup| (nominal.machine.machine, cleanup.cleanup_machine))
-        })
-        .collect::<Vec<_>>();
 
     let planned = planned_machines(&candidates, &composed_machines);
     let mut gaps = construction_gaps
@@ -318,7 +267,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     let mut temporary_selections = candidates
         .iter()
         .map(|plan| {
-            cleanup::temporary_actions::operations(
+            let temporary = cleanup::temporary_actions::operations(
                 program,
                 facts,
                 &targets,
@@ -327,7 +276,21 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 plan.state,
                 &plan.structural_parameters,
                 &plan.operations,
-            )
+            )?;
+            let normal = cleanup::normal_edges::parameter_cleanups(
+                program,
+                facts,
+                &targets,
+                &mut shapes,
+                plan,
+            )?;
+            let [normal] = normal.as_slice() else {
+                return None;
+            };
+            if normal.exit.kind != checked_trees::FlowClaimJoinExitKind::FinalExpression {
+                return None;
+            }
+            Some((temporary, normal.actions.clone()))
         })
         .collect::<Vec<_>>()
         .into_iter();
@@ -390,8 +353,20 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         None => false,
     });
     candidates.retain_mut(|plan| match temporary_selections.next() {
-        Some(Some(selected)) => {
+        Some(Some((selected, normal))) => {
             cleanup::temporary_actions::install(&mut plan.operations, selected);
+            let Some(CheckedUnitEffectOperationPlan::Complete {
+                parameter_cleanup_actions,
+                trivial_affine_discards,
+                ..
+            }) = plan.operations.last_mut()
+            else {
+                return false;
+            };
+            *parameter_cleanup_actions = normal;
+            // Parameter dispositions now have one authority and one schedule.
+            // The former affine-only reconstruction must not dispose them again.
+            trivial_affine_discards.clear();
             true
         }
         _ => {
@@ -402,7 +377,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                         program,
                         plan.machine,
                         GapSite::State(plan.state),
-                        CheckedUnitPlanGapReason::Unsupported("temporary cleanup actions"),
+                        CheckedUnitPlanGapReason::Unsupported("sequence cleanup actions"),
                     )
                 });
             false
@@ -422,7 +397,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &boundary_symbols,
         &mut candidates,
         &mut composed_machines,
-        &nominal_cleanup_edges,
     );
     gaps.extend(closure_gaps);
     gaps.sort_by_key(|gap| gap_key(gap.machine));
@@ -463,6 +437,12 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                     plan.parameter_storage
                         .iter()
                         .map(|storage| storage.type_identity.as_str()),
+                )
+                .chain(
+                    plan.operations.iter().filter_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::Complete { parameter_cleanup_actions, .. } => Some(parameter_cleanup_actions),
+                        _ => None,
+                    }).flatten().map(|action| action.type_identity()),
                 )
                 .chain(
                     plan.trivial_affine_locals
@@ -976,6 +956,12 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
+            // Free consuming bodies carry contextual parameter cleanup on their
+            // ordinary completion now. A second nominal dispatcher would replace
+            // that ordered stream and lose structural children or linear claims.
+            if machine.attached_data.is_none() {
+                return None;
+            }
             let plan = build_nominal_affine_unit_cleanup_machine(
                 program,
                 facts,
@@ -984,15 +970,6 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
                 machine,
                 diagnostics,
             )?;
-            // A free consuming machine — the `drop<T>` specialization — is a
-            // real ordinary roster member: the cleanup roster covers it only
-            // when closure pruning retained that exact body. Missing cleanup
-            // requirements still diagnose above even when the caller-side
-            // pruning dropped the consuming machine.
-            if machine.attached_data.is_none() && unit_effects.for_machine(machine.symbol).is_none()
-            {
-                return None;
-            }
             Some(plan)
         })
         .collect::<Vec<_>>();

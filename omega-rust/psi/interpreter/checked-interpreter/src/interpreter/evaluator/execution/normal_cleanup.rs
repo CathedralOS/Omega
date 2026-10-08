@@ -1,5 +1,5 @@
 //! Execute checked normal-edge actions before the current frame is retired.
-//! A machine's Unit nominal cleanup plan selects the nominal action executor. A
+//! Ordinary completion and attached Unit cleanup plans select nominal actions. A
 //! selected dependency without an executable plan declines; typed-only evaluation has
 //! no authority to invent a cleanup call from a type or machine name.
 
@@ -30,6 +30,34 @@ impl<'program> Evaluator<'program> {
         // authored positions for looking up the actual runtime binding.
         let flow = &checked.facts.flow;
         let mut actions = Vec::new();
+        if let Some(plan) = flow.terminal_unit_effects.for_machine(machine.symbol) {
+            if plan.state != state.symbol {
+                return unsupported("normal cleanup plan names another return state");
+            }
+            for operation in &plan.operations {
+                let checked_trees::CheckedUnitEffectOperationPlan::Complete {
+                    parameter_cleanup_actions,
+                    ..
+                } = operation
+                else {
+                    continue;
+                };
+                for action in parameter_cleanup_actions {
+                    let CheckedNormalCleanupAction::InvokeNominal(action) = action else {
+                        continue;
+                    };
+                    let parameter = plan
+                        .structural_parameters
+                        .get(action.source_parameter_index().ok_or_else(|| {
+                            Halt::Unsupported("cleanup requires a parameter source".into())
+                        })? as usize)
+                        .ok_or_else(|| {
+                            Halt::Unsupported("cleanup source parameter is absent".into())
+                        })?;
+                    actions.push((action, parameter));
+                }
+            }
+        }
         if let Some(plan) = flow
             .terminal_nominal_affine_unit_cleanups
             .for_machine(machine.symbol)
@@ -132,7 +160,10 @@ impl<'program> Evaluator<'program> {
                         let parameter = plan
                             .structural_parameters
                             .get(*parameter_index as usize)
-                            .filter(|parameter| parameter.type_identity == action.type_identity)
+                            .filter(|parameter| {
+                                !action.path.is_empty()
+                                    || parameter.type_identity == action.type_identity
+                            })
                             .ok_or_else(|| {
                                 Halt::Unsupported("normal cleanup parameter custody drifted".into())
                             })?;
@@ -183,7 +214,7 @@ impl<'program> Evaluator<'program> {
             return Ok(());
         }
         for (action, parameter) in self.normal_cleanup_actions(machine, state)? {
-            if parameter.type_identity != action.type_identity {
+            if action.path.is_empty() && parameter.type_identity != action.type_identity {
                 return unsupported("normal cleanup source type custody drifted");
             }
             let source = self
@@ -204,6 +235,7 @@ impl<'program> Evaluator<'program> {
         action: &CheckedUnitNominalAffineCleanupPlan,
         source: Cell,
     ) -> EvalResult<()> {
+        let source = self.normal_cleanup_cell(source, &action.path)?;
         let checked = self
             .checked
             .expect("cleanup actions require checked custody");
@@ -247,5 +279,95 @@ impl<'program> Evaluator<'program> {
         };
         let _returned = self.run_state_collect(target, target_state, arguments)?;
         Ok(())
+    }
+
+    /// Resolve the selected structural path to the existing runtime cell.
+    /// Schema ordinals select declaration identity, not a runtime field spelling;
+    /// the declaration then supplies the interpreter's field-name payload.
+    fn normal_cleanup_cell(
+        &self,
+        mut source: Cell,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    ) -> EvalResult<Cell> {
+        use checked_trees::CheckedUnitStructuralPathSegment;
+        use typed_trees::data::DataMember;
+        for segment in path {
+            source = self.deref_cell(source);
+            match segment {
+                CheckedUnitStructuralPathSegment::Referent => {}
+                CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    source = self.element_cell(
+                        &source,
+                        usize::try_from(*index).map_err(|_| {
+                            Halt::Unsupported("cleanup index exceeds host storage".into())
+                        })?,
+                    )?;
+                }
+                CheckedUnitStructuralPathSegment::Field(identity)
+                | CheckedUnitStructuralPathSegment::Case(identity) => {
+                    let value = source.borrow();
+                    let (type_symbol, case_name) = match &*value {
+                        Value::Struct { type_symbol, .. } => (*type_symbol, None),
+                        Value::Enum {
+                            type_symbol,
+                            variant_name,
+                            ..
+                        } => (*type_symbol, Some(variant_name.as_ref())),
+                        _ => return trap("cleanup projection is not a record or case"),
+                    };
+                    let data = self
+                        .program
+                        .data_definition_by_symbol(type_symbol)
+                        .ok_or_else(|| {
+                            Halt::Unsupported("cleanup projection declaration is absent".into())
+                        })?;
+                    let variant = case_name.and_then(|name| {
+                        self.program
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
+                                DataMember::Variant(variant) if variant.name.as_str() == name => {
+                                    Some(variant)
+                                }
+                                _ => None,
+                            })
+                    });
+                    if matches!(segment, CheckedUnitStructuralPathSegment::Case(_)) {
+                        if !variant.is_some_and(|variant| variant.path_identity() == *identity) {
+                            return trap(
+                                "cleanup case membership does not match its selected path",
+                            );
+                        }
+                        continue;
+                    }
+                    let field = if let Some(variant) = variant {
+                        self.program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .find(|field| field.path_identity() == *identity)
+                    } else {
+                        self.program
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
+                                DataMember::Field(field) if field.path_identity() == *identity => {
+                                    Some(field)
+                                }
+                                _ => None,
+                            })
+                    }
+                    .ok_or_else(|| Halt::Unsupported("cleanup field identity is absent".into()))?;
+                    let selected = self.field_cell(&source, field.name.as_str())?;
+                    drop(value);
+                    source = selected;
+                }
+                CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_) => {
+                    return unsupported("normal cleanup requires a retained static receiver path");
+                }
+            }
+        }
+        Ok(source)
     }
 }

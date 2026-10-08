@@ -248,8 +248,30 @@ pub(super) fn mutable_projection<'path>(
     };
     // The storage query admits the complete suffix. Selector presence does
     // not change the carrier's required pointer crossing.
-    let (_, result) = super::aggregate_result_input::home(function, place)?;
-    let (referent, access) = carrier_referent(function, result)?;
+    let structural_type =
+        if let Some((_, result)) = super::aggregate_result_input::home(function, place) {
+            carrier_referent(function, result)?;
+            result.structural_type
+        } else {
+            let (_, parameter) = super::aggregate_result_input::block_home(function, place)?;
+            if parameter.multiplicity != StructuralMultiplicity::Affine
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return None;
+            }
+            parameter.structural_type
+        };
+    let StructuralTypeShape::Reference { referent, access } = function
+        .structural
+        .as_ref()?
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?
+        .shape
+    else {
+        return None;
+    };
     (access == StructuralAccess::MutableBorrow).then_some((referent, suffix))
 }
 
@@ -258,15 +280,23 @@ pub(super) fn store_destination<'path>(
     destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &'path [StructuralPathSegment],
 ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
-    let abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } =
-        destination
-    else {
-        return None;
+    let admitted = match destination {
+        abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
+            super::aggregate_result_input::home(function, result.place) == Some((*producer, result))
+        }
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            block,
+            parameter,
+        } => {
+            super::aggregate_result_input::block_home(function, parameter.place)
+                == Some((*block, parameter))
+        }
+        abstract_operations::StructuralScalarStoreDestination::Parameter(_) => false,
     };
-    if super::aggregate_result_input::home(function, result.place) != Some((*producer, result)) {
+    if !admitted {
         return None;
     }
-    mutable_projection(function, result.place, path)
+    mutable_projection(function, destination.place(), path)
 }
 
 /// An outgoing borrow transports the pointer word, not the carrier home's

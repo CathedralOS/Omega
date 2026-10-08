@@ -12,8 +12,10 @@
 //! ordinary-only kind in `locals` (primitive, reference, array and trivial
 //! affine establishments).
 //!
-//! Checked completion rows authorize no-code parameter disposal; the emitted
-//! ownership frontier chooses its actual edges after scalar control exists.
+//! Checked completion rows carry contextual normal-edge parameter dispositions,
+//! including nominal hooks and linear claims. They use the same cleanup action
+//! lowering as state graphs; the legacy local/result schedule remains separate.
+//! The emitted ownership frontier chooses actual edges after scalar control exists.
 //! A selected operand may transfer a parameter on only one branch, so a static
 //! final-return discard cannot also own that parameter's cleanup.
 
@@ -549,6 +551,7 @@ pub(super) fn emit(
             None
         };
         let Some(CheckedUnitEffectOperationPlan::Complete {
+            parameter_cleanup_actions,
             trivial_affine_local_discard_ordinals,
             trivial_affine_discards,
             ..
@@ -751,6 +754,55 @@ pub(super) fn emit(
             })
             .transpose()?;
         let edge = edge_id(allocate_dense(&mut next_edge)?);
+        let parameter_actions = crate::unit::unit_cleanup::lower_checked_cleanup_actions(
+            parameter_cleanup_actions,
+            structural_types,
+            type_ids,
+            |source| {
+                evaluation.cleanup_storage(source, parameters, |_| {
+                    Err(LoweringError::Unsupported(
+                        "parameter cleanup names a result binding",
+                    ))
+                })
+            },
+            |cleanup, place, structural_type, path| {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } = cleanup.source
+                else {
+                    return unsupported("normal parameter hook names another owner");
+                };
+                let parameter = parameters.get(parameter_index as usize).ok_or(
+                    LoweringError::Unsupported("normal cleanup parameter is absent"),
+                )?;
+                // A parent hook does not consume its children's obligations.
+                // Bind only this occurrence's entry claims; subsequent actions
+                // own the separately selected descendants.
+                let mut consumed_claims = entry_claims
+                    .iter()
+                    .filter(|claim| claim.input == parameter.place && claim.path == path)
+                    .map(|claim| claim.claim)
+                    .collect::<Vec<_>>();
+                consumed_claims.sort_unstable();
+                let mut action = crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                    cleanup,
+                    place,
+                    structural_type,
+                    path,
+                    scalar_calls.machine_ids,
+                    scalar_calls.cleanup_receivers,
+                    scalar_calls.requirement_counts,
+                    &mut scalar_calls.next_obligation_identity,
+                )?;
+                action.consumed_claims = consumed_claims;
+                Ok(action)
+            },
+        )?;
+        let cleanup_actions = trivial_affine_discards
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+            .chain(parameter_actions)
+            .collect();
         evaluation.remap_transported_call_operands(&mut operations);
         evaluation.blocks.push(Block {
             id: block,
@@ -763,28 +815,19 @@ pub(super) fn emit(
                 Terminator::Return {
                     edge,
                     value: *source,
-                    cleanup_actions: trivial_affine_discards
-                        .into_iter()
-                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                        .collect(),
+                    cleanup_actions,
                 }
             } else if let Some((source, _)) = &structural_return {
                 Terminator::ReturnStructural {
                     edge,
                     source: *source,
                     returned_claims: Vec::new(),
-                    cleanup_actions: trivial_affine_discards
-                        .into_iter()
-                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                        .collect(),
+                    cleanup_actions,
                 }
             } else {
                 Terminator::ReturnUnit {
                     edge,
-                    cleanup_actions: trivial_affine_discards
-                        .into_iter()
-                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                        .collect(),
+                    cleanup_actions,
                 }
             },
         });

@@ -6,6 +6,27 @@ use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
+/// A local names its current storage declaration, which may be an operation
+/// result or a parameter after an ownership-preserving continuation transfer.
+/// The declaration's type and evidence survive that transfer; an operation
+/// producer is not required to establish a parameter's storage a second time.
+pub(crate) struct LocalStoreRoot<'a> {
+    pub(crate) argument: &'a terminal_psi::StructuralArgument,
+    pub(crate) structural_type: StructuralTypeId,
+    has_qualifications: bool,
+}
+
+impl LocalStoreRoot<'_> {
+    pub(crate) fn require_unqualified(&self) -> Result<(), LoweringError> {
+        if self.has_qualifications {
+            return unsupported(
+                "store local carries qualification evidence the replacement does not restore",
+            );
+        }
+        Ok(())
+    }
+}
+
 /// Resolve a local destination once, independently of the value being stored.
 /// An owned home and an exclusive loan both permit mutation; neither grants
 /// permission to drop predicates or claims. The operation still checks the
@@ -13,14 +34,9 @@ use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 pub(crate) fn local_store_root<'a>(
     symbol: symbols::SymbolHandle,
     locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
-    operations: &'a crate::emission::operation_emission::buffer::OperationBuffer,
-) -> Result<
-    (
-        &'a terminal_psi::StructuralArgument,
-        &'a terminal_psi::StructuralOperationResult,
-    ),
-    LoweringError,
-> {
+    parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
+    operations: &crate::emission::operation_emission::buffer::OperationBuffer,
+) -> Result<LocalStoreRoot<'a>, LoweringError> {
     let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } = locals
         .iter()
         .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
@@ -34,15 +50,34 @@ pub(crate) fn local_store_root<'a>(
     {
         return unsupported("store local is not a whole exclusive storage root");
     }
-    let produced = operations
-        .operations
-        .iter()
-        .filter_map(|operation| operation.result.structural())
-        .find(|result| result.place == argument.place)
+    let declaration = parameters
+        .map(|parameter| {
+            (
+                parameter.place,
+                parameter.structural_type,
+                !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty(),
+            )
+        })
+        .chain(operations.operations.iter().filter_map(|operation| {
+            operation.result.structural().map(|result| {
+                (
+                    result.place,
+                    result.structural_type,
+                    !result.qualifications.is_empty()
+                        || !result.projected_qualifications.is_empty(),
+                )
+            })
+        }))
+        .find(|(place, _, _)| *place == argument.place)
         .ok_or(LoweringError::Unsupported(
-            "store local has no produced storage root",
+            "store local has no declared storage root",
         ))?;
-    Ok((argument, produced))
+    Ok(LocalStoreRoot {
+        argument,
+        structural_type: declaration.1,
+        has_qualifications: declaration.2,
+    })
 }
 
 /// Field replacement and restoration windows share the same root contract.
@@ -52,18 +87,15 @@ pub(crate) fn local_store_root<'a>(
 /// writes preserve them and structural moves/stores transport their exact
 /// frontier. The original producer's claim roster cannot forbid all later
 /// mutations of a home with a linear child.
-pub(crate) fn unqualified_local_store_root(
+pub(crate) fn unqualified_local_store_root<'a>(
     symbol: symbols::SymbolHandle,
-    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    locals: &'a [crate::expression_preparation::bindings::StructuralLocalBinding],
+    parameters: impl Iterator<Item = &'a terminal_psi::StructuralParameterDeclaration>,
     operations: &crate::emission::operation_emission::buffer::OperationBuffer,
 ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
-    let (argument, produced) = local_store_root(symbol, locals, operations)?;
-    if !produced.qualifications.is_empty() || !produced.projected_qualifications.is_empty() {
-        return unsupported(
-            "store local carries qualification evidence the replacement does not restore",
-        );
-    }
-    Ok((argument.place, produced.structural_type))
+    let root = local_store_root(symbol, locals, parameters, operations)?;
+    root.require_unqualified()?;
+    Ok((root.argument.place, root.structural_type))
 }
 
 /// The declared descriptor home a whole shared-view store replaces, and

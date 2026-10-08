@@ -8,6 +8,7 @@ use checked_trees::{
 };
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
+use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
 pub(in crate::execution::terminal_unit) fn state_cleanups(
@@ -22,6 +23,70 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             .state_in_machine(machine, state_plan.state)
             .map(|state| (machine, state))
     })?;
+    cleanup_rows(
+        program,
+        facts,
+        targets,
+        shapes,
+        machine.symbol,
+        state,
+        |root| owner_source(program, state, state_plan, root).map(Some),
+    )
+}
+
+/// Ordinary sequence completion owns parameter cleanup independently of its
+/// legacy local/result schedule. Select every parameter disposition from the
+/// same checked exits and action geometry as state graphs; multiplicity and
+/// nominal hooks do not choose another body builder.
+pub(in crate::execution::terminal_unit) fn parameter_cleanups(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    targets: &[CheckedUnitCallableEntry<'_>],
+    shapes: &mut ShapeCollector<'_>,
+    plan: &checked_trees::CheckedUnitEffectMachinePlan,
+) -> Option<Vec<CheckedNormalExitCleanupPlan>> {
+    let machine = program.machine_by_symbol(plan.machine)?;
+    let state = program.state_in_machine(machine, plan.state)?;
+    cleanup_rows(
+        program,
+        facts,
+        targets,
+        shapes,
+        plan.machine,
+        state,
+        |root| {
+            let position = program
+                .state_parameters(state)
+                .iter()
+                .position(|parameter| root == PlaceRoot::Symbol(parameter.symbol));
+            let Some(position) = position else {
+                return Some(None);
+            };
+            let Some(index) = plan
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.position as usize == position)
+            else {
+                return Some(None);
+            };
+            Some(Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(index).ok()?,
+            }))
+        },
+    )
+}
+
+fn cleanup_rows(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    targets: &[CheckedUnitCallableEntry<'_>],
+    shapes: &mut ShapeCollector<'_>,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    mut source_for_owner: impl FnMut(
+        PlaceRoot,
+    ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
+) -> Option<Vec<CheckedNormalExitCleanupPlan>> {
     let flow_state = facts
         .flow
         .control
@@ -70,7 +135,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         .dispositions
         .iter()
         .filter(|(_, row)| {
-            row.machine == machine.symbol
+            row.machine == machine
                 && row.state == state.symbol
                 && row.source == PermissionEventSource::StateExit
         })
@@ -78,7 +143,9 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
         if disposition.exit.state_symbol != state.symbol {
             return None;
         }
-        let source = owner_source(program, state, state_plan, disposition.root)?;
+        let Some(source) = source_for_owner(disposition.root)? else {
+            continue;
+        };
         if !retirements.iter().any(
             |(exit, retirement): &(_, checked_trees::CheckedNormalCleanupAction)| {
                 *exit == disposition.exit && retirement.source() == &source

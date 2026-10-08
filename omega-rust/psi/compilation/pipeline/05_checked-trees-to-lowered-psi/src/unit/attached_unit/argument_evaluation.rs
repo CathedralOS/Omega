@@ -236,6 +236,22 @@ impl Evaluation {
     }
 
     /// Bind the emitted structural signature before evaluating any operands.
+    /// Locals may name transported parameter homes rather than operation
+    /// results. Resolve their exact declarations without replaying a producer.
+    pub(crate) fn structural_root_parameters(
+        &self,
+    ) -> impl Iterator<Item = &StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .map(|(_, declaration)| declaration)
+            .chain(self.block_structural_parameters.iter())
+            .chain(
+                self.blocks
+                    .iter()
+                    .flat_map(|block| block.structural_parameters.iter()),
+            )
+    }
+
     /// Field, case and extent observations share this exact source-position
     /// roster; a boundary-return body has the same namespace as an ordinary
     /// body even when its foreign invocation accepts only scalar operands.

@@ -6,14 +6,15 @@ use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, EntryClaim, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape};
+    StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 pub(super) fn encode_window_root(
     bytes: &mut Vec<u8>,
     root: &abstract_operations::StructuralWindowRoot,
 ) {
     match root {
-        abstract_operations::StructuralWindowRoot::BorrowedParameter(parameter) => {
+        abstract_operations::StructuralWindowRoot::Parameter(parameter) => {
             bytes.push(0);
             encode_structural_parameter(bytes, parameter);
         }
@@ -21,6 +22,11 @@ pub(super) fn encode_window_root(
             bytes.push(1);
             bytes.extend_from_slice(&producer.get().to_le_bytes());
             super::structural_result::encode_operation_result(bytes, result);
+        }
+        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            encode_structural_parameter(bytes, parameter);
         }
     }
 }
@@ -100,7 +106,8 @@ pub(super) fn encode_target_structural_argument(
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
         target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
-            psi_operation} => {
+            psi_operation,
+        } => {
             bytes.push(4);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
@@ -114,12 +121,14 @@ pub(super) fn encode_target_structural_argument(
             encode_placement(bytes, placement);
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView {
-            psi_operation} => {
+            psi_operation,
+        } => {
             bytes.push(1);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
         target_operations::TargetStructuralArgumentSource::EstablishedElementView {
-            psi_operation} => {
+            psi_operation,
+        } => {
             bytes.push(6);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
@@ -179,14 +188,16 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
         StructuralPlaceKind::Result => bytes.push(2),
         StructuralPlaceKind::OperationResult {
             producer,
-            structural_type} => {
+            structural_type,
+        } => {
             bytes.push(3);
             bytes.extend_from_slice(&producer.get().to_le_bytes());
             bytes.extend_from_slice(&structural_type.get().to_le_bytes());
         }
         StructuralPlaceKind::ByteSequenceLiteral {
             declaration_ordinal,
-            structural_type} => {
+            structural_type,
+        } => {
             bytes.push(4);
             bytes.extend_from_slice(&declaration_ordinal.to_le_bytes());
             bytes.extend_from_slice(&structural_type.get().to_le_bytes());
@@ -194,7 +205,8 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
         StructuralPlaceKind::ProviderAttachment {
             attachment,
             field,
-            boundary} => {
+            boundary,
+        } => {
             bytes.push(5);
             bytes.extend_from_slice(&attachment.get().to_le_bytes());
             bytes.extend_from_slice(&field.get().to_le_bytes());
@@ -203,7 +215,8 @@ pub(super) fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlac
         StructuralPlaceKind::TrivialAffineLocal {
             declaration_ordinal,
             structural_type,
-            construction} => {
+            construction,
+        } => {
             bytes.push(if construction.is_some() { 7 } else { 6 });
             bytes.extend_from_slice(&declaration_ordinal.to_le_bytes());
             bytes.extend_from_slice(&structural_type.get().to_le_bytes());
@@ -286,7 +299,8 @@ fn encode_authored_field_storage(
         None => bytes.push(0),
         Some(AuthoredFieldStorage::Scalar {
             byte_offset,
-            stored_scalar}) => {
+            stored_scalar,
+        }) => {
             bytes.push(if stored_scalar.is_some() { 2 } else { 1 });
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
             if let Some(scalar) = stored_scalar {
@@ -295,7 +309,8 @@ fn encode_authored_field_storage(
         }
         Some(AuthoredFieldStorage::Repeated {
             byte_offset,
-            element_stride}) => {
+            element_stride,
+        }) => {
             bytes.push(3);
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
             bytes.extend_from_slice(&element_stride.to_le_bytes());
@@ -325,7 +340,8 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
         encode_string(bytes, &field.identity);
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
-            BindingRelevance::Erased => 2});
+            BindingRelevance::Erased => 2,
+        });
         match &field.field_type {
             StructuralFieldType::RefinedScalar(refinement) => {
                 bytes.push(9);
@@ -351,11 +367,13 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
                 bytes.push(2);
                 bytes.push(match format {
                     IeeeFloatFormat::Binary32 => 1,
-                    IeeeFloatFormat::Binary64 => 2});
+                    IeeeFloatFormat::Binary64 => 2,
+                });
             }
             StructuralFieldType::PredicateByteSequence {
                 carrier,
-                predicates} => {
+                predicates,
+            } => {
                 bytes.push(7);
                 encode_byte_sequence_carrier(bytes, *carrier);
                 bytes.push(predicates.bits());
@@ -386,8 +404,10 @@ pub(super) fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSeq
                     StructuralAccess::Owned => 1,
                     StructuralAccess::SharedBorrow => 2,
                     StructuralAccess::MutableBorrow => 3,
-                    StructuralAccess::WriteOnlyBorrow => 4},
-                None => 0});
+                    StructuralAccess::WriteOnlyBorrow => 4,
+                },
+                None => 0,
+            });
             bytes.extend_from_slice(&capacity.to_le_bytes());
         }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
@@ -401,7 +421,8 @@ pub(super) fn encode_multiplicity(bytes: &mut Vec<u8>, multiplicity: StructuralM
     bytes.push(match multiplicity {
         StructuralMultiplicity::Unrestricted => 1,
         StructuralMultiplicity::Affine => 2,
-        StructuralMultiplicity::Linear => 3});
+        StructuralMultiplicity::Linear => 3,
+    });
 }
 
 pub(super) fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
@@ -409,9 +430,9 @@ pub(super) fn encode_access(bytes: &mut Vec<u8>, access: StructuralAccess) {
         StructuralAccess::Owned => 1,
         StructuralAccess::SharedBorrow => 2,
         StructuralAccess::MutableBorrow => 3,
-        StructuralAccess::WriteOnlyBorrow => 4});
+        StructuralAccess::WriteOnlyBorrow => 4,
+    });
 }
-
 
 pub(super) fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
     match value {
@@ -419,7 +440,8 @@ pub(super) fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
             bytes.push(1);
             bytes.extend_from_slice(&value.to_le_bytes());
         }
-        None => bytes.push(0)}
+        None => bytes.push(0),
+    }
 }
 
 pub(super) fn encode_string(bytes: &mut Vec<u8>, value: &str) {
@@ -440,7 +462,8 @@ pub(super) fn encode_record_initializers(
         match &field.value {
             terminal_psi::RecordFieldValue::Scalar {
                 value,
-                range_obligation} => {
+                range_obligation,
+            } => {
                 bytes.push(0);
                 bytes.extend_from_slice(&value.get().to_le_bytes());
                 optimization_core::encode_option_u64(bytes, range_obligation.map(|id| id.get()));

@@ -172,7 +172,7 @@ pub(super) fn encode_window_root(
     root: &abstract_operations::StructuralWindowRoot,
 ) {
     match root {
-        abstract_operations::StructuralWindowRoot::BorrowedParameter(parameter) => {
+        abstract_operations::StructuralWindowRoot::Parameter(parameter) => {
             bytes.u8(0);
             encode_structural_parameter(bytes, parameter);
         }
@@ -180,6 +180,11 @@ pub(super) fn encode_window_root(
             bytes.u8(1);
             bytes.id(*producer);
             encode_structural_operation_result(bytes, result);
+        }
+        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
+            bytes.u8(2);
+            bytes.id(*block);
+            encode_structural_parameter(bytes, parameter);
         }
     }
 }

@@ -32,9 +32,7 @@ pub(in crate::lowering) fn lower_field_store(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let unsupported = || {
-        LoweringError::UnsupportedOperationInUnitFunction(function.machine)
-    };
+    let unsupported = || LoweringError::UnsupportedOperationInUnitFunction(function.machine);
     let AbstractOperation::StructuralScalarFieldStore {
         psi_operation,
         destination,
@@ -104,7 +102,11 @@ pub(in crate::lowering) fn lower_field_store(
         }
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
             if let Some(resolved) = reference_destination.as_ref() {
-                if resolved.producer != *producer || resolved.result != *result {
+                if resolved.carrier_type != result.structural_type
+                    || !structural_homes
+                        .get(&result.place)
+                        .is_some_and(|home| home.operation_result() == Some((*producer, result)))
+                {
                     return Err(unsupported());
                 }
                 (

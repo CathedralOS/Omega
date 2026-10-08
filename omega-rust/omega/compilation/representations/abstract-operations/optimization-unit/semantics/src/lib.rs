@@ -31,6 +31,7 @@ pub use error::OptimizationUnitValidationError;
 // Declaration custody shared by validation and target realization. This query
 // grants neither current availability nor permission for a particular access.
 pub use unit_validation::function_structure::{byte_field_root, declared_descriptor_home};
+pub use unit_validation::references::unqualified_owned_reference_carrier;
 pub use unit_validation::structural_catalog::structural_projection_type;
 pub use unit_validation::structural_catalog::{
     StructuralStorageProjection, structural_storage_projection,

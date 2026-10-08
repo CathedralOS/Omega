@@ -292,8 +292,31 @@ fn plain_referent_storage(
     true
 }
 
-/// Recover geometry only. The live-reference ledger independently validates
-/// the carrier's active loan and rejects suspended or released permissions.
+/// Resolve an unqualified owned affine carrier's current declaration, without
+/// granting authority over its backing. Consumers independently check its
+/// reference shape and live loan, including suspended and released permissions.
+pub fn unqualified_owned_reference_carrier(
+    function: &PsiOptimizationFunction,
+    destination: PlaceId,
+) -> Option<StructuralTypeId> {
+    let source = structural_source_contract(function, destination)?;
+    (source.access == terminal_psi::StructuralAccess::Owned
+        && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+        && source.is_unqualified()
+        && !source.has_result_evidence()
+        && function
+            .entry_claim_declarations
+            .iter()
+            .all(|claim| claim.input != destination)
+        && function
+            .content_entry_claims
+            .iter()
+            .all(|claim| claim.input.root != destination))
+    .then_some(source.structural_type)
+}
+
+/// Declared referent geometry behind an unqualified owned carrier. This
+/// declaration alone supplies no live loan or authority over its backing.
 pub(crate) fn mutable_record_field_destination<'path>(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
@@ -306,24 +329,9 @@ pub(crate) fn mutable_record_field_destination<'path>(
     let (terminal_psi::StructuralPathSegment::Referent, suffix) = path.split_first()? else {
         return None;
     };
-    let source = structural_source_contract(function, destination)?;
-    if source.access != terminal_psi::StructuralAccess::Owned
-        || source.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-        || !source.is_unqualified()
-        || source.has_result_evidence()
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == destination)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == destination)
-    {
-        return None;
-    }
-    let referent = referent(types, source.structural_type)?;
-    access_is_mutable_record(types, source.structural_type, referent).then_some((referent, suffix))
+    let carrier_type = unqualified_owned_reference_carrier(function, destination)?;
+    let referent = referent(types, carrier_type)?;
+    access_is_mutable_record(types, carrier_type, referent).then_some((referent, suffix))
 }
 
 /// A field-only carrier path ending at a reference leaf, then its referent.

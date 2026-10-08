@@ -1109,7 +1109,20 @@ fn borrowed_window_root(
     place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
 ) -> bool {
     match root {
-        abstract_operations::StructuralWindowRoot::BorrowedParameter(parameter) => {
+        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => {
+            parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && place_kinds.get(&parameter.place)
+                    == Some(&StructuralPlaceKind::BlockParameter {
+                        block: *block,
+                        position: parameter.position,
+                    })
+                && function.blocks.iter().any(|candidate| {
+                    candidate.id == *block && candidate.structural_parameters.contains(parameter)
+                })
+        }
+        abstract_operations::StructuralWindowRoot::Parameter(parameter) => {
             function
                 .structural_parameters
                 .iter()
@@ -1185,10 +1198,14 @@ fn root_window_loan(
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> bool {
     terminal_semantics::structural_window_selects_child(path, field)
+        // Declaration geometry is separate from the live ancestry check in
+        // current_ownership::references::check_window_access.
+        || (path.first() == Some(&terminal_psi::StructuralPathSegment::Referent)
+            && root.parameter().is_none())
         || (path.is_empty()
             && matches!(
                 root,
-                abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
+                abstract_operations::StructuralWindowRoot::Parameter(_)
             ))
 }
 
@@ -1207,10 +1224,7 @@ fn window_field_type(
         path.first(),
         Some(terminal_psi::StructuralPathSegment::Referent)
     ) {
-        if !matches!(
-            root,
-            abstract_operations::StructuralWindowRoot::OwnedResult { .. }
-        ) {
+        if root.parameter().is_some() {
             return None;
         }
         crate::unit_validation::references::mutable_record_field_destination(

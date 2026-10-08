@@ -60,7 +60,9 @@ pub(super) fn move_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent = window_referent(function, live, types, source, path)?;
-    if !window_root(function, prepared, live, source) || !root_window_loan(source, path, *field) {
+    if !window_root(function, prepared, live, source)
+        || !root_window_loan(function, live, source, path, *field)
+    {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (geometry_type, geometry_path) = referent
@@ -132,7 +134,7 @@ pub(super) fn store_field(
     };
     let referent = window_referent(function, live, types, destination, path)?;
     if !window_root(function, prepared, live, destination)
-        || !root_window_loan(destination, path, *field)
+        || !root_window_loan(function, live, destination, path, *field)
         || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
@@ -250,13 +252,13 @@ pub(super) fn window_referent(
     if !matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         return Ok(None);
     }
-    let abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } = root else {
+    if root.parameter().is_some() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
+    }
     let referent =
-        super::references::writable_referent_destination(live, types, result.place, path)
+        super::references::writable_referent_destination(live, types, root.place(), path)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-    if referent.producer != *producer || referent.result != *result {
+    if referent.carrier_type != root.structural_type() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(Some(referent))
@@ -265,16 +267,39 @@ pub(super) fn window_referent(
 /// A whole-root window needs the original exclusive parameter loan. Crossing
 /// an owned reference carrier does not grant that authority over its referent.
 fn root_window_loan(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
     root: &abstract_operations::StructuralWindowRoot,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
 ) -> bool {
-    terminal_semantics::structural_window_selects_child(path, field)
-        || (path.is_empty()
-            && matches!(
-                root,
-                abstract_operations::StructuralWindowRoot::BorrowedParameter(_)
-            ))
+    if terminal_semantics::structural_window_selects_child(path, field) {
+        return true;
+    }
+    if path.is_empty() {
+        return matches!(
+            root,
+            abstract_operations::StructuralWindowRoot::Parameter(_)
+        );
+    }
+    if path.first() != Some(&StructuralPathSegment::Referent) {
+        return false;
+    }
+    let Some(loan) = live.references.get(&(root.place(), Vec::new())) else {
+        return false;
+    };
+    // A retained alias uses its own pointer and live permission, but every
+    // possible backing must still owe restoration to exclusive parameter
+    // storage. Owning the descriptor never grants that parameter authority.
+    terminal_semantics::structural_window_parameter_origins(
+        function.structural_parameters.iter().chain(
+            function
+                .block_entries
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        ),
+        loan.root.origins().into_iter().map(|origin| origin.root),
+    )
 }
 
 /// The window root retains its exact mutable-borrowed declaration. An entry
@@ -287,7 +312,20 @@ fn window_root(
     root: &abstract_operations::StructuralWindowRoot,
 ) -> bool {
     match root {
-        abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
+        abstract_operations::StructuralWindowRoot::OwnedBlockParameter { block, parameter } => live
+            .structural_homes
+            .get(&parameter.place)
+            .is_some_and(|home| {
+                home.origin
+                    == target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                        block: *block,
+                        declaration: parameter.clone(),
+                    }
+                    && parameter.access == StructuralAccess::Owned
+                    && home.qualifications().is_empty()
+                    && home.projected_qualifications().is_empty()
+            }),
+        abstract_operations::StructuralWindowRoot::Parameter(root) => {
             root.access == StructuralAccess::MutableBorrow
                 && ((function.structural_parameters.contains(root)
                     && super::structural_case::parameter_root(prepared, root.place).is_some_and(

@@ -493,6 +493,7 @@ impl OperationFrame<'_, '_> {
         crate::emission::store_destination::unqualified_local_store_root(
             symbol,
             &self.evaluation.structural_locals,
+            self.evaluation.structural_root_parameters(),
             self.operations,
         )
     }

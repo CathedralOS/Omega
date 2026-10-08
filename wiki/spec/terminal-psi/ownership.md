@@ -108,7 +108,11 @@ Whole-value assignment through an exclusive loan (`referent = value` where
 no field and an empty path, vacating the whole referent, and the store reseats
 it. Only a mutable-borrowed machine or block parameter opens a root window; an
 owned home's whole value moves by ordinary transfer, and shared or write-only
-loans open no window. The displaced value carries the referent's exact type and
+loans open no window.
+Retained exclusive descendants may spell the access through their live
+carriers while restoration debt stays on the captured parameter storage.
+Owning a carrier alone supplies no whole-root authority over unrelated storage.
+The displaced value carries the referent's exact type and
 its own declared multiplicity, exactly as a field window's: displaced affine
 contents owe ordinary disposal on a following edge, while plain contents need
 none. A borrowed parameter's multiplicity describes its loan carrier, not the

@@ -175,8 +175,7 @@ fn roots_overlap(left: &ReferenceRoot, right: &ReferenceRoot) -> bool {
 /// Custody retains every possible origin; physical addressing loads the one
 /// address stored in the carrier, never a selected entry from that origin set.
 pub(in crate::lowering) struct WritableReferentDestination {
-    pub(in crate::lowering) producer: OperationId,
-    pub(in crate::lowering) result: StructuralOperationResult,
+    pub(in crate::lowering) carrier_type: StructuralTypeId,
     pub(in crate::lowering) referent: StructuralTypeId,
     /// Relative to the referent, excluding the explicit crossing.
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
@@ -192,7 +191,8 @@ fn materialized_mutable_record_projection(
         return None;
     };
     let leaf = live.references.get(&(carrier, Vec::new()))?;
-    let declaration = types.get(&leaf.result.structural_type)?;
+    let home = live.structural_homes.get(&carrier)?;
+    let declaration = types.get(&home.structural_type())?;
     let StructuralTypeShape::Reference {
         referent,
         access: StructuralAccess::MutableBorrow,
@@ -208,29 +208,28 @@ fn materialized_mutable_record_projection(
     ) {
         return None;
     }
-    let producer = leaf.operation?;
     if *referent != leaf.referent
         || live
             .references
             .values()
             .any(|child| child.parents.contains(&leaf.identity))
-        || leaf.result.place != carrier
-        || leaf.result.multiplicity != StructuralMultiplicity::Affine
-        || !leaf.result.qualification_establishments.is_empty()
-        || !leaf.result.qualifications.is_empty()
-        || !leaf.result.projected_qualifications.is_empty()
-        || !leaf.result.claims.is_empty()
     {
         return None;
     }
     // Formation authenticated backing and view interpretation. A store uses
     // this live carrier's authority; backing need not have its semantic type.
-    if live.structural_homes.get(&carrier)?.operation_result() != Some((producer, &leaf.result)) {
+    if home.access() != StructuralAccess::Owned
+        || home.multiplicity() != StructuralMultiplicity::Affine
+        || !home.qualifications().is_empty()
+        || !home.projected_qualifications().is_empty()
+        || home.operation_result().is_some_and(|(_, result)| {
+            !result.qualification_establishments.is_empty() || !result.claims.is_empty()
+        })
+    {
         return None;
     }
     Some(WritableReferentDestination {
-        producer,
-        result: leaf.result.clone(),
+        carrier_type: home.structural_type(),
         referent: *referent,
         path: tail.to_vec(),
     })

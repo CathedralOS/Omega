@@ -5,6 +5,11 @@
 //! declared source access independently limits what the destination may do.
 //! Qualification requirements use the common argument binder on the captured
 //! runtime memberships. A destination declaration never mints missing evidence.
+//!
+//! Cleanup preflight follows the ordered custody transaction on scratch ledgers.
+//! It never runs hooks or writes backing. This keeps rejection before fuel and
+//! mutation without treating an already-disposed parent's claim as child overlap;
+//! the subsequent commit applies the same transitions to the live frame.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -101,12 +106,30 @@ impl BlockBindings {
     pub(crate) fn validate_cleanup_actions(
         &self,
         execution: &TerminalExecution,
+        structural_arguments: &[StructuralArgument],
         actions: &[terminal_psi::TerminalAffineCleanupAction],
     ) -> Result<(), TerminalInterpretError> {
         use terminal_psi::TerminalAffineCleanupAction;
         let mut discarded = BTreeSet::new();
+        let mut values = execution.structural_values.clone();
+        let mut frontier = execution.live_affine_frontier.clone();
+        let mut claims = execution.live_claims.clone();
+        for argument in structural_arguments.iter().filter(|argument| {
+            argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+        }) {
+            crate::custody::consume_affine_projection(
+                &execution.program.structural_types(),
+                &values,
+                &execution.structural_cases,
+                &mut frontier,
+                argument,
+            )?;
+        }
         // Source checking owns the recursive parent-before-child schedule;
         // overlapping hook receivers are not overlapping region destruction.
+        // Preflight follows that same custody transaction without executing any
+        // hook or changing backing. Checking each child against the unchanged
+        // entry ledger mistakes its already-consumed parent's claim for overlap.
         for (position, action) in actions.iter().enumerate() {
             let place = action.place();
             let path = action.path();
@@ -130,12 +153,8 @@ impl BlockBindings {
                         .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                             place,
                         ))?;
-                    if execution
-                        .live_claims
-                        .values()
-                        .any(|claim| claim.place == Some(place))
-                        || execution
-                            .live_affine_frontier
+                    if claims.values().any(|claim| claim.place == Some(place))
+                        || frontier
                             .iter()
                             .filter(|entry| entry.place == place)
                             .ne(std::iter::once(&StructuralAffineDiscard {
@@ -146,21 +165,58 @@ impl BlockBindings {
                     {
                         return Err(TerminalInterpretError::AffineFrontierMismatch);
                     }
+                    crate::custody::remove_affine_root(&mut frontier, place);
+                    values.remove(&place);
                 }
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                     crate::custody::validate_nominal_cleanup_action(
                         &execution.program.structural_types(),
                         &execution.structural_cases,
                         &execution.program.machines(),
-                        &execution.structural_values,
-                        &execution.live_affine_frontier,
-                        &execution.live_claims,
+                        &values,
+                        &frontier,
+                        &claims,
+                        cleanup,
+                        actions.get(position + 1),
+                    )?;
+                    crate::custody::begin_nominal_cleanup(
+                        &execution.program.structural_types(),
+                        &values,
+                        &execution.structural_cases,
+                        &mut frontier,
+                        &mut claims,
+                        cleanup,
+                        actions.get(position + 1),
+                    )?;
+                    crate::custody::complete_nominal_cleanup(
+                        &mut values,
+                        &mut frontier,
+                        &claims,
                         cleanup,
                         actions.get(position + 1),
                     )?;
                 }
-                TerminalAffineCleanupAction::DiscardResidual(_)
-                | TerminalAffineCleanupAction::RetireHome(_) => {}
+                TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    crate::custody::consume_affine_projection(
+                        &execution.program.structural_types(),
+                        &values,
+                        &execution.structural_cases,
+                        &mut frontier,
+                        &StructuralArgument {
+                            place,
+                            path: discard.path.clone(),
+                            access: StructuralAccess::Owned,
+                        },
+                    )?;
+                }
+                TerminalAffineCleanupAction::RetireHome(_) => {
+                    crate::custody::retire_cleanup_home(
+                        &mut values,
+                        &mut frontier,
+                        &claims,
+                        place,
+                    )?;
+                }
             }
         }
         // A swap may replace another transferred root. Replacing a different
@@ -731,6 +787,9 @@ impl TerminalExecution<'_> {
         // A successful operation publishes one owned result declaration.
         // The runtime carrier and the frontier above establish its current
         // custody; surrounding constructor/call/copy syntax is irrelevant.
+        // Descriptor custody is ownership of that value, not of its backing.
+        // The edge's runtime payload and loan roster must travel with it; a
+        // plain-shape predicate cannot decide whether its declaration is owned.
         declared == structural_type
             && machine.operations().any(|operation| {
                 operation.id == producer
