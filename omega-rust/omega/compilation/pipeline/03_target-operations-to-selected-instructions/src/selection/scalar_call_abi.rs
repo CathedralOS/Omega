@@ -498,7 +498,7 @@ pub(super) fn validate(
     Ok(())
 }
 
-pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
+pub(crate) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
         // The retained hosted address model uses a 64-bit integer-class slot,
         // while its semantic carrier remains an address throughout replay.

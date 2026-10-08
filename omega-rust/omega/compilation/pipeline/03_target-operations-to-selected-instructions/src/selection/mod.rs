@@ -29,6 +29,7 @@ mod record_input;
 mod reference_input;
 mod returned_view_input;
 mod scalar_array_input;
+pub(crate) use scalar_call_abi::scalar_shape;
 mod scalar_call_abi;
 mod structural_array_input;
 mod structural_local_input;

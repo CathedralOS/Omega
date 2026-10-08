@@ -104,30 +104,7 @@ pub(super) fn u8_type() -> IntegerType {
     IntegerType::new(IntegerSign::Unsigned, 8).expect("U8")
 }
 pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
-    match scalar {
-        // The retained hosted address model uses a 64-bit integer-class slot,
-        // while its semantic carrier remains an address throughout replay.
-        ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
-            Some(ValueShape::integer(8, 8))
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
-            Some(ValueShape::float(4))
-        }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
-            Some(ValueShape::float(8))
-        }
-        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-        ScalarType::Integer(integer)
-            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-        {
-            Some(ValueShape::integer(
-                u32::from(integer.bits() / 8),
-                integer.bits() / 8,
-            ))
-        }
-        _ => None,
-    }
+    crate::selection::scalar_shape(scalar)
 }
 
 /// The saturating carrier a declared integer type is realized as: every

@@ -1,5 +1,4 @@
 //! The selected edge loads payloads before committing destination bindings.
-use selected_instructions::SelectedSuccessor;
 use super::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedSelectionConstraints,
@@ -7,6 +6,7 @@ use super::{
     VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
+use selected_instructions::SelectedSuccessor;
 use selected_instructions::{
     FrameStorageSlotId, SelectedCasePayloadTransport, SelectedLocalStorageSlot,
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
