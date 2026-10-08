@@ -76,8 +76,26 @@ fn result_source<'a>(
     else {
         return unsupported("Unit case has no structural subject");
     };
-    if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
-        return unsupported("Unit case subject is not whole owned custody");
+    // An owned subject is whole custody the dispatch consumes; a shared or
+    // mutable loan parameter is inspected in place.
+    let inspected = match subject.access {
+        checked_trees::CheckedStructuralAccess::Owned => false,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+        | checked_trees::CheckedStructuralAccess::MutableBorrow => true,
+        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+            return unsupported("Unit case subject is a write-only loan");
+        }
+    };
+    if !subject.path.is_empty() {
+        return unsupported("Unit case subject is not a whole root");
+    }
+    if inspected
+        && !matches!(
+            subject.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+        )
+    {
+        return unsupported("Unit case loan subject is not a parameter");
     }
     let (symbol, reference, provenance) = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -91,9 +109,23 @@ fn result_source<'a>(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case source parameter missing",
                 ))?;
+            if retained.access != subject.access {
+                return unsupported("Unit case subject access differs from its parameter");
+            }
+            let reference = if inspected {
+                let TypeReferenceNode::Reference { referee, .. } = checked
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                else {
+                    return unsupported("Unit case loan subject is not a reference");
+                };
+                *referee
+            } else {
+                parameter.type_reference
+            };
             (
                 CaseSubject::Place(parameter.symbol),
-                parameter.type_reference,
+                reference,
                 language_semantics::PermissionProvenance::Unknown,
             )
         }
@@ -250,7 +282,9 @@ pub(super) fn validate(
     {
         return unsupported("Unit case has unrelated owned parameter cleanup");
     }
-    let needs_discard = declaration.properties.multiplicity == Multiplicity::Affine;
+    // An inspected loan disposes nothing.
+    let needs_discard = subject.access == checked_trees::CheckedStructuralAccess::Owned
+        && declaration.properties.multiplicity == Multiplicity::Affine;
     let mut has_result_discard = false;
     let mut consumed_drops = Vec::new();
     for event in checked
@@ -320,7 +354,10 @@ pub(super) fn validate(
             state
                 .structural_parameters
                 .get(parameter_index as usize)
-                .filter(|parameter| parameter.multiplicity == Multiplicity::Affine)
+                .filter(|parameter| {
+                    parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                        && parameter.multiplicity == Multiplicity::Affine
+                })
                 .map(|parameter| parameter.position)
         }
         _ => None,
@@ -517,10 +554,22 @@ pub(super) fn validate(
         )?;
         super::result_custody::local_discards(checked, owner, source, state, Some(successor))?;
     }
-    if tail.iter().enumerate().any(|(offset, _)| {
+    // Only a final `_` after complete case coverage selects no case.
+    let declared_cases = declared
+        .iter()
+        .filter(|member| matches!(member, DataMember::Variant(_)))
+        .count();
+    if tail.iter().enumerate().any(|(offset, statement)| {
         !cases
             .iter()
             .any(|case| case.statement_ordinal() as usize == ordinal + offset)
+            && !(offset + 1 == tail.len()
+                && cases.len() == declared_cases
+                && matches!(
+                    statement,
+                    StatementNode::Transition(transition)
+                        if transition.guard == TransitionGuardNode::Always
+                ))
     }) {
         return unsupported("Unit case omitted an authored arm");
     }

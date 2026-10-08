@@ -2447,6 +2447,24 @@ crash and native exit behavior.
   subjects, passed to a successor and compared there, run natively; a read
   without a dominating case still rejects.
 
+- **PROJECTED-CASE-DISPATCH.** (new-scope) A one-case dispatch whose subject
+  is a projected place does not lower:
+  `transition holder.pair { Pair::Both { a, b } -> value(a + b) }` over
+  `data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }` is refused
+  in stage 04 with "state graph: terminator: unsupported tail: single guarded
+  transition". Whole-root subjects, owned or borrowed, lower through the
+  closed-sum dispatch (`state_graph/closed_sum.rs`), whose Terminal
+  `StructuralCase` terminator names a whole root `PlaceId`. A projected subject
+  lowers instead as a guard chain that reads payloads in place below each
+  membership test's true edge; a one-case sum's test has no false outcome to
+  route, so the chain has nothing to lower. Dispatch over two or more cases of
+  a projected subject runs (`pass/control_flow/projected_field_exhaustive_case_dispatch_exit`).
+  Generalize `StructuralCase` to a projected path whose root the verifier
+  proves live and whose payload parameters its case dominance establishes,
+  rather than special-casing one-case chains. Acceptance: one-case and n-case
+  projected dispatch with payload forwarding run natively; the existing
+  projected-dispatch fixtures are unchanged.
+
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the remaining `regressed-from:` rows in
   `tests/omega/corpus_native_macos_arm64.txt`. Read the live roster with

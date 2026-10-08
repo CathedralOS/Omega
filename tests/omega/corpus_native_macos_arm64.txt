@@ -578,6 +578,8 @@ pass/contracts/runtime_later_arm_call_requires_exit built 3086ms exit:70 @53d5dd
 pass/control_flow/affine_call_result_state_transfer_exit built 1607ms exit:70 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit built 849ms exit:70 @7f2bd2604102+wt
 pass/control_flow/arm_pattern_rest_optout_exit built 723ms exit:70 @48008365d839
+pass/control_flow/borrowed_case_dispatch_payload_arguments_exit built 1562ms exit:70
+pass/control_flow/borrowed_single_case_dispatch_exit built 1579ms exit:70
 pass/control_flow/borrowed_state_argument built 3255ms exit:5 @527c7c316c6f+wt
 pass/control_flow/case_arm_payload_receiver_call built 2027ms exit:70 @30260e7900cb
 pass/control_flow/case_arm_scalar_payload_arguments_exit built 1619ms exit:70 @48008365d839
@@ -646,6 +648,7 @@ pass/control_flow/self_case_payload_both_arms_exit built 755ms exit:70
 pass/control_flow/shared_state_disjoint_receiver_store_exit built 1438ms exit:70 @da17a13c769f+wt
 pass/control_flow/single_case_parameter_dispatch_exit built 2521ms exit:70 @d1a90561f8aa+wt
 pass/control_flow/single_case_result_dispatch_exit built 2613ms exit:70 @d1a90561f8aa+wt
+pass/control_flow/single_case_wildcard_dispatch_exit built 1613ms exit:70
 pass/control_flow/state_local_operand_edge_call_exit built 1759ms exit:70 @f05a17605282+wt
 pass/control_flow/structural_result_transition_tail built 1377ms exit:10 @1da616075c39+wt
 pass/control_flow/sum_field_storage_roundtrip built 1074ms exit:70 @7a6595c07f7b+wt

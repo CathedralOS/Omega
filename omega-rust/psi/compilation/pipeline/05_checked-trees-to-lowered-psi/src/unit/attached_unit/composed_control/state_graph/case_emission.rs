@@ -37,8 +37,11 @@ pub(super) fn prepare<'a>(
     else {
         return Ok(None);
     };
-    if subject.access != checked_trees::CheckedStructuralAccess::Owned || !subject.path.is_empty() {
-        return unsupported("Unit graph case subject lacks owned custody");
+    // `cases::validate` admitted the subject: whole owned custody, or a
+    // shared or mutable loan parameter the dispatch only inspects.
+    let owned = subject.access == checked_trees::CheckedStructuralAccess::Owned;
+    if !subject.path.is_empty() {
+        return unsupported("Unit graph case subject is not a whole root");
     }
     let subject_position = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
@@ -221,7 +224,7 @@ pub(super) fn prepare<'a>(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok(Some(PreparedCases {
         source: place,
-        discard_subject: multiplicity == StructuralMultiplicity::Affine,
+        discard_subject: owned && multiplicity == StructuralMultiplicity::Affine,
         cases,
     }))
 }

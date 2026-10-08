@@ -1,4 +1,6 @@
-//! Case terminators inspect exact owned sums and retain their disposal obligations.
+//! Case terminators inspect exact sums. An owned subject is consumed and its
+//! disposal obligation retained; a shared or mutable loan parameter is read in
+//! place and stays the caller's.
 //!
 //! The dispatched sum is a parameter, an earlier immutable local, or a
 //! computed call subject. A computed subject's call is planned once at the
@@ -112,13 +114,29 @@ pub(super) fn build(
                 .iter()
                 .enumerate()
                 .find(|(_, retained)| retained.position as usize == index)?;
-            if retained.access != CheckedStructuralAccess::Owned
-                || !matches!(
-                    retained.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-                || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
+            // An owned subject is consumed by the dispatch. A shared or
+            // mutable loan is only inspected: each case edge reads the
+            // referent's tag and payloads in place and the loan stays the
+            // caller's.
+            let inspected = match retained.access {
+                CheckedStructuralAccess::Owned => parameter.type_reference,
+                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow => {
+                    let TypeReferenceNode::Reference { referee, .. } = program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    else {
+                        return None;
+                    };
+                    *referee
+                }
+                CheckedStructuralAccess::WriteOnlyBorrow => return None,
+            };
+            if !matches!(
+                retained.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            ) || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
                 || !retained.qualifications.is_empty()
+                || retained.primitive_referent.is_some()
             {
                 return None;
             }
@@ -129,9 +147,9 @@ pub(super) fn build(
                     },
                     path: Vec::new(),
                     type_identity: retained.type_identity.clone(),
-                    access: CheckedStructuralAccess::Owned,
+                    access: retained.access,
                 },
-                parameter.type_reference,
+                inspected,
                 language_semantics::PermissionProvenance::Unknown,
             )
         } else {
@@ -213,7 +231,9 @@ pub(super) fn build(
     // above for the whole type graph, give that field no references, slices
     // or cleanup code, so the dispatch's one disposal of the whole subject
     // covers it exactly as it covers an unread primitive payload.
-    if variants.is_empty() || statements.len() - transition_start > variants.len() {
+    // Each arm selects at least one case, except a final `_` that follows
+    // complete coverage (see below).
+    if variants.is_empty() || statements.len() - transition_start > variants.len() + 1 {
         return None;
     }
     let marker_start = statements[..transition_start].iter().rposition(|statement| !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))).map_or(0, |index| index + 1);
@@ -297,7 +317,14 @@ pub(super) fn build(
             }
             _ => return None,
         };
+        // A final `_` after the authored arms already cover every case is
+        // admitted and never selected (first-match order,
+        // wiki/spec/language/patterns.md "Coverage and domain tests"): it
+        // contributes no case edge.
         if selected_variants.is_empty() {
+            if matches!(transition.guard, TransitionGuardNode::Always) {
+                continue;
+            }
             return None;
         }
         for variant in selected_variants {
@@ -561,7 +588,9 @@ pub(super) fn build(
     // Affine dispatch requires the actual source exit disposition. Copyable
     // subjects have no disposal debt; do not invent an affine-drop receipt.
     // Parameter-origin carriers and fresh results have different provenance.
-    let needs_discard = program.type_multiplicity(type_reference) == Multiplicity::Affine;
+    // An inspected loan disposes nothing.
+    let needs_discard = subject.access == CheckedStructuralAccess::Owned
+        && program.type_multiplicity(type_reference) == Multiplicity::Affine;
     // Source exit rows describe entry custody. An ordinary preceding call
     // can already own a whole parameter's disposal, including the call that
     // produces this dispatch subject. Projected moves leave their debt here.
