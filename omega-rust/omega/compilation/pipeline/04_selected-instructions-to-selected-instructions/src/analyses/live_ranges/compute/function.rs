@@ -135,17 +135,12 @@ fn reject_unsupported(
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<(), LiveRangeError> {
     for operand in &liveness.operand_positions {
-        let error = if operand.access == RegisterOperandAccess::UseDef {
-            Some(LiveRangeError::UnsupportedUseDef {
+        if operand.access == RegisterOperandAccess::UseDef {
+            return Err(LiveRangeError::UnsupportedUseDef {
                 function,
                 instruction: operand.instruction.0,
                 operand: operand.operand,
-            })
-        } else {
-            None
-        };
-        if let Some(error) = error {
-            return Err(error);
+            });
         }
     }
     Ok(())
