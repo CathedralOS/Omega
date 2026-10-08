@@ -103,11 +103,7 @@ pub(super) fn frame_place_root_symbol(
         ExpressionNode::Borrow(inner) => frame_place_root_symbol(program, inner.target),
         ExpressionNode::Indexed(indexed) => frame_place_root_symbol(program, indexed.collection),
         ExpressionNode::Member(member) => frame_place_root_symbol(program, member.receiver),
-        ExpressionNode::Name(path) => path
-            .head_symbol
-            .is_valid()
-            .then_some(path.head_symbol)
-            .or_else(|| path.symbol.is_valid().then_some(path.symbol)),
+        ExpressionNode::Name(path) => path.resolved_symbol(),
         _ => None,
     }
 }

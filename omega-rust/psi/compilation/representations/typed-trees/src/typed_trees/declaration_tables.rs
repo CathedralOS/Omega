@@ -125,6 +125,17 @@ impl TypedTrees {
     pub fn data_members(&self, data_definition: &data::DataDefinition) -> &[data::DataMember] {
         self.data_members.span_or_empty(data_definition.members)
     }
+    /// Every payload field across `members`: a field member contributes
+    /// itself; a variant contributes its payload fields.
+    pub fn data_member_fields<'a>(
+        &'a self,
+        members: &'a [data::DataMember],
+    ) -> impl Iterator<Item = &'a data::DataField> + 'a {
+        members.iter().flat_map(|member| match member {
+            data::DataMember::Field(field) => std::slice::from_ref(field),
+            data::DataMember::Variant(variant) => self.data_payload_fields(variant),
+        })
+    }
 
     pub fn push_data_payload_field(
         &mut self,

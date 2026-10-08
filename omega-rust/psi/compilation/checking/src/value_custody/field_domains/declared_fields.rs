@@ -9,7 +9,7 @@
 use super::{readable_fixed_array_elements, readable_nominal_definition, readable_type_reference};
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
-use typed_trees::{data::DataMember, types::TypeReferenceHandle};
+use typed_trees::types::TypeReferenceHandle;
 
 /// All declared field rows beneath an established readable data value. Exact
 /// domain identities and evidence-only extent rows survive until each consumer
@@ -42,14 +42,7 @@ fn collect_data_field_domain_rows(
     visited: &mut Vec<SymbolHandle>,
     rows: &mut Vec<FieldDomainRow>,
 ) {
-    for field in program
-        .data_members(data)
-        .iter()
-        .flat_map(|member| match member {
-            DataMember::Field(field) => std::slice::from_ref(field),
-            DataMember::Variant(variant) => program.data_payload_fields(variant),
-        })
-    {
+    for field in program.data_member_fields(program.data_members(data)) {
         if readable_type_reference(program, field.type_reference).is_none() {
             continue;
         }

@@ -143,23 +143,23 @@ pub fn transparent_proposition_application_entailed(
     }
 
     let expression_requires = program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(expression) => Some(*expression),
-            _ => None,
-        })
+        .contract_expressions(
+            program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state)),
+            SignatureContractKind::Requires,
+        )
         .collect::<Vec<_>>();
     let mut judge = StructuralJudge::from_requires(program, machine, &expression_requires);
     for application in program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .contract_facts(
+            program
+                .machine_contracts(machine)
+                .iter()
+                .chain(program.state_contracts(state)),
+            SignatureContractKind::Requires,
+        )
         .filter_map(|fact| match fact {
             ProofFact::Proposition(application) => Some(application),
             _ => None,

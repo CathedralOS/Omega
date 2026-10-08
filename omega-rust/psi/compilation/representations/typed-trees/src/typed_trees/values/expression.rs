@@ -1188,6 +1188,17 @@ pub struct TableNamePath {
     pub symbol: SymbolHandle,
 }
 
+impl TableNamePath {
+    /// The symbol this path resolves to: the resolution-authoritative head
+    /// symbol when the name resolved, else the whole-path symbol.
+    pub fn resolved_symbol(&self) -> Option<SymbolHandle> {
+        self.head_symbol
+            .is_valid()
+            .then_some(self.head_symbol)
+            .or_else(|| self.symbol.is_valid().then_some(self.symbol))
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: Identifier,

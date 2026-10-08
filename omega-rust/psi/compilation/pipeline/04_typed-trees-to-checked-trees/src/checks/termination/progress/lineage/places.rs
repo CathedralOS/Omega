@@ -46,10 +46,7 @@ pub(super) fn partition(
                 program
                     .data_members(data)
                     .iter()
-                    .flat_map(|member| match member {
-                        DataMember::Field(field) => std::slice::from_ref(field),
-                        DataMember::Variant(variant) => program.data_payload_fields(variant),
-                    })
+                    .flat_map(|member| program.data_member_fields(std::slice::from_ref(member)))
                     .find(|field| field.symbol == *projection)?
             }
             // An opaque leaf — an unresolved generic argument, a dynamic

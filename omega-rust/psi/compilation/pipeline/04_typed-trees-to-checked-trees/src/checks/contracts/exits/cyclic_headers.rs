@@ -208,16 +208,10 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 fixed_integer(program, type_reference).map(|(_, domain)| (type_reference, domain))
             });
         let requires = program
-            .machine_contracts(machine)
-            .iter()
-            .filter(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
-            })
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-            .filter_map(|fact| match fact {
-                ProofFact::Expression(expression) => Some(*expression),
-                _ => None,
-            })
+            .contract_expressions(
+                program.machine_contracts(machine).iter(),
+                typed_trees::signature::SignatureContractKind::Requires,
+            )
             .collect();
         Some(Self {
             program,
@@ -677,8 +671,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                         && self.comparison_is_admitted(binary.left, leaf_only)
                         && self.comparison_is_admitted(binary.right, leaf_only);
                 }
-                let Some(spelling) =
-                    validation::comparison_operator_spelling(binary.operator)
+                let Some(spelling) = validation::comparison_operator_spelling(binary.operator)
                 else {
                     return false;
                 };

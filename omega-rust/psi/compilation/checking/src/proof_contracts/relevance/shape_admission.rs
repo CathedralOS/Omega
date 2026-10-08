@@ -235,10 +235,7 @@ fn validate_unresolved_erased_generic_uses(
         .filter(|definition| definition.type_parameters.is_empty())
     {
         for member in program.data_members(definition) {
-            let fields = match member {
-                DataMember::Field(field) => std::slice::from_ref(field),
-                DataMember::Variant(variant) => program.data_payload_fields(variant),
-            };
+            let fields = program.data_member_fields(std::slice::from_ref(member));
             for field in fields {
                 if let Some(base) = unresolved_erased_generic_base(program, field.type_reference) {
                     diagnostics.push(Diagnostic::error(format!(

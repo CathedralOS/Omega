@@ -603,11 +603,7 @@ fn state_place_root_symbol(
         ExpressionNode::Borrow(inner) => state_place_root_symbol(program, inner.target),
         ExpressionNode::Member(member) => state_place_root_symbol(program, member.receiver),
         ExpressionNode::Indexed(indexed) => state_place_root_symbol(program, indexed.collection),
-        ExpressionNode::Name(path) => path
-            .head_symbol
-            .is_valid()
-            .then_some(path.head_symbol)
-            .or_else(|| path.symbol.is_valid().then_some(path.symbol)),
+        ExpressionNode::Name(path) => path.resolved_symbol(),
         _ => None,
     }
 }

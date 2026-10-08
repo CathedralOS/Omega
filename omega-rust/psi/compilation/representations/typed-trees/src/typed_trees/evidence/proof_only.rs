@@ -8,7 +8,7 @@
 //! `Node` runtime data.
 
 use crate::TypedTrees;
-use crate::data::{DataDefinition, DataMember};
+use crate::data::DataDefinition;
 use crate::name::Identifier;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashMap;
@@ -329,10 +329,7 @@ pub fn classify(program: &TypedTrees) -> ProofOnlyClassification {
     let mut integer_containment = vec![None; definitions.len()];
     for (index, definition) in definitions.iter().enumerate() {
         for member in program.data_members(definition) {
-            let fields = match member {
-                DataMember::Field(field) => std::slice::from_ref(field),
-                DataMember::Variant(variant) => program.data_payload_fields(variant),
-            };
+            let fields = program.data_member_fields(std::slice::from_ref(member));
             for field in fields {
                 // Occurrence-level erasure removes this containment edge from
                 // the runtime representation graph. The field remains in the

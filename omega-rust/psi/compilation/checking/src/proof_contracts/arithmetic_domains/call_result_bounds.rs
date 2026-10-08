@@ -53,15 +53,8 @@ pub(super) fn normal_return_interval(
         }
         environment.set(parameter.name.as_str().to_owned(), interval);
     }
-    callee
-        .contracts
-        .iter()
-        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(expression) => Some(*expression),
-            _ => None,
-        })
+    program
+        .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
         .fold(declared, |interval, expression| {
             interval.intersect(project(program, callee, &environment, expression, None))
         })

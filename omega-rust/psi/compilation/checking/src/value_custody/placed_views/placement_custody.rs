@@ -539,10 +539,7 @@ fn type_contains_erased_descendant_bounded(
             visiting.push(*symbol);
             let mut result = false;
             for member in program.data_members(record) {
-                let fields = match member {
-                    DataMember::Field(field) => std::slice::from_ref(field),
-                    DataMember::Variant(variant) => program.data_payload_fields(variant),
-                };
+                let fields = program.data_member_fields(std::slice::from_ref(member));
                 for field in fields {
                     if field.relevance.is_erased()
                         || type_contains_erased_descendant_bounded(
