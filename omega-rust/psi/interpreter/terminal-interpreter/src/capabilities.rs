@@ -328,14 +328,8 @@ mod tests {
                 provider_identity: "graph provider".into(),
                 candidate_identity: "graph candidate".into(),
                 candidate: MachineId::new(2).unwrap(),
-                signature: terminal_psi::ProviderSignature {
-                    parameters: Vec::new(),
-                },
-                refinement: terminal_psi::ProviderRefinement {
-                    positional_parameters: Vec::new(),
-                    required_domains: Vec::new(),
-                    realized_service_ceiling: Vec::new(),
-                },
+                signature: terminal_psi::ProviderSignature::empty(),
+                refinement: terminal_psi::ProviderRefinement::empty(),
             },
         );
     }

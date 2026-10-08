@@ -753,14 +753,8 @@ fn array_result_reads_rejoin_exact_owned_homes_across_call_origins() {
                     provider_identity: "Provider".into(),
                     candidate_identity: "Provider::produce".into(),
                     candidate: callee,
-                    signature: ProviderSignature {
-                        parameters: Vec::new(),
-                    },
-                    refinement: ProviderRefinement {
-                        positional_parameters: Vec::new(),
-                        required_domains: Vec::new(),
-                        realized_service_ceiling: Vec::new(),
-                    },
+                    signature: ProviderSignature::empty(),
+                    refinement: ProviderRefinement::empty(),
                 },
                 completion_claim_sources: Vec::new(),
                 completion_receipts: Vec::new(),

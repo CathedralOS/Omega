@@ -397,14 +397,8 @@ fn installed_provider_scalar_call_plan() -> MachineCodePlan {
         provider_identity: "timer.host".into(),
         candidate_identity: "timer.host.tick".into(),
         candidate: machine_id(2),
-        signature: ProviderSignature {
-            parameters: Vec::new(),
-        },
-        refinement: ProviderRefinement {
-            positional_parameters: Vec::new(),
-            required_domains: Vec::new(),
-            realized_service_ceiling: Vec::new(),
-        },
+        signature: ProviderSignature::empty(),
+        refinement: ProviderRefinement::empty(),
     };
 
     MachineCodePlan {

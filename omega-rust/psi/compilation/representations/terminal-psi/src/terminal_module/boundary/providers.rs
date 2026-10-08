@@ -33,6 +33,15 @@ pub struct ProviderSignature {
     pub parameters: Vec<ProviderSignatureParameter>,
 }
 
+impl ProviderSignature {
+    /// A signature with no structural parameter correspondence.
+    pub fn empty() -> Self {
+        Self {
+            parameters: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProviderSignatureParameter {
     pub position: u32,
@@ -58,4 +67,15 @@ pub struct ProviderRefinement {
     pub required_domains: Vec<StructuralDomainRequirement>,
     /// Exact checked candidate reach, proved to refine the boundary ceiling.
     pub realized_service_ceiling: Vec<ServiceId>,
+}
+impl ProviderRefinement {
+    /// A refinement with no positional correspondence, inherited domains, or
+    /// realized ceiling.
+    pub fn empty() -> Self {
+        Self {
+            positional_parameters: Vec::new(),
+            required_domains: Vec::new(),
+            realized_service_ceiling: Vec::new(),
+        }
+    }
 }
