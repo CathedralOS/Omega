@@ -69,16 +69,28 @@ mod admission;
 mod rewrite;
 mod validation;
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 
-use crate::rewrites::block_edges::{terminator_successors};
-use crate::rewrites::window_hazards::RunRelocationRejection;
-
-use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity, terminator_instruction
+use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::{
+    function_at, CrossingDirection, RelocationCrossing, block_instructions, crossed_window,
+    edge_surface, terminator_successors,
 };
-use semantic_vocabulary::FuelScheduleIdentity;
+use crate::rewrites::unexecuted::dead_path;
+use crate::rewrites::window_hazards::{
+    admit_run_relocation, register_writes, schedulable, speculatable, surface,
+    RunRelocationRejection,
+};
+
+use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    SelectedSuccessor, terminator_instruction,
+};
+use semantic_vocabulary::{EdgeId, FuelScheduleIdentity};
 
 pub use rewrite::relocate_scheduled_run;
 pub use validation::validate_scheduled_relocation;
@@ -237,4 +249,314 @@ pub(super) fn landing_position(block: &SelectedBlock, destination: SelectedInstr
 
 pub(super) fn block_index_of(function: &SelectedFunction, id: SelectedBlockId) -> Option<usize> {
     function.blocks.iter().position(|block| block.id == id)
+}
+
+
+/// The validator's own reconstruction of the relocation the contract
+/// permits: the block the contiguous run vacates, the body positions it
+/// occupies, the block it lands in, and the landing index. It shares no
+/// state with the producer's `admission` record.
+struct Reconstructed<'source> {
+    function: &'source SelectedFunction,
+    block_index: usize,
+    member_first: usize,
+    member_last: usize,
+    target_index: usize,
+    landing_index: usize,
+}
+
+/// The validator's own continuation search: every simple continuation
+/// leaving `from` reaches `to` before it exits or revisits a block.
+/// The acyclic-path walk bound, kept symmetric with the producer's so
+/// neither side of the contract derives a window the other refuses to
+/// measure — the cap the general `relocation` admission uses.
+const PATH_EDGE_LIMIT: usize = 64;
+
+/// Every block a crossed path enters — the region the family's
+/// `Source`-origin bound applies to.
+fn region(crossing: &RelocationCrossing<'_>) -> BTreeSet<usize> {
+    crossing
+        .positions
+        .iter()
+        .map(|(block_index, _)| *block_index)
+        .collect()
+}
+
+/// Every edge leaving a region block that no crossed path uses: the
+/// starts of the traversals a sink abandons. The destination block's own
+/// successors stay out of the set — the run executes there.
+fn skipped_edges<'a>(
+    function: &'a SelectedFunction,
+    crossing: &RelocationCrossing<'_>,
+) -> Vec<&'a SelectedSuccessor> {
+    let used: BTreeSet<(SelectedBlockId, EdgeId)> = crossing
+        .edges
+        .iter()
+        .map(|edge| (edge.block, edge.successor.psi_edge))
+        .collect();
+    let mut skipped = Vec::new();
+    for index in region(crossing) {
+        if index == crossing.destination_block {
+            continue;
+        }
+        for edge in terminator_successors(&function.blocks[index].terminator) {
+            if !used.contains(&(function.blocks[index].id, edge.psi_edge)) {
+                skipped.push(edge);
+            }
+        }
+    }
+    skipped
+}
+
+/// Reconstruct the legality of moving the run `members` onto
+/// `destination` from the source records: locate the run and the
+/// destination position by identity, bind the sink/hoist direction from
+/// the topology's own dominance and continuation bounds, re-derive the
+/// path-derived window — every block on a path plain `Source`, every
+/// crossed edge plain and free of member interference, every run member
+/// schedulable and sinkable, every crossed body position and crossed
+/// terminator uncoupled, no boundary settlement observing a changed
+/// prefix, and every location the run writes dead on the traversals a
+/// sink abandons — and account the family's measured steps against the
+/// budget. Nothing in this audit reads the producer's admission
+/// decision, so a producer-side legality error fails here even when the
+/// proposal matches the emitted edit.
+fn reconstruct<'source>(
+    source: &'source impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    members: &[SelectedInstructionId],
+    destination: SelectedInstructionId,
+    environment: &'source ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<Reconstructed<'source>, ScheduledRelocationError> {
+    let plan = source.selected_plan();
+    if plan.target != environment.target() {
+        return Err(ScheduledRelocationError::SourceMismatch);
+    }
+    let function = function_at(plan, function_index, ScheduledRelocationError::SourceMismatch)?;
+    let [first_member, ..] = members else {
+        return Err(ScheduledRelocationError::UnsupportedPair);
+    };
+    let (block_index, member_first) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == *first_member)
+                .map(|member_index| (block_index, member_index))
+        })
+        .ok_or(ScheduledRelocationError::SourceMismatch)?;
+    let block = &function.blocks[block_index];
+    let member_last = member_first + members.len() - 1;
+    if members.iter().enumerate().any(|(offset, member)| {
+        block
+            .instructions
+            .get(member_first + offset)
+            .map(|instruction| instruction.id)
+            != Some(*member)
+    }) {
+        return Err(ScheduledRelocationError::UnsupportedPair);
+    }
+    let run: Vec<&SelectedInstruction> = block.instructions[member_first..=member_last]
+        .iter()
+        .collect();
+    let mut destination_position = None;
+    for (target_index, target) in function.blocks.iter().enumerate() {
+        if let Some(index) = landing_position(target, destination) {
+            if destination_position.is_some() {
+                return Err(ScheduledRelocationError::SourceMismatch);
+            }
+            destination_position = Some((target_index, index));
+        }
+    }
+    let Some((target_index, landing_index)) = destination_position else {
+        return Err(ScheduledRelocationError::UnsupportedPair);
+    };
+    if target_index == block_index {
+        return Err(ScheduledRelocationError::UnsupportedPair);
+    }
+    let entry_index = block_index_of(function, function.entry_block)
+        .ok_or(ScheduledRelocationError::SourceMismatch)?;
+    enum Direction {
+        Sink,
+        Hoist,
+    }
+    let direction = if !reaches_avoiding(function, entry_index, Some(block_index), target_index)? {
+        Direction::Sink
+    } else if !reaches_avoiding(function, entry_index, Some(target_index), block_index)? {
+        Direction::Hoist
+    } else {
+        return Err(ScheduledRelocationError::UnsupportedPair);
+    };
+    let mut search_steps = 0usize;
+    match direction {
+        Direction::Sink => {
+            for edge in terminator_successors(&function.blocks[target_index].terminator) {
+                let next = block_index_of(function, edge.block)
+                    .ok_or(ScheduledRelocationError::SourceMismatch)?;
+                if next == target_index || reaches_avoiding(function, next, None, target_index)? {
+                    return Err(ScheduledRelocationError::UnsupportedPair);
+                }
+            }
+        }
+        Direction::Hoist => {
+            for edge in terminator_successors(&function.blocks[block_index].terminator) {
+                let next = block_index_of(function, edge.block)
+                    .ok_or(ScheduledRelocationError::SourceMismatch)?;
+                if next == block_index
+                    || reaches_avoiding(function, next, Some(target_index), block_index)?
+                {
+                    return Err(ScheduledRelocationError::UnsupportedPair);
+                }
+            }
+            let (reaches, expansions) = continuations_reach(function, target_index, block_index)?;
+            search_steps = expansions;
+            if !reaches {
+                return Err(ScheduledRelocationError::UnsupportedPair);
+            }
+        }
+    }
+    // The validator derives the crossed window itself through the shared
+    // enumeration, in the direction execution traverses it — the
+    // destination trails a sink, leads a hoist — under the same edge
+    // traversal bound the producer measures against. No path at all
+    // means the run would only be deleted, not relocated, which the
+    // shared audit refuses as an unreachable destination.
+    let crossing = crossed_window(
+        function,
+        block_index,
+        member_first,
+        member_last,
+        target_index,
+        landing_index,
+        match direction {
+            Direction::Sink => CrossingDirection::Forward,
+            Direction::Hoist => CrossingDirection::Backward,
+        },
+        PATH_EDGE_LIMIT,
+    )
+    .ok_or(ScheduledRelocationError::WorkBudgetExceeded)?;
+    for index in region(&crossing) {
+        if !matches!(
+            function.blocks[index].origin,
+            SelectedBlockOrigin::Source(_)
+        ) {
+            return Err(ScheduledRelocationError::UnsupportedPair);
+        }
+    }
+    for member in &run {
+        if schedulable(function, member) != Some(false) || !speculatable(member) {
+            return Err(ScheduledRelocationError::UnsupportedInstruction);
+        }
+    }
+    // The shared audit independently re-applies the window independence
+    // proof: every member schedulable, no member coupled with a crossed
+    // position or a crossed edge's terminator instruction, every crossed
+    // edge a plain semantic successor the run's transports do not
+    // interfere with, and no boundary settlement observing a changed
+    // executed prefix.
+    admit_run_relocation(function, &run, &crossing).map_err(rejection)?;
+    if matches!(direction, Direction::Sink) {
+        let skipped = skipped_edges(function, &crossing);
+        if !skipped.is_empty()
+            && !dead_path::dead(
+                function,
+                dead_path::Relocation {
+                    members: &run,
+                    vacated_block: block_index,
+                    vacated_first: member_first,
+                    vacated_last: member_last,
+                    landing_block: target_index,
+                    landing_index,
+                    landing: dead_path::Landing::Executed,
+                    vacated: dead_path::Vacated::Silent,
+                },
+                dead_path::Start::Edges(&skipped),
+            )
+        {
+            return Err(ScheduledRelocationError::UnsupportedPair);
+        }
+    }
+    let member_locations = run
+        .iter()
+        .map(|member| {
+            register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
+        })
+        .sum::<usize>();
+    let block_scan: usize = function
+        .blocks
+        .iter()
+        .map(|block| {
+            block_instructions(block).map(surface).sum::<usize>()
+                + terminator_successors(&block.terminator)
+                    .iter()
+                    .map(|edge| edge_surface(edge))
+                    .sum::<usize>()
+        })
+        .sum();
+    let steps = plan
+        .functions
+        .iter()
+        .try_fold(0usize, |total, function| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block.instructions.len())?.checked_add(1)
+            })
+        })
+        .and_then(|total| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block_instructions(block).count())
+            })
+        })
+        .and_then(|total| total.checked_add(PATH_EDGE_LIMIT))
+        .and_then(|total| total.checked_add(search_steps))
+        .and_then(|total| {
+            run.iter().try_fold(total, |total, member| {
+                crossing.edges.iter().try_fold(total, |total, edge| {
+                    total
+                        .checked_add(surface(member))?
+                        .checked_add(surface(edge.instruction))?
+                        .checked_add(edge_surface(edge.successor))
+                })
+            })
+        })
+        .and_then(|total| {
+            run.iter().try_fold(total, |total, member| {
+                crossing
+                    .positions
+                    .iter()
+                    .try_fold(total, |total, (crossed_block, positions)| {
+                        positions.iter().try_fold(total, |total, position| {
+                            total.checked_add(surface(member))?.checked_add(surface(
+                                &function.blocks[*crossed_block].instructions[*position],
+                            ))
+                        })
+                    })
+            })
+        })
+        .and_then(|total| {
+            total
+                .checked_add(function.memory_accesses.len())?
+                .checked_add(function.calls.len())?
+                .checked_add(function.boundary_settlements.len())
+        })
+        .and_then(|total| {
+            total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
+        })
+        .ok_or(ScheduledRelocationError::IdentityOverflow)?;
+    if u64::try_from(steps).map_err(|_| ScheduledRelocationError::IdentityOverflow)?
+        > budget.validation_steps()
+    {
+        return Err(ScheduledRelocationError::WorkBudgetExceeded);
+    }
+    Ok(Reconstructed {
+        function,
+        block_index,
+        member_first,
+        member_last,
+        target_index,
+        landing_index,
+    })
 }
