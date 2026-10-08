@@ -692,12 +692,7 @@ pub(super) fn bounded_owner_storage(
         structural_types
             .get(&structural_type)
             .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                declaration.shape.is_bounded_owned_byte_sequence()
             })
     };
     (live.address_joins.contains(&source)

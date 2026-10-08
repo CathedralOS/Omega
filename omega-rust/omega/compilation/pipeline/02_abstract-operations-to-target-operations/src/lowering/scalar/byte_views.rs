@@ -143,12 +143,7 @@ fn reads_owner_layout(
                 structural_types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        declaration.shape.is_bounded_owned_byte_sequence()
                     })
             })
         }
@@ -665,12 +660,7 @@ fn owned_byte_result<'a>(
             && structural_types
                 .get(&result.structural_type)
                 .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
+                    declaration.shape.is_bounded_owned_byte_sequence()
                 }))
         .then_some((psi_operation, result))
     });

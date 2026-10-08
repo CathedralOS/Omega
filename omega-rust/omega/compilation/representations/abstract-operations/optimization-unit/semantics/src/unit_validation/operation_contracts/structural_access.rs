@@ -410,12 +410,7 @@ where
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
         ) && types.get(&parameter.structural_type).is_some_and(
             |declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                declaration.shape.is_bounded_owned_byte_sequence()
             },
         );
         let bounded_owner_presentation = borrowed_owner_expected
@@ -784,12 +779,7 @@ pub(crate) fn owned_bounded_owner_loan(
         || !types
             .get(&source.structural_type)
             .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                declaration.shape.is_bounded_owned_byte_sequence()
             })
         || source.structural_type != parameter.structural_type
     {

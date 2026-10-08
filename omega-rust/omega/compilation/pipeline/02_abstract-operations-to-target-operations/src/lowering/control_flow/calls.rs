@@ -588,12 +588,7 @@ fn bounded_owned_byte_result(
     types: &StructuralTypeLookup<'_>,
 ) -> bool {
     types.get(&structural_type).is_some_and(|declaration| {
-        matches!(
-            declaration.shape,
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-            )
-        )
+        declaration.shape.is_bounded_owned_byte_sequence()
     })
 }
 

@@ -80,7 +80,7 @@ impl TerminalExecution<'_> {
             || !source_value.qualifications.is_empty()
             || !matches!(self.program.structural_types().get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
-                                || matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })))
+                                || declaration.shape.is_bounded_owned_byte_sequence())
         {
             return Err(malformed());
         }

@@ -353,10 +353,7 @@ impl TerminalExecution<'_> {
                 .structural_types()
                 .get(&parameter.structural_type)
                 .ok_or_else(malformed)?;
-            if matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-            ) && matches!(
+            if declaration.shape.is_bounded_owned_byte_sequence() && matches!(
                 parameter.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) {
@@ -374,10 +371,7 @@ impl TerminalExecution<'_> {
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
             } else if parameter.access == StructuralAccess::SharedBorrow
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-                )
+                && declaration.shape.is_bounded_owned_byte_sequence()
             {
                 if argument.access != StructuralAccess::SharedBorrow
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted

@@ -242,12 +242,7 @@ pub(in crate::legalization) fn owned_byte_result(
         && result.claims.is_empty()
         && types.iter().any(|declaration| {
             declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                && declaration.shape.is_bounded_owned_byte_sequence()
         }))
     .then_some((producer, result.structural_type))
 }
@@ -263,12 +258,7 @@ pub(in crate::legalization) fn reads_owner_layout(
         || function.arrival_parameter(place).is_some_and(|parameter| {
             types.iter().any(|declaration| {
                 declaration.id == parameter.structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
+                    && declaration.shape.is_bounded_owned_byte_sequence()
             })
         })
 }

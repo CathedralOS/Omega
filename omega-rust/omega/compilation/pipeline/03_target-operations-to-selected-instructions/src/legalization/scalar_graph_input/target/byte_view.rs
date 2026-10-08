@@ -41,12 +41,7 @@ impl Checker<'_> {
                     ) == Some((*psi_operation, *structural_type))
                     && self.types.iter().any(|declaration| {
                         declaration.id == *structural_type
-                            && matches!(
-                                declaration.shape,
-                                terminal_psi::StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                            )
+                            && declaration.shape.is_bounded_owned_byte_sequence()
                     })
             }
             TargetByteView::Literal {

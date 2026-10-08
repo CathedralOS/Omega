@@ -7,7 +7,7 @@ use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use target_operations::{CallSiteOwner, TargetOperationPlan, TargetUnitOperation};
-use terminal_psi::{StructuralAccess, StructuralArgument, TerminalAffineCleanupAction};
+use terminal_psi::{StructuralArgument, TerminalAffineCleanupAction};
 
 pub(in crate::legalization) fn expected(
     operation: &AbstractOperation,

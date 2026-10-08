@@ -472,12 +472,7 @@ fn owned_byte_loan(
         || result.structural_type != destination_parameter.structural_type
         || !plan.structural_types.iter().any(|declaration| {
             declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                && declaration.shape.is_bounded_owned_byte_sequence()
         })
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.projected_qualifications.is_empty()

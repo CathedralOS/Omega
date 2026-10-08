@@ -129,12 +129,7 @@ pub(super) fn replace(
     } else {
         if !signature.structural_types.iter().any(|declaration| {
             declaration.id == destination_type
-                && matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                && declaration.shape.is_bounded_owned_byte_sequence()
         }) {
             return Err(invalid());
         }

@@ -285,12 +285,7 @@ pub(crate) fn emit_content_store(
                 .iter()
                 .find(|declaration| declaration.id == parameter.structural_type)
                 .is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
+                    declaration.shape.is_bounded_owned_byte_sequence()
                 })
             {
                 return unsupported("whole byte store requires a borrowed bounded owner");

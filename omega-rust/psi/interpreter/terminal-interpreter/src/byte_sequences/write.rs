@@ -42,12 +42,7 @@ impl TerminalExecution<'_> {
                     .structural_types()
                     .get(&structural_type)
                     .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        declaration.shape.is_bounded_owned_byte_sequence()
                     })
                 {
                     return self.owned_byte_sequence_storage(place);
@@ -101,12 +96,7 @@ impl TerminalExecution<'_> {
             .structural_types()
             .get(&structural_type)
             .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                declaration.shape.is_bounded_owned_byte_sequence()
             });
         if (!bounded_owner && !qualifications.is_empty())
             || !projected_qualifications.is_empty()

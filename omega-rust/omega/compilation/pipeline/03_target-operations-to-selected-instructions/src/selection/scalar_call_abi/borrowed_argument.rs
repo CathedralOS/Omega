@@ -141,12 +141,7 @@ pub(super) fn validate_borrowed_argument(
                 && indices.is_empty()
                 && signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        && declaration.shape.is_bounded_owned_byte_sequence()
                 })
         })
         .and_then(|(_, result)| {

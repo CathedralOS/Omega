@@ -11,7 +11,7 @@ use semantic_vocabulary::IntegerSign;
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
+    StructuralAccess, StructuralMultiplicity,
 };
 
 pub(super) fn lower(
@@ -40,10 +40,7 @@ pub(super) fn lower(
         || !types
             .get(&result.structural_type)
             .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-                )
+                declaration.shape.is_bounded_owned_byte_sequence()
             })
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

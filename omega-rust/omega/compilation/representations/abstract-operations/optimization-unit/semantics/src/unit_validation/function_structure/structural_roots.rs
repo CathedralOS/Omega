@@ -766,9 +766,7 @@ pub(crate) fn validate_structural_root_operations(
                             // cannot silently drop a retained qualification.
                             && if matches!(path, abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty())
                                 && structural_types.get(&result.structural_type).is_some_and(|declaration| {
-                                    matches!(declaration.shape, terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                    ))
+                                    declaration.shape.is_bounded_owned_byte_sequence()
                                 })
                             {
                                 signature.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -938,12 +936,7 @@ pub(crate) fn validate_structural_root_operations(
                     let exact_bounded_owned_bytes = structural_types
                         .get(&signature.structural_type)
                         .is_some_and(|declaration| {
-                            matches!(
-                                declaration.shape,
-                                terminal_psi::StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                            )
+                            declaration.shape.is_bounded_owned_byte_sequence()
                         });
                     if !descriptor_origins_valid
                         || source_contract.is_none_or(

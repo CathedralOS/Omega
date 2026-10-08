@@ -241,12 +241,7 @@ pub(crate) fn lower_unit_closure(
                 && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
                 && structural_types.iter().any(|declaration| {
                     declaration.id == declared
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        && declaration.shape.is_bounded_owned_byte_sequence()
                 })
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(

@@ -221,12 +221,7 @@ pub fn byte_owned_call_result<'machine>(
         .iter()
         .any(|declaration| {
             declaration.id == result.structural_type
-                && matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                && declaration.shape.is_bounded_owned_byte_sequence()
         })
         .then_some(result)
 }
@@ -620,12 +615,7 @@ pub fn byte_sequence_source_predicates(
                 let owned_buffer = parameter.access == StructuralAccess::Owned
                     && module.structural_types.iter().any(|row| {
                         row.id == parameter.structural_type
-                            && matches!(
-                                row.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                            )
+                            && row.shape.is_bounded_owned_byte_sequence()
                     });
                 if !owned_buffer
                     && !matches!(

@@ -1151,12 +1151,7 @@ fn bounded_byte_field_borrow(
         || !declarations.iter().any(|declaration| {
             declaration.id == view_type
                 && if owned {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
-                    )
+                    declaration.shape.is_bounded_owned_byte_sequence()
                 } else {
                     declaration.shape.is_borrowed_byte_carrier()
                 }

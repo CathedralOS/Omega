@@ -340,10 +340,7 @@ pub(super) fn validate_source(
             structural_type,
         }) => owned_byte_result(function, source_kind, source, |identity| {
             structural_types.get(&identity).is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-                )
+                declaration.shape.is_bounded_owned_byte_sequence()
             })
         })
         .or_else(|| {
@@ -384,15 +381,9 @@ pub(super) fn validate_source(
                     ByteSequenceCarrier::BorrowedView { .. }
                         | ByteSequenceCarrier::BoundedView { .. }
                 )
-            ) || (matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-            ) && (owned_byte_result(function, source_kind, source, |identity| {
+            ) || (declaration.shape.is_bounded_owned_byte_sequence() && (owned_byte_result(function, source_kind, source, |identity| {
                 structural_types.get(&identity).is_some_and(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-                    )
+                    declaration.shape.is_bounded_owned_byte_sequence()
                 })
             })
             .is_some()

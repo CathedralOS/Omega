@@ -161,12 +161,7 @@ pub(super) fn matches_bounded_byte_storage(
     };
     let is_owner = declarations.iter().any(|declaration| {
         declaration.id == actual.structural_type
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
+            && declaration.shape.is_bounded_owned_byte_sequence()
     });
     (matches!(
         actual.access,

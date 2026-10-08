@@ -98,12 +98,7 @@ impl ByteSequenceBinding {
                 && !structural_types
                     .get(&referent.structural_type)
                     .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        declaration.shape.is_bounded_owned_byte_sequence()
                     }))
         {
             return Err(malformed());

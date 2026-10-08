@@ -887,12 +887,7 @@ pub(super) fn replacement_footprints_retained(
                 && result.claims.is_empty()
                 && structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        && declaration.shape.is_bounded_owned_byte_sequence()
                 })
         }
         _ => false,
@@ -1493,12 +1488,7 @@ fn parameter_access(
     }
     types.iter().any(|declaration| {
         declaration.id == parameter.structural_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
+            && declaration.shape.is_bounded_owned_byte_sequence()
     })
 }
 

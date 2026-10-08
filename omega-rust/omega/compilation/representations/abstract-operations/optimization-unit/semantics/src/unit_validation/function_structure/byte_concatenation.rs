@@ -39,12 +39,7 @@ pub(super) fn validate(
                 || !types
                     .get(&result.structural_type)
                     .is_some_and(|declaration| {
-                        matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        declaration.shape.is_bounded_owned_byte_sequence()
                     })
                 || !function.structural_places.iter().any(|place| {
                     place.id == result.place

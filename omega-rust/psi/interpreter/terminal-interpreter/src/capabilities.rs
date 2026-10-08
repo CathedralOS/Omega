@@ -21,7 +21,7 @@ use crate::program::AdmittedTerminalProgram;
 use crate::program::MachineBlocks;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind};
 use std::collections::BTreeSet;
-use terminal_psi::{OperationKind, TerminalAffineCleanupAction, Terminator};
+use terminal_psi::{OperationKind, Terminator};
 
 /// A precise implementation limitation on an otherwise admitted program.
 /// Driver task names and display diagnostics belong to the driver, not Psi.

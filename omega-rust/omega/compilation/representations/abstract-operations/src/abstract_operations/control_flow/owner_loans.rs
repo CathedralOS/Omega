@@ -47,10 +47,7 @@ pub fn is_bounded_owner_loan<'a>(
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-            )
+            declaration.shape.is_bounded_owned_byte_sequence()
         })
 }
 
@@ -118,10 +115,7 @@ pub fn is_owned_bounded_byte_parameter<'a>(
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.projected_qualifications.is_empty()
         && lookup(parameter.structural_type).is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-            )
+            declaration.shape.is_bounded_owned_byte_sequence()
         })
 }
 

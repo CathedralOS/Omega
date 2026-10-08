@@ -469,12 +469,7 @@ pub(super) fn validate_establish_byte_sequence_concatenation(
             if producer == operation.id && structural_type == result.structural_type)
         || !module.structural_types.iter().any(|row| {
             row.id == result.structural_type
-                && matches!(
-                    row.shape,
-                    StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
+                && row.shape.is_bounded_owned_byte_sequence()
         })
     {
         return malformed("byte concatenation result differs from its owned carrier declaration");

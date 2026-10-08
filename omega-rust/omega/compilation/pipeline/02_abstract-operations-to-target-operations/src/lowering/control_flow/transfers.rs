@@ -443,14 +443,7 @@ pub(super) fn validate_successors(
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
                                 && !structural_types.get(&parameter.structural_type).is_some_and(
                                     |declaration| {
-                                        matches!(
-                                            declaration.shape,
-                                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                                terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                                                    ..
-                                                },
-                                            )
-                                        )
+                                        declaration.shape.is_bounded_owned_byte_sequence()
                                     },
                                 ))))
                     || !matches!(

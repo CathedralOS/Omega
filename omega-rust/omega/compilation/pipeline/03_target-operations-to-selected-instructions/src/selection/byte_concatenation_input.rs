@@ -35,12 +35,7 @@ pub(super) fn owned_type(
                 && result.claims.is_empty()
                 && signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
-                        && matches!(
-                            declaration.shape,
-                            StructuralTypeShape::ByteSequence(
-                                ByteSequenceCarrier::BoundedOwned { .. }
-                            )
-                        )
+                        && declaration.shape.is_bounded_owned_byte_sequence()
                 }))
             .then_some(result.structural_type)
         });
@@ -76,10 +71,7 @@ pub(super) fn owner_layout_type(
             && parameter.projected_qualifications.is_empty()
             && signature.structural_types.iter().any(|declaration| {
                 declaration.id == parameter.structural_type
-                    && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
-                    )
+                    && declaration.shape.is_bounded_owned_byte_sequence()
             }))
         .then_some(parameter.structural_type)
     })

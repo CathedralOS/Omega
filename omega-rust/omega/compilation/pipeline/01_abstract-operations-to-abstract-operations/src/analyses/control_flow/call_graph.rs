@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 
 use optimization_unit::PsiOptimizationUnit;
-use terminal_psi::TerminalAffineCleanupAction;
 
 use super::{CallGraphAnalysis, components::strongly_connected_components};
 
