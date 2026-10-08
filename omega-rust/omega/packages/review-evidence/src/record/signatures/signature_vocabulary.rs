@@ -75,8 +75,6 @@ pub enum PackageReviewMachineParameterContract {
     RequirementIdentity,
 }
 
-impl PackageReviewMachineParameterContract {}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewMachineParameterSignature {
     pub(crate) lifetime_parameter_count: usize,
@@ -92,8 +90,6 @@ pub struct PackageReviewMachineParameterSignature {
     pub(crate) blocks: bool,
     pub(crate) termination: PackageReviewTermination,
 }
-
-impl PackageReviewMachineParameterSignature {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewMachineParameterValue {
@@ -143,5 +139,3 @@ impl PackageReviewConformanceBound {
         &self.arguments
     }
 }
-
-impl PackageReviewTypeParameter {}

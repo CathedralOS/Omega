@@ -87,5 +87,3 @@ pub struct PackageReviewDataShape {
     pub(crate) retired_identities: Vec<u64>,
     pub(crate) members: Vec<PackageReviewDataMember>,
 }
-
-impl PackageReviewDataShape {}

@@ -109,5 +109,3 @@ pub struct PackageReviewDomainShape {
     pub(crate) semantic_roles: Vec<PackageReviewDomainSemanticRole>,
     pub(crate) establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
-
-impl PackageReviewDomainShape {}

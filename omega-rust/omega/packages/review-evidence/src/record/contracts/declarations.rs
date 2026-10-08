@@ -26,8 +26,6 @@ pub struct PackageReviewOperatorShape {
     pub(crate) published_crash: Vec<PackageReviewCrashRoute>,
 }
 
-impl PackageReviewOperatorShape {}
-
 impl PackageReviewConstShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
         &self.identity

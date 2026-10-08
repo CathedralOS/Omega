@@ -107,8 +107,6 @@ pub struct PackageReviewCrashPredicate {
     pub(crate) canonical_bytes: Vec<u8>,
 }
 
-impl PackageReviewCrashPredicate {}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewCrashRouteGuard {
     Truth,
@@ -124,8 +122,6 @@ pub struct PackageReviewCrashRoute {
     pub(crate) cause: PackageReviewCrashCause,
     pub(crate) alternative_guards: Vec<PackageReviewCrashRouteGuard>,
 }
-
-impl PackageReviewCrashRoute {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewProgressSubject {
@@ -156,8 +152,6 @@ pub struct PackageReviewProgressPremise {
     pub(crate) projections: Vec<PackageReviewNominalIdentity>,
 }
 
-impl PackageReviewProgressPremise {}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewTermination {
     NoGuarantee,
@@ -165,5 +159,3 @@ pub enum PackageReviewTermination {
         premises: Vec<PackageReviewProgressPremise>,
     },
 }
-
-impl PackageReviewTermination {}

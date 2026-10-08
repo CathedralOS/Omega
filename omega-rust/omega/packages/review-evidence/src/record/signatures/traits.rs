@@ -64,8 +64,6 @@ pub struct PackageReviewTraitRequirement {
     pub(crate) termination: PackageReviewTermination,
 }
 
-impl PackageReviewTraitRequirement {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitShape {
     pub(crate) identity: PackageReviewNominalIdentity,
@@ -90,7 +88,3 @@ pub struct PackageReviewConformanceShape {
     pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(crate) interface: PackageReviewEvidenceInterface,
 }
-
-impl PackageReviewConformanceShape {}
-
-impl PackageReviewTraitShape {}

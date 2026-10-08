@@ -146,5 +146,3 @@ pub struct CheckedPackageBoundaryApplicationRealizationReview {
     pub(crate) selected_plan_digest: [u8; 32],
     pub(crate) realization: PackageReviewBoundaryApplicationRealization,
 }
-
-impl CheckedPackageBoundaryApplicationRealizationReview {}
