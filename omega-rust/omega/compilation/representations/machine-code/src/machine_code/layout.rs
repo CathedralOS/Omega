@@ -136,7 +136,9 @@ impl ResolvedMachineLayout {
         &self,
         machine: semantic_vocabulary::MachineId,
     ) -> Option<&ResolvedSelectedFunctionLayout> {
-        self.function(machine)
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
     }
 
     /// Every function's block layouts, in function order.

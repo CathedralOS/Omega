@@ -143,7 +143,10 @@ pub struct PsiOptimizationUnit {
 impl PsiOptimizationUnit {
     /// The optimization function for `machine`, when the unit carries it.
     pub fn function(&self, machine: MachineId) -> Option<&PsiOptimizationFunction> {
-        self.function(machine)
+        self.functions
+            .iter()
+            .find(|function| function.machine == machine)
+    
     }
 
     /// The boundary machine keyed `id`, when the unit declares it.
