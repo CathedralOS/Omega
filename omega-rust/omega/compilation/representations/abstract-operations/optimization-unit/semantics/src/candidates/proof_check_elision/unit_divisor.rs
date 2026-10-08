@@ -24,7 +24,7 @@ use semantic_vocabulary::{
 };
 
 use super::identity_classification::{independent_integer_one, independent_integer_zero};
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_block, candidate_function};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct IndependentRemainderUnitConstant {
@@ -167,11 +167,7 @@ pub(crate) fn validate_proof_certified_integer_remainder_by_unit_candidate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = candidate_function(input, patch.location.machine)?;
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.location.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = candidate_block(function, patch.location.block)?;
     let node = block
         .nodes
         .get(

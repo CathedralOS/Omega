@@ -16,7 +16,7 @@ use optimization_unit::{
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::ScalarType;
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_block, candidate_function};
 
 pub fn validate_boolean_evaluation_candidate(
     input: &PsiOptimizationUnit,
@@ -50,11 +50,7 @@ pub fn validate_boolean_evaluation_candidate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = candidate_function(input, patch.location.machine)?;
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.location.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = candidate_block(function, patch.location.block)?;
     let node = block
         .nodes
         .get(usize::try_from(patch.location.node).expect("u32 fits usize"))

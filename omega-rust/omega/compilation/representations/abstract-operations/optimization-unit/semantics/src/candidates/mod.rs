@@ -195,3 +195,15 @@ pub(crate) fn set_node_effect_link(
     };
     Ok(output)
 }
+
+/// The function's block at `block`, or CandidateLocationMissing.
+pub(crate) fn candidate_block(
+    function: &PsiOptimizationFunction,
+    block: semantic_vocabulary::BlockId,
+) -> Result<&optimization_unit::OptimizationBlock, OptimizationUnitValidationError> {
+    function
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
+}

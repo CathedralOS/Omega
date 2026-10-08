@@ -15,7 +15,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId};
 use std::collections::BTreeSet;
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_block, candidate_function};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -28,11 +28,7 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let function = candidate_function(input, patch.location.machine)?;
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == patch.location.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = candidate_block(function, patch.location.block)?;
     let node = block
         .nodes
         .get(usize::try_from(patch.location.node).expect("u32 fits usize"))

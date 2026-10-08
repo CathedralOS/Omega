@@ -20,7 +20,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
-use crate::candidates::candidate_function;
+use crate::candidates::{candidate_block, candidate_function};
 
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block
@@ -381,11 +381,7 @@ fn fused_node(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let block = function
-        .blocks
-        .iter()
-        .find(|block| block.id == first.predecessor.block)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = candidate_block(function, first.predecessor.block)?;
     let predecessor = block
         .nodes
         .get(
