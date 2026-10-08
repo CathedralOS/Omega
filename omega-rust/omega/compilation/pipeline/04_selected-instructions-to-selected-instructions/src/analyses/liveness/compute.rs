@@ -409,7 +409,7 @@ fn materialize_block(
         });
     }
     instructions.reverse();
-    let terminator = control::instruction(&block.terminator);
+    let terminator = selected_instructions::terminator_instruction(&block.terminator);
     let successors = control::successors(&block.terminator)
         .enumerate()
         .map(|(ordinal, successor)| {
@@ -475,7 +475,7 @@ fn block_instructions(
     block
         .instructions
         .iter()
-        .chain(std::iter::once(control::instruction(&block.terminator)))
+        .chain(std::iter::once(selected_instructions::terminator_instruction(&block.terminator)))
 }
 
 fn sorted<T: Copy + Ord>(values: &BTreeSet<T>) -> Vec<T> {

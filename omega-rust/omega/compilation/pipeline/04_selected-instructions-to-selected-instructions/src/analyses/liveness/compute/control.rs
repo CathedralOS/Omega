@@ -1,18 +1,7 @@
 //! Exact selected-control projection shared by liveness transfer and evidence.
 
-use selected_instructions::{SelectedInstruction, SelectedSuccessor, SelectedTerminator};
+use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 
-pub(super) fn instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
-    match terminator {
-        SelectedTerminator::ConditionalBranch { instruction, .. }
-        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
-        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
-        | SelectedTerminator::Jump { instruction, .. }
-        | SelectedTerminator::Return { instruction, .. }
-        | SelectedTerminator::Crash { instruction, .. }
-        | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
-    }
-}
 
 /// Successors retain semantic polarity order: nonzero/zero or less/not-less.
 pub(super) fn successors(
