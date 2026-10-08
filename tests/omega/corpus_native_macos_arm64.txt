@@ -813,8 +813,7 @@ pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 3588ms exit:
 pass/drops/runtime_empty_array_owner_cleanup_exit built 1897ms exit:0 @1cc178f9ab8f
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit built 2042ms exit:0 stdout:match @65e8a0783b05
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit built 1993ms exit:0 @65e8a0783b05
-pass/drops/runtime_generic_reserved_construction_exit rejected 3371ms @693920652f41
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(7) }))
+pass/drops/runtime_generic_reserved_construction_exit built 2877ms exit:0 @02be27637e24
 pass/drops/runtime_indexed_nominal_cleanup_exit built 3463ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit built 2005ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit built 2602ms exit:0 stdout:match @9beb2be72f2d+wt
@@ -832,8 +831,7 @@ pass/drops/runtime_nominal_temporary_helper_closure_exit built 1701ms exit:0 @c8
 pass/drops/runtime_owned_nominal_replacement_exit built 2464ms exit:0 @04d0fbe9d97c+wt
 pass/drops/runtime_owned_record_replacement_exit built 2465ms exit:0 @04d0fbe9d97c+wt
 pass/drops/runtime_owned_replacement_composition_exit built 2502ms exit:0 @04d0fbe9d97c+wt
-pass/drops/runtime_owned_replacement_reestablishment_exit rejected 3513ms @693920652f41
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(CurrentCleanupMismatch { machine: MachineId(1), block: BlockId(12) }))
+pass/drops/runtime_owned_replacement_reestablishment_exit built 2680ms exit:0 @02be27637e24
 pass/drops/runtime_parent_hook_preserves_linear_descendants_exit built 2738ms exit:0 @e0e325f7052d+wt
 pass/drops/runtime_projected_nominal_cleanup_exit built 2201ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_core_exit built 2198ms exit:0 @9beb2be72f2d+wt
