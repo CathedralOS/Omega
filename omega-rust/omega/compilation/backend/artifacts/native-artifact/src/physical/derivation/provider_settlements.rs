@@ -3,17 +3,15 @@
 use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
 use crate::NativePhysicalChild;
-use crate::NativePhysicalChildParts;
 use crate::NativePhysicalOccurrence;
 use crate::NativeProviderExecution;
 use crate::NativeSelectedProviderPlan;
 use crate::OptimizedBoundaryOccurrence;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
-use crate::physical::derivation::evidence::physical_child_identity;
+use crate::physical::derivation::evidence::boundary_physical_child_parts;
 use crate::physical::derivation::evidence::ranges_overlap;
 use crate::physical::derivation::evidence::span;
-use crate::physical::derivation::hashing::sha256;
 use crate::physical::derivation::provider_custody::direct_port_read_custody;
 use crate::physical::derivation::provider_custody::linux_write_line_custody_is_exact;
 use crate::physical::derivation::provider_custody::metadata_port_effect_custody;
@@ -231,36 +229,19 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         }
         .into(),
     );
-    let machine_bytes_digest = sha256(machine_bytes);
-    let object_bytes_digest = sha256(object_bytes);
-    let final_image_bytes_digest = sha256(final_image_bytes);
-    let relocation = PhysicalRelocationDisposition::DirectInstructionBytes;
-    let identity = physical_child_identity(
-        &parent,
-        projection,
-        NativePhysicalOccurrence::Boundary(occurrence.identity()),
-        &[machine_span],
-        &[object_span],
-        &[final_image_span],
-        machine_bytes_digest,
-        object_bytes_digest,
-        final_image_bytes_digest,
-        &relocation,
-    );
     Ok(Some(
-        NativePhysicalChildParts {
+        boundary_physical_child_parts(
             parent,
             projection,
-            occurrence: NativePhysicalOccurrence::Boundary(occurrence.identity()),
-            machine_spans: vec![machine_span],
-            object_spans: vec![object_span],
-            final_image_spans: vec![final_image_span],
-            machine_bytes_digest,
-            object_bytes_digest,
-            final_image_bytes_digest,
-            relocation,
-            identity,
-        }
+            NativePhysicalOccurrence::Boundary(occurrence.identity()),
+            machine_span,
+            object_span,
+            final_image_span,
+            machine_bytes,
+            object_bytes,
+            final_image_bytes,
+            PhysicalRelocationDisposition::DirectInstructionBytes,
+        )
         .into(),
     ))
 }

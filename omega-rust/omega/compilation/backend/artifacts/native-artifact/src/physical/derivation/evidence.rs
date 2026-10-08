@@ -14,7 +14,7 @@ use crate::native_artifact::boundary_application_coverage_identity;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
-    hash_relocation_origin, physical_evidence_gap_identity,
+    hash_relocation_origin, physical_evidence_gap_identity, sha256,
 };
 use crate::physical::derivation::hosted_builtins::{
     derive_hosted_builtin_child, hosted_builtin_settlement,
@@ -813,4 +813,50 @@ fn validate_physical_child_spans(child: &NativePhysicalChild) -> Result<(), &'st
         return Err("native physical child span lengths differ across custody domains");
     }
     Ok(())
+}
+
+/// The shared boundary-child tail both provider derivations close with:
+/// per-layer byte digests, the child identity, and the parts record. The
+/// call sites differ only in the relocation disposition they mint.
+#[expect(clippy::too_many_arguments)]
+pub(crate) fn boundary_physical_child_parts(
+    parent: PhysicalChildParent,
+    projection: NativeOptimizationProjectionIdentity,
+    occurrence: NativePhysicalOccurrence,
+    machine_span: NativeByteSpan,
+    object_span: NativeByteSpan,
+    final_image_span: NativeByteSpan,
+    machine_bytes: &[u8],
+    object_bytes: &[u8],
+    final_image_bytes: &[u8],
+    relocation: PhysicalRelocationDisposition,
+) -> NativePhysicalChildParts {
+    let machine_bytes_digest = sha256(machine_bytes);
+    let object_bytes_digest = sha256(object_bytes);
+    let final_image_bytes_digest = sha256(final_image_bytes);
+    let identity = physical_child_identity(
+        &parent,
+        projection,
+        occurrence,
+        &[machine_span],
+        &[object_span],
+        &[final_image_span],
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        &relocation,
+    );
+    NativePhysicalChildParts {
+        parent,
+        projection,
+        occurrence,
+        machine_spans: vec![machine_span],
+        object_spans: vec![object_span],
+        final_image_spans: vec![final_image_span],
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+        relocation,
+        identity,
+    }
 }
