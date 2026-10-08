@@ -704,8 +704,7 @@ fn direct_storage_type(
             parameter.access,
             parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
         )
-    } else {
-        let home = live.structural_homes.get(&source.place)?;
+    } else if let Some(home) = live.structural_homes.get(&source.place) {
         (
             home.structural_type(),
             home.access(),
@@ -714,6 +713,17 @@ fn direct_storage_type(
                 && home
                     .operation_result()
                     .is_none_or(|(_, result)| result.qualification_establishments.is_empty()),
+        )
+    } else {
+        // A shared view keeps no home, but its producer published the same
+        // operation-result contract a home retains, with the same authority.
+        let result = live.view_result(function, source.place)?;
+        (
+            result.structural_type,
+            StructuralAccess::Owned,
+            result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.qualification_establishments.is_empty(),
         )
     };
     if !source.access.admits(access) || !unqualified {

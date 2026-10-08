@@ -100,6 +100,28 @@ impl LiveDefinitions {
         )
     }
 
+    /// Rejoin a live view's exact producer result: the one structural result
+    /// published at `place`, from the producer and with the type the view
+    /// row recorded. A shared view keeps no home, yet its producer published
+    /// the same operation-result contract a home retains.
+    fn view_result<'function>(
+        &self,
+        function: &'function AbstractFunction,
+        place: PlaceId,
+    ) -> Option<&'function terminal_psi::StructuralOperationResult> {
+        let (producer, structural_type) = self.views.get(&place)?;
+        let mut results = function.operations.iter().filter_map(|operation| {
+            operation
+                .structural_result()
+                .filter(|(_, result)| result.place == place)
+        });
+        let (operation, result) = results.next()?;
+        (results.next().is_none()
+            && operation == *producer
+            && result.structural_type == *structural_type)
+            .then_some(result)
+    }
+
     fn reference_edge_exit(&self, target: semantic_vocabulary::BlockId) -> ReferenceEdgeCustody {
         ReferenceEdgeCustody {
             target,

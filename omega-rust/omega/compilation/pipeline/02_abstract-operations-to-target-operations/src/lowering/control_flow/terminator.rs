@@ -20,31 +20,22 @@ fn affine_view_carrier(
     types: &StructuralTypeLookup<'_>,
     place: PlaceId,
 ) -> bool {
-    let Some((producer, structural_type)) = live.views.get(&place) else {
+    let Some(result) = live.view_result(function, place) else {
         return false;
     };
-    let mut results = function.operations.iter().filter_map(|operation| {
-        operation
-            .structural_result()
-            .filter(|(_, result)| result.place == place)
-    });
-    let Some((operation, result)) = results.next() else {
-        return false;
-    };
-    results.next().is_none()
-        && operation == *producer
-        && result.structural_type == *structural_type
-        && result.multiplicity == StructuralMultiplicity::Affine
+    result.multiplicity == StructuralMultiplicity::Affine
         && result.claims.is_empty()
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
-        && types.get(structural_type).is_some_and(|declaration| {
-            matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            ) || declaration.shape.is_borrowed_byte_view()
-        })
+        && types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                ) || declaration.shape.is_borrowed_byte_view()
+            })
 }
 
 // Inline invocation values can remain in ABI fragments without an addressable
