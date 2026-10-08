@@ -1,17 +1,14 @@
-//! Discover complete call tuples and check their authored generic bounds.
+//! Discover complete call tuples without admitting their authored bounds.
 //!
 //! This file collects call proposals and call selections.
 //! `callee_proposals.rs` resolves callees and their machine proposals,
 //! `selection_assembly.rs` assembles selections from proposals,
-//! `static_bindings.rs` infers static, fixed-array and domain bindings,
-//! `candidate_bounds.rs` validates candidate conformance bounds using the
-//! shared conformance closure and refinement judgments.
+//! `static_bindings.rs` infers static, fixed-array and domain bindings.
 
 use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
 
 mod callee_proposals;
-mod candidate_bounds;
 mod selection_assembly;
 mod static_bindings;
 
@@ -19,7 +16,6 @@ pub(crate) use callee_proposals::{
     collect_machine_proposals_for_callee, contract_expression_handles, resolve_callee,
     state_by_symbol,
 };
-pub(crate) use candidate_bounds::{approved_type_bounds, validate_candidate_conformance_bounds};
 pub(crate) use selection_assembly::{
     selection_for_call, selection_from_proposals, unique_complete_selections, upsert_selection,
 };

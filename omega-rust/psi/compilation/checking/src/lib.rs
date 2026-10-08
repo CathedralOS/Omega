@@ -219,6 +219,7 @@ pub use machine_calls::result_overloads::{
     bind_float_conversion_casts, resolve_named_result_overloads,
 };
 pub use machine_calls::static_arguments;
+pub use machine_calls::static_bindings;
 pub use proof_contracts::default_domains::{
     OpenInvariantCrashSite, data_float_predicate, data_predicates_admit_zero,
     standing_facts_prove_requirement,

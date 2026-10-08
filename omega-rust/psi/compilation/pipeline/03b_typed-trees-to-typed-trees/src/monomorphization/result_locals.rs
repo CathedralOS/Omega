@@ -64,20 +64,6 @@ pub(super) fn refresh_generic_call_results(
         let candidate =
             super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
         super::applications::retain_call(program, &candidate, &selection);
-        if crate::monomorphization::selection::approved_type_bounds(
-            program,
-            std::slice::from_ref(&candidate),
-        ) != [true]
-        {
-            return Err(vec![diagnostics::Diagnostic::error(format!(
-                "generic machine `{}` has a concrete call result tuple that does not satisfy its authored type bounds",
-                candidate.template.template_name,
-            ))]);
-        }
-        crate::monomorphization::selection::validate_candidate_conformance_bounds(
-            program, &candidate,
-        )?;
-        let mut closed_candidate = candidate.clone();
         let mut forwarded_symbols = Vec::new();
         for (ordinal, ((parameter, _, _), binding)) in candidate
             .template
@@ -98,11 +84,8 @@ pub(super) fn refresh_generic_call_results(
                 && symbol.is_valid()
             {
                 forwarded_symbols.push((*parameter, *symbol));
-                closed_candidate.const_bindings[ordinal] = None;
             }
         }
-        super::const_arguments::validate_bindings(program, &closed_candidate)
-            .map_err(|error| vec![error])?;
         let substitutions = candidate
             .template
             .type_parameters

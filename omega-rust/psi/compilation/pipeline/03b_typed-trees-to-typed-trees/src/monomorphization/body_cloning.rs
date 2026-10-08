@@ -12,7 +12,7 @@ use crate::monomorphization::body_rewriting::{
 };
 use crate::monomorphization::{
     Candidate, candidate_conformance_fingerprint_arguments,
-    closed_operator_realizations_for_machine, const_arguments, const_values, remapped_symbol,
+    closed_operator_realizations_for_machine, const_values, remapped_symbol,
     resolve_specialized_receiver_calls, specialized_attached_data,
 };
 use validation::contract_identities::specialization_selection_report_fingerprint;
@@ -58,7 +58,19 @@ pub(super) fn clone_specialized_machine(
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Diagnostic> {
-    const_arguments::validate_bindings(source.unwrap_or(program), candidate)?;
+    // Closure derives the record needed by executable substitution. Fitting
+    // that record to the original binder is immutable checking's judgment.
+    // Fail before allocating a clone, not through a prior-validator assumption.
+    let conformance_applications = candidate
+        .evidence_bindings
+        .iter()
+        .map(|binding| {
+            validation::conformance_applications::close_conformance_application(
+                source.unwrap_or(program),
+                binding.as_ref().expect("complete specialization"),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let source_machine =
         source.unwrap_or(program).machines()[candidate.template.machine_index].clone();
     let source_states = source
@@ -604,17 +616,7 @@ pub(super) fn clone_specialized_machine(
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
-            conformance_applications: candidate
-                .evidence_bindings
-                .iter()
-                .map(|binding| {
-                    validation::conformance_applications::close_conformance_application(
-                        source.unwrap_or(program),
-                        binding.as_ref().expect("complete specialization"),
-                    )
-                    .expect("validated closed conformance application")
-                })
-                .collect(),
+            conformance_applications,
             operator_realizations,
             template_contract_commitment,
             canonical_template_contract_bytes,

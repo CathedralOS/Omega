@@ -123,9 +123,6 @@ pub(super) fn selected_instance<'program>(
         })
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    let concrete = super::candidate_for_selection(candidate, selection);
-    crate::monomorphization::selection::validate_candidate_conformance_bounds(source, &concrete)
-        .ok()?;
     program.machine_specializations.iter().find(|instance| {
         instance.template == candidate.template.template_symbol
             && instance.type_argument_identities == type_arguments

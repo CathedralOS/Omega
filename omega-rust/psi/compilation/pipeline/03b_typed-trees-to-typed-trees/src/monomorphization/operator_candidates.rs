@@ -3,9 +3,6 @@ use super::{
     TypeReferenceHandle, TypedTrees,
 };
 use crate::monomorphization::body_cloning::{clone_specialized_machine, copy_type_reference};
-use crate::monomorphization::selection::{
-    approved_type_bounds, validate_candidate_conformance_bounds,
-};
 use crate::monomorphization::{
     Candidate, SpecializationKey, candidate, materialize_static_argument_types, saved_calls,
 };
@@ -233,30 +230,10 @@ pub(crate) fn specialize_operator_candidates(
             continue;
         }
 
-        let mut candidates = concrete
+        let candidates = concrete
             .into_iter()
             .map(|(_, candidate)| candidate)
             .collect::<Vec<_>>();
-        if approved_type_bounds(&source, &candidates)
-            .iter()
-            .any(|approved| !approved)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "generic operator candidate `{}` has an application that violates its type-property bounds",
-                template_machine.name,
-            )));
-            continue;
-        }
-        let mut bounds_valid = true;
-        for candidate in &mut candidates {
-            if let Err(mut errors) = validate_candidate_conformance_bounds(&source, candidate) {
-                diagnostics.append(&mut errors);
-                bounds_valid = false;
-            }
-        }
-        if !bounds_valid {
-            continue;
-        }
 
         let canonical_template_contract_bytes =
             canonical_template_contract_bytes(&source, machine_index, service_reaches)

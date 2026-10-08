@@ -25,15 +25,21 @@ checking (04) without renumbering their existing downstream consumers.
 ## Specialization
 
 [Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:
-discover call tuples, validate bounds, prepare the round's contract analyses,
+discover call tuples, retain their exact bindings, prepare the round's contract analyses,
 materialize missing instances, then rewrite calls. Source operand formation
 does not run in those rounds. [Authored selections](src/preparation/selections.rs)
 retain each application's declaration, operands and lexical owner before
 folding; cloning copies and remaps that custody. Immutable checking owns
 [argument admission](../../checking/src/machine_calls/static_arguments.rs),
-including unused operands and typed const landing. Private compile-time
-programs admit once before execution. Inferred tuple bounds and template
-effect/commitment inference remain loop work until their typed inputs move.
+including unused operands and typed const landing, and
+[tuple-bound admission](../../checking/src/machine_calls/static_bindings.rs).
+Calls and instances retain binder-keyed type, const, runtime-carrier, machine
+and conformance operands in the existing typed application arenas. Their
+original declarations own the requirements; display identities do not grant
+admission. Conformance closure is fallible derivation before clone allocation,
+not an assumption that bound fitting succeeded. Private compile-time programs
+admit once before execution. Template effect/commitment inference remains
+loop work.
 Authored templates remain generic and unchanged. Application candidates borrow
 the round's immutable template metadata while owning their bindings.
 [Selection](src/monomorphization/selection.rs),

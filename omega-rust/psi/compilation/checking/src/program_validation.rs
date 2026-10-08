@@ -280,6 +280,9 @@ fn validate(
     if let Err(mut errors) = crate::static_arguments::validate_authored_static_arguments(program) {
         diagnostics.append(&mut errors);
     }
+    if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(program) {
+        diagnostics.append(&mut errors);
+    }
     let mut formed_static_machine_selections =
         machine_parameters::form_static_machine_selections(program, &mut diagnostics);
     // A rejected authored application has no well-formed concrete body to

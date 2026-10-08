@@ -8,7 +8,6 @@ pub(super) fn from_machine(
     let machine = &program.machines()[machine_index];
     let parameters = program.machine_type_parameters(machine);
     let mut type_parameters = Vec::new();
-    let mut parameter_bounds = Vec::new();
     let mut const_parameters = Vec::new();
     let mut value_const_parameters = Vec::new();
     let mut machine_parameters = Vec::new();
@@ -16,9 +15,6 @@ pub(super) fn from_machine(
         match &parameter.kind {
             TypeParameterKind::Type => {
                 type_parameters.push((parameter.symbol, parameter.name.as_str().to_owned()));
-                parameter_bounds.push(validation::declared_property_requirements(
-                    &parameter.bounds,
-                ));
             }
             TypeParameterKind::Const { type_reference } => const_parameters.push((
                 parameter.symbol,
@@ -68,7 +64,6 @@ pub(super) fn from_machine(
                 .map(|state| state.symbol)
                 .collect(),
             type_parameters,
-            parameter_bounds,
             const_parameters,
             value_const_parameters,
             machine_parameters,

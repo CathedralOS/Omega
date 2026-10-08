@@ -67,7 +67,6 @@ struct CandidateTemplate {
     template_name: String,
     state_symbols: Vec<SymbolHandle>,
     type_parameters: Vec<(SymbolHandle, String)>,
-    parameter_bounds: Vec<Vec<validation::DeclaredPropertyRequirement>>,
     const_parameters: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
     /// Const-slot ordinals declared as runtime-capable Value binders.
     value_const_parameters: Vec<usize>,
@@ -203,26 +202,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             let candidate =
                 candidate_for_selection(&candidates[selection.candidate_index], selection);
             applications::retain_call(program, &candidate, selection);
-        }
-        // A retained generic body still checks each known application argument,
-        // including a discarded call with no inferred destination to refresh.
-        // The tuple's bounds do not depend on whether we emit a private instance.
-        for selection in selections
-            .iter()
-            .filter(|selection| selection.caller_is_generic)
-        {
-            let candidate =
-                candidate_for_selection(&candidates[selection.candidate_index], selection);
-            if approved_type_bounds(program, std::slice::from_ref(&candidate)) != [true] {
-                return Err(vec![Diagnostic::error(format!(
-                    "generic machine `{}` has a call tuple that does not satisfy its authored type bounds",
-                    candidate.template.template_name,
-                ))]);
-            }
-            if selection.is_complete() {
-                validate_candidate_conformance_bounds(program, &candidate)?;
-            }
-            const_arguments::validate_bindings(program, &candidate).map_err(|error| vec![error])?;
         }
         result_locals::refresh_generic_call_results(program, &candidates, &selections)?;
         // All templates in this round share the complete original call graph.
@@ -469,10 +448,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// never rewritten: it remains the package API and every closed application
 /// is cloned from that stable template.
 mod operator_candidates;
-use crate::monomorphization::selection::{
-    approved_type_bounds, contract_expression_handles, unique_complete_selections,
-    validate_candidate_conformance_bounds,
-};
+use crate::monomorphization::selection::{contract_expression_handles, unique_complete_selections};
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
 fn apply_call_specializations(
@@ -486,28 +462,10 @@ fn apply_call_specializations(
     if groups.is_empty() {
         return Ok(false);
     }
-    let mut concrete_candidates: Vec<Candidate> = groups
+    let concrete_candidates: Vec<Candidate> = groups
         .iter()
         .map(|(_, members)| candidate_for_selection(template, &selections[members[0]]))
         .collect();
-    if approved_type_bounds(program, &concrete_candidates)
-        .iter()
-        .any(|approved| !approved)
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "generic machine `{}` has a concrete specialization tuple that does not satisfy its authored type bounds",
-            template.template.template_name
-        ))]);
-    }
-    let mut conformance_diagnostics = Vec::new();
-    for candidate in &mut concrete_candidates {
-        if let Err(mut errors) = validate_candidate_conformance_bounds(program, candidate) {
-            conformance_diagnostics.append(&mut errors);
-        }
-    }
-    if !conformance_diagnostics.is_empty() {
-        return Err(conformance_diagnostics);
-    }
 
     let canonical_template_contract_bytes = canonical_template_contract_bytes(
         program,

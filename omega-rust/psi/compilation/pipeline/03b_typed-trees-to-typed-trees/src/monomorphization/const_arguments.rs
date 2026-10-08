@@ -1,8 +1,6 @@
-//! Const tuple derivation and concrete binding obligations.
-//! Authored argument admission belongs to immutable checking, not this loop.
+//! Const tuple derivation. Authored and concrete argument admission belongs
+//! to immutable checking, not this loop.
 
-use super::Candidate;
-use diagnostics::Diagnostic;
 use symbols::SymbolKind;
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::types::TypeReferenceHandle;
@@ -41,48 +39,6 @@ pub(super) fn resolve_runtime_subject(
         }
     }
     validation::nearest_scoped_local(program, state, scope_limit, argument.path.as_ref())
-}
-
-pub(super) fn validate_bindings(
-    program: &dyn ::validation::CheckingInput,
-    candidate: &Candidate,
-) -> Result<(), Diagnostic> {
-    let machine = &program.machines()[candidate.template.machine_index];
-    for (index, ((symbol, _, _), binding)) in candidate
-        .template
-        .const_parameters
-        .iter()
-        .zip(&candidate.const_bindings)
-        .enumerate()
-    {
-        // A runtime-bound `Value` slot carries its declared carrier, not a
-        // closed static value; its subject is checked as an ordinary argument.
-        if candidate.runtime_value_bindings[index].is_some() {
-            continue;
-        }
-        let Some(binding) = binding else { continue };
-        let Some(parameter) = program
-            .machine_type_parameters(machine)
-            .iter()
-            .find(|parameter| parameter.symbol == *symbol)
-        else {
-            return Err(Diagnostic::error(
-                "const specialization lost its declared binder",
-            ));
-        };
-        validation::validate_closed_const_argument(
-            program,
-            &candidate.template.template_name,
-            parameter,
-            *binding,
-        )
-        .map_err(|errors| {
-            errors.into_iter().next().unwrap_or_else(|| {
-                Diagnostic::error("const argument validation failed without a diagnostic")
-            })
-        })?;
-    }
-    Ok(())
 }
 
 pub(super) fn has_pending_type_arguments(
