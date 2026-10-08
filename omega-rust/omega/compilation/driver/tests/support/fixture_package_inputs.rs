@@ -96,8 +96,6 @@ pub fn bundled_standard_library_location() -> String {
         .replace('\\', "/")
 }
 
-
-
 /// One dependency a fixture authored in its own `build.omg`, resolved against
 /// the project that declared it.
 #[derive(Debug)]
@@ -881,7 +879,6 @@ fn dangerous_service_bindings(
     }
     Ok(bindings)
 }
-
 
 /// The root-slot owner a scratch build binds `ProgramEntry` under, read from
 /// the target vocabulary. Only profiles with a native realization own a
