@@ -17,9 +17,7 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use typed_trees::AuthoredDeclarationSelectionKind;
 use typed_trees::AuthoredDeclarationSelectionTarget;
-use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
-};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableBinaryExpression};
 
 pub(super) fn is_case_membership(
     compilation: &PackageReviewInput<'_>,
