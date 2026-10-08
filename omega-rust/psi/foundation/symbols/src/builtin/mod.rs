@@ -769,59 +769,8 @@ impl BuiltinFunction {
             | Self::AsmWriteVbarEl1
             | Self::AsmWriteTpidrEl1 => Some("MachineControl"),
             Self::AsmPortOut | Self::AsmPortIn => Some("PortIo"),
-            Self::Max
-            | Self::Min
-            | Self::Sqrt
-            | Self::Abs
-            | Self::Clamp
-            | Self::FloatIsNan
-            | Self::FloatMultiplyThenAddF32
-            | Self::FloatMultiplyThenAddF64
-            | Self::FloatFusedMultiplyAddF32
-            | Self::FloatFusedMultiplyAddF64
-            | Self::FloatIsFinite
-            | Self::FloatIsInfinite
-            | Self::FloatIsNormal
-            | Self::FloatIsSubnormal
-            | Self::FloatClassifyF32
-            | Self::FloatClassifyF64
-            | Self::FloatAddTowardZeroF32
-            | Self::FloatAddTowardZeroF64
-            | Self::FloatAddTowardPositiveF32
-            | Self::FloatAddTowardPositiveF64
-            | Self::FloatAddTowardNegativeF32
-            | Self::FloatAddTowardNegativeF64
-            | Self::FloatSubtractTowardZeroF32
-            | Self::FloatSubtractTowardZeroF64
-            | Self::FloatSubtractTowardPositiveF32
-            | Self::FloatSubtractTowardPositiveF64
-            | Self::FloatSubtractTowardNegativeF32
-            | Self::FloatSubtractTowardNegativeF64
-            | Self::FloatMultiplyTowardZeroF32
-            | Self::FloatMultiplyTowardZeroF64
-            | Self::FloatMultiplyTowardPositiveF32
-            | Self::FloatMultiplyTowardPositiveF64
-            | Self::FloatMultiplyTowardNegativeF32
-            | Self::FloatMultiplyTowardNegativeF64
-            | Self::FloatDivideTowardZeroF32
-            | Self::FloatDivideTowardZeroF64
-            | Self::FloatDivideTowardPositiveF32
-            | Self::FloatDivideTowardPositiveF64
-            | Self::FloatDivideTowardNegativeF32
-            | Self::FloatDivideTowardNegativeF64
-            | Self::FloatSqrtTowardZeroF32
-            | Self::FloatSqrtTowardZeroF64
-            | Self::FloatSqrtTowardPositiveF32
-            | Self::FloatSqrtTowardPositiveF64
-            | Self::FloatSqrtTowardNegativeF32
-            | Self::FloatSqrtTowardNegativeF64
-            | Self::FloatFusedMultiplyAddTowardZeroF32
-            | Self::FloatFusedMultiplyAddTowardZeroF64
-            | Self::FloatFusedMultiplyAddTowardPositiveF32
-            | Self::FloatFusedMultiplyAddTowardPositiveF64
-            | Self::FloatFusedMultiplyAddTowardNegativeF32
-            | Self::FloatFusedMultiplyAddTowardNegativeF64
-            | Self::ContentOld
+            service if service.is_float_family() => None,
+            Self::ContentOld
             | Self::ContentSeparate
             | Self::IntegerEmbed
             | Self::AsmLoadFence
@@ -837,7 +786,70 @@ impl BuiltinFunction {
             | Self::AsmSendEvent
             | Self::AsmSendEventLocal
             | Self::AsmSnapshotFlags => None,
+            _ => None,
         }
+    }
+
+    /// The floating-point value family: the math intrinsics (`max`, `min`,
+    /// `sqrt`, `abs`, `clamp`), the float predicates and classifications, and
+    /// every directed-rounding arithmetic and fused-multiply-add spelling.
+    /// Classifiers list the family once; consumers select membership only.
+    pub const fn is_float_family(self) -> bool {
+        matches!(
+            self,
+            Self::Max
+                | Self::Min
+                | Self::Sqrt
+                | Self::Abs
+                | Self::Clamp
+                | Self::FloatIsNan
+                | Self::FloatMultiplyThenAddF32
+                | Self::FloatMultiplyThenAddF64
+                | Self::FloatFusedMultiplyAddF32
+                | Self::FloatFusedMultiplyAddF64
+                | Self::FloatIsFinite
+                | Self::FloatIsInfinite
+                | Self::FloatIsNormal
+                | Self::FloatIsSubnormal
+                | Self::FloatClassifyF32
+                | Self::FloatClassifyF64
+                | Self::FloatAddTowardZeroF32
+                | Self::FloatAddTowardZeroF64
+                | Self::FloatAddTowardPositiveF32
+                | Self::FloatAddTowardPositiveF64
+                | Self::FloatAddTowardNegativeF32
+                | Self::FloatAddTowardNegativeF64
+                | Self::FloatSubtractTowardZeroF32
+                | Self::FloatSubtractTowardZeroF64
+                | Self::FloatSubtractTowardPositiveF32
+                | Self::FloatSubtractTowardPositiveF64
+                | Self::FloatSubtractTowardNegativeF32
+                | Self::FloatSubtractTowardNegativeF64
+                | Self::FloatMultiplyTowardZeroF32
+                | Self::FloatMultiplyTowardZeroF64
+                | Self::FloatMultiplyTowardPositiveF32
+                | Self::FloatMultiplyTowardPositiveF64
+                | Self::FloatMultiplyTowardNegativeF32
+                | Self::FloatMultiplyTowardNegativeF64
+                | Self::FloatDivideTowardZeroF32
+                | Self::FloatDivideTowardZeroF64
+                | Self::FloatDivideTowardPositiveF32
+                | Self::FloatDivideTowardPositiveF64
+                | Self::FloatDivideTowardNegativeF32
+                | Self::FloatDivideTowardNegativeF64
+                | Self::FloatSqrtTowardZeroF32
+                | Self::FloatSqrtTowardZeroF64
+                | Self::FloatSqrtTowardPositiveF32
+                | Self::FloatSqrtTowardPositiveF64
+                | Self::FloatSqrtTowardNegativeF32
+                | Self::FloatSqrtTowardNegativeF64
+                | Self::FloatFusedMultiplyAddTowardZeroF32
+                | Self::FloatFusedMultiplyAddTowardZeroF64
+                | Self::FloatFusedMultiplyAddTowardPositiveF32
+                | Self::FloatFusedMultiplyAddTowardPositiveF64
+                | Self::FloatFusedMultiplyAddTowardNegativeF32
+                | Self::FloatFusedMultiplyAddTowardNegativeF64
+        )
     }
 
     /// Whether a call to this builtin writes no caller storage: it reads its
@@ -847,110 +859,60 @@ impl BuiltinFunction {
     /// custody builtins, and `embed` are excluded: their effects are their own
     /// custody axes, not value reads.
     pub const fn has_empty_write_frame(self) -> bool {
-        match self {
-            Self::Max
-            | Self::Min
-            | Self::Sqrt
-            | Self::Abs
-            | Self::Clamp
-            | Self::FloatIsNan
-            | Self::FloatMultiplyThenAddF32
-            | Self::FloatMultiplyThenAddF64
-            | Self::FloatFusedMultiplyAddF32
-            | Self::FloatFusedMultiplyAddF64
-            | Self::FloatIsFinite
-            | Self::FloatIsInfinite
-            | Self::FloatIsNormal
-            | Self::FloatIsSubnormal
-            | Self::FloatClassifyF32
-            | Self::FloatClassifyF64
-            | Self::FloatAddTowardZeroF32
-            | Self::FloatAddTowardZeroF64
-            | Self::FloatAddTowardPositiveF32
-            | Self::FloatAddTowardPositiveF64
-            | Self::FloatAddTowardNegativeF32
-            | Self::FloatAddTowardNegativeF64
-            | Self::FloatSubtractTowardZeroF32
-            | Self::FloatSubtractTowardZeroF64
-            | Self::FloatSubtractTowardPositiveF32
-            | Self::FloatSubtractTowardPositiveF64
-            | Self::FloatSubtractTowardNegativeF32
-            | Self::FloatSubtractTowardNegativeF64
-            | Self::FloatMultiplyTowardZeroF32
-            | Self::FloatMultiplyTowardZeroF64
-            | Self::FloatMultiplyTowardPositiveF32
-            | Self::FloatMultiplyTowardPositiveF64
-            | Self::FloatMultiplyTowardNegativeF32
-            | Self::FloatMultiplyTowardNegativeF64
-            | Self::FloatDivideTowardZeroF32
-            | Self::FloatDivideTowardZeroF64
-            | Self::FloatDivideTowardPositiveF32
-            | Self::FloatDivideTowardPositiveF64
-            | Self::FloatDivideTowardNegativeF32
-            | Self::FloatDivideTowardNegativeF64
-            | Self::FloatSqrtTowardZeroF32
-            | Self::FloatSqrtTowardZeroF64
-            | Self::FloatSqrtTowardPositiveF32
-            | Self::FloatSqrtTowardPositiveF64
-            | Self::FloatSqrtTowardNegativeF32
-            | Self::FloatSqrtTowardNegativeF64
-            | Self::FloatFusedMultiplyAddTowardZeroF32
-            | Self::FloatFusedMultiplyAddTowardZeroF64
-            | Self::FloatFusedMultiplyAddTowardPositiveF32
-            | Self::FloatFusedMultiplyAddTowardPositiveF64
-            | Self::FloatFusedMultiplyAddTowardNegativeF32
-            | Self::FloatFusedMultiplyAddTowardNegativeF64 => true,
-            Self::AsmHlt
-            | Self::AsmPortOut
-            | Self::AsmPortIn
-            | Self::AsmLoadFence
-            | Self::AsmStoreFence
-            | Self::AsmFullFence
-            | Self::AsmDisableInterrupts
-            | Self::AsmEnableInterrupts
-            | Self::AsmSnapshotFlags
-            | Self::AsmRestoreFlags
-            | Self::AsmReadMsr
-            | Self::AsmWriteMsr
-            | Self::AsmReadCr0
-            | Self::AsmReadCr2
-            | Self::AsmReadCr3
-            | Self::AsmReadCr4
-            | Self::AsmWriteCr0
-            | Self::AsmWriteCr3
-            | Self::AsmWriteCr4
-            | Self::AsmReadSctlrEl1
-            | Self::AsmReadTcrEl1
-            | Self::AsmReadTtbr0El1
-            | Self::AsmReadTtbr1El1
-            | Self::AsmReadMairEl1
-            | Self::AsmReadVbarEl1
-            | Self::AsmReadTpidrEl1
-            | Self::AsmReadEsrEl1
-            | Self::AsmReadFarEl1
-            | Self::AsmWriteSctlrEl1
-            | Self::AsmWriteTcrEl1
-            | Self::AsmWriteTtbr0El1
-            | Self::AsmWriteTtbr1El1
-            | Self::AsmWriteMairEl1
-            | Self::AsmWriteVbarEl1
-            | Self::AsmWriteTpidrEl1
-            | Self::AsmSerialize
-            | Self::AsmInstructionSyncBarrier
-            | Self::AsmSpinPause
-            | Self::AsmYieldHint
-            | Self::AsmNop
-            | Self::AsmWaitForEvent
-            | Self::AsmWaitForInterrupt
-            | Self::AsmSendEvent
-            | Self::AsmSendEventLocal
-            | Self::AsmWriteBackInvalidate
-            | Self::AsmInvalidate
-            | Self::AsmWriteBackNoInvalidate
-            | Self::ContentOld
-            | Self::ContentSeparate
-            | Self::IntegerEmbed => false,
-        }
+        !self.is_float_family()
+            && !matches!(
+                self,
+                Self::AsmHlt
+                    | Self::AsmPortOut
+                    | Self::AsmPortIn
+                    | Self::AsmLoadFence
+                    | Self::AsmStoreFence
+                    | Self::AsmFullFence
+                    | Self::AsmDisableInterrupts
+                    | Self::AsmEnableInterrupts
+                    | Self::AsmSnapshotFlags
+                    | Self::AsmRestoreFlags
+                    | Self::AsmReadMsr
+                    | Self::AsmWriteMsr
+                    | Self::AsmReadCr0
+                    | Self::AsmReadCr2
+                    | Self::AsmReadCr3
+                    | Self::AsmReadCr4
+                    | Self::AsmWriteCr0
+                    | Self::AsmWriteCr3
+                    | Self::AsmWriteCr4
+                    | Self::AsmReadSctlrEl1
+                    | Self::AsmReadTcrEl1
+                    | Self::AsmReadTtbr0El1
+                    | Self::AsmReadTtbr1El1
+                    | Self::AsmReadMairEl1
+                    | Self::AsmReadVbarEl1
+                    | Self::AsmReadTpidrEl1
+                    | Self::AsmReadEsrEl1
+                    | Self::AsmReadFarEl1
+                    | Self::AsmWriteSctlrEl1
+                    | Self::AsmWriteTcrEl1
+                    | Self::AsmWriteTtbr0El1
+                    | Self::AsmWriteTtbr1El1
+                    | Self::AsmWriteMairEl1
+                    | Self::AsmWriteVbarEl1
+                    | Self::AsmWriteTpidrEl1
+                    | Self::AsmSerialize
+                    | Self::AsmInstructionSyncBarrier
+                    | Self::AsmSpinPause
+                    | Self::AsmYieldHint
+                    | Self::AsmNop
+                    | Self::AsmWaitForEvent
+                    | Self::AsmWaitForInterrupt
+                    | Self::AsmSendEvent
+                    | Self::AsmSendEventLocal
+                    | Self::AsmWriteBackInvalidate
+                    | Self::AsmInvalidate
+                    | Self::AsmWriteBackNoInvalidate
+                    | Self::ContentOld
+                    | Self::ContentSeparate
+                    | Self::IntegerEmbed
+            )
     }
 
     pub fn is_asm_intrinsic(self) -> bool {
