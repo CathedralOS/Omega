@@ -99,8 +99,8 @@ impl Block {
 
 impl TerminalMachine {
     /// The block keyed `id`, when the machine declares it.
-    pub fn block(&self, id: BlockId) -> Option<&Block> {
-        self.blocks.iter().find(|block| block.id == id)
+    pub fn block(&self, id: &BlockId) -> Option<&Block> {
+        self.blocks.iter().find(|block| block.id == *id)
     }
 
     /// The operation with `id`, searched across every block's roster.

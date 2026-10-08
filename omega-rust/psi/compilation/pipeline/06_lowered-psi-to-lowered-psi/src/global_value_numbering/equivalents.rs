@@ -82,7 +82,7 @@ pub(super) fn deduplicate(
     let mut removed = BTreeSet::new();
     let mut leaders: Vec<Leader> = Vec::new();
     for block_id in order {
-        let Some(block) = machine.block(block_id) else {
+        let Some(block) = machine.block(&block_id) else {
             continue;
         };
         for operation in &block.operations {
