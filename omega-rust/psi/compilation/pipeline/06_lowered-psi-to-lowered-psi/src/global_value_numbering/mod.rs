@@ -29,7 +29,6 @@ pub(super) use validation::GlobalValueNumberingRewriteError;
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
-use terminal_psi::DebugSubject;
 use validation::validate_global_value_numbering;
 
 pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
@@ -73,31 +72,6 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     }
     validate_global_value_numbering(&before.semantic_module, &after.semantic_module)
         .map_err(PsiOptimizationStageError::InvalidGlobalValueNumberingRewrite)?;
-    if let Some(debug) = after.debug_map.as_mut() {
-        let operations = after
-            .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .map(|operation| operation.id)
-            .collect::<BTreeSet<_>>();
-        let removed_values = before
-            .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|operation| !operations.contains(&operation.id))
-            .filter_map(|operation| operation.result.scalar().map(|value| value.id))
-            .collect::<BTreeSet<_>>();
-        debug.sites.retain(|site| match site.subject {
-            DebugSubject::Operation(operation) => operations.contains(&operation),
-            DebugSubject::Value(value) => !removed_values.contains(&value),
-            _ => true,
-        });
-        debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
-            .map_err(PsiOptimizationStageError::InvalidSemantic)?;
-    }
+    crate::retained_identities::prune_debug_map(&before, &mut after)?;
     Ok(after)
 }

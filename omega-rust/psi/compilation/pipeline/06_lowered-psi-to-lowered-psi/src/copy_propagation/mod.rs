@@ -30,7 +30,6 @@ mod copies;
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
-use terminal_psi::DebugSubject;
 
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     // One proposal, two treatments of the retained join invariants: the
@@ -80,35 +79,6 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         after
     };
     let mut after = propose(false);
-    if let Some(debug) = after.debug_map.as_mut() {
-        let removed_values = before
-            .semantic_module
-            .machines
-            .iter()
-            .zip(&after.semantic_module.machines)
-            .flat_map(|(old_machine, new_machine)| {
-                old_machine.blocks.iter().zip(&new_machine.blocks).flat_map(
-                    |(old_block, new_block)| {
-                        let retained = new_block
-                            .parameters
-                            .iter()
-                            .map(|parameter| parameter.id)
-                            .collect::<BTreeSet<_>>();
-                        old_block
-                            .parameters
-                            .iter()
-                            .filter(move |parameter| !retained.contains(&parameter.id))
-                            .map(|parameter| parameter.id)
-                    },
-                )
-            })
-            .collect::<BTreeSet<_>>();
-        debug.sites.retain(|site| match site.subject {
-            DebugSubject::Value(value) => !removed_values.contains(&value),
-            _ => true,
-        });
-        debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
-            .map_err(PsiOptimizationStageError::InvalidSemantic)?;
-    }
+    crate::retained_identities::prune_debug_map(&before, &mut after)?;
     Ok(after)
 }

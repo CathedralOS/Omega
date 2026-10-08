@@ -57,3 +57,64 @@ pub(crate) fn contains_source_call(
         }
     }
 }
+
+/// Prune debug sites whose subject a rewrite removed — dropped operations,
+/// their scalar results, and dropped block parameters — then restamp the
+/// module identity on the surviving map.
+pub(crate) fn prune_debug_map(
+    before: &lowered_psi::LoweredPsi,
+    after: &mut lowered_psi::LoweredPsi,
+) -> Result<(), crate::PsiOptimizationStageError> {
+    use std::collections::BTreeSet;
+    let Some(debug) = after.debug_map.as_mut() else {
+        return Ok(());
+    };
+    let operations = after
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .map(|operation| operation.id)
+        .collect::<BTreeSet<_>>();
+    let removed_values = before
+        .semantic_module
+        .machines
+        .iter()
+        .zip(&after.semantic_module.machines)
+        .flat_map(|(old_machine, new_machine)| {
+            let removed_results = old_machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| !operations.contains(&operation.id))
+                .filter_map(|operation| operation.result.scalar().map(|value| value.id));
+            let removed_parameters =
+                old_machine.blocks.iter().zip(&new_machine.blocks).flat_map(
+                    |(old_block, new_block)| {
+                        let retained = new_block
+                            .parameters
+                            .iter()
+                            .map(|parameter| parameter.id)
+                            .collect::<BTreeSet<_>>();
+                        old_block
+                            .parameters
+                            .iter()
+                            .filter(move |parameter| !retained.contains(&parameter.id))
+                            .map(|parameter| parameter.id)
+                    },
+                );
+            removed_results.chain(removed_parameters)
+        })
+        .collect::<BTreeSet<_>>();
+    debug.sites.retain(|site| match site.subject {
+        terminal_psi::DebugSubject::Operation(operation) => {
+            operations.contains(&operation)
+        }
+        terminal_psi::DebugSubject::Value(value) => !removed_values.contains(&value),
+        _ => true,
+    });
+    debug.semantic = terminal_codec::terminal_psi_identity(&after.semantic_module)
+        .map_err(crate::PsiOptimizationStageError::InvalidSemantic)?;
+    Ok(())
+}
