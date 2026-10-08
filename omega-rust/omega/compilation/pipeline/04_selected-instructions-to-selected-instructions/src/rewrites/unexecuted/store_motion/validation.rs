@@ -37,7 +37,7 @@ use crate::rewrites::unexecuted::place_storage::{
     local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
     structural_place_declarations,
 };
-use crate::rewrites::window_hazards::unaccounted_kind;
+use crate::rewrites::window_hazards::{coupled, is_barrier, unaccounted_kind};
 
 /// The validator's own reconstruction of the motion the contract permits:
 /// the admitted store's coordinates, the landing position its own walk
@@ -176,105 +176,6 @@ fn interferes(
     }
 }
 
-/// Register locations an operand reads or writes. `UseDef` participates
-/// in both directions, matching the access marks the constraint rows
-/// publish.
-fn reads(operand_access: RegisterOperandAccess) -> bool {
-    matches!(
-        operand_access,
-        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
-    )
-}
-
-fn writes(operand_access: RegisterOperandAccess) -> bool {
-    matches!(
-        operand_access,
-        RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-    )
-}
-
-fn register_reads(
-    instruction: &SelectedInstruction,
-) -> impl Iterator<Item = VirtualRegisterId> + '_ {
-    instruction
-        .operands
-        .iter()
-        .filter(|operand| reads(operand.access))
-        .map(|operand| operand.virtual_register)
-}
-
-fn register_writes(
-    instruction: &SelectedInstruction,
-) -> impl Iterator<Item = VirtualRegisterId> + '_ {
-    instruction
-        .operands
-        .iter()
-        .filter(|operand| writes(operand.access))
-        .map(|operand| operand.virtual_register)
-}
-
-/// Whether `writer`'s writes meet `reader`'s reads on a register or a
-/// condition-state unit — the validator's own read of the two operand
-/// surfaces. Implicit uses read units; implicit definitions and clobbers
-/// write them, so flag publishers and flag consumers couple the same way
-/// explicit operands do.
-fn writes_meet_reads(writer: &SelectedInstruction, reader: &SelectedInstruction) -> bool {
-    register_writes(writer)
-        .any(|register| register_reads(reader).any(|candidate| candidate == register))
-        || writer
-            .implicit_defs
-            .iter()
-            .chain(writer.clobbers.iter())
-            .any(|unit| reader.implicit_uses.contains(unit))
-}
-
-/// Whether sliding the store past `later` reorders a register or
-/// condition-state location between them — the validator's own coupling
-/// audit. The three hazards cover every pair a move passes: the moved
-/// store defining a location the candidate reads would starve it or hand
-/// it a different value, the store reading a location the candidate
-/// writes would hand it the new value, and a shared written location —
-/// register or condition-state unit — would change which definition
-/// later positions observe.
-fn coupled(earlier: &SelectedInstruction, later: &SelectedInstruction) -> bool {
-    writes_meet_reads(earlier, later)
-        || writes_meet_reads(later, earlier)
-        || register_writes(earlier)
-            .any(|register| register_writes(later).any(|candidate| candidate == register))
-        || earlier
-            .implicit_defs
-            .iter()
-            .chain(earlier.clobbers.iter())
-            .any(|unit| later.implicit_defs.contains(unit) || later.clobbers.contains(unit))
-}
-
-/// Calls, hosted effects, floating-control saves and restores, and
-/// terminator kinds always bound the slide: they can observe or expose
-/// reachable state regardless of their roster rows, and a terminator
-/// kind never belongs in a block body — the validator's own barrier
-/// list, not the producer's.
-fn barrier_kind(instruction: &SelectedInstruction) -> bool {
-    use SelectedInstructionKind::*;
-    matches!(
-        instruction.kind,
-        CallUnit { .. }
-            | CallScalar { .. }
-            | CallAggregate { .. }
-            | HostedReadByte { .. }
-            | HostedWriteByteI32 { .. }
-            | SaveFloatingControl { .. }
-            | RestoreFloatingControl { .. }
-            | HostedExitProcessI32
-            | ReturnScalar
-            | ReturnAggregate { .. }
-            | ReturnUnit
-            | Jump
-            | ConditionalBranchNonZero
-            | ConditionalBranchU64LessThan
-            | ConditionalBranchI64LessThan
-    )
-}
-
 /// Whether sliding the store past this instruction would change the
 /// observed order of the write — the validator's own stop decision. Any
 /// of the stop conditions bound the window: a roster row touching the
@@ -300,7 +201,7 @@ fn stops_slide(
             return true;
         }
     }
-    barrier_kind(candidate)
+    is_barrier(candidate)
         || coupled(moved_store, candidate)
         || (!has_row && unaccounted_kind(candidate))
 }
