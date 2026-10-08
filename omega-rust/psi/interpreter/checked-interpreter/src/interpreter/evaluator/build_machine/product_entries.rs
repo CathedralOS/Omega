@@ -89,15 +89,7 @@ impl<'program> Evaluator<'program> {
                     .to_owned(),
             ));
         }
-        let index = fields
-            .get("description")
-            .and_then(|cell| cell.borrow().as_int())
-            .and_then(|index| usize::try_from(index).ok())
-            .ok_or_else(|| {
-                Halt::Trap(
-                    "product entry description carries no valid description index".to_owned(),
-                )
-            })?;
+        let index = super::required_index(fields, "description", "product entry description")?;
         self.product_entry_descriptions
             .get(index)
             .cloned()

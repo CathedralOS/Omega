@@ -69,3 +69,18 @@ impl Evaluator<'_> {
         }
     }
 }
+
+/// Reads a required integer index field off a compiler-issued struct value —
+/// the extraction every build-machine producer performs before consulting
+/// its own descriptor tables.
+fn required_index(
+    fields: &std::collections::BTreeMap<crate::value::ValueName, Cell>,
+    key: &str,
+    label: &str,
+) -> Result<usize, Halt> {
+    fields
+        .get(key)
+        .and_then(|cell| cell.borrow().as_int())
+        .and_then(|index| usize::try_from(index).ok())
+        .ok_or_else(|| Halt::Trap(format!("{label} carries no valid {key} index")))
+}

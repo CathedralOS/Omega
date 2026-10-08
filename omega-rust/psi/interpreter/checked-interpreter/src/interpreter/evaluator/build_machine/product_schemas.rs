@@ -136,15 +136,7 @@ impl<'program> Evaluator<'program> {
                     .to_owned(),
             ));
         }
-        let index = fields
-            .get("description")
-            .and_then(|cell| cell.borrow().as_int())
-            .and_then(|index| usize::try_from(index).ok())
-            .ok_or_else(|| {
-                Halt::Trap(
-                    "product schema description carries no valid description index".to_owned(),
-                )
-            })?;
+        let index = super::required_index(fields, "description", "product schema description")?;
         if index >= self.product_schema_descriptions.len() {
             return Err(Halt::Trap(
                 "product schema description names an unknown description".to_owned(),

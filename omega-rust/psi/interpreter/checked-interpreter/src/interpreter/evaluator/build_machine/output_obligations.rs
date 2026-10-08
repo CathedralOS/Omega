@@ -336,15 +336,7 @@ impl<'program> Evaluator<'program> {
                     .to_owned(),
             ));
         }
-        let index = fields
-            .get("obligation")
-            .and_then(|cell| cell.borrow().as_int())
-            .and_then(|index| usize::try_from(index).ok())
-            .ok_or_else(|| {
-                Halt::Trap(
-                    "required output obligation carries no valid obligation index".to_owned(),
-                )
-            })?;
+        let index = super::required_index(fields, "obligation", "required output obligation")?;
         if index >= self.output_obligations.len() {
             return Err(Halt::Trap(
                 "required output obligation names an unknown obligation".to_owned(),
