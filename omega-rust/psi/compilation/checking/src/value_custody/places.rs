@@ -547,6 +547,19 @@ pub fn peel_declared_constraints(
     type_reference
 }
 
+/// The element type a `FixedArray` or `Slice` carrier declares — `None` for
+/// every other carrier shape.
+pub fn collection_element_type(
+    program: &dyn crate::CheckingInput,
+    collection: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.type_reference_table.type_reference(collection) {
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        _ => None,
+    }
+}
+
 /// The declared reference access beneath a type's `Constrained` shells —
 /// `None` when the peeled carrier is not a `Reference`.
 pub fn declared_reference_access(

@@ -449,11 +449,7 @@ pub(crate) fn expression_type_reference(
             let collection = expression_type_reference(program, indexed.collection)?;
             let collection =
                 crate::value_custody::places::unwrapped_type_reference(program, collection)?;
-            match program.type_reference_table.type_reference(collection) {
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-                _ => None,
-            }
+            crate::value_custody::places::collection_element_type(program, collection)
         }
         _ => None,
     }

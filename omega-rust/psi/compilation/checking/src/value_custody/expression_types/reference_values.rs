@@ -1069,11 +1069,7 @@ fn selected_value_type(
                 substitutions,
                 required_projection_access,
             )?;
-            match program.type_reference_table.type_reference(collection) {
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-                _ => None,
-            }
+            crate::value_custody::places::collection_element_type(program, collection)
         }
         _ => None,
     }
