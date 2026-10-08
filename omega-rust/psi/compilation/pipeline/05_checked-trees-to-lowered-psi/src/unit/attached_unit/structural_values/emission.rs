@@ -2073,7 +2073,7 @@ impl Emission<'_, '_, '_> {
         self.evaluation.structural_locals.retain(
             |crate::expression_preparation::bindings::StructuralLocalBinding {
                  argument, ..
-             }| { !self.source_at(argument.place).is_some() },
+             }| { !self.sources.iter().any(|source| source.place == argument.place) },
         );
         for crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } in
             &mut self.evaluation.structural_locals
