@@ -101,6 +101,7 @@ pub(super) fn formation(
 ) -> Option<(Handle<BorrowLoanFact>, usize)> {
     let parent = facts.borrow.loans.get(parent_loan);
     let parent_place = checked_trees::CapturedPlace {
+        incoming_reference: parent.incoming_reference,
         root_symbol: parent.root_symbol,
         segments: facts.borrow.loan_segments(parent).to_vec(),
     };

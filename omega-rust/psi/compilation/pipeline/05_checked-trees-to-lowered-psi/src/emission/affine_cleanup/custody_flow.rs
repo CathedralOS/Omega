@@ -65,7 +65,10 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
                     continue;
                 };
                 if !argument.path.is_empty() {
-                    return unsupported("managed affine edge transfer requires its whole place");
+                    // The root occurrence remains live with a smaller owned
+                    // frontier. Projected-transfer completion owns its exact
+                    // complement; this solver owns only whole-root lifetime.
+                    continue;
                 }
                 consumed.push(position);
             }
@@ -117,9 +120,10 @@ fn transfers(
                 continue;
             };
             if !argument.path.is_empty() {
-                return unsupported(
-                    "scalar graph affine parameter transfer requires its whole place",
-                );
+                // Moving a subtree does not end the root's storage occurrence.
+                // Its scheduled disposal is narrowed by projected_transfers
+                // after these whole-root lifetime equations have converged.
+                continue;
             }
             transfers.push(Transfer::Consume {
                 position,

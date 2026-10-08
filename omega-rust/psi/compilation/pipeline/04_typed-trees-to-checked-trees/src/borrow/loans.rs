@@ -44,6 +44,7 @@ use symbols::SymbolHandle;
 use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};
 use aggregate::borrowed_initializers;
+pub(in crate::borrow) use owner_paths::place_path_matches_owner_prefix;
 use owner_paths::{owner_path_from_place_segments, owner_path_matches};
 pub(crate) use owner_paths::{owner_segment_matches_place_segment, store_destination_places};
 
@@ -158,6 +159,7 @@ pub(crate) fn returned_value_loans(
             call_result: false,
             owner_path: borrow.loan_owner_path(loan).to_vec(),
             place: accesses::BorrowAccessPlace {
+                incoming_reference: loan.incoming_reference,
                 root_symbol: loan.root_symbol,
                 segments: borrow.loan_segments(loan).to_vec(),
             },
@@ -335,6 +337,7 @@ fn assignment_borrow_loans(
             (
                 loan.owner_symbol,
                 loan.owner_path.as_slice(),
+                loan.place.incoming_reference,
                 loan.place.root_symbol,
                 loan.place.segments.as_slice(),
             )

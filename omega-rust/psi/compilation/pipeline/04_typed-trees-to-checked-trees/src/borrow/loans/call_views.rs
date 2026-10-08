@@ -280,6 +280,7 @@ pub(super) fn rebase_borrow_places_through_local_loans(
 
             RebasedBorrowPlace {
                 place: accesses::BorrowAccessPlace {
+                    incoming_reference: source_loan.place.incoming_reference,
                     root_symbol: source_loan.place.root_symbol,
                     segments: rebased_segments,
                 },

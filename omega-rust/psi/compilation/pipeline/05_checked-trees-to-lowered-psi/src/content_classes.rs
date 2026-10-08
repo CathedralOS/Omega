@@ -38,14 +38,6 @@ pub(crate) fn plain_owned_with_represented_constraints(
     classes(checked, reference).plain_owned_with_represented_constraints
 }
 
-/// Finite owned storage a linear selection or call can carry whole.
-pub(crate) fn linear_owned_contents(
-    checked: &CheckedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    classes(checked, reference).linear_owned_contents
-}
-
 /// The declared capacity of a bounded byte buffer (`[u8; N] in D`), or `None`
 /// when the type is not one.
 pub(crate) fn bounded_byte_capacity(

@@ -245,6 +245,7 @@ pub(super) fn check_statement_borrows<'p>(
             };
             Some(vec![super::aliases::ResolvedAlias {
                 place: checked_trees::CapturedPlace {
+                    incoming_reference: Default::default(),
                     root_symbol,
                     segments: mutated_place.segments.clone(),
                 },
@@ -282,6 +283,7 @@ pub(super) fn check_statement_borrows<'p>(
                         &destination.place,
                         &checked_trees::BorrowAccessKind::Mutable,
                         &checked_trees::CapturedPlace {
+                            incoming_reference: loan.incoming_reference,
                             root_symbol: loan.root_symbol,
                             segments: facts.borrow.loan_segments(loan).to_vec(),
                         },

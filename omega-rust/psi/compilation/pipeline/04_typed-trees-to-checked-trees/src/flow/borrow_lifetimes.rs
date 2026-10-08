@@ -148,6 +148,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     }
 
     let target = checked_trees::CapturedPlace {
+        incoming_reference: Default::default(),
         root_symbol: reassigned_symbol,
         segments: reassigned_segments,
     };
@@ -170,6 +171,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
                             (
                                 loan.owner_symbol,
                                 borrow.loan_owner_path(loan),
+                                loan.incoming_reference,
                                 loan.root_symbol,
                                 borrow.loan_segments(loan),
                             )

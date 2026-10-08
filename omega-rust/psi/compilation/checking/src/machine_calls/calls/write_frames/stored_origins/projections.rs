@@ -125,9 +125,6 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
         })
         .flatten();
     let (source_name, source_reference) = if let Some(parameter) = parameter {
-        if super::super::type_reference_is_reference(program, parameter.type_reference) {
-            return None;
-        }
         (parameter.name.as_str(), parameter.type_reference)
     } else {
         if declaration.kind != SymbolKind::Local {
@@ -143,6 +140,14 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
                 _ => None,
             })?;
         (source.name.as_str(), source.type_reference)
+    };
+    // This query transports stored-leaf provenance, not permission to move
+    // caller storage. A readable input exposes the same carrier inventory;
+    // ownership-window checking separately requires restoration of its slot.
+    let source_reference = if include_shared {
+        super::super::reference_subjects::carrier_storage_type(program, source_reference)?
+    } else {
+        source_reference
     };
     let names = program
         .expression_table

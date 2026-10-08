@@ -42,14 +42,14 @@ fn is_direct_borrowed_rebinding(
         && resolved.qualifications.is_empty()
 }
 
-/// The caller retains an owner only while some subtree remains in its custody.
-/// Moving the final projected child retires the same descriptor as a whole move,
-/// without inventing a discard for an empty complement. Resolve all transfers
-/// first: several disjoint arguments may consume one root, which retires once.
+/// Whole owned transfers end their source binding. A projected transfer ends
+/// only subtree custody, even if it consumes the final affine child: scalar
+/// siblings and the scheduled home retirement still name the root's storage.
+/// This is the same storage/custody distinction constructor operands retain.
+/// Resolve all transfers first so a whole source binding retires exactly once.
 fn retire_transferred_call_sources(
     arguments: &[StructuralArgument],
     parameters: &[StructuralParameterDeclaration],
-    frontier: &BTreeSet<StructuralAffineDiscard>,
     values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     cases: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
 ) -> Result<(), TerminalInterpretError> {
@@ -59,9 +59,7 @@ fn retire_transferred_call_sources(
         .filter(|(argument, parameter)| {
             argument.access == StructuralAccess::Owned
                 && parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                && (argument.path.is_empty()
-                    || (parameter.multiplicity == StructuralMultiplicity::Affine
-                        && !frontier.iter().any(|entry| entry.place == argument.place)))
+                && argument.path.is_empty()
         })
         .map(|(argument, _)| argument.place)
         .collect::<BTreeSet<_>>();
@@ -277,7 +275,6 @@ impl TerminalExecution<'_> {
         retire_transferred_call_sources(
             structural_arguments,
             &callee.structural_parameters,
-            &caller_affine_frontier,
             &mut caller_structural_values,
             &mut caller_scalar_case_values,
         )?;

@@ -148,6 +148,7 @@ fn mutable_view_caller_root(
         let mut segments = next.segments;
         segments.extend(place.segments);
         place = BorrowAccessPlace {
+            incoming_reference: Default::default(),
             root_symbol: next.root_symbol,
             segments,
         };

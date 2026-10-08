@@ -26,7 +26,9 @@ pub(super) fn captured_place_compatibility<'p>(
         .as_ref()
         .map_or((left, right), |(left, right)| (left, right));
     let roots_valid = left_place.root_symbol.is_valid() && right_place.root_symbol.is_valid();
-    let same_root = roots_valid && left_place.root_symbol == right_place.root_symbol;
+    let same_root = roots_valid
+        && left_place.root_symbol == right_place.root_symbol
+        && left_place.incoming_reference == right_place.incoming_reference;
     let (segments_may_overlap, containment) = if same_root {
         place_segments_compatibility(
             program,
@@ -38,11 +40,17 @@ pub(super) fn captured_place_compatibility<'p>(
     } else {
         (false, checked_trees::CapturedPlaceContainment::None)
     };
-    let disjoint = roots_valid && (!same_root || !segments_may_overlap);
+    // Different incoming permissions need not denote different bytes: shared
+    // input descriptors may alias. The invocation admitted their permissions
+    // together; keep that compatibility separate from a spatial conclusion.
+    let independent_input_permissions = roots_valid
+        && !same_root
+        && (left_place.incoming_reference.is_valid() || right_place.incoming_reference.is_valid());
+    let disjoint =
+        roots_valid && !independent_input_permissions && (!same_root || !segments_may_overlap);
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,
-            left_place.root_symbol,
             &left_place.segments,
             &right_place.segments,
         );
@@ -54,7 +62,9 @@ pub(super) fn captured_place_compatibility<'p>(
         right: right.clone(),
         disjoint,
         containment,
-        non_interfering: both_shared || (disjoint && !shares_dependent_fact),
+        non_interfering: both_shared
+            || independent_input_permissions
+            || (disjoint && !shares_dependent_fact),
     }
 }
 
@@ -71,6 +81,8 @@ fn receiver_namespace_places(
 ) -> Option<(checked_trees::CapturedPlace, checked_trees::CapturedPlace)> {
     if !left.root_symbol.is_valid()
         || !right.root_symbol.is_valid()
+        || left.incoming_reference.is_valid()
+        || right.incoming_reference.is_valid()
         || left.root_symbol == right.root_symbol
     {
         return None;
@@ -99,6 +111,7 @@ fn attached_field_place_under_receiver(
     });
     segments.extend_from_slice(&field_place.segments);
     Some(checked_trees::CapturedPlace {
+        incoming_reference: Default::default(),
         root_symbol: receiver.root_symbol,
         segments,
     })
@@ -115,6 +128,7 @@ pub(super) fn canonical_place_for_loan(
         facts::PlaceRoot::Symbol(symbol) => {
             if symbol == loan.root_symbol {
                 Some(checked_trees::CapturedPlace {
+                    incoming_reference: Default::default(),
                     root_symbol: symbol,
                     segments: place.segments.clone(),
                 })
@@ -126,6 +140,7 @@ pub(super) fn canonical_place_for_loan(
                         },
                         remaining,
                     )) if *field_symbol == loan.root_symbol => Some(checked_trees::CapturedPlace {
+                        incoming_reference: Default::default(),
                         root_symbol: loan.root_symbol,
                         segments: remaining.to_vec(),
                     }),
@@ -138,10 +153,12 @@ pub(super) fn canonical_place_for_loan(
                             remaining @ ..,
                         ],
                     )) if *field_symbol == loan.root_symbol => Some(checked_trees::CapturedPlace {
+                        incoming_reference: Default::default(),
                         root_symbol: loan.root_symbol,
                         segments: remaining.to_vec(),
                     }),
                     _ => Some(checked_trees::CapturedPlace {
+                        incoming_reference: Default::default(),
                         root_symbol: symbol,
                         segments: place.segments.clone(),
                     }),
@@ -185,6 +202,7 @@ fn captured_loan_place(
     loan: &checked_trees::BorrowLoanFact,
 ) -> checked_trees::CapturedPlace {
     checked_trees::CapturedPlace {
+        incoming_reference: loan.incoming_reference,
         root_symbol: loan.root_symbol,
         segments: borrow.loan_segments(loan).to_vec(),
     }
@@ -196,7 +214,6 @@ fn captured_loan_place(
 /// borrowed projection meaningful while it remains live.
 fn place_segments_share_dependent_fact(
     program: &dyn ::validation::CheckingInput,
-    root_symbol: symbols::SymbolHandle,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
@@ -217,22 +234,18 @@ fn place_segments_share_dependent_fact(
         return false;
     };
 
-    let Some(mut parent_type) = validation::symbol_type_symbol(program, root_symbol) else {
+    if !left_field.is_valid() || !right_field.is_valid() {
         return false;
-    };
-    for segment in &left[..divergence] {
-        if let facts::PlaceSegment::Field { symbol } = segment {
-            let Some(next_type) = validation::symbol_type_symbol(program, *symbol) else {
-                return false;
-            };
-            parent_type = next_type;
-        }
     }
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == parent_type)
-    else {
+    // Resolved field identity names the declaring data owner even when the
+    // place's root is an incoming referent, not the carrier holding its
+    // descriptor. Looking up the root's type would check the carrier's facts
+    // instead of the dependent relation governing these actual siblings.
+    let parent = program.symbols.get(left_field).parent;
+    if parent != program.symbols.get(right_field).parent {
+        return false;
+    }
+    let Some(definition) = program.data_definition_by_symbol(parent) else {
         return false;
     };
     let Some(left_name) = data_field_name(program, definition, left_field) else {

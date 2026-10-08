@@ -103,7 +103,6 @@ impl MachineEmission<'_> {
             .push((Some(declaration), false));
         if *source == checked_trees::CheckedArrayConstructionSource::Statement {
             structural_values::bind_local(
-                checked,
                 operation,
                 declaration,
                 self.structural_types,

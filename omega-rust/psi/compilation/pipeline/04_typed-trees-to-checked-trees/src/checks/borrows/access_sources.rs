@@ -75,6 +75,7 @@ pub(in crate::checks::borrows) fn resolve_all(
         return None;
     };
     let place = CapturedPlace {
+        incoming_reference: Default::default(),
         root_symbol,
         segments: source.segments,
     };

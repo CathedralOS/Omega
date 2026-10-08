@@ -62,6 +62,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
             &receiver.place,
             &BorrowAccessKind::Mutable,
             &CapturedPlace {
+                incoming_reference: loan.incoming_reference,
                 root_symbol: loan.root_symbol,
                 segments: facts.borrow.loan_segments(loan).to_vec(),
             },
@@ -107,6 +108,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
         );
         for access in accesses.span_or_empty(span) {
             let place = CapturedPlace {
+                incoming_reference: Default::default(),
                 root_symbol: access.root_symbol,
                 segments: segments.span_or_empty(access.segments).to_vec(),
             };

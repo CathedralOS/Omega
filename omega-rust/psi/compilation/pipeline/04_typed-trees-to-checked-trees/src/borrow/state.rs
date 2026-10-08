@@ -10,6 +10,8 @@ use super::roots::{append_state_writable_roots, mutable_parameter_count};
 use super::tracker::StateLoanTracker;
 
 pub(super) struct BorrowFactArenas<'arenas> {
+    pub(super) incoming_references:
+        &'arenas mut arena::Arena<checked_trees::IncomingReferenceIdentity>,
     pub(super) writable_roots: &'arenas mut arena::Arena<BorrowWritableRootFact>,
     pub(super) access_segments: &'arenas mut arena::Arena<facts::PlaceSegment>,
     pub(super) owner_segments: &'arenas mut arena::Arena<checked_trees::BorrowLoanOwnerSegment>,
@@ -28,6 +30,11 @@ pub(super) fn append_state_borrow_facts(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     state_loan_trackers.clear();
+    append_incoming_reference_trackers(program, machine, state, arenas, state_loan_trackers);
+    // Formation reads the carrier's current contents, while last-use analysis
+    // retains every earlier occurrence. Replacement retires the old slot only
+    // after its RHS has been resolved against the entry roster.
+    let mut current_loans = state_loan_trackers.clone();
     let mut writable_roots_span = arena::HandleSpan::empty();
     append_state_writable_roots(
         program,
@@ -40,17 +47,28 @@ pub(super) fn append_state_borrow_facts(
     let mut calls_span = arena::HandleSpan::empty();
     let mut loans_span = arena::HandleSpan::empty();
     for (statement_index, statement) in program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
     {
-        for pending in statement_borrow_loans(
+        let pending_loans = statement_borrow_loans(
             program,
             state,
             statement_index,
             machine.symbol,
             statement,
-            state_loan_trackers,
+            &current_loans,
             call_frames,
-        ) {
+        );
+        retire_replaced_carrier_loans(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            call_frames,
+            &mut current_loans,
+        );
+        for pending in pending_loans {
             let loan_segments = arenas
                 .access_segments
                 .insert_many(pending.place.segments.clone());
@@ -60,6 +78,7 @@ pub(super) fn append_state_borrow_facts(
             let handle = arenas.loans.append_to_span(
                 &mut loans_span,
                 BorrowLoanFact {
+                    incoming_reference: pending.place.incoming_reference,
                     statement_index,
                     formation_expression: pending.formation_expression,
                     last_use_statement_index: statement_index,
@@ -72,7 +91,7 @@ pub(super) fn append_state_borrow_facts(
                     kind: pending.kind.clone(),
                 },
             );
-            state_loan_trackers.push(StateLoanTracker {
+            let tracker = StateLoanTracker {
                 handle,
                 owner_symbol: pending.owner_symbol,
                 owner_name: pending.owner_name,
@@ -81,7 +100,9 @@ pub(super) fn append_state_borrow_facts(
                 call_result: pending.call_result,
                 owner_path: pending.owner_path,
                 place: pending.place,
-            });
+            };
+            current_loans.push(tracker.clone());
+            state_loan_trackers.push(tracker);
         }
         let mut call_ordinal = 0usize;
         collect_statement_borrow_calls(
@@ -117,4 +138,138 @@ pub(super) fn append_state_borrow_facts(
         calls: calls_span,
         loans: loans_span,
     });
+}
+
+/// A write through a reference retains its descriptor. Replacing a carrier
+/// removes only the old leaves within that exact destination; earlier facts
+/// remain available to the flow lifetime ledger and already detached values.
+fn retire_replaced_carrier_loans(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    statement: &typed_trees::statement::StatementNode,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    current: &mut Vec<StateLoanTracker>,
+) {
+    let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
+        return;
+    };
+    if validation::declared_place_type_raw(program, machine, Some(state), assignment.target)
+        .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+        && call_frames
+            .and_then(|frames| frames.assignment_replaces_reference_binding(machine, statement))
+            != Some(true)
+    {
+        return;
+    }
+    let Some(target) = super::accesses::borrow_access_place(
+        program,
+        state.symbol,
+        statement_index,
+        assignment.target,
+        machine.symbol,
+    ) else {
+        return;
+    };
+    let destinations = super::loans::store_destination_places(
+        program,
+        state,
+        target,
+        current.iter().map(|loan| {
+            (
+                loan.owner_symbol,
+                loan.owner_path.as_slice(),
+                loan.place.incoming_reference,
+                loan.place.root_symbol,
+                loan.place.segments.as_slice(),
+            )
+        }),
+    );
+    let [destination] = destinations.as_slice() else {
+        // A may-alias target cannot identify the replaced descriptor slot.
+        return;
+    };
+    current.retain(|loan| {
+        loan.owner_symbol != destination.root_symbol
+            || !super::loans::place_path_matches_owner_prefix(
+                program,
+                &destination.segments,
+                &loan.owner_path,
+            )
+    });
+}
+
+/// Entry permissions precede statement loans: carrying a descriptor into this
+/// invocation did not borrow its containing slot. Only a later establishment
+/// gets a loan row and activation; transfers retain the entry's opaque identity.
+fn append_incoming_reference_trackers(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    arenas: &mut BorrowFactArenas<'_>,
+    trackers: &mut Vec<StateLoanTracker>,
+) {
+    for parameter in program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| !parameter.is_const && !parameter.relevance.is_erased())
+    {
+        // The root reference's permission is the existing borrowed parameter
+        // contract. Its referent may also contain independently carried leaves.
+        let Some(carrier) = validation::reference_result_custody::input_carrier_type(
+            program,
+            parameter.type_reference,
+        ) else {
+            continue;
+        };
+        let Some(sources) = validation::reference_result_custody::record_carrier_sources(
+            program,
+            carrier,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: parameter.symbol,
+            },
+        ) else {
+            continue;
+        };
+        for source in sources {
+            let Some(owner_path) = validation::reference_result_custody::loan_owner_path(
+                program,
+                carrier,
+                &source.path,
+            ) else {
+                continue;
+            };
+            let Some(kind) = source.source.access.borrow_access_kind() else {
+                continue;
+            };
+            let path = arenas
+                .owner_segments
+                .insert_many(owner_path.iter().copied());
+            let incoming_reference =
+                arenas
+                    .incoming_references
+                    .append(checked_trees::IncomingReferenceIdentity {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        parameter_symbol: parameter.symbol,
+                        carrier_type: carrier,
+                        owner_path: path,
+                    });
+            trackers.push(StateLoanTracker {
+                handle: arena::Handle::invalid(),
+                owner_symbol: parameter.symbol,
+                owner_name: parameter.name.clone(),
+                kind,
+                lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
+                call_result: false,
+                owner_path,
+                place: checked_trees::CapturedPlace {
+                    incoming_reference,
+                    root_symbol: parameter.symbol,
+                    segments: Vec::new(),
+                },
+            });
+        }
+    }
 }

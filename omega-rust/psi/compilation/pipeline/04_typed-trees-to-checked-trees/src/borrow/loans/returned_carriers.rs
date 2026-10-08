@@ -3,7 +3,6 @@
 use super::is_reference_type;
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::loans::StatementBorrowLoan;
-use crate::borrow::loans::borrow_access_place;
 use crate::borrow::loans::borrowed_initializer_loans;
 use crate::borrow::loans::borrowed_initializers;
 use crate::borrow::loans::call_view_return_source_at;
@@ -366,44 +365,12 @@ pub(super) fn argument_loans(
             carried_arguments.push((field.parameter_index, loans));
             index
         });
-    let mut carried = carried_arguments[cached_index]
+    let carried = carried_arguments[cached_index]
         .1
         .iter()
         .filter(|loan| owner_path_matches(program, &loan.owner_path, &source_segments))
         .cloned()
         .collect::<Vec<_>>();
-
-    // Incoming owned carriers have no local loan tracker. Their exact source
-    // leaf is a parameter-relative captured place, not the parameter's private
-    // aggregate storage. Missing local loan evidence must not use this route.
-    if carried.is_empty()
-        && let Some(mut place) = borrow_access_place(
-            program,
-            state_symbol,
-            statement_index,
-            argument,
-            machine_symbol,
-        )
-        && program.state_by_symbol(state_symbol).is_some_and(|state| {
-            program.state_parameters(state).iter().any(|parameter| {
-                (parameter.symbol == place.root_symbol)
-                    && !is_reference_type(program, parameter.type_reference)
-            })
-        })
-    {
-        place.segments.extend(source_segments);
-        carried.push(StatementBorrowLoan {
-            formation_expression: argument,
-            owner_symbol: local_data.symbol,
-            owner_name: local_data.name.clone(),
-            owner_path: field.source_path.clone(),
-            place,
-            source_owner_symbol: SymbolHandle::invalid(),
-            lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
-            kind: field.kind.clone(),
-            call_result: false,
-        });
-    }
 
     carried
         .into_iter()

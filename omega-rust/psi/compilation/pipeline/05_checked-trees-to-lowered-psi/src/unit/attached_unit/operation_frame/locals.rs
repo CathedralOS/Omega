@@ -225,7 +225,6 @@ impl OperationFrame<'_, '_> {
             // already named it.
             if *source == checked_trees::CheckedArrayConstructionSource::Statement {
                 super::super::structural_values::bind_local(
-                    self.checked,
                     operation,
                     declaration,
                     self.structural_types.declarations(),

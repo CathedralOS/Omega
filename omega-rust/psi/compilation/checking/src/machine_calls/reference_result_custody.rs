@@ -644,7 +644,8 @@ fn construction_sources_with_calls(
         if name.head_symbol != name.symbol
             || program.symbols.get(name.symbol).parent != state.symbol
             || parameter.name != *spelling
-            || program.normalized_type_identity(parameter.type_reference)
+            || program
+                .normalized_type_identity(input_carrier_type(program, parameter.type_reference)?)
                 != program.normalized_type_identity(reference)
         {
             return None;
@@ -656,7 +657,15 @@ fn construction_sources_with_calls(
                 parameter_index: u32::try_from(ordinal).ok()?,
             },
         )
-        .map(|sources| {
+        .map(|mut sources| {
+            if crate::reference_shell(program, parameter.type_reference).is_some() {
+                for source in &mut sources {
+                    source
+                        .source
+                        .path
+                        .insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                }
+            }
             sources
                 .into_iter()
                 .map(|value| ConstructionSource {
@@ -737,6 +746,7 @@ fn aggregate_projection(
         }
         _ => return None,
     };
+    let root_type = input_carrier_type(program, root_type)?;
     let mut selected = root_type;
     let mut path = Vec::with_capacity(projections.len());
     for projection in projections.into_iter().rev() {
@@ -1254,7 +1264,7 @@ pub fn terminal_call_reference_sources(
 /// A stored carrier transports its existing reference leaves. The source path
 /// names each borrowed referent; it does not authorize creating a fresh loan
 /// or moving storage through the referent boundary.
-fn record_carrier_sources(
+pub fn record_carrier_sources(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     carrier: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -1323,6 +1333,21 @@ fn record_carrier_sources(
     let mut output = Vec::new();
     visit(program, reference, &carrier, &mut Vec::new(), &mut output)?;
     Some(output)
+}
+
+/// A readable input exposes its carrier's stored descriptors, not ownership
+/// of that carrier. Root-reference permission and contained permissions are
+/// different resources; projection and window admission account for the first.
+pub fn input_carrier_type(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let reference = crate::peel_declared_constraints(program, reference);
+    match crate::reference_shell(program, reference) {
+        Some(shell) if shell.access.is_readable() => Some(shell.referee),
+        Some(_) => None,
+        None => Some(reference),
+    }
 }
 
 fn aggregate_construction_sources(
@@ -1508,6 +1533,7 @@ pub fn local_record_loans(
         {
             let previous = facts.borrow.loans.get(prior);
             if loan.source_owner_symbol != owner
+                || loan.incoming_reference != previous.incoming_reference
                 || loan.root_symbol != previous.root_symbol
                 || loan.kind != previous.kind
                 || facts.borrow.loan_segments(loan) != facts.borrow.loan_segments(previous)
@@ -1515,45 +1541,54 @@ pub fn local_record_loans(
                 return None;
             }
         } else {
-            // Direct captures establish backing geometry. A transferred carrier
-            // already has that geometry in its exact supplying loan above;
-            // its capture may cross a descriptor rather than spell that backing.
-            let (root_symbol, root_type) = match source.source.source {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                } => {
-                    let parameter = program
-                        .state_parameters(state)
-                        .iter()
-                        .filter(|parameter| {
-                            !parameter.is_const
-                                && program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_none()
-                        })
-                        .nth(parameter_index as usize)?;
-                    (parameter.symbol, parameter.type_reference)
+            if loan.incoming_reference.is_valid() {
+                if !incoming_source_matches_loan(program, facts, machine, state, source, loan) {
+                    return None;
                 }
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol,
-                }
-                | checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
-                    symbol,
-                } => {
-                    let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
-                    if ordinal >= statement_index as usize {
-                        return None;
+                // This establishment transports an input descriptor. Its
+                // opaque referent is not a direct capture of parameter bytes.
+            } else {
+                // Direct captures establish backing geometry. A transferred carrier
+                // already has that geometry in its exact supplying loan above;
+                // its capture may cross a descriptor rather than spell that backing.
+                let (root_symbol, root_type) = match source.source.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    } => {
+                        let parameter = program
+                            .state_parameters(state)
+                            .iter()
+                            .filter(|parameter| {
+                                !parameter.is_const
+                                    && program
+                                        .primitive_type_reference(parameter.type_reference)
+                                        .is_none()
+                            })
+                            .nth(parameter_index as usize)?;
+                        (parameter.symbol, parameter.type_reference)
                     }
-                    (symbol, referent.type_reference)
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    }
+                    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                        symbol,
+                    } => {
+                        let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
+                        if ordinal >= statement_index as usize {
+                            return None;
+                        }
+                        (symbol, referent.type_reference)
+                    }
+                    _ => return None,
+                };
+                let expected_segments =
+                    loan_place_segments(program, root_type, &source.source.path)?;
+                if loan.source_owner_symbol.is_valid()
+                    || loan.root_symbol != root_symbol
+                    || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
+                {
+                    return None;
                 }
-                _ => return None,
-            };
-            let expected_segments = loan_place_segments(program, root_type, &source.source.path)?;
-            if loan.source_owner_symbol.is_valid()
-                || loan.root_symbol != root_symbol
-                || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
-            {
-                return None;
             }
         }
         let mut activations = facts
@@ -1574,6 +1609,79 @@ pub fn local_record_loans(
         output.push((origin.value, handle));
     }
     Some(output)
+}
+
+fn incoming_source_matches_loan(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    source: &checked_trees::CheckedReferenceResultSourcePlan,
+    loan: &checked_trees::BorrowLoanFact,
+) -> bool {
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        source.source.source
+    else {
+        return false;
+    };
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .nth(parameter_index as usize)
+    else {
+        return false;
+    };
+    if !facts
+        .borrow
+        .incoming_references
+        .is_valid(loan.incoming_reference)
+    {
+        return false;
+    }
+    let incoming = facts
+        .borrow
+        .incoming_references
+        .get(loan.incoming_reference);
+    let Some(carrier) = input_carrier_type(program, parameter.type_reference) else {
+        return false;
+    };
+    if incoming.machine_symbol != machine
+        || incoming.state_symbol != state.symbol
+        || incoming.parameter_symbol != parameter.symbol
+        || incoming.carrier_type != carrier
+        || loan.root_symbol != parameter.symbol
+        || loan.source_owner_symbol != parameter.symbol
+        || !facts.borrow.loan_segments(loan).is_empty()
+    {
+        return false;
+    }
+    let Some(mut declared) = record_carrier_sources(program, carrier, source.source.source.clone())
+    else {
+        return false;
+    };
+    if crate::reference_shell(program, parameter.type_reference).is_some() {
+        for leaf in &mut declared {
+            leaf.source
+                .path
+                .insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
+        }
+    }
+    declared.iter().any(|leaf| {
+        leaf.source == source.source
+            && loan_owner_path(program, carrier, &leaf.path).is_some_and(|path| {
+                path.as_slice()
+                    == facts
+                        .borrow
+                        .owner_segments
+                        .span_or_empty(incoming.owner_path)
+            })
+    })
 }
 
 /// The loan segments a borrowed initializer source projects under its
@@ -1632,7 +1740,7 @@ pub fn loan_place_segments(
     Some(segments)
 }
 
-fn loan_owner_path(
+pub fn loan_owner_path(
     program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
@@ -2608,8 +2716,7 @@ pub fn result_loans(
             checked_trees::BorrowAccessKind::WriteOnly
         }
     };
-    let Some(expression) = program.expression_table.call_node(local.initial_value)
-    else {
+    let Some(expression) = program.expression_table.call_node(local.initial_value) else {
         return None;
     };
     if local.is_mutable

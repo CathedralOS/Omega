@@ -7,14 +7,32 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 
 /// One exact structural place captured for compatibility checking.
 ///
-/// Identity is the resolved root symbol plus ordered semantic path segments.
+/// Identity is the storage namespace plus resolved root and ordered semantic
+/// path. An incoming descriptor has an opaque referent namespace, distinct
+/// from the parameter storage that holds it.
 /// Source labels are deliberately absent. Runtime or otherwise unresolved
 /// selectors may remain as expression handles, but cannot establish a positive
 /// spatial result until a checked tactic understands them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CapturedPlace {
+    /// A parameter supplies this opaque referent occurrence. Zero denotes
+    /// ordinary storage; an incoming descriptor's referent is not its slot.
+    pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub root_symbol: SymbolHandle,
     pub segments: Vec<facts::PlaceSegment>,
+}
+
+/// One reference permission supplied by a state invocation's declared carrier.
+/// The caller must supply its actual backing; this identity distinguishes the
+/// callee-relative referent from the storage holding its descriptor. Moving a
+/// descriptor retains this identity, rather than creating a borrow of its slot.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IncomingReferenceIdentity {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub parameter_symbol: SymbolHandle,
+    pub carrier_type: typed_trees::types::TypeReferenceHandle,
+    pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -141,6 +159,7 @@ pub struct BorrowCallFact {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowLoanFact {
+    pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub statement_index: usize,
     /// The evaluated source occurrence that makes this loan available within
     /// its statement. Zero denotes a statement-call completion. Source replay
@@ -509,6 +528,7 @@ pub enum BorrowLoanOwnerSegment {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowFacts {
+    pub incoming_references: Arena<IncomingReferenceIdentity>,
     pub writable_roots: Arena<BorrowWritableRootFact>,
     pub access_segments: Arena<facts::PlaceSegment>,
     pub owner_segments: Arena<BorrowLoanOwnerSegment>,
@@ -545,6 +565,7 @@ pub struct BorrowFacts {
 
 impl BorrowFacts {
     pub fn with_roots(
+        incoming_references: Arena<IncomingReferenceIdentity>,
         writable_roots: Arena<BorrowWritableRootFact>,
         access_segments: Arena<facts::PlaceSegment>,
         owner_segments: Arena<BorrowLoanOwnerSegment>,
@@ -554,6 +575,7 @@ impl BorrowFacts {
         states: Arena<StateBorrowFact>,
     ) -> Self {
         Self {
+            incoming_references,
             writable_roots,
             access_segments,
             owner_segments,

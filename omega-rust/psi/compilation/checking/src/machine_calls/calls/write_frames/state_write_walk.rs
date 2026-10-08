@@ -432,13 +432,18 @@ fn walk_state_write_prefix_inner(
             .filter_map(|parameter| {
                 let reference =
                     reference_subjects::carrier_storage_type(program, parameter.type_reference)?;
-                let origins = stored_origins::declared_origins_for_query(
+                let mut origins = stored_origins::declared_origins_for_query(
                     program,
                     parameter.symbol,
                     parameter.name.as_str(),
                     reference,
                     true,
                 )?;
+                // Borrowing the carrier does not transfer the caller's whole
+                // owner. Only its descriptor leaves seed this invocation.
+                if type_reference_is_reference(program, parameter.type_reference) {
+                    origins.moves.clear();
+                }
                 (!type_reference_is_reference(program, parameter.type_reference)
                     || !origins.references.is_empty())
                 .then_some(origins)
@@ -575,8 +580,7 @@ fn walk_state_write_prefix_inner(
             StatementNode::LocalData(local)
                 if ((type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
-                    || (include_shared
-                        && type_reference_is_reference(program, local.type_reference)))
+                    || include_shared)
                     && declared_local_alias_origin.is_none() =>
             {
                 stored_origins::declaration_origins_for_query(
@@ -1177,8 +1181,7 @@ fn walk_state_write_prefix_inner(
             StatementNode::LocalData(local) => {
                 if (type_may_carry_write(program, local.type_reference)
                     && !type_is_caller_isolated_local(program, local.type_reference))
-                    || (include_shared
-                        && type_reference_is_reference(program, local.type_reference))
+                    || include_shared
                 {
                     if let Some(origin) = declared_local_alias_origin {
                         local_alias_origins.push((local.name.as_str().to_owned(), origin));

@@ -642,12 +642,14 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: invocation-relative contained-loan custody. Extraction from an exclusive borrowed
-    carrier currently gives the detached local no active stored-leaf loan
-    rows, so its consuming transform cannot bind returned loan custody.
-    Retain the incoming descriptor leaves, distinct from the loan of the
-    containing storage. Qualify whole-root, referent and nominal-cleanup
-    windows. Keep evaluation order, disjoint
+  - Missing: complete multi-source lifetime groups on descriptor leaves.
+    In `runtime_borrowed_shared_alias_carrier_transform_exit`, adding a second
+    extraction and `transform` repair inside `repair` leaves the second call
+    without exact captured-leaf custody:
+    `omega-rust/psi/compilation/checking/src/machine_calls/reference_result_custody.rs`
+    still requires one origin per leaf. Preserve all declared lifetime candidates as one
+    descriptor's group, not duplicate descriptor releases. Qualify whole-root,
+    referent and nominal-cleanup windows. Keep evaluation order, disjoint
     siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
     do not invent rollback. Qualify the remaining paths on supported hosts.

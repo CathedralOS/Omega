@@ -40,7 +40,7 @@ pub use borrow::{
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
     CheckedReborrowRestoredCallUseCertificate, CheckedRetiredParentResourceDispositionStep,
-    ParentLexicalStatusAtChildEnd, StateBorrowFact,
+    IncomingReferenceIdentity, ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 

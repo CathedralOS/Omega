@@ -1,6 +1,5 @@
 //! Publish a source local only after its exact initializer result exists.
 use super::super::{CheckedUnitEffectOperationPlan, LoweringError, unsupported};
-use super::CheckedTrees;
 use checked_trees::CheckedArrayConstructionSource;
 
 /// Bind only the local whose initializer owns this exact published result.
@@ -9,7 +8,6 @@ use checked_trees::CheckedArrayConstructionSource;
 /// The dense result route registers the bound local in the view roster beside
 /// this join when its produced type names a view family.
 pub(crate) fn bind_local(
-    checked: &CheckedTrees,
     operation: &CheckedUnitEffectOperationPlan,
     declaration: terminal_psi::StructuralPlaceDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -41,26 +39,11 @@ pub(crate) fn bind_local(
         (local.access != checked_trees::CheckedStructuralAccess::Owned).then(|| {
             crate::expression_preparation::bindings::structural_paths::terminal_access(local.access)
         });
-    // The roster's owned-source admission is one storage judgment: an already
-    // established owned value whose exact constrained type survives the
-    // transfer. It classifies every producer and wrapper (plain arrays,
-    // numeric-constrained and byte-predicate-domained owners, Named or
-    // Constrained references) rather than per-shape combinations.
-    // A returned nominal owner binds the same local home as any other owned
-    // result. Its eventual cleanup is an edge obligation, not a reason to
-    // omit the live source binding needed by later stores and transfers.
-    let owned_contents =
-        validation::has_contents(
-            &checked.typed,
-            local.declared_type,
-            validation::ContentsRequirement::CleanupOwned,
-        ) || crate::content_classes::plain_owned_with_represented_constraints(
-            checked,
-            local.declared_type,
-        ) || crate::content_classes::linear_owned_contents(checked, local.declared_type);
-    if !(borrowed_access.is_some() || owned_contents) {
-        return Ok(());
-    }
+    // Source checking and call emission already established this exact result.
+    // Its local binding is independent of cleanup multiplicity or the kinds of
+    // fields it contains. Reclassifying the type here omits otherwise valid
+    // owners (for example a record carrying shared descriptors), leaving later
+    // observations without the home the call actually produced.
     let semantic_vocabulary::StructuralPlaceKind::OperationResult {
         structural_type, ..
     } = declaration.kind

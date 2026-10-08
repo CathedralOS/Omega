@@ -48,6 +48,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
     let entry_constraints = super::super::call_borrow_constraints(call, state_flow, facts);
     for argument in retained_arguments {
         let operand = CapturedPlace {
+            incoming_reference: Default::default(),
             root_symbol: argument.root_symbol,
             segments: facts.borrow.access_segments(argument).to_vec(),
         };
@@ -255,6 +256,7 @@ fn captured_places(places: Vec<CanonicalPlace>) -> Vec<CapturedPlace> {
         .into_iter()
         .filter_map(|place| match place.root {
             facts::PlaceRoot::Symbol(root_symbol) => Some(CapturedPlace {
+                incoming_reference: Default::default(),
                 root_symbol,
                 segments: place.segments,
             }),

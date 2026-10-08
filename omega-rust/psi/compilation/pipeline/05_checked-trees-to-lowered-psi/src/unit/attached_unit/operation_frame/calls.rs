@@ -152,7 +152,6 @@ impl OperationFrame<'_, '_> {
             ))?;
         if matches!(self.results, StructuralResults::Dense(_)) {
             structural_values::bind_local(
-                self.checked,
                 operation,
                 declaration,
                 self.structural_types.declarations(),

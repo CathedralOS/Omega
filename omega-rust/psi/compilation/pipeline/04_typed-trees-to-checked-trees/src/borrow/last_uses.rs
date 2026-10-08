@@ -47,6 +47,9 @@ pub(super) fn update_state_loan_last_uses(
     for borrow_call in borrow_calls {
         for access in argument_accesses.span_or_empty(borrow_call.accesses) {
             for tracker in loan_trackers {
+                if !loans.is_valid(tracker.handle) {
+                    continue;
+                }
                 if tracker.owner_symbol == access.root_symbol
                     && owner_path_overlaps_place_segments(
                         program,
@@ -68,6 +71,9 @@ pub(super) fn update_state_loan_last_uses(
         .enumerate()
     {
         for tracker in loan_trackers {
+            if !loans.is_valid(tracker.handle) {
+                continue;
+            }
             let used = if tracker.owner_path.is_empty() {
                 statement_uses_local_name(program, statement, tracker.owner_name.as_str())
                     || statement_uses_symbol(program, statement, tracker.owner_symbol)
@@ -93,6 +99,9 @@ pub(super) fn update_state_loan_last_uses(
     // when replacement replay retires their slot or this state exits.
     if let Some(state) = program.state_by_symbol(state_symbol) {
         for tracker in loan_trackers {
+            if !loans.is_valid(tracker.handle) {
+                continue;
+            }
             if !tracker.owner_path.is_empty()
                 && program
                     .state_parameters(state)
@@ -112,11 +121,12 @@ pub(super) fn update_state_loan_last_uses(
     loop {
         let mut changed = false;
         for carrier in loan_trackers {
-            if carrier.owner_path.is_empty() {
+            if !loans.is_valid(carrier.handle) || carrier.owner_path.is_empty() {
                 continue;
             }
             for alias in loan_trackers {
-                if alias.place.root_symbol != carrier.owner_symbol
+                if !loans.is_valid(alias.handle)
+                    || alias.place.root_symbol != carrier.owner_symbol
                     || !owner_path_overlaps_place_segments(
                         program,
                         &carrier.owner_path,

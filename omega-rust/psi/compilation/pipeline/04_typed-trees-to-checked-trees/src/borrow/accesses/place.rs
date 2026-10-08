@@ -121,6 +121,7 @@ pub(crate) fn borrow_access_place(
                         machine_symbol,
                     );
                     Some(BorrowAccessPlace {
+                        incoming_reference: Default::default(),
                         root_symbol: member_symbol,
                         segments: Vec::new(),
                     })
@@ -173,6 +174,7 @@ pub(crate) fn borrow_access_place(
                 validation::push_field_place_segments(program, &mut segments, symbol);
             }
             Some(BorrowAccessPlace {
+                incoming_reference: Default::default(),
                 root_symbol,
                 segments,
             })

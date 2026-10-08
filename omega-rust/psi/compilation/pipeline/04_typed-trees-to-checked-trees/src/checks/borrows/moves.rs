@@ -44,6 +44,7 @@ pub(super) fn check_storage_move<'program>(
         // their referents. Reference values were excluded by classification.
         Some(ResolvedAlias {
             place: checked_trees::CapturedPlace {
+                incoming_reference: Default::default(),
                 root_symbol,
                 segments: Vec::new(),
             },

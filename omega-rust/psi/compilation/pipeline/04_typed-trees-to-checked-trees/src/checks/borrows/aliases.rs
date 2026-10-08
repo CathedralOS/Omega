@@ -78,6 +78,7 @@ pub(in crate::checks::borrows) fn resolve_places(
             segments.extend_from_slice(&place.segments);
             Some(ResolvedPlace {
                 place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
                     root_symbol: loan.root_symbol,
                     segments,
                 },

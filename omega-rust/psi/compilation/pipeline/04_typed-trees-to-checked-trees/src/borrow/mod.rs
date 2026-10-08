@@ -15,6 +15,12 @@
 //! to link a call result's loan to its argument, and `checks::borrows` uses
 //! it for the returned-view checks. `last_uses` and `loans` also export
 //! queries used elsewhere in the crate.
+//!
+//! Stored input descriptors seed opaque referent identities, not loans of the
+//! parameter's descriptor slots. Extraction and ordinary transfers preserve
+//! those identities in actual statement loans. Formation reads current carrier
+//! contents; replacement retires that slot's old occurrence after its RHS,
+//! while the complete historical ledger still owns lifetime analysis.
 
 use validation::machine_state_count;
 
@@ -49,6 +55,7 @@ pub(crate) fn build_borrow_facts(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> BorrowFacts {
     let mut writable_roots = arena::Arena::with_capacity(estimated_borrow_root_capacity(program));
+    let mut incoming_references = arena::Arena::new();
     let mut access_segments =
         arena::Arena::with_capacity(program.expression_table.expression_count());
     let mut owner_segments =
@@ -62,6 +69,7 @@ pub(crate) fn build_borrow_facts(
 
     {
         let mut arenas = BorrowFactArenas {
+            incoming_references: &mut incoming_references,
             writable_roots: &mut writable_roots,
             access_segments: &mut access_segments,
             owner_segments: &mut owner_segments,
@@ -85,6 +93,7 @@ pub(crate) fn build_borrow_facts(
     }
 
     BorrowFacts::with_roots(
+        incoming_references,
         writable_roots,
         access_segments,
         owner_segments,

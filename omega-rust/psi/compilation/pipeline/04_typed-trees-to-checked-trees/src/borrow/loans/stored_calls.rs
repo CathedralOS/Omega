@@ -34,6 +34,7 @@ pub(super) fn loans(
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),
                     place: checked_trees::CapturedPlace {
+                        incoming_reference: Default::default(),
                         root_symbol: source.root,
                         segments: source.segments,
                     },

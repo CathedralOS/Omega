@@ -11,6 +11,7 @@ pub(crate) fn store_destination_places<'loan>(
         Item = (
             symbols::SymbolHandle,
             &'loan [BorrowOwnerSegment],
+            arena::Handle<checked_trees::IncomingReferenceIdentity>,
             symbols::SymbolHandle,
             &'loan [facts::PlaceSegment],
         ),
@@ -27,7 +28,7 @@ pub(crate) fn store_destination_places<'loan>(
                 .map(|parameter| parameter.type_reference)
         });
     let mut destinations = Vec::new();
-    for (owner, owner_path, source, source_path) in loans {
+    for (owner, owner_path, incoming_reference, source, source_path) in loans {
         if owner != target.root_symbol
             || owner_path.len() >= target.segments.len()
             || !owner_path_matches(program, owner_path, &target.segments)
@@ -46,6 +47,7 @@ pub(crate) fn store_destination_places<'loan>(
         let mut segments = source_path.to_vec();
         segments.extend_from_slice(&target.segments[owner_path.len()..]);
         let destination = checked_trees::CapturedPlace {
+            incoming_reference,
             root_symbol: source,
             segments,
         };
@@ -140,7 +142,7 @@ pub(super) fn owner_path_matches(
         })
 }
 
-pub(super) fn place_path_matches_owner_prefix(
+pub(in crate::borrow) fn place_path_matches_owner_prefix(
     program: &dyn ::validation::CheckingInput,
     place_segments: &[facts::PlaceSegment],
     owner_path: &[BorrowOwnerSegment],

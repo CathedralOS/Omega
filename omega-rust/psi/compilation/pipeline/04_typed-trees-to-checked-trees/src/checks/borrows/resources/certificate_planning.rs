@@ -95,6 +95,7 @@ pub(crate) fn plan_reborrow_containment_certificates(
             || parent_access != &child.parent_access
             || parent_access.direct_reborrow_effect(&child.access) != Some(child.access_effect)
             || parent_place.root_symbol != child.captured_place.root_symbol
+            || parent_place.incoming_reference != child.captured_place.incoming_reference
             || !child
                 .captured_place
                 .segments
@@ -589,6 +590,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
             call_access: access_handle,
             parent_entry_constraint: *parent_entry_constraint,
             carrier_place: checked_trees::CapturedPlace {
+                incoming_reference: Default::default(),
                 root_symbol: parent.owner_symbol,
                 segments: Vec::new(),
             },

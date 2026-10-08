@@ -187,6 +187,7 @@ pub(crate) fn reconstruct_direct_borrow_resources(
                 owner_symbol: loan.owner_symbol,
                 owner_path: borrow.loan_owner_path(loan).to_vec(),
                 captured_place: checked_trees::CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
                     root_symbol: loan.root_symbol,
                     segments: borrow.loan_segments(loan).to_vec(),
                 },
@@ -352,6 +353,7 @@ pub(crate) fn reconstruct_reborrow_resource_drafts(
                 owner_symbol: loan.owner_symbol,
                 owner_path: borrow.loan_owner_path(loan).to_vec(),
                 captured_place: checked_trees::CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
                     root_symbol: loan.root_symbol,
                     segments: borrow.loan_segments(loan).to_vec(),
                 },

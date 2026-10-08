@@ -108,11 +108,13 @@ pub(super) fn check_call_access_conflicts<'p>(
             let Some(conflict) = simultaneous_hold_conflict(
                 program,
                 &CapturedPlace {
+                    incoming_reference: Default::default(),
                     root_symbol: access.root_symbol,
                     segments: facts.borrow.access_segments(access).to_vec(),
                 },
                 &access.kind,
                 &CapturedPlace {
+                    incoming_reference: Default::default(),
                     root_symbol: other_access.root_symbol,
                     segments: facts.borrow.access_segments(other_access).to_vec(),
                 },
@@ -204,11 +206,13 @@ pub(super) fn check_call_access_conflicts<'p>(
             if captured_place_compatibility(
                 program,
                 &CapturedPlace {
+                    incoming_reference: Default::default(),
                     root_symbol: access.root_symbol,
                     segments: facts.borrow.access_segments(access).to_vec(),
                 },
                 &access.kind,
                 &CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
                     root_symbol: loan.root_symbol,
                     segments: facts.borrow.loan_segments(loan).to_vec(),
                 },
