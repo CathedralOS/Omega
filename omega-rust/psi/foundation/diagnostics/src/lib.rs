@@ -17,4 +17,4 @@ mod reporter;
 
 pub use diagnostic::{CoverageForm, Diagnostic, DiagnosticSeverity, ExceededProvision};
 pub use phase_snapshot::PhaseSnapshot;
-pub use reporter::{bracketed_display_names, format_diagnostics};
+pub use reporter::{bracketed_display_names, comma_join_display, format_diagnostics};

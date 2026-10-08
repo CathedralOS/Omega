@@ -1,11 +1,10 @@
-use diagnostics::bracketed_display_names;
+use diagnostics::{bracketed_display_names, comma_join_display};
 
 use crate::expression::{
     BinaryOperator, ExpressionNode, ExpressionTable, StaticMachineArgument, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryOperator,
 };
 use crate::name::DiagnosticName;
-use crate::symbol_resolved_trees::display::comma_join_display;
 
 impl ExpressionNode {
     pub fn display_name(&self, table: &ExpressionTable) -> String {

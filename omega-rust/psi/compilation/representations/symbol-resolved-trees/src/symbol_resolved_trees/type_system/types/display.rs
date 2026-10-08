@@ -1,4 +1,5 @@
-use crate::symbol_resolved_trees::display::comma_join_display;
+use diagnostics::comma_join_display;
+
 use arena::Arena;
 
 use crate::types::{ConstrainedTypeReference, TypeConstraint, TypeReference};

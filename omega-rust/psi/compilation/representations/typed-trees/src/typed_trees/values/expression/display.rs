@@ -1,4 +1,4 @@
-use diagnostics::bracketed_display_names;
+use diagnostics::{bracketed_display_names, comma_join_display};
 
 use crate::expression::{
     BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, ExpressionNode,
@@ -6,7 +6,6 @@ use crate::expression::{
     TableCallExpression, TableCastExpression, TableUnaryExpression, UnaryExpression, UnaryOperator,
 };
 use crate::name::Identifier;
-use crate::typed_trees::display::comma_join_display;
 
 impl Expression {
     pub fn display_name(&self) -> String {

@@ -1,5 +1,6 @@
+use diagnostics::comma_join_display;
+
 use crate::expression::ExpressionTable;
-use crate::typed_trees::display::comma_join_display;
 use crate::types::{TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
 
 impl TypeReferenceNode {

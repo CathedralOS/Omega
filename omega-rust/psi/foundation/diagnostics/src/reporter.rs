@@ -14,6 +14,32 @@ pub fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
     output
 }
 
+/// Renders diagnostic names with comma-space separators.
+/// Names are consumed once per item, in iterator order; an empty iterator renders empty text.
+pub fn comma_join_display<'item, I, T>(
+    values: I,
+    mut display_name: impl FnMut(&'item T) -> String,
+) -> String
+where
+    I: IntoIterator<Item = &'item T>,
+    T: 'item,
+{
+    let mut output = String::new();
+    let mut first = true;
+
+    for value in values {
+        if first {
+            first = false;
+        } else {
+            output.push_str(", ");
+        }
+
+        output.push_str(&display_name(value));
+    }
+
+    output
+}
+
 /// Renders diagnostic names with brackets and comma-space separators.
 /// Each producer keeps its own iterator and naming policy; names are consumed
 /// immediately, once per item, in iterator order.
