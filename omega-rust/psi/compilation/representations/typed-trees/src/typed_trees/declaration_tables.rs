@@ -153,6 +153,19 @@ impl TypedTrees {
         })
     }
 
+    /// The live `Field` members of `members`: erased fields are
+    /// layout-resident but never runtime-addressable, and `Variant`
+    /// members declare payload structure rather than a field position.
+    pub fn live_data_fields<'a>(
+        &'a self,
+        members: &'a [data::DataMember],
+    ) -> impl Iterator<Item = &'a data::DataField> + 'a {
+        members.iter().filter_map(|member| match member {
+            data::DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            _ => None,
+        })
+    }
+
     /// The `Field` member `definition` declares as `symbol`, if any.
     pub fn data_field(
         &self,

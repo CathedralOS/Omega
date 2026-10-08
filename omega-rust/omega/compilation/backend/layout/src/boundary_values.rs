@@ -306,15 +306,8 @@ impl<'input> BoundaryValueLayout<'input> {
             .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
         let planned_layout = typed.plan_laid_layout(definition.symbol);
         let runtime_field_symbols = typed
-            .data_members(definition)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                    Some(field.symbol)
-                }
-                typed_trees::data::DataMember::Field(_)
-                | typed_trees::data::DataMember::Variant(_) => None,
-            })
+            .live_data_fields(typed.data_members(definition))
+            .map(|field| field.symbol)
             .collect::<Vec<_>>();
         if let Some(layout) = planned_layout
             && (layout.offsets.len() != runtime_field_symbols.len()

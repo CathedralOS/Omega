@@ -1518,12 +1518,7 @@ fn relevant_record_fields<'a>(
     definition: &'a DataDefinition,
 ) -> Vec<&'a typed_trees::data::DataField> {
     program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
+        .live_data_fields(program.data_members(definition))
         .collect()
 }
 
@@ -1747,13 +1742,7 @@ pub fn project_conventional_sum_materialization_layout(
             definition.name
         )));
     };
-    let declared_common = members
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
+    let declared_common = program.live_data_fields(members).collect::<Vec<_>>();
     let laid_common = plan.fields.span_or_empty(*common_fields);
     if declared_common.len() != laid_common.len() {
         return Err(Diagnostic::error(format!(

@@ -79,13 +79,9 @@ impl<'program> LayoutBuilder<'program> {
             return self.compute_case_bearing_layout(definition, members, bindings);
         }
 
-        let fields = members
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-                DataMember::Field(_) => None,
-                DataMember::Variant(_) => None,
-            })
+        let fields = self
+            .program
+            .live_data_fields(members)
             .map(|field| self.plan_field(field, bindings))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
 
@@ -341,13 +337,9 @@ impl<'program> LayoutBuilder<'program> {
 
         // Common fields (mixed shapes) pack right after the tag; their end
         // offset is the floor under every case's payload overlay.
-        let planned_common = members
-            .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-                DataMember::Field(_) => None,
-                DataMember::Variant(_) => None,
-            })
+        let planned_common = self
+            .program
+            .live_data_fields(members)
             .map(|field| self.plan_field(field, bindings))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let (common_fields, common_layout) =

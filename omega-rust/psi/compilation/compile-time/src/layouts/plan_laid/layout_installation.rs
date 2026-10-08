@@ -113,15 +113,8 @@ pub(crate) fn compute_plan_laid_layouts_in(
             })?;
         let data_symbol = synthesized_data.symbol;
         let field_symbols = typed
-            .data_members(synthesized_data)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                    Some(field.symbol)
-                }
-                typed_trees::data::DataMember::Field(_)
-                | typed_trees::data::DataMember::Variant(_) => None,
-            })
+            .live_data_fields(typed.data_members(synthesized_data))
+            .map(|field| field.symbol)
             .collect::<Vec<_>>();
 
         let schema = typed
@@ -134,24 +127,12 @@ pub(crate) fn compute_plan_laid_layouts_in(
             })?;
         let schema_symbol = schema.symbol;
         let schema_fields = typed
-            .data_members(schema)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) => (!field.relevance.is_erased())
-                    .then_some((field.name.as_str().to_owned(), field.type_reference)),
-                typed_trees::data::DataMember::Variant(_) => None,
-            })
+            .live_data_fields(typed.data_members(schema))
+            .map(|field| (field.name.as_str().to_owned(), field.type_reference))
             .collect::<Vec<_>>();
         let schema_field_symbols = typed
-            .data_members(schema)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                    Some(field.symbol)
-                }
-                typed_trees::data::DataMember::Field(_)
-                | typed_trees::data::DataMember::Variant(_) => None,
-            })
+            .live_data_fields(typed.data_members(schema))
+            .map(|field| field.symbol)
             .collect::<Vec<_>>();
         let field_count = schema_fields.len();
 

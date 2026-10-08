@@ -250,12 +250,7 @@ fn derive_sum_bytes(
     let (selected, selected_layout, payload) = selected_case(typed, data, layout, value)?;
 
     let declared_common = typed
-        .data_members(data)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
+        .live_data_fields(typed.data_members(data))
         .collect::<Vec<_>>();
     let mut active = vec![data.symbol];
     validate_selected_payload(
@@ -430,12 +425,7 @@ fn validate_conventional_layout(
     // A mixed shape's common fields pack sequentially right after the tag;
     // their aligned end is the floor under every case's payload overlay.
     let declared_common = typed
-        .data_members(data)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
-            DataMember::Field(_) | DataMember::Variant(_) => None,
-        })
+        .live_data_fields(typed.data_members(data))
         .collect::<Vec<_>>();
     if declared_common.len() != layout.common_fields.len() {
         return Err(MaterializationDiagnostic(format!(

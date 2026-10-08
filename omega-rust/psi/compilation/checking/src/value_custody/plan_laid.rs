@@ -420,15 +420,6 @@ fn runtime_fields<'program>(
     data: &typed_trees::data::DataDefinition,
 ) -> Vec<&'program typed_trees::data::DataField> {
     program
-        .data_members(data)
-        .iter()
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                Some(field)
-            }
-            typed_trees::data::DataMember::Field(_) | typed_trees::data::DataMember::Variant(_) => {
-                None
-            }
-        })
+        .live_data_fields(program.data_members(data))
         .collect()
 }

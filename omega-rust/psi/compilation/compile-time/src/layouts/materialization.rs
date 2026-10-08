@@ -93,15 +93,7 @@ pub fn materialize_typed_owned_layout_into(
             "typed owned materialization does not yet admit sum cases in `{schema_data}`"
         )));
     }
-    let physical_fields = members
-        .iter()
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                Some(field)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let physical_fields = typed.live_data_fields(members).collect::<Vec<_>>();
     if supplied.len() != members.len() {
         return Err(MaterializationDiagnostic(format!(
             "typed owned value `{schema_data}` has {} fields, expected {}",

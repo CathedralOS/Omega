@@ -152,15 +152,7 @@ impl Builder<'_, '_> {
             .expression_table
             .struct_fields(literal.fields)
             .to_vec();
-        let relevant = declared
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
-                    Some(field)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        let relevant = self.program.live_data_fields(declared).collect::<Vec<_>>();
         let erased = declared
             .iter()
             .filter_map(|member| match member {
