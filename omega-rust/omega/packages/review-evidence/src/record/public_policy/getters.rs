@@ -1,14 +1,13 @@
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyCrashRoute, PackagePolicyDataShape,
-    PackagePolicyDomainShape, PackagePolicyOperatorShape, PackagePolicyTermination,
-    PackagePolicyTraitRequirement, PackagePolicyTraitShape, PackagePolicyTypeParameter,
-    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewConformanceBound,
-    PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
-    PackageReviewDataProperties, PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackagePolicyDomainShape, PackagePolicyOperatorShape, PackagePolicyTraitRequirement,
+    PackagePolicyTraitShape, PackagePolicyTypeParameter, PackageReviewCallableContract,
+    PackageReviewCallableParameter, PackageReviewConformanceBound, PackageReviewContractFact,
+    PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataProperties,
+    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
     PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewSynchronousInvocation, PackageReviewTraitParent,
-    PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
+    PackageReviewTraitParent, PackageReviewTraitRequirementParameter, PackageReviewTypeIdentity,
 };
 
 impl PackagePolicyTraitShape {
@@ -53,33 +52,7 @@ impl PackagePolicyTraitRequirement {
     pub fn parameters(&self) -> &[PackageReviewTraitRequirementParameter] {
         &self.parameters
     }
-    pub const fn return_type(&self) -> Option<&PackageReviewTypeIdentity> {
-        self.return_type.as_ref()
-    }
-    pub fn contracts(&self) -> &[PackageReviewCallableContract] {
-        &self.contracts
-    }
-    pub fn published_crash(&self) -> &[PackagePolicyCrashRoute] {
-        &self.published_crash
-    }
-    pub fn service_reach(&self) -> &[PackageReviewNominalIdentity] {
-        &self.service_reach
-    }
-    pub const fn service_reach_is_installation_bound(&self) -> bool {
-        self.service_reach_is_installation_bound
-    }
-    pub fn synchronous_invocations(&self) -> &[PackageReviewSynchronousInvocation] {
-        &self.synchronous_invocations
-    }
-    pub const fn suspends(&self) -> bool {
-        self.suspends
-    }
-    pub const fn blocks(&self) -> bool {
-        self.blocks
-    }
-    pub const fn termination(&self) -> &PackagePolicyTermination {
-        &self.termination
-    }
+    crate::record::accessors::package_policy_callable_signature_accessors!();
 }
 impl PackagePolicyConformanceShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {
