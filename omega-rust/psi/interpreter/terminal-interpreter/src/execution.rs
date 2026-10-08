@@ -481,9 +481,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             .collect()
     }
 
-    pub fn live_claim_frontier(&self) -> impl Iterator<Item = ClaimId> + '_ {
-        self.live_claims.keys().copied()
-    }
 
     /// Exact live affine structural paths, ordered canonically. This is
     /// semantic ownership state, not a runtime object-layout bitmap.

@@ -377,10 +377,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             .filter(move |slot| !closed && !self.bindings.contains_key(slot))
     }
 
-    /// The demanded imports this instance has already established.
-    pub fn bound_imports(&self) -> impl Iterator<Item = BoundaryMachineId> + '_ {
-        self.bindings.keys().copied()
-    }
 
     /// The contract `slot`'s established binding was checked against —
     /// the retained import description this instance answered it with.

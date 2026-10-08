@@ -15,24 +15,6 @@ use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalScalarValue;
 
 impl TerminalExecution<'_> {
-    /// Observe the current live bytes at an original structural referent and
-    /// carrier path. Unused capacity is not part of the returned sequence.
-    pub fn structural_byte_sequence_field(
-        &self,
-        opaque_identity: u64,
-        path: &[StructuralPathSegment],
-        field: StructuralFieldId,
-    ) -> Option<&[u8]> {
-        self.structural_byte_sequence_fields
-            .get(&StructuralByteSequenceRuntimeField {
-                parent: StructuralRuntimePlace {
-                    opaque_identity,
-                    path: path.to_vec(),
-                },
-                field,
-            })
-            .map(|view| view.bytes())
-    }
 
     /// Dispatch charges fuel first. Validate and snapshot the complete source
     /// before replacing either live bytes or length; no failure partially writes.

@@ -289,14 +289,6 @@ impl<'artifact> TerminalProgram<'artifact> {
             })
     }
 
-    /// Resolve an import's display name to its exact slot. A matching name
-    /// identifies the slot; it establishes neither interface compatibility
-    /// nor call authority — binding still checks the full declared contract.
-    pub fn import_by_identity(&self, identity: &str) -> Option<BoundaryMachineId> {
-        self.imports()
-            .find(|declaration| declaration.identity == identity)
-            .map(|declaration| declaration.id)
-    }
 
     /// Start one instance of this program with its scalar arguments and every
     /// structural entry input in one record. No demanded import is invoked

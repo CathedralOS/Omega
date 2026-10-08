@@ -39,17 +39,7 @@ pub struct InterpretOptions {
 }
 
 impl InterpretOptions {
-    #[must_use]
-    pub fn with_filesystem_service_binding(mut self, binding: FilesystemServiceBinding) -> Self {
-        self.filesystem_service_binding = Some(binding);
-        self
-    }
 
-    #[must_use]
-    pub fn with_provisioned_context_parameter(mut self, parameter: SymbolHandle) -> Self {
-        self.provisioned_context_parameter = Some(parameter);
-        self
-    }
 }
 
 /// Interpret a checked program from one exact machine identity.

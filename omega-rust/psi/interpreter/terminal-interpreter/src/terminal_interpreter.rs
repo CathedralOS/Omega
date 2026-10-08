@@ -312,16 +312,4 @@ impl TerminalExecution<'_> {
         )
     }
 
-    /// Begin execution with one explicit provider installation previously
-    /// admitted against these exact semantic/proof sections. Fixed-array inputs
-    /// supply exact initialized backing; an installed provider grants no storage.
-    pub fn start_installed_artifact(
-        semantic_bytes: &[u8],
-        scalar_arguments: &[TerminalScalarValue],
-        structural_inputs: TerminalStructuralInputs<'_>,
-        installation: &AdmittedProviderInstallation,
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        let program = crate::program::TerminalProgram::load(semantic_bytes)?;
-        program.start_execution(scalar_arguments, structural_inputs, Some(installation))
-    }
 }

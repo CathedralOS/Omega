@@ -191,20 +191,6 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    /// Observe the current contents of an explicitly initialized raw fixed array.
-    /// No field identity, capacity, or mutable live-length header is involved.
-    pub fn structural_byte_array(
-        &self,
-        opaque_identity: u64,
-        path: &[StructuralPathSegment],
-    ) -> Option<&[u8]> {
-        self.structural_byte_storage
-            .get(&StructuralRuntimePlace {
-                opaque_identity,
-                path: path.to_vec(),
-            })
-            .map(ByteSequenceView::bytes)
-    }
 
     /// Both array arguments and local descriptor establishments pin the same
     /// payload home. The cursor is committed only after the caller validates

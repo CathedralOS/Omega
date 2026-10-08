@@ -9,28 +9,6 @@ pub struct FilesystemServiceBinding {
 }
 
 impl FilesystemServiceBinding {
-    pub fn from_compiler_resolved_declaration(
-        checked: &CheckedTrees,
-        declaration_symbol: SymbolHandle,
-    ) -> Result<Self, &'static str> {
-        if !declaration_symbol.is_valid()
-            || checked
-                .typed
-                .traits()
-                .iter()
-                .filter(|definition| {
-                    definition.is_boundary && definition.symbol == declaration_symbol
-                })
-                .count()
-                != 1
-        {
-            return Err("filesystem service binding is not one exact checked boundary declaration");
-        }
-        Ok(Self {
-            checked_program_address: std::ptr::from_ref(checked).addr(),
-            declaration_symbol,
-        })
-    }
 
     pub(crate) fn declaration_symbol_for(
         self,

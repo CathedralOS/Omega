@@ -498,9 +498,6 @@ impl BuildMachineEvaluationFailure {
         self.observations.as_ref()
     }
 
-    pub fn into_diagnostic(self) -> String {
-        self.diagnostic
-    }
 }
 
 impl std::fmt::Display for BuildMachineEvaluationFailure {
