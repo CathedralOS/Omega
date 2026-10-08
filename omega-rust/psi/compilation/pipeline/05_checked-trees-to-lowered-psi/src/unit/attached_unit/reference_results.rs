@@ -1,4 +1,7 @@
 //! Reference carriers retain ingress provenance and the exact source loan end.
+//! A consumer borrows the referent; it does not acquire its linear claims or
+//! cleanup. The checked borrow-free storage judgment excludes nested carriers
+//! without requiring the referent to be a freely copied owned snapshot.
 use super::super::StructuralArgument;
 use super::admission::CallerView;
 use super::{
@@ -103,9 +106,7 @@ pub(super) fn validate_consumer(
                 .data_members(data)
                 .iter()
                 .all(|member| matches!(member, checked_trees::data::DataMember::Field(_)))
-                && crate::content_classes::plain_owned_with_represented_constraints(
-                    checked, referent,
-                )
+                && crate::content_classes::borrow_free_contents(checked, referent)
         });
     if !primitive && !plain_record {
         return unsupported("reference consumer has no plain record or primitive referent");

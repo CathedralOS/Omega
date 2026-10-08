@@ -1,10 +1,10 @@
 //! Classifying every type reference's ownership and content class once.
 //!
-//! The six content predicates lowering used to re-ask — plain owned contents
+//! The content predicates lowering consumes — plain owned contents
 //! under numeric and under represented constraints, finite linear owned
-//! contents, owned-or-shared-view record fields, closed primitive arrays, and
-//! bounded byte buffer capacity — are each a pure function of the frozen type
-//! table. They are not cheap: four of them run
+//! contents, borrow-free storage, owned-or-shared-view record fields, closed
+//! primitive arrays, and bounded byte buffer capacity — are each a pure
+//! function of the frozen type table. Several run
 //! [`crate::value_custody::storage_contents`]'s recursive `ContentType`
 //! resolution, which walks each data definition's members, peels constraint
 //! shells, and consults the declared-domain intervals and scalar field
@@ -12,7 +12,7 @@
 //! the classification stays here rather than moving to `typed-trees`: the
 //! judgment is checking's, not the type table's.
 //!
-//! This owner answers all six for the whole table at once and hands the rows
+//! This owner answers them for the whole table at once and hands the rows
 //! to `CheckFacts`, so lowering reads a row instead of re-entering checking.
 
 use checked_trees::{ContentClassFacts, ContentClassRow};
@@ -61,6 +61,11 @@ fn content_classes(
             program,
             reference,
             crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+        ),
+        borrow_free_contents: crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::BorrowFree,
         ),
         owned_or_shared_view_fields: crate::has_owned_or_shared_view_fields(program, reference),
         closed_primitive_array: crate::is_closed_primitive_array_type(program, reference),

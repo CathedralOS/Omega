@@ -322,6 +322,10 @@ fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed2
 fail/borrows/loop_descriptor_reformation_with_live_alias rejected 257ms expected @6197860b335c+wt
 	state `cycle` receives `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
 	statement 2 mutates `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
+fail/borrows/materialized_linear_owner_reference_live_write rejected 512ms expected @566fa91d7f0d+wt
+	statement 2 mutates `receipt.code` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/borrows/materialized_reference_does_not_discharge_linear_owner rejected 498ms expected @566fa91d7f0d+wt
+	linear value `receipt` reaches scope exit without being consumed or transferred
 fail/borrows/multi_origin_returned_reference_live_source_write rejected 361ms expected @034357f920c6+wt
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/mutable_primitive_reference_live_owner_read rejected 740ms expected @944fb1232f17
@@ -2186,6 +2190,8 @@ pass/borrows/exclusive_array_parameter_shared_lend_exit checked 1170ms check-tar
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms check-target:macos_arm64 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/linear_call_result_shared_observation_exit checked 1778ms check-target:macos_arm64 @5889f8b8208f+wt
+pass/borrows/linear_owner_materialized_mutable_projection_exit checked 1687ms check-target:macos_arm64 @566fa91d7f0d+wt
+pass/borrows/linear_owner_materialized_shared_reference_exit checked 1686ms check-target:macos_arm64 @566fa91d7f0d+wt
 pass/borrows/local_record_byte_field_snapshot_exit checked 1791ms check-target:macos_arm64 @fef76bc46fc7+wt
 pass/borrows/local_record_nested_sequence_extent_exit checked 1789ms check-target:macos_arm64 @fef76bc46fc7+wt
 pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:macos_arm64 @82ec69a91ceb+wt

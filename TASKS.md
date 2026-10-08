@@ -3847,11 +3847,8 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `execution/terminal_unit/calls/computation_arguments/`; stage 02
   `validation/structural_call_arguments.rs`; image-emission `argument_custody`.
 
-  Remaining: materialized references into claim-bearing owned roots and
-  matching-host qualification of projected receiver custody. A named shared
-  descriptor of a linear call-result owner reaches stage 02
-  `lowering/control_flow/references.rs::establish`, but `direct_storage_type`
-  excludes linear and claimed roots. Retain the original owner's claims, live
+  Remaining: matching-host qualification of projected receiver custody.
+  Retain the original owner's claims, live
   descriptor and ordered pointer crossings, never a guessed owner or referent copy.
   Reuse `Field`, `FixedIndex` and `RuntimeIndex { index, obligation }`; coordinate
   range spelling with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Declared receiver
@@ -3879,6 +3876,10 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   `borrows/projected_claim_owner_shared_observation_exit` retain the original
   owner's claim through whole and projected helper loans and subsequent explicit
   disposal; shared observation must not discharge an unconsumed linear owner.
+  `borrows/linear_owner_materialized_shared_reference_exit` and
+  `borrows/linear_owner_materialized_mutable_projection_exit` preserve named
+  descriptor custody through whole/projected loans and owning-helper transfer;
+  fail controls retain live-loan exclusion and the owner's disposal obligation.
 
   Acceptance: corpus fixtures execute caller-visible projected/forwarded
   writes, owned-field mutable/write-only subloans, synchronized shared

@@ -22,7 +22,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 /// One type reference's content classification.
 ///
-/// The five predicates are recorded as the `bool` they return, not as a ZII
+/// The content predicates are recorded as the `bool` they return, not as a ZII
 /// handle: there is no leaf family here whose absence a zero handle could
 /// denote. `bounded_byte_capacity` keeps its `Option` for the same
 /// reason in the other direction — a `[u8; 0] in D` owner declares a real
@@ -39,6 +39,10 @@ pub struct ContentClassRow {
     /// Finite owned storage a linear selection or call can carry whole,
     /// including nominal-cleanup owners.
     pub linear_owned_contents: bool,
+    /// Finite storage without retained reference descriptors. Linear custody,
+    /// cleanup and represented predicates stay with its owner; lending that
+    /// storage grants neither copying nor disposal authority.
+    pub borrow_free_contents: bool,
     /// A record whose fields are each either plain owned contents or a
     /// shared `&[T]`/`&'a V` view descriptor.
     pub owned_or_shared_view_fields: bool,

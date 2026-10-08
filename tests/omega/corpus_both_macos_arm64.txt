@@ -45,6 +45,8 @@ pass/borrows/enum_selected_view_reference_exit built 1767ms exit:70 interpreter-
 pass/borrows/indexed_record_field_replacement_exit built 6044ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8134ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/linear_call_result_shared_observation_exit built 1729ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
+pass/borrows/linear_owner_materialized_mutable_projection_exit built 1668ms exit:70 interpreter-exit:70 interpreter:agrees @566fa91d7f0d+wt
+pass/borrows/linear_owner_materialized_shared_reference_exit built 1668ms exit:70 interpreter-exit:70 interpreter:agrees @566fa91d7f0d+wt
 pass/borrows/local_record_byte_field_snapshot_exit built 1895ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
 pass/borrows/local_record_nested_sequence_extent_exit built 1877ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
 pass/borrows/local_reference_scalar_completion_exit built 4654ms exit:70 interpreter-exit:70 interpreter:agrees @81c668e34445+wt

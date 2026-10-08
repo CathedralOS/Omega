@@ -673,9 +673,11 @@ fn source_contract(
 }
 
 /// Borrow storage through its published contract, regardless of whether it
-/// arrived as a parameter or was constructed in this activation. An affine
-/// owner may lend storage without copying it; a reference crossing is a
-/// different operation and must resolve live carrier custody instead.
+/// arrived as a parameter or was constructed in this activation. Lending
+/// storage does not move it or discharge the owner's claims: multiplicity
+/// constrains disposal, not this type lookup. Qualifications and access still
+/// constrain formation; normalized_source retains exact live-loan custody.
+/// A reference crossing must resolve live carrier custody instead.
 fn direct_storage_type(
     function: &AbstractFunction,
     live: &LiveDefinitions,
@@ -692,12 +694,11 @@ fn direct_storage_type(
     }) {
         return None;
     }
-    let (structural_type, multiplicity, access, unqualified) = if let Some(parameter) =
+    let (structural_type, access, unqualified) = if let Some(parameter) =
         function.arrival_parameter(source.place)
     {
         (
             parameter.structural_type,
-            parameter.multiplicity,
             parameter.access,
             parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
         )
@@ -705,11 +706,9 @@ fn direct_storage_type(
         let home = live.structural_homes.get(&source.place)?;
         (
             home.structural_type(),
-            home.multiplicity(),
             home.access(),
             home.qualifications().is_empty()
                 && home.projected_qualifications().is_empty()
-                && !home.has_claims()
                 && home
                     .operation_result()
                     .is_none_or(|(_, result)| result.qualification_establishments.is_empty()),
@@ -734,14 +733,7 @@ fn direct_storage_type(
         ),
         StructuralAccess::Owned => false,
     };
-    if !access_is_compatible
-        || multiplicity == StructuralMultiplicity::Linear
-        || !unqualified
-        || function
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == source.place)
-    {
+    if !access_is_compatible || !unqualified {
         return None;
     }
     leaf_type(types, structural_type, &source.path)

@@ -102,6 +102,8 @@ pass/borrows/exclusive_array_parameter_shared_lend_exit built 1452ms exit:70 @74
 pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
 pass/borrows/linear_call_result_shared_observation_exit built 1783ms exit:70 @5889f8b8208f+wt
+pass/borrows/linear_owner_materialized_mutable_projection_exit built 1688ms exit:70 @566fa91d7f0d+wt
+pass/borrows/linear_owner_materialized_shared_reference_exit built 1687ms exit:70 @566fa91d7f0d+wt
 pass/borrows/local_record_byte_field_snapshot_exit built 1744ms exit:70 @fef76bc46fc7+wt
 pass/borrows/local_record_nested_sequence_extent_exit built 1737ms exit:70 @fef76bc46fc7+wt
 pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a91ceb+wt

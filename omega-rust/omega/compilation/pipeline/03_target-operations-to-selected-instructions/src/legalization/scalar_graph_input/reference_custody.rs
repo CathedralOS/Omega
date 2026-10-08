@@ -622,6 +622,9 @@ fn source_contract(
 /// Resolve direct storage from its declared contract, rather than requiring
 /// that the owner originated in the machine's input telescope. Reference
 /// crossings still require the separately reconstructed live loan.
+/// Lending direct storage retains the owner's disposal claims. The source's
+/// multiplicity does not constrain a loan's referent type; qualifications and
+/// access do. normalized_source separately retains exact live-loan custody.
 fn direct_storage_type(
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
@@ -637,12 +640,11 @@ fn direct_storage_type(
     }) {
         return None;
     }
-    let (structural_type, multiplicity, access, unqualified) = if let Some(parameter) =
+    let (structural_type, access, unqualified) = if let Some(parameter) =
         function.arrival_parameter(source.place)
     {
         (
             parameter.structural_type,
-            parameter.multiplicity,
             parameter.access,
             parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty(),
         )
@@ -650,11 +652,9 @@ fn direct_storage_type(
         let (_, result) = super::structural_case::source_result(function, source.place).ok()?;
         (
             result.structural_type,
-            result.multiplicity,
             StructuralAccess::Owned,
             result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
-                && result.claims.is_empty()
                 && result.qualification_establishments.is_empty(),
         )
     };
@@ -677,18 +677,7 @@ fn direct_storage_type(
         ),
         StructuralAccess::Owned => false,
     };
-    if !access_is_compatible
-        || multiplicity == StructuralMultiplicity::Linear
-        || !unqualified
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == source.place)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == source.place)
-    {
+    if !access_is_compatible || !unqualified {
         return None;
     }
     leaf_type(types, structural_type, &source.path)
