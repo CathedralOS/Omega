@@ -187,6 +187,14 @@ impl installation_evidence::ObjectEvidence for ObjectArtifact {
     }
 }
 
+/// The object function keyed `machine` in a function roster.
+pub fn find_object_function(
+    functions: &[ObjectFunction],
+    machine: MachineId,
+) -> Option<&ObjectFunction> {
+    functions.iter().find(|function| function.machine == machine)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectFunction {
     pub machine: MachineId,

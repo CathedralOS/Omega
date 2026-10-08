@@ -121,9 +121,7 @@ fn records(
     functions: &[ObjectFunction],
 ) -> Result<Vec<RelocationRecord>, Error> {
     records_for_symbols(pool, |machine| {
-        functions
-            .iter()
-            .find(|function| function.machine == machine)
+        crate::object_artifact::find_object_function(functions, machine)
             .map(|function| function.symbol)
     })
 }

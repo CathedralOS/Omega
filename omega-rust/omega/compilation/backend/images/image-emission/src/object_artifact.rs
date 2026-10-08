@@ -19,6 +19,7 @@ pub(crate) mod replay;
 pub(crate) mod stack_demand;
 
 pub use carriers::{
+    find_object_function,
     ObjectArtifact, ObjectBoundarySettlement, ObjectByteLiteralAddress, ObjectByteLiteralPool,
     ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectForeignCall, ObjectFunction,
     ObjectPortEffect, ObjectScalarCallStack, ObjectScalarStack, ObjectUnitCallStack,

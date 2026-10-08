@@ -159,9 +159,7 @@ fn expected_records(
     address: &ObjectByteLiteralAddress,
     functions: &[ObjectFunction],
 ) -> Result<Vec<RelocationRecord>, Error> {
-    let function = functions
-        .iter()
-        .find(|function| function.machine == address.machine)
+    let function = crate::object_artifact::find_object_function(functions, address.machine)
         .ok_or(Error::Mismatch("byte-literal address owner is absent"))?;
     let origin = RelocationOrigin::SemanticOperation {
         function_symbol_handle: function.symbol,

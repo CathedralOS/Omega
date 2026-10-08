@@ -51,9 +51,7 @@ pub(super) fn publish(
         RelocationPlan::with_record_capacity(object.target, fields.len() + callback_record_count);
     for field in fields {
         let (call, locator) = call_for_import_field(&import_calls, field)?;
-        let function = functions
-            .iter()
-            .find(|function| function.machine == field.caller)
+        let function = crate::object_artifact::find_object_function(functions, field.caller)
             .ok_or(Error::Mismatch("fragment import caller is absent"))?;
         let origin = boundary_relocation_origin(function.symbol, field.invocation_site);
         // A callback argument's address is a compiler-private relocation: it
