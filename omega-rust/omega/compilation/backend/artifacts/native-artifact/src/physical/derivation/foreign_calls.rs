@@ -1214,25 +1214,9 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
         {
             return Ok(None);
         }
-        let placed_pointer_word = match placement.locations.as_slice() {
-            [
-                calling_conventions::ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ]
-            | [
-                calling_conventions::ValueLocation::Stack {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] => *byte_size,
-            _ => {
-                return Err("normalized foreign D41 child changed its structural call custody");
-            }
-        };
+        let placed_pointer_word = placement.single_word_byte_size().ok_or(
+            "normalized foreign D41 child changed its structural call custody",
+        )?;
         if placement.shape != pointer_shape || placed_pointer_word != pointer_shape.byte_size {
             return Err("normalized foreign D41 child changed its structural call custody");
         }

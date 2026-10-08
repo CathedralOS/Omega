@@ -821,23 +821,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
             .parameters
             .get(native_index)
             .ok_or_else(invalid)?;
-        let placed_bytes = match argument.placement.locations.as_slice() {
-            [
-                calling_conventions::ValueLocation::Register {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ]
-            | [
-                calling_conventions::ValueLocation::Stack {
-                    value_byte_offset: 0,
-                    byte_size,
-                    ..
-                },
-            ] => *byte_size,
-            _ => return Err(invalid()),
-        };
+        let placed_bytes = argument.placement.single_word_byte_size().ok_or_else(invalid)?;
         if argument.parameter_index != native_index as u32
             || argument.placement != *expected_placement
             || argument.placement.shape != *shape
