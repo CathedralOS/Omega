@@ -45,7 +45,7 @@ pub(in super::super) fn case_guard_classifier<'program>(
     expression: ExpressionHandle,
 ) -> Option<(&'program DataDefinition, &'program DataVariant)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+    let Some(comparison) = program.expression_table.binary_node(expression) else {
         return None;
     };
     let (definition, variant) = case_classifier(program, comparison.right)?;

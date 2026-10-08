@@ -293,13 +293,10 @@ pub(crate) fn check_operator_contract_conformance(
     ));
 
     let matches = |requirement_fact: ExpressionHandle, provider_fact: ExpressionHandle| {
-        let ExpressionNode::Binary(requirement) =
-            program.expression_table.expression(requirement_fact)
-        else {
+        let Some(requirement) = program.expression_table.binary_node(requirement_fact) else {
             return false;
         };
-        let Some(provider) = program.expression_table.binary_node(provider_fact)
-        else {
+        let Some(provider) = program.expression_table.binary_node(provider_fact) else {
             return false;
         };
         [
@@ -592,7 +589,7 @@ pub(crate) fn is_equality_conjunction(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     match binary.operator {

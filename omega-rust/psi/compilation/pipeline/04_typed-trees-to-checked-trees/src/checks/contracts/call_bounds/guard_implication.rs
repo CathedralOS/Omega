@@ -36,7 +36,7 @@ pub(super) fn proves(
     goal: ExpressionHandle,
     guard: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(required) = program.expression_table.expression(goal) else {
+    let Some(required) = program.expression_table.binary_node(goal) else {
         return false;
     };
     let (left, right, spelling) = match required.operator {
@@ -99,7 +99,7 @@ pub(super) fn proves(
     };
     let mut pending = vec![guard];
     while let Some(expression) = pending.pop() {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
             continue;
         };
         match binary.operator {
@@ -161,7 +161,7 @@ fn builtin(
     expression: ExpressionHandle,
     spelling: OperatorSpelling,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     let operands = [binary.left, binary.right]
@@ -198,8 +198,9 @@ fn observation(
         return None;
     }
     let primitive = program.primitive_type_reference(reference)?;
-    primitive.is_fixed_integer()
-    .then_some((expression, Meaning::Integer(primitive)))
+    primitive
+        .is_fixed_integer()
+        .then_some((expression, Meaning::Integer(primitive)))
 }
 
 fn exact_place(place: validation::CanonicalPlace) -> Option<validation::CanonicalPlace> {

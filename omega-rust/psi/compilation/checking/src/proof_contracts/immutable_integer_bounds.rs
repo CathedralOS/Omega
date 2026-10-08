@@ -242,7 +242,7 @@ pub fn immutable_integer_bound_symbol_offset(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ImmutableIntegerBoundOffset> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     let (base, offset) = match binary.operator {
@@ -399,8 +399,7 @@ fn bound_leaf_initializer(
     if local.is_mutable || !local.initial_value.is_valid() {
         return None;
     }
-    let Some(binary) = program.expression_table.binary_node(local.initial_value)
-    else {
+    let Some(binary) = program.expression_table.binary_node(local.initial_value) else {
         return None;
     };
     matches!(

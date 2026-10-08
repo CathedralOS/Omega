@@ -846,7 +846,7 @@ fn reflexive_comparison_holds(
     type_parameters: &[typed_trees::data::TypeParameter],
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if !matches!(

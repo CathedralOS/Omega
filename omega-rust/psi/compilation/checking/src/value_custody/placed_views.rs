@@ -364,7 +364,7 @@ fn fetch_operation(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&'static str> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     match binary.operator {

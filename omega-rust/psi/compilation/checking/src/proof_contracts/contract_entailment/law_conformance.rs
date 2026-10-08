@@ -27,8 +27,8 @@ pub(crate) use slot_bindings::{
 };
 
 use super::{
-    Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER, StateSignature, StructuralTerm, TraitDefinition, structural_term,
-    unfold_constant_applications,
+    Diagnostic, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
+    StateSignature, StructuralTerm, TraitDefinition, structural_term, unfold_constant_applications,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::proposition_laws::{
     bindings_are_forall_general, check_proposition_law_conformance,
@@ -165,15 +165,16 @@ fn check_law_conformance_with_matches(
             let mut conjuncts = Vec::new();
             collect_equality_conjuncts(program, *expression, &mut conjuncts);
             proven_conjuncts.extend(
-                conjuncts.into_iter().map(|conjunct| (conjunct, *expression)),
+                conjuncts
+                    .into_iter()
+                    .map(|conjunct| (conjunct, *expression)),
             );
         }
     }
 
     let result_binder = RESULT_BINDER.to_owned();
     for law_conjunct in &law_conjuncts {
-        let Some(binary) = program.expression_table.binary_node(*law_conjunct)
-        else {
+        let Some(binary) = program.expression_table.binary_node(*law_conjunct) else {
             continue;
         };
         let (Some(law_left), Some(law_right)) = (
@@ -216,9 +217,7 @@ fn check_law_conformance_with_matches(
         }
 
         let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
-            let ExpressionNode::Binary(proven_binary) =
-                program.expression_table.expression(*proven)
-            else {
+            let Some(proven_binary) = program.expression_table.binary_node(*proven) else {
                 return None;
             };
             let (Some(proven_left), Some(proven_right)) = (

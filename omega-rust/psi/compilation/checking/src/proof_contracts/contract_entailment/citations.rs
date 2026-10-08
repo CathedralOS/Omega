@@ -285,7 +285,7 @@ pub(crate) fn suggest_missing_citation(
     fact: ExpressionHandle,
 ) -> Option<String> {
     // Walk the fact's `&&`-conjuncts; the first suggestible equation wins.
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+    let Some(binary) = program.expression_table.binary_node(fact) else {
         return None;
     };
     match binary.operator {
@@ -362,7 +362,7 @@ fn suggest_conjunct_match(
     goal_left: &StructuralTerm,
     goal_right: &StructuralTerm,
 ) -> Option<String> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(lemma_fact) else {
+    let Some(binary) = program.expression_table.binary_node(lemma_fact) else {
         return None;
     };
     match binary.operator {
@@ -499,7 +499,7 @@ fn for_each_substituted_contract_fact(
             if super::structural_terms::is_case_observation(program, fact) {
                 return None;
             }
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+            let Some(binary) = program.expression_table.binary_node(fact) else {
                 return None;
             };
             if binary.operator != BinaryOperator::Equal {
@@ -629,7 +629,7 @@ pub(crate) fn intake_statement_citation_for_edge(
         if super::structural_terms::is_case_observation(program, fact) {
             return;
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
         };
         if binary.operator != BinaryOperator::Equal {
@@ -651,7 +651,7 @@ pub(crate) fn intake_statement_citation_for_edge(
         if super::structural_terms::is_case_observation(program, fact) {
             continue;
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        let Some(binary) = program.expression_table.binary_node(fact) else {
             continue;
         };
         if binary.operator != BinaryOperator::Equal {
@@ -856,7 +856,7 @@ pub(crate) fn instantiated_fact_established(
                 StructuralJudgment::Proven
             );
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+    let Some(binary) = program.expression_table.binary_node(fact) else {
         return false;
     };
     match binary.operator {

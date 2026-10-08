@@ -114,7 +114,7 @@ pub(super) fn integral_parameter_reflexivity(
     let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+    let Some(comparison) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if comparison.operator != BinaryOperator::Equal {
@@ -148,7 +148,10 @@ pub(super) fn integral_parameter_reflexivity(
                 .type_reference_table
                 .type_reference(parameter.type_reference)
             {
-                TypeReferenceNode::Named { symbol, .. } => program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_fixed_integer()),
+                TypeReferenceNode::Named { symbol, .. } => program
+                    .symbols
+                    .builtin_type_atom(*symbol)
+                    .is_some_and(|atom| atom.is_fixed_integer()),
                 _ => false,
             }
     })

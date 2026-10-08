@@ -382,7 +382,7 @@ fn collect_contract_bounds(
     facts: &mut Vec<GuardBound>,
 ) {
     let program = proof_plan.program;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(condition) else {
+    let Some(binary) = program.expression_table.binary_node(condition) else {
         return;
     };
     if binary.operator == BinaryOperator::Equal {
@@ -656,7 +656,7 @@ fn collect_guard_bounds(
         collect_refuted_bounds(proof_plan, subject, unary.operand, facts);
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(condition) else {
+    let Some(binary) = program.expression_table.binary_node(condition) else {
         return;
     };
     if binary.operator == BinaryOperator::Equal {
@@ -711,7 +711,7 @@ fn collect_refuted_bounds(
         collect_guard_bounds(proof_plan, subject, unary.operand, facts);
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(condition) else {
+    let Some(binary) = program.expression_table.binary_node(condition) else {
         return;
     };
     if !expressions_equivalent_for_proof(proof_plan, binary.left, subject) {
@@ -795,8 +795,7 @@ fn guarded_refold_certificate(
     seed: u64,
 ) -> Option<BoundedValueCertificate> {
     let program = proof_plan.program;
-    let Some(binary) = program.expression_table.binary_node(obligation.argument)
-    else {
+    let Some(binary) = program.expression_table.binary_node(obligation.argument) else {
         return None;
     };
     let (place, literal, subtract) = match binary.operator {

@@ -17,7 +17,7 @@ pub(super) fn lower(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if !matches!(
@@ -64,7 +64,7 @@ pub(super) fn lower_result(
     result_type: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     let result = validation::reserved_result_place(program, binary.left)?;

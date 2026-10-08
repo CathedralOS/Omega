@@ -225,7 +225,7 @@ fn guard_bounds(
     {
         return Bounds::UNKNOWN;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return Bounds::UNKNOWN;
     };
     if matches!(

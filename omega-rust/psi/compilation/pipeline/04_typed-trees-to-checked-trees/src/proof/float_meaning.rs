@@ -1351,9 +1351,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
     }
     let mut equalities = Vec::with_capacity(equality_facts.len());
     for (index, fact) in equality_facts.iter().copied().enumerate() {
-        let ExpressionNode::Binary(expression) =
-            program.expression_table.expression(fact.expression)
-        else {
+        let Some(expression) = program.expression_table.binary_node(fact.expression) else {
             return Err(vec![Diagnostic::error(
                 "validated float-meaning equality is no longer a binary proposition",
             )]);

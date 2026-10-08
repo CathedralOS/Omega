@@ -318,7 +318,7 @@ fn structurally_substitutable_fact(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if super::structural_terms::is_case_observation(program, expression) {

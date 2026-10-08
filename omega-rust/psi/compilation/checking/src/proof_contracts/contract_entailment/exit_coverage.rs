@@ -45,9 +45,7 @@ fn equality_comparisons<T>(
             let TransitionGuardNode::When(expression) = guard else {
                 return None;
             };
-            let ExpressionNode::Binary(comparison) =
-                program.expression_table.expression(*expression)
-            else {
+            let Some(comparison) = program.expression_table.binary_node(*expression) else {
                 return None;
             };
             (comparison.operator == BinaryOperator::Equal)

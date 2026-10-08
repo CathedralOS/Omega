@@ -196,7 +196,7 @@ pub(super) fn parse_counter_relational_upper(
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<RelationalUpper> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return None;
     };
     if binary.operator == BinaryOperator::Equal {

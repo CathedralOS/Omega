@@ -30,9 +30,7 @@ pub(crate) fn apply_assignment_guard(
 ) -> IntegerRange {
     let range = apply_handle_guard(proof_plan, range, value, guard);
 
-    let ExpressionNode::Binary(value_binary) =
-        proof_plan.program.expression_table.expression(value)
-    else {
+    let Some(value_binary) = proof_plan.program.expression_table.binary_node(value) else {
         return range;
     };
     if value_binary.operator != BinaryOperator::Subtract {
@@ -43,9 +41,7 @@ pub(crate) fn apply_assignment_guard(
         return range;
     };
     let condition = unwrap_true_guard_condition(proof_plan, *condition);
-    let ExpressionNode::Binary(condition_binary) =
-        proof_plan.program.expression_table.expression(condition)
-    else {
+    let Some(condition_binary) = proof_plan.program.expression_table.binary_node(condition) else {
         return range;
     };
 
@@ -94,8 +90,7 @@ pub(crate) fn unwrap_true_guard_condition(
     proof_plan: &ProofPlan,
     condition: ExpressionHandle,
 ) -> ExpressionHandle {
-    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition) else {
         return condition;
     };
 
@@ -129,8 +124,7 @@ pub(crate) fn apply_handle_condition(
     {
         return apply_handle_condition_complement(proof_plan, range, argument, unary.operand);
     }
-    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition) else {
         return range;
     };
 
@@ -193,8 +187,7 @@ pub(crate) fn apply_source_condition(
                 .map(|state| dehoisted_condition(proof_plan.program, state, condition))
         })
         .unwrap_or(condition);
-    let Some(binary) = proof_plan.program.expression_table.binary_node(condition)
-    else {
+    let Some(binary) = proof_plan.program.expression_table.binary_node(condition) else {
         return range;
     };
 

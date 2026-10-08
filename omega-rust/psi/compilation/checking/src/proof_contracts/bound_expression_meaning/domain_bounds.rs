@@ -97,7 +97,7 @@ pub fn has_builtin_domain_decomposed_guard_meaning(
     {
         return false;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return matches!(program.expression_table.expression(expression),
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot);
     };

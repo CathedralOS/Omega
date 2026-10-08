@@ -128,7 +128,7 @@ pub fn transparent_proposition_application_entailed(
                 ))
             })
             .collect::<Option<Vec<_>>>()?;
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(formula) else {
+        let Some(binary) = program.expression_table.binary_node(formula) else {
             return None;
         };
         if binary.operator != BinaryOperator::Equal

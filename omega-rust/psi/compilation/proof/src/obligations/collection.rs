@@ -778,7 +778,7 @@ fn case_guard_proven_variant(
     condition: ExpressionHandle,
     receiver: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(condition) else {
+    let Some(binary) = program.expression_table.binary_node(condition) else {
         return None;
     };
     match binary.operator {

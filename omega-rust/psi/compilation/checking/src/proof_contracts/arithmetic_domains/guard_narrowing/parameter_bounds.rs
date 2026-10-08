@@ -15,7 +15,7 @@ pub(super) fn narrow(
     let Some(state) = state else {
         return;
     };
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(condition) else {
+    let Some(comparison) = program.expression_table.binary_node(condition) else {
         return;
     };
     let Some((left, right)) = super::super::invariant_bounds::builtin_comparison_intervals(

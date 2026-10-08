@@ -272,7 +272,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn intake(&mut self, program: &dyn crate::CheckingInput, fact: ExpressionHandle) {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        let Some(binary) = program.expression_table.binary_node(fact) else {
             return;
         };
         if super::structural_terms::is_case_observation(program, fact) {
@@ -700,9 +700,8 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let machine = self.entry_machines.machine(program, target)?;
-        let machine_parameters: Vec<&typed_trees::data::TypeParameter> = program
-            .machine_kind_type_parameters(machine)
-            .collect();
+        let machine_parameters: Vec<&typed_trees::data::TypeParameter> =
+            program.machine_kind_type_parameters(machine).collect();
         if machine_parameters.len() != selections.len() {
             return None;
         }
@@ -830,9 +829,7 @@ impl<'program> StructuralJudge<'program> {
             let fires = match transition.guard {
                 TransitionGuardNode::Always => true,
                 TransitionGuardNode::When(guard) => {
-                    let ExpressionNode::Binary(comparison) =
-                        program.expression_table.expression(guard)
-                    else {
+                    let Some(comparison) = program.expression_table.binary_node(guard) else {
                         return None;
                     };
                     if !matches!(
@@ -911,8 +908,7 @@ impl<'program> StructuralJudge<'program> {
         if super::structural_terms::is_case_observation(program, ensures_fact) {
             return None;
         }
-        let Some(binary) = program.expression_table.binary_node(ensures_fact)
-        else {
+        let Some(binary) = program.expression_table.binary_node(ensures_fact) else {
             return None;
         };
         if binary.operator != BinaryOperator::Equal {
@@ -1398,7 +1394,7 @@ impl<'program> StructuralJudge<'program> {
         if self.case_facts_only && !super::call_requirements::case_fact_only(program, fact) {
             return StructuralJudgment::Unknown;
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+        let Some(binary) = program.expression_table.binary_node(fact) else {
             // A boolean-valued proof call is itself a proposition. Resolve a
             // closed checked application exactly as `call == true`; N6
             // equivalence laws use this ordinary contract shape.
@@ -1514,7 +1510,7 @@ impl<'program> StructuralJudge<'program> {
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
     ) -> StructuralJudgment {
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(fact) else {
+        let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return StructuralJudgment::Unknown;
         };
         if !crate::proof_contracts::bound_expression_meaning::has_exact_parameter_case_membership_meaning(
@@ -1550,7 +1546,7 @@ impl<'program> StructuralJudge<'program> {
         if !self.has_exact_case_subjects() {
             return;
         }
-        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(fact) else {
+        let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return;
         };
         if binary.operator == BinaryOperator::And {

@@ -95,7 +95,7 @@ pub(crate) fn float_field_literal_bound_meaning(
     if !program.expression_table.expression_is_valid(conjunct) {
         return None;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct) else {
+    let Some(binary) = program.expression_table.binary_node(conjunct) else {
         return None;
     };
     let field_format = |expression| {
@@ -151,7 +151,9 @@ fn predicate(
     infer_field_landing: bool,
     depth: usize,
 ) -> Option<bool> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     let ExpressionNode::Binary(binary) = node else {
         return match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),

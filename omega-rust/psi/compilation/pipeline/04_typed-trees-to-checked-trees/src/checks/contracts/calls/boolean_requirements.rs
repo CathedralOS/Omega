@@ -75,7 +75,7 @@ fn constant_extent_requirement_value(
         state_flow.machine_symbol,
         state_flow.state_symbol,
     )?;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     super::super::call_bounds::constant_extent_comparison_value(program, machine, state, binary)
@@ -214,7 +214,7 @@ pub(super) fn proves(
     if proven {
         return true;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     // Preserve selected operator meanings. Splitting a builtin conjunction

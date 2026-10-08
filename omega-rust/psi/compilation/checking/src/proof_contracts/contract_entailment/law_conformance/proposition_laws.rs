@@ -255,7 +255,7 @@ pub(crate) fn collect_equality_conjuncts(
     if super::super::structural_terms::is_case_observation(program, expression) {
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return;
     };
     match binary.operator {

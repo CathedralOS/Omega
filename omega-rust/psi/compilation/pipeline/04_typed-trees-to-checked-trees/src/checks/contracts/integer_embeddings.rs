@@ -32,7 +32,7 @@ pub(super) fn proves_exit_equality(
             Some(argument)
         }
     };
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator != BinaryOperator::Equal {

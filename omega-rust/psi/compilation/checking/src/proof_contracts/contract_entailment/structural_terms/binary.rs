@@ -23,7 +23,7 @@ pub(crate) fn binary_term_in_scope(
     left: StructuralTerm,
     right: StructuralTerm,
 ) -> Option<StructuralTerm> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     let (machine, state) = expression_scope(program, expression, 0)

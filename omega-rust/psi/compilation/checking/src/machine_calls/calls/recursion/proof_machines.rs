@@ -31,7 +31,7 @@ fn guarded_integer_predecessor_call(
     measure_symbol: symbols::SymbolHandle,
     measure_name: Option<&typed_trees::name::Identifier>,
 ) -> bool {
-    let ExpressionNode::Binary(predecessor) = program.expression_table.expression(argument) else {
+    let Some(predecessor) = program.expression_table.binary_node(argument) else {
         return false;
     };
     if predecessor.operator != typed_trees::expression::BinaryOperator::Subtract
@@ -67,8 +67,7 @@ fn guarded_integer_predecessor_call(
                 }
                 _ => guard,
             };
-            let Some(positive) = program.expression_table.binary_node(guard)
-            else {
+            let Some(positive) = program.expression_table.binary_node(guard) else {
                 return false;
             };
             if positive.operator != typed_trees::expression::BinaryOperator::Greater

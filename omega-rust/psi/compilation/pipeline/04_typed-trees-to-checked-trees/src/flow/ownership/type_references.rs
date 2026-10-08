@@ -132,7 +132,7 @@ pub(super) fn intrinsic_enum_equality(
     expression: ExpressionHandle,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     let spelling = match binary.operator {

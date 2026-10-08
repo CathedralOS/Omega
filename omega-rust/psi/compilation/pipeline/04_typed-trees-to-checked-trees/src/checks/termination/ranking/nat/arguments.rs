@@ -8,7 +8,7 @@ pub(super) fn argument_is_parameter_minus_one(
     argument: ExpressionHandle,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {
+    let Some(binary) = program.expression_table.binary_node(argument) else {
         return false;
     };
     super::has_builtin_meaning(program, state, argument)
@@ -56,7 +56,7 @@ fn argument_is_parameter_member_minus_one(
     parameter: &typed_trees::signature::StateParameter,
     member_name: &str,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(argument) else {
+    let Some(binary) = program.expression_table.binary_node(argument) else {
         return false;
     };
     super::has_builtin_meaning(program, state, argument)

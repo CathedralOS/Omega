@@ -247,7 +247,7 @@ pub(super) fn instantiated_fact_judgment(
     if super::structural_terms::is_case_observation(program, fact) {
         return judge.instantiated_case_judgment(callee_parameters, fact, map);
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+    let Some(binary) = program.expression_table.binary_node(fact) else {
         return StructuralJudgment::Unknown;
     };
     match binary.operator {
@@ -478,7 +478,7 @@ pub(crate) fn collect_instantiated_conjuncts(
     if super::structural_terms::is_case_observation(program, fact) {
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+    let Some(binary) = program.expression_table.binary_node(fact) else {
         return;
     };
     match binary.operator {

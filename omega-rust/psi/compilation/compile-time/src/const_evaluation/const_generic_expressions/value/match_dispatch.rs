@@ -533,8 +533,7 @@ pub(super) fn validate_anonymous_fragments(
                     .map(|arm| arm.value),
             );
         } else if contains_match(program, expression) {
-            let Some(binary) = program.expression_table.binary_node(expression)
-            else {
+            let Some(binary) = program.expression_table.binary_node(expression) else {
                 return Err("invalid anonymous result graph".into());
             };
             if binary.operator == typed_trees::expression::BinaryOperator::Divide {
@@ -576,7 +575,7 @@ pub(super) fn validate_anonymous_comparison(
     expression: ExpressionHandle,
 ) -> Result<(), String> {
     if contains_match(program, expression) {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
             return Err("anonymous comparison lost operands".into());
         };
         validate_anonymous_fragments(program, context, binary.left)?;

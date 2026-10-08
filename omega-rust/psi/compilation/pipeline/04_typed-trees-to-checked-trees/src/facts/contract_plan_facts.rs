@@ -369,8 +369,7 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
         else {
             return None;
         };
-        let Some(binary) = program.expression_table.binary_node(*expression)
-        else {
+        let Some(binary) = program.expression_table.binary_node(*expression) else {
             return None;
         };
         if binary.operator != BinaryOperator::Equal {
@@ -531,7 +530,7 @@ fn lower_float_meaning_equality_clause(
 ) -> Option<checked_trees::ClosedScalarContractValue> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if binary.operator != BinaryOperator::Equal {

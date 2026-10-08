@@ -159,7 +159,7 @@ fn quotient_equality_goal(
     ExpressionHandle,
     ExpressionHandle,
 )> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
+    let Some(binary) = program.expression_table.binary_node(fact) else {
         return None;
     };
     if binary.operator != BinaryOperator::Equal {

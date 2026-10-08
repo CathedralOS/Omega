@@ -316,7 +316,7 @@ fn zero_offset_reduced_expression(
     // The literal zero cannot change the value, so reduce through it.
     let mut node = expression;
     loop {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(node) else {
+        let Some(binary) = program.expression_table.binary_node(node) else {
             return node;
         };
         let left_is_zero = literal_only_integer_value(program, binary.left) == Some(0);

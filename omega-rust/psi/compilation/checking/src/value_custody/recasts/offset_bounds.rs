@@ -155,7 +155,7 @@ pub(super) fn composite_offset_upper_bound(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     use typed_trees::expression::BinaryOperator;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return offset_operand_bound(program, machine, state, expression, BoundSide::Upper);
     };
     match binary.operator {

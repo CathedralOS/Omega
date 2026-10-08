@@ -18,7 +18,7 @@ pub(super) fn guard_interval_for_label(
     guard: ExpressionHandle,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return None;
     };
     match binary.operator {
@@ -59,7 +59,7 @@ pub(super) fn negated_guard_interval_for_label(
     guard: ExpressionHandle,
     subject_label: &str,
 ) -> Option<(BigInt, BigInt)> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return None;
     };
     match binary.operator {

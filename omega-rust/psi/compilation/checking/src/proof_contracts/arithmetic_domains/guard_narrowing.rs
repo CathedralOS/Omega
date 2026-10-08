@@ -40,7 +40,7 @@ pub(super) fn has_builtin_ordering(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+    let Some(comparison) = program.expression_table.binary_node(expression) else {
         return false;
     };
     meaning::builtin_ordering(program, machine, state, expression, comparison)
@@ -54,7 +54,7 @@ pub(super) fn has_builtin_equality(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+    let Some(comparison) = program.expression_table.binary_node(expression) else {
         return false;
     };
     meaning::builtin_boolean_equality(program, machine, state, expression, comparison)
@@ -218,7 +218,7 @@ pub(super) fn comparison_bound(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(String, Option<i64>, Option<i64>)> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if let (Some(name), Some(literal)) = (
@@ -304,7 +304,7 @@ pub(crate) fn short_circuit_operand_environment(
     expression: ExpressionHandle,
     environment: &ValueEnvironment,
 ) -> Option<ValueEnvironment> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
@@ -821,7 +821,7 @@ fn exact_bound_binary<'program>(
     &'program typed_trees::expression::TableBinaryExpression,
     PrimitiveType,
 )> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(bound) else {
+    let Some(binary) = program.expression_table.binary_node(bound) else {
         return None;
     };
     if binary.operator != operator || !meaning::builtin_arithmetic(program, machine, state, bound) {
@@ -1005,7 +1005,7 @@ fn signed_joint_subtract_guard(
         (BinaryOperator::GreaterOrEqual, false) => (comparison.left, comparison.right),
         _ => return None,
     };
-    let ExpressionNode::Binary(add) = program.expression_table.expression(bound) else {
+    let Some(add) = program.expression_table.binary_node(bound) else {
         return None;
     };
     if add.operator != BinaryOperator::Add

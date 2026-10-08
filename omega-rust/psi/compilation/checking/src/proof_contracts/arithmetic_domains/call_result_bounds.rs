@@ -67,7 +67,7 @@ fn project(
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Interval {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return Interval::UNBOUNDED;
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {

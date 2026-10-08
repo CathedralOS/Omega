@@ -36,7 +36,7 @@ fn len_bound_minus_offset(
     facts: &RangeFacts<'_>,
     bound: ExpressionHandle,
 ) -> Option<(String, i64)> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(bound) else {
+    let Some(binary) = program.expression_table.binary_node(bound) else {
         return None;
     };
     if binary.operator != BinaryOperator::Subtract {
@@ -251,7 +251,7 @@ fn positive_offset_base(
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if binary.operator != BinaryOperator::Add {

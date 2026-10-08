@@ -219,7 +219,7 @@ pub(super) fn guard_conjunct_matches(
     if program.expression_table.display_name(guard) == required_label {
         return true;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return false;
     };
     match binary.operator {
@@ -251,7 +251,7 @@ pub(super) fn negated_guard_conjunct_matches(
     guard: typed_trees::expression::ExpressionHandle,
     required_label: &str,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return false;
     };
     match binary.operator {

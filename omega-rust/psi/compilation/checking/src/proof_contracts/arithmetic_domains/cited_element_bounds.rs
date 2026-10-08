@@ -19,7 +19,8 @@
 
 use super::guard_narrowing::comparison_interval;
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, State, ValueEnvironment, place_path,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, State, ValueEnvironment,
+    place_path,
 };
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
 
@@ -129,12 +130,10 @@ pub(crate) fn seed_cited_element_bounds(
         parameters,
         arguments,
     };
-    for expression in
-        crate::proof_contracts::proof_facts::ensures_expression_facts(
-            program,
-            program.machine_contracts(callee),
-        )
-    {
+    for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
+        program,
+        program.machine_contracts(callee),
+    ) {
         seed_conjunct(
             program,
             callee,
@@ -238,7 +237,7 @@ fn seed_conjunct(
     conjunct: ExpressionHandle,
     environment: &mut ValueEnvironment,
 ) {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
+    let Some(comparison) = program.expression_table.binary_node(conjunct) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {

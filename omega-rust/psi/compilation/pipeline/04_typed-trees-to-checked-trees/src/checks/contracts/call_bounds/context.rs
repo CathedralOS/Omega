@@ -365,7 +365,7 @@ fn positive_comparison_expression(
     mut expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     for _ in 0..64 {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
             return Some(expression);
         };
         let spelling = match binary.operator {
@@ -456,7 +456,7 @@ fn comparison_is_supported(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {

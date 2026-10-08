@@ -387,7 +387,7 @@ pub(in crate::checks::ranges) fn length_difference_is_within_collection(
     collection: ExpressionHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator != BinaryOperator::Subtract

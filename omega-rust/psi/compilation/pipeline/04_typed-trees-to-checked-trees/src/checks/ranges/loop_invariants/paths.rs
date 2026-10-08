@@ -106,7 +106,7 @@ pub(super) fn parse_counter_upper_bound(
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<i64> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return None;
     };
     if binary.operator == BinaryOperator::Equal {

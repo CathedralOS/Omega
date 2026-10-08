@@ -262,7 +262,7 @@ pub fn scalar_field_domain_predicate(
         &subject,
         &mut Vec::new(),
         &|domain, node| {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(node) else {
+            let Some(binary) = program.expression_table.binary_node(node) else {
                 return false;
             };
             let Some(spelling) =

@@ -26,11 +26,8 @@ impl ExitScalars<'_, '_> {
     fn return_arithmetic(&self, expression: ExpressionHandle) -> Option<bool> {
         use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
         let entry = self.program.machine_states(self.machine).first()?;
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            )?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let (_, caller) = self.facts.flow.control.states.iter().find(|(_, state)| {
             state.machine_symbol == self.machine.symbol
                 && state.state_symbol == self.exit.state_symbol
@@ -152,11 +149,8 @@ impl ExitScalars<'_, '_> {
 
     pub(super) fn result_field_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
         let (value, remaining) = self.result_projection(expression)?;
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            )?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         if remaining.is_empty() {
             let reference =
                 validation::reserved_result_place(self.program, expression)?.type_reference;
@@ -205,9 +199,7 @@ impl ExitScalars<'_, '_> {
     }
 
     fn result_field_equality(&self, expression: ExpressionHandle) -> Option<bool> {
-        let ExpressionNode::Binary(comparison) =
-            self.program.expression_table.expression(expression)
-        else {
+        let Some(comparison) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         if comparison.operator != BinaryOperator::Equal {
@@ -224,11 +216,8 @@ impl ExitScalars<'_, '_> {
                 )
             };
         let entry = self.program.machine_states(self.machine).first()?;
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            )?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         let reference = validation::reserved_result_place(self.program, projected)?.type_reference;
         let primitive = self.program.primitive_type_reference(reference)?;
         let expected_reference = validation::expression_result_type_reference(

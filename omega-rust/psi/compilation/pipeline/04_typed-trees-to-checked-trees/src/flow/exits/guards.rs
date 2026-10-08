@@ -212,7 +212,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         ) {
             continue;
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct) else {
+        let Some(binary) = program.expression_table.binary_node(conjunct) else {
             continue;
         };
         let (operand, endpoint, operator) = match (literal(binary.left), literal(binary.right)) {
@@ -502,7 +502,7 @@ fn case_membership_claim(
     &typed_trees::data::DataVariant,
     &typed_trees::data::DataDefinition,
 )> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if binary.operator != typed_trees::expression::BinaryOperator::Equal {

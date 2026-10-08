@@ -1097,7 +1097,7 @@ fn qualifying_guard_conjuncts(
     if admissible(guard) {
         return vec![guard];
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return Vec::new();
     };
     match binary.operator {

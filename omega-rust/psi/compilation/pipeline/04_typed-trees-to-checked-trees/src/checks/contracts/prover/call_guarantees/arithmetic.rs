@@ -360,7 +360,7 @@ fn predicate(
     callable: &Callable<'_>,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     match binary.operator {
@@ -486,7 +486,7 @@ fn admitted_wrapping_unsigned_remainder(
     if !exact_same_carrier_policy_erasure(program, callable, cast) {
         return None;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(cast.value) else {
+    let Some(binary) = program.expression_table.binary_node(cast.value) else {
         return None;
     };
     (binary.operator == BinaryOperator::Modulo

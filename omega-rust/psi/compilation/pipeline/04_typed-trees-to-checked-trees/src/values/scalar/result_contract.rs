@@ -691,7 +691,7 @@ pub(super) fn lower_integer_contract_comparison(
     expression: ExpressionHandle,
     subjects: [Option<(CheckedScalarExpression, TypeReferenceHandle)>; 2],
 ) -> Option<CheckedBooleanExpression> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if operators.uses.iter().any(|(_, operator)| {

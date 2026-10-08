@@ -230,7 +230,7 @@ fn split_conjuncts(
 /// The law judgment enforces an equality whose sides both read as structural
 /// terms and neither names the result.
 fn is_law_conjunct(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator != BinaryOperator::Equal {

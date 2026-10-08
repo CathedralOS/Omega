@@ -582,7 +582,7 @@ pub(crate) fn collect_positive_case_tests(
 ) {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return;
     };
     if binary.operator == BinaryOperator::And {
@@ -638,7 +638,7 @@ pub(crate) fn exact_positive_case_test(
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if binary.operator != BinaryOperator::Equal {

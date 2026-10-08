@@ -642,7 +642,7 @@ fn narrow_abstract_specification_environment(
     environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+    let Some(comparison) = program.expression_table.binary_node(expression) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {
@@ -951,9 +951,7 @@ pub(super) fn direct_abstract_operand(
             program.primitive_type_reference(cast.target_type)?,
             cast.domain,
         )),
-        ExpressionNode::Borrow(value) => {
-            direct_abstract_operand(program, bindings, value.target)
-        }
+        ExpressionNode::Borrow(value) => direct_abstract_operand(program, bindings, value.target),
         _ => {
             let type_reference = abstract_specification_place_type(program, bindings, expression)?;
             Some((

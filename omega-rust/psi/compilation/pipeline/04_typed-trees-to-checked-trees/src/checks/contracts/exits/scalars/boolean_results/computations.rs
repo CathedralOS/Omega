@@ -61,11 +61,8 @@ impl ExitScalars<'_, '_> {
         {
             return None;
         }
-        let state = validation::find_state_on_machine(
-            self.program,
-            self.machine,
-            self.exit.state_symbol,
-            )?;
+        let state =
+            validation::find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
         // Computation Value nodes use the same dense immutable roster as pure
         // plans. Applications below instead index only their own operand stream.
         let mut symbols = self
@@ -144,7 +141,7 @@ impl ExitScalars<'_, '_> {
                     self.program,
                     self.machine,
                     self.exit.state_symbol,
-                    )?;
+                )?;
                 // Reconstruct the pure operation/slot relationship, not its
                 // runtime value. Mutable reads rejoin their selected prior store.
                 let selected = crate::values::lower_unit_scalar_argument(
@@ -308,9 +305,7 @@ impl ExitScalars<'_, '_> {
                 {
                     return None;
                 }
-                let ExpressionNode::Binary(binary) =
-                    self.program.expression_table.expression(source)
-                else {
+                let Some(binary) = self.program.expression_table.binary_node(source) else {
                     return None;
                 };
                 let (selected, skipped, skip_value) = match binary.operator {

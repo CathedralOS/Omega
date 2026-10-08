@@ -36,7 +36,7 @@ fn prove(
     expression: ExpressionHandle,
     guard: Option<ExpressionHandle>,
 ) -> Option<bool> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if facts.operators.uses.iter().any(|(_, operator)| {

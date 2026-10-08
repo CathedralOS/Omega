@@ -297,7 +297,7 @@ pub(super) fn builtin_comparison_intervals(
     {
         return None;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     let spelling = match binary.operator {
@@ -451,9 +451,8 @@ fn bounds(
             // A total exact widening changes the carrier, not the value or
             // its established interval. It cannot erase the operand's own
             // operation meaning, qualify a domain, or reinterpret a policy.
-            if !crate::proof_contracts::arithmetic_domains::plain_exact_widening_cast(
-                program, cast,
-            ) {
+            if !crate::proof_contracts::arithmetic_domains::plain_exact_widening_cast(program, cast)
+            {
                 return None;
             }
             let source = bounds(program, machine, state, cast.value, declared_mutable_leaves)?;
@@ -848,8 +847,7 @@ fn each_proof_conjunct<'program>(
         };
         let mut conjuncts = vec![*expression];
         while let Some(conjunct) = conjuncts.pop() {
-            let Some(binary) = program.expression_table.binary_node(conjunct)
-            else {
+            let Some(binary) = program.expression_table.binary_node(conjunct) else {
                 continue;
             };
             if binary.operator == BinaryOperator::And {

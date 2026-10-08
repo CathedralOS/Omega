@@ -26,7 +26,7 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_fact(
     // give `lower < e`. (`lower <= e - 0` stays non-strict — it is
     // `lower <= e` verbatim.) `pos == e - 1` reaches the same mint through
     // the equality arm's at-most seed.
-    let ExpressionNode::Binary(subtraction) = program.expression_table.expression(upper) else {
+    let Some(subtraction) = program.expression_table.binary_node(upper) else {
         return;
     };
     if subtraction.operator != BinaryOperator::Subtract {

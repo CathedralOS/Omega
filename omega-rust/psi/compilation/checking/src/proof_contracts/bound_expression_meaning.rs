@@ -138,7 +138,7 @@ fn binary_expression_meaning(
     if !program.expression_table.expression_is_valid(expression) {
         return false;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     match binary.operator {
@@ -900,7 +900,7 @@ pub(super) fn builtin_arithmetic(
     state: Option<&State>,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     builtin_arithmetic_node(program, machine, state, expression, binary)

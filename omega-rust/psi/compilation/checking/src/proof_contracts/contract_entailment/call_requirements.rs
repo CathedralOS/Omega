@@ -186,7 +186,7 @@ fn runtime_equality_fact(
     state: &State,
     expression: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Boolean(_)
@@ -321,7 +321,8 @@ fn intake_state_induction(
     judge: &mut StructuralJudge<'_>,
 ) {
     let mut transitions = program
-        .statement_table.indexed_statements(state.statement_nodes)
+        .statement_table
+        .indexed_statements(state.statement_nodes)
         .filter_map(|(position, statement)| {
             let StatementNode::Transition(transition) = statement else {
                 return None;

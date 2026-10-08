@@ -100,7 +100,7 @@ pub fn evaluate_anonymous_numeric_comparison_with_selected_match_arms(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return None;
     };
     if !matches!(

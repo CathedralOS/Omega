@@ -623,7 +623,7 @@ fn positive_floor_fact(
     expression: ExpressionHandle,
     symbol: SymbolHandle,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {
@@ -910,7 +910,9 @@ fn argument_subjects(
     subjects: &mut Vec<SymbolHandle>,
     depth: usize,
 ) -> Option<()> {
-    let node = program.expression_table.expression_at_depth(expression, depth)?;
+    let node = program
+        .expression_table
+        .expression_at_depth(expression, depth)?;
     match node {
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {

@@ -81,7 +81,7 @@ pub(super) fn seed_value_vs_value_endpoints(
     ) {
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return;
     };
     match binary.operator {
@@ -189,7 +189,7 @@ pub(super) fn seed_guard_facts(
         return;
     }
 
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return;
     };
 
@@ -444,7 +444,7 @@ pub(super) fn seed_negated_guard_facts(
         seed_guard_facts(program, machine, state, facts, operand);
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return;
     };
 

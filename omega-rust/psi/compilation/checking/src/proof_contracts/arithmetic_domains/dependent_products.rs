@@ -30,7 +30,7 @@ pub(super) fn refine_dependent_product(
         return naive;
     };
     // Left: `a * self.Fb` (either operand order).
-    let ExpressionNode::Binary(product) = program.expression_table.expression(left) else {
+    let Some(product) = program.expression_table.binary_node(left) else {
         return naive;
     };
     if product.operator != BinaryOperator::Multiply {
@@ -173,7 +173,7 @@ fn product_coupling_conjunct(
     fa_label: &str,
     fb_label: &str,
 ) -> Option<i64> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return None;
     };
     match binary.operator {
@@ -192,8 +192,7 @@ fn product_coupling_conjunct(
             None
         }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
-            let Some(product) = program.expression_table.binary_node(binary.left)
-            else {
+            let Some(product) = program.expression_table.binary_node(binary.left) else {
                 return None;
             };
             if product.operator != BinaryOperator::Multiply

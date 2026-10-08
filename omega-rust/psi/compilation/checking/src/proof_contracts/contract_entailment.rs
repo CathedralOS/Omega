@@ -125,7 +125,7 @@ pub use ranking_range::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
     ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
     find_declared_measure, identity_subject_matches, measure_body_shape,
-    measure_constraints_cover_subject, unique_literal_field, 
+    measure_constraints_cover_subject, unique_literal_field,
 };
 pub(crate) use ranking_range::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
@@ -534,7 +534,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
         .iter()
         .map(|fact| {
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact) else {
+            let Some(binary) = program.expression_table.binary_node(*fact) else {
                 return None;
             };
             if binary.operator != BinaryOperator::Equal {

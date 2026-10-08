@@ -64,8 +64,7 @@ fn field_fact_interval(
         })
         .collect::<Vec<_>>();
     while let Some(fact_expression) = conjuncts.pop() {
-        let Some(binary) = program.expression_table.binary_node(fact_expression)
-        else {
+        let Some(binary) = program.expression_table.binary_node(fact_expression) else {
             continue;
         };
         if binary.operator == BinaryOperator::And {
@@ -286,7 +285,7 @@ fn field_literal_bounds(
         conjuncts.push(*expression);
     }
     while let Some(conjunct) = conjuncts.pop() {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct) else {
+        let Some(binary) = program.expression_table.binary_node(conjunct) else {
             return None;
         };
         if binary.operator == BinaryOperator::And {
@@ -469,8 +468,7 @@ fn factor_lower_bound(
         let typed_trees::domain::ProofFact::Expression(expression) = fact else {
             continue;
         };
-        let Some(binary) = program.expression_table.binary_node(*expression)
-        else {
+        let Some(binary) = program.expression_table.binary_node(*expression) else {
             continue;
         };
         let bound = match binary.operator {

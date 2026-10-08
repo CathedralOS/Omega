@@ -86,7 +86,7 @@ pub(crate) fn recognize_guarded_structural_value_arms(
         let TransitionGuardNode::When(guard) = transition.guard else {
             return None;
         };
-        let ExpressionNode::Binary(equality) = program.expression_table.expression(guard) else {
+        let Some(equality) = program.expression_table.binary_node(guard) else {
             return None;
         };
         if equality.operator != BinaryOperator::Equal {
@@ -313,7 +313,8 @@ fn recognize_structural_state_leaves(
         let mut transitions = Vec::new();
         let mut saw_transition = false;
         for (statement_index, statement) in program
-            .statement_table.indexed_statements(state.statement_nodes)
+            .statement_table
+            .indexed_statements(state.statement_nodes)
         {
             if is_arm_pattern_marker(statement) {
                 continue;
@@ -456,8 +457,7 @@ fn recognize_structural_state_leaves(
             let mut branch_hypotheses = case_hypotheses.clone();
             let mut branch_equations = case_equations.clone();
             if let TransitionGuardNode::When(guard) = transition.guard {
-                let Some(comparison) = program.expression_table.binary_node(guard)
-                else {
+                let Some(comparison) = program.expression_table.binary_node(guard) else {
                     return None;
                 };
                 if !matches!(

@@ -356,7 +356,7 @@ fn bless_equality_guard_literals(
     if !guard.is_valid() {
         return;
     }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return;
     };
     use typed_trees::expression::BinaryOperator;

@@ -47,7 +47,7 @@ pub(super) fn append_move_events_for_expression(
     if type_references::intrinsic_enum_equality(program, state_symbol, expression)
         || selected_meaning_borrows_operands(program, expression)
     {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
             unreachable!()
         };
         for operand in [binary.left, binary.right] {

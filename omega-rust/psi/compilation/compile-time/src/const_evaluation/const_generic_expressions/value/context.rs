@@ -85,7 +85,7 @@ impl EvaluationContext<'_> {
             return Ok(());
         }
         use language_core::OperatorSpelling as Spelling;
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
             return Err("constant operator lost its binary node".into());
         };
         let spelling = match binary.operator {

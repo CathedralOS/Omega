@@ -58,7 +58,7 @@ pub fn slice_tail_strictly_decreases_with_bound_lookup<'p>(
         }
         _ => guard,
     };
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
         return false;
     };
     let ExpressionNode::Member(length) = program.expression_table.expression(binary.left) else {

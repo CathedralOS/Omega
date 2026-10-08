@@ -950,7 +950,7 @@ fn validate_shapes(
             shapes.push(Shape::Integer(target, cast.target_type, cast.domain));
             continue;
         }
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
             unreachable!()
         };
         let operator = binary.operator;

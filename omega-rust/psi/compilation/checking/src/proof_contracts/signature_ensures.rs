@@ -39,7 +39,7 @@ pub fn collect_parameter_bound_comparisons(
     conjunct: ExpressionHandle,
     comparisons: &mut Vec<(String, BinaryOperator, i64)>,
 ) {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
+    let Some(comparison) = program.expression_table.binary_node(conjunct) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {

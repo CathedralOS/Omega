@@ -87,7 +87,7 @@ fn contribute_fact_expression(
     environment: &mut ValueEnvironment,
     expression: ExpressionHandle,
 ) {
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(expression) else {
+    let Some(comparison) = program.expression_table.binary_node(expression) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {

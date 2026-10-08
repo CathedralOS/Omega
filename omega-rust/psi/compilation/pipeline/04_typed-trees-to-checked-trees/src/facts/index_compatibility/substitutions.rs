@@ -108,7 +108,7 @@ pub(super) fn expression_proves_index_equality(
     expected: TypeReferenceHandle,
     bound_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {

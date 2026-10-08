@@ -82,9 +82,7 @@ impl ExitScalars<'_, '_> {
         }
         let mut result = None;
         for guarantee in self.normal_call_guarantees(selected) {
-            let ExpressionNode::Binary(binary) =
-                self.program.expression_table.expression(guarantee)
-            else {
+            let Some(binary) = self.program.expression_table.binary_node(guarantee) else {
                 continue;
             };
             if binary.operator != BinaryOperator::Equal {

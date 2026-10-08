@@ -289,7 +289,7 @@ fn normalize_open_index_expression_operations(
     use language_core::operator_spelling::OperatorSpelling;
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
         return;
     };
     let spelling = match binary.operator {

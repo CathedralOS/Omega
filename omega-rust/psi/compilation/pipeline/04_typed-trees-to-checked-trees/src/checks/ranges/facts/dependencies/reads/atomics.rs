@@ -255,7 +255,7 @@ pub(super) fn atomic_fetch_operand(
     program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
 ) -> Option<ExpressionHandle> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(atomic.value) else {
+    let Some(binary) = program.expression_table.binary_node(atomic.value) else {
         return None;
     };
     Some(binary.right)
@@ -269,17 +269,16 @@ pub(super) fn atomic_compare_exchange_operands(
     program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
 ) -> Option<[ExpressionHandle; 2]> {
-    let ExpressionNode::Binary(sum) = program.expression_table.expression(atomic.value) else {
+    let Some(sum) = program.expression_table.binary_node(atomic.value) else {
         return None;
     };
-    let ExpressionNode::Binary(product) = program.expression_table.expression(sum.right) else {
+    let Some(product) = program.expression_table.binary_node(sum.right) else {
         return None;
     };
-    let ExpressionNode::Binary(equal) = program.expression_table.expression(product.left) else {
+    let Some(equal) = program.expression_table.binary_node(product.left) else {
         return None;
     };
-    let Some(difference) = program.expression_table.binary_node(product.right)
-    else {
+    let Some(difference) = program.expression_table.binary_node(product.right) else {
         return None;
     };
     Some([equal.right, difference.left])

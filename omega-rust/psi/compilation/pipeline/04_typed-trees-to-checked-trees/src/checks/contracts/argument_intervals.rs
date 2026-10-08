@@ -19,7 +19,7 @@ pub(super) fn proves(
     requirement: ExpressionHandle,
     intervals: &[validation::ExpressionInterval],
 ) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(requirement) else {
+    let Some(binary) = program.expression_table.binary_node(requirement) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {
