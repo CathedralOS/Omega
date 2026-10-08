@@ -18,6 +18,16 @@ pub struct SelectedInstruction {
     pub provenance: SelectedInstructionProvenance,
 }
 
+/// The roster position of the instruction keyed `id`, if present.
+pub fn instruction_position(
+    instructions: &[SelectedInstruction],
+    id: SelectedInstructionId,
+) -> Option<usize> {
+    instructions
+        .iter()
+        .position(|instruction| instruction.id == id)
+}
+
 /// Call control keeps implementation selection apart from the data ABI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedCallTarget {

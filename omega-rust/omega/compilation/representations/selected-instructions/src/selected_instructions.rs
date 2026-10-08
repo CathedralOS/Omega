@@ -82,7 +82,8 @@ pub use identity::{
     SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity, VirtualRegisterId,
 };
 pub use instructions::{
-    SelectedCallTarget, SelectedImageAddressReference, SelectedInstruction, SelectedInstructionKind,
+    instruction_position, SelectedCallTarget, SelectedImageAddressReference, SelectedInstruction,
+    SelectedInstructionKind,
 };
 pub use legalized_operations::{
     SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,

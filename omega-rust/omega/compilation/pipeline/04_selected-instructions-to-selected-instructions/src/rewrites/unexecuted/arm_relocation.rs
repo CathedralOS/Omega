@@ -92,7 +92,7 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
     SelectedTerminator, terminator_instruction,
 };
@@ -254,10 +254,7 @@ fn derive_arm_relocation<'source>(
     // The destination names the landing position directly: a body
     // instruction's own index, or the head's terminator-carried
     // instruction landing the member at the body end.
-    let landing_index = target
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
+    let landing_index = instruction_position(&target.instructions, destination)
         .or_else(|| (terminator.id == destination).then_some(target.instructions.len()))
         .ok_or(ArmRelocationError::UnsupportedPair)?;
     // The member physically crosses every head edge into the arm: each

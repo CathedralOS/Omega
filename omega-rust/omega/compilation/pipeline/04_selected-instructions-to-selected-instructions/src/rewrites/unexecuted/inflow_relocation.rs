@@ -108,7 +108,7 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
     SelectedTerminator, terminator_instruction,
 };
@@ -224,10 +224,7 @@ fn derive_inflow_span<'source>(
         .iter()
         .enumerate()
         .find_map(|(index, candidate)| {
-            candidate
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == destination)
+            instruction_position(&candidate.instructions, destination)
                 .map(|position| (index, position))
                 .or_else(|| {
                     (terminator_instruction(&candidate.terminator).id == destination)

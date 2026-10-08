@@ -31,7 +31,7 @@ pub use selected_instructions::{
     SelectedCaseDispatchSource, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
     SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedFunction, SelectedFunctions,
     SelectedImageAddressReference, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    SelectedInstructionKind, instruction_position, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedNormalizedForeignCall,
     SelectedOperand, SelectedOutgoingArgumentSlot, SelectedScalarReferenceSource,

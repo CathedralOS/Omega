@@ -111,7 +111,7 @@ use std::sync::Arc;
 use optimization_core::OptimizationUnitIdentity;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
+    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, SelectedSuccessor,
     SelectedTerminator, terminator_instruction,
 };
@@ -340,10 +340,7 @@ fn derive_confluence_span<'source>(
     // The destination names a position in the join body — the run lands
     // at its index — or the join's terminator-carried instruction,
     // landing the run at the body end.
-    let landing_index = target
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
+    let landing_index = instruction_position(&target.instructions, destination)
         .or_else(|| {
             (terminator_instruction(&target.terminator).id == destination)
                 .then_some(target.instructions.len())

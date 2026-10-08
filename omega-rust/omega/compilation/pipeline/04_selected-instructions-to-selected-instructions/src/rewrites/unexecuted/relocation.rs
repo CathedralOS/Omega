@@ -51,7 +51,7 @@ use std::collections::BTreeSet;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, terminator_instruction,
+    instruction_position,    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, terminator_instruction,
 };
 
 use crate::ValidatedSelectedAnalysis;
@@ -204,10 +204,7 @@ fn reconstruct<'source>(
         .iter()
         .enumerate()
         .find_map(|(block_index, candidate)| {
-            candidate
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == destination)
+            instruction_position(&candidate.instructions, destination)
                 .map(|index| (block_index, index))
                 .or_else(|| {
                     (terminator_instruction(&candidate.terminator).id == destination)
