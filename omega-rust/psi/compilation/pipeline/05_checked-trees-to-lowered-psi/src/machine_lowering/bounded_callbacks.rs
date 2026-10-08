@@ -45,10 +45,7 @@ pub fn callback_lowering_receipt(
         );
     }
     let terminal_machine = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .semantic_module.machine(lowered.semantic_module.entry)
         .ok_or(LoweringError::Unsupported(
             "lowered callback module does not contain its entry machine",
         ))?;

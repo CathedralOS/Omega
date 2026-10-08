@@ -34,10 +34,7 @@ impl TerminalCallbackThunkArtifact {
         // The artifact is the isolated module of the placement's selected
         // machine; its call closure may lower additional callee machines. The
         // binding custody is the entry join, not a machine-count silhouette.
-        let Some(machine) = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == module.entry)
+        let Some(machine) = module.machine(module.entry)
         else {
             return Err("Terminal callback thunk artifact does not contain its entry machine");
         };

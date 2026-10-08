@@ -349,10 +349,7 @@ pub fn validate_entry_shape(
     contract: &OptimizedProgramStorageSemanticEntryContract,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     let module = source.terminal().semantic_module();
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == settlement.checked_entry().terminal_entry())
+    let entry = module.machine(settlement.checked_entry().terminal_entry())
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
     // The selected source shape is the authority: a provisioned-mutable
     // context occupies its explicit parameter at position 0 ahead of the two

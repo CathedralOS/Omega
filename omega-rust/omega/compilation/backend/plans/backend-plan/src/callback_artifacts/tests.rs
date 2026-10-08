@@ -50,10 +50,7 @@ fn thunk_artifact(
 }
 
 fn receipt(module: &terminal_psi::TerminalModule) -> lowered_psi::CallbackTerminalLoweringReceipt {
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
+    let entry = module.machine(module.entry)
         .expect("test module contains its entry machine");
     lowered_psi::CallbackTerminalLoweringReceipt {
         source_machine: symbols::SymbolHandle::invalid(),

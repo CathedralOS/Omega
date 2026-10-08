@@ -22,10 +22,7 @@ pub(super) fn reconstruct(
     let fragment = object_stage.source().source().source();
     let route = fragment.source();
     let module = route.verified_input().context().module();
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
+    let machine = module.machine(module.entry)
         .ok_or(OptimizedOrdinaryCallableEntryError::MissingEntry)?;
     if machine.attachment.is_some()
         || !machine.structural_parameters.is_empty()

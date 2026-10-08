@@ -272,10 +272,7 @@ fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
             .iter()
             .flat_map(|machine| &machine.structural_places)
             .any(|place| place.id == id),
-        DebugSubject::Claim { machine, claim } => module
-            .machines
-            .iter()
-            .find(|candidate| candidate.id == machine)
+        DebugSubject::Claim { machine, claim } => module.machine(machine)
             .is_some_and(|machine| {
                 machine
                     .content_entry_claims

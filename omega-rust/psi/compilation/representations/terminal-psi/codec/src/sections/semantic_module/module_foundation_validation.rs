@@ -574,10 +574,7 @@ fn validate_operation_foundation(
                 result.multiplicity != StructuralMultiplicity::Linear && result.claims.is_empty()
             }) =>
         {
-            let Some(callee) = module
-                .machines
-                .iter()
-                .find(|candidate| candidate.id == *callee)
+            let Some(callee) = module.machine(*callee)
             else {
                 return malformed("mixed structural-result call references an unknown callee");
             };

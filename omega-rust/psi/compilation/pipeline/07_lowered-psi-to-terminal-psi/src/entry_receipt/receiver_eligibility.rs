@@ -75,10 +75,7 @@ pub(super) fn derive(
         source_position,
         owned,
     )?;
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)?;
+    let entry = module.machine(module.entry)?;
     if entry.attachment.is_some() {
         return None;
     }

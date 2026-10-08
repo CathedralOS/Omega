@@ -241,10 +241,7 @@ fn exercise_owned_and_borrowed_instances() {
     );
     let (transferred_module, _) = published.into_semantics();
     assert_eq!(machine_storage, transferred_module.machines.as_ptr());
-    let entry = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == module.entry)
+    let entry = module.machine(module.entry)
         .unwrap();
     assert!(
         std::ptr::eq(borrowed.entry().unwrap().result, &entry.result),

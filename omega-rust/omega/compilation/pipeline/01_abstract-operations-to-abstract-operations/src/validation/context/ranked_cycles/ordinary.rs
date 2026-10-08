@@ -15,10 +15,7 @@ pub(super) fn rederive_components(
     // may retain other cyclic bodies, but a later revision must not silently
     // discard a cyclic body that this invocation admitted into its seed.
     for seed in seed_functions {
-        let machine = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == seed.machine)
+        let machine = module.machine(seed.machine)
             .ok_or(
                 OptimizationUnitValidationError::RankedCycleTopologyMismatch {
                     machine: seed.machine,

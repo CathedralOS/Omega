@@ -251,10 +251,7 @@ fn write_operation_summary(
             claim_transfers,
             ..
         } => {
-            let callee_attachment = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == *callee)
+            let callee_attachment = module.machine(*callee)
                 .and_then(|machine| machine.attachment)
                 .and_then(|id| structural_type_identity(module, id))
                 .unwrap_or("none");

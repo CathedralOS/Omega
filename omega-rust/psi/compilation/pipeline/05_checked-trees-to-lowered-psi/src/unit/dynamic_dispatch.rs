@@ -222,10 +222,7 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
             }
             let id =
                 crate::terminal_identities::lookup_machine_id(&owners, row.realization_machine)?;
-            let realization = module
-                .machines
-                .iter()
-                .find(|machine| machine.id == id)
+            let realization = module.machine(id)
                 .ok_or(LoweringError::Unsupported(
                     "dynamic table row names a machine outside the lowered closure",
                 ))?;

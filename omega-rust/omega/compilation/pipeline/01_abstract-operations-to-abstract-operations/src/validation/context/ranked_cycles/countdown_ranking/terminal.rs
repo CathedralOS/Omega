@@ -17,10 +17,7 @@ pub(super) fn project(
     module: &::terminal_psi::TerminalModule,
     component: &OptimizerCycleComponent,
 ) -> Result<Option<OptimizerUnsignedCountdownRankingCertificate>, OptimizationUnitValidationError> {
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == component.id.machine)
+    let machine = module.machine(component.id.machine)
         .ok_or_else(|| mismatch(component))?;
     Ok(project_one(machine, component))
 }

@@ -155,10 +155,7 @@ fn lower_site(
     }
     let (machine_id, operation_id, operand_order) = emitted_operation(lowered, site)?;
     let machine = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == machine_id)
+        .semantic_module.machine(machine_id)
         .ok_or(LoweringError::Unsupported(
             "operator crash site joins a Terminal machine outside the lowered module",
         ))?;
@@ -274,10 +271,7 @@ fn validate_named_site_carrier(
             "named operator crash invocation's machine has no Terminal lowering",
         ))?;
     let machine = lowered
-        .semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == machine_id)
+        .semantic_module.machine(machine_id)
         .ok_or(LoweringError::Unsupported(
             "named operator crash invocation joins a Terminal machine outside the lowered module",
         ))?;

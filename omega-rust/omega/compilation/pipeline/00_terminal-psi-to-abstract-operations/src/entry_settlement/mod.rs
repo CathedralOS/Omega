@@ -109,10 +109,7 @@ fn validate_receiver_eligibility(
         {
             return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
         }
-        let entry = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == module.entry)
+        let entry = module.machine(module.entry)
             .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
         let mut declarations = module
             .structural_types

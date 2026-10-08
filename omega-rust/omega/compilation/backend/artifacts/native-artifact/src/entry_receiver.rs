@@ -40,10 +40,7 @@ pub fn admit_executable_entry_receiver(
         .functions
         .iter()
         .find(|function| function.machine == plan.entry);
-    let terminal_entry = terminal
-        .machines
-        .iter()
-        .find(|machine| machine.id == terminal.entry);
+    let terminal_entry = terminal.machine(terminal.entry);
     let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
     let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);
     // Preserve declarations verbatim; an ordinary context has no attachment

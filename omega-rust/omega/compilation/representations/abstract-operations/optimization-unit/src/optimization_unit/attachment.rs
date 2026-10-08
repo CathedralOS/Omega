@@ -18,10 +18,7 @@ pub fn attach_verified_module_context(
     unit.services = module.services.clone().into();
     unit.root_service_reach = module.root_service_reach.clone();
     for function in &mut unit.functions {
-        let source = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == function.machine)
+        let source = module.machine(function.machine)
             .ok_or(function.machine)?;
         function.structural_places = source.structural_places.clone();
         function.content_entry_claims = source.content_entry_claims.clone();

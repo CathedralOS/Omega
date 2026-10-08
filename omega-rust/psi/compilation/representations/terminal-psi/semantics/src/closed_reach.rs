@@ -13,10 +13,7 @@ pub fn has_schema_application_in_call_closure(
     let mut next_machine_position = 0;
     while let Some(machine_id) = reachable.get(next_machine_position).copied() {
         next_machine_position += 1;
-        let Some(machine) = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == machine_id)
+        let Some(machine) = module.machine(machine_id)
         else {
             continue;
         };

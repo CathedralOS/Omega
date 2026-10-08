@@ -183,10 +183,7 @@ fn authenticated_call_result<'machine>(
         _ => return None,
     };
     let result = operation.result.structural()?;
-    let signature = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == callee)?
+    let signature = module.machine(callee)?
         .result
         .structural()?;
     (result.place == source

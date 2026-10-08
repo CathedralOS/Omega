@@ -55,10 +55,7 @@ pub(crate) fn lower_outcome_specific_ensures(
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless producer result data is absent",
         ))?;
-    let terminal_machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == terminal_machine_id)
+    let terminal_machine = module.machine(terminal_machine_id)
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless terminal machine is absent",
         ))?;

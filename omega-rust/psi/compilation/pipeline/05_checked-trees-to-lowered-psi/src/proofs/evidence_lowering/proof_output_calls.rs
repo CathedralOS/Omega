@@ -565,10 +565,7 @@ fn lower_proof_output_runtime_call(
     else {
         return unsupported("runtime proof-output call completes the machine");
     };
-    let operation = semantic_module
-        .machines
-        .iter()
-        .find(|machine| machine.id == terminal_machine)
+    let operation = semantic_module.machine(terminal_machine)
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output caller is absent from terminal Psi",
         ))?

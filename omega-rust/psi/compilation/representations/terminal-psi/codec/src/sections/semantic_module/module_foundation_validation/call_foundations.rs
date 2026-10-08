@@ -58,10 +58,7 @@ pub(super) fn validate_call_unit(
     if operation.result != OperationResult::Unit {
         return malformed("unit call declares a scalar result");
     }
-    let Some(callee) = module
-        .machines
-        .iter()
-        .find(|candidate| candidate.id == *callee)
+    let Some(callee) = module.machine(*callee)
     else {
         return malformed("unit call references an unknown callee");
     };
@@ -160,10 +157,7 @@ pub(super) fn validate_call_structural_scalar(
     else {
         unreachable!("dispatched validate_call_structural_scalar")
     };
-    let Some(callee) = module
-        .machines
-        .iter()
-        .find(|candidate| candidate.id == *callee)
+    let Some(callee) = module.machine(*callee)
     else {
         return malformed("structural scalar call references an unknown callee");
     };
@@ -220,10 +214,7 @@ pub(super) fn validate_call_structural(
         } => selected_evidence.as_slice(),
         _ => &[],
     };
-    let Some(callee) = module
-        .machines
-        .iter()
-        .find(|candidate| candidate.id == *callee)
+    let Some(callee) = module.machine(*callee)
     else {
         return malformed("structural call references an unknown callee");
     };
