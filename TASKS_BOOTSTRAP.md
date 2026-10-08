@@ -147,7 +147,11 @@ prerequisite to every lower-rung milestone.
   Complete the [standalone request](wiki/spec/build/compiler_request.md) field/tag,
   outcome/phase, and scalar-resource tables with C; exact/adjacent vectors,
   malformed-input rejection, bounded arithmetic, and Complete-only publication
-  must agree before either implementation claims the V1 boundary.
+  must agree before either implementation claims the V1 boundary. D and C
+  both decode phases 0, 1, 2 and 6 and answer
+  `tests/product/request/test-request.sh`'s shared vectors alike; phase 3
+  waits on the owner decision `ocreq-package-key-identity-derivation`, and
+  later phases cannot publish refusals ahead of it.
   With **MODULE-NAMESPACE-RESOLUTION** in `TASKS.md`, extend the versioned
   request for anonymous content owners and default-build provenance. V1's
   named-only rows are not that encoding; validate canonical identity inputs and

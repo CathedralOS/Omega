@@ -1,11 +1,12 @@
-// Product compiler phase driver. Gate protocol serialization lives outside
-// this closure in the parser gate package.
+// Product compiler entry: one sealed OCREQ V1 request on stdin, one outcome
+// on stdout. Nothing outside the request supplies meaning. The request's
+// phases run in contract order; the first refusal publishes its OCOUT frame
+// and exits with the outcome's tag.
 
 use omega_language_std::console;
 use omega::language::core::binding;
-use psi::lex::lexer;
-use psi::parse::parser;
-use psi::resolve::resolver;
+use request::outcome;
+use request::request;
 
 data Main {
     console: Binding<Console>;
@@ -16,73 +17,63 @@ reaches Console
 crashes Trap
 blocks;
 {
-    let mut lexer: Lexer;
-    Lexer::initialize(&mut lexer, 1);
-    transition { _ -> read(context, &mut lexer) }
+    let mut request: Request;
+    Request::clear(&mut request);
+    transition { _ -> read(context, &mut request) }
 
-    state read(context: &mut Main, lexer: &mut Lexer) {
+    state read(context: &mut Main, request: &mut Request) {
         let input: ByteRead = block context.console.read_byte();
         transition input {
-            ByteRead::Byte { value } -> retain(context, lexer, value)
-            _ -> tokenize(context, lexer)
+            ByteRead::Byte { value } -> stage(context, request, value)
+            _ -> envelope(context, request)
         }
     }
 
-    state retain(context: &mut Main, lexer: &mut Lexer, value: i32) {
-        Lexer::append_source_byte(lexer, value as u8);
-        transition lexer.source.last_retained {
-            true -> read(context, lexer)
-            _ -> source_full(context)
+    state stage(context: &mut Main, request: &mut Request, value: i32) {
+        Request::stage(request, value as u8);
+        transition { _ -> read(context, request) }
+    }
+
+    state envelope(context: &mut Main, request: &Request) {
+        let verdict: Verdict = Request::envelope(request);
+        transition verdict.complete {
+            true -> structure(context, request, verdict.sections)
+            _ -> publish(context, verdict.outcome)
         }
     }
 
-    state source_full(context: &mut Main) {
-        context.console.exit_process(252);
+    state structure(context: &mut Main, request: &Request, sections: Sections) {
+        let outcome: Outcome = Request::structure(request, sections);
+        transition { _ -> publish(context, outcome) }
     }
 
-    state tokenize(context: &mut Main, lexer: &mut Lexer) {
-        Lexer::tokenize(lexer);
-        transition lexer.output.accepted {
-            true -> parse(context, lexer)
-            _ -> lex_rejected(context)
+    state publish(context: &mut Main, outcome: Outcome) {
+        Main::write_frame(context, outcome);
+        let tag: u8 = OutcomeTag::value(outcome.tag);
+        context.console.exit_process(tag as i32);
+    }
+}
+
+// The outcome's frame, byte by byte.
+machine Main::write_frame(context: &mut Main, outcome: Outcome)
+reaches Console
+crashes Trap
+{
+    transition { _ -> next(context, outcome, 0) }
+
+    state next(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
+        let length: u64 in Trapping = Outcome::frame_length(outcome);
+        transition index < length {
+            true -> write(context, outcome, index)
+            _ -> done()
         }
     }
 
-    state parse(context: &mut Main, lexer: &Lexer) {
-        let mut parser: Parser;
-        Parser::initialize(&mut parser, lexer.source.id,
-            lexer.source.length as u64 in Trapping
-        );
-        Parser::parse(&mut parser, &lexer.output);
-        transition parser.output.accepted {
-            true -> resolve(context, lexer, &parser)
-            _ -> parse_rejected(context)
-        }
+    state write(context: &mut Main, outcome: Outcome, index: u64 in Trapping) {
+        let value: u8 = Outcome::frame_byte(outcome, index);
+        context.console.write_byte(value as i32);
+        transition { _ -> next(context, outcome, index + 1) }
     }
 
-    state resolve(context: &mut Main, lexer: &Lexer, parser: &Parser) {
-        let mut resolver: Resolver;
-        Resolver::initialize(&mut resolver, lexer.source.id);
-        Resolver::resolve(&mut resolver, &lexer.source, &parser.output);
-        transition resolver.output.accepted {
-            true -> accepted(context)
-            _ -> resolve_rejected(context)
-        }
-    }
-
-    state accepted(context: &mut Main) {
-        context.console.exit_process(0);
-    }
-
-    state resolve_rejected(context: &mut Main) {
-        context.console.exit_process(249);
-    }
-
-    state parse_rejected(context: &mut Main) {
-        context.console.exit_process(250);
-    }
-
-    state lex_rejected(context: &mut Main) {
-        context.console.exit_process(251);
-    }
+    state done() {}
 }

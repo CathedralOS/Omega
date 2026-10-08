@@ -5874,9 +5874,10 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `source/psi/` and `source/omega/` (product roots `source/omega/build.omg` and
   `source/omega/main.omg`). Psi owns parsing, resolution, typing, checking,
   proof and Terminal Psi; Omega consumes Terminal Psi for provider selection,
-  realization, ABI and emission. The product reads source, lexes, parses
-  and name-resolves supported `use`/`data`/`machine` roots, machine bodies
-  included, and exits without an artifact. Extend that one
+  realization, ABI and emission. The product entry answers one OCREQ V1
+  request with one OCOUT V1 outcome; Psi lexes, parses and name-resolves
+  supported `use`/`data`/`machine` roots, machine bodies included, under the
+  parser and resolver gates. Extend that one
   pipeline through the full language in compositional slices; no private
   dialect, file/AST allowlist, source-shape-only lowering or parallel
   source-to-native route.
@@ -5885,7 +5886,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   `OMEGA_CLI=<fresh optimized CLI> OMEGA_TARGET=macos_arm64` with
   `tests/psi/parser/test-parser.sh` passes all 236 parser cases, and
   `tests/psi/resolver/test-resolver.sh` passes all 79 resolver cases; each
-  gate builds its harness natively in several minutes. The lexer keeps only
+  gate builds its harness natively in several minutes.
+  `tests/product/request/test-request.sh` builds the product entry and passes
+  all 36 OCREQ cases, D's request vectors among them; a well-formed request
+  stops at `coverage_request_semantics` until phase 3, which waits on the
+  owner decision `ocreq-package-key-identity-derivation`. The lexer keeps only
   semantic tokens. Machines parse with signatures, clauses shared with states,
   data and cases, entry and state statements, transition arms, and expressions
   including call acknowledgements and static applications; every type position
@@ -5904,8 +5909,8 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   type nodes, statements and expressions 16,384) and publish their refusals as
   those provisions; aarch64 frames past 16 MiB now realize. The product's own
   19 sources hold 19,430 expressions and 13,201 path members, so those rows
-  must count per source unit, or grow, before D can compile C. Run both gates on
-  Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
+  must count per source unit, or grow, before D can compile C. Run both gates
+  on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven
   narrowing casts.
 
