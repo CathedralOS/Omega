@@ -618,6 +618,13 @@ pub(super) fn clone_specialized_machine(
             accepted_template_commitment,
         });
 
+    // Exact type/const/evidence substitution and retained tuple copying are
+    // complete. Publish canonical domain identities with the whole instance,
+    // including its metadata, not at a later whole-roster sweep.
+    super::finalize_domain_instance_identities(
+        program,
+        &typed_trees::references::DeclarationSelection::from_symbols([instance_symbol]),
+    )?;
     Ok(state_symbols)
 }
 

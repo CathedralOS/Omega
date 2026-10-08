@@ -180,8 +180,6 @@ pub fn prepare_typed_trees(
         // token or generated candidate can expose another ordinary application,
         // so all rounds return through this same specialization entrypoint.
         specialize_machine_calls(&mut program, true)?;
-        crate::monomorphization::refresh_closed_domain_instance_identities(&mut program)
-            .map_err(|diagnostic| vec![diagnostic])?;
         let mut materialized = match &provider_templates {
             Some(templates) => crate::monomorphization::specialize_operator_candidates(
                 templates,
@@ -248,15 +246,19 @@ pub fn prepare_typed_trees(
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing
 /// indexed-domain semantic ID before static tuple derivation. Later copies carry
-/// their selected authority; closed-domain identity finalization remains a
-/// separate operation over the substituted graph. Immutable checking owns
-/// template commitments.
+/// their selected authority and finalize domain identities at their producer.
+/// This is the only whole-program finalization: later specialization rounds
+/// never rescan unchanged declaration graphs. Immutable checking owns template
+/// commitments.
 fn normalize_open_index_identities(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     ::validation::normalize_open_index_expressions(program)?;
-    crate::monomorphization::refresh_closed_domain_instance_identities(program)
-        .map_err(|diagnostic| vec![diagnostic])
+    crate::monomorphization::finalize_domain_instance_identities(
+        program,
+        &typed_trees::references::DeclarationSelection::all(),
+    )
+    .map_err(|diagnostic| vec![diagnostic])
 }
 
 /// Validate and consume compile-time machine-symbol selections, rewriting

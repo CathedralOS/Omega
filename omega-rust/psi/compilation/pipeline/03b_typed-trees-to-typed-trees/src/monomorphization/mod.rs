@@ -288,7 +288,6 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
             }
             return Ok(());
         }
-        refresh_closed_domain_instance_identities(program).map_err(|error| vec![error])?;
     }
 }
 
@@ -572,13 +571,17 @@ fn candidate_conformance_fingerprint_arguments(candidate: &Candidate) -> Vec<Str
 
 /// Const substitution changes an indexed-domain instance from binder identity
 /// (`Quantity<To>`) to the selected canonical value (`Quantity<METER>`). The
-/// semantic ID is derived data, so refresh every affected constraint and cast
-/// before validation or checked-fact construction observes the specialized
-/// graph.
-pub(crate) fn refresh_closed_domain_instance_identities(
+/// semantic ID is derived data. Finalize each producer's owned graph before
+/// downstream selection can observe it, including constraints, casts and
+/// membership facts. Declaration selection excludes unchanged graphs while
+/// retaining shared arenas for semantic lookup; it grants no checking authority.
+/// The authored normalization pass alone selects the whole program.
+pub(crate) fn finalize_domain_instance_identities(
     program: &mut TypedTrees,
+    declarations: &typed_trees::references::DeclarationSelection,
 ) -> Result<(), Diagnostic> {
-    let references = typed_trees::references::collect_program_references(program);
+    let references =
+        typed_trees::references::collect_selected_program_references(program, declarations);
     let mut constraint_updates = Vec::new();
     for reference in references.type_references {
         let TypeReferenceNode::Constrained { constraints, .. } =
@@ -627,13 +630,12 @@ pub(crate) fn refresh_closed_domain_instance_identities(
         };
     }
 
-    let cast_sites = program
-        .expression_table
-        .expression_entries()
-        .filter_map(|(handle, expression)| {
-            if !references.expressions.contains(&handle) {
-                return None;
-            }
+    let mut expressions = references.expressions.into_iter().collect::<Vec<_>>();
+    expressions.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+    let cast_sites = expressions
+        .into_iter()
+        .filter_map(|handle| {
+            let expression = program.expression_table.expression(handle);
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };

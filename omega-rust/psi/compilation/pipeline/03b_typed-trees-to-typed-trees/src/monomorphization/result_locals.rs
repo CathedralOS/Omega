@@ -58,6 +58,7 @@ pub(super) fn refresh_generic_call_results(
             }
         }
     }
+    let mut changed_owners = Vec::new();
     for (body, offset, previous_type, return_type, selection) in updates {
         let candidate =
             super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
@@ -148,7 +149,17 @@ pub(super) fn refresh_generic_call_results(
             &mut program.statement_table.statements_mut(body)[offset]
         {
             local.type_reference = selected_return;
+            changed_owners.push(selection.lexical_owner);
         }
+    }
+    if !changed_owners.is_empty() {
+        // Open result substitution is also a graph producer. Settle its owned
+        // constraints before another selection reads the newly inferred type.
+        super::finalize_domain_instance_identities(
+            program,
+            &typed_trees::references::DeclarationSelection::from_symbols(changed_owners),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
     }
     Ok(())
 }

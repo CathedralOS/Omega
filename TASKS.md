@@ -2771,12 +2771,9 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/preparation.rs`
-  still repeats `bind_selected_operator_calls` (3 + N runs),
-  whole-program `refresh_closed_domain_instance_identities` at the inner and
-  outer loop boundaries, and `resolve_projected_receiver_calls` (2).
-  Finalize substituted domain identities at their graph producer, not by
-  rescanning unchanged declarations. Pending constant evaluation also stamps
-  float destinations in the Build
+  still repeats `bind_selected_operator_calls` (3 + N runs) and
+  `resolve_projected_receiver_calls` (2).
+  Pending constant evaluation also stamps float destinations in the Build
   and product coordinators; move that work into private typed preparation.
   The loop must specialize and bind only; run each remaining pass once at its
   required point. Retire receiver elaboration with **STATIC-MACHINE-MIGRATION**,
@@ -4670,7 +4667,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     named-evidence calls exist. A supplied witness does not discharge Boolean
     premises; results and guarantees are formed only after admission, including
     erased/discarded uses. Keep constructor values distinct from tag-only facts.
-  - Extend `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/operators/call_binding.rs`
+  - Extend `omega-rust/psi/compilation/pipeline/03b_typed-trees-to-typed-trees/src/operators/call_binding.rs`
     beyond binary/indexed expressions to open-ended ranges and body-bearing
     match equality (the floating requirement comparison does not execute a
     selected body). Keep [Equatable's sealed type-owned route](wiki/spec/language/conformances.md#core-equality-acquisition):
@@ -4682,7 +4679,7 @@ wait for Cathedral's instruction coverage. The interpreter is
     with distributivity and zero/one law evidence. Commutativity and
     associativity already license separate rewrites and grant no identities.
     Source-produced selections must survive
-    `monomorphization::refresh_closed_domain_instance_identities`. Missing,
+    `monomorphization::finalize_domain_instance_identities`. Missing,
     ambiguous, wrong-operation and unproved-law selections reject;
     noncommutative operations stay usable.
   - Migrate library/corpus/embedded declarations off the `operator` introducer,
