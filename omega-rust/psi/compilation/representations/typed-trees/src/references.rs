@@ -394,10 +394,7 @@ fn visit_proof_facts(
     facts: arena::HandleSpan<ProofFact>,
 ) {
     for (offset, fact) in program.proof_facts.span_or_empty(facts).iter().enumerate() {
-        let handle = arena::Handle::from_parts(
-            facts.start().arena_index() + offset as u32,
-            facts.start().generation(),
-        );
+        let handle = facts.handle_at(offset as u32);
         if retained.proof_fact(handle) {
             visit_proof_fact(program, retained, fact);
         }

@@ -423,14 +423,8 @@ impl Equality<'_, '_> {
             return false;
         }
         (0..left.count()).all(|offset| {
-            let left = Handle::from_parts(
-                left.start().arena_index() + offset,
-                left.start().generation(),
-            );
-            let right = Handle::from_parts(
-                right.start().arena_index() + offset,
-                right.start().generation(),
-            );
+            let left = left.handle_at(offset);
+            let right = right.handle_at(offset);
             self.child(left, right)
         })
     }

@@ -198,10 +198,7 @@ pub(crate) fn filter_flow_references<T: Copy + Default>(
     let source_count = references.span_or_empty(source).len() as u32;
     let mut materialized = false;
     for source_offset in 0..source_count {
-        let source_handle = Handle::from_parts(
-            source.start().arena_index() + source_offset,
-            source.start().generation(),
-        );
+        let source_handle = source.handle_at(source_offset);
         let reference = *references.get(source_handle);
         if !keep(reference) {
             continue;

@@ -437,7 +437,7 @@ fn span_resolution_rechecks_rows_once_a_slot_was_freed() {
         "a fresh arena still bounds spans"
     );
 
-    let middle = Handle::from_parts(span.start().arena_index() + 1, span.start().generation());
+    let middle = span.handle_at(1);
     assert!(arena.free(middle));
     assert!(arena.span(span).is_none(), "a freed row breaks the span");
 

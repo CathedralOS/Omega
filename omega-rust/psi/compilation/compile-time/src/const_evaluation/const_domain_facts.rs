@@ -52,11 +52,7 @@ fn pending_memberships(typed: &TypedTrees, domain: &EvaluationDomain) -> Vec<Pen
         if data.generic_instance.is_none() {
             continue;
         }
-        for offset in 0..data.where_facts.count() {
-            let fact = Handle::from_parts(
-                data.where_facts.start().arena_index() + offset,
-                data.where_facts.start().generation(),
-            );
+        for fact in data.where_facts.handles() {
             let ProofFact::Membership(membership) = typed.proof_facts.get(fact) else {
                 continue;
             };

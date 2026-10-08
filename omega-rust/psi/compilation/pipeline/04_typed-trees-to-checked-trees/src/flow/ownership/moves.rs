@@ -156,10 +156,7 @@ pub(super) fn append_move_events_for_expression(
                     );
                 }
                 let enclosing_arm = sink.source_arm;
-                sink.source_arm = arena::Handle::from_parts(
-                    dispatch.arms.start().arena_index() + ordinal as u32,
-                    dispatch.arms.start().generation(),
-                );
+                sink.source_arm = dispatch.arms.handle_at(ordinal as u32);
                 append_move_events_for_expression(
                     program,
                     sink,
