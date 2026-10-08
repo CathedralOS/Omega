@@ -3,8 +3,8 @@
 //! This root describes program data at this resolution level. Its subordinate
 //! areas own related facts; it does not contain transformation-stage objects.
 
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, TerminalPsiIdentity};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
+use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, StructuralTypeDeclaration, TerminalPsiIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationPlan {
@@ -34,6 +34,17 @@ impl AbstractOperationPlan {
         id: BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
         self.boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == id)
+    }
+
+    /// The structural type keyed `id`, when the plan declares it.
+    pub fn structural_type(
+        &self,
+        id: StructuralTypeId,
+    ) -> Option<&StructuralTypeDeclaration> {
+        self.structural_types
+            .as_slice()
             .iter()
             .find(|declaration| declaration.id == id)
     }

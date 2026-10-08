@@ -36,6 +36,17 @@ impl LegalizedStructuralContract {
             .iter()
             .find(|row| row.id == place)
     }
+
+    /// The structural type keyed `id`, when the contract declares it.
+    pub fn structural_type(
+        &self,
+        id: semantic_vocabulary::StructuralTypeId,
+    ) -> Option<&terminal_psi::StructuralTypeDeclaration> {
+        self.structural_types
+            .as_slice()
+            .iter()
+            .find(|declaration| declaration.id == id)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
