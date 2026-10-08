@@ -40,7 +40,7 @@ pub(in crate::values::scalar) fn selected_element(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let (root, path, mut collection_type) = structural_fields::structural_storage_place(
+    let (root, path, collection_type) = structural_fields::structural_storage_place(
         program,
         authored_parameters,
         indexed.collection,

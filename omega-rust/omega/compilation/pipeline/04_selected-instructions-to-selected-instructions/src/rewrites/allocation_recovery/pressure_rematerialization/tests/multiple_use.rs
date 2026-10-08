@@ -3,7 +3,7 @@ use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
     RecoveryClassificationIdentity, SpillChoiceIdentity,
 };
-use selected_instructions::LiveRangeIdentity;
+use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
