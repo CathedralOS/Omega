@@ -15,8 +15,7 @@ use register_model::{
     target_register_environment_identity,
 };
 use selected_instructions::{
-    SelectedInstructionId, SelectedTerminator, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstructionId, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::ScalarType;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;

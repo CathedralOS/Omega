@@ -10,12 +10,10 @@ pub(super) fn reject_v1_unsupported(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<(), LivenessError> {
-    let early_clobber = |instruction: u32, operand: u16| {
-        LivenessError::UnsupportedEarlyClobber {
-            function: function_index,
-            instruction,
-            operand,
-        }
+    let early_clobber = |instruction: u32, operand: u16| LivenessError::UnsupportedEarlyClobber {
+        function: function_index,
+        instruction,
+        operand,
     };
     let mut tied_edges = Vec::new();
     let mut early_rows = Vec::new();
@@ -111,7 +109,10 @@ pub(super) fn reject_v1_unsupported(
                             || operand.tied_to.is_some())
                 })
             {
-                return Err(early_clobber(instruction.id.0, early.get(1).copied().unwrap_or(definition).operand));
+                return Err(early_clobber(
+                    instruction.id.0,
+                    early.get(1).copied().unwrap_or(definition).operand,
+                ));
             }
             early_rows.push((
                 instruction.id.0,
