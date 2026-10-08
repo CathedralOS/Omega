@@ -126,3 +126,45 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     .map_err(|diagnostic| vec![diagnostic])?;
     Ok(())
 }
+
+/// The authored-nominal machine contract beneath a type parameter, when it
+/// carries one, with its `::`-rendered requirement path.
+pub(super) fn authored_nominal_requirement<'parameter>(
+    parameter: &'parameter symbol_resolved_trees::data::TypeParameter,
+) -> Option<(
+    &'parameter Vec<symbol_resolved_trees::name::DiagnosticName>,
+    &'parameter arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    String,
+)> {
+    let symbol_resolved_trees::data::TypeParameterKind::Machine {
+        contract:
+            symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                requirement,
+                trait_arguments,
+            },
+    } = &parameter.kind
+    else {
+        return None;
+    };
+    let rendered = requirement
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
+    Some((requirement, trait_arguments, rendered))
+}
+
+/// The `TypeReference` carriers that cannot hold a member or collection —
+/// the no-op tail several selection walks repeat verbatim.
+macro_rules! leaf_carrier_type_reference_pattern {
+    () => {
+        symbol_resolved_trees::types::TypeReference::FixedArray(_)
+            | symbol_resolved_trees::types::TypeReference::Slice(_)
+            | symbol_resolved_trees::types::TypeReference::Generic(_)
+            | symbol_resolved_trees::types::TypeReference::ConstExpression(_)
+            | symbol_resolved_trees::types::TypeReference::DynamicTrait { .. }
+            | symbol_resolved_trees::types::TypeReference::Named { .. }
+            | symbol_resolved_trees::types::TypeReference::Unit
+    };
+}
+pub(super) use leaf_carrier_type_reference_pattern;

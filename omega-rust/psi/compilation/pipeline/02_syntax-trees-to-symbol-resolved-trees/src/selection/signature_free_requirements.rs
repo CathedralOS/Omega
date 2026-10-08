@@ -182,21 +182,10 @@ pub(crate) fn validate_signature_free_requirement_compatibility(
 ) -> Vec<diagnostics::Diagnostic> {
     let mut uses = Vec::new();
     for (_, parameter) in program.tables.declarations.data_type_parameters.iter() {
-        let symbol_resolved_trees::data::TypeParameterKind::Machine {
-            contract:
-                symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
-                    requirement,
-                    ..
-                },
-        } = &parameter.kind
+        let Some((requirement, _, rendered)) = super::authored_nominal_requirement(parameter)
         else {
             continue;
         };
-        let rendered = requirement
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
         collect_ambiguous_use(
             program,
             requirement,

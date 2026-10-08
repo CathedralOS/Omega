@@ -23,22 +23,11 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
     let mut replacements = Vec::new();
 
     for (handle, parameter) in program.tables.declarations.data_type_parameters.iter() {
-        let TypeParameterKind::Machine {
-            contract:
-                MachineParameterContract::AuthoredNominal {
-                    requirement,
-                    trait_arguments,
-                },
-        } = &parameter.kind
+        let Some((requirement, trait_arguments, rendered)) =
+            super::authored_nominal_requirement(parameter)
         else {
             continue;
         };
-
-        let rendered = requirement
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::");
         let exact = resolve_signature_free_requirement(program, requirement).map_err(|error| {
             Diagnostic::error(match error {
                 SignatureFreeRequirementResolutionError::InvalidPath => format!(
