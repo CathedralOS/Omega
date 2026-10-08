@@ -941,7 +941,7 @@ pub fn reachable_blocks_after_conditional_fold(
         if !reachable.insert(block_id) {
             continue;
         }
-        let block = function.blocks.iter().find(|block| block.id == block_id)?;
+        let block = function.block(block_id)?;
         for edge in block.nodes.iter().flat_map(|node| &node.successors) {
             if block_id != source || edge.psi_edge == selected_edge {
                 pending.push(edge.target);

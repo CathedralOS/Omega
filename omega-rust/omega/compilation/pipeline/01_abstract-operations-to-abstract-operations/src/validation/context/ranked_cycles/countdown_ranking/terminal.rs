@@ -77,7 +77,7 @@ fn project_one(
 
     // The header's conditional arm inside the component is the positive guard:
     // `0 < rank_parameter` admits the decrement block.
-    let header = block(machine, header_id)?;
+    let header = machine.block(&header_id)?;
     let ::terminal_psi::Terminator::Conditional {
         condition,
         when_true,
@@ -125,7 +125,7 @@ fn project_one(
         .parameters
         .iter()
         .position(|parameter| parameter.id == rank_parameter)?;
-    let decrement = block(machine, decrement_id)?;
+    let decrement = machine.block(&decrement_id)?;
     let ::terminal_psi::Terminator::Jump {
         edge: jump_edge,
         target,
@@ -193,10 +193,6 @@ fn project_one(
             subtract_obligation: obligation,
         },
     })
-}
-
-fn block(machine: &::terminal_psi::TerminalMachine, id: BlockId) -> Option<&::terminal_psi::Block> {
-    machine.blocks.iter().find(|block| block.id == id)
 }
 
 fn scalar_operation(
