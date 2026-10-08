@@ -38,17 +38,15 @@ use std::collections::BTreeSet;
 
 use register_model::{RegisterInstructionConstraint, RegisterUnitId};
 use selected_instructions::{
-    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
+    MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, SelectedInstruction, SelectedInstructionKind,
 };
 use semantic_vocabulary::IntegerValue;
 
-use crate::analyses::machine_effects::{
-    machine_alternative_is_transparent, machine_semantic_kind,
-};
+use crate::analyses::machine_effects::{machine_alternative_is_transparent, machine_semantic_kind};
 use crate::rewrites::condition_state::{ConditionOperandResolution, resolved_unit_surface};
+use crate::rewrites::operand_probes::isolated_declaration;
 
 /// The implicit physical-unit relationship the rewrite asserts between the
 /// producer's definitions and the consumer's uses — the flag-consuming
@@ -285,7 +283,10 @@ impl ConditionMaterializationRule {
                         .alternatives
                         .iter()
                         .all(|alternative| materialization_alternative(alternative, flag_universe))
-                    && rewritten.alternatives.iter().all(machine_alternative_is_transparent)
+                    && rewritten
+                        .alternatives
+                        .iter()
+                        .all(machine_alternative_is_transparent)
             }
         }
     }
@@ -350,18 +351,6 @@ pub(super) fn declared_producers() -> impl Iterator<Item = MachineSemanticKind> 
     .into_iter()
 }
 
-/// The declared surface a decided-materialization form must carry: no
-/// memory access, the operation itself never traps, no control-flow
-/// barrier, and no call or cleanup — the plain fall-through isolation both
-/// the flag read and the literal materialization publish.
-fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
-    declaration.memory == MachineMemoryEffect::NoneV1
-        && declaration.trap == MachineTrapBehavior::NeverV1
-        && declaration.barrier == MachineBarrier::None
-        && declaration.call == MachineCallEffect::NoneV1
-        && declaration.cleanup == MachineCleanupEffect::NoneV1
-}
-
 /// The encoded surface a condition-reading alternative must carry: no
 /// memory access, unchanged stack, no trap surface, a plain fall-through —
 /// and implicit uses only inside the flag universe, with no implicit
@@ -383,4 +372,3 @@ fn materialization_alternative(
         && encoded.implicit_unit_defs.is_empty()
         && encoded.implicit_unit_clobbers.is_empty()
 }
-

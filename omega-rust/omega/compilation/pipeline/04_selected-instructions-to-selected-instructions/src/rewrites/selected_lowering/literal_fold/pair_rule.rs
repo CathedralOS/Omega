@@ -89,24 +89,23 @@ use register_model::{
     RegisterUnitId, TargetRegisterEnvironmentConstraintKeys,
 };
 use selected_instructions::{
-    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineTrapBehavior, SaturatingCarrier, SelectedFunction,
+    MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineMemoryEffect, MachineSemanticKind, SaturatingCarrier, SelectedFunction,
     SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::block_edges::{block_instructions, terminator_successors};
+use crate::rewrites::operand_probes::isolated_declaration;
 
 mod predicates;
 mod rules;
 
 use predicates::{
     fault_discharged_alternative, implicit_defs_covered, implicit_unit_used,
-    indexed_pointer_read_matches, isolated_alternative, isolated_declaration,
-    swapped_unit_readers_equality_only,
+    indexed_pointer_read_matches, isolated_alternative, swapped_unit_readers_equality_only,
 };
 
 /// How a pair rule's rewritten instruction delivers its output.

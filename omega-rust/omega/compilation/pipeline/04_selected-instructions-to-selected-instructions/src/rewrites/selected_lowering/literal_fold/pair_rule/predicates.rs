@@ -62,16 +62,6 @@ pub(super) fn implicit_defs_covered(
     })
 }
 
-/// The non-unit declaration surface an isolated pair form must carry: no
-/// memory access, no trap, no barrier, no call, no cleanup.
-pub(super) fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
-    declaration.memory == MachineMemoryEffect::NoneV1
-        && declaration.trap == MachineTrapBehavior::NeverV1
-        && declaration.barrier == MachineBarrier::None
-        && declaration.call == MachineCallEffect::NoneV1
-        && declaration.cleanup == MachineCleanupEffect::NoneV1
-}
-
 /// The non-unit encoded surface an isolated pair form's alternatives must
 /// carry: no memory access, unchanged stack, never traps, falls through.
 pub(super) fn isolated_alternative(alternative: &MachineAlternative) -> bool {
