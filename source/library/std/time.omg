@@ -119,13 +119,13 @@ pub machine Duration::subsecond_microseconds(duration: &Duration) -> u32 {
     duration.subsecond_nanoseconds / 1000
 }
 
-// The whole duration as a nanosecond count. u64 nanoseconds cap at
-// ~584 years: seconds above 18_446_744_073 (u64::MAX / 1e9) overflow, and at
-// exactly that threshold only subseconds up to 709_551_615 still fit
 // checked-as-<unit> shares this spine: bound-check the seconds magnitude,
 // fold the unit-scaled subsecond part into a wrapping total, and report
-// Overflow when the exact value no longer fits u64.
-machine checked_as_scaled_total(duration: &Duration, multiplier: u64 in Wrapping, divisor: u32, seconds_bound: u64, subsecond_bound: u32) -> TotalResult {
+// Overflow when the exact value no longer fits u64. `divisor` scales
+// nanoseconds down to the unit, so it is never zero.
+machine checked_as_scaled_total(duration: &Duration, multiplier: u64 in Wrapping, divisor: u32, seconds_bound: u64, subsecond_bound: u32) -> TotalResult
+requires divisor > 0
+{
     let seconds_small: bool = duration.seconds < seconds_bound;
     let seconds_edge: bool = duration.seconds == seconds_bound;
     let subsecond_part: u32 = duration.subsecond_nanoseconds / divisor;
@@ -150,6 +150,9 @@ machine checked_as_scaled_total(duration: &Duration, multiplier: u64 in Wrapping
     }
 }
 
+// The whole duration as a nanosecond count. u64 nanoseconds cap at
+// ~584 years: seconds above 18_446_744_073 (u64::MAX / 1e9) overflow, and at
+// exactly that threshold only subseconds up to 709_551_615 still fit
 // (18_446_744_073 * 1e9 + 709_551_615 == u64::MAX).
 pub machine Duration::checked_as_nanoseconds(duration: &Duration) -> TotalResult {
     checked_as_scaled_total(duration, 1000000000 as u64 in Wrapping, 1, 18446744073, 709551615)
