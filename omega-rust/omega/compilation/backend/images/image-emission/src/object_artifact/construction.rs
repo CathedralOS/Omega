@@ -9,7 +9,7 @@ use machine_code::{
     CompilerPrivateMachineCodeFunction, MachineCodePlan, MachineCodePlanWithPrivateFunctions,
 };
 
-mod function_validation;
+pub(crate) mod function_validation;
 mod layout;
 mod relocations;
 pub(crate) mod text_emission;

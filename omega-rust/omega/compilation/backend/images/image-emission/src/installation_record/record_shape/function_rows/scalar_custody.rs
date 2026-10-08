@@ -3,8 +3,8 @@
 
 use super::super::stack_facts::installed_stack_facts_are_canonical;
 use crate::installation_record::{
-    BoundaryRealization, CallSiteOwner, InstallationRecord, InstalledFunction, MachineId,
-    SemanticCodeSite, StructuralMultiplicity, StructuralTypeId, borrowed_structural,
+    BoundaryRealization, InstallationRecord, InstalledFunction, MachineId, StructuralMultiplicity,
+    StructuralTypeId, borrowed_structural,
     graph_structural, incoming_structural, installed_function_scalar_transport_is_canonical,
     installed_unit_scalar_transport,
 };
@@ -61,38 +61,16 @@ pub(super) fn scalar_custody_facts(
                     .semantic_code_attribution
                     .iter()
                     .filter(|attribution| attribution.machine == function.machine)
-                    .map(|attribution| &attribution.attribution)
+                    .map(|attribution| attribution.attribution)
                     .collect::<Vec<_>>();
                 function.unit_body
                     && function.unit_stack.is_some()
                     && function.scalar_stack.is_none()
-                    && matches!(
-                        (
-                            function_unit_calls,
-                            attributions.as_slice(),
-                            function.unit_affine_cleanup.as_ref(),
-                        ),
-                        ([call], [call_attribution, return_attribution], Some(cleanup))
-                        if call.owner == CallSiteOwner::Operation(returned.psi_operation)
-                            && call.target == returned.callee
-                            && call.operation_ordinal == 0
-                            && call.result == Some(returned.scalar_type)
-                            && call.semantic_result.as_ref().is_some_and(|result| {
-                                result.value == returned.source_value
-                                    && result.scalar_type == returned.scalar_type
-                            })
-                            && call_attribution.site
-                                == SemanticCodeSite::Operation(returned.psi_operation)
-                            && call_attribution.operation_ordinal == call.operation_ordinal
-                            && call_attribution.code_offset == call.code_offset
-                            && call_attribution.byte_count == call.byte_count
-                            && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
-                            && return_attribution.operation_ordinal == 1
-                            && return_attribution.code_offset == cleanup.code_offset
-                            && return_attribution.byte_count == cleanup.byte_count
-                            && cleanup.psi_edge == returned.psi_edge
-                            && cleanup.locals.is_empty()
-                            && cleanup.actions.is_empty()
+                    && crate::object_artifact::construction::function_validation::scalar_return_attribution_is_exact(
+                        function_unit_calls,
+                        attributions.as_slice(),
+                        function.unit_affine_cleanup.as_ref(),
+                        &returned,
                     )
             });
     // This is a record-shape check, not erasure authority. The installation

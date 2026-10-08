@@ -224,33 +224,11 @@ fn validate_stack_and_return_evidence(
             && function.scalar_stack.is_none()
             && function.provenance.operations.as_slice() == [returned.psi_operation]
             && function.provenance.edges.as_slice() == [returned.psi_edge]
-            && matches!(
-                (
-                    function.internal_unit_calls.as_slice(),
-                    function.semantic_code_attribution.as_slice(),
-                    function.unit_affine_cleanup.as_ref(),
-                ),
-                ([call], [call_attribution, return_attribution], Some(cleanup))
-                    if call.owner == CallSiteOwner::Operation(returned.psi_operation)
-                        && call.target == returned.callee
-                        && call.operation_ordinal == 0
-                        && call.result == Some(returned.scalar_type)
-                        && call.semantic_result.as_ref().is_some_and(|result| {
-                            result.value == returned.source_value
-                                && result.scalar_type == returned.scalar_type
-                        })
-                        && call_attribution.site
-                            == SemanticCodeSite::Operation(returned.psi_operation)
-                        && call_attribution.operation_ordinal == call.operation_ordinal
-                        && call_attribution.code_offset == call.code_offset
-                        && call_attribution.byte_count == call.byte_count
-                        && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
-                        && return_attribution.operation_ordinal == 1
-                        && return_attribution.code_offset == cleanup.code_offset
-                        && return_attribution.byte_count == cleanup.byte_count
-                        && cleanup.psi_edge == returned.psi_edge
-                        && cleanup.locals.is_empty()
-                        && cleanup.actions.is_empty()
+            && scalar_return_attribution_is_exact(
+                function.internal_unit_calls.as_slice(),
+                function.semantic_code_attribution.as_slice(),
+                function.unit_affine_cleanup.as_ref(),
+                &returned,
             ))
     {
         return Err(ObjectError::InvalidInternalUnitCallEvidence(
@@ -517,6 +495,42 @@ fn validate_unit_custody_identities(function: &MachineCodeFunction) -> Result<()
 /// The custody facts the remaining phases share: which parameter homes
 /// apply, the default affine cleanup, the continuation discards, and whether
 /// the affine parameter is fully or partially consumed.
+/// Whether a function's scalar-return evidence names exactly the one unit
+/// call it claims: one operation-owned call with the return's target and
+/// scalar type, call and edge attributions in order, and an empty cleanup on
+/// the return edge.
+pub(crate) fn scalar_return_attribution_is_exact(
+    calls: &[machine_code::InternalUnitCallRecord],
+    attributions: &[machine_code::SemanticCodeAttribution],
+    cleanup: Option<&machine_code::UnitAffineCleanupRecord>,
+    returned: &machine_code::StructuralCallScalarReturnEvidence,
+) -> bool {
+    matches!(
+        (calls, attributions, cleanup),
+        ([call], [call_attribution, return_attribution], Some(cleanup))
+            if call.owner == CallSiteOwner::Operation(returned.psi_operation)
+                && call.target == returned.callee
+                && call.operation_ordinal == 0
+                && call.result == Some(returned.scalar_type)
+                && call.semantic_result.as_ref().is_some_and(|result| {
+                    result.value == returned.source_value
+                        && result.scalar_type == returned.scalar_type
+                })
+                && call_attribution.site
+                    == SemanticCodeSite::Operation(returned.psi_operation)
+                && call_attribution.operation_ordinal == call.operation_ordinal
+                && call_attribution.code_offset == call.code_offset
+                && call_attribution.byte_count == call.byte_count
+                && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
+                && return_attribution.operation_ordinal == 1
+                && return_attribution.code_offset == cleanup.code_offset
+                && return_attribution.byte_count == cleanup.byte_count
+                && cleanup.psi_edge == returned.psi_edge
+                && cleanup.locals.is_empty()
+                && cleanup.actions.is_empty()
+    )
+}
+
 fn affine_parameter_facts<'a>(
     plan: &MachineCodePlan,
     function: &'a MachineCodeFunction,

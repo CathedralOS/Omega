@@ -9,7 +9,7 @@
 
 mod call_sites;
 mod carriers;
-mod construction;
+pub(crate) mod construction;
 mod errors;
 #[cfg(test)]
 mod installed_provider_scalar_call_custody_tests;
