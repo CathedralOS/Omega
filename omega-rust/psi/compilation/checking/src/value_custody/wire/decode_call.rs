@@ -4,7 +4,7 @@ use super::value_fields::{
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::wire::{WireField, WireMember, WireSchema};
+use typed_trees::wire::{WireField, WireSchema};
 
 /// Validate the synthesized wire decoder call
 /// `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` (chapter
@@ -55,13 +55,7 @@ pub(super) fn validate_wire_decode_call(
     // of the buffer (no allocator or owned-copy policy required).
     let mut byte_slice_fields: Vec<&WireField> = Vec::new();
     let mut schema_rejects = false;
-    for member in program.wire_members(schema.members) {
-        let WireMember::Field(field) = member else {
-            continue;
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
+    for field in program.relevant_wire_fields(schema.members) {
         // Mirrors the encoder's repeated gate: a bounded scalar carrier decodes as a
         // LENGTH-delimited packed payload (bounds-checked loop capped at the
         // declared capacity); non-scalar elements reject.

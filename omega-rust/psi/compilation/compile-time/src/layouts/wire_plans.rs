@@ -32,7 +32,7 @@
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::types::PrimitiveType;
-use typed_trees::wire::{WireMember, WirePlacement};
+use typed_trees::wire::WirePlacement;
 
 mod policy_value;
 
@@ -104,13 +104,7 @@ pub(crate) fn compute_wire_plans_in(
         }
         let mut fields: Vec<(u64, FieldShape)> = Vec::new();
         let mut classifiable = true;
-        for member in typed.wire_members(schema.members) {
-            let WireMember::Field(field) = member else {
-                continue;
-            };
-            if field.relevance.is_erased() {
-                continue;
-            }
+        for field in typed.relevant_wire_fields(schema.members) {
             let shape = if typed.wire_field_repeated_encoding(field).is_some() {
                 FieldShape::Repeated
             } else if typed.wire_field_nested_schema(field).is_some() {

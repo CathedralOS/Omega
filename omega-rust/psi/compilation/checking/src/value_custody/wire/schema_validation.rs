@@ -61,13 +61,7 @@ fn nested_references_reach<'program>(
     target: &str,
     visited: &mut Vec<&'program str>,
 ) -> bool {
-    for member in program.wire_members(from.members) {
-        let WireMember::Field(field) = member else {
-            continue;
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
+    for field in program.relevant_wire_fields(from.members) {
         let Some(child) = program.wire_field_nested_schema(field) else {
             continue;
         };

@@ -4,7 +4,7 @@ use super::value_fields::{
 use crate::value_custody::places::declared_place_type;
 use diagnostics::Diagnostic;
 use typed_trees::types::TypeReferenceNode;
-use typed_trees::wire::{WireField, WireMember, WireSchema};
+use typed_trees::wire::{WireField, WireSchema};
 
 /// Validate the synthesized wire encoder call
 /// `Schema::encode(&value, &mut out, &mut written)` (chapter 20, wire
@@ -78,13 +78,7 @@ pub(super) fn validate_wire_encode_call(
     let mut byte_slice_fields: Vec<&WireField> = Vec::new();
     let mut max_field_number = 0u64;
     let mut schema_rejects = false;
-    for member in program.wire_members(schema.members) {
-        let WireMember::Field(field) = member else {
-            continue;
-        };
-        if field.relevance.is_erased() {
-            continue;
-        }
+    for field in program.relevant_wire_fields(schema.members) {
         // A bounded repeated scalar carrier packs LENGTH-delimited: tag +
         // byte-length varint + back-to-back element varints (protobuf's
         // packed encoding). Its capacity bounds it statically, so it

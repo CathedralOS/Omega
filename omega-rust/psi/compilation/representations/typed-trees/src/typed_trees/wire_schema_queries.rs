@@ -60,6 +60,19 @@ impl TypedTrees {
         self.tables.wire_members.span_or_empty(span)
     }
 
+    /// The non-erased `Field` members of a wire `members` span, in order.
+    pub fn relevant_wire_fields<'a>(
+        &'a self,
+        span: HandleSpan<wire::WireMember>,
+    ) -> impl Iterator<Item = &'a wire::WireField> + 'a {
+        self.wire_members(span).iter().filter_map(|member| {
+            let wire::WireMember::Field(field) = member else {
+                return None;
+            };
+            (!field.relevance.is_erased()).then_some(field)
+        })
+    }
+
     /// Recognize the compiler-synthesized wire encoder call shape
     /// `Schema::encode(&value, &mut out, &mut written)` (chapter 20,
     /// wire stage 2a): a statement call whose receiver names a wire schema
