@@ -64,15 +64,14 @@ pub(crate) fn lower_selected_machine(
     if let Some(plan) = select_unit_plan(checked, selection)? {
         return lower_unit_plan_machine(checked, plan);
     }
-    // A scalar forwarding body can also have a Unit-closure plan. Its scalar
-    // graph owns the source signature, operand, and affine-transfer custody;
-    // selecting the overlapping closure plan would bypass those checks and
-    // suppress the graph's debug map, so a selection takes the Unit closure
-    // only when no scalar graph exists, or, for an attached signature, when a
-    // Unit plan competes with the graph. An ordinary free signature without a
-    // graph also needs a Unit plan to take the closure. The graph path below
-    // shares the real structural/Unit callee catalog unconditionally. The graph
-    // remains its body owner; rejection cannot fall back to another body plan.
+    // Graph presence chooses the closure shape here, not the body. A machine
+    // whose graph states all return scalars lowers through the scalar-entry
+    // closure (`lower_scalar_effect_closure`), which lowers the entry's Unit
+    // body whenever it has one and its graph only otherwise
+    // (`CheckedScalarCallee::find_for_unit_call`), and publishes the checked
+    // debug map. Without such a graph, a free Unit-effect signature, or an
+    // eligible signature with a Unit plan, takes the Unit closure, which
+    // publishes none.
     // A machine returning a structural value still mints a scalar control
     // plan — for its guards, locals, and calls — but that plan is control
     // data for the composed path, not a scalar emission: only a graph whose

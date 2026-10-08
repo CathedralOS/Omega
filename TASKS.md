@@ -2660,16 +2660,20 @@ code and preserve check/native behavior for the named customer slices.
     `pass/generics/closed_indexed_quantity`
     (`-> i64 [0..=100] in Quantity<To>`): "result contract". Each
     specialized `Quantity<Units::METER>` is a semantic atom with its own
-    identity, but not a `scalar_type_tags` tag: `exact_instance` rejects the
-    const-argument instance name, so the result is unrepresented for a Unit
-    body while the graph catalogs it through `type_atoms`;
+    exact identity, but not a `scalar_type_tags` tag: `vacuous_scalar_tag`
+    refuses `Quantity` because its declaration has a denotation-dimension
+    role. Admitting denotation roles as tags then refuses this fixture with
+    "retained scalar operand disagrees with its destination type" in
+    `scalar_computations`, likely where `Quantity<Units::METER>` and
+    `Quantity<Units::METER_REORDERED>` must compare equal;
   - `mutate(mut value: u32)` in
     `pass/borrows/runtime_direct_immutable_scalar_loan_exit`: a mutable
     scalar formal reassigned (`value = 8`) and borrowed (`&mut value`); the
     store's root has no structural parameter plan, so Unit planning stops
-    at "structural field store: destination parameter". A Unit body needs
-    storage for a borrowed mutable scalar formal, as the graph's parameter
-    storage provides;
+    at "structural field store: destination parameter". The same body
+    over a local (`let mut value: u32 = start;`) already lowers as a Unit
+    body, so the formal needs to be lowered as such a storage local
+    initialized from its argument, as the graph's parameter storage does;
   - ranked loops through the general rank plans, retiring the
     `CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne` special
     case, with a fixture for resumable (fuel-suspended) ranked execution.
