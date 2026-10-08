@@ -16,26 +16,11 @@ use crate::record::{
 };
 
 impl PackagePolicyRepresentation {
-    /// Recover policy without source access, evaluator replay, or acceptance.
-    /// All nested applications use this one reader's aggregate budgets.
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            REPRESENTATION_POLICY_MAGIC,
-            PACKAGE_REPRESENTATION_POLICY_VERSION,
-            policy,
-            |policy| {
-                policy
-                    .validate_canonical_structure()
-                    .map_err(|_| Error::InvalidValue)
-            },
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        REPRESENTATION_POLICY_MAGIC,
+        PACKAGE_REPRESENTATION_POLICY_VERSION,
+        policy, validate,
+    );
 }
 
 pub(in crate::encoding::recovery) fn policy(

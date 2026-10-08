@@ -22,24 +22,11 @@ use super::{
 use crate::encoding::{CALLABLE_POLICY_MAGIC, PACKAGE_CALLABLE_POLICY_VERSION};
 
 impl PackagePolicyCallables {
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            CALLABLE_POLICY_MAGIC,
-            PACKAGE_CALLABLE_POLICY_VERSION,
-            policy,
-            |policy| {
-                policy
-                    .validate_canonical_structure()
-                    .map_err(|_| Error::InvalidValue)
-            },
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        CALLABLE_POLICY_MAGIC,
+        PACKAGE_CALLABLE_POLICY_VERSION,
+        policy, validate,
+    );
 }
 
 pub(in crate::encoding::recovery) fn policy(

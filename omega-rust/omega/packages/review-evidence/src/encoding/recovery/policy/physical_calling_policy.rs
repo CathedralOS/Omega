@@ -8,22 +8,11 @@ use crate::encoding::{PACKAGE_PHYSICAL_CALLING_POLICY_VERSION, PHYSICAL_CALLING_
 use crate::record::{PackagePolicyPhysicalCallingContract, PackageReviewBoundaryCallingPolicy};
 
 impl PackagePolicyPhysicalCallingContract {
-    /// Bounded canonical format recovery. The result remains an incomplete
-    /// policy component and cannot reconstruct a ValidatedBoundaryEntryPlan.
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            PHYSICAL_CALLING_POLICY_MAGIC,
-            PACKAGE_PHYSICAL_CALLING_POLICY_VERSION,
-            physical,
-            |_| Ok(()),
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        PHYSICAL_CALLING_POLICY_MAGIC,
+        PACKAGE_PHYSICAL_CALLING_POLICY_VERSION,
+        physical,
+    );
 }
 
 pub(in crate::encoding::recovery) fn physical(

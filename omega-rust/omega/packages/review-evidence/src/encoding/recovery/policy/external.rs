@@ -15,25 +15,11 @@ use crate::record::{
 };
 
 impl PackagePolicyExternalExecutableSupply {
-    /// Recover the complete inert component, including recursive contracts.
-    /// This validates the bounded record vocabulary, not the truth of authored
-    /// policy, an old compiler execution, or permission to accept a candidate.
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            EXTERNAL_SUPPLY_POLICY_MAGIC,
-            PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
-            policy,
-            |_| Ok(()),
-            // The ordinary encoder checks cross-field representation rules.
-            // This remains a format check, not compiler or acceptance evidence.
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        EXTERNAL_SUPPLY_POLICY_MAGIC,
+        PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION,
+        policy,
+    );
 }
 
 pub(in crate::encoding::recovery) fn policy(

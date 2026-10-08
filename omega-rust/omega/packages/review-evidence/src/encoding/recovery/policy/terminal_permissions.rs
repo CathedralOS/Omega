@@ -16,24 +16,11 @@ use crate::record::{
 use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 
 impl PackagePolicyTerminalPermissions {
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            TERMINAL_PERMISSION_POLICY_MAGIC,
-            PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
-            policy,
-            |policy| {
-                policy
-                    .validate_canonical_structure()
-                    .map_err(|_| Error::InvalidValue)
-            },
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        TERMINAL_PERMISSION_POLICY_MAGIC,
+        PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION,
+        policy, validate,
+    );
 }
 
 pub(in crate::encoding::recovery) fn policy(

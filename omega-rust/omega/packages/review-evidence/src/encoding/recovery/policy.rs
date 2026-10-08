@@ -58,3 +58,54 @@ fn recover_component<Policy>(
     }
     Ok(policy)
 }
+
+/// The `recover_canonical` constructor every inert-policy component restates:
+/// bounded recovery through the shared component envelope with the component's
+/// own magic, version, element decoder, and canonical round-trip. `validate`
+/// selects the component's structural check; the arm without it keeps the
+/// format-only check — the ordinary encoder already checks cross-field
+/// representation rules, so this remains a format check, not compiler or
+/// acceptance evidence.
+macro_rules! recover_canonical_component {
+    ($magic:expr, $version:expr, $decode:expr, validate $(,)?) => {
+        /// Recover the component from canonical bytes: magic, version,
+        /// bounded decode, structural validation, and canonical round-trip.
+        pub fn recover_canonical(
+            bytes: &[u8],
+            limits: PackagePolicyRecoveryLimits,
+        ) -> Result<Self, Error> {
+            super::recover_component(
+                bytes,
+                limits,
+                $magic,
+                $version,
+                $decode,
+                |policy| {
+                    policy
+                        .validate_canonical_structure()
+                        .map_err(|_| Error::InvalidValue)
+                },
+                Self::canonical_bytes,
+            )
+        }
+    };
+    ($magic:expr, $version:expr, $decode:expr $(,)?) => {
+        /// Recover the component from canonical bytes: magic, version,
+        /// bounded decode, and canonical round-trip.
+        pub fn recover_canonical(
+            bytes: &[u8],
+            limits: PackagePolicyRecoveryLimits,
+        ) -> Result<Self, Error> {
+            super::recover_component(
+                bytes,
+                limits,
+                $magic,
+                $version,
+                $decode,
+                |_| Ok(()),
+                Self::canonical_bytes,
+            )
+        }
+    };
+}
+pub(crate) use recover_canonical_component;

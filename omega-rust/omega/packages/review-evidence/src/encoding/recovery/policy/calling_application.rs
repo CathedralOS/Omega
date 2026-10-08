@@ -13,26 +13,11 @@ use crate::record::{
 };
 
 impl PackagePolicyCallingPlan {
-    /// Recover policy meaning with one shared byte/element/allocation budget.
-    /// This never recovers a checked plan, native evidence, or project decision.
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            CALLING_POLICY_MAGIC,
-            PACKAGE_CALLING_POLICY_VERSION,
-            application,
-            |policy| {
-                policy
-                    .validate_canonical_structure()
-                    .map_err(|_| Error::InvalidValue)
-            },
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        CALLING_POLICY_MAGIC,
+        PACKAGE_CALLING_POLICY_VERSION,
+        application, validate,
+    );
 }
 
 /// Decode inner fields with the caller's aggregate budgets and framing.

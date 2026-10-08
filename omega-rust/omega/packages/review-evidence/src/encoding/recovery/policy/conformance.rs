@@ -12,21 +12,11 @@ use crate::record::{
 };
 
 impl PackagePolicyClosedConformanceApplication {
-    /// Decode semantic policy without source access or reconstructing a proof.
-    pub fn recover_canonical(
-        bytes: &[u8],
-        limits: PackagePolicyRecoveryLimits,
-    ) -> Result<Self, Error> {
-        super::recover_component(
-            bytes,
-            limits,
-            CONFORMANCE_POLICY_MAGIC,
-            PACKAGE_CONFORMANCE_POLICY_VERSION,
-            application,
-            |_| Ok(()),
-            Self::canonical_bytes,
-        )
-    }
+    super::recover_canonical_component!(
+        CONFORMANCE_POLICY_MAGIC,
+        PACKAGE_CONFORMANCE_POLICY_VERSION,
+        application,
+    );
 }
 
 pub(in crate::encoding::recovery) fn application(
