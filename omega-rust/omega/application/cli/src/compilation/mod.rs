@@ -77,15 +77,7 @@ pub enum CompileProjectError {
 impl std::fmt::Display for CompileProjectError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Diagnostics(diagnostics) => {
-                for (index, diagnostic) in diagnostics.iter().enumerate() {
-                    if index != 0 {
-                        writeln!(formatter)?;
-                    }
-                    write!(formatter, "{diagnostic}")?;
-                }
-                Ok(())
-            }
+            Self::Diagnostics(diagnostics) => crate::write_diagnostics(formatter, diagnostics),
             Self::Preparation(error) => write!(formatter, "{error}"),
             Self::PackageCheck(error) => write!(formatter, "{error}"),
             Self::PackageNative(error) => write!(formatter, "{error}"),

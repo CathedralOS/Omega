@@ -38,15 +38,7 @@ pub enum InspectTerminalError {
 impl std::fmt::Display for InspectTerminalError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Diagnostics(diagnostics) => {
-                for (index, diagnostic) in diagnostics.iter().enumerate() {
-                    if index != 0 {
-                        writeln!(formatter)?;
-                    }
-                    write!(formatter, "{diagnostic}")?;
-                }
-                Ok(())
-            }
+            Self::Diagnostics(diagnostics) => crate::write_diagnostics(formatter, diagnostics),
             Self::Preparation(error) => write!(formatter, "{error}"),
             Self::Review(error) => write!(formatter, "cannot check inspection project: {error}"),
         }
