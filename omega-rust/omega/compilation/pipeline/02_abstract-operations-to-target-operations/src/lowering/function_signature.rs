@@ -44,6 +44,15 @@ pub(super) struct PreparedFunctionSignature {
     pub(super) parameters: Vec<TargetStructuralParameter>,
 }
 
+impl PreparedFunctionSignature {
+    /// The structural parameter arriving at `place`, when declared.
+    pub(super) fn parameter(&self, place: PlaceId) -> Option<&TargetStructuralParameter> {
+        self.parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
+}
+
 pub(super) fn parameters_by_place(
     parameters: &[TargetStructuralParameter],
 ) -> BTreeMap<PlaceId, &TargetStructuralParameter> {
