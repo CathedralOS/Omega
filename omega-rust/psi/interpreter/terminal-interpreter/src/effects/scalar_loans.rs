@@ -7,6 +7,9 @@
 //! retain original restrictions even when a formal observes a plain carrier.
 //! Requested aggregate arguments use this same protocol leaf by leaf under
 //! the already-bound referent; opaque host arguments remain opaque by default.
+//! Exclusive aggregate loans may snapshot original atomic residents without
+//! making ordinary scalar references. Their captured declaration stays Atomic;
+//! shared loans omit them, so a demanded atomic byte interval remains uncovered.
 
 use std::sync::Arc;
 
@@ -174,9 +177,11 @@ impl BoundaryScalarLoans {
         {
             return Err(malformed());
         }
-        for (field_path, expected) in
-            record_fields::scalar_leaves(&execution.program, parameter.structural_type)?
-        {
+        for (field_path, expected) in record_fields::scalar_leaves(
+            &execution.program,
+            parameter.structural_type,
+            parameter.access,
+        )? {
             // Argument preparation checked access and bound the exact projected
             // referent. Resolve leaves below that view, not the differently
             // typed containing place in the caller's activation.
@@ -187,11 +192,11 @@ impl BoundaryScalarLoans {
                     parameter.access == StructuralAccess::MutableBorrow,
                 )?
             } else {
-                execution.primitive_view_access(
+                execution.boundary_scalar_storage(
                     referent,
                     &field_path,
                     expected,
-                    parameter.access == StructuralAccess::SharedBorrow,
+                    parameter.access,
                 )?
             };
             if scalar_type != expected {
@@ -230,7 +235,7 @@ impl BoundaryScalarLoans {
             scalar_type,
             shared_view,
         )?;
-        let restriction = execution.captured_scalar_restriction(&storage)?;
+        let restriction = execution.captured_scalar_restriction(&storage, access)?;
         if restriction
             .as_ref()
             .is_some_and(|field| !original.satisfies_field(field))
@@ -406,6 +411,7 @@ impl TerminalExecution<'_> {
     fn captured_scalar_restriction(
         &self,
         storage: &PrimitiveStorage,
+        access: StructuralAccess,
     ) -> Result<Option<StructuralFieldType>, TerminalInterpretError> {
         let PrimitiveStorageEndpoint::ScalarField(cell) = &storage.endpoint else {
             return Ok(None);
@@ -448,7 +454,8 @@ impl TerminalExecution<'_> {
         };
         if field.relevance.is_erased()
             || field.field_type.scalar_type().is_none()
-            || matches!(field.field_type, StructuralFieldType::Atomic(_))
+            || (matches!(field.field_type, StructuralFieldType::Atomic(_))
+                && access != StructuralAccess::MutableBorrow)
         {
             return Err(malformed());
         }

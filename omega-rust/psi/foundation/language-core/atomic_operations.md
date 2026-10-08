@@ -52,8 +52,12 @@ happens-before replay rechecks. A backward latest-write analysis follows the act
 bindings, so a state parameter keeps the same modification history under its
 own place identity. The independent unit checker reconstructs that relation
 from its current edges and rejects substituted backing, stale initial-residency
-claims, ambiguous writes and intervening non-atomic writes or calls lending
-the atomic backing, including shared calls. Shared access does not prove an
+claims and ambiguous writes. An intervening non-atomic write or call lending
+the atomic backing, including a shared call, expires knowledge of its writer.
+The next event may retain an `AfterEffect` boundary naming that exact latest
+operation on every path; independent replay reconstructs the boundary, without
+claiming which internal write supplied the resident or recovering an old value.
+Shared access does not prove an
 unchanged atomic resident. Source and Terminal proof composition independently
 expire observations that shared calls may mutate; copied SSA values survive.
 The event retains its block-local root: arrival declarations supply access and

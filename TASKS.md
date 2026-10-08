@@ -1806,7 +1806,7 @@ then independent claimed restoration slices -> final closure.
   demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, accesses into actual padding or reference bytes, atomic host buffers,
+  loans, case-tagged host buffers, accesses into actual padding or reference bytes,
   non-hosted roots and required
   receiver qualifications. Foreign write-only loans depend on
   **WRITE-ONLY-BORROW**'s admitted implementation-bound non-observation evidence;
@@ -1895,8 +1895,12 @@ then independent claimed restoration slices -> final closure.
   Preserve `host/runtime_descriptor_reference_record_prefix_exit`: borrowing a
   record is not an owned copy; untouched descriptors retain their original
   referents while the demanded scalar prefix receives writeback. Non-scalar
-  members and atomic cells remain uncovered byte intervals, never interpreter
-  pointer values or ordinary scalar snapshots of atomic residents.
+  members remain uncovered byte intervals, never interpreter pointer values.
+  Preserve `host/runtime_descriptor_exclusive_atomic_record_exit`: exclusive
+  aggregate host loans retain original atomic backing through partial reads and
+  instruction-observed fetch results; shared output may access a disjoint
+  ordinary prefix but cannot snapshot the atomic tail. Opaque calls expire old
+  residency facts; their sequencing boundary is not an internal-write witness.
   Preserve `host/runtime_descriptor_local_array_loan_input_exit`: shared and mutable
   whole-array loans keep their owner's activation across calls and state edges;
   only owned occurrences copy payload, and short reads retain unread elements.

@@ -148,6 +148,10 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     // The retained ordering-relation edges are coherence evidence like the
     // retained ordering: identity changes when either claimed edge changes.
     match reads_from {
+        Some(AtomicReadsFrom::AfterEffect { operation }) => {
+            bytes.u8(4);
+            bytes.id(*operation);
+        }
         None => bytes.u8(1),
         Some(AtomicReadsFrom::InitialResidency) => bytes.u8(2),
         Some(AtomicReadsFrom::Write { operation }) => {
@@ -156,6 +160,10 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         }
     }
     match modification_after {
+        Some(AtomicModificationAfter::AfterEffect { operation }) => {
+            bytes.u8(4);
+            bytes.id(*operation);
+        }
         None => bytes.u8(1),
         Some(AtomicModificationAfter::InitialResidency) => bytes.u8(2),
         Some(AtomicModificationAfter::Write { operation }) => {

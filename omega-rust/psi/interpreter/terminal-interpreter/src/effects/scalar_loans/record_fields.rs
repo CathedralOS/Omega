@@ -1,5 +1,5 @@
 //! Enumerate semantic scalar leaves, without native offsets or byte geometry.
-//! These paths pin original backing through the ordinary primitive accessor;
+//! These paths pin original backing through the access-specific storage resolver;
 //! the host receives closed field identities, never source spellings or keys.
 //! Non-scalar members remain original opaque storage: traversal stops at a
 //! descriptor rather than following its referent. A native byte adapter must
@@ -8,22 +8,24 @@
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::AdmittedTerminalProgram;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType, StructuralTypeId};
-use terminal_psi::{StructuralFieldType, StructuralTypeShape};
+use terminal_psi::{StructuralAccess, StructuralFieldType, StructuralTypeShape};
 
 type ScalarLeaf = (Vec<CanonicalStructuralPathSegment>, ScalarType);
 
 pub(super) fn scalar_leaves(
     program: &AdmittedTerminalProgram,
     root: StructuralTypeId,
+    access: StructuralAccess,
 ) -> Result<Vec<ScalarLeaf>, TerminalInterpretError> {
     let mut leaves = Vec::new();
-    collect(program, root, &mut Vec::new(), &mut leaves)?;
+    collect(program, root, access, &mut Vec::new(), &mut leaves)?;
     Ok(leaves)
 }
 
 fn collect(
     program: &AdmittedTerminalProgram,
     root: StructuralTypeId,
+    access: StructuralAccess,
     closed: &mut Vec<CanonicalStructuralPathSegment>,
     leaves: &mut Vec<ScalarLeaf>,
 ) -> Result<(), TerminalInterpretError> {
@@ -45,14 +47,19 @@ fn collect(
                 if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
                     continue;
                 }
-                if matches!(field.field_type, StructuralFieldType::Atomic(_)) {
+                // Shared host access cannot replace an atomic event with an
+                // ordinary snapshot. Keep that interval uncovered, while an
+                // unrelated ordinary prefix remains observable.
+                if matches!(field.field_type, StructuralFieldType::Atomic(_))
+                    && access != StructuralAccess::MutableBorrow
+                {
                     continue;
                 }
                 closed.push(CanonicalStructuralPathSegment::Field(field.id));
                 if let Some(scalar) = field.field_type.scalar_type() {
                     leaves.push((closed.clone(), scalar));
                 } else if let StructuralFieldType::Structural(child) = field.field_type {
-                    collect(program, child, closed, leaves)?;
+                    collect(program, child, access, closed, leaves)?;
                 }
                 closed.pop();
             }
@@ -60,7 +67,7 @@ fn collect(
         StructuralTypeShape::FixedArray { element, length } => {
             for index in 0..*length {
                 closed.push(CanonicalStructuralPathSegment::FixedIndex(index));
-                collect(program, *element, closed, leaves)?;
+                collect(program, *element, access, closed, leaves)?;
                 closed.pop();
             }
         }

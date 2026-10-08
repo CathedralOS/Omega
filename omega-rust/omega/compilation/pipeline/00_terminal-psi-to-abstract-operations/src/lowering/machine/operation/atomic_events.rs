@@ -17,9 +17,12 @@
 //! field. Ordinary control edges preserve a dominating name. Projected or
 //! ambiguous bindings cannot establish this exact-location relation.
 //!
-//! The frontier contains invocation residency, an atomic write, or an unknown
-//! intervening write/loan. Only one unanimous frontier supplies a retained edge;
-//! branch-selected writes and opaque mutation refuse. The finite (block, root)
+//! The frontier contains invocation residency, an atomic write, or an exact
+//! intervening effect. An effect boundary expires knowledge of residency; the
+//! next instruction observes current backing without claiming an internal
+//! writer or reusing old facts. Independent replay requires that exact latest
+//! effect on every path. Only one unanimous frontier supplies a retained edge;
+//! branch-selected writes and ambiguous mutation refuse. The finite (block, root)
 //! worklist follows cycles without treating a repeated visit as new evidence.
 //! Event locations stay block-local so downstream authority and native address
 //! checks use the actual arrival declaration, not an invented invocation alias.
@@ -27,8 +30,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
-    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation,
-    AtomicModificationAfter, AtomicReadsFrom,
+    AbstractAtomicEvent, AbstractAtomicReadModifyWrite, AbstractOperation, AtomicModificationAfter,
+    AtomicReadsFrom,
 };
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
@@ -67,7 +70,7 @@ pub(super) fn lower(
             .result
             .scalar()
             .filter(|result| result.scalar_type == leaf)
-            .map(|result| result.into()            )
+            .map(|result| result.into())
             .ok_or_else(malformed)
     };
     let lowered = match *event {
@@ -128,22 +131,27 @@ pub(super) fn lower(
     }
     let reached = reaching_fact(machine, operation.id)?;
     let edge = |fact: &BTreeSet<Reaching>| match fact.iter().collect::<Vec<_>>().as_slice() {
-        [Reaching::Initial] => Ok(None),
-        [Reaching::Atomic(write)] => Ok(Some(*write)),
+        [reaching @ (Reaching::Initial | Reaching::Atomic(_) | Reaching::Effect(_))] => {
+            Ok(**reaching)
+        }
         _ => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
     };
     let reads_from = if lowered.observes_resident() {
         Some(match edge(&reached)? {
-            None => AtomicReadsFrom::InitialResidency,
-            Some(operation) => AtomicReadsFrom::Write { operation },
+            Reaching::Initial => AtomicReadsFrom::InitialResidency,
+            Reaching::Atomic(operation) => AtomicReadsFrom::Write { operation },
+            Reaching::Effect(operation) => AtomicReadsFrom::AfterEffect { operation },
+            Reaching::Unknown => return Err(malformed()),
         })
     } else {
         None
     };
     let modification_after = if lowered.joins_modification_order() {
         Some(match edge(&reached)? {
-            None => AtomicModificationAfter::InitialResidency,
-            Some(operation) => AtomicModificationAfter::Write { operation },
+            Reaching::Initial => AtomicModificationAfter::InitialResidency,
+            Reaching::Atomic(operation) => AtomicModificationAfter::Write { operation },
+            Reaching::Effect(operation) => AtomicModificationAfter::AfterEffect { operation },
+            Reaching::Unknown => return Err(malformed()),
         })
     } else {
         None
@@ -178,6 +186,8 @@ enum Reaching {
     Initial,
     /// The atomic writing event under this operation identity.
     Atomic(OperationId),
+    /// Exact operation whose opaque access invalidated knowledge of residency.
+    Effect(OperationId),
     /// A write no retained edge can name.
     Unknown,
 }
@@ -308,7 +318,7 @@ fn latest_write(
                 return Some(Reaching::Atomic(operation.id));
             }
             if other_root != root && event.modifies_resident() && may_alias(*other_root) {
-                return Some(Reaching::Unknown);
+                return Some(Reaching::Effect(operation.id));
             }
         }
         OperationKind::StructuralScalarFieldStore {
@@ -322,7 +332,7 @@ fn latest_write(
                     && terminal_semantics::structural_paths_may_overlap(other_path, path)
                     && other_field == field)
             {
-                return Some(Reaching::Unknown);
+                return Some(Reaching::Effect(operation.id));
             }
         }
         // These observations do not write. A shared call is different: it
@@ -342,7 +352,7 @@ fn latest_write(
                 .iter()
                 .any(|projection| projection.root == *root || may_alias(projection.root));
             if lends_root {
-                return Some(Reaching::Unknown);
+                return Some(Reaching::Effect(operation.id));
             }
         }
     }

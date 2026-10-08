@@ -29,6 +29,11 @@
 //! bounded `happens_before` derivation — a named write must happen before
 //! the event and be the modification-order-latest write to the place on
 //! every execution path — instead of trusting the producer's claim.
+//! An `AfterEffect` boundary instead records the exact latest opaque access,
+//! independently replayed on every path. It expires knowledge of the writer
+//! inside that access: the next atomic instruction observes current residency,
+//! never an inferred stored value. This is serial sequencing evidence, not a
+//! cross-activation reads-from or synchronization claim.
 //! `synchronizes_with`, `global_sequential_order`, and fence-pair
 //! synchronization constrain only cross-activation observation, and land
 //! with the concurrent-execution route.
@@ -85,6 +90,10 @@ pub enum AtomicReadsFrom {
     /// The event observes the atomic event standing under this operation
     /// identity in the checked activation.
     Write { operation: OperationId },
+    /// The latest potentially modifying operation is opaque to this function.
+    /// Observe current residency with the atomic instruction, without claiming
+    /// which write inside that operation supplied it or retaining old facts.
+    AfterEffect { operation: OperationId },
 }
 
 /// The retained `modification_order` edge of one write event: which
@@ -108,6 +117,9 @@ pub enum AtomicModificationAfter {
     /// The event immediately follows the write standing under this
     /// operation identity in the checked activation.
     Write { operation: OperationId },
+    /// Append to current residency after this opaque access. This is a
+    /// sequencing boundary, not an assertion about its internal atomic events.
+    AfterEffect { operation: OperationId },
 }
 
 /// Why a retained [`AtomicReadsFrom`] edge fails the coherence axiom
@@ -475,8 +487,11 @@ impl AbstractAtomicEvent {
 /// content inside one activation and land with the concurrent-execution
 /// route.
 ///
-/// Non-atomic writes and exclusive loans cannot be named by a retained edge
-/// and invalidate the reaching fact. Whole-storage edge bindings rename the
+/// Non-atomic writes and calls lending the backing invalidate any known writer.
+/// An `AfterEffect` boundary must name that exact latest operation on every
+/// path; it supplies no knowledge of internal writes or their values. Effects
+/// with no retained operation identity and ambiguous frontiers still refuse.
+/// Whole-storage edge bindings rename the
 /// queried root; paths and fields never change. Returns the
 /// offending event's block and node position together with the refusal,
 /// or `None` when every retained edge is coherent.
@@ -574,6 +589,7 @@ pub fn happens_before_atomic_coherence_violation(
 enum ReachingWrite {
     Initial,
     Atomic(BlockId, usize),
+    Effect(OperationId),
     Unknown,
 }
 
@@ -610,7 +626,11 @@ fn reaching_writes(
                 break;
             }
             if invalidates_location(operation, &location, roots_may_alias) {
-                reached.insert(ReachingWrite::Unknown);
+                reached.insert(
+                    operation
+                        .psi_operation()
+                        .map_or(ReachingWrite::Unknown, ReachingWrite::Effect),
+                );
                 stopped = true;
                 break;
             }
@@ -740,6 +760,9 @@ fn reads_from_violation(
         return Some(AtomicReadsFromViolation::MissingWitness);
     };
     match witness {
+        AtomicReadsFrom::AfterEffect { operation } => (reached
+            != &BTreeSet::from([ReachingWrite::Effect(operation)]))
+            .then_some(AtomicReadsFromViolation::UnresolvedObservedWrite { claimed: operation }),
         AtomicReadsFrom::InitialResidency => (reached != &BTreeSet::from([ReachingWrite::Initial]))
             .then_some(AtomicReadsFromViolation::InitialResidencyAfterWrite),
         AtomicReadsFrom::Write { operation: claimed } => {
@@ -787,6 +810,11 @@ fn modification_after_violation(
         return Some(AtomicModificationAfterViolation::MissingPredecessor);
     };
     match predecessor {
+        AtomicModificationAfter::AfterEffect { operation } => {
+            (reached != &BTreeSet::from([ReachingWrite::Effect(operation)])).then_some(
+                AtomicModificationAfterViolation::UnresolvedPredecessor { claimed: operation },
+            )
+        }
         AtomicModificationAfter::InitialResidency => (reached
             != &BTreeSet::from([ReachingWrite::Initial]))
             .then_some(AtomicModificationAfterViolation::InitialResidencyAfterWrite),

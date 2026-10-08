@@ -31,6 +31,15 @@ pub(crate) mod encoding;
 
 pub(crate) use encoding::{scalar_fits_storage, shifted_byte_endpoint};
 
+/// Reference formation and a host snapshot have different atomic permissions.
+/// A snapshot under an already-bound exclusive aggregate loan may inspect its
+/// atomic resident; no operation here can create a plain reference to that cell.
+#[derive(Clone, Copy)]
+enum ScalarStorageObservation {
+    OrdinaryReference { shared_view: bool },
+    ExclusiveSnapshot,
+}
+
 /// A loan pins its owner's exact activation until it returns. Stack depth is
 /// stable across nested calls; the machine and type prevent namespace rebinding.
 /// This is the same frame-home contract used by borrowed byte-array storage.
@@ -629,6 +638,45 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         shared_view: bool,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        self.resolve_scalar_view_storage(
+            view,
+            path,
+            scalar_type,
+            ScalarStorageObservation::OrdinaryReference { shared_view },
+        )
+    }
+
+    /// Called only after argument binding authenticates the aggregate loan.
+    /// Shared snapshots retain ordinary observation rules; exclusive snapshots
+    /// retain original atomic backing without forming a scalar reference.
+    pub(crate) fn boundary_scalar_storage(
+        &self,
+        view: &TerminalStructuralValue,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+        access: StructuralAccess,
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        let observation = match access {
+            StructuralAccess::MutableBorrow => ScalarStorageObservation::ExclusiveSnapshot,
+            StructuralAccess::SharedBorrow => {
+                ScalarStorageObservation::OrdinaryReference { shared_view: true }
+            }
+            _ => return Err(malformed()),
+        };
+        self.resolve_scalar_view_storage(view, path, scalar_type, observation)
+    }
+
+    fn resolve_scalar_view_storage(
+        &self,
+        view: &TerminalStructuralValue,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+        observation: ScalarStorageObservation,
+    ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        let shared_view = matches!(
+            observation,
+            ScalarStorageObservation::OrdinaryReference { shared_view: true }
+        );
         let backing_view = view;
         let mut projected = view.clone();
         let mut carrier = view.structural_type;
@@ -648,10 +696,10 @@ impl TerminalExecution<'_> {
                         .find(|field| field.id == *identity && !field.relevance.is_erased())
                         .ok_or_else(malformed)?;
                     if position + 1 == path.len()
-                        && !matches!(
+                        && (!matches!(
                             field.field_type,
                             terminal_psi::StructuralFieldType::Atomic(_)
-                        )
+                        ) || matches!(observation, ScalarStorageObservation::ExclusiveSnapshot))
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
                         let mut leaf = projected.clone();
@@ -660,7 +708,15 @@ impl TerminalExecution<'_> {
                         if let Some((storage, logical_scalar)) =
                             self.reference_byte_region_access(backing_view, &leaf)?
                         {
-                            if logical_scalar != scalar_type {
+                            // A representation view proves a byte codec, not
+                            // dedicated atomic-cell identity. Exclusive capture
+                            // still requires original atomic resident backing.
+                            if logical_scalar != scalar_type
+                                || matches!(
+                                    field.field_type,
+                                    terminal_psi::StructuralFieldType::Atomic(_)
+                                )
+                            {
                                 return Err(malformed());
                             }
                             return Ok((storage, scalar_type, shared_view));

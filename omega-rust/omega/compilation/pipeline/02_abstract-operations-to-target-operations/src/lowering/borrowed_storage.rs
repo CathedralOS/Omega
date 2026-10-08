@@ -91,9 +91,9 @@ fn collect(
                 if matches!(member.field_type, StructuralFieldType::Erased { .. }) {
                     continue;
                 }
-                if matches!(member.field_type, StructuralFieldType::Atomic(_)) {
-                    continue;
-                }
+                // Atomic residents have scalar geometry, not ordinary scalar
+                // permission. The interpreter authenticates exclusive capture
+                // separately; shared capture leaves this interval uncovered.
                 path.push(Path::Field(member.id));
                 if let Some(scalar) = member.field_type.scalar_type() {
                     let (displacement, _) = structural_layout::direct_scalar_field_geometry(
