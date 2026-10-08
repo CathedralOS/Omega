@@ -317,12 +317,13 @@ fn expression_type_reference(
 
 fn collection_element_type(
     program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    loop {
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    {
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::FixedArray { element_type, .. }
             | TypeReferenceNode::Slice { element_type } => return Some(*element_type),
             _ => return None,
@@ -334,13 +335,10 @@ fn type_reference_base_symbol(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> SymbolHandle {
-    match program.type_reference_table.type_reference(type_reference) {
-        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_base_symbol(program, *referee)
-        }
-        typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_reference_base_symbol(program, *base_type)
-        }
+    let peeled = program
+        .type_reference_table
+        .peeled_type_reference(type_reference);
+    match program.type_reference_table.type_reference(peeled) {
         typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
         | typed_trees::types::TypeReferenceNode::DynamicTrait {
             symbol: base_symbol,
@@ -350,10 +348,7 @@ fn type_reference_base_symbol(
             symbol: base_symbol,
             ..
         } => *base_symbol,
-        typed_trees::types::TypeReferenceNode::FixedArray { .. }
-        | typed_trees::types::TypeReferenceNode::Slice { .. }
-        | typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
+        _ => SymbolHandle::invalid(),
     }
 }
 

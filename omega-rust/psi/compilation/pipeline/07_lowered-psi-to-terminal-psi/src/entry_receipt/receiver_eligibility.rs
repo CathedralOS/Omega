@@ -48,14 +48,9 @@ pub(super) fn derive(
         return None;
     }
     let source_position = u32::try_from(source_position).ok()?;
-    let mut owned = receiver.type_reference;
-    loop {
-        match checked.type_reference_table.type_reference(owned) {
-            TypeReferenceNode::Reference { referee, .. } => owned = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => owned = *base_type,
-            _ => break,
-        }
-    }
+    let owned = checked
+        .type_reference_table
+        .peeled_type_reference(receiver.type_reference);
     let TypeReferenceNode::Named { symbol, .. } =
         checked.type_reference_table.type_reference(owned)
     else {

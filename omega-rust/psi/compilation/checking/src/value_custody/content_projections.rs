@@ -518,18 +518,12 @@ fn normalize_subject_field(
 
 fn data_field<'program>(
     program: &'program dyn crate::CheckingInput,
-    mut receiver_type: TypeReferenceHandle,
+    receiver_type: TypeReferenceHandle,
     name: &str,
 ) -> Option<&'program typed_trees::data::DataField> {
-    loop {
-        receiver_type = match program.type_reference_table.type_reference(receiver_type) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => *referee,
-            _ => break,
-        };
-    }
+    let receiver_type = program
+        .type_reference_table
+        .peeled_type_reference(receiver_type);
     let (symbol, fallback) = match program.type_reference_table.type_reference(receiver_type) {
         TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str()),
         TypeReferenceNode::Generic {
@@ -580,8 +574,9 @@ fn runtime_scalar_can_embed(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    let type_reference =
-        program.type_reference_table.unconstrained_type_reference(type_reference);
+    let type_reference = program
+        .type_reference_table
+        .unconstrained_type_reference(type_reference);
     matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Named { name, .. }
@@ -590,9 +585,10 @@ fn runtime_scalar_can_embed(
 }
 
 fn compiler_owned_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> bool {
-    let owning_machine = program.machines().iter().find(|machine| {
-        program.machine_or_state_symbol(machine, symbol)
-    });
+    let owning_machine = program
+        .machines()
+        .iter()
+        .find(|machine| program.machine_or_state_symbol(machine, symbol));
     let declaration = owning_machine.map_or(symbol, |machine| machine.symbol);
     let authored = program
         .machine_specializations
@@ -626,7 +622,9 @@ fn projection_subject(
         } if access.is_readable() && !access.is_exclusive() => Some(ProjectionSubject {
             symbol: parameter.symbol,
             qualified: *referee,
-            carrier: program.type_reference_table.unconstrained_type_reference(*referee),
+            carrier: program
+                .type_reference_table
+                .unconstrained_type_reference(*referee),
         }),
         _ => None,
     }

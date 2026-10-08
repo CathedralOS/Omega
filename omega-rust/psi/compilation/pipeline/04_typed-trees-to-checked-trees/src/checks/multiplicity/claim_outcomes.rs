@@ -708,20 +708,14 @@ fn carrier_declaration(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    let mut type_reference = type_reference;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type;
-            }
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                type_reference = *referee;
-            }
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-                return symbol.is_valid().then_some(*symbol);
-            }
-            _ => return None,
+    let type_reference = program
+        .type_reference_table
+        .peeled_type_reference(type_reference);
+    match program.type_reference_table.type_reference(type_reference) {
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+            symbol.is_valid().then_some(*symbol)
         }
+        _ => None,
     }
 }
 

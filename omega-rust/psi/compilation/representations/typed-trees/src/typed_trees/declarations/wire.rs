@@ -228,17 +228,12 @@ pub fn data_field_type(
 /// rather than the schema carrier so element-level facts cannot disappear.
 pub fn fixed_array_element_type(
     program: &crate::TypedTrees,
-    mut handle: TypeReferenceHandle,
+    handle: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    loop {
-        handle = match program.type_reference_table.type_reference(handle) {
-            crate::types::TypeReferenceNode::Reference { referee, .. } => *referee,
-            crate::types::TypeReferenceNode::Constrained { base_type, .. } => *base_type,
-            crate::types::TypeReferenceNode::FixedArray { element_type, .. } => {
-                return Some(*element_type);
-            }
-            _ => return None,
-        };
+    let handle = program.type_reference_table.peeled_type_reference(handle);
+    match program.type_reference_table.type_reference(handle) {
+        crate::types::TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
+        _ => None,
     }
 }
 
@@ -251,33 +246,23 @@ pub fn repeated_element_type(
     match carrier {
         WireRepeatedCarrier::FixedArray => fixed_array_element_type(program, handle),
         WireRepeatedCarrier::FixedVec => {
-            let mut handle = handle;
-            let (symbol, name) = loop {
-                match program.type_reference_table.type_reference(handle) {
-                    crate::types::TypeReferenceNode::Reference { referee, .. } => {
-                        handle = *referee;
-                    }
-                    crate::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                        handle = *base_type;
-                    }
-                    crate::types::TypeReferenceNode::Generic {
-                        base_name,
-                        arguments,
-                        ..
-                    } if base_name.as_str() == "FixedVec" => {
-                        let [element, _] = program
-                            .type_reference_table
-                            .type_reference_handles(*arguments)
-                        else {
-                            return None;
-                        };
-                        return Some(*element);
-                    }
-                    crate::types::TypeReferenceNode::Named { symbol, name } => {
-                        break (*symbol, name);
-                    }
-                    _ => return None,
+            let handle = program.type_reference_table.peeled_type_reference(handle);
+            let (symbol, name) = match program.type_reference_table.type_reference(handle) {
+                crate::types::TypeReferenceNode::Generic {
+                    base_name,
+                    arguments,
+                    ..
+                } if base_name.as_str() == "FixedVec" => {
+                    let [element, _] = program
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                    else {
+                        return None;
+                    };
+                    return Some(*element);
                 }
+                crate::types::TypeReferenceNode::Named { symbol, name } => (*symbol, name),
+                _ => return None,
             };
             let data = program
                 .data_definitions()
