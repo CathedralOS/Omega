@@ -151,11 +151,7 @@ pub(crate) fn crash_routes(
                 .iter()
                 .filter(|contract| contract.kind == SignatureContractKind::Crashes { cause })
             {
-                for offset in 0..contract.facts.count() {
-                    let fact_handle = arena::Handle::from_parts(
-                        contract.facts.start().arena_index() + offset,
-                        contract.facts.start().generation(),
-                    );
+                for fact_handle in contract.facts.handles() {
                     let ProofFact::Expression(expression) =
                         compilation.proof_facts.get(fact_handle)
                     else {

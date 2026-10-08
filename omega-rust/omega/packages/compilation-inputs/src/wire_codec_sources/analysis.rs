@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use arena::Handle;
 use arena::HandleSpan;
 use source::SourceMap;
 use source::SourceSpan;
@@ -249,11 +248,7 @@ pub(super) fn collect_domains(
                     .then_some(*span)
             })
             .collect::<Vec<_>>();
-        for index in 0..domain.facts.count() {
-            let fact = Handle::from_parts(
-                domain.facts.start().arena_index() + index,
-                domain.facts.start().generation(),
-            );
+        for fact in domain.facts.handles() {
             if let Some(span) = syntax_trees.tables.items.proof_fact_source_span(fact) {
                 domains
                     .entry(domain.name.as_str().to_owned())
