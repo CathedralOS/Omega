@@ -1063,21 +1063,18 @@ pub(crate) fn internal_arrivals<'program>(
                 if !target.is_valid() {
                     continue;
                 }
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named {
-                        path, arguments, ..
-                    } => {
-                        if let Some(destination) =
-                            internal_state_index(program, machine, path.symbol)
-                        {
-                            arrivals.push((
-                                source,
-                                destination,
-                                program.statement_table.expression_handles(*arguments),
-                            ));
-                        }
+                if let Some((path, arguments)) =
+                    program.statement_table.named_transition_target(target)
+                {
+                    if let Some(destination) =
+                        internal_state_index(program, machine, path.symbol)
+                    {
+                        arrivals.push((
+                            source,
+                            destination,
+                            program.statement_table.expression_handles(arguments),
+                        ));
                     }
-                    TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {}
                 }
             }
         }

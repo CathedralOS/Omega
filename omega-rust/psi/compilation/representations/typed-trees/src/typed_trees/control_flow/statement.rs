@@ -552,6 +552,20 @@ impl StatementTable {
         self.transition_targets.get(handle)
     }
 
+    /// The named-target path and argument span, or `None` for value and
+    /// terminal targets.
+    pub fn named_transition_target(
+        &self,
+        handle: TransitionTargetHandle,
+    ) -> Option<(&TableNamePath, HandleSpan<crate::expression::ExpressionHandle>)> {
+        match self.transition_target(handle) {
+            TransitionTargetNode::Named {
+                path, arguments, ..
+            } => Some((path, *arguments)),
+            _ => None,
+        }
+    }
+
     pub fn transition_target_mut(
         &mut self,
         handle: TransitionTargetHandle,
