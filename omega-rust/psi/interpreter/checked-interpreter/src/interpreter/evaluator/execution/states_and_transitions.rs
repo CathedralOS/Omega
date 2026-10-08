@@ -409,11 +409,11 @@ impl<'program> Evaluator<'program> {
         self.run_resolved_build_time_machine(machine, arguments)
     }
 
-    fn run_resolved_build_time_machine(
+    fn build_time_entry_state(
         &mut self,
         machine: &'program Machine,
-        arguments: Vec<build_time_values::BuildTimeValue>,
-    ) -> EvalResult<build_time_values::BuildTimeValue> {
+        argument_count: usize,
+    ) -> EvalResult<&'program State> {
         let machine_name = machine.name.as_str();
         let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
             Halt::Trap(format!(
@@ -421,13 +421,22 @@ impl<'program> Evaluator<'program> {
             ))
         })?;
         let parameter_count = self.program.state_parameters(entry_state).len();
-        if parameter_count != arguments.len() {
+        if parameter_count != argument_count {
             return Err(Halt::Trap(format!(
-                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time \
-                 position supplied {}",
-                arguments.len()
+                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time                  position supplied {}",
+                argument_count
             )));
         }
+        Ok(entry_state)
+    }
+
+    fn run_resolved_build_time_machine(
+        &mut self,
+        machine: &'program Machine,
+        arguments: Vec<build_time_values::BuildTimeValue>,
+    ) -> EvalResult<build_time_values::BuildTimeValue> {
+        let machine_name = machine.name.as_str();
+        let entry_state = self.build_time_entry_state(machine, arguments.len())?;
 
         let argument_cells = arguments
             .into_iter()
@@ -524,18 +533,7 @@ impl<'program> Evaluator<'program> {
         allow_filesystem: bool,
     ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
         let machine_name = machine.name.as_str();
-        let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
-            Halt::Trap(format!(
-                "machine `{machine_name}` has no states to evaluate"
-            ))
-        })?;
-        let parameter_count = self.program.state_parameters(entry_state).len();
-        if parameter_count != arguments.len() {
-            return Err(Halt::Trap(format!(
-                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time position supplied {}",
-                arguments.len()
-            )));
-        }
+        let entry_state = self.build_time_entry_state(machine, arguments.len())?;
 
         let argument_cells: Vec<Cell> = arguments
             .into_iter()
