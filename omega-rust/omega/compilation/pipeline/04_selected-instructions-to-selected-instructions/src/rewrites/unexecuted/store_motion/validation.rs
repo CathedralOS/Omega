@@ -14,7 +14,6 @@
 //! error therefore fails validation even when the proposal is exactly
 //! what that producer emitted.
 
-
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};

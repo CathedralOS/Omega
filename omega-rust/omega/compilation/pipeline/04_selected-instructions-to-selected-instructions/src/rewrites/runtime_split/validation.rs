@@ -13,7 +13,6 @@
 //! therefore fails here even when the proposal is exactly what that producer
 //! emitted.
 
-
 use selected_instructions::SelectedInstructionPlan;
 
 use super::{RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit};

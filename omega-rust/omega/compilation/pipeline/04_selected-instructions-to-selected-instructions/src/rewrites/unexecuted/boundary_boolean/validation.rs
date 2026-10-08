@@ -239,80 +239,6 @@ fn reconstruct<'source>(
     })
 }
 
-/// The validation work this audit performs, in the measured-step contract
-/// the family publishes: one step per block plus one per instruction
-/// across the plan, two scans of the reconstructed function's blocks for
-/// the producer audit, and the shared walk's setup and fixpoint bound at
-/// one per used flag unit.
-fn measured_steps(
-    plan: &SelectedInstructionPlan,
-    function: &SelectedFunction,
-    successors: &[Vec<usize>],
-    implicit_uses: usize,
-) -> Result<u64, BoundaryBooleanError> {
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let edge_count = successors
-        .iter()
-        .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let block_count = function.blocks.len();
-    // The shared walk's setup resolves every edge's target index, fills
-    // the predecessor lists, and marks the backward cone. Each used unit
-    // scans the materialization block's prefix and — on an in-block
-    // miss — every block's stream for its last event, after which
-    // entry-set propagation requeues a block only while its set grows:
-    // a set holds at most one element per event site plus the unknown
-    // marker, so pops stay under `blocks × (elements + 1)` and each pop
-    // visits its out-edges at a bounded union cost.
-    let elements = function_scan
-        .checked_add(1)
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let pops = block_count
-        .checked_mul(
-            elements
-                .checked_add(1)
-                .ok_or(BoundaryBooleanError::IdentityOverflow)?,
-        )
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let widest_out = successors
-        .iter()
-        .map(|targets| targets.len())
-        .max()
-        .unwrap_or(0);
-    let per_unit = function_scan
-        .checked_add(block_count)
-        .and_then(|total| total.checked_add(pops))
-        .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let walk_setup = edge_count
-        .checked_mul(
-            block_count
-                .checked_add(1)
-                .ok_or(BoundaryBooleanError::IdentityOverflow)?,
-        )
-        .and_then(|total| total.checked_add(block_count))
-        .and_then(|total| total.checked_add(edge_count))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let reach_scan = implicit_uses
-        .checked_mul(per_unit)
-        .and_then(|total| total.checked_add(walk_setup))
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    let steps = crate::rewrites::plan_instruction_scan(plan)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan.checked_mul(2)?)?
-                .checked_add(reach_scan)
-        })
-        .ok_or(BoundaryBooleanError::IdentityOverflow)?;
-    u64::try_from(steps).map_err(|_| BoundaryBooleanError::IdentityOverflow)
-}
-
 /// Build the instruction the contract demands from the validator's own
 /// record: a decided predicate becomes the target's own materialize row
 /// carrying the outcome, while the boolean's result register, instruction
@@ -405,12 +331,14 @@ pub fn validate_boundary_boolean_fold(
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedBoundaryBoolean, BoundaryBooleanError> {
     let reconstructed = reconstruct(source, function_index, materialization, environment)?;
-    if measured_steps(
+    if u64::try_from(super::measured_steps(
         source.selected_plan(),
         reconstructed.function,
         &reconstructed.successors,
         reconstructed.implicit_uses,
-    )? > budget.validation_steps()
+    )?)
+    .map_err(|_| BoundaryBooleanError::IdentityOverflow)?
+        > budget.validation_steps()
     {
         return Err(BoundaryBooleanError::WorkBudgetExceeded);
     }
