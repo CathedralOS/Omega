@@ -129,20 +129,29 @@ struct ExpressionSymbolContext<'visit, 'scope> {
 }
 
 impl ExpressionSymbolContext<'_, '_> {
+    /// Reassigns one type reference with this context's symbol table, machine
+    /// scope, parameters, state symbol, and child arenas — every walk's call.
+    fn reassign_type_reference(
+        &mut self,
+        type_reference: arena::Handle<symbol_resolved_trees::types::TypeReference>,
+    ) {
+        crate::symbols::type_references::reassign_type_reference_symbols_and_values(
+            self.symbols,
+            self.machine,
+            self.parameters,
+            self.state_symbol,
+            self.expression_table,
+            self.child_type_references,
+            type_reference,
+        );
+    }
+
     fn assign_static_argument_type_symbols(
         &mut self,
         argument: &symbol_resolved_trees::expression::StaticMachineArgument,
     ) {
         if argument.type_reference.is_valid() {
-            crate::symbols::type_references::reassign_type_reference_symbols_and_values(
-                self.symbols,
-                self.machine,
-                self.parameters,
-                self.state_symbol,
-                self.expression_table,
-                self.child_type_references,
-                argument.type_reference,
-            );
+            self.reassign_type_reference(argument.type_reference);
         }
         if let Some(application) = &argument.application {
             for nested in &application.arguments {
@@ -205,27 +214,11 @@ impl ExpressionSymbolContext<'_, '_> {
             | symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
             symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {
                 self.assign_expression_table_symbols(cast.value);
-                crate::symbols::type_references::reassign_type_reference_symbols_and_values(
-                    self.symbols,
-                    self.machine,
-                    self.parameters,
-                    self.state_symbol,
-                    self.expression_table,
-                    self.child_type_references,
-                    cast.target_type,
-                );
+                self.reassign_type_reference(cast.target_type);
                 crate::symbols::type_references::each_type_reference_handle(
                     cast.semantic_domain_arguments,
                     |handle| {
-                        crate::symbols::type_references::reassign_type_reference_symbols_and_values(
-                            self.symbols,
-                            self.machine,
-                            self.parameters,
-                            self.state_symbol,
-                            self.expression_table,
-                            self.child_type_references,
-                            handle,
-                        );
+                        self.reassign_type_reference(handle);
                     },
                 );
             }
@@ -311,15 +304,7 @@ impl ExpressionSymbolContext<'_, '_> {
                 assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
             }
             symbol_resolved_trees::expression::ExpressionNode::ZeroValue(type_reference) => {
-                crate::symbols::type_references::reassign_type_reference_symbols_and_values(
-                    self.symbols,
-                    self.machine,
-                    self.parameters,
-                    self.state_symbol,
-                    self.expression_table,
-                    self.child_type_references,
-                    type_reference,
-                );
+                self.reassign_type_reference(type_reference);
             }
         }
     }
