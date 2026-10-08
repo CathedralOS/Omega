@@ -129,11 +129,22 @@ pub(super) fn prepare<'a>(
             let successor = match &case.outcome {
                 checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => successor,
                 checked_trees::CheckedClosedSumCaseOutcomePlan::Return(_) => {
+                    // An arm covering several cases (a wildcard or a
+                    // case-union domain) cannot name a payload, since payload
+                    // bindings need a known case shape. It binds none, so its
+                    // completion runs once in a block each covered case
+                    // enters.
+                    let shared = fields.is_empty()
+                        && cases
+                            .iter()
+                            .filter(|other| other.outcome == case.outcome)
+                            .count()
+                            > 1;
                     // As with a guard dispatch, bind relevant scalar payloads
                     // on the selected edge before any completion operand runs.
                     // The whole subject may be disposed on that edge; these
                     // copied values remain available in its dominated block.
-                    for field in &declared.fields {
+                    for field in declared.fields.iter().filter(|_| !shared) {
                         if field.relevance.is_erased() || fields.contains(&field.id) {
                             continue;
                         }

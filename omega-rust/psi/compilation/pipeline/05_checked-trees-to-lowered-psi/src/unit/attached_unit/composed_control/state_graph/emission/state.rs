@@ -627,11 +627,57 @@ impl StateGraphEmission<'_, '_> {
             .filter(|prepared| prepared.discard_subject)
             .map(|prepared| vec![prepared.source])
             .unwrap_or_default();
+        // Cases sharing one payload-free returning arm complete through one
+        // block: the arm's operands and call run once, so its source
+        // coordinates stay unique. Each later case enters through its own
+        // staged block that jumps there, as a successor edge does, so no
+        // block follows two dispatch decisions.
+        let mut shared_return_blocks = Vec::new();
         let closed_return_edges = if let Some(prepared) = &prepared_cases {
             prepared
                 .cases
                 .iter()
                 .map(|case| match &case.outcome {
+                    checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm)
+                        if case.values.is_empty()
+                            && shared_return_blocks
+                                .iter()
+                                .any(|(arm, _)| *arm == return_arm) =>
+                    {
+                        let (_, target) = shared_return_blocks
+                            .iter()
+                            .find(|(arm, _)| *arm == return_arm)
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit graph shared return arm lost its block",
+                            ))?;
+                        let staged = block_id(allocate_dense(&mut next_block)?);
+                        evaluation.blocks.push(Block {
+                            id: staged,
+                            parameters: Vec::new(),
+                            erased_scalar_formals: Vec::new(),
+                            erased_proof_formals: Vec::new(),
+                            structural_parameters: Vec::new(),
+                            operations: Vec::new(),
+                            terminator: Terminator::Jump {
+                                edge: edge_id(allocate_dense(&mut next_edge)?),
+                                target: *target,
+                                arguments: Vec::new(),
+                                erased_arguments: Vec::new(),
+                                erased_proof_arguments: Vec::new(),
+                                structural_arguments: Vec::new(),
+                                cleanup_actions: Vec::new(),
+                            },
+                        });
+                        Ok(Some(SuccessorEdge {
+                            edge: edge_id(allocate_dense(&mut next_edge)?),
+                            target: staged,
+                            arguments: Vec::new(),
+                            erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                            cleanup_actions: Vec::new(),
+                        }))
+                    }
                     checked_trees::CheckedClosedSumCaseOutcomePlan::Return(return_arm) => {
                         let payload_parameters = case
                             .values
@@ -651,7 +697,7 @@ impl StateGraphEmission<'_, '_> {
                                 position: values.len() + ordinal,
                             })
                             .collect::<Vec<_>>();
-                        self.conditional_return_arm(
+                        let edge = self.conditional_return_arm(
                             position,
                             &state_parameters,
                             namespace,
@@ -664,8 +710,11 @@ impl StateGraphEmission<'_, '_> {
                             &mut next_block,
                             &mut next_edge,
                             &mut operations,
-                        )
-                        .map(Some)
+                        )?;
+                        if case.values.is_empty() {
+                            shared_return_blocks.push((return_arm, edge.target));
+                        }
+                        Ok(Some(edge))
                     }
                     checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(_) => Ok(None),
                 })
