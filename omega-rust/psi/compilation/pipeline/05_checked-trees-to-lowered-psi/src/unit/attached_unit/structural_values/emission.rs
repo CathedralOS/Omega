@@ -1649,10 +1649,10 @@ impl Emission<'_, '_, '_> {
         reads: &[checked_trees::CheckedScalarExpression],
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
-        let shape = self
-            .structural_types
-            .iter()
-            .find(|item| item.id == self.structural_type)
+        let shape = crate::structural_types::declaration(
+            &self.structural_types[..],
+            self.structural_type,
+        )
             .ok_or(LoweringError::Unsupported(
                 "view element copy structural type missing",
             ))?;

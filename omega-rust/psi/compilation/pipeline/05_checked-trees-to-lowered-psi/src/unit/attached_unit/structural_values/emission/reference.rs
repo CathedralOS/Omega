@@ -31,10 +31,10 @@ impl Emission<'_, '_, '_> {
             .with_structural_observations(self.structural_types)
             .with_primitive_storage(&self.evaluation.primitive_storage);
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
-        let referent = self
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == referent_type)
+        let referent = crate::structural_types::declaration(
+            &self.structural_types[..],
+            referent_type,
+        )
             .ok_or(LoweringError::Unsupported(
                 "reference referent type is missing",
             ))?;
@@ -68,10 +68,10 @@ impl Emission<'_, '_, '_> {
                 self.direct_borrow(argument)
             };
         }
-        let declaration = self
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == self.structural_type)
+        let declaration = crate::structural_types::declaration(
+            &self.structural_types[..],
+            self.structural_type,
+        )
             .ok_or(LoweringError::Unsupported(
                 "reference value type is missing",
             ))?;

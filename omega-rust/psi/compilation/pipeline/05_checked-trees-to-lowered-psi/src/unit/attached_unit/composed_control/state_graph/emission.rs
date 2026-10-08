@@ -638,10 +638,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .map(|identity| lookup_type_id(&catalogs.type_ids, identity))
         .transpose()?;
     if let Some(attachment) = attachment {
-        let declaration = catalogs
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == attachment)
+        let declaration = crate::structural_types::declaration(
+            catalogs.structural_types.as_ref(),
+            attachment,
+        )
             .ok_or(LoweringError::Unsupported(
                 "Unit graph attachment declaration is absent",
             ))?;

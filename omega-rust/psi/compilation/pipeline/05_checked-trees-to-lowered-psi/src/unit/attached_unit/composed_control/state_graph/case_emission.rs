@@ -81,10 +81,10 @@ pub(super) fn prepare<'a>(
         }
         _ => return unsupported("Unit graph case subject source unsupported"),
     };
-    let declaration = catalogs
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == structural_type)
+    let declaration = crate::structural_types::declaration(
+            &catalogs.structural_types[..],
+            structural_type,
+        )
         .ok_or(LoweringError::Unsupported("Unit graph case type missing"))?;
     let StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
         return unsupported("Unit graph case subject is not a sum");

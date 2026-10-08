@@ -354,11 +354,10 @@ impl PredicateTerms for ScalarContractTerms<'_> {
                         "byte predicate names a non-structural formal",
                     ))?;
                 let (root, path, carrier) = if path.is_empty() {
-                    let carrier = self
-                        .views
-                        .structural_types
-                        .iter()
-                        .find(|declaration| declaration.id == parameter.structural_type)
+                    let carrier = crate::structural_types::declaration(
+                        &self.views.structural_types[..],
+                        parameter.structural_type,
+                    )
                         .and_then(|declaration| match declaration.shape {
                             terminal_psi::StructuralTypeShape::ByteSequence(carrier) => {
                                 Some(carrier)

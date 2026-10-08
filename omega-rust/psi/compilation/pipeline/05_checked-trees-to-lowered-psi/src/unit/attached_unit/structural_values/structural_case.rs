@@ -35,10 +35,10 @@ impl emission::Emission<'_, '_, '_> {
             .checked
             .data_definition_by_symbol(data_symbol)
             .ok_or(LoweringError::Unsupported("case owner declaration missing"))?;
-        let shape = self
-            .structural_types
-            .iter()
-            .find(|item| item.id == self.structural_type)
+        let shape = crate::structural_types::declaration(
+            &self.structural_types[..],
+            self.structural_type,
+        )
             .ok_or(LoweringError::Unsupported("case structural type missing"))?;
         // A mixed shape's establishment roster is its runtime common fields in
         // declaration order, then the selected case's payload. Erased common

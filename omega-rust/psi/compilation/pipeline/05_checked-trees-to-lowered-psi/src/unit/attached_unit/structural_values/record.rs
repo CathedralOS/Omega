@@ -60,10 +60,10 @@ impl emission::Emission<'_, '_, '_> {
             .data_definition_by_symbol(data_symbol)
             .ok_or(LoweringError::Unsupported("record declaration missing"))?;
         let declarations = self.checked.data_members(record);
-        let shape = self
-            .structural_types
-            .iter()
-            .find(|item| item.id == self.structural_type)
+        let shape = crate::structural_types::declaration(
+            &self.structural_types[..],
+            self.structural_type,
+        )
             .ok_or(LoweringError::Unsupported("record structural type missing"))?;
         let StructuralTypeShape::Record {
             fields: shape_fields,

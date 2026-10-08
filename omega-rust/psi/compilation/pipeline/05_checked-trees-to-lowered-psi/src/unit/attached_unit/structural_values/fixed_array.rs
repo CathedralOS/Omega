@@ -19,10 +19,10 @@ impl emission::Emission<'_, '_, '_> {
         elements: &[CheckedStructuralValueHandle],
         type_reference: checked_trees::types::TypeReferenceHandle,
     ) -> Result<PlaceId, LoweringError> {
-        let declaration = self
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == self.structural_type)
+        let declaration = crate::structural_types::declaration(
+            &self.structural_types[..],
+            self.structural_type,
+        )
             .ok_or(LoweringError::Unsupported("fixed array carrier is missing"))?;
         let StructuralTypeShape::FixedArray { element, .. } = declaration.shape else {
             return unsupported("fixed array literal has a nonarray carrier");
