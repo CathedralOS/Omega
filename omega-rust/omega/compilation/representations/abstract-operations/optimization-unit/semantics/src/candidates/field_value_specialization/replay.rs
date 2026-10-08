@@ -34,22 +34,15 @@ use crate::unit_validation::derived_metadata::{
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::StructuralCopyPath;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
-    EstablishmentScalar, FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue,
-    ForwardedFieldValue, FunctionAnalysis, ObservedFieldKind, OptimizationNode, Position,
-    ProvenFieldValue, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RootProducer,
-    ScalarSubstitution, ValueDefinition, ValueDefinitionSite, bound_value,
-    canonicalize_ordinary_path, case_field_initializer, constant_definition,
-    declared_structural_type, descended_field_child, field_evidence, function_analysis,
-    leaf_copy_source, matches_constant_kind, matches_observed_kind, observed_field_declaration,
-    recompute_psi_optimization_unit_identity, record_initializer, root_producer, zeroed_fold,
+    FieldEvidence, FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue,
+    FunctionAnalysis, ObservedFieldKind, OptimizationNode, ProvenanceDisposition,
+    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
+    field_evidence, function_analysis, recompute_psi_optimization_unit_identity,
 };
-use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, ValueId,
-};
+use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
@@ -79,7 +72,7 @@ fn admit_field_node(
     if *source != evidence.declaration.id {
         return None;
     }
-    let proven = proven_field_value(
+    let proven = optimization_unit::proven_field_value(
         unit,
         evidence,
         function,
@@ -92,6 +85,8 @@ fn admit_field_node(
         path,
         *field,
         kind,
+        &bound_place,
+        &forwarded_resolution,
     )?;
     Some(FieldValueRow {
         site: optimization_unit::NodeLocation {
@@ -107,274 +102,6 @@ fn admit_field_node(
         producer: proven.producer,
         resolution: proven.resolution,
     })
-}
-
-/// The stored value the unit proves for `field` at `path` under `place`'s
-/// evidence, or `None` when no basis applies. An establishment basis — an
-/// `EstablishRecord` producer at an empty path or an `EstablishCase`
-/// producer whose `result_case` matches a lone `Case` path, or the same two
-/// reached through `Field` descents across owned, complete structural
-/// children — proves the field's initializer scalar directly: a
-/// same-function constant folds the read to a literal, while a nonconstant
-/// initializer forwards to the read's uses when the substitution lane
-/// covers every use site and the initializer dominates them all. A declared
-/// `BoundedInteger` singleton bound proves a literal at any resolvable path
-/// independently of producer and outranks a nonconstant initializer — the
-/// literal is strictly more resolved.
-fn proven_field_value(
-    unit: &PsiOptimizationUnit,
-    evidence: &FieldEvidence<'_>,
-    function: &PsiOptimizationFunction,
-    analysis: &FunctionAnalysis,
-    block: &optimization_unit::OptimizationBlock,
-    node_index: usize,
-    node: &OptimizationNode,
-    result: ValueId,
-    scalar_type: ScalarType,
-    path: &[CanonicalStructuralPathSegment],
-    field: StructuralFieldId,
-    kind: ObservedFieldKind,
-) -> Option<ProvenFieldValue> {
-    let declaration = observed_field_declaration(unit, evidence, path, field)?;
-    if !matches_observed_kind(declaration, kind) {
-        return None;
-    }
-    let establishment = establishment_scalar(unit, evidence, function, path, field);
-    match establishment {
-        // A zeroed establishment fixes the leaf at literal zero outright —
-        // there is no initializer operand to fold or forward.
-        Some(EstablishmentScalar::Zeroed(producer)) => {
-            return Some(ProvenFieldValue {
-                producer: Some(producer),
-                resolution: FieldValueResolution::Constant(zeroed_fold(declaration, kind)?),
-            });
-        }
-        Some(EstablishmentScalar::Initializer(producer, initializer)) => {
-            if let Some(value) = constant_definition(function, initializer)
-                && matches_constant_kind(value, kind)
-            {
-                return Some(ProvenFieldValue {
-                    producer: Some(producer),
-                    resolution: FieldValueResolution::Constant(value),
-                });
-            }
-        }
-        None => {}
-    }
-    if let Some(proven) = bound_value(declaration, kind) {
-        return Some(proven);
-    }
-    let EstablishmentScalar::Initializer(producer, initializer) = establishment? else {
-        return None;
-    };
-    forwarded_resolution(
-        function,
-        analysis,
-        block,
-        node_index,
-        node,
-        result,
-        scalar_type,
-        initializer,
-    )
-    .map(|forwarded| ProvenFieldValue {
-        producer: Some(producer),
-        resolution: FieldValueResolution::Forward(forwarded),
-    })
-}
-
-/// The establishment basis: the chain of establishing producers along `path`
-/// proves the field's stored scalar by name. `Some(Initializer(..))` when
-/// the producer at the path's terminal position establishes the observed
-/// field and its initializer is a scalar; `Some(Zeroed(..))` when that
-/// producer is an `EstablishZeroedStructural`, which the verifier admits
-/// only on zero-constructible shapes — every scalar leaf the remaining path
-/// resolves is stored at zero; `None` when any step is not established. A
-/// `Field` descent crosses only into an `EstablishRecord` field stored as
-/// an owned, complete structural child place whose declared type is exactly
-/// the field's declared carrier — a pathed or borrowed argument, a
-/// non-operation-result place, and every other producer leave the nested
-/// position unproven. A place with no producer of its own — a block
-/// parameter — crosses only into the one place every incoming edge binds
-/// it to whole when nothing rewrites or mutably re-lends it. The caller
-/// decides what an initializer proves — a literal fold when it resolves to
-/// a same-function constant, a use substitution when it does not.
-fn establishment_scalar(
-    unit: &PsiOptimizationUnit,
-    evidence: &FieldEvidence<'_>,
-    function: &PsiOptimizationFunction,
-    path: &[CanonicalStructuralPathSegment],
-    field: StructuralFieldId,
-) -> Option<EstablishmentScalar> {
-    let mut place = evidence.declaration.id;
-    let mut producer = evidence.root_producer;
-    let mut declared = evidence.root_type;
-    // Owned because a leaf copy prepends its own projection — canonical
-    // steps directly, ordinary field identities resolved to roster handles
-    // — to the path still to resolve beneath its source.
-    let mut segments = path.to_vec();
-    let mut visiting = BTreeSet::from([place]);
-    loop {
-        match (producer, segments.as_slice()) {
-            (RootProducer::Record(producer), []) => {
-                // An `EstablishRecord` proves its declaration-ordered field
-                // initializers: the observed field's scalar initializer fixes
-                // the stored value permanently.
-                return record_initializer(function, producer, place, field)
-                    .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
-            }
-            (RootProducer::Zeroed(operation), _) => {
-                // A zeroed establishment writes every scalar leaf of the
-                // resolved position to zero — the verifier admits it only
-                // on zero-constructible shapes, so the remaining canonical
-                // path needs no child place to cross: it descends the
-                // declared type alone, and any field it reaches is stored
-                // at zero. `Case` enters a case-payload namespace whose
-                // scalar fields read the same zeroed bytes.
-                let mut position = Position::Type(declared?);
-                for segment in &segments {
-                    position = position.descend(unit, segment)?;
-                }
-                position.field_declaration(unit, field)?;
-                return Some(EstablishmentScalar::Zeroed(operation));
-            }
-            (
-                RootProducer::Variant(producer, result_case),
-                [CanonicalStructuralPathSegment::Case(observed_case)],
-            ) if result_case == *observed_case => {
-                // An `EstablishCase` proves its scalar case-field
-                // initializers for exactly the case it establishes.
-                return case_field_initializer(function, producer, place, field)
-                    .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
-            }
-            (
-                RootProducer::Variant(operation, result_case),
-                [
-                    CanonicalStructuralPathSegment::Case(observed_case),
-                    CanonicalStructuralPathSegment::Field(identity),
-                    ..,
-                ],
-            ) if result_case == *observed_case => {
-                // A `Case` then `Field` pair descends into the payload child
-                // an `EstablishCase` stores whole — the structural-case
-                // establishment. The same custody as a record child applies:
-                // the payload carrier must be exactly the child place's
-                // declared type, reached as one owned, complete structural
-                // argument. A different observed case never crosses: its
-                // payload overlays storage this establishment did not write.
-                let identity = *identity;
-                let Position::Type(next) = Position::Type(declared?)
-                    .descend(unit, &segments[0])?
-                    .descend(unit, &segments[1])?
-                else {
-                    return None;
-                };
-                let (child, child_producer) = descended_field_child(
-                    function,
-                    operation,
-                    place,
-                    identity,
-                    next,
-                    &mut visiting,
-                )?;
-                place = child;
-                producer = child_producer;
-                declared = Some(next);
-                segments.drain(..2);
-            }
-            (
-                RootProducer::Record(operation),
-                [CanonicalStructuralPathSegment::Field(identity), ..],
-            ) => {
-                // A `Field` segment descends into the nested carrier the
-                // record stores whole: the declared carrier must be exactly
-                // the child place's declared type, and the child must reach
-                // this producer's initializer as one owned, complete
-                // structural argument. A `FixedIndex` segment never crosses —
-                // an `EstablishScalarArray` element is not a placed child.
-                let identity = *identity;
-                let Position::Type(next) = Position::Type(declared?).descend(unit, &segments[0])?
-                else {
-                    return None;
-                };
-                let (child, child_producer) = descended_field_child(
-                    function,
-                    operation,
-                    place,
-                    identity,
-                    next,
-                    &mut visiting,
-                )?;
-                place = child;
-                producer = child_producer;
-                declared = Some(next);
-                segments.drain(..1);
-            }
-            (RootProducer::None, _) => {
-                // A leaf copy — the case-payload place a `Case { payload }`
-                // arm binding mints, or an ordinary projection's fresh leaf
-                // — holds exactly its source's contents at the copied
-                // projection: the copy is fresh storage of an
-                // `Unrestricted` or owned non-reference leaf, and the source
-                // resolves only through establishments and uniform bindings
-                // nothing rewrites. The copy's projection therefore prefixes
-                // the path still to resolve beneath its source — canonical
-                // steps directly, ordinary field identities after resolving
-                // each to its roster's verifier handle — and the source's
-                // own chain decides the proof; a source that establishes a
-                // different case declines at the `Case` step.
-                if let Some((source, spelled)) = leaf_copy_source(function, place) {
-                    let declaration = function
-                        .structural_places
-                        .iter()
-                        .find(|declaration| declaration.id == source)?;
-                    let source_type = declared_structural_type(function, declaration)?;
-                    let copied = match spelled {
-                        StructuralCopyPath::Case(path) => path.clone(),
-                        StructuralCopyPath::Ordinary(path) => {
-                            canonicalize_ordinary_path(unit, source_type, path)?
-                        }
-                    };
-                    let mut position = Position::Type(source_type);
-                    for segment in &copied {
-                        position = position.descend(unit, segment)?;
-                    }
-                    if !matches!(position, Position::Type(landed) if Some(landed) == declared) {
-                        return None;
-                    }
-                    if !visiting.insert(source) {
-                        return None;
-                    }
-                    place = source;
-                    producer = root_producer(function, declaration);
-                    declared = Some(source_type);
-                    segments.splice(..0, copied.iter().copied());
-                    continue;
-                }
-                // The position's place holds no producer of its own, but a
-                // block parameter arrives carrying exactly the place its
-                // uniform binding names — the bound place's own
-                // establishment is the parameter's, provided the binding
-                // preserves the declared structural type exactly.
-                let bound = bound_place(function, place)?;
-                let declaration = function
-                    .structural_places
-                    .iter()
-                    .find(|declaration| declaration.id == bound)?;
-                let bound_type = declared_structural_type(function, declaration);
-                if declared.is_some() && bound_type != declared {
-                    return None;
-                }
-                if !visiting.insert(bound) {
-                    return None;
-                }
-                place = bound;
-                producer = root_producer(function, declaration);
-                declared = bound_type;
-            }
-            _ => return None,
-        }
-    }
 }
 
 /// The `Forward` resolution for one nonconstant-initialized read, or `None`

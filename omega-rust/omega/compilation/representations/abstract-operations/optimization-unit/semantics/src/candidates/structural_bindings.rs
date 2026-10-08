@@ -14,8 +14,8 @@
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
-use terminal_psi::{StructuralAccess, StructuralArgument};
+use semantic_vocabulary::PlaceId;
+use terminal_psi::StructuralArgument;
 
 /// The one place `place` is bound to by every incoming edge when `place`
 /// is a structural block parameter, or `None` when it is not a block
@@ -24,62 +24,7 @@ use terminal_psi::{StructuralAccess, StructuralArgument};
 /// when the parameter's contents may still be rewritten or mutably re-lent
 /// inside `function`.
 pub(crate) fn bound_place(function: &PsiOptimizationFunction, place: PlaceId) -> Option<PlaceId> {
-    let StructuralPlaceKind::BlockParameter { block, .. } = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?
-        .kind
-    else {
-        return None;
-    };
-    if place_is_rewritten(function, place) {
-        return None;
-    }
-    let mut bound = None;
-    for edge in function
-        .blocks
-        .iter()
-        .flat_map(|owner| owner.nodes.iter())
-        .flat_map(|node| node.successors.iter())
-        .filter(|edge| edge.target == block)
-    {
-        let binding = edge
-            .structural_bindings
-            .iter()
-            .find(|binding| binding.parameter == place)?;
-        let argument = &binding.argument;
-        if !argument.path.is_empty()
-            || !matches!(
-                argument.access,
-                StructuralAccess::Owned | StructuralAccess::SharedBorrow
-            )
-        {
-            return None;
-        }
-        match bound {
-            None => bound = Some(argument.place),
-            Some(seen) if seen != argument.place => return None,
-            _ => {}
-        }
-    }
-    bound
-}
-
-/// Whether `place`'s contents can change inside `function` after its
-/// binding: a store or vacating move naming it, a mutable or pathed
-/// structural argument re-lending it, or an atomic event joining its
-/// residence each break the uniform-binding proof.
-fn place_is_rewritten(function: &PsiOptimizationFunction, place: PlaceId) -> bool {
-    function.blocks.iter().any(|block| {
-        block.nodes.iter().any(|node| {
-            operation_rewrites_place(&node.operation, place)
-                || node.successors.iter().any(|edge| {
-                    edge.structural_bindings
-                        .iter()
-                        .any(|binding| argument_rewrites_place(&binding.argument, place))
-                })
-        })
-    })
+    optimization_unit::bound_place(function, place, &operation_rewrites_place)
 }
 
 /// Whether `operation` writes or vacates `place`, or re-lends it with
@@ -104,7 +49,8 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
     } {
         return true;
     }
-    structural_argument_operands(operation).any(|argument| argument_rewrites_place(argument, place))
+    structural_argument_operands(operation)
+        .any(|argument| optimization_unit::argument_rewrites_place(argument, place))
 }
 
 /// Every structural-argument operand `operation` carries: record children
@@ -136,18 +82,4 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
         _ => {}
     }
     operands.into_iter()
-}
-
-/// Whether `argument` gives `place`'s contents away: a pathed argument
-/// projects or vacates only a subtree, while a whole `MutableBorrow` or
-/// `WriteOnlyBorrow` argument lends write authority over the whole place.
-/// Whole `Owned`/`SharedBorrow` arguments preserve the observed contents —
-/// a move transfers the storage itself and a shared loan freezes it.
-fn argument_rewrites_place(argument: &StructuralArgument, place: PlaceId) -> bool {
-    argument.place == place
-        && (!argument.path.is_empty()
-            || matches!(
-                argument.access,
-                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-            ))
 }
