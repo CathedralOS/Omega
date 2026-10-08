@@ -5,7 +5,7 @@ use crate::{CodecError, decode_module, encode_module};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId};
 use terminal_psi::{
     Block, BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult,
-    BoundaryRequirementKind, MachineContract, TargetMachineCallable, TargetMachineFamily,
+    BoundaryRequirementKind, TargetMachineCallable, TargetMachineFamily,
     TargetMachineFamilyMember, TargetMachineSupply, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator,
 };

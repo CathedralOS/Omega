@@ -347,10 +347,6 @@ fn architecture_specific_relocations_reject_during_candidate_validation() {
 
 #[test]
 fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
-    let baseline = decoded();
-    let baseline_identity =
-        normalized_decoded_content_digest(&baseline).expect("baseline strong digest");
-
     let mut changed_code = decoded();
     changed_code.code[0] ^= 1;
     let error = validate_decoded_container(changed_code, limits()).expect_err("code drift rejects");
