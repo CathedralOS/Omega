@@ -20,10 +20,8 @@
 pub(crate) mod occurrence;
 
 use crate::compatibility_fingerprint::Fnv1a;
-use crate::{
-    Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
-    ProgramEntrySlotDeclaration, TargetProfile,
-};
+use crate::require;
+use crate::{ProgramEntrySlotDeclaration, TargetProfile};
 use diagnostics::Diagnostic;
 use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -217,7 +215,13 @@ pub fn replayed_uefi_x64_loaded_image_native_layout(
     if normalized_layout_plan_report_fingerprint(report)
         != UEFI_X64_LOADED_IMAGE_LAYOUT_PLAN_COMMITMENT
         || report.schema_report_fingerprint != UEFI_X64_LOADED_IMAGE_SCHEMA_REPORT_FINGERPRINT
-        || validate_target_owner(profile, entry_slot).is_err()
+        || crate::validate_uefi_x64_target_owner(
+            profile,
+            entry_slot,
+            "EFI_LOADED_IMAGE_PROTOCOL",
+            "EFI_LOADED_IMAGE_PROTOCOL native layout drifted from its target-owned physical entry",
+        )
+        .is_err()
     {
         return None;
     }
@@ -311,30 +315,6 @@ fn fields_from_evaluated_plan(
     (prior_end == PROTOCOL_SIZE).then_some(fields)
 }
 
-fn validate_target_owner(
-    profile: TargetProfile,
-    entry_slot: ProgramEntrySlotDeclaration,
-) -> Result<(), Diagnostic> {
-    let target = profile.native_target();
-    require(
-        profile == TargetProfile::UefiX64
-            && target.architecture == Architecture::X86_64
-            && target.object_format == ObjectFormat::Coff
-            && target.pointer_size == 8
-            && target.pointer_alignment == 8,
-        "EFI_LOADED_IMAGE_PROTOCOL native layout is owned only by the UEFI x86-64 target",
-    )?;
-    require(
-        entry_slot == TargetProfile::UefiX64.program_entry_slot()
-            && entry_slot.physical_arrival_requirement == Some("UefiPhysicalEntry::enter")
-            && entry_slot.physical_contract_package
-                == Some(ProgramEntryPhysicalContractPackage::UefiX64)
-            && entry_slot.physical_calling_convention
-                == Some(ProgramEntryCallingConvention::MicrosoftX64),
-        "EFI_LOADED_IMAGE_PROTOCOL native layout drifted from its target-owned physical entry",
-    )
-}
-
 fn validate_fields(fields: &[UefiLoadedImageNativeFieldLayout]) -> Result<(), Diagnostic> {
     require(
         fields.len() == FIELD_COUNT,
@@ -417,12 +397,6 @@ fn layout_report_fingerprint(
     hash.bytes(&PROTOCOL_SIZE.to_le_bytes());
     hash.bytes(&PROTOCOL_ALIGNMENT.to_le_bytes());
     hash.finish()
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 #[cfg(test)]

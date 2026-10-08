@@ -20,11 +20,9 @@
 
 pub(crate) mod occurrence;
 
+use crate::require;
 use crate::target_profile::{Fnv1a, hash_entry_slot};
-use crate::{
-    Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
-    ProgramEntrySlotDeclaration, TargetProfile,
-};
+use crate::{ProgramEntrySlotDeclaration, TargetProfile};
 use diagnostics::Diagnostic;
 use layout_plans::{
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -308,7 +306,13 @@ pub fn replayed_uefi_x64_system_table_native_layout(
     if normalized_layout_plan_report_fingerprint(report)
         != UEFI_X64_SYSTEM_TABLE_LAYOUT_PLAN_COMMITMENT
         || report.schema_report_fingerprint != UEFI_X64_SYSTEM_TABLE_SCHEMA_REPORT_FINGERPRINT
-        || validate_target_owner(profile, entry_slot).is_err()
+        || crate::validate_uefi_x64_target_owner(
+            profile,
+            entry_slot,
+            "EFI_SYSTEM_TABLE",
+            "EFI_SYSTEM_TABLE native layout drifted from its exact target-owned physical entry",
+        )
+        .is_err()
     {
         return None;
     }
@@ -376,7 +380,12 @@ pub fn plan_uefi_system_table_native_layout(
     profile: TargetProfile,
 ) -> Result<ValidatedUefiSystemTableNativeLayout, Box<UefiSystemTableNativeLayoutError>> {
     let entry_slot = profile.program_entry_slot();
-    if let Err(diagnostic) = validate_target_owner(profile, entry_slot) {
+    if let Err(diagnostic) = crate::validate_uefi_x64_target_owner(
+        profile,
+        entry_slot,
+        "EFI_SYSTEM_TABLE",
+        "EFI_SYSTEM_TABLE native layout drifted from its exact target-owned physical entry",
+    ) {
         return Err(Box::new(UefiSystemTableNativeLayoutError {
             profile,
             diagnostic,
@@ -467,31 +476,6 @@ const fn header_row_field(offset: u32) -> UefiSystemTableNativeField {
     }
 }
 
-fn validate_target_owner(
-    profile: TargetProfile,
-    entry_slot: ProgramEntrySlotDeclaration,
-) -> Result<(), Diagnostic> {
-    let target = profile.native_target();
-    require(
-        profile == TargetProfile::UefiX64
-            && target.architecture == Architecture::X86_64
-            && target.object_format == ObjectFormat::Coff
-            && target.pointer_size == 8
-            && target.pointer_alignment == 8,
-        "EFI_SYSTEM_TABLE native layout is owned only by the UEFI x86-64 target",
-    )?;
-    let expected = TargetProfile::UefiX64.program_entry_slot();
-    require(
-        entry_slot == expected
-            && entry_slot.physical_arrival_requirement == Some("UefiPhysicalEntry::enter")
-            && entry_slot.physical_contract_package
-                == Some(ProgramEntryPhysicalContractPackage::UefiX64)
-            && entry_slot.physical_calling_convention
-                == Some(ProgramEntryCallingConvention::MicrosoftX64),
-        "EFI_SYSTEM_TABLE native layout drifted from its exact target-owned physical entry",
-    )
-}
-
 fn validate_contents(contents: &UefiSystemTableNativeLayoutContents) -> Result<(), Diagnostic> {
     require(
         contents.fields.len() == FIELD_COUNT,
@@ -574,12 +558,6 @@ fn non_authoritative_layout_report_fingerprint(
     hash.bytes(&contents.byte_size.to_le_bytes());
     hash.bytes(&contents.alignment.to_le_bytes());
     hash.finish()
-}
-
-fn require(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
-    condition
-        .then_some(())
-        .ok_or_else(|| Diagnostic::error(message))
 }
 
 #[cfg(test)]

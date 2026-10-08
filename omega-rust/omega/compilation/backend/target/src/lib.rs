@@ -85,3 +85,46 @@ pub use x86_features::{
     X86FeatureRequirement, X86ScalarFmaAdmissionError, X86ScalarFmaDifferentialReceipt,
     X86ScalarFmaSlot, X86TargetFeature,
 };
+
+pub(crate) fn require(
+    condition: bool,
+    message: &'static str,
+) -> Result<(), diagnostics::Diagnostic> {
+    condition
+        .then_some(())
+        .ok_or_else(|| diagnostics::Diagnostic::error(message))
+}
+
+pub(crate) fn validate_uefi_x64_target_owner(
+    profile: TargetProfile,
+    entry_slot: crate::ProgramEntrySlotDeclaration,
+    layout_name: &'static str,
+    entry_drift: &'static str,
+) -> Result<(), diagnostics::Diagnostic> {
+    let target = profile.native_target();
+    require(
+        profile == TargetProfile::UefiX64
+            && target.architecture == crate::Architecture::X86_64
+            && target.object_format == crate::ObjectFormat::Coff
+            && target.pointer_size == 8
+            && target.pointer_alignment == 8,
+        match layout_name {
+            "EFI_BOOT_SERVICES" => {
+                "EFI_BOOT_SERVICES native layout is owned only by the UEFI x86-64 target"
+            }
+            "EFI_LOADED_IMAGE_PROTOCOL" => {
+                "EFI_LOADED_IMAGE_PROTOCOL native layout is owned only by the UEFI x86-64 target"
+            }
+            _ => "EFI_SYSTEM_TABLE native layout is owned only by the UEFI x86-64 target",
+        },
+    )?;
+    require(
+        entry_slot == TargetProfile::UefiX64.program_entry_slot()
+            && entry_slot.physical_arrival_requirement == Some("UefiPhysicalEntry::enter")
+            && entry_slot.physical_contract_package
+                == Some(crate::ProgramEntryPhysicalContractPackage::UefiX64)
+            && entry_slot.physical_calling_convention
+                == Some(crate::ProgramEntryCallingConvention::MicrosoftX64),
+        entry_drift,
+    )
+}
