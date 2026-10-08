@@ -456,6 +456,18 @@ impl TypedTrees {
             .span_or_empty(machine.type_parameters)
     }
 
+    /// The `Machine`-kind entries within `machine`'s type parameters — the
+    /// positional trait binders that select implementations, never stored
+    /// types.
+    pub fn machine_kind_type_parameters<'a>(
+        &'a self,
+        machine: &'a machine::Machine,
+    ) -> impl Iterator<Item = &'a data::TypeParameter> + 'a {
+        self.machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| matches!(parameter.kind, data::TypeParameterKind::Machine { .. }))
+    }
+
     /// The machine's own parameters extended by its attached data
     /// definition's, deduplicated under `same_type_parameter` — each
     /// validation lane picks name or symbol identity.

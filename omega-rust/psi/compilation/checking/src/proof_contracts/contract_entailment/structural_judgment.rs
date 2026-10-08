@@ -589,14 +589,7 @@ impl<'program> StructuralJudge<'program> {
         let projected_field = program.data_field(data, field)?;
         let direct_literal_field = || {
             let machine_parameters = program
-                .machine_type_parameters(machine)
-                .iter()
-                .filter(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
-                    )
-                })
+                .machine_kind_type_parameters(machine)
                 .collect::<Vec<_>>();
             if machine_parameters.len() != selections.len() {
                 return None;
@@ -711,14 +704,7 @@ impl<'program> StructuralJudge<'program> {
         let program = self.program;
         let machine = self.entry_machines.machine(program, target)?;
         let machine_parameters: Vec<&typed_trees::data::TypeParameter> = program
-            .machine_type_parameters(machine)
-            .iter()
-            .filter(|parameter| {
-                matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                )
-            })
+            .machine_kind_type_parameters(machine)
             .collect();
         if machine_parameters.len() != selections.len() {
             return None;

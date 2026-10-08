@@ -774,15 +774,7 @@ fn retain_static_machine_bindings(
     else {
         return result;
     };
-    let parameters = program
-        .machine_type_parameters(machine)
-        .iter()
-        .filter(|parameter| {
-            matches!(
-                parameter.kind,
-                typed_trees::data::TypeParameterKind::Machine { .. }
-            )
-        });
+    let parameters = program.machine_kind_type_parameters(machine);
     // Static arguments occupy category-specific slots, matching specialization:
     // type and const arguments do not shift a machine parameter's ordinal.
     let selected = arguments.iter().filter(|argument| {
