@@ -28,18 +28,9 @@ pub(crate) fn checked_unit_call_closure_including(
     while let Some(machine_symbol) = closure.get(next).copied() {
         next += 1;
         let name = checked_terminal_machine_name(checked, machine_symbol)?;
-        let machine = UnitBody::find(plans, machine_symbol).map_err(|error| match error {
-            LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
-                machine: name.to_owned(),
-                reason,
-                gap: checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .gap_diagnostic(machine_symbol, &checked.symbols),
-            },
-            error => error,
-        })?;
+        let machine = UnitBody::find(plans, machine_symbol).map_err(
+            crate::lowering_error::unit_machine_plan_error(checked, &name, machine_symbol),
+        )?;
         for target in machine
             .operations()
             .filter_map(|operation| unit_closure_target(plans, operation))

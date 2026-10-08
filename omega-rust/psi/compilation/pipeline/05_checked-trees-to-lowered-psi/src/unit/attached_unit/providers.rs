@@ -35,18 +35,11 @@ fn callable_candidate<'program>(
     plans: UnitPlans<'program>,
     machine: &Machine,
 ) -> Result<UnitBody<'program>, LoweringError> {
-    UnitBody::find(plans, machine.symbol).map_err(|error| match error {
-        LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
-            machine: machine.name.as_str().to_owned(),
-            reason,
-            gap: checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .gap_diagnostic(machine.symbol, &checked.symbols),
-        },
-        error => error,
-    })
+    UnitBody::find(plans, machine.symbol).map_err(crate::lowering_error::unit_machine_plan_error(
+        checked,
+        machine.name.as_str(),
+        machine.symbol,
+    ))
 }
 
 /// The requirement a boundary call names: a boundary-trait signature, or a

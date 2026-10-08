@@ -3,6 +3,7 @@
 //! Unsupported constructs fail closed with a static reason; structured
 //! variants retain the identity a caller needs to report or test the refusal.
 
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::{
@@ -121,4 +122,25 @@ impl std::error::Error for LoweringError {}
 
 pub(crate) fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
     Err(LoweringError::Unsupported(message))
+}
+
+/// Translate an unsupported-plan lookup failure into the machine-plan error,
+/// attaching the checked flow gap for `symbol`.
+pub(crate) fn unit_machine_plan_error<'a>(
+    checked: &'a CheckedTrees,
+    machine_name: &'a str,
+    symbol: symbols::SymbolHandle,
+) -> impl FnOnce(LoweringError) -> LoweringError + 'a {
+    move |error| match error {
+        LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
+            machine: machine_name.to_owned(),
+            reason,
+            gap: checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .gap_diagnostic(symbol, &checked.symbols),
+        },
+        error => error,
+    }
 }

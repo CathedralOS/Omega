@@ -62,18 +62,13 @@ pub(super) fn discover(
             }
         }
         if !machine.supplies_checked_body() {
-            super::unique_unit_boundary(plans, member.machine).map_err(|error| match error {
-                LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
-                    machine: machine.name.as_str().to_owned(),
-                    reason,
-                    gap: checked
-                        .facts
-                        .flow
-                        .terminal_unit_effects
-                        .gap_diagnostic(member.machine, &checked.symbols),
-                },
-                error => error,
-            })?;
+            super::unique_unit_boundary(plans, member.machine).map_err(
+                crate::lowering_error::unit_machine_plan_error(
+                    checked,
+                    machine.name.as_str(),
+                    member.machine,
+                ),
+            )?;
             if !retained_boundary_roots.contains(&member.machine) {
                 retained_boundary_roots.push(member.machine);
             }
