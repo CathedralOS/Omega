@@ -229,20 +229,7 @@ fn incoming_location(
                 "owned incoming home differs from value shape",
             ));
         }
-        return Ok(match pointer {
-            IndirectPointerLocation::Register(register) => {
-                StructuralSourceLocation::IncomingIndirectPointer {
-                    register: *register,
-                }
-            }
-            IndirectPointerLocation::Stack {
-                stack_byte_offset,
-                alignment,
-            } => StructuralSourceLocation::IncomingIndirectStackPointer {
-                stack_byte_offset: *stack_byte_offset,
-                alignment: *alignment,
-            },
-        });
+        return Ok(crate::installation_record::graph_structural::indirect_source_location(pointer));
     }
     let scalar_descriptor =
         placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;

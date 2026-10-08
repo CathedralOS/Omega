@@ -1,10 +1,10 @@
 //! Candidate geometry and the mandatory exact object-custody join are separate.
 use super::{
-    CallSignature, CallingPolicy, IndirectPointerLocation, InstalledFunction,
-    InstalledInternalUnitCall, InternalUnitCallSource, InternalUnitStructuralArgumentSourceRecord,
-    ScalarType, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
-    StructuralSourceLocation, ValueLocation, ValueShape, evaluate_call_plan, outgoing_pointer_fits,
-    owned_copy_is_exact, parameter_homes, pointer_location, scalar_result_is_exact,
+    CallSignature, CallingPolicy, InstalledFunction, InstalledInternalUnitCall,
+    InternalUnitCallSource, InternalUnitStructuralArgumentSourceRecord, ScalarType,
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralSourceLocation,
+    ValueLocation, ValueShape, evaluate_call_plan, outgoing_pointer_fits, owned_copy_is_exact,
+    parameter_homes, pointer_location, scalar_result_is_exact,
 };
 use crate::installation_record::record_validation::internal_unit_calls_match_object;
 use crate::installation_record::resource_tests::installed_function_with_unit_call;
@@ -58,20 +58,7 @@ fn fixture(
                 let [ValueLocation::Indirect { pointer, .. }] = source.locations.as_slice() else {
                     panic!("indirect owned parameter")
                 };
-                match pointer {
-                    IndirectPointerLocation::Register(register) => {
-                        StructuralSourceLocation::IncomingIndirectPointer {
-                            register: *register,
-                        }
-                    }
-                    IndirectPointerLocation::Stack {
-                        stack_byte_offset,
-                        alignment,
-                    } => StructuralSourceLocation::IncomingIndirectStackPointer {
-                        stack_byte_offset: *stack_byte_offset,
-                        alignment: *alignment,
-                    },
-                }
+                crate::installation_record::graph_structural::indirect_source_location(pointer)
             } else {
                 StructuralSourceLocation::IncomingBorrowedPointer {
                     location: pointer_location(&source).unwrap(),

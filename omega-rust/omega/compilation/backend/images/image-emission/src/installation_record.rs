@@ -10,7 +10,7 @@
 
 mod borrowed_structural;
 mod codec;
-mod graph_structural;
+pub(crate) mod graph_structural;
 mod incoming_structural;
 mod installation_errors;
 mod installed_unit_scalar_transport;

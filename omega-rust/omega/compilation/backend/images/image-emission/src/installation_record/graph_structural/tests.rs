@@ -105,20 +105,8 @@ fn indirect_owned_roster_retains_exact_value_pointer_home() {
             let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() else {
                 panic!("indirect value ABI");
             };
-            let location = match pointer {
-                IndirectPointerLocation::Register(register) => {
-                    StructuralSourceLocation::IncomingIndirectPointer {
-                        register: *register,
-                    }
-                }
-                IndirectPointerLocation::Stack {
-                    stack_byte_offset,
-                    alignment,
-                } => StructuralSourceLocation::IncomingIndirectStackPointer {
-                    stack_byte_offset: *stack_byte_offset,
-                    alignment: *alignment,
-                },
-            };
+            let location =
+                crate::installation_record::graph_structural::indirect_source_location(pointer);
             let parameter = machine_code::UnitParameterRecord {
                 place: PlaceId::new(1).unwrap(),
                 structural_type: StructuralTypeId::new(1).unwrap(),

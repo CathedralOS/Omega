@@ -1,5 +1,24 @@
 //! Graph parameters retain exact value or reference ABI and published pointer homes.
 //! This is record shape only: the mandatory exact image join retains graph replay.
+pub(crate) fn indirect_source_location(
+    pointer: &calling_conventions::IndirectPointerLocation,
+) -> StructuralSourceLocation {
+    match pointer {
+        calling_conventions::IndirectPointerLocation::Register(register) => {
+            StructuralSourceLocation::IncomingIndirectPointer {
+                register: *register,
+            }
+        }
+        calling_conventions::IndirectPointerLocation::Stack {
+            stack_byte_offset,
+            alignment,
+        } => StructuralSourceLocation::IncomingIndirectStackPointer {
+            stack_byte_offset: *stack_byte_offset,
+            alignment: *alignment,
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests;
 use super::InstalledFunction;
@@ -138,20 +157,7 @@ pub(super) fn function_is_exact(
                 let Some(home) = remaining_homes.next() else {
                     return false;
                 };
-                let location = match pointer {
-                    calling_conventions::IndirectPointerLocation::Register(register) => {
-                        StructuralSourceLocation::IncomingIndirectPointer {
-                            register: *register,
-                        }
-                    }
-                    calling_conventions::IndirectPointerLocation::Stack {
-                        stack_byte_offset,
-                        alignment,
-                    } => StructuralSourceLocation::IncomingIndirectStackPointer {
-                        stack_byte_offset: *stack_byte_offset,
-                        alignment: *alignment,
-                    },
-                };
+                let location = indirect_source_location(pointer);
                 if parameter.place != home.place
                     || parameter.structural_type != home.structural_type
                     || parameter.access != home.access
