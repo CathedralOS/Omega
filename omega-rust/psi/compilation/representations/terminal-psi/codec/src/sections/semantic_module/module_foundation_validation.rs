@@ -1147,13 +1147,14 @@ fn is_plain_affine_operation_result(
     if operations.next().is_some() {
         return false;
     }
-    matches!(&operation.result, OperationResult::Structural(result)
-        if result.place == place
+    operation.result.as_structural().is_some_and(|result| {
+        result.place == place
             && result.structural_type == structural_type
             && result.multiplicity == StructuralMultiplicity::Affine
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
-            && result.claims.is_empty())
+            && result.claims.is_empty()
+    })
 }
 
 fn validate_claim_indices(
@@ -1232,8 +1233,8 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             | StructuralTypeShape::ElementView { .. } => {}
             StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
-                    if let StructuralFieldType::Structural(target) = &field.field_type {
-                        visit(module, *target, active, complete)?;
+                    if let Some(target) = field.field_type.as_structural() {
+                        visit(module, target, active, complete)?;
                     }
                 }
             }
@@ -1242,8 +1243,8 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             }
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
-                    if let StructuralFieldType::Structural(target) = &field.field_type {
-                        visit(module, *target, active, complete)?;
+                    if let Some(target) = field.field_type.as_structural() {
+                        visit(module, target, active, complete)?;
                     }
                 }
             }
@@ -1252,8 +1253,8 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
                     .iter()
                     .chain(cases.iter().flat_map(|case| &case.fields))
                 {
-                    if let StructuralFieldType::Structural(target) = &field.field_type {
-                        visit(module, *target, active, complete)?;
+                    if let Some(target) = field.field_type.as_structural() {
+                        visit(module, target, active, complete)?;
                     }
                 }
             }

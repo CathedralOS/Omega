@@ -3,7 +3,6 @@ use super::*;
 use crate::descriptor_lifetimes::{
     DescriptorFlowEdge, descriptor_location, descriptor_location_type,
 };
-use terminal_psi::RecordFieldValue;
 
 pub(super) fn adapt(
     module: &TerminalModule,
@@ -354,7 +353,7 @@ pub(super) fn adapt(
                         }
                     }
                     for field in fields {
-                        if let RecordFieldValue::Structural(source) = &field.value {
+                        if let Some(source) = field.value.as_structural() {
                             let path = match &operation.kind {
                                 OperationKind::EstablishStructuralCase { result_case, .. } => {
                                     vec![StructuralPathSegment::Case(*result_case)]

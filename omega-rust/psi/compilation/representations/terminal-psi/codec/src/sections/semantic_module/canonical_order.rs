@@ -525,7 +525,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             return Err(CodecError::NonCanonicalOrder("blocks by BlockId"));
         }
         for operation in machine.operations() {
-            if let terminal_psi::OperationResult::Structural(result) = &operation.result {
+            if let Some(result) = operation.result.as_structural() {
                 if !strictly_increasing(result.qualifications.iter().copied()) {
                     return Err(CodecError::NonCanonicalOrder(
                         "structural operation result qualifications by StructuralDomainId",
