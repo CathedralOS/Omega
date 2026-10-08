@@ -510,7 +510,33 @@ pub(in crate::rewrites) fn relocation_scan_steps(
                 total.checked_add(per_block_extra(candidate))
             })
         })
-        .and_then(|total| total.checked_add(edge_limit))
+        .and_then(|total| {
+            crossed_charge(
+                total,
+                function,
+                member_instruction,
+                crossing,
+                edge_limit,
+                block_scan,
+                member_locations,
+            )
+        })
+}
+
+/// The relocation window's measured charge beyond the walked scan `base`:
+/// the edge limit, the crossed positions' and edges' surfaces, the roster
+/// tails, and the whole-function scan per member location — accumulated
+/// with overflow-free arithmetic.
+pub(in crate::rewrites) fn crossed_charge(
+    base: usize,
+    function: &SelectedFunction,
+    member_instruction: &SelectedInstruction,
+    crossing: &RelocationCrossing<'_>,
+    edge_limit: usize,
+    block_scan: usize,
+    member_locations: usize,
+) -> Option<usize> {
+    base.checked_add(edge_limit)
         .and_then(|total| {
             crossing
                 .positions

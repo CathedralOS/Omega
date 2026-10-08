@@ -79,37 +79,16 @@ fn reconstruct<'source>(
                     .try_fold(total, |total, _| total.checked_add(1))
             })
         })
-        .and_then(|total| total.checked_add(edge_limit))
         .and_then(|total| {
-            crossing
-                .positions
-                .iter()
-                .try_fold(total, |total, (crossed_block, positions)| {
-                    positions.iter().try_fold(total, |total, position| {
-                        total
-                            .checked_add(surface(member_instruction))?
-                            .checked_add(surface(
-                                &function.blocks[*crossed_block].instructions[*position],
-                            ))
-                    })
-                })
-        })
-        .and_then(|total| {
-            crossing.edges.iter().try_fold(total, |total, edge| {
-                total
-                    .checked_add(surface(member_instruction))?
-                    .checked_add(surface(edge.instruction))?
-                    .checked_add(edge_surface(edge.successor))
-            })
-        })
-        .and_then(|total| {
-            total
-                .checked_add(function.memory_accesses.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.boundary_settlements.len())
-        })
-        .and_then(|total| {
-            total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
+            crate::rewrites::window_hazards::crossed_charge(
+                total,
+                function,
+                member_instruction,
+                crossing,
+                edge_limit,
+                block_scan,
+                member_locations,
+            )
         })
         .ok_or(ArmRelocationError::IdentityOverflow)?;
     crate::rewrites::charge_steps(
