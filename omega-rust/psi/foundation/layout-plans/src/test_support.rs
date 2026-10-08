@@ -1,12 +1,30 @@
 //! Fresh owned layout fixtures for tests of portable plans and their writer consumers.
 
 use crate::{
-    ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
-    ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
-    ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
-    LayoutPlanReport, SymbolicFieldInnerLayout,
+    ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
+    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
+    ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport,
+    LayoutPlacementReport, LayoutPlanReport, MaterializationContext, PlacementConstraints,
+    PlacementPhase, SymbolicFieldInnerLayout,
 };
+
+/// The post-handoff materialization context with a caller-chosen placement.
+pub fn post_handoff_context_with(placement: PlacementConstraints) -> MaterializationContext {
+    MaterializationContext {
+        consumption: ConsumptionInstant::AfterOmegaHandoff,
+        byte_order: ByteOrder::LittleEndian,
+        native_pointer_relocation_bits: None,
+        placement,
+    }
+}
+
+/// The post-handoff materialization context with no placement constraints.
+pub fn post_handoff_context() -> MaterializationContext {
+    post_handoff_context_with(PlacementConstraints::unconstrained(
+        PlacementPhase::PostHandoff,
+    ))
+}
 
 pub fn split_layout() -> LayoutPlanReport {
     LayoutPlanReport {

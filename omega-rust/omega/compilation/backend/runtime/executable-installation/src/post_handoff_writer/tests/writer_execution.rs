@@ -6,23 +6,23 @@
 //! `layout-plans`.
 
 use layout_plans::test_support::{
-    deeply_nested_layout, recursive_record_array_report, repeated_layout, split_layout, sum_layout,
+    deeply_nested_layout, post_handoff_context, post_handoff_context_with,
+    recursive_record_array_report, repeated_layout, split_layout, sum_layout,
 };
 
 use crate::post_handoff_writer::{
     apply_post_handoff_writes_atomically, execute_post_handoff_writer_plan,
 };
 use layout_plans::{
-    ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
+    ArtifactInstallationScopeId, ByteOrder, ConventionalRecordSumChildHop,
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, DataSymbolId,
     EntryStubId, IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport,
-    LayoutPlanReport, MachineRegimeId, MaterializationAction, MaterializationContext,
-    MaterializationWrite, PlacementAddressRange, PlacementConstraints, PlacementPhase,
-    PlacementSite, RelocationTarget, StoredIntegerFit, SymbolicFieldInnerLayout,
-    SymbolicFieldPathSegment, SymbolicFieldValue, derive_symbolic_materialization,
-    derive_symbolic_materialization_with_inner_layouts,
+    LayoutPlanReport, MachineRegimeId, MaterializationAction, MaterializationWrite,
+    PlacementAddressRange, PlacementConstraints, PlacementPhase, PlacementSite, RelocationTarget,
+    StoredIntegerFit, SymbolicFieldInnerLayout, SymbolicFieldPathSegment, SymbolicFieldValue,
+    derive_symbolic_materialization, derive_symbolic_materialization_with_inner_layouts,
 };
 use post_handoff_writer_plan::{
     PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep,
@@ -47,15 +47,6 @@ fn post_handoff_site() -> PlacementSite {
         phase: PlacementPhase::PostHandoff,
         machine_regime: None,
         installation_scope: None,
-    }
-}
-
-fn post_handoff_context() -> MaterializationContext {
-    MaterializationContext {
-        consumption: ConsumptionInstant::AfterOmegaHandoff,
-        byte_order: ByteOrder::LittleEndian,
-        native_pointer_relocation_bits: None,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
     }
 }
 
@@ -508,12 +499,7 @@ fn writer_execution_validates_the_placement_site_before_writes() {
     let plan = derive_symbolic_materialization(
         &layout,
         &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: constraints,
-        },
+        post_handoff_context_with(constraints),
         |_| None,
     )
     .expect("constrained post-handoff plan");

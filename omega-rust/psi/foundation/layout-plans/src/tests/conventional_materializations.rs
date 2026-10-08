@@ -1,12 +1,10 @@
-use super::{entry, split_layout};
+use super::{entry, post_handoff_context, split_layout};
 use crate::{
-    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant,
-    ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
-    ConventionalSumPayloadFieldLayoutReport, EntryStubId, IntegerInterpretation,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationAction,
-    MaterializationContext, PlacementConstraints, PlacementPhase, RelocationTarget,
-    ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue,
-    conventional_sum_layout_reports_match_for_replay, decode_scalar_layout,
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConventionalSumCaseLayoutReport,
+    ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, EntryStubId,
+    IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    MaterializationAction, RelocationTarget, ScalarFieldSchema, ScalarFieldValue,
+    SymbolicFieldValue, conventional_sum_layout_reports_match_for_replay, decode_scalar_layout,
     derive_symbolic_materialization, layout_plan_reports_match_for_replay,
     materialize_aggregate_layout_into, materialize_scalar_layout_into,
     normalized_conventional_sum_layout_report_fingerprint,
@@ -242,21 +240,12 @@ fn materializers_reject_layout_identity_aliases_before_observable_work() {
     let mut resolutions = 0;
     let symbolic =
         SymbolicFieldValue::new_numbered("address", 7, 64, entry()).expect("numbered target");
-    let error = derive_symbolic_materialization(
-        &aliased,
-        &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
-        |_| {
+    let error =
+        derive_symbolic_materialization(&aliased, &[symbolic], post_handoff_context(), |_| {
             resolutions += 1;
             None
-        },
-    )
-    .expect_err("symbolic derivation must reject one identity under two names");
+        })
+        .expect_err("symbolic derivation must reject one identity under two names");
     assert!(error.0.contains("identity names both"), "{}", error.0);
     assert_eq!(resolutions, 0);
 
@@ -1233,21 +1222,12 @@ fn symbolic_write_geometry_rejects_before_any_resolver_invocation() {
         SymbolicFieldValue::new("second", 64, entry()).expect("second symbolic field"),
     ];
     let mut resolutions = 0;
-    let error = derive_symbolic_materialization(
-        &layout,
-        &symbolic_fields,
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
-        |_| {
+    let error =
+        derive_symbolic_materialization(&layout, &symbolic_fields, post_handoff_context(), |_| {
             resolutions += 1;
             Some(0)
-        },
-    )
-    .expect_err("out-of-range writer geometry must reject during static preflight");
+        })
+        .expect_err("out-of-range writer geometry must reject during static preflight");
     assert!(error.0.contains("writes outside"), "{}", error.0);
     assert_eq!(
         resolutions, 0,
@@ -1297,12 +1277,7 @@ fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
     let error = derive_symbolic_materialization(
         &layout,
         &symbolic_fields,
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
+        post_handoff_context(),
         |target| {
             resolutions.push(target);
             Some(if target == first { 0x100 } else { 0 })
@@ -1316,12 +1291,7 @@ fn symbolic_value_constraints_reject_before_unrelated_target_resolution() {
     let plan = derive_symbolic_materialization(
         &layout,
         &symbolic_fields,
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
+        post_handoff_context(),
         |target| {
             resolutions.push(target);
             Some(if target == first { 0x7f } else { 0 })

@@ -2,7 +2,8 @@
 //! layouts.
 
 use crate::test_support::{
-    deeply_nested_layout, recursive_record_array_report, repeated_layout, split_layout, sum_layout,
+    deeply_nested_layout, post_handoff_context, post_handoff_context_with,
+    recursive_record_array_report, repeated_layout, split_layout, sum_layout,
 };
 
 mod conventional_materializations;
@@ -11,12 +12,10 @@ mod symbolic_sum_materializations;
 mod writer_fragments;
 
 use crate::{
-    ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
-    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
-    ConventionalRecursiveRecordSumPathsLayoutReport, DataSymbolId, EntryStubId,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationContext,
-    PlacementConstraints, PlacementPhase, RelocationTarget, SymbolicFieldInnerLayout,
-    SymbolicFieldValue,
+    ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
+    ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
+    DataSymbolId, EntryStubId, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
+    RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldValue,
 };
 
 fn entry() -> RelocationTarget {
@@ -86,15 +85,6 @@ fn record_interior(carrier: &SymbolicFieldInnerLayout) -> LayoutPlanReport {
         panic!("the test carrier binds a record interior");
     };
     layout.clone()
-}
-
-fn post_handoff_context() -> MaterializationContext {
-    MaterializationContext {
-        consumption: ConsumptionInstant::AfterOmegaHandoff,
-        byte_order: ByteOrder::LittleEndian,
-        native_pointer_relocation_bits: None,
-        placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-    }
 }
 
 /// A record carrying one direct sum field beside scalar members: `header`

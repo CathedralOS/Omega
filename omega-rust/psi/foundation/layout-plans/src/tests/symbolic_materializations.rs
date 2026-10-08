@@ -1,6 +1,7 @@
 use super::{
-    data, deeply_nested_layout, entry, nested_layout, post_handoff_context, record_interior,
-    reject_inner_layout_materialization, repeated_layout, split_layout,
+    data, deeply_nested_layout, entry, nested_layout, post_handoff_context,
+    post_handoff_context_with, record_interior, reject_inner_layout_materialization,
+    repeated_layout, split_layout,
 };
 use crate::{
     ByteOrder, ConsumptionInstant, IntegerInterpretation, LayoutFieldEntryReport,
@@ -23,12 +24,7 @@ fn placement_range_must_fit_the_materialization() {
     let error = derive_symbolic_materialization(
         &split_layout(),
         &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: constraints,
-        },
+        post_handoff_context_with(constraints),
         |_| None,
     )
     .expect_err("sixteen bytes cannot fit an eight-byte range");
@@ -72,12 +68,7 @@ fn symbolic_index_materialization_rejects_before_target_resolution() {
     let error = derive_symbolic_materialization(
         &repeated_layout(),
         &[out_of_range],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
+        post_handoff_context(),
         |_| {
             resolutions += 1;
             None
@@ -101,12 +92,7 @@ fn symbolic_index_materialization_rejects_before_target_resolution() {
     let error = derive_symbolic_materialization(
         &split_layout(),
         &[fragmented],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
+        post_handoff_context(),
         |_| None,
     )
     .expect_err("a fragmented field cannot be addressed by element index");

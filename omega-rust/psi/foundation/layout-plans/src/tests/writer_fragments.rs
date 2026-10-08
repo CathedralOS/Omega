@@ -1,4 +1,4 @@
-use super::{entry, split_layout};
+use super::{entry, post_handoff_context, post_handoff_context_with, split_layout};
 use crate::{
     ArtifactInstallationScopeId, ByteOrder, ConsumptionInstant, IntegerInterpretation,
     LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MachineRegimeId,
@@ -88,12 +88,7 @@ fn symbolic_stored_integer_fit_is_enforced_before_each_consumption_phase() {
     let post_handoff = derive_symbolic_materialization(
         &layout,
         std::slice::from_ref(&symbolic),
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
+        post_handoff_context(),
         |_| None,
     )
     .expect("a post-handoff resolver can discharge stored-integer fit");
@@ -133,12 +128,7 @@ fn unresolved_action_cannot_partially_materialize() {
     let plan = derive_symbolic_materialization(
         &split_layout(),
         &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: PlacementConstraints::unconstrained(PlacementPhase::PostHandoff),
-        },
+        post_handoff_context(),
         |_| None,
     )
     .expect("writer plan");
@@ -166,12 +156,7 @@ fn placement_constraints_join_layout_alignment_and_validate_all_axes() {
     let plan = derive_symbolic_materialization(
         &layout,
         &[symbolic],
-        MaterializationContext {
-            consumption: ConsumptionInstant::AfterOmegaHandoff,
-            byte_order: ByteOrder::LittleEndian,
-            native_pointer_relocation_bits: None,
-            placement: constraints,
-        },
+        post_handoff_context_with(constraints),
         |_| None,
     )
     .expect("constrained post-handoff plan");
