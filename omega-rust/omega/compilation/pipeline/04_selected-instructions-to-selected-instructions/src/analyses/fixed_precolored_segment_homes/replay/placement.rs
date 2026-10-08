@@ -489,16 +489,13 @@ fn strands_neighbor(
 ) -> Result<bool, FixedPrecoloredSegmentHomeError> {
     let mut retained = residual.clone();
     let home = (domains[domain_index].id, view);
-    if propagate_forced(
+    Ok(propagate_forced(
         &mut retained,
         vec![home],
         BTreeSet::from([home.0]),
         conflicts,
         work,
-    )? {
-        return Ok(true);
-    }
-    Ok(clique_bound_violated(&retained, conflicts))
+    )? || clique_bound_violated(&retained, conflicts))
 }
 
 /// Forced-move propagation over `retained`: each queued member's certain home
