@@ -815,29 +815,11 @@ pub(super) fn build_traced(
         checked_trees::CheckedControlResultPlan::Structural(_)
     ) && super::reference_results::is_reference_record(program, states[0].return_type)
     {
-        if is_reference(program, states[0].return_type) {
-            let mut sources: Option<&[checked_trees::CheckedReferenceResultSourcePlan]> = None;
-            for state_plan in &plan.states {
-                let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } =
-                    &state_plan.terminator
-                else {
-                    continue;
-                };
-                match sources {
-                    None => sources = Some(&returned.reference_sources),
-                    Some(existing) if existing == returned.reference_sources => {}
-                    Some(_) => return None,
-                }
-            }
-            plan.result_reference_sources =
-                sources.map(|sources| sources.to_vec()).unwrap_or_default();
-        } else {
-            if states.len() != 1 {
-                return None;
-            }
-            plan.result_reference_sources =
-                super::reference_results::returned_record_sources(program, &states[0])?;
-        }
+        // Stored leaves and whole references use the same invocation-relative
+        // origin relation. Comparing returning states' parameter ordinals loses
+        // edge substitution; a one-state record gate loses ordinary control.
+        plan.result_reference_sources =
+            validation::reference_result_custody::returned_reference_sources(program, &states[0])?;
     }
     plan.result = result;
     Some(plan)

@@ -495,8 +495,9 @@ pub fn construction_sources(
     .map(|sources| sources.into_iter().map(|source| source.value).collect())
 }
 
-/// Completion and call substitution share one returned-leaf origin query.
-/// Earlier ordinary statements do not change which authored value is returned.
+/// Completion and call substitution share the complete normal-edge origin
+/// relation. Internal state ordinals are substituted through their actuals;
+/// a record result is not restricted to a single state's tail expression.
 pub fn returned_record_sources(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -504,8 +505,7 @@ pub fn returned_record_sources(
     if !is_reference_record(program, state.return_type) {
         return None;
     }
-    let expression = tail_return_expression(program, state)?;
-    construction_sources(program, state, expression, state.return_type)
+    returned_reference_sources(program, state)
 }
 
 /// The expression producing a state's returned value: the tail expression

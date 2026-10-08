@@ -282,8 +282,13 @@ impl Builder<'_, '_> {
             }
             let declared = member_type(field);
             let reference = validation::unwrapped_type_reference(self.program, declared)?;
+            // A stored reference owns its descriptor, not the primitive
+            // referent's value. Classify the complete loan family before
+            // referent-oriented normalization can turn it into a scalar.
             let value =
-                if validation::reference_result_custody::parts(self.program, declared).is_some() {
+                if validation::reference_result_custody::stored_loan_parts(self.program, declared)
+                    .is_some()
+                {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
                         self.structural_value(initializer.value, declared)?,
                     )

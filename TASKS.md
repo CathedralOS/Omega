@@ -627,8 +627,12 @@ defines the complete product bar.
     separates exact-place restoration debt from detached value custody;
     direct and named call results already use ordinary owned result
     bindings.
-  - Missing: contained-loan transport and qualification of whole-root,
-    referent and nominal-cleanup windows. Keep evaluation order, disjoint
+  - Missing: contained-loan transport. Extraction from an exclusive borrowed
+    carrier currently gives the detached local no active stored-leaf loan
+    rows, so its consuming transform cannot bind returned loan custody.
+    Retain the incoming descriptor leaves, distinct from the loan of the
+    containing storage. Qualify whole-root, referent and nominal-cleanup
+    windows. Keep evaluation order, disjoint
     siblings and exact open-place agreement across recoverable failure,
     suspension/resume/cancellation and crash/process-exit abandonment;
     do not invent rollback. Qualify the remaining paths on supported hosts.
@@ -639,6 +643,10 @@ defines the complete product bar.
   storage. Keep `pass/ownership/runtime_borrowed_record_transform_exit`
   (exit 42), `pass/ownership/runtime_borrowed_projected_claim_transform_exit`
   (exit 42) and `pass/ownership/move_keyword_field_assignment` (exit 41).
+  Keep `pass/borrows/runtime_record_carried_loan_state_return_exit` (42) as
+  the ordinary-state return-origin control and
+  `fail/ownership/borrowed_storage_repair_keeps_carried_loan` as the backing
+  mutation rejection after carrier restoration.
   Missing repair, early return, stale reads, overlapping loans, wrong-place
   repair, repeated extraction and whole-owner cleanup reject, including
   `fail/ownership/borrowed_storage_boundary_call` and
