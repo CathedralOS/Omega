@@ -4,8 +4,7 @@ use super::super::super::super::{
     StructuralParameterDeclaration,
 };
 use super::super::super::{
-    OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration,
-    allocate_dense, terminal_scalar_type, unsupported, value_id,
+    OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration, terminal_scalar_type, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlStatePlan, scalars};
@@ -116,11 +115,7 @@ pub(super) fn prepare<'a>(
                 fields.push(field.id);
                 values.push((
                     payload.target_scalar_parameter_index,
-                    ValueDeclaration {
-                        qualifications: Default::default(),
-                        id: value_id(allocate_dense(next_value)?),
-                        scalar_type,
-                    },
+                    crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
                 ));
             }
             // The checker records a payload row only for a verbatim parameter
@@ -157,11 +152,7 @@ pub(super) fn prepare<'a>(
                         fields.push(field.id);
                         values.push((
                             u32::MAX,
-                            ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: value_id(allocate_dense(next_value)?),
-                                scalar_type,
-                            },
+                            crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
                         ));
                     }
                     return Ok(PreparedCase {
@@ -206,11 +197,7 @@ pub(super) fn prepare<'a>(
                     fields.push(field.id);
                     values.push((
                         u32::MAX,
-                        ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: value_id(allocate_dense(next_value)?),
-                            scalar_type,
-                        },
+                        crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
                     ));
                 }
             }

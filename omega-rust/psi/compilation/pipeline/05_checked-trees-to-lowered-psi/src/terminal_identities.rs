@@ -7,8 +7,8 @@
 use language_semantics::{Multiplicity, PermissionClaimIdentity, ServiceReachId};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId,
-    PlaceId, PropositionId, ServiceId, StructuralDomainId, StructuralFieldId, StructuralTypeId,
-    ValueId,
+    PlaceId, PropositionId, ScalarType, ServiceId, StructuralDomainId, StructuralFieldId,
+    StructuralTypeId, ValueId,
 };
 
 use crate::lowering_error::LoweringError;
@@ -192,4 +192,17 @@ pub(crate) fn allocate_dense(next: &mut u64) -> Result<u64, LoweringError> {
         "terminal Unit identity count exceeds u64",
     ))?;
     Ok(current)
+}
+
+/// A fresh unqualified scalar `ValueDeclaration` on the next dense identity —
+/// the literal every payload/case emission site mints.
+pub(crate) fn fresh_scalar_declaration(
+    next_value: &mut u64,
+    scalar_type: ScalarType,
+) -> Result<terminal_psi::ValueDeclaration, LoweringError> {
+    Ok(terminal_psi::ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(allocate_dense(next_value)?),
+        scalar_type,
+    })
 }

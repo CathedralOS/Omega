@@ -29,7 +29,6 @@ use crate::emission::operation_emission::expressions::{
 };
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, value_id};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralFieldId,
 };
@@ -185,11 +184,7 @@ fn plan_decision<'a>(
                 }
                 payloads.push((
                     field.id,
-                    ValueDeclaration {
-                        qualifications: Default::default(),
-                        id: value_id(allocate_dense(next_value)?),
-                        scalar_type,
-                    },
+                    crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
                 ));
             }
             let bound = payloads
