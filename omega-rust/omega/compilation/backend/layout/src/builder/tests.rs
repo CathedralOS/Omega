@@ -379,9 +379,7 @@ fn quotient_over_proof_only_carrier_stays_proof_only() {
     );
 
     let quotient_symbol = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Quotient")
+        .data_definition_by_name_str("Quotient")
         .expect("Quotient definition")
         .symbol;
     let classification = typed_trees::proof_only::classify(&typed);

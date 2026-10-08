@@ -21,9 +21,7 @@ fn recursive_empty_arrays_follow_inside_out_extent_arithmetic() {
         ));
         let plan = crate::build_layout_plan(&program, NativeTarget::host(), &[]).unwrap();
         let outer = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == "Outer")
+            .data_definition_by_name_str("Outer")
             .unwrap();
         let report = project_conventional_record_with_recursive_nested_sums_materialization_layout(
             &program,
@@ -60,9 +58,7 @@ fn recursive_empty_array_rows_reject_substituted_element_geometry() {
     );
     let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let outer = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Outer")
+        .data_definition_by_name_str("Outer")
         .unwrap();
     let DataShape::Record { fields } = unique_data_layout(&plan, outer.symbol, "Outer")
         .unwrap()
@@ -148,9 +144,7 @@ fn recursive_projection_reports_its_resource_depth_limit() {
     let typed = typed_fixture(&recursive_source(64));
     let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let outer = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Outer")
+        .data_definition_by_name_str("Outer")
         .unwrap();
     let error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
         &typed,
@@ -177,9 +171,7 @@ fn symbolic_length_spelling_fences_the_owner_until_checking_substitutes_it() {
     );
     let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let owner = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "CallLen")
+        .data_definition_by_name_str("CallLen")
         .unwrap();
     let error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
         &typed,
@@ -213,9 +205,7 @@ fn non_closed_member_applications_stay_fenced_under_the_recursive_owner() {
          data Root [copy] { log: Log<two()>; direct: Event; marker: u64; }",
     );
     let root = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Root")
+        .data_definition_by_name_str("Root")
         .unwrap();
     // Witness the non-closed spelling surviving as an unapplied `Generic`
     // member: no synthesized `Log<two()>` definition exists.

@@ -33,9 +33,7 @@ fn projects_exact_authored_case_order_and_overlay_geometry() {
         "#,
     );
     let definition = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "Choice")
+        .data_definition_by_name_str("Choice")
         .unwrap();
     let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let report =
@@ -114,9 +112,7 @@ fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
         "OuterArraySibling",
     ] {
         let definition = typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == name)
+            .data_definition_by_name_str(name)
             .unwrap();
         assert!(
             project_conventional_record_with_nested_sum_record_materialization_layout(
@@ -130,9 +126,7 @@ fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
     }
 
     let outer = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == "ArrayInner")
+        .data_definition_by_name_str("ArrayInner")
         .unwrap();
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(

@@ -16,9 +16,7 @@ fn typed(source: &str) -> TypedTrees {
 
 fn symbol(typed: &TypedTrees, name: &str) -> symbols::SymbolHandle {
     typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == name)
+        .data_definition_by_name_str(name)
         .expect("fixture declaration")
         .symbol
 }
