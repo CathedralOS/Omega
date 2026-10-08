@@ -39,12 +39,13 @@
 //! the fold only changes which register the access reads and which
 //! displacement it carries.
 
+use super::retained_access;
+
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-    MachineSemanticKind, MachineTrapBehavior, SelectedInstruction, SelectedInstructionKind,
+    MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
+    MachineMemoryEffect, MachineSemanticKind, MachineTrapBehavior, SelectedInstruction,
+    SelectedInstructionKind,
 };
 
 use crate::analyses::machine_effects::{
@@ -359,70 +360,3 @@ fn isolated_projection(declaration: &MachineEffectDeclaration) -> bool {
         && declaration.alternatives.iter().all(machine_alternative_is_transparent)
 }
 
-/// The encoded surface a projection alternative must carry: no memory
-/// access, unchanged stack, no trap surface, a plain fall-through, and no
-/// implicit unit traffic at all.
-
-/// The declared surface the access row — the consumer's and the rewritten
-/// form's alike — must carry: the dereference's own memory effect over
-/// operand 0 (`ReadPointerV1` at the access's byte width for a load,
-/// `WritePointerV1` for the store), the `MayArchitecturalFaultV1` trap the
-/// access can raise, no barrier, call, or cleanup, and every alternative
-/// encoding the matching pointer access, `MayArchitecturalFaultV1`,
-/// unchanged stack, fall-through control, and no implicit unit traffic.
-fn retained_access(
-    declaration: &MachineEffectDeclaration,
-    consumer: MachineSemanticKind,
-    width: u32,
-) -> bool {
-    let (memory, encoded_memory, reads, writes) = match consumer {
-        MachineSemanticKind::Store => (
-            MachineMemoryEffect::WritePointerV1,
-            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
-            vec![0, 1],
-            Vec::new(),
-        ),
-        _ => (
-            MachineMemoryEffect::ReadPointerV1,
-            MachineEncodedMemoryEffect::ReadPointerV1 {
-                pointer_operand: 0,
-                byte_count: width as u16,
-            },
-            vec![0],
-            vec![1],
-        ),
-    };
-    declaration.memory == memory
-        && declaration.trap == MachineTrapBehavior::MayArchitecturalFaultV1
-        && declaration.barrier == MachineBarrier::None
-        && declaration.call == MachineCallEffect::NoneV1
-        && declaration.cleanup == MachineCleanupEffect::NoneV1
-        && declaration
-            .alternatives
-            .iter()
-            .all(|alternative| access_alternative(alternative, encoded_memory, &reads, &writes))
-}
-
-/// The encoded surface a retained-access alternative must carry: the
-/// pointer access over operand 0 the declaration-level memory effect names
-/// — `ReadPointerV1` at the access's byte width or `WritePointerV1` — the
-/// operand read/write roster the form publishes, the
-/// `MayArchitecturalFaultV1` trap the dereference retains, unchanged stack,
-/// fall-through control, and no implicit unit traffic.
-fn access_alternative(
-    alternative: &MachineAlternative,
-    encoded_memory: MachineEncodedMemoryEffect,
-    reads: &[u16],
-    writes: &[u16],
-) -> bool {
-    let encoded = &alternative.encoded;
-    encoded.memory == encoded_memory
-        && encoded.external_operand_reads == reads
-        && encoded.external_operand_writes == writes
-        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
-        && encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-        && encoded.control == MachineEncodedControlEffect::FallThroughV1
-        && encoded.implicit_unit_uses.is_empty()
-        && encoded.implicit_unit_defs.is_empty()
-        && encoded.implicit_unit_clobbers.is_empty()
-}

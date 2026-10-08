@@ -62,6 +62,66 @@
 //! surfaces from the instruction records alone — never consulting the pair
 //! table — and restores the complete source by content.
 
+pub(super) fn retained_access(
+    declaration: &MachineEffectDeclaration,
+    consumer: MachineSemanticKind,
+    width: u32,
+) -> bool {
+    let (memory, encoded_memory, reads, writes) = match consumer {
+        MachineSemanticKind::Store => (
+            MachineMemoryEffect::WritePointerV1,
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+            vec![0, 1],
+            Vec::new(),
+        ),
+        _ => (
+            MachineMemoryEffect::ReadPointerV1,
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: width as u16,
+            },
+            vec![0],
+            vec![1],
+        ),
+    };
+    declaration.memory == memory
+        && declaration.trap == MachineTrapBehavior::MayArchitecturalFaultV1
+        && declaration.barrier == MachineBarrier::None
+        && declaration.call == MachineCallEffect::NoneV1
+        && declaration.cleanup == MachineCleanupEffect::NoneV1
+        && declaration
+            .alternatives
+            .iter()
+            .all(|alternative| access_alternative(alternative, encoded_memory, &reads, &writes))
+}
+
+/// The encoded surface a retained-access alternative must carry, restated
+/// without the table.
+fn access_alternative(
+    alternative: &MachineAlternative,
+    encoded_memory: MachineEncodedMemoryEffect,
+    reads: &[u16],
+    writes: &[u16],
+) -> bool {
+    let encoded = &alternative.encoded;
+    encoded.memory == encoded_memory
+        && encoded.external_operand_reads == reads
+        && encoded.external_operand_writes == writes
+        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+        && encoded.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        && encoded.control == MachineEncodedControlEffect::FallThroughV1
+        && encoded.implicit_unit_uses.is_empty()
+        && encoded.implicit_unit_defs.is_empty()
+        && encoded.implicit_unit_clobbers.is_empty()
+}
+
+use selected_instructions::{
+    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineTrapBehavior,
+};
+
 mod admission;
 mod pair;
 mod replay;
