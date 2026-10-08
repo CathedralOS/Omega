@@ -8,6 +8,8 @@ use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::TerminalMachine;
+
+mod loans;
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {
@@ -23,7 +25,7 @@ pub struct TerminalScalarArrayResult {
 
 impl TerminalExecution<'_> {
     /// Copy a complete unrestricted actual into its exact callee parameter.
-    /// Opaque host roots and projected/borrowed storage carry no array payload.
+    /// Borrowed occurrences retain live storage through `loans`, not this copy.
     pub(crate) fn prepare_scalar_array_argument(
         &self,
         machine: &TerminalMachine,
@@ -39,15 +41,10 @@ impl TerminalExecution<'_> {
             parameter.structural_type,
         )
         .ok_or_else(malformed)?;
-        // A shared loan binds the same element values read-only: lending the
-        // caller's array is observationally a copy, so `&arr` admits alongside
-        // the owned hand-off. Mutable views stay owned-only — writes through a
-        // borrow would never reach the caller's storage.
-        let owned_handoff = parameter.access == StructuralAccess::Owned
-            && argument.access == StructuralAccess::Owned;
-        let shared_loan = parameter.access == StructuralAccess::SharedBorrow
-            && argument.access == StructuralAccess::SharedBorrow;
-        if (!owned_handoff && !shared_loan)
+        // Only an owned occurrence copies payload. Borrowed arrays retain their
+        // activation home through loans.rs, for reads and writes alike.
+        if parameter.access != StructuralAccess::Owned
+            || argument.access != StructuralAccess::Owned
             || !argument.path.is_empty()
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()

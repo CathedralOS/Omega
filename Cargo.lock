@@ -402,6 +402,7 @@ dependencies = [
  "program-entry-plan",
  "provider-planning",
  "representation-planning",
+ "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "sha2",
@@ -458,6 +459,7 @@ dependencies = [
  "provider-planning",
  "register-environment",
  "register-homes-to-post-allocation-machine",
+ "runtime-abi",
  "selected-dispatch",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
@@ -1609,6 +1611,7 @@ dependencies = [
 name = "runtime-abi"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "semantic-vocabulary",
  "target",
 ]

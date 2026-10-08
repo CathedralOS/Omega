@@ -5,10 +5,12 @@
 //! an opaque per-buffer token prevents moving a previous invocation's buffer
 //! into a new call from substituting its backing. Captured field declarations
 //! retain original restrictions even when a formal observes a plain carrier.
+//! Requested aggregate arguments use this same protocol leaf by leaf under
+//! the already-bound referent; opaque host arguments remain opaque by default.
 
 use std::sync::Arc;
 
-use semantic_vocabulary::{PlaceId, ScalarType};
+use semantic_vocabulary::{CanonicalStructuralPathSegment, PlaceId, ScalarType};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeShape,
@@ -24,12 +26,15 @@ use crate::values::{
     ScalarFieldNamespace, StructuralRuntimePlace, TerminalScalarValue, TerminalStructuralValue,
 };
 
+mod record_fields;
+
 /// One boundary argument's captured scalar payload. Replacement is staged,
 /// never a grant of access to the runtime or its qualifications.
 #[derive(Debug)]
 pub struct TerminalBoundaryScalarBuffer {
     identity: Arc<()>,
     argument_index: usize,
+    field_path: Vec<CanonicalStructuralPathSegment>,
     access: StructuralAccess,
     value: TerminalScalarValue,
     restriction: Option<StructuralFieldType>,
@@ -40,6 +45,11 @@ impl TerminalBoundaryScalarBuffer {
     /// Index in the structural argument lane, not the scalar argument lane.
     pub fn argument_index(&self) -> usize {
         self.argument_index
+    }
+
+    /// Closed occurrence-relative coordinates; empty for a whole scalar loan.
+    pub fn field_path(&self) -> &[CanonicalStructuralPathSegment] {
+        &self.field_path
     }
 
     pub fn access(&self) -> StructuralAccess {
@@ -82,6 +92,7 @@ impl TerminalBoundaryScalarBuffer {
 struct ScalarLoanBinding {
     identity: Arc<()>,
     argument_index: usize,
+    field_path: Vec<CanonicalStructuralPathSegment>,
     access: StructuralAccess,
     source: PlaceId,
     storage: PrimitiveStorage,
@@ -134,12 +145,89 @@ impl BoundaryScalarLoans {
         if scalar_type != expected {
             return Err(malformed());
         }
+        self.capture_storage(
+            execution,
+            argument.place,
+            storage,
+            scalar_type,
+            shared_view,
+            parameter.access,
+            argument_index,
+            Vec::new(),
+        )?;
+        Ok(value)
+    }
+
+    pub(crate) fn capture_fields(
+        &mut self,
+        execution: &TerminalExecution,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+        referent: &TerminalStructuralValue,
+        array_loan: Option<&crate::element_views::ElementView>,
+        argument_index: usize,
+    ) -> Result<(), TerminalInterpretError> {
+        if parameter.access != argument.access
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return Err(malformed());
+        }
+        for (field_path, expected) in
+            record_fields::scalar_leaves(&execution.program, parameter.structural_type)?
+        {
+            // Argument preparation checked access and bound the exact projected
+            // referent. Resolve leaves below that view, not the differently
+            // typed containing place in the caller's activation.
+            let (storage, scalar_type, shared_view) = if let Some(loan) = array_loan {
+                loan.scalar_storage(
+                    execution,
+                    &field_path,
+                    parameter.access == StructuralAccess::MutableBorrow,
+                )?
+            } else {
+                execution.primitive_view_access(
+                    referent,
+                    &field_path,
+                    expected,
+                    parameter.access == StructuralAccess::SharedBorrow,
+                )?
+            };
+            if scalar_type != expected {
+                return Err(malformed());
+            }
+            self.capture_storage(
+                execution,
+                argument.place,
+                storage,
+                scalar_type,
+                shared_view,
+                parameter.access,
+                argument_index,
+                field_path,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn capture_storage(
+        &mut self,
+        execution: &TerminalExecution,
+        source: PlaceId,
+        storage: PrimitiveStorage,
+        scalar_type: ScalarType,
+        shared_view: bool,
+        access: StructuralAccess,
+        argument_index: usize,
+        field_path: Vec<CanonicalStructuralPathSegment>,
+    ) -> Result<(), TerminalInterpretError> {
         execution.validate_scalar_loan_qualifications(&storage)?;
         let original = execution.read_primitive_storage(
-            argument.place,
+            source,
             storage.clone(),
             scalar_type,
-            expected,
+            scalar_type,
             shared_view,
         )?;
         let restriction = execution.captured_scalar_restriction(&storage)?;
@@ -153,7 +241,8 @@ impl BoundaryScalarLoans {
         self.buffers.push(TerminalBoundaryScalarBuffer {
             identity: Arc::clone(&identity),
             argument_index,
-            access: parameter.access,
+            field_path: field_path.clone(),
+            access,
             value: original,
             restriction: restriction.clone(),
             stored_scalar: storage.stored_scalar,
@@ -161,15 +250,16 @@ impl BoundaryScalarLoans {
         self.bindings.push(ScalarLoanBinding {
             identity,
             argument_index,
-            access: parameter.access,
-            source: argument.place,
+            field_path,
+            access,
+            source,
             storage,
             scalar_type,
             shared_view,
             original,
             restriction,
         });
-        Ok(value)
+        Ok(())
     }
 
     pub(crate) fn validate_writeback(
@@ -182,6 +272,7 @@ impl BoundaryScalarLoans {
         for (buffer, binding) in self.buffers.iter().zip(&self.bindings) {
             if !Arc::ptr_eq(&buffer.identity, &binding.identity)
                 || buffer.argument_index != binding.argument_index
+                || buffer.field_path != binding.field_path
                 || buffer.access != binding.access
                 || buffer.value.scalar_type() != binding.scalar_type
                 || !terminal_scalar_belongs_to_type(buffer.value)

@@ -1,6 +1,7 @@
 //! Prepare ordinary calls once, preserving each argument's authenticated carrier.
 //!
-//! Packed cases and scalar arrays already own snapshots. Opaque aggregate values
+//! Packed cases and owned scalar arrays already own snapshots. Borrowed arrays
+//! retain their live collection home instead. Opaque aggregate values
 //! need fresh subtree storage for unrestricted owned occurrences. Frames must
 //! preserve this partition instead of reclassifying every parameter by type;
 //! a Sum declaration alone does not say where its runtime payload lives.
@@ -113,8 +114,7 @@ impl TerminalExecution<'_> {
                 parameter.structural_type,
             )
             .is_some()
-                && (parameter.access == StructuralAccess::Owned
-                    || self.scalar_array_values.contains_key(&argument.place))
+                && parameter.access == StructuralAccess::Owned
             {
                 let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
                 if scalar_arrays.insert(parameter.place, value).is_some() {
@@ -143,9 +143,10 @@ impl TerminalExecution<'_> {
                             || declaration.shape.is_borrowed_byte_carrier()
                             || matches!(
                                 declaration.shape,
-                                StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                )
+                                StructuralTypeShape::FixedArray { .. }
+                                    | StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    )
                             )
                     })
             })

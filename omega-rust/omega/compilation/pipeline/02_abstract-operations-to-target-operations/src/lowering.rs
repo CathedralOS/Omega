@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Stage entrance: bind admitted settlements, validate the complete roster, and lower each function.
 
+mod borrowed_storage;
 mod boundary_settlements;
 mod control_flow;
 mod coordination;

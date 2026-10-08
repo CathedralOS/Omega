@@ -1,7 +1,6 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
 use crate::native::native_realization::callback_thunks::lower_callback_thunks;
-use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 use crate::native::native_realization::realization_diagnostics::selected_physical_pipeline_failed;
 use crate::native::stage_optimized_verified_physical_pipeline;
 use abstract_operations_to_target_operations::{
@@ -16,6 +15,12 @@ use native_artifact::{
 };
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput;
+use terminal_psi_to_abstract_operations::provider_admission::realization_error;
+
+pub(crate) struct EmittedRealizationObject {
+    pub object: PublishedFragmentObject,
+    pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+}
 
 pub(crate) fn emit_realization_object(
     input: VerifiedNativeArtifactInput,
@@ -28,7 +33,7 @@ pub(crate) fn emit_realization_object(
     >,
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
-) -> Result<PublishedFragmentObject, Vec<Diagnostic>> {
+) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let selections = request.optimization_selections.selections();
     let abstract_stage = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),
@@ -52,10 +57,11 @@ pub(crate) fn emit_realization_object(
         },
     )
     .map_err(|error| realization_error("target lowering", error))?;
+    let borrowed_storage_layouts = target.borrowed_storage_layouts().to_vec();
     let physical = stage_optimized_verified_physical_pipeline(target).map_err(|error| {
         selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
     })?;
-    publish_fragment_object(
+    let object = publish_fragment_object(
         physical,
         FragmentObjectPublicationRequest {
             terminal,
@@ -63,5 +69,9 @@ pub(crate) fn emit_realization_object(
             hosted_receiver,
             private_functions: &private_functions,
         },
-    )
+    )?;
+    Ok(EmittedRealizationObject {
+        object,
+        borrowed_storage_layouts,
+    })
 }

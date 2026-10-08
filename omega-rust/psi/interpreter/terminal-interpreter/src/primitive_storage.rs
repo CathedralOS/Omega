@@ -360,7 +360,7 @@ impl TerminalExecution<'_> {
         })
     }
 
-    fn primitive_home_access(
+    pub(crate) fn primitive_home_access(
         &self,
         home: PrimitiveStorageHome,
         writing: bool,
@@ -373,6 +373,7 @@ impl TerminalExecution<'_> {
             scalar_array_values,
             byte_sequence_values,
             primitive_loan_values,
+            element_view_values,
         ) = if home.depth == self.call_stack.len() {
             (
                 self.current_machine,
@@ -380,6 +381,7 @@ impl TerminalExecution<'_> {
                 &self.scalar_array_values,
                 &self.byte_sequence_values,
                 &self.primitive_loan_values,
+                &self.element_view_values,
             )
         } else {
             let frame = self.call_stack.get(home.depth).ok_or_else(malformed)?;
@@ -389,10 +391,29 @@ impl TerminalExecution<'_> {
                 &frame.scalar_array_values,
                 &frame.byte_sequence_values,
                 &frame.primitive_loan_values,
+                &frame.element_view_values,
             )
         };
         if machine_id != home.machine {
             return Err(malformed());
+        }
+        if let Some(loan) = element_view_values.get(&place)
+            && matches!(
+                self.program
+                    .structural_types()
+                    .get(&home.structural_type)
+                    .ok_or_else(malformed)?
+                    .shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+        {
+            let path = terminal_semantics::canonical_primitive_path(
+                self.program.structural_types().values(),
+                home.structural_type,
+                path,
+            )
+            .ok_or_else(malformed)?;
+            return loan.scalar_storage(self, &path, writing);
         }
         let machine = self
             .program
@@ -655,10 +676,9 @@ impl TerminalExecution<'_> {
                         .find(|field| field.id == *identity && !field.relevance.is_erased())
                         .ok_or_else(malformed)?;
                     if position + 1 == path.len()
-                        && matches!(
+                        && !matches!(
                             field.field_type,
-                            terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
-                                | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                            terminal_psi::StructuralFieldType::Atomic(_)
                         )
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {

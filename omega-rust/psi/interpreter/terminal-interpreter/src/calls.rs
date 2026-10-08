@@ -393,6 +393,7 @@ impl TerminalExecution<'_> {
         let mut boundary_arguments = self.resolve_boundary_arguments(
             &boundary_declaration.structural_parameters,
             structural_arguments,
+            handler.scalar_storage_arguments(boundary),
         )?;
         bind_structural_arguments(
             &boundary_declaration.structural_parameters,

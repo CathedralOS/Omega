@@ -117,6 +117,7 @@ pub(super) fn bind<'host>(
                     program,
                     declaration,
                     binding,
+                    provisions.map_or(&[], TerminalRuntimeProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
                 )?;

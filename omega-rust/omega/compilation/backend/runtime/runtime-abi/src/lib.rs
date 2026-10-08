@@ -8,8 +8,13 @@
 //! @Cleanup: `layout` is the only consumer; terminal emission still re-derives
 //! the same geometry by hand. See the @Cleanup notes in `runtime_abi.rs`.
 
+mod borrowed_storage;
 mod runtime_abi;
 mod scalar_reference;
+
+pub use borrowed_storage::{
+    NativeBorrowedStorageField, NativeBorrowedStorageLayout, NativeStorageRepetition,
+};
 
 pub use scalar_reference::{ScalarReferenceDescriptorAbi, ScalarStorageCodec};
 

@@ -52,6 +52,15 @@ pub enum TerminalEffect {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Request captured scalar leaves of these structural arguments before
+    /// host dispatch. This selects observations, never access or authority.
+    fn scalar_storage_arguments(
+        &self,
+        _boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> &[usize] {
+        &[]
+    }
+
     fn handle_effect(&mut self, effect: &TerminalEffect) -> Result<(), TerminalEffectRejection>;
 
     /// Handle captured scalar loans alongside the existing byte buffers. The

@@ -1,7 +1,9 @@
 //! Trusted descriptor implementations over finite input and private streams.
 //! Exact normalized locators, declarations and target ABI authenticate
-//! compatibility, not semantic authority inferred from export names. Integer
-//! loans expose only their primitive extent; views supply their exact live range
+//! compatibility, not semantic authority inferred from export names. Scalar
+//! leaves expose original backing through one capture/writeback protocol. Native
+//! lowering retains record/array placement; the adapter never guesses offsets
+//! or manufactures padding. Views supply their exact live range
 //! and retained pointer/length ABI. Mutable views stage fixed-extent writes into
 //! the original backing. Neither protocol grants allocation tails or resizing.
 //! The host explicitly assumes equivalence of these offered implementations;
@@ -10,6 +12,7 @@
 use super::TerminalRuntimeError;
 use super::buffered_output::BufferedStreams;
 use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
+use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -23,6 +26,9 @@ use terminal_psi::{
     BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
 };
+
+mod captured_storage;
+use captured_storage::CapturedStorage;
 
 #[derive(Clone, Copy)]
 enum DescriptorOperation {
@@ -73,9 +79,9 @@ impl DescriptorImplementation {
         })
     }
 }
-#[derive(Clone, Copy)]
 enum DescriptorBuffer {
     Integer(IntegerType),
+    Aggregate(NativeBorrowedStorageLayout),
     Bytes,
 }
 
@@ -95,6 +101,7 @@ impl<'input> DescriptorIoImport<'input> {
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
+        storage_layouts: &[NativeBorrowedStorageLayout],
         input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
         output: BufferedStreams,
     ) -> Result<Self, TerminalRuntimeError> {
@@ -153,6 +160,13 @@ impl<'input> DescriptorIoImport<'input> {
             {
                 DescriptorBuffer::Bytes
             }
+            Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
+                let layout = storage_layouts
+                    .iter()
+                    .find(|layout| layout.structural_type == formal.structural_type)
+                    .ok_or_else(invalid)?;
+                DescriptorBuffer::Aggregate(layout.clone())
+            }
             _ => return Err(invalid()),
         };
         let access_supported = match operation {
@@ -162,8 +176,8 @@ impl<'input> DescriptorIoImport<'input> {
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
             ),
         };
-        let (scalar_parameters, parameter_order, native_parameters) = match buffer {
-            DescriptorBuffer::Integer(_) => (
+        let (scalar_parameters, parameter_order, native_parameters) = match &buffer {
+            DescriptorBuffer::Integer(_) | DescriptorBuffer::Aggregate(_) => (
                 vec![
                     ScalarType::Integer(descriptor_type),
                     ScalarType::Integer(count_type),
@@ -251,47 +265,21 @@ impl<'input> DescriptorIoImport<'input> {
 fn invalid_operands() -> TerminalEffectRejection {
     TerminalEffectRejection::new("descriptor I/O operands differ from the installed contract")
 }
-fn integer_bytes(
-    value: TerminalScalarValue,
-    expected: IntegerType,
-) -> Result<[u8; 16], TerminalEffectRejection> {
-    let TerminalScalarValue::Integer { scalar_type, value } = value else {
-        return Err(invalid_operands());
-    };
-    if scalar_type != expected || !expected.admits(value) {
-        return Err(invalid_operands());
-    }
-    Ok(match value {
-        IntegerValue::Signed(value) => value.to_le_bytes(),
-        IntegerValue::Unsigned(value) => value.to_le_bytes(),
-    })
-}
-fn integer_from_bytes(bytes: [u8; 16], integer: IntegerType) -> TerminalScalarValue {
-    let bits = integer.bits();
-    let raw = u128::from_le_bytes(bytes);
-    let raw = if bits == 128 {
-        raw
-    } else {
-        raw & ((1u128 << bits) - 1)
-    };
-    let value = match integer.sign() {
-        IntegerSign::Unsigned => IntegerValue::Unsigned(raw),
-        IntegerSign::Signed if bits == 128 => IntegerValue::Signed(raw as i128),
-        IntegerSign::Signed => {
-            IntegerValue::Signed(((raw << (128 - bits)) as i128) >> (128 - bits))
-        }
-    };
-    TerminalScalarValue::Integer {
-        scalar_type: integer,
-        value,
-    }
-}
 impl TerminalImportAdapter for DescriptorIoImport<'_> {
     fn implemented_signature(&self) -> TerminalImportSignature {
         self.signature.clone()
     }
 }
 impl TerminalEffectHandler for DescriptorIoImport<'_> {
+    fn scalar_storage_arguments(
+        &self,
+        _boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> &[usize] {
+        match self.buffer {
+            DescriptorBuffer::Aggregate(_) => &[0],
+            _ => &[],
+        }
+    }
     fn handle_effect(&mut self, _effect: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
         Err(TerminalEffectRejection::new(
             "descriptor I/O requires authenticated buffer dispatch",
@@ -331,8 +319,8 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
         {
             return Err(invalid_operands());
         }
-        let mut primitive_bytes = [0u8; 16];
-        let (bytes, count) = match self.buffer {
+        let mut captured = None;
+        let (bytes, count) = match &self.buffer {
             DescriptorBuffer::Bytes => {
                 let [Some(bytes)] = byte_sequence_arguments.as_slice() else {
                     return Err(invalid_operands());
@@ -357,10 +345,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 }
                 (bytes.as_slice(), bytes.len())
             }
-            DescriptorBuffer::Integer(integer) => {
-                let [buffer] = scalar_buffers else {
-                    return Err(invalid_operands());
-                };
+            DescriptorBuffer::Integer(_) | DescriptorBuffer::Aggregate(_) => {
                 let [
                     _,
                     TerminalScalarValue::Integer {
@@ -374,33 +359,40 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 if !byte_buffers.is_empty()
                     || *scalar_type != self.count_type
                     || !self.count_type.admits(IntegerValue::Unsigned(*count))
-                    || buffer.argument_index() != 0
-                    || buffer.access() != formal.access
                     || !matches!(byte_sequence_arguments.as_slice(), [None])
                 {
                     return Err(invalid_operands());
                 }
-                primitive_bytes = integer_bytes(buffer.value(), integer)?;
+                let layout = match &self.buffer {
+                    DescriptorBuffer::Aggregate(layout) => Some(layout),
+                    DescriptorBuffer::Integer(integer) => {
+                        let [buffer] = scalar_buffers else {
+                            return Err(invalid_operands());
+                        };
+                        if buffer.value().scalar_type() != ScalarType::Integer(*integer) {
+                            return Err(invalid_operands());
+                        }
+                        None
+                    }
+                    _ => return Err(invalid_operands()),
+                };
+                captured = Some(CapturedStorage::capture(
+                    scalar_buffers,
+                    formal.access,
+                    layout,
+                )?);
+                let storage = captured.as_ref().ok_or_else(invalid_operands)?;
                 let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
                 // A logical integer formal can observe a narrower captured
                 // codec. Only its authenticated physical bytes are offered;
                 // the formal's width grants neither padding nor adjacent data.
-                let ScalarType::Integer(stored_integer) = buffer.storage_scalar_type() else {
-                    return Err(invalid_operands());
-                };
-                if stored_integer.is_address()
-                    || stored_integer.bits() % 8 != 0
-                    || stored_integer.bits() > integer.bits()
-                {
-                    return Err(invalid_operands());
-                }
-                let extent = usize::from(stored_integer.bits() / 8);
+                let extent = storage.bytes.len();
                 if count > extent {
                     return Err(TerminalEffectRejection::new(
-                        "descriptor byte count exceeds the exact borrowed scalar extent",
+                        "descriptor byte count exceeds the exact borrowed storage extent",
                     ));
                 }
-                (&primitive_bytes[..extent], count)
+                (storage.bytes.as_slice(), count)
             }
         };
         let result = self.result(i128::try_from(count).map_err(|_| invalid_operands())?)?;
@@ -432,9 +424,10 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 let mut input = input
                     .lock()
                     .map_err(|_| TerminalEffectRejection::new("stdin snapshot lock is poisoned"))?;
-                let mut transferred = [0u8; 16];
-                let destination = match self.buffer {
-                    DescriptorBuffer::Integer(_) => &mut transferred[..count],
+                let destination = match &self.buffer {
+                    DescriptorBuffer::Integer(_) | DescriptorBuffer::Aggregate(_) => {
+                        &mut captured.as_mut().ok_or_else(invalid_operands)?.bytes[..count]
+                    }
                     DescriptorBuffer::Bytes => {
                         let [buffer] = byte_buffers else {
                             return Err(invalid_operands());
@@ -453,12 +446,10 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 };
                 drop(input);
                 let result = self.result(i128::try_from(moved).map_err(|_| invalid_operands())?)?;
-                if let DescriptorBuffer::Integer(integer) = self.buffer {
-                    primitive_bytes[..moved].copy_from_slice(&transferred[..moved]);
-                    let [buffer] = scalar_buffers else {
-                        return Err(invalid_operands());
-                    };
-                    buffer.replace(integer_from_bytes(primitive_bytes, integer))?;
+                if moved != 0
+                    && let Some(storage) = captured
+                {
+                    storage.stage(scalar_buffers)?;
                 }
                 Ok(result)
             }

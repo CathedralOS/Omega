@@ -1771,8 +1771,13 @@ then independent claimed restoration slices -> final closure.
   isolated instance. Complete external demands, including possible dynamic
   rows, are admitted before effects; normal imports cannot accept external
   signatures. Remaining arrivals include scalar entry arguments, placed host
-  loans, writable host record buffers, non-hosted roots and required
-  receiver qualifications. Hosted byte input uses
+  loans, padding-containing or non-scalar host buffers, non-hosted roots and required
+  receiver qualifications. Bare `Binding` state forwarding still fails stage 05
+  with "fused Service parameter receipt appears outside supported Unit parameter
+  custody": the descriptor helper's `io: &Binding<DescriptorIo>` may call an
+  import directly but cannot forward that formal to a state before calling it.
+  Complete that erased-custody join without adding a host-helper recognizer.
+  Hosted byte input uses
   an explicit finite replay stream shared by selected input slots; CLI and
   corpus give each engine the same authored bytes with independent positions.
   Preserve `calls/runtime_call_carrier_partition_exit`,
@@ -1814,6 +1819,12 @@ then independent claimed restoration slices -> final closure.
   Preserve the mutable-view and record-array input fixtures too: original
   array/field windows retain exact live extents and unread/outside bytes;
   field presentation cannot substitute the record owner's type or grant resizing.
+  Preserve `host/{runtime_descriptor_record_loan_input_exit,runtime_descriptor_nested_record_loan_input_exit}`:
+  whole-record loans retain original scalar fields, nested arrays and restrictions;
+  native placement supplies byte coordinates without inventing padding or pointers.
+  Preserve `host/runtime_descriptor_local_array_loan_input_exit`: shared and mutable
+  whole-array loans keep their owner's activation across calls and state edges;
+  only owned occurrences copy payload, and short reads retain unread elements.
   The original
   `runtime_float_integer_conversion_boundaries_exit` has no exact established
   root ProcessExit Binding occurrence and declines before effects; resolve its

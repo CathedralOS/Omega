@@ -90,6 +90,10 @@ fn realize_image(
         &artifact,
         request,
     )?;
+    let runtime_provisions = runtime_provisions.map(|provisions| {
+        provisions.with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)
+    });
+    let emitted = emitted.object;
     // Build output configuration supplies the loader; the emitted object's own
     // normalized ELF imports decide whether the output links dynamically.
     let image_request = request

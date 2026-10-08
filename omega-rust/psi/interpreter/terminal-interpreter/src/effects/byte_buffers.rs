@@ -73,7 +73,10 @@ impl BoundaryArguments {
             let Some(view) = view else {
                 continue;
             };
-            if parameter.access != StructuralAccess::SharedBorrow
+            if !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || parameter.access != view.access()
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
@@ -159,6 +162,7 @@ impl TerminalExecution<'_> {
         &self,
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
+        scalar_storage_arguments: &[usize],
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
         if parameters.len() != arguments.len() {
             return Err(malformed());
@@ -201,6 +205,37 @@ impl TerminalExecution<'_> {
             resolved.byte_sequences.insert(argument_index, None);
             resolved.primitive_loans.insert(argument_index, None);
             resolved.element_views.insert(argument_index, None);
+        }
+        let mut requested = std::collections::BTreeSet::new();
+        for &argument_index in scalar_storage_arguments {
+            if !requested.insert(argument_index) {
+                return Err(malformed());
+            }
+            let parameter = parameters.get(argument_index).ok_or_else(malformed)?;
+            let argument = arguments.get(argument_index).ok_or_else(malformed)?;
+            if !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) {
+                return Err(malformed());
+            }
+            if !matches!(
+                self.program
+                    .structural_types()
+                    .get(&parameter.structural_type)
+                    .ok_or_else(malformed)?
+                    .shape,
+                StructuralTypeShape::PrimitiveScalar(_)
+            ) {
+                resolved.scalar_loans.capture_fields(
+                    self,
+                    parameter,
+                    argument,
+                    &resolved.values[argument_index],
+                    resolved.element_views[argument_index].as_ref(),
+                    argument_index,
+                )?;
+            }
         }
         for (argument_index, binding) in resolved.byte_sequences.iter().enumerate() {
             match binding {
@@ -280,6 +315,17 @@ impl TerminalExecution<'_> {
                 continue;
             }
             resolved.primitive_loans.push(None);
+            if let Some((referent, loan)) = self.prepare_scalar_array_loan(
+                parameter,
+                argument,
+                &mut resolved.local_identity_cursor,
+                &mut local_array_roots,
+            )? {
+                resolved.values.push(referent);
+                resolved.byte_sequences.push(None);
+                resolved.element_views.push(Some(loan));
+                continue;
+            }
             if let Some((referent, binding)) =
                 self.prepare_shared_descriptor_argument(parameter, argument)?
             {

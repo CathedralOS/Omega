@@ -244,6 +244,8 @@ impl TerminalExecution<'_> {
         let mut scalar_cases = BTreeMap::new();
         let mut scalar_arrays = BTreeMap::new();
         let mut primitive_loans = BTreeMap::new();
+        let mut array_loans = BTreeMap::new();
+        let mut local_array_roots = BTreeMap::new();
         let mut identity_cursor = self.local_structural_identities.cursor();
         let mut case_destinations = BTreeSet::new();
         let mut owned_sources = BTreeSet::new();
@@ -284,6 +286,28 @@ impl TerminalExecution<'_> {
                     self.capture_primitive_loan(parameter, argument, &mut identity_cursor)?;
                 resolved_arguments.push(loan.referent.clone());
                 primitive_loans.insert(parameter.place, loan);
+                if contains_payloads {
+                    descriptor_parameters.push(parameter.clone());
+                    descriptor_arguments.push(argument.clone());
+                }
+                continue;
+            }
+            if let Some((referent, loan)) = self.prepare_scalar_array_loan(
+                parameter,
+                argument,
+                &mut identity_cursor,
+                &mut local_array_roots,
+            )? {
+                if !self.block_parameter_is_declared(target, parameter)
+                    || self
+                        .live_affine_frontier
+                        .iter()
+                        .any(|entry| entry.place == parameter.place)
+                    || array_loans.insert(parameter.place, loan).is_some()
+                {
+                    return Err(malformed());
+                }
+                resolved_arguments.push(referent);
                 if contains_payloads {
                     descriptor_parameters.push(parameter.clone());
                     descriptor_arguments.push(argument.clone());
@@ -635,11 +659,16 @@ impl TerminalExecution<'_> {
             descriptor_arguments,
             &resolved_arguments,
         )?;
-        let element_views = self.bind_element_view_arguments(
+        let mut element_views = self.bind_element_view_arguments(
             descriptor_parameters,
             descriptor_arguments,
             &resolved_arguments,
         )?;
+        for (place, loan) in array_loans {
+            if element_views.insert(place, loan).is_some() {
+                return Err(malformed());
+            }
+        }
         let aggregate_payload = self.stage_owned_aggregate_arguments(
             descriptor_parameters,
             &mut structural,

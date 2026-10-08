@@ -498,6 +498,12 @@ struct ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn scalar_storage_arguments(&self, boundary: BoundaryMachineId) -> &[usize] {
+        self.bindings.get(&boundary).map_or(&[], |binding| {
+            binding.adapter.scalar_storage_arguments(boundary)
+        })
+    }
+
     fn handle_effect_with_buffers(
         &mut self,
         effect: &TerminalEffect,

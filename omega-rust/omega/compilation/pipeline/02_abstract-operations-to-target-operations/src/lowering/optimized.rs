@@ -15,9 +15,14 @@ pub struct ValidatedOptimizedTargetOperations {
     pub(super) optimized: ValidatedOptimizedAbstractPlan,
     current_program: Arc<TargetOperationPlan>,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
+    borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
 impl ValidatedOptimizedTargetOperations {
+    /// The target producer's source-free geometry for borrowed boundary inputs.
+    pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
+        &self.borrowed_storage_layouts
+    }
     pub const fn optimized(&self) -> &ValidatedOptimizedAbstractPlan {
         &self.optimized
     }
@@ -76,6 +81,7 @@ fn lower_validated_abstract_to_target_operations(
     crate::validation::installed_calls::validate(&program, installed)?;
     crate::validation::whole_plan::reject_raw_ieee_float_fma(optimized.plan())?;
     Ok(ValidatedOptimizedTargetOperations {
+        borrowed_storage_layouts: super::borrowed_storage::capture(optimized.plan()),
         optimized,
         current_program: Arc::new(program),
         provider_installation: installation.map(Box::new),

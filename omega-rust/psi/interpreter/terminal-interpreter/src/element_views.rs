@@ -42,8 +42,8 @@ use terminal_psi::StructuralTypeShape;
 /// Original scalar storage retained by a view. Access belongs to the descriptor;
 /// a shared descendant can keep this home for current reads without write authority.
 pub(crate) struct ElementViewHome {
-    storage: crate::primitive_storage::PrimitiveStorageHome,
-    path: Vec<StructuralPathSegment>,
+    pub(crate) storage: crate::primitive_storage::PrimitiveStorageHome,
+    pub(crate) path: Vec<StructuralPathSegment>,
 }
 
 impl ElementViewHome {
@@ -104,7 +104,7 @@ impl ElementView {
         }
     }
 
-    fn structural(
+    pub(crate) fn structural(
         collection: TerminalStructuralValue,
         length: usize,
         access: StructuralAccess,
@@ -167,6 +167,55 @@ impl ElementView {
 
     pub(crate) fn len(&self) -> usize {
         self.window.end - self.window.start
+    }
+
+    pub(crate) fn access(&self) -> StructuralAccess {
+        self.access
+    }
+
+    /// Select original scalar storage below a fixed-array loan. No snapshot or
+    /// byte geometry participates; the owner's accessor checks the frame home.
+    pub(crate) fn scalar_storage(
+        &self,
+        execution: &TerminalExecution,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        writing: bool,
+    ) -> Result<
+        (crate::primitive_storage::PrimitiveStorage, ScalarType, bool),
+        TerminalInterpretError,
+    > {
+        if writing && self.access != StructuralAccess::MutableBorrow {
+            return Err(malformed());
+        }
+        let Some((
+            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(element_index),
+            suffix,
+        )) = path.split_first()
+        else {
+            return Err(malformed());
+        };
+        let element_index = usize::try_from(*element_index).map_err(|_| malformed())?;
+        if element_index >= self.len() {
+            return Err(malformed());
+        }
+        let suffix = suffix
+            .iter()
+            .map(|step| match step {
+                semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(element_index) => {
+                    Ok(StructuralPathSegment::FixedIndex(*element_index))
+                }
+                _ => Err(malformed()),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let home = self.home.as_ref().ok_or_else(malformed)?;
+        let path = home.selected_path(
+            self.window
+                .start
+                .checked_add(element_index)
+                .ok_or_else(malformed)?,
+            &suffix,
+        )?;
+        execution.primitive_home_access(home.storage, writing, &path)
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&TerminalScalarValue> {

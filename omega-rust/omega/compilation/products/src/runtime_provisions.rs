@@ -33,6 +33,7 @@ pub struct TerminalRuntimeProvisions {
     fused_service_boundary_slots: Vec<Vec<BoundaryMachineId>>,
     installation: Option<terminal_interpreter::AdmittedProviderInstallation>,
     host: Vec<TerminalRuntimeHostProvision>,
+    borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
 impl TerminalRuntimeProvisions {
@@ -84,6 +85,7 @@ impl TerminalRuntimeProvisions {
             fused_service_boundary_slots.push(slots);
         }
         Ok(Self {
+            borrowed_storage_layouts: Vec::new(),
             identity: checked.terminal_psi_identity(),
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),
@@ -98,6 +100,20 @@ impl TerminalRuntimeProvisions {
 
     pub const fn identity(&self) -> TerminalPsiIdentity {
         self.identity
+    }
+
+    /// Retain the same native producer's layout companion. These coordinates
+    /// confer neither host authority nor permission to replace guest fields.
+    pub fn with_borrowed_storage_layouts(
+        mut self,
+        layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
+    ) -> Self {
+        self.borrowed_storage_layouts = layouts;
+        self
+    }
+
+    pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
+        &self.borrowed_storage_layouts
     }
 
     pub const fn entry(&self) -> MachineId {

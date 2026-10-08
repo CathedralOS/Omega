@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "runtime_descriptor_local_array_loan_input_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+}
