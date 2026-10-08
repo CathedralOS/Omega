@@ -138,9 +138,7 @@ pub(super) fn validate(
     }
 
     let incoming_edge = predecessor_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == patch.incoming_edge)
+        .edge(patch.incoming_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?
         .clone();
     let removed_effect = predecessor_node.effect;

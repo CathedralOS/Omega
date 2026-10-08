@@ -134,9 +134,7 @@ fn plan_dispatch(
         return None;
     }
     let arm_edge = |edge: EdgeId| {
-        node.successors
-            .iter()
-            .find(|successor| successor.psi_edge == edge)
+        node.edge(edge)
     };
     let when_true_edge = arm_edge(when_true.psi_edge)?;
     let when_false_edge = arm_edge(when_false.psi_edge)?;
@@ -409,9 +407,7 @@ fn fused_node(
                 return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
             }
             let incoming = predecessor
-                .successors
-                .iter()
-                .find(|edge| edge.psi_edge == first.incoming_edge)
+                .edge(first.incoming_edge)
                 .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             if incoming.target != dispatch
                 || !incoming.structural_bindings.is_empty()
@@ -523,9 +519,7 @@ fn fused_edge(
     dispatch_node: &OptimizationNode,
 ) -> Result<OptimizationEdge, OptimizationUnitValidationError> {
     let resolved = dispatch_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == row.taken_edge)
+        .edge(row.taken_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if resolved.target != row.resolved_target
         || row.rejected_edge == row.taken_edge

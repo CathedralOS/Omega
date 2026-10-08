@@ -154,6 +154,12 @@ pub struct OptimizationNode {
     pub ownership: Vec<OwnershipEvent>,
 }
 
+impl OptimizationNode {
+    pub fn edge(&self, psi_edge: EdgeId) -> Option<&OptimizationEdge> {
+        self.successors.iter().find(|edge| edge.psi_edge == psi_edge)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationBlock {
     pub id: BlockId,

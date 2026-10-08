@@ -215,9 +215,7 @@ fn shared_terminal_fusion_accounting(
     let incoming = predecessor_block
         .nodes
         .get(usize::try_from(predecessor.node).ok()?)?
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == incoming_edge)?;
+        .edge(incoming_edge)?;
     let target_block = function.block(target)?;
     let [terminal] = target_block.nodes.as_slice() else {
         return None;

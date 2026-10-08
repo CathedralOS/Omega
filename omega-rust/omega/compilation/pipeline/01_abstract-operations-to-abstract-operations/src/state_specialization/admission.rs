@@ -84,9 +84,7 @@ pub(super) fn dispatch_evidence<'a>(
         return None;
     }
     let arm_edge = |edge: EdgeId| {
-        node.successors
-            .iter()
-            .find(|successor| successor.psi_edge == edge)
+        node.edge(edge)
     };
     Some(DispatchEvidence {
         unit,

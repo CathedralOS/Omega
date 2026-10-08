@@ -70,9 +70,7 @@ pub fn restamp_psi_function_derived_metadata(
             let mut successors = operation_edges(&node.operation);
             for edge in &mut successors {
                 if let Some(existing) = node
-                    .successors
-                    .iter()
-                    .find(|existing| existing.psi_edge == edge.psi_edge)
+                    .edge(edge.psi_edge)
                 {
                     edge.provenance = existing.provenance.clone();
                     edge.fuel = existing.fuel.clone();

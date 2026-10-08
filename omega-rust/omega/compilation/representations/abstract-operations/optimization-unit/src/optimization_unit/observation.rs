@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
 use optimization_core::{OptimizationUnitIdentity, OwnershipFrontierFactIdentity};
-use semantic_vocabulary::{BlockId, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 use crate::{
     EffectLink, FuelSettlement, NodeLocation, OptimizationEdge, OwnershipEvent,
@@ -69,6 +69,12 @@ pub struct PsiNodeObservation {
     pub crash: ObservationKnowledge,
     pub suspension: ObservationKnowledge,
     pub events: Vec<PsiObservableEvent>,
+}
+
+impl PsiNodeObservation {
+    pub fn edge(&self, psi_edge: EdgeId) -> Option<&OptimizationEdge> {
+        self.successors.iter().find(|edge| edge.psi_edge == psi_edge)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

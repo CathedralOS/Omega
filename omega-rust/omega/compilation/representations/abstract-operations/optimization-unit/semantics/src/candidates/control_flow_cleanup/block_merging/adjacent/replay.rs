@@ -150,9 +150,7 @@ pub(super) fn validate(
         .pop()
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let removed_edge = removed
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == patch.incoming_edge)
+        .edge(patch.incoming_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let first = moved
         .nodes

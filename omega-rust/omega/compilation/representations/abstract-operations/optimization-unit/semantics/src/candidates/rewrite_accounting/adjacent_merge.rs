@@ -73,9 +73,7 @@ pub(crate) fn reconstruct_adjacent_merge_accounting(
         .nodes
         .get(usize::try_from(patch.predecessor.node).ok()?)?;
     let incoming = predecessor_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == patch.incoming_edge)?;
+        .edge(patch.incoming_edge)?;
     let target = &function.blocks[target_position];
     let incoming_site = PsiRealizationSite::Edge {
         machine: function.machine,

@@ -138,9 +138,7 @@ pub(super) fn validate(
     }
 
     let outgoing_edge = empty_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == patch.outgoing_edge)
+        .edge(patch.outgoing_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let mut output = input.clone();
     let output_function = output

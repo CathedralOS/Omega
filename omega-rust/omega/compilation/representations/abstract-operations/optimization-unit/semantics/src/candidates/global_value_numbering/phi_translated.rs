@@ -342,9 +342,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
             })
             .expect("incoming edge exists");
         let edge = node
-            .successors
-            .iter()
-            .find(|edge| edge.psi_edge == incoming.edge)
+            .edge(incoming.edge)
             .expect("incoming edge exists");
         let mut bindings = edge.bindings.clone();
         bindings.push(abstract_operations::ValueBinding {

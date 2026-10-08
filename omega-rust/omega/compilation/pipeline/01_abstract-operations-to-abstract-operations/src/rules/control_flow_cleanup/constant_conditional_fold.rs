@@ -150,13 +150,9 @@ fn conditional_fold_accounting(
         .nodes
         .get(usize::try_from(decision.node).ok()?)?;
     let selected = decision_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == selected_edge)?;
+        .edge(selected_edge)?;
     let rejected = decision_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == rejected_edge)?;
+        .edge(rejected_edge)?;
     let selected_site = PsiRealizationSite::Edge {
         machine: function.machine,
         edge: selected_edge,

@@ -171,14 +171,10 @@ pub(super) fn validate(
         })
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     let predecessor_edge = predecessor_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == patch.incoming_edge)
+        .edge(patch.incoming_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let empty_edge = empty_node
-        .successors
-        .iter()
-        .find(|edge| edge.psi_edge == patch.outgoing_edge)
+        .edge(patch.outgoing_edge)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let mut combined_sources = predecessor_edge.provenance.clone();
     combined_sources.extend_from_slice(&empty_edge.provenance);
