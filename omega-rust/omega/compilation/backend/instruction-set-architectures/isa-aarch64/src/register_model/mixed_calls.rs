@@ -3,7 +3,7 @@
 use super::{aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys};
 use register_model::call_constraint_keys;
 use register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint,
+    find_register_constraint,    RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 /// AAPCS64 rows ordered by GPR count (0–8), then IEEE register count (1–8).
@@ -39,7 +39,7 @@ pub(super) fn append_constraints(
             aarch64_darwin_mixed_unit_call_keys(),
         ),
     ] {
-        let Some(base) = constraints.iter().find(|row| row.key == base_key).cloned() else {
+        let Some(base) = find_register_constraint(constraints, base_key).cloned() else {
             continue;
         };
         let mut keys = keys.into_iter();
@@ -128,7 +128,7 @@ pub(super) fn append_normalized_foreign_constraints(
             super::aarch64_darwin_normalized_foreign_call_keys(),
         ),
     ] {
-        let Some(mut row) = constraints.iter().find(|row| row.key == base_key).cloned() else {
+        let Some(mut row) = find_register_constraint(constraints, base_key).cloned() else {
             return;
         };
         let [key] = keys.as_slice() else {

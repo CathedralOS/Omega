@@ -3,7 +3,7 @@
 use super::{x86_64_microsoft_register_unit_call_keys, x86_64_system_v_register_unit_call_keys};
 use register_model::call_constraint_keys;
 use register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint,
+    find_register_constraint,    RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 /// System V rows ordered by GPR count (0–6), then IEEE register count (1–8).
@@ -123,7 +123,7 @@ pub(super) fn append_normalized_foreign_constraints(
             super::x86_64_microsoft_normalized_foreign_call_keys(),
         ),
     ] {
-        let Some(mut row) = constraints.iter().find(|row| row.key == base_key).cloned() else {
+        let Some(mut row) = find_register_constraint(constraints, base_key).cloned() else {
             return;
         };
         let [key] = keys.as_slice() else {

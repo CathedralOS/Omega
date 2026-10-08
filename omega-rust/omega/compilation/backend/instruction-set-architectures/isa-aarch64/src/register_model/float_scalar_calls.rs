@@ -6,7 +6,7 @@ use super::{
     aarch64_darwin_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    find_register_constraint,    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 pub fn aarch64_float_scalar_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
@@ -68,7 +68,7 @@ pub(super) fn append_constraints(
             let Some(result) = model.model().view_named(result_name) else {
                 return;
             };
-            let Some(mut row) = constraints.iter().find(|row| row.key == input).cloned() else {
+            let Some(mut row) = find_register_constraint(constraints, input).cloned() else {
                 return;
             };
             row.key = key;
@@ -92,7 +92,7 @@ pub(super) fn append_constraints(
         } else {
             AARCH64_AAPCS64_RETURN
         };
-        let Some(mut row) = constraints.iter().find(|row| row.key == base).cloned() else {
+        let Some(mut row) = find_register_constraint(constraints, base).cloned() else {
             return;
         };
         row.key = aarch64_float_scalar_return_keys(darwin)[0];

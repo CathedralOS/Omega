@@ -23,7 +23,7 @@ pub use register_model::constraint_catalog::{
     RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, TargetRegisterEnvironmentConstraintKeys,
     ValidatedRegisterConstraintCatalog, validate_register_constraint_catalog,
-    call_constraint_keys, encode_constraint_key,
+    call_constraint_keys, encode_constraint_key, find_register_constraint,
 };
 pub use register_model::identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,

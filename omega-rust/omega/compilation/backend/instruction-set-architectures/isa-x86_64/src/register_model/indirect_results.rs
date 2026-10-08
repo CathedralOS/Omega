@@ -5,7 +5,7 @@ use super::{
     x86_64_system_v_mixed_unit_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    find_register_constraint,    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     ValidatedPhysicalRegisterModel,
 };
 pub fn x86_64_indirect_aggregate_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
@@ -42,7 +42,7 @@ pub(super) fn append_constraints(
         };
         let mut keys = x86_64_indirect_aggregate_call_keys(microsoft).into_iter();
         for input in inputs.into_iter().chain(mixed) {
-            let Some(mut row) = constraints.iter().find(|row| row.key == input).cloned() else {
+            let Some(mut row) = find_register_constraint(constraints, input).cloned() else {
                 return;
             };
             let Some(position) = row

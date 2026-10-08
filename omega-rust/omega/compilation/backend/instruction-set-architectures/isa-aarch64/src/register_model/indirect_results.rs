@@ -5,7 +5,7 @@ use super::{
     aarch64_darwin_mixed_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    find_register_constraint,    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 pub fn aarch64_indirect_aggregate_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
@@ -41,7 +41,7 @@ pub(super) fn append_constraints(
             .chain(mixed)
             .zip(aarch64_indirect_aggregate_call_keys(darwin))
         {
-            let Some(mut row) = constraints.iter().find(|row| row.key == input).cloned() else {
+            let Some(mut row) = find_register_constraint(constraints, input).cloned() else {
                 return;
             };
             row.key = key;

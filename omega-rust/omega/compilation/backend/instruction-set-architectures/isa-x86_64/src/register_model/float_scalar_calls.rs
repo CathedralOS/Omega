@@ -6,7 +6,7 @@ use super::{
     x86_64_system_v_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    find_register_constraint,    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
     RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
 };
 pub fn x86_64_float_scalar_call_keys(microsoft: bool) -> Vec<RegisterConstraintKey> {
@@ -71,7 +71,7 @@ pub(super) fn append_constraints(
             let Some(result) = model.model().view_named(result_name) else {
                 return;
             };
-            let Some(mut row) = constraints.iter().find(|row| row.key == input).cloned() else {
+            let Some(mut row) = find_register_constraint(constraints, input).cloned() else {
                 return;
             };
             row.key = key;
@@ -95,7 +95,7 @@ pub(super) fn append_constraints(
         } else {
             X86_64_SYSTEM_V_RETURN
         };
-        let Some(mut row) = constraints.iter().find(|row| row.key == base).cloned() else {
+        let Some(mut row) = find_register_constraint(constraints, base).cloned() else {
             return;
         };
         row.key = x86_64_float_scalar_return_keys(microsoft)[0];
