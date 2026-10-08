@@ -297,13 +297,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 .as_ref()
                 .ok_or("normalized foreign D41 child lost its structural result placement")?;
             let retained_types = publication
-                .and_then(|binding| {
-                    binding
-                        .selected_plan()
-                        .functions
-                        .iter()
-                        .find(|function| function.machine == occurrence.machine())
-                })
+                .and_then(|binding| binding.selected_plan().function(occurrence.machine()))
                 .and_then(|function| function.structural.as_ref())
                 .ok_or("normalized foreign D41 child lost its structural declarations")?;
             if home.operation_result() != source_operation.map(|operation| (operation, result))

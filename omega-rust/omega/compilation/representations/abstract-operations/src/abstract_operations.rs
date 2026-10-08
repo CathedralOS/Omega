@@ -4,7 +4,10 @@
 //! areas own related facts; it does not contain transformation-stage objects.
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
-use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, StructuralTypeDeclaration, TerminalPsiIdentity};
+use terminal_psi::{
+    BoundaryMachineDeclaration, ProviderCandidateConformance, StructuralTypeDeclaration,
+    TerminalPsiIdentity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractOperationPlan {
@@ -29,20 +32,14 @@ pub struct AbstractOperationPlan {
 
 impl AbstractOperationPlan {
     /// The boundary machine keyed `id`, when the plan declares it.
-    pub fn boundary_machine(
-        &self,
-        id: BoundaryMachineId,
-    ) -> Option<&BoundaryMachineDeclaration> {
+    pub fn boundary_machine(&self, id: BoundaryMachineId) -> Option<&BoundaryMachineDeclaration> {
         self.boundary_machines
             .iter()
             .find(|declaration| declaration.id == id)
     }
 
     /// The structural type keyed `id`, when the plan declares it.
-    pub fn structural_type(
-        &self,
-        id: StructuralTypeId,
-    ) -> Option<&StructuralTypeDeclaration> {
+    pub fn structural_type(&self, id: StructuralTypeId) -> Option<&StructuralTypeDeclaration> {
         self.structural_types
             .as_slice()
             .iter()
@@ -51,12 +48,9 @@ impl AbstractOperationPlan {
 
     /// The abstract function for `machine`, when the plan carries it.
     pub fn function(&self, machine: MachineId) -> Option<&AbstractFunction> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function(machine)
     }
 }
-
 
 impl AbstractOperationPlan {
     /// Every function's operations, in function order.

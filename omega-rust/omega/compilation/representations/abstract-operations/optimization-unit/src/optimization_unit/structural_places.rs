@@ -130,7 +130,8 @@ pub fn declared_structural_type(
             structural_type, ..
         } => Some(structural_type),
         StructuralPlaceKind::ProviderAttachment { attachment, .. } => Some(attachment),
-        StructuralPlaceKind::Parameter { .. } => function.structural_parameter(declaration.id)
+        StructuralPlaceKind::Parameter { .. } => function
+            .structural_parameter(declaration.id)
             .map(|parameter| parameter.structural_type),
         StructuralPlaceKind::BlockParameter { .. } => function
             .block_structural_parameters()

@@ -168,9 +168,10 @@ pub fn reconstruct_psi_closed_region_observation(
         return None;
     }
     let function = unit.function(machine)?;
-    if requested.iter().any(|block| {
-        !function.block(*block).is_some()
-    }) {
+    if requested
+        .iter()
+        .any(|block| !function.block(*block).is_some())
+    {
         return None;
     }
 

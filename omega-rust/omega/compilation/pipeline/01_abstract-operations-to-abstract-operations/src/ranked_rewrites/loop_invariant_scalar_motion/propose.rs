@@ -794,9 +794,7 @@ pub(super) fn component_plan(
     let machine = component.id.machine;
     let function = session
         .unit()
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+        .function(machine)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     // The component's entry edges may share one preheader block even when
     // several of them exist — a multi-arm dispatch whose every arm enters the
@@ -806,7 +804,8 @@ pub(super) fn component_plan(
     else {
         return Ok(None);
     };
-    let preheader = function.block(preheader_source)
+    let preheader = function
+        .block(preheader_source)
         .ok_or(LoopInvariantScalarMotionError::UnknownComponent)?;
     let Some(terminator_index) = preheader.nodes.len().checked_sub(1) else {
         return Ok(None);
@@ -878,7 +877,8 @@ pub(super) fn component_plan(
     loop {
         let mut progressed = false;
         for member in &component.members {
-            let block = function.block(*member)
+            let block = function
+                .block(*member)
                 .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
             for (index, node) in block.nodes.iter().enumerate() {
                 let psi_operation = match node.provenance.first() {

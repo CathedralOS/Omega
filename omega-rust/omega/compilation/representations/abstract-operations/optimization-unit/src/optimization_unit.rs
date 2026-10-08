@@ -143,9 +143,7 @@ pub struct PsiOptimizationUnit {
 impl PsiOptimizationUnit {
     /// The optimization function for `machine`, when the unit carries it.
     pub fn function(&self, machine: MachineId) -> Option<&PsiOptimizationFunction> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function(machine)
     }
 
     /// The boundary machine keyed `id`, when the unit declares it.
@@ -157,7 +155,6 @@ impl PsiOptimizationUnit {
             .iter()
             .find(|declaration| declaration.id == id)
     }
-
 
     /// Every function's blocks, in function order.
     pub fn blocks(&self) -> impl Iterator<Item = &OptimizationBlock> + '_ {

@@ -898,13 +898,9 @@ pub(super) fn temporary_stack_bytes(
     if source.source().text_section().target.architecture != target::Architecture::X86_64 {
         return Ok(0);
     }
-    let fragment = fragments(source)
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
-        .ok_or(Error::Mismatch(
-            "missing current fragment for temporary stack replay",
-        ))?;
+    let fragment = fragments(source).function(machine).ok_or(Error::Mismatch(
+        "missing current fragment for temporary stack replay",
+    ))?;
     Ok(if fragment.instructions().any(|instruction| {
         matches!(instruction.alternative.family, selected_instructions::MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)
             if form.operation.rounding_direction().is_some())

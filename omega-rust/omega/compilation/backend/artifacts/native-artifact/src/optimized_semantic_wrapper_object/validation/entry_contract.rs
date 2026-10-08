@@ -71,9 +71,7 @@ pub fn receiver_layout(
     let entry_machine = settlement.checked_entry().terminal_entry();
     let function = source
         .selected_plan()
-        .functions
-        .iter()
-        .find(|function| function.machine == entry_machine)
+        .function(entry_machine)
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
     let structural = function
         .structural
@@ -238,11 +236,9 @@ fn zero_valid_record_storage(
     structural_type: semantic_vocabulary::StructuralTypeId,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
 ) -> bool {
-    let Some(declaration) = terminal_psi::unique_structural_declaration(
-        declarations,
-        structural_type,
-        visiting,
-    ) else {
+    let Some(declaration) =
+        terminal_psi::unique_structural_declaration(declarations, structural_type, visiting)
+    else {
         return false;
     };
     visiting.push(structural_type);
@@ -349,7 +345,8 @@ pub fn validate_entry_shape(
     contract: &OptimizedProgramStorageSemanticEntryContract,
 ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
     let module = source.terminal().semantic_module();
-    let entry = module.machine(settlement.checked_entry().terminal_entry())
+    let entry = module
+        .machine(settlement.checked_entry().terminal_entry())
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch)?;
     // The selected source shape is the authority: a provisioned-mutable
     // context occupies its explicit parameter at position 0 ahead of the two
@@ -423,12 +420,10 @@ pub fn validate_entry_shape(
     if image_domain != storage_domain {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
-    let Some(domain) = module.structural_domain(*image_domain)
-    else {
+    let Some(domain) = module.structural_domain(*image_domain) else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
-    let Some(carrier) = module.structural_type(image.structural_type)
-    else {
+    let Some(carrier) = module.structural_type(image.structural_type) else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     let Some(fields) = carrier.shape.record_fields() else {
