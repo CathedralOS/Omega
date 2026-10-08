@@ -270,12 +270,8 @@ pub(in crate::symbols) fn each_type_reference_handle(
     span: arena::HandleSpan<TypeReference>,
     mut visit: impl FnMut(Handle<TypeReference>),
 ) {
-    for offset in 0..span.count() {
-        let start = span.start();
-        visit(Handle::from_parts(
-            start.arena_index() + offset,
-            start.generation(),
-        ));
+    for handle in span.handles() {
+        visit(handle);
     }
 }
 
