@@ -324,7 +324,7 @@ pub(in crate::execution::terminal_unit) fn build(
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
     statement_end: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    _call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");

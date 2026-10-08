@@ -1,15 +1,14 @@
 use super::super::super::super::super::{analyze_live_ranges, analyze_liveness};
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
-    RecoveryClassificationIdentity, SpillChoiceIdentity, VirtualPointLegality,
-    VirtualRegisterAllocationLegality,
+    RecoveryClassificationIdentity, SpillChoiceIdentity,
 };
-use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
+use selected_instructions::LiveRangeIdentity;
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-use register_model::{RegisterViewId, TargetRegisterEnvironmentIdentity};
+use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionPlanIdentity, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
     selected_instruction_plan_identity,
 };

@@ -22,9 +22,12 @@ use selected_instructions::{
     FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule, MachineAlternative,
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineAlternativeKey,
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineEncodedEffects, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
     MachineTrapBehavior, SelectedInstructionKind,
 };
+
+#[cfg(test)]
+use selected_instructions::MachineEncodedControlEffect;
 
 pub(crate) fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
     let physical = crate::x86_64_physical_register_model_ref();
