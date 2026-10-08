@@ -474,13 +474,10 @@ fn unreachable_match_arm(
     };
     // Compare complete generational handles, not merely an arena-index offset.
     for ordinal in 0..program.expression_table.match_arms(dispatch.arms).len() {
-        let Some(index) = u32::try_from(ordinal)
-            .ok()
-            .and_then(|ordinal| dispatch.arms.start().arena_index().checked_add(ordinal))
-        else {
+        let Ok(arm_ordinal) = u32::try_from(ordinal) else {
             return false;
         };
-        if arena::Handle::from_parts(index, dispatch.arms.start().generation()) == source_arm {
+        if dispatch.arms.handle_at(arm_ordinal) == source_arm {
             return program
                 .expression_table
                 .match_arms(dispatch.arms)

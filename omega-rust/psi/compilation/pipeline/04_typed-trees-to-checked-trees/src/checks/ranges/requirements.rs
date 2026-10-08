@@ -55,18 +55,7 @@ pub(in crate::checks) fn state_requires_facts<'program>(
         .filter(move |_| is_entry)
         .chain(program.state_contracts(state))
         .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| {
-            (0..contract.facts.count()).filter_map(move |offset| {
-                contract
-                    .facts
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .map(|index| {
-                        arena::Handle::from_parts(index, contract.facts.start().generation())
-                    })
-            })
-        })
+        .flat_map(|contract| contract.facts.handles())
 }
 
 /// Seeds slice proof vocabulary implied by an assumed-valid subslice access.

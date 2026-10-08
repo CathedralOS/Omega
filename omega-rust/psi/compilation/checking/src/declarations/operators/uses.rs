@@ -103,13 +103,8 @@ fn collect_expression_operator_use(
                 .enumerate()
             {
                 if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    if floating_subject
-                        && let Ok(ordinal) = u32::try_from(ordinal)
-                        && let Some(position) =
-                            dispatch.arms.start().arena_index().checked_add(ordinal)
-                    {
-                        let source_arm =
-                            arena::Handle::from_parts(position, dispatch.arms.start().generation());
+                    if floating_subject && let Ok(ordinal) = u32::try_from(ordinal) {
+                        let source_arm = dispatch.arms.handle_at(ordinal);
                         let mut equality = operator_use_fact(
                             program,
                             expression,

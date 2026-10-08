@@ -4,7 +4,6 @@
 //! This consumes membership, including routed membership, without minting it.
 
 use super::{PremiseScope, StatedOrderingPremise, decompose_premise_expression};
-use arena::Handle;
 use typed_trees::domain::{ProofFact, ProofMembershipFact};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -52,11 +51,7 @@ pub(super) fn append_membership_premises(
     else {
         return;
     };
-    for offset in 0..domain.facts.count() {
-        let Some(index) = domain.facts.start().arena_index().checked_add(offset) else {
-            return;
-        };
-        let predicate = Handle::from_parts(index, domain.facts.start().generation());
+    for predicate in domain.facts.handles() {
         let ProofFact::Expression(expression) = program.proof_facts.get(predicate) else {
             continue;
         };

@@ -35,12 +35,8 @@ impl Execution<'_, '_, '_> {
                 let pattern_operand = self
                     .evaluated_operand(pattern, contexts, constraints)
                     .capture;
-                if let Ok(ordinal) = u32::try_from(ordinal)
-                    && let Some(arm_index) =
-                        dispatch.arms.start().arena_index().checked_add(ordinal)
-                {
-                    let source_arm =
-                        arena::Handle::from_parts(arm_index, dispatch.arms.start().generation());
+                if let Ok(ordinal) = u32::try_from(ordinal) {
+                    let source_arm = dispatch.arms.handle_at(ordinal);
                     self.record_operator_invocation(
                         expression,
                         checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
@@ -64,10 +60,8 @@ impl Execution<'_, '_, '_> {
                 .changed_operand_sources(&[(dispatch.subject, subject_writes)])
                 .is_empty()
                 && let Ok(ordinal) = u32::try_from(ordinal)
-                && let Some(arm_index) = dispatch.arms.start().arena_index().checked_add(ordinal)
             {
-                let source_arm =
-                    arena::Handle::from_parts(arm_index, dispatch.arms.start().generation());
+                let source_arm = dispatch.arms.handle_at(ordinal);
                 let point = ProgramPoint::Statement {
                     machine_symbol: self.machine.symbol,
                     state_symbol: self.state.symbol,

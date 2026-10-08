@@ -473,12 +473,8 @@ where_facts: contract.where_facts })?;
             let Some((keyword_source_spans, authored)) = authored else {
                 continue;
             };
-            let arena_index = span
-                .start()
-                .arena_index()
-                .checked_add(u32::try_from(index).expect("type-parameter span fits u32"))
-                .expect("type-parameter arena index overflow");
-            let handle = arena::Handle::from_parts(arena_index, span.start().generation());
+            let handle =
+                span.handle_at(u32::try_from(index).expect("type-parameter span fits u32"));
             let owner = lowerer
                 .symbol_resolved_trees
                 .tables
