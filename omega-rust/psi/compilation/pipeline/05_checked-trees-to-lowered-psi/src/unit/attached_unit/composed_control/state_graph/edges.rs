@@ -196,25 +196,11 @@ pub(super) fn validate_bindings(
         {
             // Bindings establish availability; optional disposal metadata
             // only excludes a result that its automatic cleanup retires.
-            let result = state
-                .operations
-                .iter()
-                .filter(|operation| {
-                    !matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            operand_source: Some(_),
-                            ..
-                        }
-                    ) && !operation
-                        .discardable_structural_result()
-                        .is_some_and(|(_, discard)| discard)
-                })
-                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
-                .find(|result| result.binding_ordinal == binding_ordinal)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph transferred result missing",
-                ))?;
+            let result = transferred_result(
+                &state.operations,
+                binding_ordinal,
+                "Unit graph transferred result missing",
+            )?;
             // An owned local moves into the target; a view local lends its
             // shared view, which owns nothing and so leaves no partition. A
             // `&mut [T]` view local's affine binding is the exclusive loan
@@ -857,25 +843,11 @@ fn validate_projected_loan_source(
             // A loan needs the local's original home, not a producer with an
             // affine-disposal flag. Rejoin every structural result family;
             // exclude call-owned temporaries and automatic return discards.
-            let result = state
-                .operations
-                .iter()
-                .filter(|operation| {
-                    !matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            operand_source: Some(_),
-                            ..
-                        }
-                    ) && !operation
-                        .discardable_structural_result()
-                        .is_some_and(|(_, discard)| discard)
-                })
-                .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
-                .find(|result| result.binding_ordinal == binding_ordinal)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph projected loan result missing",
-                ))?;
+            let result = transferred_result(
+                &state.operations,
+                binding_ordinal,
+                "Unit graph projected loan result missing",
+            )?;
             let Some(StatementNode::LocalData(local)) = checked
                 .statement_table
                 .statements(source.statement_nodes)
@@ -927,4 +899,29 @@ fn parameter_transfer_source_index(
             unsupported("Unit graph projected argument was not independently rejoined")
         }
     }
+}
+
+/// The structural result `binding_ordinal` binds, excluding results an
+/// operand source or automatic cleanup already retires.
+fn transferred_result<'p>(
+    operations: &'p [CheckedUnitEffectOperationPlan],
+    binding_ordinal: u32,
+    context: &'static str,
+) -> Result<&'p checked_trees::CheckedUnitStructuralResultBindingPlan, LoweringError> {
+    operations
+        .iter()
+        .filter(|operation| {
+            !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    operand_source: Some(_),
+                    ..
+                }
+            ) && !operation
+                .discardable_structural_result()
+                .is_some_and(|(_, discard)| discard)
+        })
+        .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+        .find(|result| result.binding_ordinal == binding_ordinal)
+        .ok_or(LoweringError::Unsupported(context))
 }
