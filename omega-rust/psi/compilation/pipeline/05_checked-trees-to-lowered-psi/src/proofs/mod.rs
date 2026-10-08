@@ -43,11 +43,10 @@ use terminal_psi::{
     EvidenceTermDeclaration, OperationKind, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
     OutcomeSpecificGuard, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
-    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
-    PropositionDeclaration, PropositionEvidence, StaticRequirementDispatch,
-    StructuralContentProjection, StructuralFieldType, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
-    ValueDeclaration,
+    PropositionBinderDeclaration, PropositionBinderKind, PropositionDeclaration,
+    PropositionEvidence, StaticRequirementDispatch, StructuralContentProjection,
+    StructuralFieldType, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, ValueDeclaration,
 };
 
 use crate::emission::scalar_types::{
