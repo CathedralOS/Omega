@@ -205,6 +205,18 @@ pub struct TerminalModule {
 
 impl TerminalModule {
     /// The machine keyed `id`, when the module declares it.
+    /// Every machine's blocks, in machine order.
+    pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {
+        self.machines.iter().flat_map(|machine| &machine.blocks)
+    }
+
+    /// Every machine's operations, in machine then block order.
+    pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {
+        self.machines
+            .iter()
+            .flat_map(|machine| machine.operations())
+    }
+
     pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
         self.machines.iter().find(|machine| machine.id == id)
     }

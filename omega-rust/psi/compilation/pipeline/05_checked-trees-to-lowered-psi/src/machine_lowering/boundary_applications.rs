@@ -46,13 +46,7 @@ pub(super) fn retain(
         })
         .collect::<Vec<_>>();
     source_calls.sort_unstable_by_key(|(operation, _)| *operation);
-    for operation in lowered
-        .semantic_module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-    {
+    for operation in lowered.semantic_module.operations() {
         let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
             continue;
         };

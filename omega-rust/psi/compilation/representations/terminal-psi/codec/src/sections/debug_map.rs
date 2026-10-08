@@ -237,21 +237,10 @@ fn decode_subject(reader: &mut Reader<'_>) -> Result<DebugSubject, DebugMapError
 fn subject_exists(module: &TerminalModule, subject: DebugSubject) -> bool {
     match subject {
         DebugSubject::Machine(id) => module.machines.iter().any(|machine| machine.id == id),
-        DebugSubject::Block(id) => module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .any(|block| block.id == id),
-        DebugSubject::Operation(id) => module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .any(|operation| operation.id == id),
+        DebugSubject::Block(id) => module.blocks().any(|block| block.id == id),
+        DebugSubject::Operation(id) => module.operations().any(|operation| operation.id == id),
         DebugSubject::Edge(id) => module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
+            .blocks()
             .any(|block| block.terminator.edges().any(|edge| edge == id)),
         DebugSubject::Value(id) => module.machines.iter().any(|machine| {
             machine

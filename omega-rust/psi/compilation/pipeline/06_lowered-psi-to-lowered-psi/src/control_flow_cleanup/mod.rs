@@ -95,24 +95,17 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
             .collect::<BTreeSet<_>>();
         let surviving_blocks = after
             .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
+            .blocks()
             .map(|block| block.id)
             .collect::<BTreeSet<_>>();
         let surviving_edges = after
             .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
+            .blocks()
             .flat_map(|block| block.terminator.edges())
             .collect::<BTreeSet<_>>();
         let surviving_operations = after
             .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
+            .operations()
             .map(|operation| operation.id)
             .collect::<BTreeSet<_>>();
         let surviving_values = after

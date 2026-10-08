@@ -28,10 +28,7 @@ pub(crate) fn boundary_application_results(
     module: &terminal_psi::TerminalModule,
 ) -> impl Iterator<Item = semantic_vocabulary::ValueId> + '_ {
     module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
+        .operations()
         .filter(|operation| {
             has_boundary_application(&module.boundary_application_demands, operation.id)
         })
@@ -71,10 +68,7 @@ pub(crate) fn prune_debug_map(
     };
     let operations = after
         .semantic_module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
+        .operations()
         .map(|operation| operation.id)
         .collect::<BTreeSet<_>>();
     let removed_values = before
