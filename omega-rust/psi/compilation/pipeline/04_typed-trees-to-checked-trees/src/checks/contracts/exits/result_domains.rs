@@ -77,15 +77,7 @@ fn domain_predicate_meaning(
             validation::landed_integer_literal_type_reference(program, expression)
         }
         ExpressionNode::Boolean(_) => boolean_type(),
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && path.head_symbol == path.symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1 =>
-        {
+        ExpressionNode::Name(path) if validation::is_single_segment_name_path(program, path) => {
             let parameter = typed_trees::domain::index_parameters(program, domain)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;

@@ -144,15 +144,7 @@ fn projected_entry_value(
                 selector,
             )
         }
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && path.head_symbol == path.symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1 =>
-        {
+        ExpressionNode::Name(path) if validation::is_single_segment_name_path(program, path) => {
             let (ordinal, local) = program
                 .state_local_declaration(state, path.symbol)
                 .filter(|&(ordinal, _)| ordinal < before_statement)?;

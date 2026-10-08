@@ -250,15 +250,7 @@ fn resolved_place_identity(
     expression: ExpressionHandle,
 ) -> Option<Vec<symbols::SymbolHandle>> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && path.head_symbol == path.symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1 =>
-        {
+        ExpressionNode::Name(path) if validation::is_single_segment_name_path(program, path) => {
             Some(vec![path.symbol])
         }
         ExpressionNode::Member(member) if member.member_symbol.is_valid() => {

@@ -328,13 +328,7 @@ fn bind_occurrences(
         let binder = match program.expression_table.expression(occurrence) {
             ExpressionNode::Member(_) => ScopedArithmeticBinder::Projection(occurrence),
             ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && path.head_symbol == path.symbol
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1 =>
+                if validation::is_single_segment_name_path(program, path) =>
             {
                 ScopedArithmeticBinder::Symbol(path.symbol)
             }

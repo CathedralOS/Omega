@@ -116,15 +116,7 @@ fn tail_bound(
         crate::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
     {
         return match program.expression_table.expression(leaf) {
-            ExpressionNode::Name(path)
-                if path.symbol.is_valid()
-                    && path.head_symbol == path.symbol
-                    && program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        == 1 =>
-            {
+            ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
                 Some(TailBound::Symbol {
                     symbol: path.symbol,
                     offset: 0,

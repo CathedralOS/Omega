@@ -244,15 +244,7 @@ fn operand(
     destination: Option<numerics::literals::FloatFormat>,
 ) -> Option<(FloatMeaning, PrimitiveType, TypeReferenceHandle)> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && path.head_symbol == path.symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1 =>
-        {
+        ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
             let field = declared_field(program, definition, expression)?;
             let primitive = program.primitive_type_reference(field.type_reference)?;
             if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {

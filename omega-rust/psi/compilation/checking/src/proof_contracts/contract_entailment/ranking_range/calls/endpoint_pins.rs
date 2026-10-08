@@ -651,15 +651,7 @@ fn direct_input(
     };
     match node {
         ExpressionNode::Atomic(atomic) => direct_input(program, atomic.value, depth + 1),
-        ExpressionNode::Name(path)
-            if path.symbol.is_valid()
-                && path.head_symbol == path.symbol
-                && program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .len()
-                    == 1 =>
-        {
+        ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
             Some(path.symbol)
         }
         _ => None,

@@ -237,17 +237,22 @@ pub fn single_segment_name_symbol(
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
+    is_single_segment_name_path(program, path).then_some(path.symbol)
+}
+
+/// `path` resolves to its own root symbol through exactly one segment — the
+/// bare `name` reference shape, not a member path or an unresolved name.
+pub fn is_single_segment_name_path(
+    program: &dyn crate::CheckingInput,
+    path: &typed_trees::expression::TableNamePath,
+) -> bool {
+    path.symbol.is_valid()
+        && path.head_symbol == path.symbol
+        && program
             .expression_table
             .name_path_members(path.members)
             .len()
-            != 1
-    {
-        return None;
-    }
-    Some(path.symbol)
+            == 1
 }
 
 /// Append structural expression handles in preorder, once per existing roster.

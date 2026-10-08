@@ -391,7 +391,7 @@ pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guar
 pub use expression_traversal::{
     append_fact_expression_roots, collect_contract_facts, collect_expression_tree,
     collect_statement_expression_trees, collect_transition_target_expression_trees,
-    single_segment_name_symbol,
+    is_single_segment_name_path, single_segment_name_symbol,
 };
 pub use machine_calls::calls::declared_receiver_target;
 pub use machine_calls::calls::{
