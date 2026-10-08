@@ -36,6 +36,36 @@ pub(crate) fn encode_nominal(
     encoder.field("path", |encoder| encoder.string(&identity.path))
 }
 
+/// The `selection_owner` wire shape shared by calling-opaque and
+/// representation policies: the same owner arms under identical tags; only
+/// the caller's unresolved-ownership context label differs.
+pub(in crate::encoding) fn encode_selection_owner(
+    encoder: &mut Encoder,
+    owner: &PackageReviewNominalOwner,
+    unresolved_context: &'static str,
+) -> Result<(), PackageReviewEncodingError> {
+    match owner {
+        PackageReviewNominalOwner::Package(package) => {
+            encoder.tag("package", 0);
+            encoder.field("package", |encoder| {
+                encoder.package_identity(*package);
+                Ok(())
+            })?;
+        }
+        PackageReviewNominalOwner::ToolchainSource(source) => {
+            encoder.tag("toolchain_source", 1);
+            encoder.field("digest", |encoder| {
+                encoder.fixed_bytes(&source.digest());
+                Ok(())
+            })?;
+        }
+        PackageReviewNominalOwner::Unresolved => {
+            return Err(PackageReviewEncodingError::new(unresolved_context));
+        }
+    };
+    Ok(())
+}
+
 pub(crate) fn encode_supply(
     encoder: &mut Encoder,
     supply: PackageReviewCallableSupply,

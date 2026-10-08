@@ -9,7 +9,7 @@ use super::{
 };
 use crate::encoding::{PACKAGE_REPRESENTATION_POLICY_VERSION, REPRESENTATION_POLICY_MAGIC};
 use crate::record::{
-    PackagePolicyRepresentation, PackagePolicyRepresentationSelection, PackageReviewNominalOwner,
+    PackagePolicyRepresentation, PackagePolicyRepresentationSelection,
     PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
@@ -79,28 +79,11 @@ pub(super) fn selection(
         encode_nominal(encoder, &selection.carrier)
     })?;
     encoder.field("selection_owner", |encoder| {
-        match selection.selection_owner {
-            PackageReviewNominalOwner::Package(package) => {
-                encoder.tag("package", 0);
-                encoder.field("package", |encoder| {
-                    encoder.package_identity(package);
-                    Ok(())
-                })?;
-            }
-            PackageReviewNominalOwner::ToolchainSource(source) => {
-                encoder.tag("toolchain_source", 1);
-                encoder.field("digest", |encoder| {
-                    encoder.fixed_bytes(&source.digest());
-                    Ok(())
-                })?;
-            }
-            PackageReviewNominalOwner::Unresolved => {
-                return Err(PackageReviewEncodingError::new(
-                    "representation policy has unresolved selection ownership",
-                ));
-            }
-        };
-        Ok(())
+        crate::encoding::encode::values::identity::encode_selection_owner(
+            encoder,
+            &selection.selection_owner,
+            "representation policy has unresolved selection ownership",
+        )
     })?;
     encoder.field("application", |encoder| {
         conformance_policy::encode_application(encoder, &selection.application)

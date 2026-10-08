@@ -3,8 +3,7 @@ use crate::encoding::encode::declarations::encode_opaque_occurrence;
 use crate::encoding::encode::values::conformance_policy::encode_application;
 use crate::encoding::encode::values::identity::encode_nominal;
 use crate::record::{
-    PackagePolicyCallingOpaqueUse, PackageReviewNominalOwner,
-    PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackagePolicyCallingOpaqueUse, PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
 };
@@ -16,28 +15,11 @@ pub(super) fn encode(
     encoder.field("opaque", |encoder| encode_nominal(encoder, &use_.opaque))?;
     encoder.field("carrier", |encoder| encode_nominal(encoder, &use_.carrier))?;
     encoder.field("selection_owner", |encoder| {
-        match use_.selection_owner {
-            PackageReviewNominalOwner::Package(package) => {
-                encoder.tag("package", 0);
-                encoder.field("package", |encoder| {
-                    encoder.package_identity(package);
-                    Ok(())
-                })?;
-            }
-            PackageReviewNominalOwner::ToolchainSource(source) => {
-                encoder.tag("toolchain_source", 1);
-                encoder.field("digest", |encoder| {
-                    encoder.fixed_bytes(&source.digest());
-                    Ok(())
-                })?;
-            }
-            PackageReviewNominalOwner::Unresolved => {
-                return Err(PackageReviewEncodingError::new(
-                    "calling policy has unresolved selection ownership",
-                ));
-            }
-        };
-        Ok(())
+        crate::encoding::encode::values::identity::encode_selection_owner(
+            encoder,
+            &use_.selection_owner,
+            "calling policy has unresolved selection ownership",
+        )
     })?;
     encoder.field("application", |encoder| {
         encode_application(encoder, &use_.application)
