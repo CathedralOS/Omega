@@ -308,17 +308,6 @@ fn edge_attribution_is_not_unique(
         != 1
 }
 
-fn is_partial_cleanup_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
-    !path.is_empty()
-        && path.iter().all(|segment| match segment {
-            terminal_psi::StructuralPathSegment::Referent
-            | terminal_psi::StructuralPathSegment::Case(_)
-            | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
-            terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
-            terminal_psi::StructuralPathSegment::FixedIndex(_)
-            | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
-        })
-}
 
 fn bounded_nominal_receiver_shape(shape: calling_conventions::ValueShape) -> bool {
     shape == calling_conventions::ValueShape::integer(0, 1)

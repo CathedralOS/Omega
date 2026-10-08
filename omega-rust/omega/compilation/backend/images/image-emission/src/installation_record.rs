@@ -15,7 +15,7 @@ mod incoming_structural;
 mod installation_errors;
 mod installed_unit_scalar_transport;
 mod record_construction;
-mod record_shape;
+pub(crate) mod record_shape;
 mod record_types;
 mod record_validation;
 #[cfg(test)]

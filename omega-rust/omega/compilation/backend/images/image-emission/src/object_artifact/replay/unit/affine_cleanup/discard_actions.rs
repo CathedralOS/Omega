@@ -3,7 +3,7 @@
 //! residual paths.
 
 use super::super::super::structural::partial_cleanup_partition::exact_partial_cleanup_partition;
-use super::is_partial_cleanup_path;
+use crate::installation_record::record_shape::stack_facts::is_partial_cleanup_path;
 use machine_code::UnitAffineCleanupRecord;
 
 use super::CleanupInputs;

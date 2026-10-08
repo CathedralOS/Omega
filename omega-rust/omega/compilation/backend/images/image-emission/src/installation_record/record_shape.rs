@@ -15,7 +15,7 @@ mod affine_cleanups;
 mod boundary_settlements;
 mod function_rows;
 mod internal_unit_calls;
-mod stack_facts;
+pub(crate) mod stack_facts;
 mod structural_returns;
 
 #[cfg(test)]
