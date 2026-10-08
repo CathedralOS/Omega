@@ -16,6 +16,7 @@ use optimization_unit::{
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::ScalarType;
+use crate::candidates::candidate_function;
 
 pub fn validate_boolean_evaluation_candidate(
     input: &PsiOptimizationUnit,
@@ -48,11 +49,7 @@ pub fn validate_boolean_evaluation_candidate(
     if candidate.node_decision_point() != Some(patch.location) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.location.machine)?;
     let block = function
         .blocks
         .iter()

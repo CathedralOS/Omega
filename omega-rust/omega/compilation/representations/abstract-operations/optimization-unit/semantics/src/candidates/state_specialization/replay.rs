@@ -20,6 +20,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use crate::candidates::candidate_function;
 
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block
@@ -715,11 +716,7 @@ pub(super) fn validate(
     if cyclic_machines(input).contains(&patch.machine) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.machine)?;
     let constants = validator_scalar_constant_facts(input.identity, function)
         .into_iter()
         .map(|(value, constant, _)| (value, constant))

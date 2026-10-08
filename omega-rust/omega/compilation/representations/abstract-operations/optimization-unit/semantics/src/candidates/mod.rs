@@ -13,7 +13,8 @@
 
 use optimization_core::{OptimizationCandidateIdentity, OptimizationValidatorIdentity};
 use optimization_unit::{
-    ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate,
+    PsiRewritePatch,
 };
 
 use crate::OptimizationUnitValidationError;
@@ -148,4 +149,16 @@ impl ValidatedPsiRewrite {
     pub fn into_unit(self) -> PsiOptimizationUnit {
         self.unit
     }
+}
+
+/// The unit's function at `machine`, or CandidateLocationMissing.
+pub(crate) fn candidate_function(
+    input: &PsiOptimizationUnit,
+    machine: semantic_vocabulary::MachineId,
+) -> Result<&PsiOptimizationFunction, OptimizationUnitValidationError> {
+    input
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }

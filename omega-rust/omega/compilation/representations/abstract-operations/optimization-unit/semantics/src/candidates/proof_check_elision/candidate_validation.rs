@@ -22,6 +22,7 @@ use optimization_unit::{
 use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
+use crate::candidates::candidate_function;
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
@@ -159,11 +160,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.location.machine)?;
     let block = function
         .blocks
         .iter()

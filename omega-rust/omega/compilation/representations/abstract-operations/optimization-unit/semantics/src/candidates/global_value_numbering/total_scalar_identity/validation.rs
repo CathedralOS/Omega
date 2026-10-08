@@ -15,6 +15,7 @@ use semantic_vocabulary::ScalarType;
 use super::application::independently_apply_total_scalar_identity;
 use super::classification::independently_classify_total_scalar_identity;
 use super::evidence::independently_validate_law_literal;
+use crate::candidates::candidate_function;
 
 const NEUTRAL_ARITHMETIC_RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1";
@@ -70,11 +71,7 @@ pub fn validate_total_scalar_identity_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.location.machine)?;
     let block = function
         .blocks
         .iter()

@@ -16,6 +16,7 @@ use optimization_unit::{
 };
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
+use crate::candidates::candidate_function;
 
 pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
@@ -29,11 +30,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.location.machine)?;
     let block = function
         .blocks
         .iter()

@@ -25,6 +25,7 @@ use semantic_vocabulary::{
 };
 
 use super::identity_classification::{independent_integer_one, independent_integer_zero};
+use crate::candidates::candidate_function;
 
 /// Independently reconstructed scalar interface of one closed node region.
 /// Canonical ordering is by `ValueId`; block-parameter bindings remain uses of
@@ -179,11 +180,7 @@ pub(crate) fn validate_proof_certified_same_operand_integer_constant_candidate(
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.location.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.location.machine)?;
     let block = function
         .blocks
         .iter()

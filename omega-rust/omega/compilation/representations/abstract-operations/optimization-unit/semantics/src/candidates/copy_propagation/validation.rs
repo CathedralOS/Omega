@@ -16,6 +16,7 @@ use super::observation::{
     normalize_redundant_parameter_observation_input, unchanged_outside_redundant_parameter_region,
 };
 use super::operation_rewrite::rewrite_block_parameter_operation;
+use crate::candidates::candidate_function;
 
 pub(super) fn validate_redundant_block_parameter_candidate(
     input: &PsiOptimizationUnit,
@@ -27,11 +28,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
     let witness = candidate
         .redundant_block_parameter_witness()
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.machine)?;
     if function.entry == patch.block || patch.parameter == patch.replacement {
         return Err(OptimizationUnitValidationError::CandidateBlockParameterMismatch);
     }

@@ -44,6 +44,7 @@ use optimization_unit::{
 };
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use crate::candidates::candidate_function;
 
 /// The admissibility of one node under `evidence`: a Boolean or integer
 /// `StructuralScalarFieldRead` observing the evidence's place whose stored
@@ -432,11 +433,7 @@ pub(super) fn validate(
     if cyclic_machines(input).contains(&patch.machine) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let function = input
-        .functions
-        .iter()
-        .find(|function| function.machine == patch.machine)
-        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let function = candidate_function(input, patch.machine)?;
     let Some(evidence) = field_evidence(function, patch.place) else {
         return Err(OptimizationUnitValidationError::CandidateLocationMissing);
     };
