@@ -19,6 +19,10 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
         Some(ScalarType::Integer(scalar_type)) => Some(*scalar_type),
         _ => None,
     };
+    let same_integer_operand_type = |left: ValueId, right: ValueId| {
+        let scalar_type = integer_operand_type(left)?;
+        (integer_operand_type(right)? == scalar_type).then_some(scalar_type)
+    };
     let row = match operation {
         O::BooleanConstant {
             psi_operation,
@@ -71,10 +75,7 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
             left,
             right,
         } => {
-            let scalar_type = integer_operand_type(*left)?;
-            if integer_operand_type(*right)? != scalar_type {
-                return None;
-            }
+            let scalar_type = same_integer_operand_type(*left, *right)?;
             let (left, right) = canonical_pair(*left, *right);
             (
                 TotalScalarExpressionKey::IntegerEqual(scalar_type, left, right),
@@ -89,10 +90,7 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
             left,
             right,
         } => {
-            let scalar_type = integer_operand_type(*left)?;
-            if integer_operand_type(*right)? != scalar_type {
-                return None;
-            }
+            let scalar_type = same_integer_operand_type(*left, *right)?;
             (
                 TotalScalarExpressionKey::IntegerLessThan(scalar_type, *left, *right),
                 *psi_operation,
@@ -106,10 +104,7 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
             left,
             right,
         } => {
-            let scalar_type = integer_operand_type(*left)?;
-            if integer_operand_type(*right)? != scalar_type {
-                return None;
-            }
+            let scalar_type = same_integer_operand_type(*left, *right)?;
             (
                 TotalScalarExpressionKey::IntegerLessOrEqual(scalar_type, *left, *right),
                 *psi_operation,
@@ -254,3 +249,6 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
     };
     Some(row)
 }
+
+
+
