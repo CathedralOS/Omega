@@ -1,7 +1,7 @@
 //! Rejoin owned aggregate actuals to exact incoming, produced or block-owned backing.
 use super::{
-    CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
-    StructuralAccess, evaluate_call_plan,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction, StructuralAccess,
+    evaluate_call_plan,
 };
 use legalized_operations::LegalizedScalarInstructionKind;
 
@@ -154,20 +154,7 @@ pub(super) fn validate_owned_arguments(
             _ => return None,
         }
     }
-    let expected = evaluate_call_plan(
-        source.call_plan.policy,
-        &CallSignature {
-            parameters: call
-                .arguments
-                .iter()
-                .map(|argument| argument.placement().shape)
-                .collect(),
-            result: call
-                .result_placement
-                .as_ref()
-                .map(|placement| placement.shape),
-        },
-    )
-    .ok()?;
+    let expected =
+        evaluate_call_plan(source.call_plan.policy, &super::call_abi_signature(call)).ok()?;
     (expected == call.call_plan).then_some(())
 }

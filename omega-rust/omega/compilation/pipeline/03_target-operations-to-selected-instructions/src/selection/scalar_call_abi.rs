@@ -114,20 +114,36 @@ pub(super) fn register_argument_order(call: &LegalizedScalarCall) -> Vec<usize> 
     order
 }
 
+fn call_abi_signature(call: &LegalizedScalarCall) -> CallSignature {
+    CallSignature {
+        parameters: call
+            .arguments
+            .iter()
+            .map(|argument| argument.placement().shape)
+            .collect(),
+        result: call
+            .result_placement
+            .as_ref()
+            .map(|placement| placement.shape),
+    }
+}
+
+fn is_register_location(location: &&ValueLocation) -> bool {
+    matches!(
+        location,
+        ValueLocation::Register { .. }
+            | ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(_),
+                ..
+            }
+    )
+}
+
 fn placement_register_count(placement: &calling_conventions::ValuePlacement) -> usize {
     placement
         .locations
         .iter()
-        .filter(|location| {
-            matches!(
-                location,
-                ValueLocation::Register { .. }
-                    | ValueLocation::Indirect {
-                        pointer: IndirectPointerLocation::Register(_),
-                        ..
-                    }
-            )
-        })
+        .filter(is_register_location)
         .count()
 }
 
@@ -253,21 +269,8 @@ pub(super) fn validate(
     // declared ABI over the call's own signature so parameter locations,
     // result mechanics, clobbers, stack geometry, and entry control must equal
     // the canonical plan rather than merely agreeing with one another.
-    let canonical = evaluate_call_plan(
-        call.call_plan.policy,
-        &CallSignature {
-            parameters: call
-                .arguments
-                .iter()
-                .map(|argument| argument.placement().shape)
-                .collect(),
-            result: call
-                .result_placement
-                .as_ref()
-                .map(|placement| placement.shape),
-        },
-    )
-    .map_err(|_| invalid())?;
+    let canonical = evaluate_call_plan(call.call_plan.policy, &call_abi_signature(call))
+        .map_err(|_| invalid())?;
     if call.call_plan != canonical {
         return Err(invalid());
     }
@@ -348,16 +351,7 @@ pub(super) fn validate(
             for (fragment, location) in placement
                 .locations
                 .iter()
-                .filter(|location| {
-                    matches!(
-                        location,
-                        ValueLocation::Register { .. }
-                            | ValueLocation::Indirect {
-                                pointer: IndirectPointerLocation::Register(_),
-                                ..
-                            }
-                    )
-                })
+                .filter(is_register_location)
                 .enumerate()
             {
                 let register = match location {

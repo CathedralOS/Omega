@@ -390,6 +390,17 @@ pub(super) fn validate_borrowed_argument(
     // every argument has its own explicit declaration and placement.
     // The checks below still reconstruct every incoming/outgoing placement,
     // referent, projection, and access mode independently.
+    let no_indirect_home = !exclusive
+        && address_join.is_none()
+        && aggregate.is_none()
+        && owner_home.is_none()
+        && byte_view.is_none()
+        && byte_field.is_none()
+        && stored_view.is_none()
+        && byte_owner.is_none()
+        && element_view.is_none()
+        && established_view_loan.is_none()
+        && projected_loan.is_none();
     if source.attachment.is_some_and(|attachment| {
         !signature
             .structural_types
@@ -403,46 +414,14 @@ pub(super) fn validate_borrowed_argument(
         ))
         || !call.claim_transfers.is_empty()
         || call.call_plan != expected
-        || (!exclusive
-            && address_join.is_none()
-            && aggregate.is_none()
-            && owner_home.is_none()
-            && byte_view.is_none()
-            && byte_field.is_none()
-            && stored_view.is_none()
-            && byte_owner.is_none()
-            && element_view.is_none()
-            && established_view_loan.is_none()
-            && projected_loan.is_none()
+        || (no_indirect_home
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
         || target.path != semantic.path
-        || (!exclusive
-            && address_join.is_none()
-            && aggregate.is_none()
-            && owner_home.is_none()
-            && byte_view.is_none()
-            && byte_field.is_none()
-            && stored_view.is_none()
-            && byte_owner.is_none()
-            && element_view.is_none()
-            && established_view_loan.is_none()
-            && projected_loan.is_none()
-            && target.root_structural_type != target.structural_type)
+        || (no_indirect_home && target.root_structural_type != target.structural_type)
         || target.shape != shape
-        || (!exclusive
-            && address_join.is_none()
-            && aggregate.is_none()
-            && owner_home.is_none()
-            && byte_view.is_none()
-            && byte_field.is_none()
-            && stored_view.is_none()
-            && byte_owner.is_none()
-            && element_view.is_none()
-            && established_view_loan.is_none()
-            && projected_loan.is_none()
-            && target.source_byte_offset != 0)
+        || (no_indirect_home && target.source_byte_offset != 0)
         || target.fixed_array_length
             != byte_view
                 .map(|(_, length)| length)
