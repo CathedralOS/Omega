@@ -1,3 +1,9 @@
+//! Check non-observation separately from loan authority and index bounds.
+//! A call subloan computes an address through declared fields and arrays;
+//! its selectors may read caller data but not the write-only referent.
+//! The ordinary borrow and range checkers still own authority and bounds.
+//! Persistent projected captures retain their narrower frozen-coordinate
+//! limit rather than inheriting the call's selector-evaluation contract.
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use language_semantics::{MachineSupplyMode, ReferenceAccess};
@@ -415,13 +421,7 @@ fn write_only_record_field_type(
     if direct_write_only_root(program, expression, roots).is_some() {
         return None;
     }
-    receiver::projected(
-        program,
-        expression,
-        roots,
-        receiver::ProjectionAdmission::MembersOnly,
-    )
-    .map(|(_, leaf, _)| leaf)
+    receiver::projected(program, expression, roots, &mut |_, _| false).map(|(_, leaf, _)| leaf)
 }
 
 /// The final displaced record-path leaf must be an unrestricted primitive, a
@@ -642,6 +642,7 @@ fn write_only_call_subloan(
     // rungs resolve the lent place over the state's write-only roots plus its
     // mutable formation sources. The added bindings never become write-only
     // roots elsewhere — expression validation keeps reading through them.
+    let observation_roots = roots;
     let mut sources = roots.to_vec();
     sources.extend(mutable_formation_sources(program, state, None));
     let roots = &sources;
@@ -650,16 +651,19 @@ fn write_only_call_subloan(
     if let Some(root) = direct_write_only_root(program, target, roots) {
         return match declared_referee {
             Some(declared) => {
-                subloan_referee_matches(program, root.referee, declared)
-                    || reject_subloan_referee_mismatch(
-                        program,
-                        machine,
-                        state,
-                        target,
-                        root.referee,
-                        declared,
-                        diagnostics,
-                    )
+                crate::value_custody::type_references::type_references_match(
+                    program,
+                    root.referee,
+                    declared,
+                ) || reject_subloan_referee_mismatch(
+                    program,
+                    machine,
+                    state,
+                    target,
+                    root.referee,
+                    declared,
+                    diagnostics,
+                )
             }
             None => true,
         };
@@ -668,28 +672,40 @@ fn write_only_call_subloan(
     // A projected loan lends an address, not its previous value. Fields and
     // fixed-array elements share the same content-independent place walk;
     // aggregate leaves owe the same exact referee contract as whole roots.
-    if let Some((_, referee, attached_root)) = receiver::projected(
-        program,
-        target,
-        roots,
-        receiver::ProjectionAdmission::LiteralIndexes,
-    ) {
+    if let Some((_, referee, attached_root)) =
+        receiver::projected(program, target, roots, &mut |selector, _| {
+            // Address arithmetic may evaluate caller data, but never observe
+            // the write-only referent. Ordinary range checking separately
+            // proves this selector against the declared array extent; this
+            // non-observation pass does not mint a bounds proof.
+            validate_expression(
+                program,
+                machine,
+                state,
+                selector,
+                observation_roots,
+                diagnostics,
+            );
+            true
+        })
+    {
         if attached_root {
             return false;
         }
         return match declared_referee {
             Some(declared) => {
                 is_supported_checked_referee(program, referee)
-                    && (subloan_referee_matches(program, referee, declared)
-                        || reject_subloan_referee_mismatch(
-                            program,
-                            machine,
-                            state,
-                            target,
-                            referee,
-                            declared,
-                            diagnostics,
-                        ))
+                    && (crate::value_custody::type_references::type_references_match(
+                        program, referee, declared,
+                    ) || reject_subloan_referee_mismatch(
+                        program,
+                        machine,
+                        state,
+                        target,
+                        referee,
+                        declared,
+                        diagnostics,
+                    ))
             }
             // The call's own access and arity checks still own unresolved
             // targets; this judgment only establishes a non-observing place.
@@ -698,40 +714,6 @@ fn write_only_call_subloan(
     }
 
     false
-}
-
-/// Whether the lent place's referee is the callee's declared `&write` referee
-/// atom-for-atom. Normalized identity carries the comparison; the one extra
-/// equation resolves an attached-machine `Self` to the data it names, since a
-/// `self` root's declared type spells `Self` while the callee's parameter
-/// spells the data name for the identical carrier.
-fn subloan_referee_matches(
-    program: &dyn crate::CheckingInput,
-    actual: TypeReferenceHandle,
-    declared: TypeReferenceHandle,
-) -> bool {
-    if crate::value_custody::type_references::type_references_match(program, actual, declared) {
-        return true;
-    }
-    let (
-        TypeReferenceNode::Named {
-            symbol: actual_symbol,
-            ..
-        },
-        TypeReferenceNode::Named {
-            symbol: declared_symbol,
-            ..
-        },
-    ) = (
-        program.type_reference_table.type_reference(actual),
-        program.type_reference_table.type_reference(declared),
-    )
-    else {
-        return false;
-    };
-    program.machines().iter().any(|machine| {
-        machine.symbol == *actual_symbol && machine.attached_data_symbol == *declared_symbol
-    })
 }
 
 /// Report an `&write` subloan whose lent place type is not the callee's
@@ -1351,7 +1333,7 @@ fn validate_expression(
                     )));
                 } else if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and in-bounds literal fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type"
+                        "machine `{machine_name}` state `{state_name}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes only as a direct checked-call argument whose declared `&write` referee carries exactly the same type; persistent projected captures require literal indexes"
                     )));
                 }
             }

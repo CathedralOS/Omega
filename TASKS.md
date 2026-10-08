@@ -3830,21 +3830,20 @@ and `mapped` need matching-host measurements, including the full-i32 status.
 
 - **WRITE-ONLY-BORROW.** Caller-visible `&write T` mutation is incomplete under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority).
-  Plain scalar and record loans, projected record subloans and literal-indexed
-  record subloans work: `write_only/state_forwarded_scalar_store_exit`,
-  `borrow/write_only_composed_forward_exit` (exit 70) and
-  `borrow/runtime_write_only_record_array_argument_exit` (exit 0) agree
-  natively and in the interpreter on macOS ARM64.
   Remaining:
+  - Terminal state-forwarded record subloans: on macOS ARM64,
+    `python3 tools/corpus_gate.py --both --filter write_only_composed_forward_exit`
+    exits 70 natively but interpretation declines with
+    `Execution(VerifiedOperationMalformed)` (also on clean `c40dc9d9ca2`).
   - general aggregate and `[copy]` sum replacement beyond scalar-field record
     literals, preserving displaced custody and whole-value validity;
   - runtime domain-qualified byte-field replacement with encoding evidence;
   - computed IEEE store/readback (through **FLOAT-PROVIDERS**; the mutable
     controls stop in caller guard planning);
-  - computed-index writes and local affine backing through the complete state
-    and cleanup route. Checking already admits closed copy sums, and computed
-    integer selectors and scalar-computation store sources have plans; reuse
-    them.
+  - computed-index aggregate stores and local affine backing through the
+    complete state and cleanup route. Checking already admits closed copy sums,
+    and computed integer selectors and scalar-computation store sources have
+    plans; reuse them.
 
   Coordinate sequencing with **STATE-LOCAL-VALUE-FRONTIER**, reference identity
   with **STRUCTURAL-BORROW-IDENTITY**, mutable dynamic dispatch with
@@ -3866,16 +3865,18 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `execution/terminal_unit/calls/computation_arguments/`; stage 02
   `validation/structural_call_arguments.rs`; image-emission `argument_custody`.
 
-  Remaining: local-rooted indexed receivers, owned-root/construction-local
-  admission and runtime-indexed write-only receivers. Reuse `Field`,
-  `FixedIndex` and `RuntimeIndex { index, obligation }`; coordinate range
-  spelling with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Declared receiver
+  Remaining: owned-root/construction-local admission beyond unrestricted array
+  backing and matching-host qualification of projected receiver custody.
+  Reuse `Field`, `FixedIndex` and `RuntimeIndex { index, obligation }`; coordinate
+  range spelling with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Declared receiver
   custody stays independent of field observations and state count.
 
   Controls (keep passing): `calls/unread_multistate_receiver_exit` (native exit
   70 on macOS, Linux x86-64 and Windows without a dummy read),
   `borrows/returned_record_field_read_exit` (70) and
-  `borrows/static_record_reference_return_exit` (0) in both engines.
+  `borrows/static_record_reference_return_exit` (0) in both engines, plus
+  `borrow/runtime_indexed_write_only_local_receiver_exit` (0) for caller-visible
+  local-array writes through forwarded and direct indexed loans.
 
   Acceptance: corpus fixtures execute caller-visible projected/forwarded
   writes, owned-field mutable/write-only subloans, synchronized shared

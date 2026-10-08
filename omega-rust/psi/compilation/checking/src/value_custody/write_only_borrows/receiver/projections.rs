@@ -6,17 +6,6 @@ use super::super::{
 };
 use super::{ExpressionHandle, ExpressionNode, WriteOnlyRoot, bare_field, write_only_record};
 
-/// How far a non-observing projected address may descend through fixed-array
-/// elements. `MembersOnly` serves content-independent record-field places:
-/// every receiver is an admitted plain record and every selected field is
-/// relevant. `LiteralIndexes` additionally freezes each element hop at a
-/// literal in-bounds index; local formation admits only frozen coordinates.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(in crate::value_custody::write_only_borrows) enum ProjectionAdmission {
-    MembersOnly,
-    LiteralIndexes,
-}
-
 /// Local formation freezes only literal coordinates. Runtime receiver dispatch
 /// retains its existing separate selector-evaluation and range checks.
 pub(in crate::value_custody::write_only_borrows) fn captured_type(
@@ -24,20 +13,30 @@ pub(in crate::value_custody::write_only_borrows) fn captured_type(
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
 ) -> Option<TypeReferenceHandle> {
-    let (_, referee, attached_root) = projected(
-        program,
-        expression,
-        roots,
-        ProjectionAdmission::LiteralIndexes,
-    )?;
+    let (_, referee, attached_root) =
+        projected(program, expression, roots, &mut |selector, length| {
+            let ExpressionNode::Integer(integer) = program.expression_table.expression(selector)
+            else {
+                return false;
+            };
+            integer
+                .value_bignum()
+                .and_then(|value| value.to_u64())
+                .and_then(|value| usize::try_from(value).ok())
+                .is_some_and(|position| position < length)
+        })?;
     (!attached_root && is_supported_checked_referee(program, referee)).then_some(referee)
 }
 
+/// Resolve the address without observing its contents. The consumer owns
+/// selector admission: a persistent capture needs frozen coordinates, while
+/// a call evaluates its selectors and owes the ordinary range obligations.
+/// Neither policy changes field eligibility, access or the exact referee.
 pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
-    admission: ProjectionAdmission,
+    admit_selector: &mut dyn FnMut(ExpressionHandle, usize) -> bool,
 ) -> Option<(&'roots WriteOnlyRoot, TypeReferenceHandle, bool)> {
     let (projections, cursor) =
         crate::expression_traversal::projection_climb(program, expression, usize::MAX)?;
@@ -72,27 +71,15 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
                 referee = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
-                if admission == ProjectionAdmission::MembersOnly {
-                    return None;
-                }
                 // Do not peel a reference stored in the referent: following
                 // that pointer would observe prior contents. The array shape
                 // and its element address must come from the declared type.
                 let (element, length) =
                     fixed_unrestricted_write_only_array_shape(program, referee)?;
-                if admission == ProjectionAdmission::LiteralIndexes {
-                    if !program.expression_table.expression_is_valid(indexed.index) {
-                        return None;
-                    }
-                    let ExpressionNode::Integer(index) =
-                        program.expression_table.expression(indexed.index)
-                    else {
-                        return None;
-                    };
-                    let index = usize::try_from(index.value_bignum()?.to_u64()?).ok()?;
-                    if index >= length {
-                        return None;
-                    }
+                if !program.expression_table.expression_is_valid(indexed.index)
+                    || !admit_selector(indexed.index, length)
+                {
+                    return None;
                 }
                 let (machine, state) = crate::machine_calls::calls::machine_state_by_symbol(
                     program,

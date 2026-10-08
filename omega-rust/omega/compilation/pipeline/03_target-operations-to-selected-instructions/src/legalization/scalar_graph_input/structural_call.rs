@@ -81,6 +81,11 @@ pub(in crate::legalization) fn argument_at(
             plan,
         );
     }
+    // Aggregate transport rejoins the existing home for every access mode.
+    // A fixed array has the same storage contract as a record: whether its
+    // root arrived or was constructed cannot select a different borrow ABI.
+    // In particular, write-only access does not make a local home an incoming
+    // pointer, and it must not allocate a referent copy.
     if semantic.access == StructuralAccess::Owned
         || plan.structural_types.iter().any(|declaration| {
             declaration.id == destination_parameter.structural_type
@@ -89,34 +94,9 @@ pub(in crate::legalization) fn argument_at(
                     terminal_psi::StructuralTypeShape::Record { .. }
                         | terminal_psi::StructuralTypeShape::Sum { .. }
                         | terminal_psi::StructuralTypeShape::Mixed { .. }
+                        | terminal_psi::StructuralTypeShape::FixedArray { .. }
                 )
         })
-    {
-        return super::aggregate_results::call_argument(
-            semantic,
-            position,
-            call_operation,
-            caller,
-            called,
-            call,
-            native,
-            plan,
-            custody,
-        );
-    }
-    // A shared or exclusive borrow of a produced fixed-array
-    // result lends the caller's dense leaf storage in place; the aggregate
-    // route rejoins the producing home exactly as a projected borrow does.
-    if matches!(
-        semantic.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) && plan.structural_types.iter().any(|declaration| {
-        declaration.id == destination_parameter.structural_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::FixedArray { .. }
-            )
-    }) && super::structural_case::source_result(caller, semantic.place).is_ok()
     {
         return super::aggregate_results::call_argument(
             semantic,

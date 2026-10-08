@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 3.43, "load1_start": 3.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 5.54, "load1_start": 5.76, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/qualified_cast_in_entry_body_exit built 1326ms exit:0 interpreter-exit:0 interpreter:agrees @2e29bd5fedcf
 pass/arithmetic/runtime_boolean_alias_shift_count_exit built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
 pass/arithmetic/runtime_boolean_divisor_state_exit built 1815ms exit:0 interpreter-exit:0 interpreter:agrees @50b7e26fea31+wt
@@ -33,6 +33,7 @@ pass/atomics/runtime_mixed_common_atomic_cell_exit built 1723ms exit:0 interpret
 pass/atomics/runtime_nested_case_payload_atomic_event_exit built 14821ms exit:0 interpreter-exit:0 interpreter:agrees @0919e048c9f8+wt
 pass/atomics/shared_receiver_atomic_store built 1667ms exit:70 interpreter-exit:70 interpreter:agrees @aea569c35b63
 pass/borrow/runtime_exclusive_loan_local_write_exit built 5556ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
+pass/borrow/runtime_indexed_write_only_local_receiver_exit built 1784ms exit:0 interpreter-exit:0 interpreter:agrees @c40dc9d9ca27+wt
 pass/borrow/runtime_write_only_record_array_argument_exit built 758ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/borrow/write_only_composed_forward_exit built 1375ms exit:70 interpreter-exit:70 interpreter:agrees @2bde2a770491
 pass/borrows/branch_selected_record_composed_receiver_exit built 2950ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt

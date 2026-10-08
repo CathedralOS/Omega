@@ -87,7 +87,9 @@ pub(crate) fn structural_computation_argument(
     }
     if matches!(
         target_access,
-        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        CheckedStructuralAccess::SharedBorrow
+            | CheckedStructuralAccess::MutableBorrow
+            | CheckedStructuralAccess::WriteOnlyBorrow
     ) && let Some(argument) = borrowed_storage_argument(
         program, borrow, machine, state, call, &place, target, selectors,
     ) {
@@ -312,7 +314,7 @@ pub(crate) fn borrowed_storage_argument(
     let target_access = match target_shell.access {
         language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
         language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        _ => return None,
+        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
     };
     // A closed generic application is the same nominal carrier as its retained
     // synthesized instance. Contents, exact identity and collected shape below
@@ -344,15 +346,7 @@ pub(crate) fn borrowed_storage_argument(
         ) {
             TypeReferenceNode::Reference {
                 access, referee, ..
-            } if matches!(
-                access,
-                language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable
-            ) && (target_access == CheckedStructuralAccess::SharedBorrow
-                || *access == language_semantics::ReferenceAccess::Mutable) =>
-            {
-                *referee
-            }
+            } if borrowed_access_supplies(*access, target_shell.access) => *referee,
             TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::FixedArray { .. } => parameter.type_reference,
@@ -408,13 +402,8 @@ pub(crate) fn borrowed_storage_argument(
         ) {
             TypeReferenceNode::Reference {
                 access, referee, ..
-            } if matches!(
-                access,
-                language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable
-            ) && (target_access == CheckedStructuralAccess::SharedBorrow
-                || (*access == language_semantics::ReferenceAccess::Mutable
-                    && !local.is_mutable)) =>
+            } if (target_access == CheckedStructuralAccess::SharedBorrow || !local.is_mutable)
+                && borrowed_access_supplies(*access, target_shell.access) =>
             {
                 *referee
             }
@@ -477,10 +466,7 @@ pub(crate) fn borrowed_storage_argument(
     // referent. Root formal loans were already represented by their referent
     // above; only reference shells still present here require a crossing.
     while let Some(shell) = validation::reference_shell(program, reference) {
-        if shell.access != language_semantics::ReferenceAccess::Mutable
-            && !(shell.access == language_semantics::ReferenceAccess::Shared
-                && target_access == CheckedStructuralAccess::SharedBorrow)
-        {
+        if !borrowed_access_supplies(shell.access, target_shell.access) {
             return None;
         }
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
@@ -581,6 +567,16 @@ pub(crate) fn borrowed_storage_argument(
         type_identity: presentation_identity,
         access: target_access,
     })
+}
+
+/// A storage projection attenuates the existing loan; it never acquires
+/// readable authority from a write-only parent. Exact call-occurrence evidence
+/// below remains responsible for ownership, suspension and restoration.
+fn borrowed_access_supplies(
+    supplied: language_semantics::ReferenceAccess,
+    requested: language_semantics::ReferenceAccess,
+) -> bool {
+    supplied == requested || supplied == language_semantics::ReferenceAccess::Mutable
 }
 
 /// A whole shared or mutable borrowed-view actual loans its established
