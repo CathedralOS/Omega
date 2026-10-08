@@ -22,6 +22,26 @@ use terminal_psi::{
     StructuralTypeShape, TerminalMachineResult,
 };
 
+/// Whether the borrowed parameter directly rebinds the argument's resolved
+/// value — same type, unrestricted multiplicity, matching borrow access, and
+/// no qualification delta on either side.
+fn is_direct_borrowed_rebinding(
+    parameter: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+    resolved: &TerminalStructuralValue,
+) -> bool {
+    parameter.structural_type == resolved.structural_type
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && parameter.access == argument.access
+        && matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && resolved.qualifications.is_empty()
+}
+
 /// The caller retains an owner only while some subtree remains in its custody.
 /// Moving the final projected child retires the same descriptor as a whole move,
 /// without inventing a discard for an empty complement. Resolve all transfers
@@ -128,16 +148,7 @@ impl TerminalExecution<'_> {
                 continue;
             }
             if !carrier.is_borrowed()
-                || parameter.structural_type != resolved.structural_type
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || parameter.access != argument.access
-                || !matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || !resolved.qualifications.is_empty()
+                || !is_direct_borrowed_rebinding(parameter, argument, resolved)
                 || !argument.path.is_empty()
             {
                 return Err(malformed());
@@ -177,17 +188,7 @@ impl TerminalExecution<'_> {
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
-            if parameter.structural_type != resolved.structural_type
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || parameter.access != argument.access
-                || !matches!(
-                    parameter.access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                )
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || !resolved.qualifications.is_empty()
-            {
+            if !is_direct_borrowed_rebinding(parameter, argument, resolved) {
                 return Err(malformed());
             }
             let view = self.element_view_argument(argument, resolved)?;
