@@ -24,33 +24,7 @@ pub struct PackagePolicyCallingOpaqueUse {
 }
 
 impl PackagePolicyCallingOpaqueUse {
-    pub const fn opaque(&self) -> &PackageReviewNominalIdentity {
-        &self.opaque
-    }
-
-    pub const fn carrier(&self) -> &PackageReviewNominalIdentity {
-        &self.carrier
-    }
-
-    pub const fn selection_owner(&self) -> PackageReviewNominalOwner {
-        self.selection_owner
-    }
-
-    pub const fn application(&self) -> &PackagePolicyClosedConformanceApplication {
-        &self.application
-    }
-
-    pub const fn origin(&self) -> PackageReviewOpaqueRepresentationApplicationOrigin {
-        self.origin
-    }
-
-    pub const fn lifecycle(&self) -> PackageReviewOpaqueRepresentationLifecycleDisposition {
-        self.lifecycle
-    }
-
-    pub const fn copy_disposition(&self) -> PackageReviewOpaqueRepresentationCopyDisposition {
-        self.copy_disposition
-    }
+    crate::record::accessors::opaque_representation_selection_accessors!();
 
     pub fn occurrences(&self) -> &[PackageReviewOpaqueRepresentationOccurrence] {
         &self.occurrences

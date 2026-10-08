@@ -3,6 +3,7 @@
 //! This module owns the review shapes and canonical-row model. It does not
 //! inspect compiler state, encode persistence bytes, or make admission policy.
 
+mod accessors;
 mod authority;
 mod baseline;
 pub use baseline::PackagePolicyBaseline;
