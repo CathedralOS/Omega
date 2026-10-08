@@ -156,6 +156,25 @@ fn scalar_abi_cases() -> Vec<ScalarAbiCase> {
     ]
 }
 
+/// The validated physical model, preservation convention, effect catalog, and
+/// constraint keys one ABI case expands to.
+fn abi_case_context<'a>(
+    environment: &'a super::super::ValidatedTargetRegisterEnvironment,
+    case: ScalarAbiCase,
+) -> (
+    &'a register_model::PhysicalRegisterModel,
+    &'a PreservationConvention,
+    ValidatedMachineEffectCatalog,
+    selected_instructions::SelectedConstraintKeys,
+) {
+    (
+        environment.physical().model(),
+        convention_for(case, environment.physical()),
+        validated_effects(case, environment.constraints()),
+        environment.selected_keys(),
+    )
+}
+
 fn convention_for(
     case: ScalarAbiCase,
     model: &register_model::ValidatedPhysicalRegisterModel,

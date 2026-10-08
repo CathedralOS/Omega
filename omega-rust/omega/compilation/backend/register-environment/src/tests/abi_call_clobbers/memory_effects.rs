@@ -1,4 +1,5 @@
 use super::{
+    abi_case_context,
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
     baseline_target_register_environment, convention_for, named_view, produced_effects,
     scalar_abi_cases, validate_effects, validated_effects,
@@ -447,10 +448,7 @@ fn memory_declaration_mut(
 fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
     for case in scalar_abi_cases() {
         let environment = baseline_target_register_environment(case.target).unwrap();
-        let model = environment.physical().model();
-        let convention = convention_for(case, environment.physical());
-        let catalog = validated_effects(case, environment.constraints());
-        let keys = environment.selected_keys();
+        let (model, convention, catalog, keys) = abi_case_context(&environment, case);
         let memory_rules = selected_memory_rules(&environment);
         assert_eq!(
             memory_rules.len(),

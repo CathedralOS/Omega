@@ -1,4 +1,5 @@
 use super::{
+    abi_case_context,
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
     baseline_target_register_environment, convention_for, named_view, produced_effects,
     scalar_abi_cases, validate_effects, validated_effects,
@@ -112,10 +113,7 @@ fn branch_declaration_mut(
 fn every_selected_branch_rule_binds_the_declared_abi_control_contract() {
     for case in scalar_abi_cases() {
         let environment = baseline_target_register_environment(case.target).unwrap();
-        let model = environment.physical().model();
-        let convention = convention_for(case, environment.physical());
-        let catalog = validated_effects(case, environment.constraints());
-        let keys = environment.selected_keys();
+        let (model, convention, catalog, keys) = abi_case_context(&environment, case);
         let branch_rules = selected_branch_rules(&environment);
         assert_eq!(
             branch_rules.len(),

@@ -1,4 +1,5 @@
 use super::{
+    abi_case_context,
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
     baseline_target_register_environment, convention_for, declaration_mut, produced_effects,
     scalar_abi_cases, units_for_names, validate_effects, validated_effects,
@@ -65,10 +66,7 @@ fn expected_result_views(
 fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
     for case in scalar_abi_cases() {
         let environment = baseline_target_register_environment(case.target).unwrap();
-        let model = environment.physical().model();
-        let convention = convention_for(case, environment.physical());
-        let catalog = validated_effects(case, environment.constraints());
-        let keys = environment.selected_keys();
+        let (model, convention, catalog, keys) = abi_case_context(&environment, case);
         let return_rules = selected_return_rules(&environment);
         assert!(
             !return_rules.is_empty(),

@@ -1,4 +1,5 @@
 use super::{
+    abi_case_context,
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey,
     baseline_target_register_environment, convention_for, named_view, produced_effects,
     scalar_abi_cases, units_for_names, validate_effects, validated_effects,
@@ -717,10 +718,7 @@ fn arithmetic_declaration_mut(
 fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
     for case in scalar_abi_cases() {
         let environment = baseline_target_register_environment(case.target).unwrap();
-        let model = environment.physical().model();
-        let convention = convention_for(case, environment.physical());
-        let catalog = validated_effects(case, environment.constraints());
-        let keys = environment.selected_keys();
+        let (model, convention, catalog, keys) = abi_case_context(&environment, case);
         let arithmetic_rules = selected_arithmetic_rules(&environment);
         assert_eq!(
             arithmetic_rules.len(),
