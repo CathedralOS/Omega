@@ -132,6 +132,7 @@ pub use checked_trees::{
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralCasePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
+    is_partial_affine_field_type,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralReturnPlan,

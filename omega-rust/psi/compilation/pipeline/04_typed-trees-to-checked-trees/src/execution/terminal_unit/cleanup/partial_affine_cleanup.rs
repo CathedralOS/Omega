@@ -5,8 +5,8 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::{
     BTreeMap, CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, PermissionEventKind, PrimitiveType, ScalarCalleeClosure,
+    CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, PermissionEventKind, ScalarCalleeClosure,
     control,
 };
 
@@ -67,36 +67,3 @@ pub(crate) fn partial_affine_residuals(
     residuals::reconstruct(types, source, root_type, &borrowed, usize::MAX)
 }
 
-pub(crate) fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
-    // Numeric restrictions remain on the retained field type for arithmetic
-    // proofs, but do not introduce custody or executable cleanup. A bounded
-    // integer is the same no-cleanup leaf as its raw scalar carrier when
-    // reconstructing the untouched complement of a partial move.
-    matches!(
-        field_type,
-        CheckedUnitStructuralFieldType::Structural { .. }
-            | CheckedUnitStructuralFieldType::BoundedInteger(_)
-            | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-            | CheckedUnitStructuralFieldType::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-            )
-            | CheckedUnitStructuralFieldType::PredicateByteSequence {
-                carrier: checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
-                ..
-            }
-            | CheckedUnitStructuralFieldType::Scalar(
-                PrimitiveType::Bool
-                    | PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-                    | PrimitiveType::Addr
-                    | PrimitiveType::F32
-                    | PrimitiveType::F64
-            )
-    )
-}

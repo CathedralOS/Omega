@@ -14,7 +14,7 @@ use super::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
 };
-use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::is_partial_affine_field_type;
+use checked_trees::is_partial_affine_field_type;
 
 fn validate_type(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,

@@ -441,3 +441,37 @@ pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape)
         | CheckedUnitStructuralTypeShape::Mixed { .. } => false,
     }
 }
+
+/// No-cleanup leaf classification: structural containers, bounded integers,
+/// refined scalars, bounded-owned byte sequences, and every primitive scalar
+/// are partial-affine leaves — a partially moved value reconstructs the
+/// untouched complement from these without executable cleanup.
+pub fn is_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
+    matches!(
+        field_type,
+        CheckedUnitStructuralFieldType::Structural { .. }
+            | CheckedUnitStructuralFieldType::BoundedInteger(_)
+            | CheckedUnitStructuralFieldType::RefinedScalar { .. }
+            | CheckedUnitStructuralFieldType::ByteSequence(
+                CheckedByteSequenceCarrier::BoundedOwned { .. }
+            )
+            | CheckedUnitStructuralFieldType::PredicateByteSequence {
+                carrier: CheckedByteSequenceCarrier::BoundedOwned { .. },
+                ..
+            }
+            | CheckedUnitStructuralFieldType::Scalar(
+                PrimitiveType::Bool
+                    | PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::Addr
+                    | PrimitiveType::F32
+                    | PrimitiveType::F64
+            )
+    )
+}

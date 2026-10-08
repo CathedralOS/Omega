@@ -78,7 +78,7 @@ pub use structural_control_plans::{
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 pub use structural_type_plans::{
-    CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
+    is_partial_affine_field_type,    CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
     CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt, CheckedRuntimeIndex,
     CheckedStructuralAccess, CheckedStructuralPathQualification, CheckedStructuralResultPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitStructuralCasePlan,

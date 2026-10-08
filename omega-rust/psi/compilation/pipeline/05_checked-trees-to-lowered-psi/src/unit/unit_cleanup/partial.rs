@@ -468,34 +468,3 @@ fn checked_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> boo
         })
 }
 
-fn checked_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType) -> bool {
-    // Reconstruct the producer's no-cleanup scalar classification without
-    // stripping the numeric restrictions needed by contract proof lowering.
-    matches!(
-        field_type,
-        CheckedUnitStructuralFieldType::Structural { .. }
-            | CheckedUnitStructuralFieldType::BoundedInteger(_)
-            | CheckedUnitStructuralFieldType::RefinedScalar { .. }
-            | CheckedUnitStructuralFieldType::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-            )
-            | CheckedUnitStructuralFieldType::PredicateByteSequence {
-                carrier: checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
-                ..
-            }
-            | CheckedUnitStructuralFieldType::Scalar(
-                PrimitiveType::Bool
-                    | PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-                    | PrimitiveType::Addr
-                    | PrimitiveType::F32
-                    | PrimitiveType::F64
-            )
-    )
-}
