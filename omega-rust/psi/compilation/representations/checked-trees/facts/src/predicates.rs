@@ -208,6 +208,32 @@ pub enum CheckedScalarExpression {
     },
 }
 
+/// A decimal `u64` literal landed in the `U8`/`U64` exact domain — the
+/// shape every constant-injection site builds for small bounded values.
+/// Other primitive types have no authored landing here.
+pub fn u64_integer_literal(
+    value: u64,
+    primitive_type: typed_trees::types::PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let landed_type = match primitive_type {
+        typed_trees::types::PrimitiveType::U8 => numerics::literals::LandedIntegerType::U8,
+        typed_trees::types::PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
+        _ => return None,
+    };
+    let literal = numerics::literals::IntegerLiteral::from_parts(
+        false,
+        numerics::literals::IntegerRadix::Decimal,
+        &value.to_string(),
+    )
+    .ok()?
+    .with_landing(numerics::literals::IntegerLanding {
+        landed_type,
+        domain: numerics::arithmetic::ArithmeticDomain::Exact,
+    });
+    Some(CheckedScalarExpression::IntegerLiteral { literal })
+}
+
+
 impl CheckedScalarExpression {
     /// Whether evaluating this expression executes any Trapping primitive or
     /// Trapping conversion, i.e. whether it owns an operation-level `Trap`

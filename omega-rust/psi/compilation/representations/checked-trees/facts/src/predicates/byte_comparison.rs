@@ -46,20 +46,5 @@ impl CheckedBooleanExpression {
     }
 }
 fn literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedScalarExpression> {
-    let landed_type = match primitive_type {
-        PrimitiveType::U8 => numerics::literals::LandedIntegerType::U8,
-        PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
-        _ => return None,
-    };
-    let literal = numerics::literals::IntegerLiteral::from_parts(
-        false,
-        numerics::literals::IntegerRadix::Decimal,
-        &value.to_string(),
-    )
-    .ok()?
-    .with_landing(numerics::literals::IntegerLanding {
-        landed_type,
-        domain: numerics::arithmetic::ArithmeticDomain::Exact,
-    });
-    Some(CheckedScalarExpression::IntegerLiteral { literal })
+    super::u64_integer_literal(value, primitive_type)
 }

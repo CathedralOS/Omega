@@ -18,6 +18,7 @@ pub use predicates::{
     CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
     CheckedStorageRoot, CheckedStructuralCaseRoot, CheckedStructuralCaseSubject,
     CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
+    u64_integer_literal,
 };
 
 pub use fact_plan::contexts::view::FactContextView;

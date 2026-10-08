@@ -16,7 +16,6 @@ use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
     CheckedScalarExpression,
 };
-use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::PrimitiveType;
@@ -523,22 +522,7 @@ pub(super) fn comparable_byte_carrier_type(
 }
 
 fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedScalarExpression> {
-    let landed_type = match primitive_type {
-        PrimitiveType::U8 => numerics::literals::LandedIntegerType::U8,
-        PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
-        _ => return None,
-    };
-    let literal = numerics::literals::IntegerLiteral::from_parts(
-        false,
-        numerics::literals::IntegerRadix::Decimal,
-        &value.to_string(),
-    )
-    .ok()?
-    .with_landing(numerics::literals::IntegerLanding {
-        landed_type,
-        domain: ArithmeticDomain::Exact,
-    });
-    Some(CheckedScalarExpression::IntegerLiteral { literal })
+    facts::u64_integer_literal(value, primitive_type)
 }
 
 /// Comparison normalization may swap completed values for `>` and `>=`; it
