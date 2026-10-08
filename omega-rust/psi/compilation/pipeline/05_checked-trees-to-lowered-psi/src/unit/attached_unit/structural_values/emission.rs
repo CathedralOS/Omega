@@ -1892,6 +1892,15 @@ impl Emission<'_, '_, '_> {
         self.operations.field_byte_lengths.clear();
     }
 
+    /// Resume the case-fallback arm's stashed value roster at its entry
+    /// block, when one was recorded.
+    fn restore_fallback(&mut self, fallback: Option<(BlockId, Vec<ValueDeclaration>)>) {
+        if let Some((next, values)) = fallback {
+            self.start(next);
+            *self.values = values;
+        }
+    }
+
     /// Push an evaluated scalar onto the SSA roster, request the declared
     /// field's range-evidence obligation when its type requires one, and
     /// return the terminal initializer value. The verifier reconstructs the

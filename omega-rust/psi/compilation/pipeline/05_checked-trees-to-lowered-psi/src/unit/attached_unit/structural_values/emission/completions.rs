@@ -289,10 +289,7 @@ impl Emission<'_, '_, '_> {
             self.temporary_places
                 .push(operation_result_declaration(place, operation, leaf_type));
             self.complete_value(place, None, continuation)?;
-            if let Some((next, values)) = fallback {
-                self.start(next);
-                *self.values = values;
-            }
+            self.restore_fallback(fallback);
         }
         if is_root {
             self.record_root_continuation(continuation);

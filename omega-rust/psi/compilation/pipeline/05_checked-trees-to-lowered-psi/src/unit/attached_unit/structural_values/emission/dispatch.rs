@@ -114,10 +114,7 @@ impl Emission<'_, '_, '_> {
             }
             self.values.truncate(source_count);
             self.value(arm.value, Some(continuation))?;
-            if let Some((next, values)) = fallback {
-                self.start(next);
-                *self.values = values;
-            }
+            self.restore_fallback(fallback);
         }
         if is_root {
             self.record_root_continuation(continuation);
