@@ -460,13 +460,11 @@ fn recast_view_source_expression(
         match program.expression_table.expression(current) {
             ExpressionNode::Borrow(inner) => current = inner.target,
             ExpressionNode::Cast(cast) if cast.form.is_recast() => {
-                let mut source = cast.value;
-                while let ExpressionNode::Borrow(inner) =
-                    program.expression_table.expression(source)
-                {
-                    source = inner.target;
-                }
-                return Some(source);
+                return Some(
+                    program
+                        .expression_table
+                        .peeled_expression_handle(cast.value),
+                );
             }
             _ => return None,
         }
@@ -732,7 +730,8 @@ fn value_declared_type_carries_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    let Some((machine, state)) = program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
+    let Some((machine, state)) =
+        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
     else {
         return false;
     };

@@ -20,9 +20,7 @@ pub(super) fn report_mismatch(
     // guard extends that rule to values whose format comes from a declaration,
     // conversion, or call result.
     let mut direct = value;
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(direct) {
-        direct = borrow.target;
-    }
+    direct = program.expression_table.peeled_expression_handle(direct);
     if matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
         && matches!(
             program.expression_table.expression(direct),

@@ -163,14 +163,7 @@ pub fn data_where_field_intervals(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
-    let fields = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
-            typed_trees::data::DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
+    let fields = declared_data_fields(program, definition);
     field_intervals(
         program,
         &fields,
@@ -191,6 +184,22 @@ pub fn case_where_field_intervals(
         &fields,
         program.proof_facts.span_or_empty(case.where_facts),
     )
+}
+
+/// The declaration's declared field rows, in order — where-fact readers
+/// bind intervals to the same ordinary members.
+fn declared_data_fields<'a>(
+    program: &'a dyn crate::CheckingInput,
+    definition: &'a DataDefinition,
+) -> Vec<&'a DataField> {
+    program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect()
 }
 
 fn field_intervals(
@@ -256,14 +265,7 @@ pub(crate) fn data_where_field_literal_bounds(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> Option<Vec<FieldLiteralBound>> {
-    let fields = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
-            typed_trees::data::DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
+    let fields = declared_data_fields(program, definition);
     field_literal_bounds(
         program,
         &fields,

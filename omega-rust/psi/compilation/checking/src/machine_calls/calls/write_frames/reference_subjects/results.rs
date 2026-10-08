@@ -11,9 +11,9 @@ pub(super) fn call_expression(
     program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
 ) -> Option<&TableCallExpression> {
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
-        expression = borrow.target;
-    }
+    expression = program
+        .expression_table
+        .peeled_expression_handle(expression);
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };

@@ -21,10 +21,7 @@ pub(crate) fn float_literal_value(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<f64> {
-    let mut node = program.expression_table.expression(value);
-    while let ExpressionNode::Borrow(inner) = node {
-        node = program.expression_table.expression(inner.target);
-    }
+    let node = program.expression_table.peeled_expression(value);
     match node {
         ExpressionNode::Float(literal) => Some(literal.landed_f64()),
         _ => None,

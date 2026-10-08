@@ -174,9 +174,7 @@ fn argument_collection_element(
     argument: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let mut handle = argument;
-    while let ExpressionNode::Borrow(inner) = program.expression_table.expression(handle) {
-        handle = inner.target;
-    }
+    handle = program.expression_table.peeled_expression_handle(handle);
     if let Some(indexed) = program.expression_table.indexed_node(handle)
         && matches!(
             program.expression_table.expression(indexed.index),

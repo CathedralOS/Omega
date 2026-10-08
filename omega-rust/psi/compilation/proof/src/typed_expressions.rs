@@ -147,9 +147,9 @@ fn dehoisted_initializer(
         return None;
     }
     let mut initializer = local.initial_value;
-    while let ExpressionNode::Borrow(inner) = program.expression_table.expression(initializer) {
-        initializer = inner.target;
-    }
+    initializer = program
+        .expression_table
+        .peeled_expression_handle(initializer);
     Some(initializer)
 }
 

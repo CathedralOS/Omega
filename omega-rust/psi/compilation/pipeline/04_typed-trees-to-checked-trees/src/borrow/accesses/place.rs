@@ -15,16 +15,12 @@ pub(crate) fn borrow_access_place(
     // same footprint judgment used by retained local loans before ordinary
     // place descent, retaining the complete literal or conservative suffix.
     let mut viewed = expression;
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(viewed) {
-        viewed = borrow.target;
-    }
+    viewed = program.expression_table.peeled_expression_handle(viewed);
     if let Some(cast) = program.expression_table.cast_node(viewed)
         && cast.form.is_recast()
     {
         let mut source = cast.value;
-        while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
-            source = borrow.target;
-        }
+        source = program.expression_table.peeled_expression_handle(source);
         if matches!(
             program.expression_table.expression(source),
             ExpressionNode::Indexed(_)
@@ -185,9 +181,7 @@ pub(crate) fn borrow_access_place(
         // independently validated above; this arm retains whole-place identity.
         ExpressionNode::Cast(cast) if cast.form.is_recast() => {
             let mut source = cast.value;
-            while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
-                source = borrow.target;
-            }
+            source = program.expression_table.peeled_expression_handle(source);
             if matches!(
                 program.expression_table.expression(source),
                 ExpressionNode::Name(_) | ExpressionNode::Member(_)

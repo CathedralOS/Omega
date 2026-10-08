@@ -144,9 +144,7 @@ fn explicit_borrow_source_refusal(
         && cast.form.is_recast()
     {
         source = cast.value;
-        while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
-            source = borrow.target;
-        }
+        source = program.expression_table.peeled_expression_handle(source);
     }
     let Some((root, binding_type, owned_root_is_writable)) =
         source_place_root(program, machine, state, prior_statements, source)

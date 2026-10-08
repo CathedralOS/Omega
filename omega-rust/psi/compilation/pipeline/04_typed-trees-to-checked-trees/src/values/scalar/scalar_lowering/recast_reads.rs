@@ -24,9 +24,9 @@ pub(crate) fn recast_view_operand(
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
     let mut expression = expression;
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
-        expression = borrow.target;
-    }
+    expression = program
+        .expression_table
+        .peeled_expression_handle(expression);
     let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -34,9 +34,7 @@ pub(crate) fn recast_view_operand(
         return None;
     }
     let mut source = cast.value;
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
-        source = borrow.target;
-    }
+    source = program.expression_table.peeled_expression_handle(source);
     matches!(
         program.expression_table.expression(source),
         ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)

@@ -852,30 +852,35 @@ fn canonical_type(
     Ok(identity.into_string())
 }
 
-fn contract_coordinate(
+fn fact_coordinate(
     location: ContractFactLocation,
+    position_label: &str,
+    fact_label: &str,
 ) -> Result<QuotientContractFactCoordinate, String> {
     Ok(QuotientContractFactCoordinate {
         owner: match location.owner {
             ContractOwner::Machine => QuotientContractOwner::Machine,
             ContractOwner::State => QuotientContractOwner::State,
         },
-        contract_position: to_u32(location.contract_position, "contract position")?,
-        fact_position: to_u32(location.fact_position, "contract fact position")?,
+        contract_position: to_u32(location.contract_position, position_label)?,
+        fact_position: to_u32(location.fact_position, fact_label)?,
     })
+}
+
+fn contract_coordinate(
+    location: ContractFactLocation,
+) -> Result<QuotientContractFactCoordinate, String> {
+    fact_coordinate(location, "contract position", "contract fact position")
 }
 
 fn representative_contract_coordinate(
     location: ContractFactLocation,
 ) -> Result<QuotientContractFactCoordinate, String> {
-    Ok(QuotientContractFactCoordinate {
-        owner: match location.owner {
-            ContractOwner::Machine => QuotientContractOwner::Machine,
-            ContractOwner::State => QuotientContractOwner::State,
-        },
-        contract_position: to_u32(location.contract_position, "source contract position")?,
-        fact_position: to_u32(location.fact_position, "source contract fact position")?,
-    })
+    fact_coordinate(
+        location,
+        "source contract position",
+        "source contract fact position",
+    )
 }
 
 fn to_u32(value: usize, label: &str) -> Result<u32, String> {

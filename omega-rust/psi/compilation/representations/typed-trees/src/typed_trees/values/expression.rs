@@ -588,6 +588,20 @@ impl ExpressionTable {
         self.expressions.get(handle)
     }
 
+    /// `handle` chased through every `Borrow` node — the expression the
+    /// wrapper chain ultimately names.
+    pub fn peeled_expression_handle(&self, mut handle: ExpressionHandle) -> ExpressionHandle {
+        while let ExpressionNode::Borrow(inner) = self.expression(handle) {
+            handle = inner.target;
+        }
+        handle
+    }
+
+    /// The node `handle`'s borrow chain ultimately names.
+    pub fn peeled_expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
+        self.expression(self.peeled_expression_handle(handle))
+    }
+
     /// The typed `Name` node, or `None` for every other kind.
     pub fn name_path_node(&self, handle: ExpressionHandle) -> Option<&TableNamePath> {
         match self.expression(handle) {

@@ -26,7 +26,9 @@ pub(super) fn carrier_storage_type(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    reference = program.type_reference_table.unconstrained_type_reference(reference);
+    reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     if let TypeReferenceNode::Reference {
         access, referee, ..
     } = program.type_reference_table.type_reference(reference)
@@ -407,9 +409,9 @@ fn declared_initializer_origins(
         program.expression_table.expression(expression),
         ExpressionNode::Borrow(_)
     );
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
-        expression = borrow.target;
-    }
+    expression = program
+        .expression_table
+        .peeled_expression_handle(expression);
     if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
@@ -619,7 +621,9 @@ pub(super) fn validate_owned_projection(
     mut reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
 ) -> Option<()> {
-    reference = program.type_reference_table.unconstrained_type_reference(reference);
+    reference = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(reference)
     {

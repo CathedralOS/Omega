@@ -864,6 +864,18 @@ fn exact_place_subtract<'program>(
 /// is then exactly the upper no-overflow condition for `left + right`.
 /// An Exact unsigned ceiling below MAX also suffices when prior facts prove
 /// that its subtraction of `right` is total.
+/// `<=` and `>=` orderings reduced to one directed operand pair: the tuple
+/// reads (directed-left, directed-right) as if the comparison were always `<=`.
+fn directed_comparison_operands(
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> Option<(ExpressionHandle, ExpressionHandle)> {
+    match comparison.operator {
+        BinaryOperator::LessOrEqual => Some((comparison.left, comparison.right)),
+        BinaryOperator::GreaterOrEqual => Some((comparison.right, comparison.left)),
+        _ => None,
+    }
+}
+
 fn joint_add_upper_guard(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -871,11 +883,7 @@ fn joint_add_upper_guard(
     environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
-    let (left, bound) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
-        _ => return None,
-    };
+    let (left, bound) = directed_comparison_operands(comparison)?;
     let (subtract, left_primitive, right_path) =
         exact_place_subtract(program, machine, state, left, bound)?;
     let maximum_matches = match left_primitive {
@@ -938,11 +946,7 @@ fn joint_add_lower_guard(
     environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
-    let (bound, left) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
-        _ => return None,
-    };
+    let (bound, left) = directed_comparison_operands(comparison)?;
     let (subtract, left_primitive, right_path) =
         exact_place_subtract(program, machine, state, left, bound)?;
     let minimum = match left_primitive {
@@ -1048,11 +1052,7 @@ fn joint_multiply_guard(
     environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
-    let (left, bound) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
-        _ => return None,
-    };
+    let (left, bound) = directed_comparison_operands(comparison)?;
     let (divide, left_primitive) =
         exact_bound_binary(program, machine, state, left, bound, BinaryOperator::Divide)?;
     if !matches!(
@@ -1088,11 +1088,7 @@ fn signed_joint_multiply_lower_guard(
     environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
-    let (bound, left) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
-        _ => return None,
-    };
+    let (bound, left) = directed_comparison_operands(comparison)?;
     signed_joint_multiply_quotient_guard(program, machine, state, environment, left, bound, true)
 }
 
@@ -1106,11 +1102,7 @@ fn signed_joint_multiply_upper_guard(
     environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
-    let (left, bound) = match comparison.operator {
-        BinaryOperator::LessOrEqual => (comparison.left, comparison.right),
-        BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
-        _ => return None,
-    };
+    let (left, bound) = directed_comparison_operands(comparison)?;
     signed_joint_multiply_quotient_guard(program, machine, state, environment, left, bound, false)
 }
 

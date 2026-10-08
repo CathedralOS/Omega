@@ -284,9 +284,7 @@ fn report_nested_runtime_indexed_read(
     // The index must be a RUNTIME SCALAR: not a constant integer (a fixed offset,
     // lowerable) and not a RANGE (`sub[1..][1..]` is a nested SUBSLICE that lowers).
     let mut index = indexed.index;
-    while let ExpressionNode::Borrow(inner) = program.expression_table.expression(index) {
-        index = inner.target;
-    }
+    index = program.expression_table.peeled_expression_handle(index);
     if matches!(
         program.expression_table.expression(index),
         ExpressionNode::Integer(_) | ExpressionNode::Range(_)
@@ -377,9 +375,9 @@ fn double_indexed_machine_read_is_lowerable(
         return false;
     };
     let mut inner_index = inner_indexed.index;
-    while let ExpressionNode::Borrow(next) = program.expression_table.expression(inner_index) {
-        inner_index = next.target;
-    }
+    inner_index = program
+        .expression_table
+        .peeled_expression_handle(inner_index);
     if matches!(
         program.expression_table.expression(inner_index),
         ExpressionNode::Integer(_) | ExpressionNode::Range(_)

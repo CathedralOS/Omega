@@ -368,10 +368,7 @@ pub(crate) fn integer_literal_value(
     program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<i64> {
-    let mut node = program.expression_table.expression(value);
-    while let ExpressionNode::Borrow(inner) = node {
-        node = program.expression_table.expression(inner.target);
-    }
+    let node = program.expression_table.peeled_expression(value);
     match node {
         ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,

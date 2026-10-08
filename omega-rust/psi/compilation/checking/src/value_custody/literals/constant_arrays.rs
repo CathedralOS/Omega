@@ -487,9 +487,7 @@ pub(super) fn validate_declared_array_destination(
     destination: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(value) {
-        value = borrow.target;
-    }
+    value = program.expression_table.peeled_expression_handle(value);
     if !matches!(
         program.expression_table.expression(value),
         ExpressionNode::ArrayLiteral(_)
