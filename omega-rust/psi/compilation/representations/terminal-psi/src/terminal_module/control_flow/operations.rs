@@ -1248,3 +1248,27 @@ impl OperationKind {
         }
     }
 }
+
+/// Match-arm pattern for the integer arithmetic operations (the Exact,
+/// Wrapping and Saturating binary integer families), used as
+/// `terminal_psi::integer_arithmetic_operations!` in a pattern position.
+#[macro_export]
+macro_rules! integer_arithmetic_operations {
+    () => {
+        $crate::OperationKind::ExactIntegerAdd { .. }
+            | $crate::OperationKind::WrappingIntegerAdd { .. }
+            | $crate::OperationKind::ExactIntegerSubtract { .. }
+            | $crate::OperationKind::WrappingIntegerSubtract { .. }
+            | $crate::OperationKind::ExactIntegerMultiply { .. }
+            | $crate::OperationKind::WrappingIntegerMultiply { .. }
+            | $crate::OperationKind::ExactIntegerDivide { .. }
+            | $crate::OperationKind::ExactIntegerRemainder { .. }
+            | $crate::OperationKind::WrappingIntegerDivide { .. }
+            | $crate::OperationKind::WrappingIntegerRemainder { .. }
+            | $crate::OperationKind::SaturatingIntegerDivide { .. }
+            | $crate::OperationKind::SaturatingIntegerRemainder { .. }
+            | $crate::OperationKind::SaturatingIntegerAdd { .. }
+            | $crate::OperationKind::SaturatingIntegerSubtract { .. }
+            | $crate::OperationKind::SaturatingIntegerMultiply { .. }
+    };
+}

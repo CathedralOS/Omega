@@ -108,21 +108,7 @@ impl TerminalFuelSchedule {
             | OperationKind::WrappingIntegerShiftRight { .. }
             | OperationKind::ExactIntegerShiftLeft { .. }
             | OperationKind::ExactIntegerShiftRight { .. }
-            | OperationKind::ExactIntegerAdd { .. }
-            | OperationKind::ExactIntegerSubtract { .. }
-            | OperationKind::ExactIntegerMultiply { .. }
-            | OperationKind::ExactIntegerDivide { .. }
-            | OperationKind::ExactIntegerRemainder { .. }
-            | OperationKind::WrappingIntegerDivide { .. }
-            | OperationKind::WrappingIntegerRemainder { .. }
-            | OperationKind::SaturatingIntegerDivide { .. }
-            | OperationKind::SaturatingIntegerRemainder { .. }
-            | OperationKind::WrappingIntegerAdd { .. }
-            | OperationKind::SaturatingIntegerAdd { .. }
-            | OperationKind::WrappingIntegerSubtract { .. }
-            | OperationKind::SaturatingIntegerSubtract { .. }
-            | OperationKind::WrappingIntegerMultiply { .. }
-            | OperationKind::SaturatingIntegerMultiply { .. }
+            | terminal_psi::integer_arithmetic_operations!()
             // A Trapping primitive charges its one unit before deciding
             // whether it traps; the trap outcome takes no edge.
             | OperationKind::TrappingInteger { .. }

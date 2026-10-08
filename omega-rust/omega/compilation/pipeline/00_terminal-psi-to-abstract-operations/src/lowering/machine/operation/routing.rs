@@ -537,21 +537,7 @@ pub(super) fn lower(
         | OperationKind::WrappingIntegerShiftRight { .. }
         | OperationKind::ExactIntegerShiftLeft { .. }
         | OperationKind::ExactIntegerShiftRight { .. } => shifts::lower(operation, value_types),
-        OperationKind::ExactIntegerAdd { .. }
-        | OperationKind::WrappingIntegerAdd { .. }
-        | OperationKind::ExactIntegerSubtract { .. }
-        | OperationKind::WrappingIntegerSubtract { .. }
-        | OperationKind::ExactIntegerMultiply { .. }
-        | OperationKind::WrappingIntegerMultiply { .. }
-        | OperationKind::ExactIntegerDivide { .. }
-        | OperationKind::ExactIntegerRemainder { .. }
-        | OperationKind::WrappingIntegerDivide { .. }
-        | OperationKind::WrappingIntegerRemainder { .. }
-        | OperationKind::SaturatingIntegerDivide { .. }
-        | OperationKind::SaturatingIntegerRemainder { .. }
-        | OperationKind::SaturatingIntegerAdd { .. }
-        | OperationKind::SaturatingIntegerSubtract { .. }
-        | OperationKind::SaturatingIntegerMultiply { .. } => arithmetic::lower(operation),
+        terminal_psi::integer_arithmetic_operations!() => arithmetic::lower(operation),
         OperationKind::TrappingInteger { .. } => trapping_integer::lower(operation, value_types),
         OperationKind::AtomicAccess { .. } => {
             atomic_events::lower(operation, machine, structural_types)
