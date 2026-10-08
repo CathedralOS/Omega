@@ -137,8 +137,7 @@ impl CaseObservation<'_> {
     }
 
     pub(super) fn observe(&self, expression: ExpressionHandle) -> Option<bool> {
-        let Some(binary) = self.program.expression_table.binary_node(expression)
-        else {
+        let Some(binary) = self.program.expression_table.binary_node(expression) else {
             return None;
         };
         if !validation::has_exact_case_membership_meaning(
@@ -154,8 +153,7 @@ impl CaseObservation<'_> {
         if subject.machine_symbol != self.machine.symbol {
             return None;
         }
-        let Some(case) = self.program.expression_table.name_path_node(binary.right)
-        else {
+        let Some(case) = self.program.expression_table.name_path_node(binary.right) else {
             return None;
         };
         let returned = exit_return_expression(self.program, self.exit);
@@ -190,18 +188,24 @@ impl CaseObservation<'_> {
         {
             // Join the same observation across all independently produced
             // alternatives without importing an unselected arm's predicates.
-            let arms = self.program.expression_table.match_arms(dispatch.arms);
-            return !arms.is_empty()
-                && arms.iter().all(|arm| {
-                    self.returned_case(
-                        arm.value,
-                        projection,
-                        case,
-                        required,
-                        can_read_live,
-                        depth + 1,
-                    )
-                });
+            return !self
+                .program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .is_empty()
+                && self
+                    .program
+                    .expression_table
+                    .match_arms_all(dispatch.arms, |_, value| {
+                        self.returned_case(
+                            value,
+                            projection,
+                            case,
+                            required,
+                            can_read_live,
+                            depth + 1,
+                        )
+                    });
         }
         if let Some((segment, rest)) = projection.split_first() {
             if let ExpressionNode::StructLiteral(literal) =

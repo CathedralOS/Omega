@@ -269,9 +269,13 @@ pub fn has_anonymous_numeric_results(
         }
         if let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) {
             active.push(expression);
-            let arms = program.expression_table.match_arms(dispatch.arms);
-            let anonymous =
-                !arms.is_empty() && arms.iter().all(|arm| visit(program, arm.value, active));
+            let anonymous = !program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .is_empty()
+                && program
+                    .expression_table
+                    .match_arms_all(dispatch.arms, |_, value| visit(program, value, active));
             active.pop();
             anonymous
         } else {

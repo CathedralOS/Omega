@@ -205,17 +205,21 @@ fn argument_matches_type_reference_using(
         ) {
             return false;
         }
-        let arms = program.expression_table.match_arms(dispatch.arms);
-        return !arms.is_empty()
-            && arms.iter().all(|arm| {
-                argument_matches_type_reference_using(
-                    program,
-                    arm.value,
-                    type_reference,
-                    correspondence,
-                    required_substitutions,
-                )
-            });
+        return !program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .is_empty()
+            && program
+                .expression_table
+                .match_arms_all(dispatch.arms, |_, value| {
+                    argument_matches_type_reference_using(
+                        program,
+                        value,
+                        type_reference,
+                        correspondence,
+                        required_substitutions,
+                    )
+                });
     }
     if let Some(inner_expression) = program.expression_table.borrow_expression(argument) {
         let TypeReferenceNode::Reference {

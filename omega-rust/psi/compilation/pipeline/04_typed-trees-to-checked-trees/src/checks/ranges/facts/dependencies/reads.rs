@@ -403,10 +403,8 @@ pub(super) fn collect_reads<'a, 'b>(
                 bound_lookup,
             ) && program
                 .expression_table
-                .match_arms(dispatch.arms)
-                .iter()
-                .all(|arm| {
-                    (match arm.pattern {
+                .match_arms_all(dispatch.arms, |arm_pattern, arm_value| {
+                    (match arm_pattern {
                         typed_trees::expression::MatchPattern::Value(pattern) => {
                             collect_operand_reads(
                                 program,
@@ -427,7 +425,7 @@ pub(super) fn collect_reads<'a, 'b>(
                         machine,
                         state,
                         statement_index,
-                        arm.value,
+                        arm_value,
                         calls,
                         operators,
                         reads,
