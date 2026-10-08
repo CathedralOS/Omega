@@ -51,18 +51,9 @@ pub(crate) fn symbol_is_declared_in_sealed_source(
     symbol: symbols::SymbolHandle,
     relative_source: &str,
 ) -> bool {
-    let Some(span) = program.symbols.symbol_source_span(symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|relative| relative == std::path::Path::new(relative_source))
+    program
+        .symbol_toolchain_relative_path(symbol)
+        .is_some_and(|relative| relative == std::path::Path::new(relative_source))
 }
 
 /// Whether `operator` is a toolchain-path declaration sealed in the

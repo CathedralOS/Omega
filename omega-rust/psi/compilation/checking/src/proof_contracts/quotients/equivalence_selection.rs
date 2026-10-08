@@ -437,18 +437,9 @@ fn is_sealed_core_equivalence(
     if !symbol.is_valid() || name.as_str() != "Equivalence" {
         return false;
     }
-    let Some(span) = program.symbols.symbol_source_span(symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    let source_matches = source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|relative| relative == std::path::Path::new(CORE_EQUIVALENCE_SOURCE));
+    let source_matches = program
+        .symbol_toolchain_relative_path(symbol)
+        .is_some_and(|relative| relative == std::path::Path::new(CORE_EQUIVALENCE_SOURCE));
     let Some(definition) = program
         .traits()
         .iter()

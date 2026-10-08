@@ -253,12 +253,9 @@ pub(super) fn validate_divergent_projections(
             let (_, local) = program
                 .state_local_declaration(state, place.source.root)
                 .filter(|&(ordinal, _)| ordinal < index)?;
-            let mut carrier = local.type_reference;
-            while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-                program.type_reference_table.type_reference(carrier)
-            {
-                carrier = *base_type;
-            }
+            let mut carrier = program
+                .type_reference_table
+                .unconstrained_type_reference(local.type_reference);
             if let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
                 program.type_reference_table.type_reference(carrier)
             {

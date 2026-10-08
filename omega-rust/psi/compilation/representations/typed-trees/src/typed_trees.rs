@@ -413,6 +413,20 @@ impl TypedTrees {
                     }))
     }
 
+    /// The path of `symbol`'s source file relative to its package root when
+    /// that source is toolchain-provided; `None` for authored sources.
+    pub fn symbol_toolchain_relative_path(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<&std::path::Path> {
+        let span = self.symbols.symbol_source_span(symbol)?;
+        let file = self.symbols.source_file(span)?;
+        if file.origin != source::SourceOrigin::Toolchain {
+            return None;
+        }
+        file.path.strip_prefix(&file.package_root).ok()
+    }
+
     pub fn authored_service_reach_rows_for(
         &self,
         owner: symbols::SymbolHandle,

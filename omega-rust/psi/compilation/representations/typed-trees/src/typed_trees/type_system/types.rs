@@ -291,6 +291,18 @@ impl TypeReferenceTable {
         self.type_references.get(handle)
     }
 
+    /// `handle` with every outer `Constrained` shell removed — the carrier
+    /// type the constraint set annotates.
+    pub fn unconstrained_type_reference(
+        &self,
+        mut handle: TypeReferenceHandle,
+    ) -> TypeReferenceHandle {
+        while let TypeReferenceNode::Constrained { base_type, .. } = self.type_reference(handle) {
+            handle = *base_type;
+        }
+        handle
+    }
+
     /// Whether an exact generational handle still names a live type node.
     /// A stale reference resolving to dummy Unit is not retained type custody.
     pub fn contains_type_reference(&self, handle: TypeReferenceHandle) -> bool {

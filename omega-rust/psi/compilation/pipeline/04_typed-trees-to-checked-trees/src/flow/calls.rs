@@ -714,12 +714,9 @@ fn result_type_carries_identity_rows(
     program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let mut carrier = return_type;
-    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier)
-    {
-        carrier = *base_type;
-    }
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(return_type);
     !matches!(
         program.type_reference_table.type_reference(carrier),
         typed_trees::types::TypeReferenceNode::Reference { .. }

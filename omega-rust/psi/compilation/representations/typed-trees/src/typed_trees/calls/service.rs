@@ -201,16 +201,7 @@ pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) 
 }
 
 fn exact_toolchain_source(program: &TypedTrees, symbol: SymbolHandle, relative: &str) -> bool {
-    let Some(span) = program.symbols.symbol_source_span(symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|path| path == std::path::Path::new(relative))
+    program
+        .symbol_toolchain_relative_path(symbol)
+        .is_some_and(|path| path == std::path::Path::new(relative))
 }
