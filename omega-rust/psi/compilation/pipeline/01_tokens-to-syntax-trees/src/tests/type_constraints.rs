@@ -13,7 +13,11 @@ fn unary_const_arguments_retain_their_typed_evaluation_obligation() {
         "!false", "(!false)", "!!true", "~1u8", "(~1u8)", "!0", "~false",
     ] {
         let source = format!("data Main {{ value: Flag<{argument}>; }}");
-        let parsed = super::parse_source_verbose(&source, "tokenize unary argument", "retain unary argument syntax");
+        let parsed = super::parse_source_verbose(
+            &source,
+            "tokenize unary argument",
+            "retain unary argument syntax",
+        );
         let Item::Data(data) = parsed.root_items().next().unwrap() else {
             panic!("data declaration");
         };
@@ -50,7 +54,11 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
         let source = format!(
             "data Buffer<Backing, Element, const Count: u64> where {equation} {{ storage: Backing; }}"
         );
-        let parsed = super::parse_source_verbose(&source, "tokenize equation", "parse fixed-array type equation");
+        let parsed = super::parse_source_verbose(
+            &source,
+            "tokenize equation",
+            "parse fixed-array type equation",
+        );
         let item = parsed.root_items().next().expect("data item");
         let mut copied = syntax_trees::SyntaxTrees::default();
         let copied_item = copied.copy_item_from(&parsed, item);
@@ -111,7 +119,11 @@ fn proof_fact_array_values_remain_value_expressions() {
         "&[1, 2] == &[1, 2]",
     ] {
         let source = format!("data Buffer where {equation} {{ storage: u64; }}");
-        let parsed = super::parse_source_verbose(&source, "tokenize array values", "parse array value equality");
+        let parsed = super::parse_source_verbose(
+            &source,
+            "tokenize array values",
+            "parse array value equality",
+        );
         assert!(
             parsed
                 .expressions
@@ -211,7 +223,11 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
 #[test]
 fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
     let source = "data Buffer<Backing, Element, const Count: u64> where Backing == [Pair<Element, Element>; Count] { storage: Backing; }";
-    let parsed = super::parse_source_verbose(source, "tokenize generic element", "parse generic array element");
+    let parsed = super::parse_source_verbose(
+        source,
+        "tokenize generic element",
+        "parse generic array element",
+    );
     let array = parsed
         .expressions
         .iter_expressions()
@@ -279,7 +295,8 @@ fn range_end_kind_and_authored_endpoints_survive_tree_copy() {
     ] {
         for (separator, inclusive) in [("..", false), ("..=", true)] {
             let source = format!("data Limits {{ value: i64 [0{separator}{endpoint}]; }}");
-            let parsed = super::parse_source_verbose(&source, "tokenize range", "parse authored endpoint");
+            let parsed =
+                super::parse_source_verbose(&source, "tokenize range", "parse authored endpoint");
             let item = parsed.root_items().next().expect("data item");
             let mut copied = syntax_trees::SyntaxTrees::default();
             let copied_item = copied.copy_item_from(&parsed, item);
@@ -338,8 +355,12 @@ fn named_proof_constraints_reject_in_scalar_and_slice_type_positions() {
         "i32 [Example::Fact]",
     ] {
         let source = format!("data Main {{ value: {type_reference}; }}");
-        let error = super::parse_source_error(&source, "tokenize", "named proof constraint must reject");
-        super::expect_error(&error, "named proof constraints in type brackets are retired");
+        let error =
+            super::parse_source_error(&source, "tokenize", "named proof constraint must reject");
+        super::expect_error(
+            &error,
+            "named proof constraints in type brackets are retired",
+        );
         assert!(error.message.contains("in Domain"));
         assert!(error.message.contains("contracts"));
     }

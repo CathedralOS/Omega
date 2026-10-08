@@ -70,6 +70,29 @@ fn root_machine_unwrap(parsed: &syntax_trees::SyntaxTrees) -> &syntax_trees::ite
         .unwrap()
 }
 
+/// The handle of `machine`'s first state — the entry state of the
+/// single-state machines these tests parse.
+fn entry_state_handle(
+    parsed: &syntax_trees::SyntaxTrees,
+    machine: &syntax_trees::item::Machine,
+) -> syntax_trees::item::StateHandle {
+    parsed
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state")
+}
+
+/// `machine`'s first state — `entry_state_handle` resolved through the
+/// item arena.
+fn entry_state<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    machine: &syntax_trees::item::Machine,
+) -> &'p syntax_trees::item::StateNode {
+    parsed.items.state(entry_state_handle(parsed, machine))
+}
+
 /// The expect_err counterpart of `parse_source_verbose`: lex, then return
 /// the parse error the site asserts on.
 fn parse_source_error(

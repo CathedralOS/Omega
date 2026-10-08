@@ -12,7 +12,11 @@ fn explicit_domain_subject_preserves_ordinary_name_operands() {
         domain Player::Alive(player) requires player.health > 0 { }
         machine health(player: Player) -> u64 { player.health }
     "#;
-    let parsed = super::parse_source_verbose(source, "tokenize domain subject", "parse explicit domain subject");
+    let parsed = super::parse_source_verbose(
+        source,
+        "tokenize domain subject",
+        "parse explicit domain subject",
+    );
     let domain = super::root_domain(&parsed, "domain");
     assert_eq!(
         domain.subject.as_ref().map(|name| name.as_str()),
@@ -96,7 +100,11 @@ fn rejects_exit_contract_clauses_on_explicit_states() {
         }
     "#;
 
-    let error = super::parse_source_error(source, "tokenize should succeed", "states admit arrival requires rather than exit contracts");
+    let error = super::parse_source_error(
+        source,
+        "tokenize should succeed",
+        "states admit arrival requires rather than exit contracts",
+    );
     assert!(
         error
             .message
@@ -241,7 +249,11 @@ fn rejects_ranking_witness_on_trait_requirement() {
         }
         "#;
 
-    let error = super::parse_source_error(source, "tokenize should succeed", "the witness must be rejected");
+    let error = super::parse_source_error(
+        source,
+        "tokenize should succeed",
+        "the witness must be rejected",
+    );
     super::expect_error(&error, "does not belong on a bodyless requirement");
 }
 
@@ -499,13 +511,7 @@ fn parses_slice_range_indexing_into_range_expression() {
 
     let parsed = super::parse_source(source, "parse should accept slice range surface");
     let machine = super::root_machine(&parsed, "machine root item");
-    let state_handle = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state");
-    let state = parsed.items.state(state_handle);
+    let state = super::entry_state(&parsed, machine);
     let statement_handle = parsed
         .items
         .statements(state.statements)
@@ -663,12 +669,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
 
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state");
+    let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
     // The destructure arm ALSO mints an exhaustiveness-marker let
     // (`__arm_destructure#...`) ahead of the transition statements; index
@@ -712,7 +713,11 @@ fn parses_outcome_arm_payload_and_erased_proof_selectors() {
             }
         }
     "#;
-    let parsed = super::parse_source_verbose(source, "tokenize outcome arm", "outcome selector arm should parse");
+    let parsed = super::parse_source_verbose(
+        source,
+        "tokenize outcome arm",
+        "outcome selector arm should parse",
+    );
     let transition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -771,7 +776,8 @@ fn outcome_proof_selectors_do_not_change_the_runtime_statement_plan() {
     ];
     let mut plans = Vec::new();
     for source in sources {
-        let parsed = super::parse_source_verbose(source, "tokenize outcome arm", "outcome arm should parse");
+        let parsed =
+            super::parse_source_verbose(source, "tokenize outcome arm", "outcome arm should parse");
         let inspect = parsed
             .root_items()
             .find_map(|item| match item {
@@ -849,7 +855,11 @@ fn rejects_duplicate_and_noncase_outcome_proof_selectors() {
             "outcome proof selectors require an exact",
         ),
     ] {
-        let error = super::parse_source_error(source, "tokenize rejected selector arm", "invalid selector arm must reject");
+        let error = super::parse_source_error(
+            source,
+            "tokenize rejected selector arm",
+            "invalid selector arm must reject",
+        );
         assert!(error.message.contains(expected), "got: {}", error.message);
     }
 }
@@ -868,13 +878,7 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
 
     let parsed = super::parse_source(source, "field-value pattern should parse");
     let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .map(|handle| parsed.items.state(handle))
-        .expect("entry state");
+    let state = super::entry_state(&parsed, machine);
     let transition = parsed
         .items
         .statements(state.statements)
@@ -921,12 +925,7 @@ fn parses_asm_jmp_block_as_transition_statement() {
 
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state");
+    let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
     let statement = parsed
         .items
@@ -960,12 +959,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
 
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
-    let entry = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state");
+    let entry = super::entry_state_handle(&parsed, machine);
     let state = parsed.items.state(entry);
     let statements = parsed.items.statements(state.statements).to_vec();
     assert_eq!(statements.len(), 4, "let + three asm statements");

@@ -57,7 +57,8 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
             value
         }
     "#;
-    let parsed = super::parse_source_verbose(source, "tokenize", "parse exact requirement application");
+    let parsed =
+        super::parse_source_verbose(source, "tokenize", "parse exact requirement application");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -159,7 +160,11 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
         satisfies Console::write_byte
         via ForeignBinding::CompilerIntrinsic("Console::write_byte");
     "#;
-    let error = super::parse_source_error(source, "tokenize should succeed", "compiler intrinsic identity is derived, never authored");
+    let error = super::parse_source_error(
+        source,
+        "tokenize should succeed",
+        "compiler intrinsic identity is derived, never authored",
+    );
     super::expect_error(&error, "found punctuation `(`");
 }
 
@@ -174,7 +179,11 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
         satisfies Firmware::invoke
         via ForeignBinding::VtableSlot(not_an_integer_payload);
     "#;
-    let error = super::parse_source_error(source, "tokenize retired vtable slot", "authored numeric vtable slots are retired");
+    let error = super::parse_source_error(
+        source,
+        "tokenize retired vtable slot",
+        "authored numeric vtable slots are retired",
+    );
     assert_eq!(
         error.message,
         "`ForeignBinding::VtableSlot` is retired; declare the foreign table layout and use \
@@ -193,7 +202,11 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
         satisfies Contract::call
         via ForeignBinding::DllImport("legacy.dll", "call");
     "#;
-    let error = super::parse_source_error(source, "tokenize retired string-backed import", "authored string-backed import bootstrap is retired");
+    let error = super::parse_source_error(
+        source,
+        "tokenize retired string-backed import",
+        "authored string-backed import bootstrap is retired",
+    );
     assert_eq!(
         error.message,
         "`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired; return the \
@@ -205,7 +218,11 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
 #[test]
 fn rejects_stable_identities_above_u64_max() {
     let source = "data TooLarge { #18446744073709551616 value: u8; }";
-    let error = super::parse_source_error(source, "tokenize should succeed", "identity above u64::MAX must fail");
+    let error = super::parse_source_error(
+        source,
+        "tokenize should succeed",
+        "identity above u64::MAX must fail",
+    );
     assert!(error.message.contains("nonnegative u64"));
 }
 
@@ -270,7 +287,11 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
             "duplicate binding property `erased`",
         ),
     ] {
-        let error = super::parse_source_error(source, "tokenize should succeed", "invalid field property must reject");
+        let error = super::parse_source_error(
+            source,
+            "tokenize should succeed",
+            "invalid field property must reject",
+        );
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -340,7 +361,11 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             "unknown local binding property `bogus`",
         ),
     ] {
-        let error = super::parse_source_error(source, "tokenize should succeed", "invalid binding property must reject");
+        let error = super::parse_source_error(
+            source,
+            "tokenize should succeed",
+            "invalid binding property must reject",
+        );
         assert!(error.message.contains(expected), "{}", error.message);
     }
 }
@@ -782,7 +807,11 @@ fn rejects_retired_where_conformance_test() {
         { }
     "#;
 
-    let error = super::parse_source_error(source, "tokenize should succeed", "a where-satisfies test is retired");
+    let error = super::parse_source_error(
+        source,
+        "tokenize should succeed",
+        "a where-satisfies test is retired",
+    );
     super::expect_error(&error, "`where T satisfies Trait` is retired");
 }
 
@@ -830,14 +859,7 @@ fn parses_dynamic_selector_trait_application() {
 
     let parsed = super::parse_source(source, "dynamic selector should parse");
     let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed.items.state(
-        parsed
-            .items
-            .state_handles(machine.states)
-            .first()
-            .copied()
-            .expect("entry state"),
-    );
+    let state = super::entry_state(&parsed, machine);
     let parameter = parsed.items.state_parameter(
         parsed
             .items
@@ -856,7 +878,9 @@ fn parses_dynamic_selector_trait_application() {
         panic!("parameter should be a dynamic selector");
     };
     assert_eq!(trait_name.as_str(), "Ranked");
-    let arguments = parsed.type_references.type_reference_handles(*trait_arguments);
+    let arguments = parsed
+        .type_references
+        .type_reference_handles(*trait_arguments);
     assert_eq!(arguments.len(), 1);
     assert!(matches!(
         parsed.type_references.type_reference(arguments[0]),
@@ -884,14 +908,7 @@ fn distinguishes_shared_mutable_and_write_only_reference_access() {
 
     let parsed = super::parse_source(source, "reference access modes should parse");
     let machine = super::root_machine(&parsed, "machine root item");
-    let state = parsed.items.state(
-        parsed
-            .items
-            .state_handles(machine.states)
-            .first()
-            .copied()
-            .expect("entry state"),
-    );
+    let state = super::entry_state(&parsed, machine);
     let accesses = parsed
         .items
         .state_parameters(state.parameters)
@@ -956,13 +973,7 @@ fn parses_attached_main_state_name_as_main() {
 
     let parsed = super::parse_source(source, "parse should succeed");
     let machine = super::root_machine(&parsed, "machine root item");
-    let state_handle = parsed
-        .items
-        .state_handles(machine.states)
-        .first()
-        .copied()
-        .expect("entry state");
-    let state = parsed.items.state(state_handle);
+    let state = super::entry_state(&parsed, machine);
     assert_eq!(state.name.as_str(), "main");
 }
 
@@ -972,7 +983,8 @@ fn retired_spawn_forms_name_the_task_runtime_migration() {
         "machine run() { spawn { Worker::run(); } }",
         "machine run() { let task: i32 = spawn { Worker::run() }; }",
     ] {
-        let error = super::parse_source_error(source, "tokenize should succeed", "spawn must be retired");
+        let error =
+            super::parse_source_error(source, "tokenize should succeed", "spawn must be retired");
         let rendered = error.message;
         assert!(rendered.contains("spawn { ... }") && rendered.contains("Task<T>"));
     }
@@ -986,7 +998,11 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
     ] {
         let source =
             format!("boundary trait Flags {{ machine open_read() -> i32; }}\n{declaration}");
-        let error = super::parse_source_error(&source, "tokenize should succeed", "provides syntax must be retired");
+        let error = super::parse_source_error(
+            &source,
+            "tokenize should succeed",
+            "provides syntax must be retired",
+        );
         assert!(
             error
                 .message
@@ -1007,7 +1023,11 @@ fn retired_library_block_names_the_boundary_provider_migration() {
                 boundary host
         }
     "#;
-    let error = super::parse_source_error(source, "tokenize retired library block", "library blocks must be retired");
+    let error = super::parse_source_error(
+        source,
+        "tokenize retired library block",
+        "library blocks must be retired",
+    );
     assert!(
         error.message.contains("legacy `library")
             && error.message.contains("is retired")
