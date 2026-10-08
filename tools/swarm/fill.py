@@ -336,8 +336,7 @@ def wip_commit(worktree, wave, slot, reason):
     if committed.returncode != 0:
         raise StatusError(f"WIP commit failed in {worktree}: "
                           f"{committed.stderr or committed.stdout}")
-    head = git("log", "-1", "--format=%h %s").stdout
-    return head
+    return git("log", "-1", "--format=%h %s").stdout
 
 
 def release_ticket(repository, ticket):
