@@ -51,7 +51,6 @@ macro_rules! wrapping_arith {
         }
     )+}
 }
-use wrapping_arith;
 
 impl IntegerType {
     /// Exact subtraction preserves address/count roles. Address offsets consume
