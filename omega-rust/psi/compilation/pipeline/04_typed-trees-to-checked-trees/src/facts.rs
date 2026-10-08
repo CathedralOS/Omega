@@ -127,7 +127,6 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
-    static_machine_selections: validation::ValidatedStaticMachineSelections,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
@@ -283,6 +282,7 @@ pub(crate) fn build_check_facts(
     let program: &dyn validation::CheckingInput = &completed;
     let call_frames = validation::CallFrameResolver::new(program);
     validation::admit_prepared_program_effects(program, &operational, &mut validation_facts)?;
+    let static_machine_selections = std::mem::take(&mut validation_facts.static_machine_selections);
     crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
     crate::flow::attach_reach_summaries(
         program,

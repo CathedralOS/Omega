@@ -49,6 +49,36 @@ fn retain_every_field(_: &TableStructLiteral, _: &TableStructLiteralField) -> bo
 }
 
 impl ExpressionTable {
+    /// Copy a statement call's retained source edge into the same payload
+    /// owner as its ordinary expression operands.
+    pub fn copy_static_machine_application_from(
+        &mut self,
+        source: &ExpressionTable,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> crate::static_applications::StaticMachineApplicationHandle {
+        self.copy_static_machine_application(CopySource::Table(source), application)
+    }
+
+    fn copy_static_machine_application(
+        &mut self,
+        source: CopySource<'_>,
+        application: crate::static_applications::StaticMachineApplicationHandle,
+    ) -> crate::static_applications::StaticMachineApplicationHandle {
+        if !application.is_valid() {
+            return application;
+        }
+        let origin = source.table(self);
+        let declaration = origin.static_machine_application(application).clone();
+        let arguments = origin
+            .static_machine_application_arguments(application)
+            .to_vec();
+        self.retain_static_machine_application(
+            declaration.registration_operation,
+            declaration.target,
+            &arguments,
+        )
+    }
+
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,
@@ -129,6 +159,13 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => self.remap_symbols_in_inner(cast.value, symbols, visited),
             ExpressionNode::Call(call) => {
                 self.remap_symbols_in_inner(call.receiver, symbols, visited);
+                if call.authored_machine_application.is_valid() {
+                    for argument in self
+                        .static_machine_application_arguments_mut(call.authored_machine_application)
+                    {
+                        argument.remap_symbols(symbols);
+                    }
+                }
                 let arguments = self.expression_handles(call.arguments).to_vec();
                 for argument in arguments {
                     self.remap_symbols_in_inner(argument, symbols, visited);
@@ -138,7 +175,7 @@ impl ExpressionTable {
                 };
                 call.target_symbol = remapped(call.target_symbol, symbols);
                 for argument in &mut call.machine_arguments {
-                    argument.symbol = remapped(argument.symbol, symbols);
+                    argument.remap_symbols(symbols);
                 }
             }
             ExpressionNode::Indexed(indexed) => {
@@ -298,7 +335,10 @@ impl ExpressionTable {
             ExpressionNode::Call(call) => {
                 let receiver = self.copy_optional_subtree(source, call.receiver, retain);
                 let arguments = self.copy_expression_span(source, call.arguments, retain);
+                let authored_machine_application =
+                    self.copy_static_machine_application(source, call.authored_machine_application);
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_machine_application,
                     exact_coercion_target: call.exact_coercion_target,
                     receiver,
                     target_symbol: call.target_symbol,

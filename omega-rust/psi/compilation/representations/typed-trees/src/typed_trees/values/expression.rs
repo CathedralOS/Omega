@@ -7,6 +7,7 @@
 
 use crate::AuthoredDeclarationSelectionOccurrenceId;
 use crate::name::Identifier;
+use crate::static_applications::{StaticMachineApplication, StaticMachineApplicationHandle};
 use arena::{Arena, Handle, HandleSpan};
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
@@ -92,6 +93,8 @@ pub struct ExpressionTable {
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
     match_arms: Arena<TableMatchArm>,
+    static_machine_applications: Arena<StaticMachineApplication>,
+    static_machine_arguments: Arena<StaticMachineArgument>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -120,8 +123,18 @@ impl ExpressionTable {
             match_arms,
             source_spans,
             authored_selection_occurrences,
+            static_machine_applications,
+            static_machine_arguments,
         } = base;
         crate::typed_trees::retained_prefix::arena_is_exact_prefix(expressions, &self.expressions)
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                static_machine_applications,
+                &self.static_machine_applications,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                static_machine_arguments,
+                &self.static_machine_arguments,
+            )
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 expression_roots,
                 &self.expression_roots,
@@ -186,6 +199,8 @@ impl ExpressionTable {
             .wrapping_add(self.name_path_member_symbols.revision())
             .wrapping_add(self.struct_fields.revision())
             .wrapping_add(self.match_arms.revision())
+            .wrapping_add(self.static_machine_applications.revision())
+            .wrapping_add(self.static_machine_arguments.revision())
             .wrapping_add(self.source_spans.len() as u64)
             .wrapping_add(self.authored_selection_occurrences.len() as u64)
     }
@@ -219,6 +234,8 @@ impl ExpressionTable {
             name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
             struct_fields: Arena::with_capacity(capacity.struct_fields),
             match_arms: Arena::with_capacity(capacity.match_arms),
+            static_machine_applications: Arena::default(),
+            static_machine_arguments: Arena::default(),
         }
     }
 
@@ -234,6 +251,55 @@ impl ExpressionTable {
         self.name_path_member_symbols.reset_retain_capacity();
         self.struct_fields.reset_retain_capacity();
         self.match_arms.reset_retain_capacity();
+        self.static_machine_applications.reset_retain_capacity();
+        self.static_machine_arguments.reset_retain_capacity();
+    }
+
+    /// Preserve the source application before removing its executable statics.
+    /// This records operands only; immutable checking still owes admission.
+    pub fn retain_static_machine_application(
+        &mut self,
+        registration_operation: SymbolHandle,
+        target: Identifier,
+        arguments: &[StaticMachineArgument],
+    ) -> StaticMachineApplicationHandle {
+        if arguments.is_empty() {
+            return StaticMachineApplicationHandle::invalid();
+        }
+        let arguments = self
+            .static_machine_arguments
+            .insert_many(arguments.iter().cloned());
+        self.static_machine_applications
+            .insert(StaticMachineApplication {
+                registration_operation,
+                target,
+                arguments,
+            })
+    }
+
+    pub fn static_machine_application(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &StaticMachineApplication {
+        self.static_machine_applications.get(application)
+    }
+
+    pub fn static_machine_application_arguments(
+        &self,
+        application: StaticMachineApplicationHandle,
+    ) -> &[StaticMachineArgument] {
+        self.static_machine_arguments
+            .span_or_empty(self.static_machine_application(application).arguments)
+    }
+
+    /// Preparation substitutes a fresh copied application's operands alongside
+    /// its executable call. The source declaration identity remains unchanged.
+    pub fn static_machine_application_arguments_mut(
+        &mut self,
+        application: StaticMachineApplicationHandle,
+    ) -> &mut [StaticMachineArgument] {
+        let arguments = self.static_machine_applications.get(application).arguments;
+        self.static_machine_arguments.span_mut_or_empty(arguments)
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
@@ -922,6 +988,8 @@ pub struct CallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCallExpression {
+    /// Zero until specialization erases this call's authored static operands.
+    pub authored_machine_application: StaticMachineApplicationHandle,
     /// An Exact carrier coercion elaborated to this conversion requirement.
     /// The zero handle denotes an ordinary named call. Keep the authored
     /// target until checking discharges unchanged denotation from this
@@ -1001,7 +1069,7 @@ pub struct QuotientOperationRequest {
     pub theorem_evidence: Box<[QuotientTheoremSelection]>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StaticMachineArgument {
     /// An explicit structural type argument; zero denotes another static argument kind.
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -1015,6 +1083,21 @@ pub struct StaticMachineArgument {
     pub evidence_projection: Option<EvidenceProjection>,
     /// Entry-state symbol of the selected concrete machine.
     pub symbol: SymbolHandle,
+}
+
+impl StaticMachineArgument {
+    /// Remap every nested lexical operand. The generic declaration governing
+    /// an enclosing retained application is not part of this operand map.
+    pub fn remap_symbols(&mut self, symbols: &[(SymbolHandle, SymbolHandle)]) {
+        if let Some((_, replacement)) = symbols.iter().find(|(source, _)| *source == self.symbol) {
+            self.symbol = *replacement;
+        }
+        if let Some(application) = &mut self.application {
+            for argument in application.arguments.iter_mut() {
+                argument.remap_symbols(symbols);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

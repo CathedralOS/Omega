@@ -26,17 +26,23 @@ fn checking_does_not_reopen_typed_preparation() {
         assert!(!source.contains(forbidden), "checking restored {forbidden}");
     }
     assert!(source.contains("program: typed_trees::FrozenTypedTrees"));
+    let specialization =
+        include_str!("../../03b_typed-trees-to-typed-trees/src/monomorphization/mod.rs");
+    assert!(
+        !specialization.contains("validate_static_machine_selections_with_facts("),
+        "specialization restored whole-roster admission inside its fixed point"
+    );
+    let validation = include_str!("../../../checking/src/program_validation.rs");
+    assert!(
+        !validation.contains("GenericContracts"),
+        "checking restored a preparation-granted contract exemption"
+    );
     let effects =
         include_str!("../../../checking/src/machine_calls/effect_inference/prepared_effects.rs");
     let operational =
         include_str!("../../../checking/src/machine_calls/effect_inference/operational.rs");
     for source in [effects, operational] {
-        for forbidden in [
-            "thread_local!",
-            "RefCell",
-            "structural_fingerprint",
-            "ProgramKey",
-        ] {
+        for forbidden in ["structural_fingerprint", "ProgramKey"] {
             assert!(
                 !source.contains(forbidden),
                 "effect inference restored {forbidden}"

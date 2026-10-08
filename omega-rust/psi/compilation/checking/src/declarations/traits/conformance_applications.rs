@@ -64,7 +64,11 @@ fn validate_call_arguments(
         StaticArgumentRole::DeclarationDescription => program.product_declarations(),
         StaticArgumentRole::ValueDependency => program,
     };
-    validate_arguments(declarations, call.arguments(), diagnostics);
+    validate_arguments(
+        declarations,
+        call.arguments(program.typed_program()),
+        diagnostics,
+    );
 }
 
 fn validate_arguments(

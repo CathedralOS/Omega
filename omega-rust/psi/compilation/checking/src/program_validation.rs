@@ -82,6 +82,7 @@ pub fn expression_interval(
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
+    pub static_machine_selections: machine_parameters::ValidatedStaticMachineSelections,
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     /// Successful immediate receiving judgments, not invariant-window closure.
     pub integer_assignments: Vec<checked_trees::CheckedIntegerAssignmentDecision>,
@@ -129,7 +130,6 @@ pub struct ProgramValidation {
 pub fn validate_program(program: &dyn crate::CheckingInput) -> Result<(), Vec<Diagnostic>> {
     validate(
         program,
-        GenericContracts::Check,
         OpaquePropertyValidation::Required(&[]),
         QuotientRequestAdmission::AtValidation,
         EffectAdmission::Complete,
@@ -145,7 +145,6 @@ pub fn prepare_specialized_program(
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     validate(
         program,
-        GenericContracts::Prevalidated,
         opaque_properties,
         QuotientRequestAdmission::AfterCheckedFacts,
         EffectAdmission::AfterOwnership,
@@ -158,20 +157,18 @@ enum EffectAdmission {
     AfterOwnership,
 }
 
-#[derive(Clone, Copy)]
-enum GenericContracts {
-    Check,
-    Prevalidated,
-}
-
 fn validate(
     program: &dyn crate::CheckingInput,
-    generic_contracts: GenericContracts,
     opaque_properties: OpaquePropertyValidation<'_>,
     quotient_admission: QuotientRequestAdmission,
     effect_admission: EffectAdmission,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    if let Err(mut errors) =
+        crate::conformance_applications::validate_conformance_applications(program)
+    {
+        diagnostics.append(&mut errors);
+    }
     if let Err(message) = crate::validate_boundary_completion_declarations(program) {
         diagnostics.push(Diagnostic::error(message));
     }
@@ -278,8 +275,14 @@ fn validate(
     recasts::validate_recasts(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
+    let mut static_machine_selections =
+        machine_parameters::ValidatedStaticMachineSelections::default();
     if effect_admission == EffectAdmission::Complete {
-        machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
+        machine_parameters::validate_static_machine_arguments_with_facts(
+            program,
+            &mut diagnostics,
+            &mut static_machine_selections,
+        );
         invocations::validate_invocation_contracts(program, &mut diagnostics);
     }
 
@@ -301,26 +304,10 @@ fn validate(
             machine,
             &mut diagnostics,
         );
-        let generic_contract_was_prevalidated =
-            matches!(generic_contracts, GenericContracts::Prevalidated)
-                && (program
-                    .machine_type_parameters(machine)
-                    .iter()
-                    .any(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Machine { .. }
-                        )
-                    })
-                    || program
-                        .machine_specializations
-                        .iter()
-                        .any(|specialization| {
-                            !specialization.machine_arguments.is_empty()
-                                && (specialization.template == machine.symbol
-                                    || specialization.instance == machine.symbol)
-                        }));
-        if !generic_contract_was_prevalidated {
+        // Pristine templates remain in the frozen roster. Judge their declared
+        // abstract envelope here, alongside concrete bodies; preparation cannot
+        // grant a blanket prevalidated exemption to either declaration.
+        {
             let mut machine_diagnostics = Vec::new();
             let mut proven = Vec::new();
             crate::proof_contracts::contract_entailment::validate_machine_contract_entailment_with_outcomes(
@@ -721,6 +708,7 @@ fn validate(
         operational: conformance_operational,
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
+            static_machine_selections,
             stored_integer_writes,
             integer_assignments,
             boundary_operator_applications,
@@ -766,7 +754,11 @@ pub fn admit_prepared_program_effects(
     if let Err(mut errors) = collect_dynamic_implementation_selections(program) {
         diagnostics.append(&mut errors);
     }
-    machine_parameters::validate_static_machine_arguments(program, &mut diagnostics);
+    machine_parameters::validate_static_machine_arguments_with_facts(
+        program,
+        &mut diagnostics,
+        &mut facts.static_machine_selections,
+    );
     invocations::validate_invocation_contracts(program, &mut diagnostics);
     for machine in program.machines() {
         validate_machine_trait_conformances(

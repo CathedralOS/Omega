@@ -381,6 +381,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .target()
             .insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
+                    authored_machine_application: Default::default(),
                     exact_coercion_target: typed::types::TypeReferenceHandle::invalid(),
                     receiver,
                     target_symbol: implementation.equals_state,

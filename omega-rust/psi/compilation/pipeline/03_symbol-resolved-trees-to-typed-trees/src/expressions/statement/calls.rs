@@ -22,6 +22,7 @@ pub(super) fn lower_call_statement(
     let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
 
     Ok(typed::statement::TableCall {
+        authored_machine_application: Default::default(),
         receiver_root_symbol: call.receiver_root_symbol,
         receiver_symbol: call.receiver_symbol,
         target_symbol: call.target_symbol,

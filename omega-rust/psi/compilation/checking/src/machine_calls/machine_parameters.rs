@@ -113,7 +113,7 @@ pub struct ValidatedRequirementCallSpecialization {
 /// The complete static-machine selection evidence one validation pass
 /// retained: nominal satisfaction rows plus the specializations generic
 /// calls derived at their `machine` arguments.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ValidatedStaticMachineSelections {
     /// ENT4: exact nominal satisfaction selected for each admitted static
     /// machine argument.
@@ -121,16 +121,6 @@ pub struct ValidatedStaticMachineSelections {
     /// The specialization each call's admitted static machine arguments
     /// derived over the callee's generic parameters.
     pub requirement_call_specializations: Vec<ValidatedRequirementCallSpecialization>,
-}
-
-impl ValidatedStaticMachineSelections {
-    /// Fold another pass's retained selections into this one; deduplication
-    /// by call site happens when the checked facts are assembled.
-    pub fn extend(&mut self, other: Self) {
-        self.nominal_uses.extend(other.nominal_uses);
-        self.requirement_call_specializations
-            .extend(other.requirement_call_specializations);
-    }
 }
 
 fn project_operational_rows(
@@ -155,18 +145,7 @@ fn project_operational_rows(
     (suspensions, blockings)
 }
 
-pub(crate) fn validate_static_machine_arguments(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_static_machine_arguments_with_facts(
-        program,
-        diagnostics,
-        &mut ValidatedStaticMachineSelections::default(),
-    );
-}
-
-fn validate_static_machine_arguments_with_facts(
+pub(crate) fn validate_static_machine_arguments_with_facts(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
     selections: &mut ValidatedStaticMachineSelections,
@@ -198,6 +177,25 @@ fn validate_static_machine_arguments_with_facts(
             if !typed_trees::operator::named_expression_call_candidates(program, call).is_empty() {
                 continue;
             }
+            let (target_symbol, target, arguments) = if call.authored_machine_application.is_valid()
+            {
+                let application = program
+                    .expression_table
+                    .static_machine_application(call.authored_machine_application);
+                (
+                    application.registration_operation,
+                    application.target.as_str(),
+                    program
+                        .expression_table
+                        .static_machine_application_arguments(call.authored_machine_application),
+                )
+            } else {
+                (
+                    call.target_symbol,
+                    call.target.as_str(),
+                    call.machine_arguments.as_ref(),
+                )
+            };
             validate_call_selection(
                 program,
                 &index,
@@ -206,9 +204,9 @@ fn validate_static_machine_arguments_with_facts(
                 &service_reaches,
                 &invocations,
                 ValidatedNominalMachineUseSite::Expression(handle),
-                call.target_symbol,
-                call.target.as_str(),
-                &call.machine_arguments,
+                target_symbol,
+                target,
+                arguments,
                 diagnostics,
                 &mut selections.nominal_uses,
                 &mut selections.requirement_call_specializations,
@@ -228,6 +226,27 @@ fn validate_static_machine_arguments_with_facts(
                     {
                         continue;
                     }
+                    let (target_symbol, target, arguments) =
+                        if call.authored_machine_application.is_valid() {
+                            let application = program
+                                .expression_table
+                                .static_machine_application(call.authored_machine_application);
+                            (
+                                application.registration_operation,
+                                application.target.as_str(),
+                                program
+                                    .expression_table
+                                    .static_machine_application_arguments(
+                                        call.authored_machine_application,
+                                    ),
+                            )
+                        } else {
+                            (
+                                call.target_symbol,
+                                call.target.as_str(),
+                                call.machine_arguments.as_ref(),
+                            )
+                        };
                     validate_call_selection(
                         program,
                         &index,
@@ -236,9 +255,9 @@ fn validate_static_machine_arguments_with_facts(
                         &service_reaches,
                         &invocations,
                         ValidatedNominalMachineUseSite::Statement(statement_handle),
-                        call.target_symbol,
-                        call.target.as_str(),
-                        &call.machine_arguments,
+                        target_symbol,
+                        target,
+                        arguments,
                         diagnostics,
                         &mut selections.nominal_uses,
                         &mut selections.requirement_call_specializations,

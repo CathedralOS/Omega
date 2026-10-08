@@ -35,8 +35,19 @@ pub enum StaticArgumentCall<'call> {
     Statement(&'call crate::statement::TableCall),
 }
 
-impl StaticArgumentCall<'_> {
-    pub fn arguments(&self) -> &[StaticMachineArgument] {
+impl<'call> StaticArgumentCall<'call> {
+    /// Source operands survive executable specialization. The live static
+    /// list is used only while no application has been consumed.
+    pub fn arguments(&self, program: &'call TypedTrees) -> &'call [StaticMachineArgument] {
+        let application = match self {
+            Self::Expression(call) => call.authored_machine_application,
+            Self::Statement(call) => call.authored_machine_application,
+        };
+        if application.is_valid() {
+            return program
+                .expression_table
+                .static_machine_application_arguments(application);
+        }
         match self {
             Self::Expression(call) => &call.machine_arguments,
             Self::Statement(call) => &call.machine_arguments,
@@ -117,7 +128,7 @@ impl TypedReferences for ReferenceCollector {
             return true;
         }
         let mut description = ReferenceCollector::default();
-        for argument in call.arguments() {
+        for argument in call.arguments(program) {
             visit_static_argument(program, &mut description, argument);
         }
         self.descriptor_symbols.extend(description.symbols);
@@ -1015,6 +1026,15 @@ fn visit_call_expression(
         visit_symbol(retained, operator.symbol);
     }
     visit_symbol(retained, call.static_machine_parameter);
+    if call.authored_machine_application.is_valid() {
+        visit_symbol(
+            retained,
+            program
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .registration_operation,
+        );
+    }
     visit_expression(program, retained, call.receiver);
     if let Some(dispatch) = &call.static_requirement_dispatch {
         visit_symbol(retained, dispatch.realization_machine);
@@ -1023,7 +1043,7 @@ fn visit_call_expression(
         visit_symbol(retained, dispatch.declaring_trait);
     }
     if retained.call_arguments(program, StaticArgumentCall::Expression(call)) {
-        for argument in call.machine_arguments.iter() {
+        for argument in StaticArgumentCall::Expression(call).arguments(program) {
             visit_static_argument(program, retained, argument);
         }
     }
@@ -1081,12 +1101,21 @@ fn visit_statement(
                 visit_symbol(retained, operator.symbol);
             }
             visit_symbol(retained, call.static_machine_parameter);
+            if call.authored_machine_application.is_valid() {
+                visit_symbol(
+                    retained,
+                    program
+                        .expression_table
+                        .static_machine_application(call.authored_machine_application)
+                        .registration_operation,
+                );
+            }
             if let Some(dispatch) = &call.static_requirement_dispatch {
                 visit_symbol(retained, dispatch.realization_machine);
                 visit_symbol(retained, dispatch.realization_state);
             }
             if retained.call_arguments(program, StaticArgumentCall::Statement(call)) {
-                for argument in call.machine_arguments.iter() {
+                for argument in StaticArgumentCall::Statement(call).arguments(program) {
                     visit_static_argument(program, retained, argument);
                 }
             }

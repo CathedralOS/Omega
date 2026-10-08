@@ -190,7 +190,7 @@ pub(crate) fn rewrite_cloned_calls(
             // runtime receiver and the rewritten target owns every parameter as
             // an explicit argument. Clearing the receiver leaves the operand
             // roster exactly as authored.
-            apply_evidence_dispatch_rewrite(
+            let erased_application = apply_evidence_dispatch_rewrite(
                 call.target_symbol,
                 &mut call.static_requirement_dispatch,
                 &mut call.machine_arguments,
@@ -206,6 +206,29 @@ pub(crate) fn rewrite_cloned_calls(
                     call.receiver = HandleSpan::empty();
                 },
             );
+            let application = call.authored_machine_application;
+            let target = call.target.clone();
+            if application.is_valid() {
+                substitute_forwarded_machine_arguments(
+                    program
+                        .expression_table
+                        .static_machine_application_arguments_mut(application),
+                    &static_argument_rewrites,
+                    &argument_rewrites,
+                );
+            } else if let Some((registration_operation, arguments)) = erased_application {
+                let application = program.expression_table.retain_static_machine_application(
+                    registration_operation,
+                    target,
+                    &arguments,
+                );
+                let StatementNode::Call(call) =
+                    program.statement_table.statement_mut(statement_handle)
+                else {
+                    unreachable!();
+                };
+                call.authored_machine_application = application;
+            }
         }
     }
     let runtime_calls =
@@ -285,7 +308,7 @@ pub(crate) fn rewrite_cloned_calls(
         if let Some(receiver) = selected_carrier {
             call.receiver = receiver;
         }
-        apply_evidence_dispatch_rewrite(
+        let erased_application = apply_evidence_dispatch_rewrite(
             call.target_symbol,
             &mut call.static_requirement_dispatch,
             &mut call.machine_arguments,
@@ -297,6 +320,27 @@ pub(crate) fn rewrite_cloned_calls(
             clone_state_arguments,
             || call.receiver = ExpressionHandle::invalid(),
         );
+        let application = call.authored_machine_application;
+        let target = call.target.clone();
+        if application.is_valid() {
+            substitute_forwarded_machine_arguments(
+                program
+                    .expression_table
+                    .static_machine_application_arguments_mut(application),
+                &static_argument_rewrites,
+                &argument_rewrites,
+            );
+        } else if let Some((registration_operation, arguments)) = erased_application {
+            let application = program.expression_table.retain_static_machine_application(
+                registration_operation,
+                target,
+                &arguments,
+            );
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+                unreachable!();
+            };
+            call.authored_machine_application = application;
+        }
     }
 }
 
@@ -420,7 +464,10 @@ fn apply_evidence_dispatch_rewrite(
     state_symbols: &[(SymbolHandle, SymbolHandle)],
     clone_state_arguments: Option<HandleSpan<ExpressionHandle>>,
     mut invalidate_receiver: impl FnMut(),
-) {
+) -> Option<(
+    SymbolHandle,
+    Box<[typed_trees::expression::StaticMachineArgument]>,
+)> {
     if evidence_dispatch.is_some() {
         invalidate_receiver();
     }
@@ -433,13 +480,14 @@ fn apply_evidence_dispatch_rewrite(
         static_argument_rewrites,
         argument_rewrites,
     );
-    if state_symbols
+    if let Some((authored, _)) = state_symbols
         .iter()
-        .any(|(_, concrete)| *concrete == target_symbol)
+        .find(|(_, concrete)| *concrete == target_symbol)
     {
         if let Some(cloned) = clone_state_arguments {
             *arguments = cloned;
         }
-        *machine_arguments = Box::default();
+        return Some((*authored, std::mem::take(machine_arguments)));
     }
+    None
 }

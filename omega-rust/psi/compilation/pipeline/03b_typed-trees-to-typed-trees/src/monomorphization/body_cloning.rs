@@ -7,8 +7,8 @@ use super::{
 };
 use crate::monomorphization::body_rewriting::{
     cloned_expression_roots, rebind_state_scoped_range_endpoints,
-    reject_runtime_bound_static_occurrences, remap_machine_argument_symbols, rewrite_cloned_calls,
-    statement_span_handles, substitute_cloned_type_parameters,
+    reject_runtime_bound_static_occurrences, rewrite_cloned_calls, statement_span_handles,
+    substitute_cloned_type_parameters,
 };
 use crate::monomorphization::{
     Candidate, candidate_conformance_fingerprint_arguments,
@@ -379,7 +379,16 @@ pub(super) fn clone_specialized_machine(
                     continue;
                 };
                 for argument in call.machine_arguments.iter_mut() {
-                    remap_machine_argument_symbols(argument, realized);
+                    argument.remap_symbols(realized);
+                }
+                let application = call.authored_machine_application;
+                if application.is_valid() {
+                    for argument in program
+                        .expression_table
+                        .static_machine_application_arguments_mut(application)
+                    {
+                        argument.remap_symbols(realized);
+                    }
                 }
             }
             for statement in program
@@ -465,6 +474,23 @@ pub(super) fn clone_specialized_machine(
                 continue;
             };
             let mut arguments = call.machine_arguments.clone();
+            let application = call.authored_machine_application;
+            if application.is_valid() {
+                let mut authored_arguments = program
+                    .expression_table
+                    .static_machine_application_arguments(application)
+                    .to_vec();
+                copy_static_argument_type_payloads(
+                    source,
+                    program,
+                    &mut authored_arguments,
+                    &symbol_map,
+                );
+                program
+                    .expression_table
+                    .static_machine_application_arguments_mut(application)
+                    .clone_from_slice(&authored_arguments);
+            }
             copy_static_argument_type_payloads(source, program, &mut arguments, &symbol_map);
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 unreachable!();
@@ -671,11 +697,26 @@ pub(super) fn copy_cloned_expression_type_payloads(
         .iter_expressions()
         .filter(|(handle, _)| handle.arena_index() as usize >= expression_start)
         .filter_map(|(handle, expression)| match expression {
-            ExpressionNode::Call(call) => Some((handle, call.machine_arguments.clone())),
+            ExpressionNode::Call(call) => Some((
+                handle,
+                call.machine_arguments.clone(),
+                call.authored_machine_application,
+            )),
             _ => None,
         })
         .collect::<Vec<_>>();
-    for (handle, mut arguments) in calls {
+    for (handle, mut arguments, application) in calls {
+        if application.is_valid() {
+            let mut authored_arguments = program
+                .expression_table
+                .static_machine_application_arguments(application)
+                .to_vec();
+            copy_static_argument_type_payloads(source, program, &mut authored_arguments, symbols);
+            program
+                .expression_table
+                .static_machine_application_arguments_mut(application)
+                .clone_from_slice(&authored_arguments);
+        }
         copy_static_argument_type_payloads(source, program, &mut arguments, symbols);
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
             unreachable!();

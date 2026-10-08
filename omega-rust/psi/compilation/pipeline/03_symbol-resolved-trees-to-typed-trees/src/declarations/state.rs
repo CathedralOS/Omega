@@ -248,6 +248,7 @@ fn proof_output_runtime_call(
                 .copied(),
         );
     Ok(typed::statement::TableCall {
+        authored_machine_application: Default::default(),
         receiver_root_symbol,
         receiver_symbol,
         target_symbol: call.target_symbol,

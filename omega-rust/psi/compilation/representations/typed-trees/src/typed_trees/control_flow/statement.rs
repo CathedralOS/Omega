@@ -229,6 +229,11 @@ impl StatementTable {
                             )
                         });
                     StatementNode::Call(TableCall {
+                        authored_machine_application: target_expressions
+                            .copy_static_machine_application_from(
+                                source_expressions,
+                                call.authored_machine_application,
+                            ),
                         static_machine_parameter: call.static_machine_parameter,
                         receiver_root_symbol: call.receiver_root_symbol,
                         receiver_symbol: call.receiver_symbol,
@@ -398,6 +403,13 @@ impl StatementTable {
                     expressions.remap_symbols_in(assignment.value, symbols);
                 }
                 StatementNode::Call(call) => {
+                    if call.authored_machine_application.is_valid() {
+                        for argument in expressions.static_machine_application_arguments_mut(
+                            call.authored_machine_application,
+                        ) {
+                            argument.remap_symbols(symbols);
+                        }
+                    }
                     for argument in self.expression_handles(call.arguments).to_vec() {
                         expressions.remap_symbols_in(argument, symbols);
                     }
@@ -408,7 +420,7 @@ impl StatementTable {
                     current.receiver_root_symbol = remapped(current.receiver_root_symbol, symbols);
                     current.target_symbol = remapped(current.target_symbol, symbols);
                     for argument in &mut current.machine_arguments {
-                        argument.symbol = remapped(argument.symbol, symbols);
+                        argument.remap_symbols(symbols);
                     }
                 }
                 StatementNode::Expression(expression) => {
@@ -668,6 +680,8 @@ pub struct TableAssignment {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TableCall {
+    /// Zero until specialization erases this call's authored static operands.
+    pub authored_machine_application: crate::static_applications::StaticMachineApplicationHandle,
     /// Exact current-state storage or namespace root; `receiver_symbol` is
     /// the final projected member and need not descend from this declaration.
     pub receiver_root_symbol: SymbolHandle,

@@ -271,6 +271,7 @@ impl Fixture {
 
     fn mutating_call(&mut self) -> TableCall {
         TableCall {
+            authored_machine_application: Default::default(),
             target_symbol: self.mutator,
             target: Identifier::generated("mutate"),
             arguments: self
@@ -346,6 +347,7 @@ fn reaching_float_store_checks_sibling_argument_effects() {
         .program
         .expression_table
         .insert(ExpressionNode::Call(TableCallExpression {
+            authored_machine_application: Default::default(),
             exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
             receiver: ExpressionHandle::invalid(),
             target_symbol: fixture.mutator,
@@ -365,6 +367,7 @@ fn reaching_float_store_checks_sibling_argument_effects() {
         .statement_table
         .insert_expression_handles([fixture.value, mutation]);
     fixture.push(StatementNode::Call(TableCall {
+        authored_machine_application: Default::default(),
         arguments,
         ..TableCall::default()
     }));

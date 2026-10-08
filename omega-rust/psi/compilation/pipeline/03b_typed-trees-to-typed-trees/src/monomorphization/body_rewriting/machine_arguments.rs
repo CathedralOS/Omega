@@ -3,7 +3,7 @@
 use crate::monomorphization::selection::state_by_symbol;
 use crate::monomorphization::{
     Candidate, StaticMachineArgument, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
-    TypedTrees, remapped_symbol,
+    TypedTrees,
 };
 
 pub(crate) fn substitute_machine_parameter_type_references(
@@ -41,21 +41,6 @@ pub(crate) fn substitute_machine_parameter_type_references(
                     name: name.clone(),
                 },
             );
-        }
-    }
-}
-
-/// Remap a static-argument's lexical identity, descending into nested static
-/// applications. A runtime-bound `Value` binder forwards to the enclosing
-/// specialization's realized parameter rather than to a static value.
-pub(crate) fn remap_machine_argument_symbols(
-    argument: &mut StaticMachineArgument,
-    symbols: &[(SymbolHandle, SymbolHandle)],
-) {
-    argument.symbol = remapped_symbol(argument.symbol, symbols);
-    if let Some(application) = &mut argument.application {
-        for nested in application.arguments.iter_mut() {
-            remap_machine_argument_symbols(nested, symbols);
         }
     }
 }

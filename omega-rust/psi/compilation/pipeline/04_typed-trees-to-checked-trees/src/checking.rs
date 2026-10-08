@@ -98,7 +98,7 @@ pub fn lower_typed_trees_reusing(
     prior: Option<&RetainedCheck>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
-    let (admits_pending_inputs, static_machine_selections, mathematics, opaque_property_receipts) =
+    let (admits_pending_inputs, mathematics, opaque_property_receipts) =
         preparation.into_checking_judgments();
     let equal_prior = prior.filter(|prior| {
         prior.admits_pending_inputs == admits_pending_inputs
@@ -118,7 +118,6 @@ pub fn lower_typed_trees_reusing(
             let checked = check_program(
                 program,
                 admits_pending_inputs,
-                static_machine_selections,
                 mathematics,
                 opaque_property_receipts,
             )?;
@@ -155,7 +154,6 @@ pub fn lower_typed_trees_reusing(
 fn check_program(
     program: typed_trees::FrozenTypedTrees,
     admits_pending_inputs: bool,
-    static_machine_selections: validation::ValidatedStaticMachineSelections,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
@@ -192,7 +190,6 @@ fn check_program(
         validated.operational,
         validated.service_reaches,
         validated.validation_facts,
-        static_machine_selections,
         mathematics,
         &mutation_summaries,
     )?;

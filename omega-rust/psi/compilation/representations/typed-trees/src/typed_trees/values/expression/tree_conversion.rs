@@ -171,6 +171,7 @@ impl ExpressionTable {
                     .unwrap_or_else(ExpressionHandle::invalid);
                 let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    authored_machine_application: Default::default(),
                     exact_coercion_target: call.exact_coercion_target,
                     receiver,
                     target_symbol: call.target_symbol,

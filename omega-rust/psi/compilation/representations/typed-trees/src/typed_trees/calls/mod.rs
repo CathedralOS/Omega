@@ -5,6 +5,7 @@ pub mod dynamic_traits;
 pub mod finite_family;
 pub mod service;
 pub mod signature;
+pub mod static_applications;
 
 impl super::TypedTrees {
     /// Rejoin the source qualifier to its exact selected callable declaration.

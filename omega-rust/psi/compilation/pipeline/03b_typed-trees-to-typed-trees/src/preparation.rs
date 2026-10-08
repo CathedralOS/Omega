@@ -72,7 +72,6 @@ impl<'request> PreparationRequest<'request> {
 /// form is passed separately; this record is not another program representation.
 pub struct TypedPreparation {
     admits_pending_inputs: bool,
-    static_machine_selections: validation::ValidatedStaticMachineSelections,
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 }
@@ -86,13 +85,11 @@ impl TypedPreparation {
         self,
     ) -> (
         bool,
-        validation::ValidatedStaticMachineSelections,
         proof::mathematical_declarations::CheckedMathematics,
         Vec<validation::OpaqueDataPropertyReceipt>,
     ) {
         (
             self.admits_pending_inputs,
-            self.static_machine_selections,
             self.mathematics,
             self.opaque_property_receipts,
         )
@@ -144,9 +141,8 @@ pub fn prepare_typed_trees(
     // field endpoint is known. Resolve both call forms before specialization
     // and effect inference, not only when finalizing authored selections.
     crate::receivers::resolve_projected_receiver_calls(&mut program)?;
-    // MP2b must judge the authored requirement -> selected implementation edge
-    // before MP4 consumes the call-site selections and clears the template's
-    // parameter list.
+    // Executable specialization retains each consumed source application;
+    // immutable checking judges its requirement -> implementation edge once.
     // PDI3 operation/algebra authority is part of the authored generic
     // contract, so bind it before specialization captures the universal
     // template fingerprint. Normalize again afterward to cover cloned
@@ -177,10 +173,8 @@ pub fn prepare_typed_trees(
         &program,
         &provider_candidates,
     );
-    let mut static_machine_selections =
-        specialize_static_machine_calls_with_selections(&mut program, true)?;
+    specialize_machine_calls(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
-    let mut generated_bodies = false;
     loop {
         let mut materialized = match &provider_templates {
             Some(templates) => crate::monomorphization::specialize_operator_candidates(
@@ -198,15 +192,10 @@ pub fn prepare_typed_trees(
         if materialized == 0 {
             break;
         }
-        generated_bodies = true;
-        // Generated bodies only add concrete calls; the authored generic
-        // templates stay unchanged, so their contract entailment and the
-        // conformance applications are judged once, after convergence.
-        static_machine_selections = specialize_generated_static_machine_calls(&mut program)?;
+        // Generated bodies add demands to the same derivation loop. Neither
+        // this round nor an inner round admits the whole source roster.
+        specialize_machine_calls(&mut program, true)?;
         normalize_open_index_identities(&mut program)?;
-    }
-    if generated_bodies {
-        validation::conformance_applications::validate_conformance_applications(&program)?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
@@ -254,7 +243,6 @@ pub fn prepare_typed_trees(
         program.into(),
         TypedPreparation {
             admits_pending_inputs: request.admits_pending_inputs,
-            static_machine_selections,
             mathematics,
             opaque_property_receipts,
         },
@@ -286,43 +274,25 @@ fn normalize_open_index_identities(
 pub fn specialize_static_machine_calls(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    specialize_static_machine_calls_with_selections(program, false).map(|_| ())
+    specialize_machine_calls(program, false)?;
+    // This private preparation can execute before ordinary source checking.
+    // Admit its completed static edges once at that execution boundary, never
+    // inside the executable derivation loop.
+    validation::conformance_applications::validate_conformance_applications(program)?;
+    validation::validate_static_machine_selections_with_facts(program)?;
+    validation::validate_generic_machine_contract_entailment(program)
 }
 
-/// One iteration of the specialization fixed point over newly generated
-/// bodies: derive the static selections and close them, without re-judging
-/// the authored templates the first pass already judged.
-fn specialize_generated_static_machine_calls(
-    program: &mut typed_trees::TypedTrees,
-) -> Result<::validation::ValidatedStaticMachineSelections, Vec<diagnostics::Diagnostic>> {
-    crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
-        program,
-    )?;
-    crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
-    let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
-    crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(
-        program,
-        &mut selections,
-        true,
-    )?;
-    Ok(selections)
-}
-
-pub(crate) fn specialize_static_machine_calls_with_selections(
+fn specialize_machine_calls(
     program: &mut typed_trees::TypedTrees,
     enforce_complete_concrete_selections: bool,
-) -> Result<::validation::ValidatedStaticMachineSelections, Vec<diagnostics::Diagnostic>> {
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;
-    validation::conformance_applications::validate_conformance_applications(program)?;
     crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
-    let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
-    ::validation::validate_generic_machine_contract_entailment(program)?;
-    crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(
+    crate::monomorphization::monomorphize_generic_machine_value_calls(
         program,
-        &mut selections,
         enforce_complete_concrete_selections,
-    )?;
-    Ok(selections)
+    )
 }

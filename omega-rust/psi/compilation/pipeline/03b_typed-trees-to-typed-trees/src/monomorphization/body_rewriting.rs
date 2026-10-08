@@ -19,9 +19,7 @@ mod type_parameter_substitution;
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
 
 pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
-pub(crate) use machine_arguments::{
-    remap_machine_argument_symbols, static_const_literal_from_type_reference,
-};
+pub(crate) use machine_arguments::static_const_literal_from_type_reference;
 pub(crate) use type_parameter_substitution::{
     cloned_expression_roots, rebind_state_scoped_range_endpoints,
     reject_runtime_bound_static_occurrences, substitute_cloned_type_parameters,
@@ -141,6 +139,15 @@ pub(super) fn rewrite_selected_call_with_name(
             else {
                 return;
             };
+            let authored_machine_application = if snapshot.authored_machine_application.is_valid() {
+                snapshot.authored_machine_application
+            } else {
+                program.expression_table.retain_static_machine_application(
+                    snapshot.target_symbol,
+                    snapshot.target.clone(),
+                    &snapshot.machine_arguments,
+                )
+            };
             let mut arguments = program
                 .statement_table
                 .expression_handles(snapshot.arguments)
@@ -159,6 +166,7 @@ pub(super) fn rewrite_selected_call_with_name(
             call.target_symbol = target;
             call.target = target_name;
             call.arguments = new_arguments;
+            call.authored_machine_application = authored_machine_application;
             call.machine_arguments = Box::default();
         }
         CallSite::Expression(handle) => {
@@ -166,6 +174,15 @@ pub(super) fn rewrite_selected_call_with_name(
                 program.expression_table.expression(handle).clone()
             else {
                 return;
+            };
+            let authored_machine_application = if snapshot.authored_machine_application.is_valid() {
+                snapshot.authored_machine_application
+            } else {
+                program.expression_table.retain_static_machine_application(
+                    snapshot.target_symbol,
+                    snapshot.target.clone(),
+                    &snapshot.machine_arguments,
+                )
             };
             let mut arguments = program
                 .expression_table
@@ -187,6 +204,7 @@ pub(super) fn rewrite_selected_call_with_name(
             call.target_symbol = target;
             call.target = target_name;
             call.arguments = new_arguments;
+            call.authored_machine_application = authored_machine_application;
             call.machine_arguments = Box::default();
         }
     }
