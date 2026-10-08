@@ -234,7 +234,7 @@ fn storage_path<'types>(
 mod tests {
     use super::*;
     use semantic_vocabulary::{AuthoredRecordStorage, IntegerSign, IntegerType, StructuralFieldId};
-    use terminal_psi::BindingRelevance;
+    use terminal_psi::{BindingRelevance, StructuralFieldType};
 
     fn identity(value: u64) -> StructuralTypeId {
         StructuralTypeId::new(value).expect("type identity")

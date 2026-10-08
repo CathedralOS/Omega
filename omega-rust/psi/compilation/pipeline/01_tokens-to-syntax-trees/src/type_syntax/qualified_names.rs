@@ -1,8 +1,6 @@
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::types::TypeReferenceNode;
-
 #[test]
 fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and_casts() {
     for spelling in ["true", "false"] {
