@@ -55,9 +55,8 @@ pub(crate) fn named_transition_call_symbol(
     if program.machine_parameter_signature(target).is_some()
         || program.traits().iter().any(|definition| {
             program
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|signature| signature.symbol == target)
+                .trait_machine_signature_by_symbol(definition, target)
+                .is_some()
         })
     {
         target

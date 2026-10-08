@@ -84,9 +84,7 @@ impl TypedTrees {
         slot: &DynamicSlotSignature,
     ) -> Option<&crate::signature::StateSignature> {
         let definition = self.trait_definition_by_symbol(slot.declaring_trait)?;
-        self.trait_machine_signatures(definition)
-            .iter()
-            .find(|signature| signature.symbol == slot.requirement)
+        self.trait_machine_signature_by_symbol(definition, slot.requirement)
     }
 
     /// The slot a selector call targets, by the slot's own symbol.

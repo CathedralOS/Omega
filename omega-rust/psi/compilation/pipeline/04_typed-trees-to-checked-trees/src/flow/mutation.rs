@@ -273,9 +273,8 @@ fn call_write_places(
         let boundary_target = program.traits().iter().any(|definition| {
             definition.is_boundary
                 && program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .any(|signature| signature.symbol == borrow_call.target_symbol)
+                    .trait_machine_signature_by_symbol(definition, borrow_call.target_symbol)
+                    .is_some()
         });
         if boundary_target {
             // The shared boundary frame owns implicit receiver and argument

@@ -33,9 +33,7 @@ impl TypedTrees {
             })
             .collect::<Vec<_>>();
         for (handle, trait_symbol, requirement_symbol, trait_arguments) in pending {
-            let Some(trait_definition) = self
-                .trait_definition_by_symbol(trait_symbol)
-            else {
+            let Some(trait_definition) = self.trait_definition_by_symbol(trait_symbol) else {
                 continue;
             };
             let parameters = self
@@ -369,10 +367,9 @@ impl TypedTrees {
                 instantiated,
                 ..
             } => {
-                let trait_definition = self
-                    .trait_definition_by_symbol(*trait_definition)?;
-                let declared = self
-                    .trait_machine_signature_by_symbol(trait_definition, *requirement)?;
+                let trait_definition = self.trait_definition_by_symbol(*trait_definition)?;
+                let declared =
+                    self.trait_machine_signature_by_symbol(trait_definition, *requirement)?;
                 Some(data::MachineParameterContractView::Nominal {
                     trait_definition,
                     requirement: instantiated.as_deref().unwrap_or(declared),
@@ -439,9 +436,7 @@ impl TypedTrees {
         &signature::StateSignature,
     )> {
         self.traits().iter().find_map(|trait_definition| {
-            self.trait_machine_signatures(trait_definition)
-                .iter()
-                .find(|signature| signature.symbol == symbol)
+            self.trait_machine_signature_by_symbol(trait_definition, symbol)
                 .map(|signature| (trait_definition, signature))
         })
     }
@@ -504,8 +499,7 @@ impl TypedTrees {
         let mut type_parameters = self.machine_type_parameters(machine).to_vec();
         let mut lifetime_parameters = machine.lifetime_parameters.clone();
         if let Some(attached_data) = &machine.attached_data
-            && let Some(definition) = self
-                .data_definition_by_name(attached_data)
+            && let Some(definition) = self.data_definition_by_name(attached_data)
         {
             for parameter in self.data_type_parameters(definition) {
                 if !type_parameters
@@ -890,8 +884,7 @@ impl TypedTrees {
         }
         let symbol = self.symbols.get(state_symbol);
         let parent = symbol.parent;
-        if let Some(machine) = self
-            .machine(parent)
+        if let Some(machine) = self.machine(parent)
             && self
                 .machine_states(machine)
                 .iter()

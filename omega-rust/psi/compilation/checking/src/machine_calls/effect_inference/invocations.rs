@@ -777,9 +777,8 @@ fn boundary_trait_for_signature(
         .filter(|definition| definition.is_boundary)
         .find(|definition| {
             program
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|signature| signature.symbol == symbol)
+                .trait_machine_signature_by_symbol(definition, symbol)
+                .is_some()
         })
         .map(|definition| definition.symbol)
 }

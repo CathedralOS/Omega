@@ -905,9 +905,8 @@ pub(super) fn selected_boundary_signature(
         && program.traits().iter().any(|definition| {
             definition.is_boundary
                 && program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .any(|signature| signature.symbol == target)
+                    .trait_machine_signature_by_symbol(definition, target)
+                    .is_some()
         })
 }
 

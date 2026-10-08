@@ -59,9 +59,8 @@ pub(crate) fn call_is_boundary(
     }) || program.traits().iter().any(|definition| {
         definition.is_boundary
             && program
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|signature| signature.symbol == requirement_symbol)
+                .trait_machine_signature_by_symbol(definition, requirement_symbol)
+                .is_some()
     }) || program
         .operators()
         .iter()

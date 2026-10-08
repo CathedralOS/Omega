@@ -216,9 +216,8 @@ pub fn call_target_type_parameters(
 
     if let Some(trait_definition) = program.traits().iter().find(|trait_definition| {
         program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .any(|signature| signature.symbol == target_state_symbol)
+            .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
+            .is_some()
     }) {
         return program.trait_type_parameters(trait_definition);
     }

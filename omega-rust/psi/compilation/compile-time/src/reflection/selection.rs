@@ -137,9 +137,8 @@ impl SelectionRequirement {
         let requirement_identity = match requirement {
             Some(symbol) => {
                 if !typed
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .any(|signature| signature.symbol == symbol)
+                    .trait_machine_signature_by_symbol(definition, symbol)
+                    .is_some()
                 {
                     return Err(
                         "a selection requirement pins an exact requirement signature of its trait"

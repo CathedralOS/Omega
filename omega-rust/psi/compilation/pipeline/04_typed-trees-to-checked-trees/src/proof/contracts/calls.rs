@@ -349,9 +349,8 @@ pub(crate) fn contract_target_from_state_symbol(
     // so the signature's requires/ensures contracts attach to the call.
     if let Some(target_trait) = program.traits().iter().find(|trait_definition| {
         program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .any(|signature| signature.symbol == target_state_symbol)
+            .trait_machine_signature_by_symbol(trait_definition, target_state_symbol)
+            .is_some()
     }) {
         return Some((target_trait.symbol, target_state_symbol));
     }

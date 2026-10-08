@@ -82,9 +82,8 @@ fn field_owns_target(
     }) || typed.traits().iter().any(|definition| {
         definition.symbol == requirement_family
             && typed
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|signature| signature.symbol == target_symbol)
+                .trait_machine_signature_by_symbol(definition, target_symbol)
+                .is_some()
     })
 }
 

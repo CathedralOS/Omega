@@ -507,9 +507,8 @@ fn boundary_requirement_signature<'a>(
     let owner = program.traits().iter().find(|owner| {
         owner.is_boundary
             && program
-                .trait_machine_signatures(owner)
-                .iter()
-                .any(|signature| signature.symbol == target_symbol)
+                .trait_machine_signature_by_symbol(owner, target_symbol)
+                .is_some()
     })?;
     let signature = program.trait_machine_signature_by_symbol(owner, target_symbol)?;
     domain

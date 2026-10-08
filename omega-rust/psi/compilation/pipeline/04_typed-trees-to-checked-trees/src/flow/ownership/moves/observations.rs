@@ -328,9 +328,8 @@ fn call_target_is_service_signature(
     program.traits().iter().any(|definition| {
         definition.is_boundary
             && program
-                .trait_machine_signatures(definition)
-                .iter()
-                .any(|signature| signature.symbol == signature_symbol)
+                .trait_machine_signature_by_symbol(definition, signature_symbol)
+                .is_some()
     })
 }
 
