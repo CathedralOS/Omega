@@ -17,7 +17,7 @@ use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStruct
 use semantic_vocabulary::{MachineId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    ClaimTransfer, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    ClaimTransfer, StructuralAccess, StructuralArgument,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralTypeShape, TerminalMachineResult,
 };
