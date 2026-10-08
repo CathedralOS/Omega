@@ -1786,7 +1786,7 @@ then independent claimed restoration slices -> final closure.
   `case payload observation requires a scalar payload`. Do not replace that
   missing event with a scalar dispatch snapshot.
   Qualify the ordinary `omega run --both` route for
-  `borrows/indexed_record_field_replacement_exit` and
+  `borrows/{indexed_record_field_replacement_exit,runtime_affine_local_case_return_exit}` and
   `host/runtime_descriptor_{mutable_view,record_array}_input_exit` after their
   full-stdlib package review, including `FilesystemHost`. Recompute the exact
   review choices against the current package after its named Calling migration;

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 4.22, "load1_start": 2.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 5.0, "load1_start": 5.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -252,6 +252,10 @@ fail/borrows/byte_array_state_loan_shared_and_exclusive rejected 447ms expected 
 	state `both` receives `bytes` as both mutable and read-only
 fail/borrows/byte_view_shared_element_mutable_reference rejected 139ms expected @d1ebe54629b8
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/case_payload_borrowed_affine_copy rejected 225ms expected @53e6e3215d6a
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 1)
+fail/borrows/case_payload_duplicate_transfer rejected 2571ms expected @53e6e3215d6a
+	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
 fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
 	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_reference_from_immutable_bytes rejected 296ms expected @69d297ae3ee5
@@ -2160,6 +2164,7 @@ pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms check-targ
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 1563ms check-target:macos_arm64 @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit checked 1601ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms check-target:macos_arm64 @f41cc6938f06+wt
+pass/borrows/runtime_case_payload_partial_transfer_exit checked 1324ms check-target:macos_arm64 @53e6e3215d6a
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms check-target:macos_arm64 @f935383e1d47+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 1487ms check-target:macos_arm64 @b5d8c6882a8b+wt
 pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 1404ms check-target:macos_arm64 @1a0d1c0cd491+wt

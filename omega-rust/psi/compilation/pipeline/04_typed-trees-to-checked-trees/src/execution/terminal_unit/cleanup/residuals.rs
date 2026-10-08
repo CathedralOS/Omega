@@ -273,23 +273,23 @@ fn visit(
             }
             let payload_moves = moved_paths
                 .iter()
-                .filter_map(|(path, identity)| {
+                .filter(|(path, _)| {
                     matches!(
                         path.first(),
                         Some(CheckedUnitStructuralPathSegment::Case(_))
                     )
-                    .then(|| (&path[1..], *identity))
                 })
+                .map(|(path, identity)| (&path[1..], *identity))
                 .collect::<Vec<_>>();
             let payload_boundaries = boundaries
                 .iter()
-                .filter_map(|(path, identity)| {
+                .filter(|(path, _)| {
                     matches!(
                         path.first(),
                         Some(CheckedUnitStructuralPathSegment::Case(_))
                     )
-                    .then(|| (&path[1..], *identity))
                 })
+                .map(|(path, identity)| (&path[1..], *identity))
                 .collect::<Vec<_>>();
             prefix.push(CheckedUnitStructuralPathSegment::Case(
                 selected_case.clone(),
