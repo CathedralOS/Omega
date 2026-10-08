@@ -70,8 +70,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         .machines
         .iter()
         .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
+        .flat_map(|machine| machine.operations())
         .filter(|operation| Some(operation.id) == occurrence.operation())
         .collect::<Vec<_>>();
     let [operation] = matching_operations.as_slice() else {

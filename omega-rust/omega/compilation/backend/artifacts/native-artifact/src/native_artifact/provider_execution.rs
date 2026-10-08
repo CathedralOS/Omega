@@ -48,8 +48,7 @@ pub(super) fn replay_provider_executions(
                     .machines
                     .iter()
                     .filter(|machine| machine.id == foreign.machine)
-                    .flat_map(|machine| &machine.blocks)
-                    .flat_map(|block| &block.operations)
+                    .flat_map(|machine| machine.operations())
                     .filter(|operation| operation.id == owner);
                 let (Some(operation), None) = (operations.next(), operations.next()) else {
                     return Err(ProviderExecutionReplayError::NonUniqueForeignOperation);
@@ -65,9 +64,8 @@ pub(super) fn replay_provider_executions(
             }
             target_operations::CallSiteOwner::ExternalCompletion(owner) => {
                 let mut completions = module
-                    .machines
-                    .iter()
-                    .filter(|machine| machine.id == foreign.machine)
+                    .machine(foreign.machine)
+                    .into_iter()
                     .flat_map(|machine| &machine.blocks)
                     .filter_map(|block| match &block.terminator {
                         terminal_psi::Terminator::ExternalCompletion {

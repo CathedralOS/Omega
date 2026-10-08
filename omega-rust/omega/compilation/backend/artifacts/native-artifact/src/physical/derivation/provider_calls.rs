@@ -74,7 +74,8 @@ pub(crate) fn boundary_internal_call_exists(
     let Some(operation) = occurrence.operation() else {
         return false;
     };
-    object.function_on_machine(occurrence.machine())
+    object
+        .function_on_machine(occurrence.machine())
         .is_some_and(|function| {
             function
                 .unit_call_stacks
@@ -116,8 +117,7 @@ pub(crate) fn derive_installed_provider_internal_call_child(
         .machines
         .iter()
         .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
+        .flat_map(|machine| machine.operations())
         .filter(|operation| operation.id == source_operation)
         .collect::<Vec<_>>();
     let [operation] = matching_operations.as_slice() else {
@@ -138,7 +138,8 @@ pub(crate) fn derive_installed_provider_internal_call_child(
     if !structural_arguments.is_empty() || !completion_receipts.is_empty() {
         return Ok(None);
     }
-    let function = object.function_on_machine(occurrence.machine())
+    let function = object
+        .function_on_machine(occurrence.machine())
         .ok_or("installed provider internal call names an absent object function")?;
     if !function.provenance.operations.contains(&source_operation) {
         return Err("installed provider internal call left its function provenance");

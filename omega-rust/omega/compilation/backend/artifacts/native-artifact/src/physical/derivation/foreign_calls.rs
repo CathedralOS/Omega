@@ -60,8 +60,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     .machines
                     .iter()
                     .filter(|machine| machine.id == occurrence.machine())
-                    .flat_map(|machine| &machine.blocks)
-                    .flat_map(|block| &block.operations)
+                    .flat_map(|machine| machine.operations())
                     .filter(|operation| operation.id == operation_id);
                 let (Some(operation), None) = (operations.next(), operations.next()) else {
                     return Err(
@@ -91,9 +90,8 @@ pub(crate) fn derive_normalized_foreign_child(
             }
             semantic_vocabulary::BoundaryInvocationSite::ExternalCompletion(edge_id) => {
                 let mut completions = module
-                    .machines
-                    .iter()
-                    .filter(|machine| machine.id == occurrence.machine())
+                    .machine(occurrence.machine())
+                    .into_iter()
                     .flat_map(|machine| &machine.blocks)
                     .filter_map(|block| match &block.terminator {
                         terminal_psi::Terminator::ExternalCompletion {
@@ -182,7 +180,8 @@ pub(crate) fn derive_normalized_foreign_child(
     // physical evidence rather than claiming a custody join it cannot prove.
     let structural_parameter_shapes =
         if !structural_arguments.is_empty() || !declaration.structural_parameters.is_empty() {
-            let caller = module.machine(occurrence.machine())
+            let caller = module
+                .machine(occurrence.machine())
                 .ok_or("normalized foreign D41 child names an absent caller machine")?;
             let Some(shapes) = normalized_foreign_structural_parameter_shapes(
                 structural_arguments,
@@ -1214,9 +1213,9 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
         {
             return Ok(None);
         }
-        let placed_pointer_word = placement.single_word_byte_size().ok_or(
-            "normalized foreign D41 child changed its structural call custody",
-        )?;
+        let placed_pointer_word = placement
+            .single_word_byte_size()
+            .ok_or("normalized foreign D41 child changed its structural call custody")?;
         if placement.shape != pointer_shape || placed_pointer_word != pointer_shape.byte_size {
             return Err("normalized foreign D41 child changed its structural call custody");
         }

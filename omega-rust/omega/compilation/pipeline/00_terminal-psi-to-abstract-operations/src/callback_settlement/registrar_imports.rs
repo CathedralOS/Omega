@@ -43,11 +43,7 @@ pub fn settle_callback_registrar_imports(
         callback_occurrences
             .clone()
             .map(|occurrence| occurrence.terminal_operation),
-        terminal_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations),
+        terminal_module.operations(),
     );
     let declarations = terminal_module
         .boundary_machines

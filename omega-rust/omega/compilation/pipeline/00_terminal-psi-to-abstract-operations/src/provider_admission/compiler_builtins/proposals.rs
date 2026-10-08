@@ -28,26 +28,19 @@ pub fn demanded_boundary_identities(
         .map(|boundary| (boundary.id, boundary.identity.as_str()))
         .collect::<std::collections::BTreeMap<_, _>>();
     let mut demanded = BTreeSet::new();
-    for boundary in module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| {
-            block
-                .operations
-                .iter()
-                .filter_map(|operation| match &operation.kind {
-                    terminal_psi::OperationKind::BoundaryCall { boundary, .. } => Some(*boundary),
-                    _ => None,
-                })
-                .chain(match &block.terminator {
-                    terminal_psi::Terminator::ExternalCompletion { boundary, .. } => {
-                        Some(*boundary)
-                    }
-                    _ => None,
-                })
-        })
-    {
+    for boundary in module.blocks().flat_map(|block| {
+        block
+            .operations
+            .iter()
+            .filter_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::BoundaryCall { boundary, .. } => Some(*boundary),
+                _ => None,
+            })
+            .chain(match &block.terminator {
+                terminal_psi::Terminator::ExternalCompletion { boundary, .. } => Some(*boundary),
+                _ => None,
+            })
+    }) {
         let Some(identity) = declarations.get(&boundary).copied() else {
             return Err(vec![Diagnostic::error(format!(
                 "Terminal intrinsic settlement demand cites absent boundary {:?}",

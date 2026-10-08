@@ -111,8 +111,7 @@ pub(crate) fn metadata_port_effect_custody(
         .machines
         .iter()
         .filter(|machine| machine.id == occurrence.machine())
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
+        .flat_map(|machine| machine.operations())
         .filter(|operation| operation.id == effect.psi_operation)
         .collect::<Vec<_>>();
     let [effect_operation] = matching_effect_operations.as_slice() else {

@@ -130,8 +130,7 @@ pub fn admit_native_realization<'request>(
                     .module()
                     .machines
                     .iter()
-                    .flat_map(|machine| &machine.blocks)
-                    .flat_map(|block| &block.operations)
+                    .flat_map(|machine| machine.operations())
                     .any(|operation| {
                         operation.id == callback.terminal_operation
                             && matches!(

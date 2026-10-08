@@ -27,10 +27,7 @@ pub(super) fn validate_boundary_application_coverage(
     }
     for reference in coverage.references() {
         let matching_operations = module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
+            .operations()
             .filter(|operation| operation.id == reference.terminal_operation())
             .count();
         if matching_operations != 1 {
