@@ -213,7 +213,7 @@ pub(in crate::legalization) fn element_type(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     let identity = view_type(function, place, types)?;
-    match types.iter().find(|row| row.id == identity)?.shape {
+    match terminal_psi::find_structural_type(types, identity)?.shape {
         terminal_psi::StructuralTypeShape::ElementView { element } => Some(element),
         _ => None,
     }
