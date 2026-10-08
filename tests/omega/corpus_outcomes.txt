@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 5.02, "load1_start": 4.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.16, "load1_start": 3.02, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3157,6 +3157,7 @@ pass/host/runtime_descriptor_output_streams_exit checked 11212ms check-target:ma
 pass/host/runtime_descriptor_padded_prefix_loans_exit checked 15844ms check-target:macos_arm64 @f84dff68876d
 pass/host/runtime_descriptor_record_array_input_exit checked 15530ms check-target:macos_arm64 @46782946f3c8+wt
 pass/host/runtime_descriptor_record_loan_input_exit checked 19683ms check-target:macos_arm64 @198156d53e16
+pass/host/runtime_descriptor_reference_record_prefix_exit checked 13685ms check-target:macos_arm64 @dd8ff52ae8bf
 pass/host/runtime_descriptor_scalar_input_exit checked 12541ms check-target:macos_arm64 @d4c9839eb53d+wt
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 1521ms check-target:windows_x86_64 @eecd0b2d2baf+wt
 pass/host/runtime_gui_foreground_window_exit rejected 1982ms check-target:macos_arm64 @c47f8652484
