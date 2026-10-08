@@ -3,11 +3,51 @@ use crate::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
 };
 use crate::identifier::Identifier;
-use crate::item::{DataDefinition, Item, Machine, State, StateSignature, TraitDefinition};
+use crate::item::{
+    DataDefinition, Item, Machine, State, StateHandle, StateSignature, TraitDefinition,
+};
 use crate::snapshot::ItemSnapshot;
 use crate::statement::{StatementNode, TableAssignment, TableCall};
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use arena::HandleSpan;
+
+/// A bodyless `main` machine whose only state is `state` — the shared
+/// root-item fixture both extend-from tests push.
+fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
+    Machine {
+        name: Identifier::generated("main"),
+        generic_data_template: Default::default(),
+        default_body_trait: Default::default(),
+        where_facts: HandleSpan::empty(),
+        attached_data: None,
+        spelling: None,
+        is_public: false,
+        target: None,
+        authored_target: None,
+        boundary: false,
+        is_top_level_boundary_requirement: false,
+        bodyless: false,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        satisfies: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
+        terminates_guarantee: false,
+        ranking_subjects: HandleSpan::empty(),
+        ranking_view: HandleSpan::empty(),
+        ranking_view_arguments: HandleSpan::empty(),
+        ranking_range: crate::expression::ExpressionHandle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        suspends: false,
+        blocks: false,
+        contracts: HandleSpan::empty(),
+        states: HandleSpan::from_parts(state, 1),
+    }
+}
 
 #[test]
 fn integer_range_normalization_copies_with_remapped_constraint_expressions() {
@@ -919,39 +959,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         statements: HandleSpan::from_parts(call, 1),
     });
     let state = file.items.append_state_handle(state);
-    file.push_root_item(Item::Machine(Machine {
-        name: Identifier::generated("main"),
-        generic_data_template: Default::default(),
-        default_body_trait: Default::default(),
-        where_facts: HandleSpan::empty(),
-        attached_data: None,
-        spelling: None,
-        is_public: false,
-        target: None,
-        authored_target: None,
-        boundary: false,
-        is_top_level_boundary_requirement: false,
-        bodyless: false,
-        lifetime_parameters: Vec::new(),
-        type_parameters: HandleSpan::empty(),
-        satisfies: HandleSpan::empty(),
-        conformance_bounds: Vec::new(),
-        terminates_guarantee: false,
-        ranking_subjects: HandleSpan::empty(),
-        ranking_view: HandleSpan::empty(),
-        ranking_view_arguments: HandleSpan::empty(),
-        ranking_range: crate::expression::ExpressionHandle::invalid(),
-        service_reach_is_installation_bound: false,
-        service_reach_keyword_source_spans: Vec::new(),
-        service_reaches: HandleSpan::empty(),
-        invokes: HandleSpan::empty(),
-        suspends_keyword_source_spans: Vec::new(),
-        blocks_keyword_source_spans: Vec::new(),
-        suspends: false,
-        blocks: false,
-        contracts: HandleSpan::empty(),
-        states: HandleSpan::from_parts(state, 1),
-    }));
+    file.push_root_item(Item::Machine(single_state_machine(state)));
 
     let mut assembled = SyntaxTrees::new(Default::default());
     assembled.extend_from(&file);
@@ -1054,39 +1062,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         statements: HandleSpan::from_parts(statement, 1),
     });
     let state = file.items.append_state_handle(state);
-    file.push_root_item(Item::Machine(Machine {
-        name: Identifier::generated("main"),
-        generic_data_template: Default::default(),
-        default_body_trait: Default::default(),
-        where_facts: HandleSpan::empty(),
-        attached_data: None,
-        spelling: None,
-        is_public: false,
-        target: None,
-        authored_target: None,
-        boundary: false,
-        is_top_level_boundary_requirement: false,
-        bodyless: false,
-        lifetime_parameters: Vec::new(),
-        type_parameters: HandleSpan::empty(),
-        satisfies: HandleSpan::empty(),
-        conformance_bounds: Vec::new(),
-        terminates_guarantee: false,
-        ranking_subjects: HandleSpan::empty(),
-        ranking_view: HandleSpan::empty(),
-        ranking_view_arguments: HandleSpan::empty(),
-        ranking_range: crate::expression::ExpressionHandle::invalid(),
-        service_reach_is_installation_bound: false,
-        service_reach_keyword_source_spans: Vec::new(),
-        service_reaches: HandleSpan::empty(),
-        invokes: HandleSpan::empty(),
-        suspends_keyword_source_spans: Vec::new(),
-        blocks_keyword_source_spans: Vec::new(),
-        suspends: false,
-        blocks: false,
-        contracts: HandleSpan::empty(),
-        states: HandleSpan::from_parts(state, 1),
-    }));
+    file.push_root_item(Item::Machine(single_state_machine(state)));
 
     let mut assembled = SyntaxTrees::new(Default::default());
     assembled.extend_from(&file);
