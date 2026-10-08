@@ -286,3 +286,184 @@ where
     }
     Ok(candidates)
 }
+
+
+/// One located dominating-leader/redundant pair, resolved through the
+/// accounting the rule's own candidate constructor consumes. `E` is the
+/// rule's per-expression payload — unit for the obligation-free rule,
+/// the accepted obligation fact for the proof-certified one.
+pub(super) struct DominatingScalarGvnMatch<E> {
+    pub affected_blocks: Vec<BlockId>,
+    pub provenance: Vec<optimization_unit::ProvenanceRewrite>,
+    pub extras: E,
+    pub patch: optimization_unit::DominatingScalarCommonSubexpressionRewrite,
+}
+
+/// The shared dominating-leader GVN proposal: gather each function's
+/// provably-pure scalar expressions, then for every live redundant whose
+/// following node carries none of its provenance, pick the same-key
+/// expression in the shallowest dominating block whose replacement
+/// definition still dominates every use. `context` builds the rule's
+/// per-function lookup, `expression` its key+extras extractor, `emit`
+/// its candidate constructor.
+pub(super) fn propose_dominating_scalar_gvn<K, C, E>(
+    unit: &PsiOptimizationUnit,
+    analyses: crate::RuleAnalysisView<'_>,
+    context: impl Fn(&PsiOptimizationFunction) -> C,
+    expression: impl Fn(
+        &C,
+        &PsiOptimizationUnit,
+        MachineId,
+        &abstract_operations::AbstractOperation,
+    ) -> Option<(ScalarExpressionRow<K>, E)>,
+    emit: impl Fn(DominatingScalarGvnMatch<E>) -> Result<PsiRewriteCandidate, crate::RuleProposalError>,
+) -> Result<Vec<PsiRewriteCandidate>, crate::RuleProposalError>
+where
+    K: Ord,
+    E: Copy,
+{
+    use crate::rules::node_elision::node_elision_accounting;
+
+    let Some(crate::AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
+        else {
+            return Err(crate::RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
+        };
+        let (use_definitions, effects) = analyses.use_definitions_and_effects()?;
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            let machine_dominators = dominators
+                .functions
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+                .map(|(_, rows)| rows.as_slice())
+                .unwrap_or_default();
+            let context = context(function);
+            let mut expressions = Vec::new();
+            for block in &function.blocks {
+                for (index, node) in block.nodes.iter().enumerate() {
+                    let node_index =
+                        u32::try_from(index).expect("optimization node index fits u32");
+                    let Some(((key, operation, result, scalar_type), extras)) =
+                        expression(&context, unit, function.machine, &node.operation)
+                    else {
+                        continue;
+                    };
+                    if !exact_pure_scalar_effect(
+                        unit,
+                        effects,
+                        function.machine,
+                        block.id,
+                        node_index,
+                    ) {
+                        continue;
+                    }
+                    expressions.push((
+                        key,
+                        optimization_unit::NodeLocation {
+                            machine: function.machine,
+                            block: block.id,
+                            node: node_index,
+                        },
+                        operation,
+                        result,
+                        scalar_type,
+                        extras,
+                    ));
+                }
+            }
+            for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in &expressions
+            {
+                if !use_definitions.uses.iter().any(|(machine, use_site)| {
+                    *machine == function.machine && use_site.value == *redundant_result
+                }) {
+                    continue;
+                }
+                let Some(redundant_block) = function
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == redundant.block)
+                else {
+                    continue;
+                };
+                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
+                let Some(redundant_node) = redundant_block.nodes.get(redundant_index) else {
+                    continue;
+                };
+                let Some(receiver) = redundant_block.nodes.get(redundant_index + 1) else {
+                    continue;
+                };
+                if receiver
+                    .provenance
+                    .iter()
+                    .any(|source| redundant_node.provenance.contains(source))
+                {
+                    continue;
+                }
+                let leader = expressions
+                    .iter()
+                    .filter(|(candidate_key, location, _, _, candidate_type, _)| {
+                        candidate_key == key
+                            && *candidate_type == *scalar_type
+                            && location.block != redundant.block
+                            && crate::analyses::block_dominates(machine_dominators, location.block, redundant.block)
+                    })
+                    .min_by_key(|(_, location, _, _, _, _)| {
+                        let depth = machine_dominators
+                            .iter()
+                            .find(|(block, _)| *block == location.block)
+                            .map_or(usize::MAX, |(_, rows)| rows.len());
+                        (depth, *location)
+                    });
+                let Some((_, leader, leader_operation, leader_result, _, _)) = leader else {
+                    continue;
+                };
+                let replacement_definition = optimization_unit::ValueDefinition {
+                    value: *leader_result,
+                    scalar_type: *scalar_type,
+                    site: optimization_unit::ValueDefinitionSite::Node {
+                        block: leader.block,
+                        node: leader.node,
+                    },
+                };
+                if !use_definitions
+                    .uses
+                    .iter()
+                    .filter(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == *redundant_result
+                    })
+                    .all(|(_, use_site)| match replacement_definition.site {
+                        optimization_unit::ValueDefinitionSite::Node { block, node }
+                            if block == use_site.block =>
+                        {
+                            node < use_site.node
+                        }
+                        optimization_unit::ValueDefinitionSite::Node { block, .. } => {
+                            crate::analyses::block_dominates(machine_dominators, block, use_site.block)
+                        }
+                        _ => false,
+                    })
+                {
+                    continue;
+                }
+                let Some((affected_blocks, provenance)) =
+                    node_elision_accounting(function, *redundant, *redundant_result)
+                else {
+                    continue;
+                };
+                candidates.push(emit(DominatingScalarGvnMatch {
+                    affected_blocks,
+                    provenance,
+                    extras: *extras,
+                    patch: optimization_unit::DominatingScalarCommonSubexpressionRewrite {
+                        leader: *leader,
+                        redundant: *redundant,
+                        leader_operation: *leader_operation,
+                        redundant_operation: *redundant_operation,
+                        leader_result: *leader_result,
+                        redundant_result: *redundant_result,
+                        scalar_type: *scalar_type,
+                    },
+                })?);
+            }
+        }
+        Ok(candidates)    }
