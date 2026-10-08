@@ -21,297 +21,34 @@
 //! edge comparison over it certifies; ranking only after a published
 //! `lower <= upper` requirement would invent a precondition callers never
 //! promised. Revisit if the checker proves a distance whose bound also moves.
-//! A collection-length bound uses that same arithmetic: the retained source
-//! join names the collection's structural lane, while only its `u64` cursor
-//! enters the rank. No synthetic length parameter or new proof rule is needed.
+//! A collection-length bound uses that same arithmetic: the plan's rank names
+//! the collection's structural lane, while only its `u64` cursor enters the
+//! rank. No synthetic length parameter or new proof rule is needed.
 //! A constant bound (`Nat::IncreasingTo(8)`) is the same ceiling distance with
 //! no bound lane at all.
 use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
 use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminator, unsupported};
-use super::super::{CheckedTrees, LoweringError};
+use super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::CheckedNaturalRankMeasure;
-use language_semantics::RankingViewId;
-use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
     TerminalNaturalRankEdge,
 };
 
-pub(super) fn validate_witness(
-    checked: &CheckedTrees,
+/// A machine with a termination witness needs its ranks on the graph: stage
+/// 04's fused branch can publish none, and this route then has no certificate
+/// to emit.
+pub(super) fn require_witness_ranks(
     machine: &checked_trees::machine::Machine,
     plan: &CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
-    if plan.natural_ranks.is_empty() {
-        return if machine.termination_plan.implementation_witness.is_none() {
-            Ok(())
-        } else {
-            unsupported("Unit graph ranking certificate is not retained")
-        };
-    }
-    if plan.natural_ranks.windows(2).any(|ranks| {
-        (ranks[0].state.arena_index(), ranks[0].state.generation())
-            >= (ranks[1].state.arena_index(), ranks[1].state.generation())
-    }) {
+    if plan.natural_ranks.is_empty() && machine.termination_plan.implementation_witness.is_some() {
         return unsupported("Unit graph ranking certificate is not retained");
     }
-    for rank in &plan.natural_ranks {
-        // A fused roster's rank names a foreign machine's state; the witness,
-        // custody subjects, and entry parameters all belong to that owner.
-        let (owner, state) = crate::declarations::state_declaration(checked, rank.state)?;
-        let Some(witness) = &owner.termination_plan.implementation_witness else {
-            return unsupported("Unit graph has a substituted ranking witness");
-        };
-        // A rank range constrains the produced rank; the Terminal certificate
-        // needs only its descent, so the range neither blocks nor enters it.
-        let view_arguments = usize::from(witness.ranking_view == RankingViewId::NAT_INCREASING_TO);
-        if !matches!(
-            witness.ranking_view,
-            RankingViewId::SLICE_LENGTH
-                | RankingViewId::NAT_DESCENDING
-                | RankingViewId::NAT_BOUNDED_DISTANCE
-                | RankingViewId::NAT_INCREASING_TO
-        ) || Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
-            || witness.view_arguments.len() != view_arguments
-        {
-            return unsupported("Unit graph ranking certificate is not retained");
-        }
-        let custody = checked.ranking_expression_custody_for(owner.symbol).ok_or(
-            LoweringError::Unsupported("Unit graph rank lost its exact source subject"),
-        )?;
-        let root = checked
-            .machine_states(owner)
-            .first()
-            .ok_or(LoweringError::Unsupported("Unit graph has no rank entry"))?;
-        let state_index = checked
-            .machine_states(owner)
-            .iter()
-            .position(|candidate| candidate.symbol == state.symbol)
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph rank names a foreign state",
-            ))?;
-        // The measured subject, and a distance's bound or bound collection, as
-        // entry parameters: every ranked state names parameters of these names.
-        let entry_parameter = |expression| {
-            let checked_trees::expression::ExpressionNode::Name(subject) =
-                checked.expression_table.expression(expression)
-            else {
-                return unsupported("Unit graph natural rank requires a parameter subject");
-            };
-            checked
-                .state_parameters(root)
-                .iter()
-                .find(|parameter| parameter.symbol == subject.symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph rank subject is not an entry parameter",
-                ))
-        };
-        let entry_bound = |expression| match checked.expression_table.expression(expression) {
-            checked_trees::expression::ExpressionNode::Member(member) => {
-                let parameter = entry_parameter(member.receiver)?;
-                if member.case_variant.is_some()
-                    || member.member_symbol.is_valid()
-                    || CollectionMeasure::from_authored_spelling(member.member.as_str())
-                        != Some(CollectionMeasure::Length)
-                    || !is_collection(checked, parameter.type_reference)
-                {
-                    return unsupported("Unit graph distance bound is not a collection length");
-                }
-                Ok(EntryBound::CollectionLength(parameter))
-            }
-            checked_trees::expression::ExpressionNode::Integer(literal) => literal
-                .value_u64()
-                .map(EntryBound::Constant)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph distance bound exceeds its carrier",
-                )),
-            _ => entry_parameter(expression).map(EntryBound::Parameter),
-        };
-        let (subject, bound) = match (
-            witness.ranking_view,
-            custody.subjects.as_slice(),
-            custody.view_arguments.as_slice(),
-        ) {
-            (RankingViewId::NAT_BOUNDED_DISTANCE, [lower, upper], []) => {
-                (entry_parameter(*lower)?, Some(entry_bound(*upper)?))
-            }
-            (RankingViewId::NAT_INCREASING_TO, [cursor], [limit]) => {
-                (entry_parameter(*cursor)?, Some(entry_bound(*limit)?))
-            }
-            (RankingViewId::SLICE_LENGTH | RankingViewId::NAT_DESCENDING, [subject], []) => {
-                (entry_parameter(*subject)?, None)
-            }
-            _ => return unsupported("Unit graph rank subjects do not match the selected view"),
-        };
-        // A cyclic state may rename or reorder the ranked input — a loop
-        // header's `pending` carries the authored `remaining` — and the checked
-        // rank names the carried formal. The entry telescope the range judgment
-        // proved supplies that correspondence: one entry-parameter symbol per
-        // non-self formal of every state. A slot claiming the subject's role is
-        // the checked subject whatever its local name; where the telescope does
-        // not resolve, bare name equality decides exactly as before.
-        let required_roles = custody
-            .rank_range
-            .filter(|_| custody.subjects.len() == 1)
-            .and_then(|range| {
-                validation::ranking_range_required_symbols(
-                    &checked.typed,
-                    owner,
-                    range,
-                    validation::RankingRangeMeasure::Single(custody.subjects[0]),
-                    validation::RankingRangePremises::RankInvariant,
-                )
-            })
-            .unwrap_or_else(|| vec![subject.symbol]);
-        let entry_roles = validation::discover_state_entry_mappings(
-            &checked.typed,
-            owner,
-            subject.symbol,
-            &required_roles,
-        );
-        let parameter_at = |position: u32| {
-            checked
-                .state_parameters(state)
-                .get(position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph rank names a missing parameter",
-                ))
-        };
-        let parameter = parameter_at(rank.parameter_position)?;
-        let state_plan = plan
-            .states
-            .iter()
-            .find(|candidate| candidate.state == rank.state)
-            .ok_or(LoweringError::Unsupported(
-                "Unit graph rank lost its source state",
-            ))?;
-        let scalar_lane = |position: u32, primitive_type: PrimitiveType| {
-            parameter_at(position).is_ok_and(|parameter| {
-                checked.primitive_type_reference(parameter.type_reference) == Some(primitive_type)
-            }) && state_plan.scalar_parameters.iter().any(|parameter| {
-                parameter.source_position == position && parameter.primitive_type == primitive_type
-            })
-        };
-        let measure_matches = match rank.measure {
-            CheckedNaturalRankMeasure::ByteSequenceLength => {
-                witness.ranking_view == RankingViewId::SLICE_LENGTH
-                    && state_plan
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.position == rank.parameter_position)
-            }
-            CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
-                // Signed subjects rank in their own fixed carrier: the
-                // verifier's order over any fixed carrier is well founded.
-                witness.ranking_view == RankingViewId::NAT_DESCENDING
-                    && (unsigned_integer(primitive_type)
-                        || matches!(
-                            primitive_type,
-                            PrimitiveType::I8
-                                | PrimitiveType::I16
-                                | PrimitiveType::I32
-                                | PrimitiveType::I64
-                        ))
-                    && scalar_lane(rank.parameter_position, primitive_type)
-            }
-            CheckedNaturalRankMeasure::UnsignedDistance {
-                primitive_type,
-                upper,
-                upper_position,
-            } => {
-                let upper_parameter = parameter_at(upper_position)?;
-                matches!(
-                    witness.ranking_view,
-                    RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
-                ) && unsigned_integer(primitive_type)
-                    && upper_parameter.symbol == upper
-                    && matches!(bound, Some(EntryBound::Parameter(bound))
-                        if upper_parameter.name == bound.name)
-                    && upper_position != rank.parameter_position
-                    && scalar_lane(rank.parameter_position, primitive_type)
-                    && scalar_lane(upper_position, primitive_type)
-            }
-            CheckedNaturalRankMeasure::ConstantDistance {
-                primitive_type,
-                upper,
-            } => {
-                matches!(
-                    witness.ranking_view,
-                    RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
-                ) && unsigned_integer(primitive_type)
-                    && matches!(bound, Some(EntryBound::Constant(bound)) if bound == upper)
-                    && scalar_lane(rank.parameter_position, primitive_type)
-            }
-            CheckedNaturalRankMeasure::CollectionLengthDistance {
-                collection,
-                collection_position,
-            } => {
-                let collection_parameter = parameter_at(collection_position)?;
-                matches!(
-                    witness.ranking_view,
-                    RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
-                ) && collection_parameter.symbol == collection
-                    && matches!(bound, Some(EntryBound::CollectionLength(bound))
-                        if collection_parameter.name == bound.name)
-                    && is_collection(checked, collection_parameter.type_reference)
-                    && collection_position != rank.parameter_position
-                    && scalar_lane(rank.parameter_position, PrimitiveType::U64)
-                    && state_plan
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| parameter.position == collection_position)
-            }
-        };
-        let names_subject = checked
-            .state_parameters(state)
-            .iter()
-            .position(|formal| formal.symbol == parameter.symbol)
-            .is_some_and(|index| {
-                entry_roles
-                    .as_deref()
-                    .and_then(|mappings| mappings.get(state_index))
-                    .and_then(|entries| entries.get(index))
-                    .is_some_and(|role| *role == subject.symbol)
-            })
-            || parameter.name == subject.name;
-        if parameter.symbol != rank.parameter || !names_subject || !measure_matches {
-            return unsupported("Unit graph rank no longer names its checked state subject");
-        }
-    }
     Ok(())
-}
-
-/// A distance view's authored bound, read at the machine's entry state.
-#[derive(Clone, Copy)]
-enum EntryBound<'checked> {
-    Parameter(&'checked checked_trees::signature::StateParameter),
-    CollectionLength(&'checked checked_trees::signature::StateParameter),
-    Constant(u64),
-}
-
-fn is_collection(
-    checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
-) -> bool {
-    use checked_trees::types::TypeReferenceNode;
-    loop {
-        match checked.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => return true,
-            _ => return false,
-        }
-    }
-}
-
-fn unsigned_integer(primitive_type: PrimitiveType) -> bool {
-    matches!(
-        primitive_type,
-        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
-    )
 }
 
 pub(super) fn parameter_position(

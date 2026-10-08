@@ -80,40 +80,6 @@ fn service_parameter_multiplicity(
     }
 }
 
-pub(crate) fn checked_scalar_source_parameters(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> Result<Vec<checked_trees::CheckedStructuralScalarParameterPlan>, LoweringError> {
-    checked
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        // An `[erased]` binding occurrence owns no scalar position
-        // (contracts.md#explicit-erased-bindings); the retained ones keep
-        // their authored `position`, decided from the typed relevance here
-        // rather than from the plan being validated.
-        .filter(|(_, source)| !source.relevance.is_erased())
-        .filter_map(|(position, source)| {
-            checked
-                .primitive_type_reference(source.type_reference)
-                .map(|primitive_type| (position, source, primitive_type))
-        })
-        .map(|(position, source, primitive_type)| {
-            // A mutable scalar still arrives as a value of this exact type;
-            // the state body separately establishes its current-value slot.
-            if source.is_const {
-                return unsupported("scalar parameter is not a direct value binding");
-            }
-            Ok(checked_trees::CheckedStructuralScalarParameterPlan {
-                source_position: u32::try_from(position).map_err(|_| {
-                    LoweringError::Unsupported("scalar source position exceeds u32")
-                })?,
-                primitive_type,
-            })
-        })
-        .collect()
-}
-
 /// Merge retained formals without turning lane-local proof/custody coordinates
 /// into ABI positions. Gaps may denote omitted receivers or erased formals.
 pub(crate) fn lower_boundary_parameter_order(

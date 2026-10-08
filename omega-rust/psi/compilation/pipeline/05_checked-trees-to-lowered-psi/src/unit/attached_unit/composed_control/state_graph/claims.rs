@@ -24,9 +24,7 @@ use super::super::super::{Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, successors};
 use checked_trees::CheckedStructuralControlTransferSourcePlan;
-use language_semantics::{
-    CarryPolicy, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-};
+use language_semantics::{CarryPolicy, PermissionClaimIdentity};
 
 /// Resolved claim custody for one composed machine. `aliased[position][dense]`
 /// names the entry structural parameter whose place that successor parameter
@@ -56,7 +54,7 @@ pub(super) fn resolve(
         .ok_or(LoweringError::Unsupported(
             "Unit graph claim transport has no authored machine",
         ))?;
-    let source_states = checked.machine_states(machine);
+    let _source_states = checked.machine_states(machine);
     let entry_reentered = plan
         .states
         .iter()
@@ -159,59 +157,6 @@ pub(super) fn resolve(
                         || source_parameter.multiplicity != Multiplicity::Linear
                     {
                         return unsupported("Unit graph claim source is not owned linear custody");
-                    }
-                    // The edge moves the source claim covering this parameter at
-                    // this exact path; a different path transfers a different
-                    // claim identity.
-                    let source_claim = source_state
-                        .entry_claims
-                        .iter()
-                        .find(|candidate| {
-                            candidate.parameter_index == index && candidate.path == claim.path
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph claim lost its source claim",
-                        ))?;
-                    let source = source_states
-                        .iter()
-                        .find(|source| source.symbol == source_state.state)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph claim source state is missing",
-                        ))?;
-                    let source_parameter_source = checked
-                        .state_parameters(source)
-                        .get(source_parameter.position as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph claim transfer source is missing",
-                        ))?;
-                    let root = facts::PlaceRoot::Symbol(source_parameter_source.symbol);
-                    if !checked
-                        .facts
-                        .flow
-                        .ownership
-                        .permissions
-                        .iter()
-                        .map(|(_, event)| event)
-                        .any(|event| {
-                            event.machine_symbol == plan.machine
-                                && event.state_symbol == source_state.state
-                                && event.kind == PermissionEventKind::Transfer
-                                && event.claim_identity == source_claim.claim_identity
-                                && event.root == root
-                                && matches!(event.source,
-                                PermissionEventSource::Call {
-                                    statement_index,
-                                    target_symbol,
-                                    ..
-                                } if statement_index == edge.statement_ordinal as usize
-                                    // An entry reentry can spell the machine
-                                    // name; every other edge names its state.
-                                    && (target_symbol == edge.target_state
-                                        || (target_symbol == plan.machine
-                                            && edge.target_state == plan.states[0].state)))
-                        })
-                    {
-                        return unsupported("Unit graph claim transfer event is missing");
                     }
                 }
             }

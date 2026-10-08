@@ -134,7 +134,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     {
         return unsupported("linear structural graph has unrepresented authored machine contracts");
     }
-    super::ranking::validate_witness(checked, machine, plan)?;
+    super::ranking::require_witness_ranks(machine, plan)?;
     super::super::admission::reject_attachment(plan)?;
     // A fused roster admits foreign states: each position resolves its own
     // authored owner, no state may repeat, and the dispatch machine's authored
@@ -187,42 +187,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             &state.structural_parameters,
             &state.entry_claims,
         )?;
-        // `requires` rows that lower into closed scalar predicates stay on
-        // the plan as retained state requires and emit as header invariants;
-        // every other authored contract row is still rejected outright.
-        let authored =
-            validation::structural_state_contract_scalar_predicates(&checked.typed, source).ok_or(
-                LoweringError::Unsupported(
-                    "structural graph state has unrepresented authored contracts",
-                ),
-            )?;
-        let declaration_rows = validation::state_declaration_predicates(
-            &checked.typed,
-            &checked.facts.operators,
-            source,
-        )
-        .into_iter()
-        .map(|row| {
-            Some(checked_trees::ClosedScalarContractValue::Predicate(
-                row.predicate,
-            ))
-        })
-        .collect::<Vec<_>>();
-        if state.requires.len() != authored.len() + declaration_rows.len()
-            || !state.requires[..authored.len()].iter().all(Option::is_some)
-            || state.requires[authored.len()..] != declaration_rows
-        {
-            return unsupported("structural graph state declaration predicates differ from source");
-        }
-        if !super::returns::signature_matches(checked, source, &plan.result) {
-            return unsupported("structural graph result signature disagrees with source");
-        }
-        if crate::unit::attached_unit::parameters::checked_scalar_source_parameters(
-            checked, source,
-        )? != state.scalar_parameters
-        {
-            return unsupported("Unit graph scalar signature disagrees with source");
-        }
         let source_parameters = checked.state_parameters(source);
         // Erased bindings own no plan entry.
         let retained_parameters = source_parameters
