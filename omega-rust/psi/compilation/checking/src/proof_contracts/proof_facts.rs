@@ -904,3 +904,21 @@ pub(crate) fn ensures_facts<'a>(
         })
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
 }
+
+/// Every `Expression` fact inside `contracts` of `kind` — Requires and
+/// Ensures bodies read through the same vocabulary.
+pub(crate) fn contract_expression_facts<'a>(
+    program: &'a dyn crate::CheckingInput,
+    contracts: impl Iterator<Item = &'a typed_trees::signature::SignatureContract> + 'a,
+    kind: typed_trees::signature::SignatureContractKind,
+) -> impl Iterator<Item = ExpressionHandle> + 'a {
+    contracts
+        .filter(move |contract| contract.kind == kind)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| {
+            let ProofFact::Expression(expression) = fact else {
+                return None;
+            };
+            Some(*expression)
+        })
+}

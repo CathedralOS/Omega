@@ -684,21 +684,12 @@ pub(crate) fn machine_requires_facts(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
 ) -> Vec<ExpressionHandle> {
-    program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|contract| {
-            matches!(
-                contract.kind,
-                typed_trees::signature::SignatureContractKind::Requires
-            )
-        })
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(expression) => Some(*expression),
-            ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-        })
-        .collect()
+    crate::proof_contracts::proof_facts::contract_expression_facts(
+        program,
+        program.machine_contracts(machine).iter(),
+        typed_trees::signature::SignatureContractKind::Requires,
+    )
+    .collect()
 }
 
 pub(crate) fn instantiate_citation(

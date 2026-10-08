@@ -7,7 +7,6 @@ use crate::proof_contracts::contract_entailment::structural_terms::{
     structural_term, structural_term_in_scope,
 };
 use diagnostics::Diagnostic;
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -184,17 +183,15 @@ fn requires_expressions(
     machine: &Machine,
     state: &typed_trees::state::State,
 ) -> Vec<ExpressionHandle> {
-    program
-        .machine_contracts(machine)
-        .iter()
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(expression) => Some(*expression),
-            ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-        })
-        .collect()
+    crate::proof_contracts::proof_facts::contract_expression_facts(
+        program,
+        program
+            .machine_contracts(machine)
+            .iter()
+            .chain(program.state_contracts(state)),
+        SignatureContractKind::Requires,
+    )
+    .collect()
 }
 
 /// The name the callee's author wrote. Specialization mints a machine whose
