@@ -14,7 +14,7 @@ use source::SourceId;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::domain::DomainDefinition;
 
-use crate::selection::signature_free_requirements::same_semantic_name;
+use symbols::same_semantic_name;
 use crate::symbols::NamespaceDeclarations;
 
 /// Logical module/import custody available before the final symbol table is

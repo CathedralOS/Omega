@@ -128,12 +128,6 @@ pub(crate) fn signature_free_machine_candidates<'program>(
         .collect()
 }
 
-pub(crate) fn same_semantic_name(left: &str, right: &str) -> bool {
-    left == right
-        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
-        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
-}
-
 /// Share ordinary namespace selection with type and call references. Scanning
 /// same-leaf traits is insufficient: a loaded module grants no import exposure,
 /// and a package-qualified path need not equal a declaration's display spelling.

@@ -15,6 +15,8 @@ use indices::{
     ModuleScopeIndex, ModuleScopeIndexCache, RootNameIndex, RootNameIndexCache,
 };
 mod modules;
+
+pub use modules::same_semantic_name;
 mod source_queries;
 #[cfg(test)]
 mod tests;

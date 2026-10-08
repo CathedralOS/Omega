@@ -384,11 +384,7 @@ pub(crate) fn provider_boundary_arguments(
 /// Whether two boundary names denote the same slot: equal, or one is the
 /// unqualified leaf of the other. External-root slot resolution matches
 /// retained selected plans with this same rule.
-pub fn same_semantic_name(left: &str, right: &str) -> bool {
-    left == right
-        || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
-        || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
-}
+pub use symbols::same_semantic_name;
 
 /// The stable name shared by derivation, reports, selection, and backend row
 /// extraction. External leaves may use the anonymous form; a real provider

@@ -850,7 +850,7 @@ impl SymbolTable {
 /// A relative domain spelling matches its declared name either exactly or by
 /// leaf, mirroring the semantic-name rule the resolved-lookup exposure pool
 /// shares with this table law.
-fn same_semantic_name(left: &str, right: &str) -> bool {
+pub fn same_semantic_name(left: &str, right: &str) -> bool {
     left == right
         || (!left.contains("::") && right.rsplit("::").next().is_some_and(|leaf| leaf == left))
         || (!right.contains("::") && left.rsplit("::").next().is_some_and(|leaf| leaf == right))
