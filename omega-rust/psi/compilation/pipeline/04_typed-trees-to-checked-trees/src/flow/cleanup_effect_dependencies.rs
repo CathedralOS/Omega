@@ -255,25 +255,12 @@ fn visit(
     if removed.iter().any(|path| path.is_empty()) {
         return Some(());
     }
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
-                return Some(());
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Named { symbol, .. } => {
-                if let Some((_, replacement)) =
-                    substitutions.iter().rev().find(|(parameter, replacement)| {
-                        parameter == symbol && *replacement != reference
-                    })
-                {
-                    reference = *replacement;
-                } else {
-                    break;
-                }
-            }
-            _ => break,
-        }
+    reference = resolve_peeled_type_reference(program, reference, substitutions);
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. }
+    ) {
+        return Some(());
     }
     // Re-entering the same owned type-reference node along one field chain
     // requires recursive runtime storage, not a finite residual expansion.
@@ -354,6 +341,35 @@ fn visit(
     };
     active.pop();
     result
+}
+
+/// Peel `Constrained` shells and chase `Named` type parameters through
+/// `substitutions` until the handle is stable. A replacement equal to the
+/// current handle is skipped so an identity substitution cannot loop; the
+/// reverse find keeps the innermost binding authoritative.
+fn resolve_peeled_type_reference(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> TypeReferenceHandle {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Named { symbol, .. } => {
+                if let Some((_, replacement)) =
+                    substitutions.iter().rev().find(|(parameter, replacement)| {
+                        parameter == symbol && *replacement != reference
+                    })
+                {
+                    reference = *replacement;
+                } else {
+                    break;
+                }
+            }
+            _ => break,
+        }
+    }
+    reference
 }
 
 fn visit_owner(
@@ -558,23 +574,7 @@ fn select_type(
     if path.is_empty() {
         return Some((reference, substitutions.to_vec()));
     }
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Named { symbol, .. } => {
-                if let Some((_, replacement)) =
-                    substitutions.iter().rev().find(|(parameter, replacement)| {
-                        parameter == symbol && *replacement != reference
-                    })
-                {
-                    reference = *replacement;
-                } else {
-                    break;
-                }
-            }
-            _ => break,
-        }
-    }
+    reference = resolve_peeled_type_reference(program, reference, substitutions);
     let (symbol, nested) = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::FixedArray {
             element_type,
