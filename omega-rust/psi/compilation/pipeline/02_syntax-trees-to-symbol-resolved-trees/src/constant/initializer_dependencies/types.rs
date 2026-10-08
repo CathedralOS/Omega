@@ -77,14 +77,7 @@ impl<'program> Collector<'program> {
             return Err("constant dependency has stale type arguments".to_owned());
         }
         for offset in 0..arguments.count() {
-            self.type_child(Handle::from_parts(
-                arguments
-                    .start()
-                    .arena_index()
-                    .checked_add(offset)
-                    .ok_or("constant dependency type argument index overflow")?,
-                arguments.start().generation(),
-            ))?;
+            self.type_child(arguments.handle_at(offset))?;
         }
         Ok(())
     }

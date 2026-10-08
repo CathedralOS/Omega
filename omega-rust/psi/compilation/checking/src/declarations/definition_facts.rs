@@ -582,9 +582,7 @@ fn append_data_proof_fact_place(
 }
 
 fn proof_fact_handles(facts: HandleSpan<ProofFact>) -> impl Iterator<Item = Handle<ProofFact>> {
-    (0..facts.count()).map(move |offset| {
-        facts.handle_at(offset)
-    })
+    facts.handles()
 }
 
 /// The payload every recorded definition fact carries: the proof term's

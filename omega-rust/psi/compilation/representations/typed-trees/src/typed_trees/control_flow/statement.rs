@@ -512,10 +512,7 @@ impl StatementTable {
         &self,
         span: HandleSpan<StatementNode>,
     ) -> impl Iterator<Item = (StatementHandle, &StatementNode)> {
-        (0..span.count()).map(move |offset| {
-            let handle = span.handle_at(offset);
-            (handle, self.statements.get(handle))
-        })
+        span.handles().map(|handle| (handle, self.statements.get(handle)))
     }
 
     /// Mutable span access for deterministic pre-check normalization passes.

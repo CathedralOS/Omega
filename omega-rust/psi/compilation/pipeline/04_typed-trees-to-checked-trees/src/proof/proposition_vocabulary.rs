@@ -204,9 +204,7 @@ pub(crate) fn lower_checked_evidence_interface(
 pub(crate) fn fact_handles(
     facts: HandleSpan<typed_trees::domain::ProofFact>,
 ) -> impl Iterator<Item = Handle<typed_trees::domain::ProofFact>> {
-    (0..facts.count()).map(move |offset| {
-        facts.handle_at(offset)
-    })
+    facts.handles()
 }
 
 pub(crate) fn contract_fact_kind(

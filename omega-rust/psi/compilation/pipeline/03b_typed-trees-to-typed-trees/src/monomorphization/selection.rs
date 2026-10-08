@@ -22,7 +22,7 @@ pub(crate) use selection_assembly::{
 pub(crate) use static_bindings::{infer_static_bindings, same_type_identity};
 
 use super::{
-    CallSite, ExpressionHandle, ExpressionNode, Handle, StatementNode, StaticMachineArgument,
+    CallSite, ExpressionHandle, ExpressionNode, StatementNode, StaticMachineArgument,
     SymbolHandle, TypeReferenceHandle,
 };
 use crate::monomorphization::{CallSelection, CalleeState, Candidate, const_arguments};

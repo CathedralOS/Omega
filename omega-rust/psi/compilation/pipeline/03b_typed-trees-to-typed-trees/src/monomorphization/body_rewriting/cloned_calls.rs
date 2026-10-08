@@ -18,11 +18,7 @@ use crate::monomorphization::{
 pub(crate) fn statement_span_handles(
     span: HandleSpan<StatementNode>,
 ) -> Vec<Handle<StatementNode>> {
-    (0..span.count())
-        .map(|offset| {
-            span.handle_at(offset)
-        })
-        .collect()
+    span.handles().collect()
 }
 
 pub(crate) fn rewrite_cloned_calls(
