@@ -52,6 +52,13 @@ impl PhysicalRegisterModel {
         self.views.iter().find(|view| view.id == id)
     }
 
+    /// The preservation convention named `name`, when the model declares it.
+    pub fn convention_named(&self, name: &str) -> Option<&PreservationConvention> {
+        self.conventions
+            .iter()
+            .find(|convention| convention.name == name)
+    }
+
     pub fn aliases(&self, left: RegisterViewId, right: RegisterViewId) -> bool {
         let Some(left) = self.view(left) else {
             return false;
