@@ -109,12 +109,7 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
-            for domain in &signature.qualifications {
-                if !value.qualifications.contains(domain) {
-                    value.qualifications.push(*domain);
-                }
-            }
-            value.qualifications.sort();
+            value.absorb_qualifications(&signature.qualifications);
             self.validate_reference_return(&signature, &value)?;
             if value.structural_type != signature.structural_type
                 || signature

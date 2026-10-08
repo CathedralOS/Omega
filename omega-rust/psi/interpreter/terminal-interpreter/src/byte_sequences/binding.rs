@@ -232,12 +232,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let mut value = value;
-        for domain in &parameter.qualifications {
-            if !value.qualifications.contains(domain) {
-                value.qualifications.push(*domain);
-            }
-        }
-        value.qualifications.sort();
+        value.absorb_qualifications(&parameter.qualifications);
         let bytes = bytes.with_descriptor_home(value.clone());
         Ok(Some((value, ByteSequenceBinding::Immutable(bytes))))
     }

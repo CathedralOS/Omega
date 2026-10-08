@@ -50,6 +50,17 @@ impl TerminalStructuralValue {
             path: Vec::new(),
         }
     }
+
+    /// Adds every domain in `source` this value does not already carry,
+    /// keeping the roster sorted — the union every binding site performs.
+    pub fn absorb_qualifications(&mut self, source: &[StructuralDomainId]) {
+        for domain in source {
+            if !self.qualifications.contains(domain) {
+                self.qualifications.push(*domain);
+            }
+        }
+        self.qualifications.sort();
+    }
 }
 
 /// Exact target-neutral runtime carrier for a selected scalar sum case.

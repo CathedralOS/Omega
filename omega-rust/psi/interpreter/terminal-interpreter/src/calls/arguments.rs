@@ -179,12 +179,7 @@ impl TerminalExecution<'_> {
             if parameter.access == StructuralAccess::Owned
                 && byte_sequences.contains_key(&parameter.place)
             {
-                for domain in &parameter.qualifications {
-                    if !value.qualifications.contains(domain) {
-                        value.qualifications.push(*domain);
-                    }
-                }
-                value.qualifications.sort();
+                value.absorb_qualifications(&parameter.qualifications);
             }
         }
         let element_views =
