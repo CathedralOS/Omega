@@ -99,7 +99,7 @@ pub use rewrite::{
     ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
     SccpValueRow, SccpValueState, SharedJumpFusionRewrite, SpecializedStateEdgeRow,
     StateArgumentSpecializationRewrite, TotalScalarIdentityKind, TotalScalarIdentityRewrite,
-    UnreachablePrivateMachinesRewrite, derived_sccp_scalar_constant_fact_identity,
+    UnreachablePrivateMachinesRewrite, derived_sccp_scalar_constant_fact_identity, encode_location,
     literal_scalar_constant_fact_identity,
 };
 

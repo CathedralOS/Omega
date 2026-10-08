@@ -52,7 +52,7 @@ pub use contracts::{
 };
 pub use declarations::PsiCandidateDeclaration;
 pub use foundations::{
-    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
+    NodeLocation, encode_location, ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, ScalarSubstitution,
 };
 pub use loop_invariant_scalar_motion::{
     LoopInvariantNodeResult, LoopInvariantScalarMotionCandidate, LoopInvariantScalarNode,

@@ -6,13 +6,11 @@ use optimization_core::{
 };
 use optimization_unit::CycleComponentId;
 use optimization_unit::{
-    EffectLink, NodeLocation, OptimizationFact, OptimizationNode, ProvenanceDisposition,
-    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiTransformationLedger, PsiTransformationRecord, ValueDefinitionSite,
-    recompute_psi_optimization_unit_identity,
+    EffectLink, NodeLocation, OptimizationFact, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord, ValueDefinitionSite,
+    encode_location, recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
-use optimization_unit::rewrite::foundations::encode_location;
 
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,

@@ -115,7 +115,7 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
     row.kind = LegalizedScalarInstructionKind::StructuralScalarFieldStore {
         destination: destination.into(),
         value,
-        byte_size,
+        byte_size: byte_size.into(),
         path: Vec::new(),
         field: id(504),
         byte_offset: 0,
@@ -216,7 +216,7 @@ fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
         row.kind = LegalizedScalarInstructionKind::StructuralScalarFieldStore {
             destination,
             value,
-            byte_size,
+            byte_size: byte_size.into(),
             path: Vec::new(),
             field: id(504),
             byte_offset: 0,

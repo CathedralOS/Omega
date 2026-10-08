@@ -197,11 +197,10 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
     use std::collections::BTreeMap;
-    use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine};
     use terminal_psi::{
         Block, Operation, OperationResult, StructuralAccess, StructuralArgument,
         StructuralMultiplicity, StructuralReferenceResultSource, StructuralResultDeclaration,
-        TerminalAffineCleanupAction, TerminalMachineResult, TerminalModule,
+        TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
     };
 
     fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
