@@ -147,56 +147,10 @@ fn walk(
                 ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_) => {}
-                ScalarTerm::BooleanNot { operand }
-                | ScalarTerm::IntegerBitwiseNot { operand, .. }
-                | ScalarTerm::IntegerWiden { operand, .. }
-                | ScalarTerm::IntegerExactCast { operand, .. } => {
-                    pending.push(Pending::Scalar(operand));
-                }
-                ScalarTerm::BooleanEqual { left, right }
-                | ScalarTerm::IntegerEqual { left, right, .. }
-                | ScalarTerm::IntegerLessThan { left, right, .. }
-                | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-                | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-                | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-                | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-                | ScalarTerm::WrappingIntegerShiftLeft {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | ScalarTerm::WrappingIntegerShiftRight {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerShiftLeft {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerShiftRight {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | ScalarTerm::ExactIntegerAdd { left, right, .. }
-                | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-                | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-                | ScalarTerm::ExactIntegerDivide { left, right, .. }
-                | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-                | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-                | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-                | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-                | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-                | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-                | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-                | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-                | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-                | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-                | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
-                    pending.push(Pending::Scalar(right));
-                    pending.push(Pending::Scalar(left));
+                _ => {
+                    for operand in term.operands().into_iter().rev() {
+                        pending.push(Pending::Scalar(operand));
+                    }
                 }
             },
         }

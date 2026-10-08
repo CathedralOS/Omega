@@ -894,74 +894,130 @@ impl ScalarTerm {
 
     integer_binary_term_mismatch!(saturating_integer_multiply => SaturatingIntegerMultiply, SaturatingIntegerMultiplyTypeMismatch);
 
+    /// The direct scalar operands this term owns, in declaration order:
+    /// unary operators yield their operand, binary and shift operators yield
+    /// `left`/`right` or `value`/`count`, and leaf variants yield none.
+    pub fn operands(&self) -> Vec<&ScalarTerm> {
+        match self {
+            Self::BooleanNot { operand }
+            | Self::IntegerBitwiseNot { operand, .. }
+            | Self::IntegerWiden { operand, .. }
+            | Self::IntegerExactCast { operand, .. } => vec![operand.as_ref()],
+            Self::BooleanEqual { left, right, .. }
+            | Self::IntegerEqual { left, right, .. }
+            | Self::IntegerLessThan { left, right, .. }
+            | Self::IntegerLessOrEqual { left, right, .. }
+            | Self::IntegerBitwiseAnd { left, right, .. }
+            | Self::IntegerBitwiseOr { left, right, .. }
+            | Self::IntegerBitwiseXor { left, right, .. }
+            | Self::WrappingIntegerShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::WrappingIntegerShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::ExactIntegerShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::ExactIntegerShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::ExactIntegerAdd { left, right, .. }
+            | Self::ExactIntegerSubtract { left, right, .. }
+            | Self::ExactIntegerMultiply { left, right, .. }
+            | Self::ExactIntegerDivide { left, right, .. }
+            | Self::ExactIntegerRemainder { left, right, .. }
+            | Self::WrappingIntegerDivide { left, right, .. }
+            | Self::WrappingIntegerRemainder { left, right, .. }
+            | Self::SaturatingIntegerDivide { left, right, .. }
+            | Self::SaturatingIntegerRemainder { left, right, .. }
+            | Self::WrappingIntegerAdd { left, right, .. }
+            | Self::SaturatingIntegerAdd { left, right, .. }
+            | Self::WrappingIntegerSubtract { left, right, .. }
+            | Self::SaturatingIntegerSubtract { left, right, .. }
+            | Self::WrappingIntegerMultiply { left, right, .. }
+            | Self::SaturatingIntegerMultiply { left, right, .. } => {
+                vec![left.as_ref(), right.as_ref()]
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Mutable view of [`Self::operands`], in the same declaration order.
+    pub fn operands_mut(&mut self) -> Vec<&mut ScalarTerm> {
+        match self {
+            Self::BooleanNot { operand }
+            | Self::IntegerBitwiseNot { operand, .. }
+            | Self::IntegerWiden { operand, .. }
+            | Self::IntegerExactCast { operand, .. } => vec![operand.as_mut()],
+            Self::BooleanEqual { left, right, .. }
+            | Self::IntegerEqual { left, right, .. }
+            | Self::IntegerLessThan { left, right, .. }
+            | Self::IntegerLessOrEqual { left, right, .. }
+            | Self::IntegerBitwiseAnd { left, right, .. }
+            | Self::IntegerBitwiseOr { left, right, .. }
+            | Self::IntegerBitwiseXor { left, right, .. }
+            | Self::WrappingIntegerShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::WrappingIntegerShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::ExactIntegerShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::ExactIntegerShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | Self::ExactIntegerAdd { left, right, .. }
+            | Self::ExactIntegerSubtract { left, right, .. }
+            | Self::ExactIntegerMultiply { left, right, .. }
+            | Self::ExactIntegerDivide { left, right, .. }
+            | Self::ExactIntegerRemainder { left, right, .. }
+            | Self::WrappingIntegerDivide { left, right, .. }
+            | Self::WrappingIntegerRemainder { left, right, .. }
+            | Self::SaturatingIntegerDivide { left, right, .. }
+            | Self::SaturatingIntegerRemainder { left, right, .. }
+            | Self::WrappingIntegerAdd { left, right, .. }
+            | Self::SaturatingIntegerAdd { left, right, .. }
+            | Self::WrappingIntegerSubtract { left, right, .. }
+            | Self::SaturatingIntegerSubtract { left, right, .. }
+            | Self::WrappingIntegerMultiply { left, right, .. }
+            | Self::SaturatingIntegerMultiply { left, right, .. } => {
+                vec![left.as_mut(), right.as_mut()]
+            }
+            _ => Vec::new(),
+        }
+    }
+
     /// Visits every `ValueId` carried by `Value` leaves. Returning `false`
     /// from `visit` short-circuits the traversal and propagates `false`.
     pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId) -> bool) -> bool {
-        let mut operands = vec![self];
-        while let Some(term) = operands.pop() {
+        let mut pending = vec![self];
+        while let Some(term) = pending.pop() {
             match term {
                 Self::Value { id, .. } => {
                     if !visit(*id) {
                         return false;
                     }
                 }
-                Self::BooleanNot { operand }
-                | Self::IntegerBitwiseNot { operand, .. }
-                | Self::IntegerWiden { operand, .. }
-                | Self::IntegerExactCast { operand, .. } => operands.push(operand),
-                Self::BooleanEqual { left, right, .. }
-                | Self::IntegerEqual { left, right, .. }
-                | Self::IntegerLessThan { left, right, .. }
-                | Self::IntegerLessOrEqual { left, right, .. }
-                | Self::IntegerBitwiseAnd { left, right, .. }
-                | Self::IntegerBitwiseOr { left, right, .. }
-                | Self::IntegerBitwiseXor { left, right, .. }
-                | Self::WrappingIntegerShiftLeft {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | Self::WrappingIntegerShiftRight {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | Self::ExactIntegerShiftLeft {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | Self::ExactIntegerShiftRight {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | Self::ExactIntegerAdd { left, right, .. }
-                | Self::ExactIntegerSubtract { left, right, .. }
-                | Self::ExactIntegerMultiply { left, right, .. }
-                | Self::ExactIntegerDivide { left, right, .. }
-                | Self::ExactIntegerRemainder { left, right, .. }
-                | Self::WrappingIntegerDivide { left, right, .. }
-                | Self::WrappingIntegerRemainder { left, right, .. }
-                | Self::SaturatingIntegerDivide { left, right, .. }
-                | Self::SaturatingIntegerRemainder { left, right, .. }
-                | Self::WrappingIntegerAdd { left, right, .. }
-                | Self::SaturatingIntegerAdd { left, right, .. }
-                | Self::WrappingIntegerSubtract { left, right, .. }
-                | Self::SaturatingIntegerSubtract { left, right, .. }
-                | Self::WrappingIntegerMultiply { left, right, .. }
-                | Self::SaturatingIntegerMultiply { left, right, .. } => {
-                    operands.push(left);
-                    operands.push(right);
-                }
-                Self::BooleanField { .. }
-                | Self::IntegerField { .. }
-                | Self::IeeeFloatField { .. }
-                | Self::ViewExtent { .. }
-                | Self::ByteSequencePredicate { .. }
-                | Self::Boolean(_)
-                | Self::Integer { .. }
-                | Self::IeeeFloatLiteral(_) => {}
+                _ => pending.extend(term.operands()),
             }
         }
         true

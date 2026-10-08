@@ -375,45 +375,10 @@ impl PropositionContext {
                         return Err(PropositionError::UnknownStructuralPlace(*root));
                     }
                 }
-                ScalarTerm::ExactIntegerAdd { left, right, .. }
-                | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-                | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-                | ScalarTerm::ExactIntegerDivide { left, right, .. }
-                | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-                | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-                | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-                | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-                | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
-                | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-                | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-                | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-                | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-                | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-                | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
-                | ScalarTerm::BooleanEqual { left, right }
-                | ScalarTerm::IntegerEqual { left, right, .. }
-                | ScalarTerm::IntegerLessThan { left, right, .. }
-                | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-                | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-                | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-                | ScalarTerm::IntegerBitwiseXor { left, right, .. } => {
-                    pending.push(right);
-                    pending.push(left);
-                }
-                ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-                | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-                | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-                | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-                    pending.push(count);
-                    pending.push(value);
-                }
-                ScalarTerm::BooleanNot { operand }
-                | ScalarTerm::IntegerBitwiseNot { operand, .. }
-                | ScalarTerm::IntegerWiden { operand, .. }
-                | ScalarTerm::IntegerExactCast { operand, .. } => pending.push(operand),
                 ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_) => {}
+                _ => pending.extend(term.operands().into_iter().rev()),
             }
         }
         Ok(())
