@@ -16,7 +16,7 @@ pub(crate) mod compute;
 mod emission;
 mod evidence;
 pub(crate) mod validate;
-mod work;
+pub(crate) mod work;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
