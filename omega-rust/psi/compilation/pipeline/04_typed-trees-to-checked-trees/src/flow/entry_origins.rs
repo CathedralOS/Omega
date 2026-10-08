@@ -9,7 +9,7 @@ use facts::{FactPayload, FactPlace, FactPlan, ProgramPoint};
 use symbols::SymbolHandle;
 use validation::{CallFrameResolver, LocalWriteSource};
 
-use typed_trees::statement::{TransitionExit, TransitionTargetNode};
+use typed_trees::statement::TransitionExit;
 
 fn reference_type(
     program: &dyn ::validation::CheckingInput,
@@ -162,25 +162,19 @@ fn parameter_edges<'program>(
                 if !target.is_valid() {
                     continue;
                 }
-                let (target_index, arguments) =
-                    match program.statement_table.transition_target(target) {
-                        TransitionTargetNode::Named {
-                            path, arguments, ..
-                        } => {
-                            let Some(index) = states
-                                .iter()
-                                .position(|state| state.symbol == path.symbol)
-                                .or_else(|| (path.symbol == machine.symbol).then_some(0))
-                            else {
-                                continue;
-                            };
-                            (
-                                index,
-                                program.statement_table.expression_handles(*arguments),
-                            )
-                        }
-                        _ => continue,
-                    };
+                let Some((path, arguments)) =
+                    program.statement_table.named_transition_target(target)
+                else {
+                    continue;
+                };
+                let Some(target_index) = states
+                    .iter()
+                    .position(|state| state.symbol == path.symbol)
+                    .or_else(|| (path.symbol == machine.symbol).then_some(0))
+                else {
+                    continue;
+                };
+                let arguments = program.statement_table.expression_handles(arguments);
                 let state = &states[target_index];
                 let captured =
                     frames.and_then(|frames| frames.transition_write_origins(machine, target));
