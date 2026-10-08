@@ -53,11 +53,8 @@ fn close_generic_parameter_list<'tokens, 'source>(
     conformance_bounds: Vec<syntax_trees::item::GenericConformanceBound>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-    let type_parameters = if type_parameter_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(type_parameter_start, type_parameter_count)
-    };
+    let type_parameters =
+        HandleSpan::from_parts_or_empty(type_parameter_start, type_parameter_count);
     Ok((
         ParsedGenericParameters {
             lifetime_parameters,

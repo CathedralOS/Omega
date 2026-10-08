@@ -51,11 +51,7 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
         break;
     }
 
-    let contracts = if contract_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(contract_start, contract_count)
-    };
+    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
 
     input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     let token_count = body_start_tokens.saturating_sub(input.tokens.len());

@@ -70,11 +70,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let members = if member_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(member_start, member_count)
-    };
+    let members = HandleSpan::from_parts_or_empty(member_start, member_count);
     Ok((CapabilityDefinition { name, members }, input))
 }
 
@@ -122,11 +118,7 @@ fn parse_capability_state<'tokens, 'source>(
         }
     }
 
-    let contracts = if contract_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(contract_start, contract_count)
-    };
+    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
 
     Ok((
         CapabilityState {

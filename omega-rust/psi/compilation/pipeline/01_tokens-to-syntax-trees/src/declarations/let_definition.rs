@@ -84,11 +84,7 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
         }
     }
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = if parameter_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(parameter_start, parameter_count)
-    };
+    let parameters = HandleSpan::from_parts_or_empty(parameter_start, parameter_count);
 
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (result, input) = parse_mathematical_type(syntax_trees, input)?;

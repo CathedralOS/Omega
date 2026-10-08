@@ -56,11 +56,7 @@ impl<T: Default> PagedArena<T> {
                 .expect("paged arena span count overflow");
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(Handle::from_arena_index(start_index), count)
-        }
+        HandleSpan::from_parts_or_empty(Handle::from_arena_index(start_index), count)
     }
 
     #[inline]

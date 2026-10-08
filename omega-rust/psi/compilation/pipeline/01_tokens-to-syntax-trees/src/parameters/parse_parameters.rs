@@ -40,11 +40,7 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = if parameter_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(parameter_start, parameter_count)
-    };
+    let parameters = HandleSpan::from_parts_or_empty(parameter_start, parameter_count);
     Ok((parameters, input))
 }
 

@@ -408,11 +408,7 @@ fn replace_closed_members(
             .checked_add(1)
             .expect("conformance member span count overflow");
     }
-    conformance.members = if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    };
+    conformance.members = HandleSpan::from_parts_or_empty(start, count);
     syntax
         .items
         .replace_item(handle, Item::Conformance(conformance));

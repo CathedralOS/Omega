@@ -74,12 +74,5 @@ pub(crate) fn parse_state_arrival_contracts<'tokens, 'source>(
         ));
     }
 
-    Ok((
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        },
-        input,
-    ))
+    Ok((HandleSpan::from_parts_or_empty(start, count), input))
 }

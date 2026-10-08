@@ -91,11 +91,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let states = if state_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(state_start, state_count)
-    };
+    let states = HandleSpan::from_parts_or_empty(state_start, state_count);
 
     Ok(((states, false), input))
 }

@@ -101,11 +101,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
         break;
     }
 
-    let satisfies = if clause_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(clause_start, clause_count)
-    };
+    let satisfies = HandleSpan::from_parts_or_empty(clause_start, clause_count);
     Ok((satisfies, input))
 }
 

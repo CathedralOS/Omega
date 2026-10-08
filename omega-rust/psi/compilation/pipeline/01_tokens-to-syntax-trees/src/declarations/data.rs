@@ -224,11 +224,7 @@ fn parse_data_members<'tokens, 'source>(
             .expect("data member span count overflow");
     }
 
-    let members = if member_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(member_start, member_count)
-    };
+    let members = HandleSpan::from_parts_or_empty(member_start, member_count);
     validate_data_identity_modes(syntax_trees.items.data_members(members), input)?;
     Ok((members, input))
 }
@@ -539,11 +535,7 @@ fn parse_case_payload_fields<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let payload = if payload_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(payload_start, payload_count)
-    };
+    let payload = HandleSpan::from_parts_or_empty(payload_start, payload_count);
     let identities: Vec<Option<u64>> = syntax_trees
         .items
         .data_payload_fields(payload)

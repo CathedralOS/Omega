@@ -37,11 +37,7 @@ fn copy_item_path_to_expression_path(
             .expect("expression identifier path span count overflow");
     }
 
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    HandleSpan::from_parts_or_empty(start, count)
 }
 
 /// One authored membership domain and its indexed application, if any.
@@ -335,11 +331,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     }
 
     let token_count = body_start_tokens.saturating_sub(input.tokens.len());
-    let facts = if fact_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(fact_start, fact_count)
-    };
+    let facts = HandleSpan::from_parts_or_empty(fact_start, fact_count);
 
     Ok(((facts, token_count), input))
 }

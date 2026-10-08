@@ -225,16 +225,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let requires = if required_trait_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(required_trait_start, required_trait_count)
-    };
-    let machines = if machine_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(machine_start, machine_count)
-    };
+    let requires = HandleSpan::from_parts_or_empty(required_trait_start, required_trait_count);
+    let machines = HandleSpan::from_parts_or_empty(machine_start, machine_count);
     Ok((
         TraitDefinition {
             is_boundary,
@@ -349,11 +341,7 @@ fn parse_refinement_clause<'tokens, 'source>(
                     input = input.take_punctuation(PunctuationKind::Plus, "+")?;
                 }
             }
-            signature.service_reaches = if reach_count == 0 {
-                HandleSpan::empty()
-            } else {
-                HandleSpan::from_parts(reach_start, reach_count)
-            };
+            signature.service_reaches = HandleSpan::from_parts_or_empty(reach_start, reach_count);
             input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             continue;
         }
@@ -639,11 +627,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = if parameter_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(parameter_start, parameter_count)
-    };
+    let parameters = HandleSpan::from_parts_or_empty(parameter_start, parameter_count);
     Ok(((parameters, native_callback_parameters), input))
 }
 

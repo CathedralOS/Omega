@@ -390,21 +390,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         ]));
     }
 
-    let service_reaches = if service_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(service_start, service_count)
-    };
-    let invokes = if invokes_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(invokes_start, invokes_count)
-    };
-    let contracts = if contract_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(contract_start, contract_count)
-    };
+    let service_reaches = HandleSpan::from_parts_or_empty(service_start, service_count);
+    let invokes = HandleSpan::from_parts_or_empty(invokes_start, invokes_count);
+    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
     let mut where_start = Handle::invalid();
     let where_count = where_facts.len() as u32;
     for fact in where_facts {

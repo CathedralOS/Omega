@@ -263,26 +263,10 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         input = rest;
     }
 
-    let service_reaches = if service_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(service_start, service_count)
-    };
-    let invokes = if invokes_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(invokes_start, invokes_count)
-    };
-    let contracts = if contract_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(contract_start, contract_count)
-    };
-    let where_facts = if where_fact_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(where_fact_start, where_fact_count)
-    };
+    let service_reaches = HandleSpan::from_parts_or_empty(service_start, service_count);
+    let invokes = HandleSpan::from_parts_or_empty(invokes_start, invokes_count);
+    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
+    let where_facts = HandleSpan::from_parts_or_empty(where_fact_start, where_fact_count);
     Ok((
         SignatureClauses {
             service_reaches,

@@ -176,11 +176,7 @@ impl<T: HierarchyNode> HierarchyArenaBuilder<T> {
                 .expect("hierarchy child span count overflow");
         }
 
-        let span = if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        };
+        let span = HandleSpan::from_parts_or_empty(start, count);
 
         self.nodes.get_mut(parent).set_children(span);
 

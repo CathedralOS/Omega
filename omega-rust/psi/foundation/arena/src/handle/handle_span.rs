@@ -26,6 +26,16 @@ impl<T> HandleSpan<T> {
         }
     }
 
+    /// The span covering `count` handles from `start`, or the empty span —
+    /// with its invalid start — when `count` is zero.
+    pub const fn from_parts_or_empty(start: Handle<T>, count: u32) -> Self {
+        if count == 0 {
+            Self::empty()
+        } else {
+            Self::from_parts(start, count)
+        }
+    }
+
     pub const fn start(self) -> Handle<T> {
         self.start
     }

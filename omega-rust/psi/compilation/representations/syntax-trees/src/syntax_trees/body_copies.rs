@@ -709,11 +709,7 @@ impl SyntaxTrees {
             count = count.checked_add(1).expect("copied span count overflow");
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        HandleSpan::from_parts_or_empty(start, count)
     }
 
     pub(crate) fn copy_span<T>(

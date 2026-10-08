@@ -274,11 +274,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let statements = if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    };
+    let statements = HandleSpan::from_parts_or_empty(start, count);
     Ok((statements, input))
 }
 

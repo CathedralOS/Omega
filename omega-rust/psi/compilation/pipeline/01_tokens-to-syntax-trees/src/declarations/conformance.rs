@@ -123,11 +123,7 @@ fn parse_conformance_members<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let members = if member_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(member_start, member_count)
-    };
+    let members = HandleSpan::from_parts_or_empty(member_start, member_count);
     Ok((members, input))
 }
 

@@ -28,10 +28,6 @@ pub(crate) fn parse_trait_default_machine_body<'tokens, 'source>(
         input = rest;
     }
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let body = if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    };
+    let body = HandleSpan::from_parts_or_empty(start, count);
     Ok((body, input))
 }
