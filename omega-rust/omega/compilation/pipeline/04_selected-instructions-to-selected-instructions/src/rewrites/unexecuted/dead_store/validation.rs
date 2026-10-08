@@ -17,10 +17,10 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction,
+    FrameStorageSlotId, SelectedBlockId, SelectedFunction,
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, terminator_instruction,
+    terminator_instruction,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;

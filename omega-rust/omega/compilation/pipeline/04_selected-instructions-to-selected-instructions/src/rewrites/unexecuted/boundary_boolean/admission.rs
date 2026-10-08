@@ -13,7 +13,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::IntegerValue;
 
-use super::{BoundaryBooleanError, Outcome, decidable_kind, outcome};
+use super::{BoundaryBooleanError, Outcome, decidable_kind};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::member_position;
 

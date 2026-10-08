@@ -26,8 +26,7 @@ use selected_instructions::{
 };
 
 use super::{
-    BoundaryBranchError, BoundaryBranchReceipt, Outcome, ValidatedBoundaryBranch, branch_domain,
-    outcome,
+    BoundaryBranchError, BoundaryBranchReceipt, Outcome, ValidatedBoundaryBranch,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::sealed;
