@@ -147,7 +147,7 @@ impl ValidatedFixedPrecoloredSegmentHomes {
     }
 }
 
-pub(super) fn affinity_edges(
+fn affinity_edges(
     domains: &[Domain],
     ranges: &FunctionLiveRanges,
     work: &mut Work,
@@ -207,7 +207,7 @@ pub(super) fn affinity_edges(
     Ok(incident)
 }
 
-pub(super) fn occurrence_point(
+fn occurrence_point(
     range: &VirtualLiveRange,
     affinity: &CopyAffinity,
     access: RegisterOperandAccess,
@@ -221,7 +221,7 @@ pub(super) fn occurrence_point(
         .map(|occurrence| occurrence.point)
 }
 
-pub(super) fn containing_domain(
+fn containing_domain(
     members: &[usize],
     domains: &[Domain],
     block: SelectedBlockId,
