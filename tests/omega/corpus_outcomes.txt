@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 8.22, "load1_start": 7.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 5.02, "load1_start": 4.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -3154,6 +3154,7 @@ pass/host/runtime_descriptor_mutable_view_input_exit checked 15309ms check-targe
 pass/host/runtime_descriptor_nested_array_window_exit checked 12842ms check-target:macos_arm64 @cf8f4f487a62+wt
 pass/host/runtime_descriptor_nested_record_loan_input_exit checked 19577ms check-target:macos_arm64 @198156d53e16
 pass/host/runtime_descriptor_output_streams_exit checked 11212ms check-target:macos_arm64 @c6603d3fbbc8+wt
+pass/host/runtime_descriptor_padded_prefix_loans_exit checked 15844ms check-target:macos_arm64 @f84dff68876d
 pass/host/runtime_descriptor_record_array_input_exit checked 15530ms check-target:macos_arm64 @46782946f3c8+wt
 pass/host/runtime_descriptor_record_loan_input_exit checked 19683ms check-target:macos_arm64 @198156d53e16
 pass/host/runtime_descriptor_scalar_input_exit checked 12541ms check-target:macos_arm64 @d4c9839eb53d+wt
@@ -3729,6 +3730,7 @@ pass/text/view_field_literal_store_outlives_helper_exit checked 1252ms check-tar
 pass/text/zii_default_string_equality_exit checked 1968ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms check-target:macos_arm64 @8778c440081
 pass/time/runtime_clock_out_parameter_loans_exit checked 12761ms check-target:macos_arm64 @5dbb9140bf0a+wt
+pass/time/runtime_clock_padded_out_parameter_prefix_exit checked 15625ms check-target:macos_arm64 @f84dff68876d
 pass/time/runtime_clock_shared_import_slots_exit checked 12996ms check-target:macos_arm64 @b8b69519109d+wt
 pass/time/runtime_duration_core_exit checked 24317ms check-target:macos_arm64 @ca8c127c90c5
 pass/time/runtime_fs_mtime_system_time_interop_exit checked 8313ms check-target:macos_arm64 @ad65d2640206+wt
