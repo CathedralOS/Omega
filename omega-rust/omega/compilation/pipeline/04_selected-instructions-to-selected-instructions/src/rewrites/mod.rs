@@ -249,6 +249,14 @@ pub(crate) fn plan_instruction_scan(plan: &SelectedInstructionPlan) -> Option<us
     })
 }
 
+/// One step per block plus one per instruction in one function — the
+/// scan term every measured-step contract charges before its own audit.
+pub(crate) fn function_scan(function: &SelectedFunction) -> Option<usize> {
+    function.blocks.iter().try_fold(0usize, |total, block| {
+        total.checked_add(block.instructions.len())?.checked_add(1)
+    })
+}
+
 /// Charge a measured-step total against the budget: `overflow` when the
 /// count cannot fit the measured-step width, `exceeded` when it passes the
 /// family's own validation cap.
@@ -284,13 +292,7 @@ pub(crate) fn cone_propagation<E>(
     successors: &[Vec<usize>],
     overflow: impl Fn() -> E,
 ) -> Result<ConePropagation, E> {
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or_else(|| overflow())?;
+    let function_scan = function_scan(function).ok_or_else(|| overflow())?;
     let edge_count = successors
         .iter()
         .try_fold(0usize, |total, targets| total.checked_add(targets.len()))

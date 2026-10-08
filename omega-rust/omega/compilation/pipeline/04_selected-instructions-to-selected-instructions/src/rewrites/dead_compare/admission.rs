@@ -314,13 +314,8 @@ pub(super) fn admit<'source>(
     for &unit in &units {
         audit_dead_unit(function, block_index, compare_index, unit)?;
     }
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or(DeadCompareError::IdentityOverflow)?;
+    let function_scan =
+        crate::rewrites::function_scan(function).ok_or(DeadCompareError::IdentityOverflow)?;
     // The dead-unit audit visits each block once per entry position per
     // published unit. Only the compare's own block carries a nonzero start,
     // so two visits per block per unit bound the scan; each visit walks the

@@ -62,15 +62,11 @@ pub(super) fn instruction_count(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<u32, PressureRematerializationError> {
-    let count = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len().checked_add(1)?)
-        })
-        .ok_or(PressureRematerializationError::IdentifierOverflow {
+    let count = crate::rewrites::function_scan(function).ok_or(
+        PressureRematerializationError::IdentifierOverflow {
             function: function_index,
-        })?;
+        },
+    )?;
     u32::try_from(count).map_err(|_| PressureRematerializationError::IdentifierOverflow {
         function: function_index,
     })

@@ -1419,12 +1419,7 @@ pub(super) fn derive_runtime_spill<'source>(
     // slot. Reuse only shrinks the frame, so a search that alone would carry
     // the pass over budget is declined rather than charged: every window then
     // keeps the victim's private slot.
-    let slot_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
+    let slot_scan = crate::rewrites::function_scan(function)
         .and_then(|span| function.local_storage_slots.len().checked_mul(span))
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
     let steps = crate::rewrites::plan_instruction_scan(plan)

@@ -31,13 +31,8 @@ pub(crate) fn measured_steps(
     function: &SelectedFunction,
     units: usize,
 ) -> Result<u64, DeadCompareError> {
-    let function_scan = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            total.checked_add(block.instructions.len())?.checked_add(1)
-        })
-        .ok_or(DeadCompareError::IdentityOverflow)?;
+    let function_scan =
+        crate::rewrites::function_scan(function).ok_or(DeadCompareError::IdentityOverflow)?;
     let edge_count = function
         .blocks
         .iter()
