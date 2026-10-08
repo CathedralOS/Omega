@@ -21,7 +21,7 @@ use optimization_unit::{
 use semantic_vocabulary::ScalarType;
 
 use super::identity_classification::independent_proof_certified_scalar_identity;
-use crate::candidates::{candidate_function, rebuild_node_metadata};
+use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
 
 /// Independently remove one live proof-certified integer identity.
 /// Accepted proof and literal evidence are reconstructed from immutable input
@@ -313,15 +313,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         for (node_index, node) in block.nodes.iter_mut().enumerate() {
             rewrite_scalar_value_uses(&mut node.operation, patch.result, patch.replacement);
             rebuild_node_metadata(node, block.id, node_index)?;
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?,
-            };
-            effect = effect
-                .checked_add(1)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     output_function.facts = reconstruct_fact_index(output_function);

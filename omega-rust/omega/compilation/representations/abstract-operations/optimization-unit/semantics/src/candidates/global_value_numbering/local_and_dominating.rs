@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
 use super::dominance_reconstruction::independent_reachable_dominators;
+use crate::candidates::set_node_effect_link;
 use super::expression_keys::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
@@ -424,15 +425,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
             node.uses = expected_uses(&node.operation, block.id, node_index);
             node.successors = preserve_edge_custody(node);
             node.ownership = expected_ownership(&node.operation);
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?,
-            };
-            effect = effect
-                .checked_add(1)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     output_function.facts = reconstruct_fact_index(output_function);

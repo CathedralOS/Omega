@@ -12,7 +12,7 @@ use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
-use crate::candidates::{candidate_function, rebuild_node_metadata};
+use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
 use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
     recompute_psi_optimization_unit_identity,
@@ -199,15 +199,7 @@ pub(super) fn validate(
     let mut effect = 0u64;
     for block in &mut output_function.blocks {
         for node in &mut block.nodes {
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?,
-            };
-            effect = effect
-                .checked_add(1)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     output_function.facts = reconstruct_fact_index(output_function);

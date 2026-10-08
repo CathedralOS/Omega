@@ -15,7 +15,7 @@ use optimization_unit::{
 };
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
-use crate::candidates::{candidate_function, rebuild_node_metadata};
+use crate::candidates::{candidate_function, rebuild_node_metadata, set_node_effect_link};
 
 pub(super) fn validate_dead_scalar_node_candidate(
     input: &PsiOptimizationUnit,
@@ -151,15 +151,7 @@ pub(super) fn validate_dead_scalar_node_candidate(
     for block in &mut output_function.blocks {
         for (node_index, node) in block.nodes.iter_mut().enumerate() {
             rebuild_node_metadata(node, block.id, node_index)?;
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?,
-            };
-            effect = effect
-                .checked_add(1)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     output_function.facts = reconstruct_fact_index(output_function);

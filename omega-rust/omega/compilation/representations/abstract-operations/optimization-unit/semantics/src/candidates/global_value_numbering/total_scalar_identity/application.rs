@@ -12,6 +12,7 @@ use optimization_unit::{
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::BlockId;
+use crate::candidates::set_node_effect_link;
 
 pub(super) fn independently_apply_total_scalar_identity(
     input: &PsiOptimizationUnit,
@@ -51,15 +52,7 @@ pub(super) fn independently_apply_total_scalar_identity(
             node.uses = expected_uses(&node.operation, block.id, index);
             node.successors = preserve_edge_custody(node);
             node.ownership = expected_ownership(&node.operation);
-            node.effect = optimization_unit::EffectLink {
-                input: effect,
-                output: effect
-                    .checked_add(1)
-                    .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?,
-            };
-            effect = effect
-                .checked_add(1)
-                .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+            effect = set_node_effect_link(node, effect)?;
         }
     }
     output_function.facts = reconstruct_fact_index(output_function);

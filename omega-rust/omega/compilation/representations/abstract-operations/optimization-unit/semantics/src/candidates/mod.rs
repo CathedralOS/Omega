@@ -180,3 +180,18 @@ pub(crate) fn rebuild_node_metadata(
     node.ownership = crate::unit_validation::derived_metadata::expected_ownership(&node.operation);
     Ok(())
 }
+
+/// Stamp `node` with the effect link at `effect` and return the next offset.
+pub(crate) fn set_node_effect_link(
+    node: &mut optimization_unit::OptimizationNode,
+    effect: u64,
+) -> Result<u64, OptimizationUnitValidationError> {
+    let output = effect
+        .checked_add(1)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    node.effect = optimization_unit::EffectLink {
+        input: effect,
+        output,
+    };
+    Ok(output)
+}
