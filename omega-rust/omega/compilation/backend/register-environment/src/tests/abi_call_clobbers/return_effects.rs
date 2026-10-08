@@ -2,7 +2,7 @@ use super::{
     abi_case_context,
     Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, ScalarAbiCase,
     baseline_target_register_environment, convention_for, declaration_mut, produced_effects,
-    scalar_abi_cases, units_for_names, validate_effects, validated_effects,
+    scalar_abi_cases, units_for_names, validate_effects,
 };
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
