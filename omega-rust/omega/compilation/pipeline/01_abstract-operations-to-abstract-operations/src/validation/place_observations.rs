@@ -91,7 +91,7 @@ pub(super) fn component_preserves_place_observations_tolerating(
     tolerated: &BTreeSet<PlaceId>,
 ) -> bool {
     for member in &component.members {
-        let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
+        let Some(block) = function.block(*member) else {
             return false;
         };
         for node in &block.nodes {
@@ -399,7 +399,7 @@ fn borrowed_roots_exclusive(
         }
     }
     for member in &component.members {
-        let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
+        let Some(block) = function.block(*member) else {
             return false;
         };
         for node in &block.nodes {
@@ -686,7 +686,7 @@ pub(super) fn member_root_producer_count(
     component
         .members
         .iter()
-        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .filter_map(|member| function.block(*member))
         .flat_map(|block| block.nodes.iter())
         .filter(|node| produced_place_root(&node.operation) == Some(root))
         .count()
@@ -1151,7 +1151,7 @@ pub(crate) fn invariant_member_place_parameters(
     let member_blocks: Vec<&OptimizationBlock> = component
         .members
         .iter()
-        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .filter_map(|member| function.block(*member))
         .collect();
     let member_parameters: BTreeSet<PlaceId> = member_blocks
         .iter()

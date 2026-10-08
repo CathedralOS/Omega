@@ -212,7 +212,7 @@ fn block(
     function: &PsiOptimizationFunction,
     id: BlockId,
 ) -> Option<&optimization_unit::OptimizationBlock> {
-    function.blocks.iter().find(|block| block.id == id)
+    function.block(id)
 }
 
 fn scalar_node(

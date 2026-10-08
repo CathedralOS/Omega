@@ -108,7 +108,7 @@ fn plan_dispatch(
     constants: &BTreeMap<ValueId, ScalarConstantValue>,
 ) -> Option<Vec<SpecializedStateEdgeRow>> {
     let machine = function.machine;
-    let block = function.blocks.iter().find(|block| block.id == dispatch)?;
+    let block = function.block(dispatch)?;
     if block.id == function.entry || !block.structural_parameters.is_empty() {
         return None;
     }
@@ -278,7 +278,7 @@ fn delivered_argument(
     let mut owner_block = owner_block;
     let mut argument = argument;
     for _ in 0..function.blocks.len() {
-        let Some(block) = function.blocks.iter().find(|block| block.id == owner_block) else {
+        let Some(block) = function.block(owner_block) else {
             break;
         };
         if !block

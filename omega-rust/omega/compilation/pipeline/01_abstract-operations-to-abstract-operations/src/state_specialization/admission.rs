@@ -45,7 +45,7 @@ pub(super) fn dispatch_evidence<'a>(
     constants: &ScalarConstantAnalysis,
 ) -> Option<DispatchEvidence<'a>> {
     let machine = function.machine;
-    let block = function.blocks.iter().find(|block| block.id == dispatch)?;
+    let block = function.block(dispatch)?;
     if block.id == function.entry || !block.structural_parameters.is_empty() {
         return None;
     }

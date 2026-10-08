@@ -32,7 +32,7 @@ impl RangeRelations {
                 let target_index = positions
                     .iter()
                     .position(|position| *position == (target, 0))?;
-                let block = function.blocks.iter().find(|block| block.id == target)?;
+                let block = function.block(target)?;
                 Some(Edge {
                     target: target_index,
                     enters_block: true,

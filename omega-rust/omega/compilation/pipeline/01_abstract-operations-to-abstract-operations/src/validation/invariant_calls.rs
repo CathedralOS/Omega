@@ -1260,7 +1260,7 @@ fn component_members_unobservable(
     effects: &crate::EffectSummaryAnalysis,
 ) -> bool {
     for member in &component.members {
-        let Some(block) = function.blocks.iter().find(|block| block.id == *member) else {
+        let Some(block) = function.block(*member) else {
             return false;
         };
         for (index, node) in block.nodes.iter().enumerate() {

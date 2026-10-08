@@ -175,7 +175,7 @@ pub(crate) fn invariant_member_parameters(
     let sites = value_definition_sites(function);
     let mut parameters = Vec::new();
     for member in &component.members {
-        if let Some(block) = function.blocks.iter().find(|block| block.id == *member) {
+        if let Some(block) = function.block(*member) {
             parameters.extend(
                 block
                     .parameters

@@ -205,6 +205,11 @@ pub struct PsiOptimizationFunction {
 }
 
 impl PsiOptimizationFunction {
+    /// The block keyed `block`, when the function declares it.
+    pub fn block(&self, block: BlockId) -> Option<&OptimizationBlock> {
+        self.blocks.iter().find(|row| row.id == block)
+    }
+
     /// The parameter declaration a structural place arrives as: this unit's
     /// own parameter at its declared position, or a block parameter in the
     /// block that declares it. Both are storage an operation addresses in
@@ -248,9 +253,7 @@ impl PsiOptimizationFunction {
                 if block != self.entry
                     && position == parameter.position
                     && self
-                        .blocks
-                        .iter()
-                        .find(|row| row.id == block)
+                        .block(block)
                         .and_then(|block| block.structural_parameters.get(position as usize))
                         .is_some_and(|row| row.place == place) => {}
             _ => return None,

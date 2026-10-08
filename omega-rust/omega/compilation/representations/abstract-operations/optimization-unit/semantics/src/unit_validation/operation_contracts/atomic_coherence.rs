@@ -46,7 +46,7 @@ pub(crate) fn validate_function_atomic_coherence(
                 .blocks
                 .iter()
                 .find(|block| block.id == predecessor)?;
-            let target = function.blocks.iter().find(|block| block.id == successor)?;
+            let target = function.block(successor)?;
             let is_parameter = target
                 .structural_parameters
                 .iter()

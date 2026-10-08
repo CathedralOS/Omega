@@ -99,7 +99,7 @@ pub(crate) fn restricted_member_produced_root(
     component
         .members
         .iter()
-        .filter_map(|member| function.blocks.iter().find(|block| block.id == *member))
+        .filter_map(|member| function.block(*member))
         .flat_map(|block| block.nodes.iter())
         .filter(|node| produced_place_root(&node.operation) == Some(root))
         .all(|node| match &node.operation {

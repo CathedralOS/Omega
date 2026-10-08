@@ -258,7 +258,7 @@ impl DescriptorLoans {
                 );
                 for edge in &node.successors {
                     if let Some(target) =
-                        function.blocks.iter().find(|block| block.id == edge.target)
+                        function.block(edge.target)
                     {
                         result.conflicted_edge_replaying(
                             borrowed_regions,

@@ -204,7 +204,7 @@ pub(in crate::legalization) fn edge_bindings(
     bindings: &[abstract_operations::AbstractStructuralBinding],
     plan: &AbstractOperationPlan,
 ) -> bool {
-    let Some(destination) = function.blocks.iter().find(|block| block.id == target) else {
+    let Some(destination) = function.block(target) else {
         return false;
     };
     bindings.len() == destination.structural_parameters.len()

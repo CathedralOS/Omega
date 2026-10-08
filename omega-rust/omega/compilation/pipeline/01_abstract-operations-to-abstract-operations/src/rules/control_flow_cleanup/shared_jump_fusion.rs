@@ -108,7 +108,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 else {
                     continue;
                 };
-                let Some(target) = function.blocks.iter().find(|block| block.id == *target_id)
+                let Some(target) = function.block(*target_id)
                 else {
                     continue;
                 };
@@ -225,7 +225,7 @@ fn shared_terminal_fusion_accounting(
         .successors
         .iter()
         .find(|edge| edge.psi_edge == incoming_edge)?;
-    let target_block = function.blocks.iter().find(|block| block.id == target)?;
+    let target_block = function.block(target)?;
     let [terminal] = target_block.nodes.as_slice() else {
         return None;
     };

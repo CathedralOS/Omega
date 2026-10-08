@@ -201,9 +201,6 @@ pub(crate) fn candidate_block(
     function: &PsiOptimizationFunction,
     block: semantic_vocabulary::BlockId,
 ) -> Result<&optimization_unit::OptimizationBlock, OptimizationUnitValidationError> {
-    function
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == block)
+    function.block(block)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)
 }
