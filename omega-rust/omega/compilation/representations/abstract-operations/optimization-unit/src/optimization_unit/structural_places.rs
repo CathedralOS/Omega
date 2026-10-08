@@ -619,8 +619,7 @@ pub fn constant_definition(
             .block_edges()
             .filter(|edge| edge.target == owner.id)
         {
-            let binding = edge
-                .binding(current)?;
+            let binding = edge.binding(current)?;
             match argument {
                 None => argument = Some(binding.argument),
                 Some(seen) if seen != binding.argument => return None,
@@ -1379,10 +1378,7 @@ pub fn bound_place(
     }
     let mut bound = None;
     for edge in function.block_edges().filter(|edge| edge.target == block) {
-        let binding = edge
-            .structural_bindings
-            .iter()
-            .find(|binding| binding.parameter == place)?;
+        let binding = edge.structural_binding(place)?;
         let argument = &binding.argument;
         if !argument.path.is_empty()
             || !matches!(

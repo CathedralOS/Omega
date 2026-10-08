@@ -64,8 +64,7 @@ fn collect_calls(
     let Some(signature) = &source.structural else {
         return Ok(());
     };
-    let Some(declaration) = signature.structural_place(place)
-    else {
+    let Some(declaration) = signature.structural_place(place) else {
         return Ok(());
     };
     match declaration.kind {
@@ -103,7 +102,7 @@ fn collect_calls(
             for owner in &source.blocks {
                 let mut follow = |successor: &legalized_operations::LegalizedScalarSuccessor| -> Result<(), SelectedInstructionError> {
                     if successor.target == block {
-                        let binding = successor.structural_bindings.iter().find(|binding| binding.parameter == place)
+                        let binding = successor.structural_binding(place)
                             .ok_or(SelectedInstructionError::custody())?;
                         collect_calls(source, binding.argument.place, visited, calls)?;
                     }

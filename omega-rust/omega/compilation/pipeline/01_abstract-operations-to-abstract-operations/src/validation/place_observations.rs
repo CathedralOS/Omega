@@ -1006,13 +1006,11 @@ fn byte_length_operand_measures_root(
     let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&rebound_length) else {
         return false;
     };
-    let Some(producing) = function.block(*block)
-        .and_then(|block| {
-            usize::try_from(*node)
-                .ok()
-                .and_then(|node| block.nodes.get(node))
-        })
-    else {
+    let Some(producing) = function.block(*block).and_then(|block| {
+        usize::try_from(*node)
+            .ok()
+            .and_then(|node| block.nodes.get(node))
+    }) else {
         return false;
     };
     match &producing.operation {
@@ -1051,13 +1049,11 @@ fn field_byte_length_operand_measures_root(
     let Some(ValueDefinitionSite::Node { block, node }) = sites.get(&length) else {
         return false;
     };
-    let Some(producing) = function.block(*block)
-        .and_then(|block| {
-            usize::try_from(*node)
-                .ok()
-                .and_then(|node| block.nodes.get(node))
-        })
-    else {
+    let Some(producing) = function.block(*block).and_then(|block| {
+        usize::try_from(*node)
+            .ok()
+            .and_then(|node| block.nodes.get(node))
+    }) else {
         return false;
     };
     match &producing.operation {
@@ -1176,15 +1172,8 @@ pub(crate) fn invariant_member_place_parameters(
             }
             let mut anchor = None;
             let mut loop_carried = false;
-            for edge in function
-                .block_edges()
-                .filter(|edge| edge.target == *block)
-            {
-                let Some(binding) = edge
-                    .structural_bindings
-                    .iter()
-                    .find(|binding| binding.parameter == *parameter)
-                else {
+            for edge in function.block_edges().filter(|edge| edge.target == *block) {
+                let Some(binding) = edge.structural_binding(*parameter) else {
                     loop_carried = true;
                     break;
                 };

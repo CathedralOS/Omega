@@ -58,11 +58,7 @@ pub(crate) fn root_before_edge(
     edge: &optimization_unit::OptimizationEdge,
     place: PlaceId,
 ) -> Option<PlaceId> {
-    match edge
-        .structural_bindings
-        .iter()
-        .find(|binding| binding.parameter == place)
-    {
+    match edge.structural_binding(place) {
         Some(binding) => binding
             .argument
             .path

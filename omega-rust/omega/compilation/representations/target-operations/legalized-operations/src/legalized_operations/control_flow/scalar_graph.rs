@@ -1387,3 +1387,16 @@ pub struct LegalizedScalarReturn {
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }
+
+impl LegalizedScalarSuccessor {
+    /// The structural binding keyed `parameter`, when the successor declares
+    /// it.
+    pub fn structural_binding(
+        &self,
+        parameter: PlaceId,
+    ) -> Option<&abstract_operations::AbstractStructuralBinding> {
+        self.structural_bindings
+            .iter()
+            .find(|binding| binding.parameter == parameter)
+    }
+}

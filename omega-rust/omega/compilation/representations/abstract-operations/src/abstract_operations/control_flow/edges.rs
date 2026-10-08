@@ -35,3 +35,13 @@ pub struct AbstractStructuralCasePayloadBinding {
     pub field: semantic_vocabulary::StructuralFieldId,
     pub scalar_type: ScalarType,
 }
+
+impl AbstractSuccessor {
+    /// The structural binding keyed `parameter`, when the successor declares
+    /// it.
+    pub fn structural_binding(&self, parameter: PlaceId) -> Option<&AbstractStructuralBinding> {
+        self.structural_bindings
+            .iter()
+            .find(|binding| binding.parameter == parameter)
+    }
+}

@@ -198,3 +198,16 @@ pub struct TargetControlSuccessor {
     pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
+
+impl TargetControlSuccessor {
+    /// The structural binding keyed `parameter`, when the successor declares
+    /// it.
+    pub fn structural_binding(
+        &self,
+        parameter: semantic_vocabulary::PlaceId,
+    ) -> Option<&abstract_operations::AbstractStructuralBinding> {
+        self.structural_bindings
+            .iter()
+            .find(|binding| binding.parameter == parameter)
+    }
+}

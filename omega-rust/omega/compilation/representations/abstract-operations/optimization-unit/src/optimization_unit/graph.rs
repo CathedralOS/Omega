@@ -160,11 +160,23 @@ impl OptimizationEdge {
             .iter()
             .find(|binding| binding.parameter == parameter)
     }
+
+    /// The structural binding keyed `parameter`, when the edge declares it.
+    pub fn structural_binding(
+        &self,
+        parameter: PlaceId,
+    ) -> Option<&abstract_operations::AbstractStructuralBinding> {
+        self.structural_bindings
+            .iter()
+            .find(|binding| binding.parameter == parameter)
+    }
 }
 
 impl OptimizationNode {
     pub fn edge(&self, psi_edge: EdgeId) -> Option<&OptimizationEdge> {
-        self.successors.iter().find(|edge| edge.psi_edge == psi_edge)
+        self.successors
+            .iter()
+            .find(|edge| edge.psi_edge == psi_edge)
     }
 }
 
