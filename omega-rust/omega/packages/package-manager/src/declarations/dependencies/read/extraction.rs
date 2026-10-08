@@ -5,7 +5,6 @@ use super::projection::{
 use super::{BuildDependencyProjection, DependencyPurpose, DependencySourceRequest};
 use std::path::Path;
 
-pub(super) const BUILD_FILE_NAME: &str = "build.omg";
 
 /// Project direct product dependency declarations from the immutable package
 /// root.
