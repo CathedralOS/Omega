@@ -16,27 +16,7 @@ use crate::{AccessPlanDiagnostic, SchemaDeviceCorrespondenceReceiptContext};
 use extents::MappedRangeReceiptContext;
 use std::collections::{BTreeMap, BTreeSet};
 
-macro_rules! normalized_identity {
-    ($name:ident, $label:literal) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $name(u64);
-
-        impl $name {
-            pub fn from_normalized_identity(identity: u64) -> Result<Self, AccessPlanDiagnostic> {
-                if identity == 0 {
-                    return Err(AccessPlanDiagnostic(
-                        concat!($label, " cannot be zero").into(),
-                    ));
-                }
-                Ok(Self(identity))
-            }
-
-            pub const fn normalized_identity(self) -> u64 {
-                self.0
-            }
-        }
-    };
-}
+use crate::normalized_identity;
 
 normalized_identity!(
     DeviceOperationRequirementId,

@@ -32,7 +32,10 @@ macro_rules! diagnostic_accessor {
 }
 
 mod access_plan;
+mod normalized_identity;
 mod placements;
+
+pub(crate) use normalized_identity::normalized_identity;
 mod plan_policy;
 mod primitive_access;
 mod resources;
