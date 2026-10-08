@@ -11,20 +11,11 @@
 //! location dead on every path the member's new position adds it to.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedInstructionId, SelectedSuccessor, SelectedTerminator,
-    terminator_instruction,
-};
+use selected_instructions::SelectedInstructionId;
 
 use super::ArmRelocationError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{
-    CrossingDirection, all_edges, crossed_window, function_at, predecessor_source_index,
-};
-use crate::rewrites::unexecuted::dead_path;
-use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, relocation_scan_steps, schedulable, speculatable,
-};
+use crate::rewrites::window_hazards::relocation_scan_steps;
 
 pub(super) struct Admission {
     /// The member's own block: the branch's arm.
@@ -48,152 +39,13 @@ pub(super) fn admit<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
 ) -> Result<Admission, ArmRelocationError> {
-    let plan = source.selected_plan();
-    if plan.target != environment.target() {
-        return Err(ArmRelocationError::SourceMismatch);
-    }
-    let function = function_at(plan, function_index, ArmRelocationError::SourceMismatch)?;
-    let (block_index, member_index) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find_map(|(block_index, block)| {
-            block
-                .instructions
-                .iter()
-                .position(|instruction| instruction.id == member)
-                .map(|member_index| (block_index, member_index))
-        })
-        .ok_or(ArmRelocationError::SourceMismatch)?;
-    let block = &function.blocks[block_index];
-    let member_instruction = &block.instructions[member_index];
-    // The member's block must be a conditional arm of one fork head: a
-    // plain source block, never the entry block — an edge into the entry
-    // would feed it a traversal entry never saw — and reached only by
-    // edges leaving that head. A predecessor leaving any other block
-    // would hand the arm's stream a member that ran an extra time on that
-    // path, and an arm with no predecessors is unreachable: hoisting the
-    // member would start its execution.
-    if block.id == function.entry_block || !matches!(block.origin, SelectedBlockOrigin::Source(_)) {
-        return Err(ArmRelocationError::UnsupportedPair);
-    }
-    let target_index =
-        predecessor_source_index(function, block.id).ok_or(ArmRelocationError::UnsupportedPair)?;
-    let target = &function.blocks[target_index];
-    // The head must not collapse back into the member's own block — an
-    // arm that heads its own fork is the in-block family's case with a
-    // back-edge reading — and an implementation block's origin carries
-    // edge or case work the bounded audit does not cross.
-    if target.id == block.id || !matches!(target.origin, SelectedBlockOrigin::Source(_)) {
-        return Err(ArmRelocationError::UnsupportedPair);
-    }
-    // Only a two-successor conditional terminator gives the landing block
-    // the fork this step rises through: an unconditional `Jump` is the
-    // sole-predecessor family's case, and a terminator naming no
-    // successors could never have reached the arm.
-    let branch_edges: Vec<&SelectedSuccessor> = match &target.terminator {
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero, when_zero],
-        SelectedTerminator::ConditionalBranchU64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        }
-        | SelectedTerminator::ConditionalBranchI64LessThan {
-            when_less,
-            when_not_less,
-            ..
-        } => vec![when_less, when_not_less],
-        SelectedTerminator::Jump { .. }
-        | SelectedTerminator::Crash { .. }
-        | SelectedTerminator::HostedExitProcess { .. }
-        | SelectedTerminator::Return { .. } => {
-            return Err(ArmRelocationError::UnsupportedPair);
-        }
-    };
-    let terminator = terminator_instruction(&target.terminator);
-    // The destination names the landing position directly: a body
-    // instruction's own index, or the head's terminator-carried
-    // instruction landing the member at the body end.
-    let landing_index = target
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == destination)
-        .or_else(|| (terminator.id == destination).then_some(target.instructions.len()))
-        .ok_or(ArmRelocationError::UnsupportedPair)?;
-    // The member physically crosses every head edge into the arm: each
-    // must be a plain semantic successor, and its register transports sit
-    // between the member's old and new positions. The head's remaining
-    // edges are the speculative side the member's new position adds it
-    // to — they are never crossed positions.
-    let mut skipped_edges: Vec<&SelectedSuccessor> = Vec::new();
-    for edge in &branch_edges {
-        if edge.block != block.id {
-            skipped_edges.push(*edge);
-        }
-    }
-    // The member's execution becomes unconditional: it newly runs on every
-    // traversal leaving through the head's other edges, so only pure
-    // register and condition-state work may rise — a roster-carrying or
-    // unaccounted memory access or a potentially-faulting kind that ran
-    // only on the arm's path would run on every head traversal after the
-    // move.
-    if schedulable(function, member_instruction) != Some(false) || !speculatable(member_instruction)
-    {
-        return Err(ArmRelocationError::UnsupportedInstruction);
-    }
-    // The crossed window is the shared derivation rather than this
-    // family's own enumeration: the member is the one-member run, and the
-    // gates above leave only head-to-arm acyclic paths; the walk may also
-    // explore the skipped edges' subtrees before they dead-end, so the
-    // function's edge roster bounds it. The shared audit applies the
-    // hazard, transport, memory-roster, and settlement checks once: the
-    // branch terminator rides each crossed edge's record — exempt from
-    // the barrier-kind rule but inside the call and hazard audit — and
-    // the head's skipped edges are never crossed positions. A boundary
-    // settlement positioned past the member's index in the arm or past
-    // the landing index in the head observed a changed executed prefix
-    // and refuses.
-    let edge_limit = all_edges(function).count();
-    let crossing = crossed_window(
-        function,
-        block_index,
-        member_index,
-        member_index,
-        target_index,
-        landing_index,
-        CrossingDirection::Backward,
-        edge_limit,
-    )
-    .ok_or(ArmRelocationError::WorkBudgetExceeded)?;
-    admit_run_relocation(function, &[member_instruction], &crossing).map_err(rejection)?;
-    // The dead-path audit: every location the member writes must be dead —
-    // unread until rewritten — along every path leaving the head's other
-    // edges, where the member's execution is new.
-    if !skipped_edges.is_empty()
-        && !dead_path::dead(
-            function,
-            dead_path::Relocation {
-                members: &[member_instruction],
-                vacated_block: block_index,
-                vacated_first: member_index,
-                vacated_last: member_index,
-                landing_block: target_index,
-                landing_index,
-                landing: dead_path::Landing::Speculated,
-                // The vacated index stays silent: every walked path
-                // reaching the arm crossed the head's new position first,
-                // so the member's write is never missing there.
-                vacated: dead_path::Vacated::Silent,
-            },
-            dead_path::Start::Edges(&skipped_edges),
-        )
-    {
-        return Err(ArmRelocationError::UnsupportedPair);
-    }
+    let derived = super::derive_arm_relocation(
+        source,
+        function_index,
+        member,
+        destination,
+        environment,
+    )?;
     // The scan walks every block body and terminator instruction once to
     // locate the member, and again with successor edges to find the arm's
     // predecessor edges; the window audit walks the member's surface
@@ -202,11 +54,11 @@ pub(super) fn admit<'source>(
     // at most once per member location per block. The arm's predecessor
     // walk needs no per-block term of its own.
     let steps = relocation_scan_steps(
-        plan,
-        function,
-        member_instruction,
-        &crossing,
-        edge_limit,
+        derived.plan,
+        derived.function,
+        derived.member_instruction,
+        &derived.crossing,
+        derived.edge_limit,
         &|_| 0,
     )
     .ok_or(ArmRelocationError::IdentityOverflow)?;
@@ -216,25 +68,9 @@ pub(super) fn admit<'source>(
         return Err(ArmRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        block_index,
-        member_index,
-        target_index,
-        landing_index,
+        block_index: derived.block_index,
+        member_index: derived.member_index,
+        target_index: derived.target_index,
+        landing_index: derived.landing_index,
     })
-}
-
-/// Keeps the family's typed rejection vocabulary over the shared audit's
-/// rejection kinds: an unschedulable member or crossed position is the
-/// instruction-level refusal and every window-level refusal is the pair
-/// kind.
-fn rejection(rejection: RunRelocationRejection) -> ArmRelocationError {
-    match rejection {
-        RunRelocationRejection::Unschedulable => ArmRelocationError::UnsupportedInstruction,
-        RunRelocationRejection::UnreachableDestination
-        | RunRelocationRejection::Coupled
-        | RunRelocationRejection::MemoryOrdering
-        | RunRelocationRejection::NonPlainEdge
-        | RunRelocationRejection::Settlement
-        | RunRelocationRejection::TransportConflict => ArmRelocationError::UnsupportedPair,
-    }
 }
