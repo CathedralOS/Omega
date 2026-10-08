@@ -53,8 +53,8 @@ pub(super) fn assign_statement_symbols(
     statement: &mut symbol_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
 ) {
-    match statement {
-        symbol_resolved_trees::statement::Statement::RootBinding(binding) => {
+    macro_rules! assign_expr {
+        ($expression:expr) => {
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -62,18 +62,16 @@ pub(super) fn assign_statement_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                binding.receiver,
-            );
+                $expression,
+            )
+        };
+    }
+
+    match statement {
+        symbol_resolved_trees::statement::Statement::RootBinding(binding) => {
+            assign_expr!(binding.receiver);
             if binding.implementation_operand.is_valid() {
-                assign_statement_expression_symbols(
-                    symbols,
-                    machine,
-                    parameters,
-                    state_symbol,
-                    expression_table,
-                    child_type_references,
-                    binding.implementation_operand,
-                );
+                assign_expr!(binding.implementation_operand);
                 // The operand stays delegated only when its bare name resolves
                 // to a value place -- the described `ProductEntryRef` handoff.
                 // Any declaration resolution (machine, module, data, const)
@@ -94,35 +92,11 @@ pub(super) fn assign_statement_symbols(
             }
         }
         symbol_resolved_trees::statement::Statement::AssemblyFact(fact) => {
-            assign_statement_expression_symbols(
-                symbols,
-                machine,
-                parameters,
-                state_symbol,
-                expression_table,
-                child_type_references,
-                fact.expression,
-            );
+            assign_expr!(fact.expression);
         }
         symbol_resolved_trees::statement::Statement::Assignment(assignment) => {
-            assign_statement_expression_symbols(
-                symbols,
-                machine,
-                parameters,
-                state_symbol,
-                expression_table,
-                child_type_references,
-                assignment.target,
-            );
-            assign_statement_expression_symbols(
-                symbols,
-                machine,
-                parameters,
-                state_symbol,
-                expression_table,
-                child_type_references,
-                assignment.value,
-            );
+            assign_expr!(assignment.target);
+            assign_expr!(assignment.value);
         }
         symbol_resolved_trees::statement::Statement::Call(call) => {
             assign_expression_span_symbols(
@@ -200,26 +174,10 @@ pub(super) fn assign_statement_symbols(
         symbol_resolved_trees::statement::Statement::ProofOutputBindingStatement(binding) => {
             binding.machine_symbol = machine.symbol;
             binding.state_symbol = state_symbol;
-            assign_statement_expression_symbols(
-                symbols,
-                machine,
-                parameters,
-                state_symbol,
-                expression_table,
-                child_type_references,
-                binding.call,
-            );
+            assign_expr!(binding.call);
         }
         symbol_resolved_trees::statement::Statement::Expression(expression) => {
-            assign_statement_expression_symbols(
-                symbols,
-                machine,
-                parameters,
-                state_symbol,
-                expression_table,
-                child_type_references,
-                *expression,
-            );
+            assign_expr!(*expression);
         }
         symbol_resolved_trees::statement::Statement::LocalData(local_data) => {
             assign_local_type_symbols(
@@ -233,30 +191,14 @@ pub(super) fn assign_statement_symbols(
                 symbols,
             );
             if local_data.initial_value.is_valid() {
-                assign_statement_expression_symbols(
-                    symbols,
-                    machine,
-                    parameters,
-                    state_symbol,
-                    expression_table,
-                    child_type_references,
-                    local_data.initial_value,
-                );
+                assign_expr!(local_data.initial_value);
             }
         }
         symbol_resolved_trees::statement::Statement::Transition(transition) => {
             if let symbol_resolved_trees::statement::TransitionGuard::When(expression) =
                 &mut transition.guard
             {
-                assign_statement_expression_symbols(
-                    symbols,
-                    machine,
-                    parameters,
-                    state_symbol,
-                    expression_table,
-                    child_type_references,
-                    *expression,
-                );
+                assign_expr!(*expression);
             }
             assign_transition_target_symbols(
                 machine,
