@@ -39,9 +39,7 @@ pub(crate) fn validate_reference_sources(
         };
         for source in &reference.sources {
             let Some(parameter) = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == source.place)
+                .signature_structural_parameter(source.place)
             else {
                 return crate::codec_error::malformed(
                     "reference result source must identify a formal ingress",

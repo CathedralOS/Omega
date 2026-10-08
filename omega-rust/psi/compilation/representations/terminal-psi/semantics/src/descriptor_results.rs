@@ -358,9 +358,7 @@ fn external_backing(
 
 fn place_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
     machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
+        .signature_structural_parameter(place)
         .map(|parameter| parameter.structural_type)
         .or_else(|| {
             machine

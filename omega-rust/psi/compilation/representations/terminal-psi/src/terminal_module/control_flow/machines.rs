@@ -162,4 +162,13 @@ impl TerminalMachine {
             .chain(self.block_structural_parameters())
             .find(|parameter| parameter.place == place)
     }
+    /// The signature-level structural parameter keyed `place`, excluding block parameters.
+    pub fn signature_structural_parameter(
+        &self,
+        place: PlaceId,
+    ) -> Option<&StructuralParameterDeclaration> {
+        self.structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+    }
 }

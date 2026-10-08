@@ -825,9 +825,7 @@ fn validate_structural_arguments(
             return malformed("structural argument references an unknown structural place");
         };
         let parameter = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == argument.place);
+            .signature_structural_parameter(argument.place);
         let result = machine
             .operations()
             .filter_map(|operation| operation.result.structural())

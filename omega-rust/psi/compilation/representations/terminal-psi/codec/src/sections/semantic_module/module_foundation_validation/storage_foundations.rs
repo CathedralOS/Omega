@@ -259,9 +259,7 @@ fn place_structural_type(
     place: semantic_vocabulary::PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
     if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == place)
+        .signature_structural_parameter(place)
     {
         return Some(parameter.structural_type);
     }

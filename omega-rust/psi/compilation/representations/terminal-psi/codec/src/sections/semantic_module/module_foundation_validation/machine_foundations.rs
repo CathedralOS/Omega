@@ -121,9 +121,7 @@ fn validate_entry_claims(
 ) -> Result<(), CodecError> {
     for claim in &machine.entry_claims {
         let Some(parameter) = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == claim.input)
+            .signature_structural_parameter(claim.input)
         else {
             return malformed("entry claim is not bound to a structural parameter");
         };
@@ -197,9 +195,7 @@ fn validate_partial_affine_discards(
             _ => None,
         }) {
             let parameter = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == discard.place);
+                .signature_structural_parameter(discard.place);
             let block_parameter = || {
                 let declaration = machine.structural_place(discard.place)?;
                 let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind
