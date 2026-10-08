@@ -334,16 +334,7 @@ impl StateGraphEmission<'_, '_> {
         };
         let capture_boundary = match conditional_true_ordinal {
             Some(statement) => statement,
-            None => {
-                let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
-                u32::try_from(
-                    checked
-                        .statement_table
-                        .statements(authored.statement_nodes)
-                        .len(),
-                )
-                .map_err(|_| LoweringError::Unsupported("record capture state extent overflow"))?
-            }
+            None => state.statement_count,
         };
         evaluation.prepare_storage_before(
             self.checked,
@@ -843,7 +834,6 @@ impl StateGraphEmission<'_, '_> {
                     return unsupported("ordinary return has no unique source cleanup coordinate");
                 };
                 let exit = super::super::cleanup::coordinate(
-                    checked,
                     state,
                     cleanup.exit.statement_index,
                     cleanup.exit.kind

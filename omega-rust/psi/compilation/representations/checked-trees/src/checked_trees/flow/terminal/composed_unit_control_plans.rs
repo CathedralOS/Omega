@@ -163,6 +163,10 @@ pub struct CheckedComposedUnitControlStatePlan {
     /// ordinal is the statement count. Each terminator arm reads its authored
     /// transition at this ordinal plus its arm position.
     pub terminator_statement_ordinal: u32,
+    /// The state's authored statement count: a state without a conditional
+    /// completion captures its records through it, and a structural return
+    /// completes at its last statement.
+    pub statement_count: u32,
     pub normal_exit_cleanups: Vec<super::CheckedNormalExitCleanupPlan>,
 }
 

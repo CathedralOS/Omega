@@ -17,7 +17,7 @@ use terminal_psi::{
 };
 
 pub(super) fn destination(
-    checked: &CheckedTrees,
+    _checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     destination: &CheckedScalarBranchDestination,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
@@ -30,12 +30,7 @@ pub(super) fn destination(
             "cleanup destination is not a normal value return",
         ));
     };
-    coordinate(
-        checked,
-        state,
-        *statement_ordinal as usize,
-        *is_continuation,
-    )
+    coordinate(state, *statement_ordinal as usize, *is_continuation)
 }
 
 /// Keep each authored scalar return's cleanup before its private result join.
@@ -145,48 +140,35 @@ pub(super) fn selection(
     Ok(())
 }
 
+/// The exit a state's normal cleanup row names at `statement_index`: its
+/// transition's continuation when `continuation`, otherwise its target or
+/// final expression. Stage 04 records exactly one row per exit.
 pub(super) fn coordinate(
-    checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     statement_index: usize,
     continuation: bool,
 ) -> Result<FlowClaimJoinExit, LoweringError> {
-    let (_, authored) = crate::declarations::state_declaration(checked, state.state)?;
-    let statement = checked
-        .statement_table
-        .statement_at(authored, statement_index);
-    let kind = match statement {
-        Some(checked_trees::statement::StatementNode::Transition(transition)) => {
-            let target = if continuation {
-                transition.continuation
+    let mut rows = state.normal_exit_cleanups.iter().filter(|row| {
+        row.exit.statement_index == statement_index
+            && if continuation {
+                row.exit.kind == FlowClaimJoinExitKind::TransitionContinuation
             } else {
-                transition.target
-            };
-            if !target.is_valid() {
-                return Err(LoweringError::Unsupported(
-                    "normal cleanup return target is absent",
-                ));
+                matches!(
+                    row.exit.kind,
+                    FlowClaimJoinExitKind::TransitionTarget
+                        | FlowClaimJoinExitKind::FinalExpression
+                )
             }
-            if continuation {
-                FlowClaimJoinExitKind::TransitionContinuation
-            } else {
-                FlowClaimJoinExitKind::TransitionTarget
-            }
-        }
-        Some(checked_trees::statement::StatementNode::Expression(_)) | None if !continuation => {
-            FlowClaimJoinExitKind::FinalExpression
-        }
-        _ => {
-            return Err(LoweringError::Unsupported(
-                "normal cleanup return coordinate drifted",
-            ));
-        }
-    };
-    Ok(FlowClaimJoinExit {
-        state_symbol: state.state,
-        statement_index,
-        kind,
-    })
+    });
+    let row = rows.next().ok_or(LoweringError::Unsupported(
+        "normal exit has no cleanup plan",
+    ))?;
+    if rows.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "normal exit has more than one cleanup plan",
+        ));
+    }
+    Ok(row.exit)
 }
 
 /// Dispositions a continuation cleanup in the body already committed.

@@ -62,19 +62,12 @@ impl StateGraphEmission<'_, '_> {
             } = completion
             {
                 let statement_index = match &state.terminator {
+                    // A structural return completes at the state's last
+                    // statement: its final expression or value transition.
                     CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => {
-                        // Admission authenticated a single final expression or
-                        // unconditional value transition after the body.
-                        let (_, authored) =
-                            crate::declarations::state_declaration(checked, state.state)?;
-                        checked
-                            .statement_table
-                            .statements(authored.statement_nodes)
-                            .len()
-                            .checked_sub(1)
-                            .ok_or(LoweringError::Unsupported(
-                                "structural return has no source statement",
-                            ))?
+                        (state.statement_count as usize).checked_sub(1).ok_or(
+                            LoweringError::Unsupported("structural return has no source statement"),
+                        )?
                     }
                     _ => {
                         return unsupported(
@@ -82,8 +75,7 @@ impl StateGraphEmission<'_, '_> {
                         );
                     }
                 };
-                let exit =
-                    super::super::cleanup::coordinate(checked, state, statement_index, false)?;
+                let exit = super::super::cleanup::coordinate(state, statement_index, false)?;
                 *cleanup_actions = super::super::cleanup::for_exit(
                     checked,
                     state,

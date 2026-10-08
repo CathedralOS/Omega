@@ -86,12 +86,11 @@ realization migration.
 - [Operation proofs](src/proofs/operation_proofs.rs) reconstructs obligations
   from the completed module and fills missing evidence in deterministic order.
 - [Evidence lowering](src/proofs/evidence_lowering.rs) retains proof subjects.
-- [Source custody](src/emission/call_source_custody.rs) preserves call identities.
 - [Tests](src/tests.rs) exercise completed artifacts and invalid custody.
 
 Within shared Unit assembly, [admission](src/unit/attached_unit/admission.rs)
-retains the ordered body roster and delegates exact
-[operation custody](src/unit/attached_unit/admission/operations.rs).
+retains the ordered body roster and collects every boundary its calls name;
+stage 04 already planned each call against its exact target.
 [Signatures](src/unit/attached_unit/signatures.rs) allocates all formals
 before deriving requirements, retaining structural/scalar parameters, authored
 predicate positions and machine-local claims together. Ordinary and composed
@@ -125,11 +124,12 @@ place allocation stays there too.
 
 [Expression preparation](src/expression_preparation/prepare_expression.rs)
 joins the checked expression to its authored role, prepares its scalar or Boolean
-form, and independently replays source custody before returning it. Its
+form before returning it. Its
 [bindings](src/expression_preparation/bindings/mod.rs) resolve current
-storage and structural paths. [Source replay](src/expression_preparation/source_custody/mod.rs)
-owns exact call and borrow occurrences, constructor operands, comparisons,
-record observations and structural ownership. These operations use shared
+storage and structural paths. [Source custody](src/expression_preparation/source_custody/mod.rs)
+holds the lookups that still read the authored program (structural places,
+comparison meanings, view carriers) until their values move into stage 04's
+plans (STAGE05-SOURCE-REREAD-DELETED). These operations use shared
 [checked-graph queries](src/expression_preparation/computation_graph.rs), not
 the producer's block expansion. [Qualifications](src/expression_preparation/qualifications.rs)
 prepare the selected closure's declaration namespace. No preparation module

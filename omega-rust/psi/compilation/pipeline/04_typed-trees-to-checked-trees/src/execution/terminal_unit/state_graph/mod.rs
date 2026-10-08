@@ -575,6 +575,7 @@ pub(super) fn build_traced(
             operations,
             terminator,
             terminator_statement_ordinal,
+            statement_count: u32::try_from(statements.len()).ok()?,
         });
     }
     // Persistent receivers keep their invocation place. Other structural

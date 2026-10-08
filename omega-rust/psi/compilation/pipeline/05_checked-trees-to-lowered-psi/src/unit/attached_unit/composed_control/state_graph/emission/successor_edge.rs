@@ -102,12 +102,33 @@ impl StateGraphEmission<'_, '_> {
         // Signature rows carry authored parameter positions, which go sparse
         // the moment a slot contributes no runtime operand: a borrowed `self`
         // the graph erased, or a proof-only formal the erased lane emits
-        // below. Iterate the target's authored parameter list so every
-        // retained row's position is still visited.
-        let (_, authored_target) =
-            crate::declarations::state_declaration(checked, target_state.state)?;
-        let authored_parameters = checked.state_parameters(authored_target);
-        for argument_position in 0..authored_parameters.len() {
+        // below. Walk every position up to the highest one any lane names.
+        let lane_bound = target_state
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.position)
+            .chain(
+                target_state
+                    .scalar_parameters
+                    .iter()
+                    .map(|p| p.source_position),
+            )
+            .chain(
+                target_state
+                    .erased_scalar_parameters
+                    .iter()
+                    .map(|p| p.source_position),
+            )
+            .chain(
+                target_state
+                    .erased_proof_parameters
+                    .iter()
+                    .map(|p| p.source_position),
+            )
+            .map(|position| position as usize + 1)
+            .max()
+            .unwrap_or(0);
+        for argument_position in 0..lane_bound {
             let runtime_row = target_state
                 .structural_parameters
                 .iter()
@@ -659,12 +680,8 @@ impl StateGraphEmission<'_, '_> {
         // Operand evaluation establishes the outgoing values before the exact
         // selected source exit determines the remaining owned dispositions.
         // Keep action kinds and their checked order through private staging.
-        let exit = super::super::cleanup::coordinate(
-            checked,
-            state,
-            edge.statement_ordinal as usize,
-            false,
-        )?;
+        let exit =
+            super::super::cleanup::coordinate(state, edge.statement_ordinal as usize, false)?;
         let mut cleanup_actions = super::super::cleanup::for_exit(
             checked,
             state,
