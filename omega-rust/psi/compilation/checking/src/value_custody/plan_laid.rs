@@ -149,7 +149,12 @@ fn target_neutral_report_matches(
     schema_fields: &[&typed_trees::data::DataField],
 ) -> bool {
     let report = &plan.validated_layout;
-    if report.schema_report_fingerprint != normalized_schema_report_fingerprint(program, schema) {
+    if report.schema_report_fingerprint
+        != typed_trees::identity::normalized_schema_report_fingerprint(
+            program.typed_program(),
+            schema,
+        )
+    {
         return false;
     }
 
@@ -179,120 +184,6 @@ fn target_neutral_report_matches(
     }
     let expected_offsets = has_only_single_at_entries.then_some(offsets);
     matched_entries == report.entries.len() && report.offsets == expected_offsets
-}
-
-fn normalized_schema_report_fingerprint(
-    program: &dyn crate::CheckingInput,
-    data: &typed_trees::data::DataDefinition,
-) -> u64 {
-    use typed_trees::data::{DataField, DataMember};
-
-    fn byte(hash: &mut u64, value: u8) {
-        *hash ^= u64::from(value);
-        *hash = hash.wrapping_mul(0x100000001b3);
-    }
-    fn bytes(hash: &mut u64, value: &[u8]) {
-        for value in value {
-            byte(hash, *value);
-        }
-    }
-    fn uint(hash: &mut u64, value: u64) {
-        bytes(hash, &value.to_le_bytes());
-    }
-    fn text(hash: &mut u64, value: &str) {
-        uint(hash, value.len() as u64);
-        bytes(hash, value.as_bytes());
-    }
-    fn member_name(hash: &mut u64, identity: Option<u64>, name: &str, position: usize) {
-        match identity {
-            Some(identity) => {
-                byte(hash, 1);
-                uint(hash, identity);
-            }
-            None => {
-                byte(hash, 0);
-                uint(hash, position as u64);
-                text(hash, name);
-            }
-        }
-    }
-
-    let mut hash = 0xcbf29ce484222325u64;
-    /// A member field's fingerprint row: position-bearing name, relevance
-    /// bit, and spelled declared type.
-    fn field_row(
-        hash: &mut u64,
-        program: &dyn crate::CheckingInput,
-        field: &DataField,
-        position: usize,
-    ) {
-        member_name(hash, field.identity, field.name.as_str(), position);
-        byte(
-            hash,
-            match field.relevance {
-                language_core::BindingRelevance::Relevant => 0,
-                language_core::BindingRelevance::Erased => 1,
-            },
-        );
-        text(
-            hash,
-            program
-                .display_type_reference(field.type_reference)
-                .as_str(),
-        );
-    }
-
-    bytes(&mut hash, b"omega.schema.v2");
-    let members = program.data_members(data);
-    let mut fields = members
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) => Some(field),
-            DataMember::Variant(_) => None,
-        })
-        .collect::<Vec<_>>();
-    let mut cases = members
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Variant(variant) => Some(variant),
-            DataMember::Field(_) => None,
-        })
-        .collect::<Vec<_>>();
-    if fields.iter().all(|field| field.identity.is_some()) {
-        fields.sort_by_key(|field| field.identity);
-    }
-    if cases.iter().all(|case| case.identity.is_some()) {
-        cases.sort_by_key(|case| case.identity);
-    }
-    uint(&mut hash, fields.len() as u64);
-    for (position, field) in fields.iter().enumerate() {
-        field_row(&mut hash, program, field, position);
-    }
-    uint(&mut hash, cases.len() as u64);
-    for (position, case) in cases.iter().enumerate() {
-        member_name(&mut hash, case.identity, case.name.as_str(), position);
-        let mut payload = program.data_payload_fields(case).iter().collect::<Vec<_>>();
-        if payload.iter().all(|field| field.identity.is_some()) {
-            payload.sort_by_key(|field| field.identity);
-        }
-        uint(&mut hash, payload.len() as u64);
-        for (payload_position, field) in payload.iter().enumerate() {
-            field_row(&mut hash, program, field, payload_position);
-        }
-        let mut retired = case.retired_payload_identities.clone();
-        retired.sort_unstable();
-        uint(&mut hash, retired.len() as u64);
-        for identity in retired {
-            uint(&mut hash, identity);
-        }
-    }
-    let mut retired = data.retired_identities.clone();
-    retired.sort_unstable();
-    uint(&mut hash, retired.len() as u64);
-    for identity in retired {
-        uint(&mut hash, identity);
-    }
-    if hash == 0 { 1 } else { hash }
 }
 
 fn stored_integer_capabilities_match(
