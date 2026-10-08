@@ -54,8 +54,8 @@ pub use composed_unit_control_plans::{
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedGuardedJumpArmPlan,
     CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan,
-    CheckedNaturalRankMeasure, CheckedScalarCaseFieldPlan, CheckedScalarReturnPlan,
-    CheckedStateNaturalRank,
+    CheckedNaturalRankMeasure, CheckedRankEdgeCoordinate, CheckedScalarCaseFieldPlan,
+    CheckedScalarReturnPlan, CheckedStateNaturalRank,
 };
 pub use dynamic_slot_plans::CheckedDynamicSlotPlan;
 pub use result_binding_plans::{

@@ -26,6 +26,11 @@ pub struct CheckedComposedUnitControlMachinePlan {
     /// Exact cyclic-state subjects and natural-valued measures selected by the
     /// checked witness. Empty means this shared plan retains no witness.
     pub natural_ranks: Vec<CheckedStateNaturalRank>,
+    /// Successor edges the rank judgment proves only non-increasing: the weak
+    /// edges of a cycle through several machines, such as the hop into a
+    /// sibling that keeps the measured value. Every other edge into a ranked
+    /// state strictly decreases the rank.
+    pub preserving_rank_edges: Vec<CheckedRankEdgeCoordinate>,
     /// Free helpers have no attachment; attached bodies retain their authored owner.
     pub attachment_type_identity: Option<String>,
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
@@ -64,6 +69,15 @@ pub struct CheckedScalarCaseFieldPlan {
     pub field_identity: String,
     pub primitive_type: PrimitiveType,
     pub expression: CheckedScalarExpression,
+}
+
+/// One authored successor edge of a ranked graph: the transition at
+/// `statement_ordinal` of `source_state` into `target_state`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedRankEdgeCoordinate {
+    pub source_state: SymbolHandle,
+    pub target_state: SymbolHandle,
+    pub statement_ordinal: u32,
 }
 
 /// One cyclic state's rank, stated over that state's own parameters. Emission

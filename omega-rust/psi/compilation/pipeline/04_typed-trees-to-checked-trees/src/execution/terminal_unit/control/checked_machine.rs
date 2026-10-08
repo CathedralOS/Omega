@@ -204,6 +204,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         &calls,
         &local_rows,
         prefix_statement_count,
+        statements.len(),
         call_frames,
         trace,
     )?;

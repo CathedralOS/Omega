@@ -76,6 +76,84 @@ pub(super) fn result_plan(
     .then_some(result)
 }
 
+/// Project the shared runtime rank judgment onto a fused roster: the one
+/// runtime component whose states all lie in `members` ranks each of its
+/// states by its measured unsigned parameter, and its non-strict edges are
+/// the graph's preserving rank edges. The judgment has already proved every
+/// edge of the component; the scalar graph projects it the same way
+/// (`terminal_scalar/ranking.rs`).
+fn runtime_component_ranks(
+    program: &dyn ::validation::CheckingInput,
+    members: &[symbols::SymbolHandle],
+) -> Option<(
+    Vec<checked_trees::CheckedStateNaturalRank>,
+    Vec<checked_trees::CheckedRankEdgeCoordinate>,
+)> {
+    let components = validation::validated_runtime_natural_components(program);
+    let mut covering = components.iter().filter(|component| {
+        component
+            .states
+            .iter()
+            .any(|rank| members.contains(&rank.state))
+    });
+    let component = covering.next()?;
+    if covering.next().is_some()
+        || !component
+            .states
+            .iter()
+            .all(|rank| members.contains(&rank.state))
+        || !component
+            .edges
+            .iter()
+            .all(|edge| members.contains(&edge.source) && members.contains(&edge.target))
+    {
+        return None;
+    }
+    let mut ranks = component
+        .states
+        .iter()
+        .map(|rank| {
+            matches!(
+                rank.primitive_type,
+                typed_trees::types::PrimitiveType::U8
+                    | typed_trees::types::PrimitiveType::U16
+                    | typed_trees::types::PrimitiveType::U32
+                    | typed_trees::types::PrimitiveType::U64
+            )
+            .then_some(checked_trees::CheckedStateNaturalRank {
+                state: rank.state,
+                parameter: rank.parameter,
+                parameter_position: rank.parameter_position,
+                measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                    primitive_type: rank.primitive_type,
+                },
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
+    let mut weak = component
+        .edges
+        .iter()
+        .filter(|edge| !edge.strict)
+        .map(|edge| checked_trees::CheckedRankEdgeCoordinate {
+            source_state: edge.source,
+            target_state: edge.target,
+            statement_ordinal: edge.statement_ordinal,
+        })
+        .collect::<Vec<_>>();
+    weak.sort_by_key(|edge| {
+        (
+            edge.source_state.arena_index(),
+            edge.source_state.generation(),
+            edge.statement_ordinal,
+            edge.target_state.arena_index(),
+            edge.target_state.generation(),
+        )
+    });
+    weak.dedup();
+    Some((ranks, weak))
+}
+
 /// Plans explicit state signatures and transitions, tracing the first declined operation.
 pub(super) fn build_traced(
     program: &dyn ::validation::CheckingInput,
@@ -107,9 +185,9 @@ pub(super) fn build_traced(
         // keeps that roster's ordinary body instead.
         trace.phase("state graph: result signature: scalar owner precedence");
         if scalar_callees
-                .structural_returns
-                .for_machine(machine.symbol)
-                .is_some()
+            .structural_returns
+            .for_machine(machine.symbol)
+            .is_some()
             || scalar_callees
                 .boundary_returns
                 .machines
@@ -152,6 +230,7 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: natural ranks");
+    let mut preserving_rank_edges = Vec::new();
     let natural_ranks = if fused.len() != states.len()
         && fused
             .iter()
@@ -160,14 +239,25 @@ pub(super) fn build_traced(
         // Fusion must retain the whole component's judgment, including when
         // an unranked dispatch machine reaches ranked callees. Acyclic exits
         // carry no rank; the existing fused checker proves every cyclic edge.
-        crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
+        // Its countdown cannot spell a cycle whose hops into a sibling keep
+        // the measured value (`remaining in 0..=9` through `step`); the shared
+        // runtime judgment proves those, and the graph keeps its weak edges.
+        let members = fused
+            .iter()
+            .map(|(_, state)| state.symbol)
+            .collect::<Vec<_>>();
+        match crate::checks::termination::proven_fused_state_natural_ranks_with_call_frames(
             program,
-            &fused
-                .iter()
-                .map(|(_, state)| state.symbol)
-                .collect::<Vec<_>>(),
+            &members,
             call_frames,
-        )?
+        ) {
+            Some(ranks) => ranks,
+            None => {
+                let (ranks, weak) = runtime_component_ranks(program, &members)?;
+                preserving_rank_edges = weak;
+                ranks
+            }
+        }
     } else if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
         // path can preserve them. Never publish an unranked replacement.
@@ -396,6 +486,7 @@ pub(super) fn build_traced(
             &calls,
             &[],
             binding_count,
+            operation_end,
             call_frames,
             trace,
         )?;
@@ -722,6 +813,7 @@ pub(super) fn build_traced(
         planned,
     )?;
     plan.natural_ranks = natural_ranks;
+    plan.preserving_rank_edges = preserving_rank_edges;
     // The machine result contract is relative to invocation parameters.
     // Returning states retain their own local origins; the shared result query
     // substitutes every internal edge before publishing the entry relation.

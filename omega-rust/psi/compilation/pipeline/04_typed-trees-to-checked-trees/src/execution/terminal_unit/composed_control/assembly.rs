@@ -24,6 +24,7 @@ pub(in crate::execution::terminal_unit) fn finish(
         result: checked_trees::CheckedControlResultPlan::Unit,
         result_reference_sources: Vec::new(),
         natural_ranks: Vec::new(),
+        preserving_rank_edges: Vec::new(),
         attachment_type_identity,
         provider_attachment_requirements,
         body_qualifications,

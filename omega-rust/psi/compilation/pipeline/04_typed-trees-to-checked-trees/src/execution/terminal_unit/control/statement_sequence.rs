@@ -320,6 +320,7 @@ pub(in crate::execution::terminal_unit) fn build(
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
+    statement_end: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
@@ -422,9 +423,13 @@ pub(in crate::execution::terminal_unit) fn build(
         )?
         .into_iter()
         .peekable();
+    // A composed state ends its sequence where its terminator begins: a
+    // transition into a fused sibling is a successor edge the state graph
+    // plans, not a terminal call, so the caller bounds the walk.
     for (index, statement) in statements
         .iter()
         .enumerate()
+        .take(statement_end)
         .skip(construction_statement_count)
         .take_while(|(index, statement)| {
             (!matches!(statement, StatementNode::Transition(_))

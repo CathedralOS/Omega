@@ -798,6 +798,17 @@ impl StateGraphEmission<'_, '_> {
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        // The arriving rank strictly decreases unless the rank judgment
+        // proves this edge only preserves it.
+        let arriving_comparison = if plan.preserving_rank_edges.iter().any(|weak| {
+            weak.source_state == state.state
+                && weak.statement_ordinal == edge.statement_ordinal
+                && weak.target_state == edge.target_state
+        }) {
+            terminal_psi::TerminalNaturalRankComparison::Preserving
+        } else {
+            terminal_psi::TerminalNaturalRankComparison::Strict
+        };
         let arriving_rank = if current_rank.is_some() {
             // The target's measure over this edge's actual arguments,
             // which the verifier substitutes for the target's own rank.
@@ -895,10 +906,8 @@ impl StateGraphEmission<'_, '_> {
                     ),
                 );
                 if let Some(after) = arriving_rank {
-                    self.rank_edges.insert(
-                        backedge,
-                        (after, terminal_psi::TerminalNaturalRankComparison::Strict),
-                    );
+                    self.rank_edges
+                        .insert(backedge, (after, arriving_comparison));
                 }
             }
             edge_blocks.extend(edge_evaluation.blocks);
@@ -948,10 +957,8 @@ impl StateGraphEmission<'_, '_> {
                 self.decided_arrival_edges.insert(successor_edge);
             }
             if let Some(after) = arriving_rank {
-                self.rank_edges.insert(
-                    successor_edge,
-                    (after, terminal_psi::TerminalNaturalRankComparison::Strict),
-                );
+                self.rank_edges
+                    .insert(successor_edge, (after, arriving_comparison));
             }
             Ok(SuccessorEdge {
                 edge: successor_edge,

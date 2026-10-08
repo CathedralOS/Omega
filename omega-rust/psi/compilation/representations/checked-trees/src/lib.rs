@@ -79,7 +79,7 @@ pub use checked_trees::{
     CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind,
     CheckedPropositionDeclaration, CheckedPropositionEvidence, CheckedPropositionVocabulary,
     CheckedProviderAttachmentRequirementPlan, CheckedProviderPlanCommitment,
-    CheckedReborrowAccessEffect, CheckedReborrowContainmentCertificate,
+    CheckedRankEdgeCoordinate, CheckedReborrowAccessEffect, CheckedReborrowContainmentCertificate,
     CheckedReborrowContainmentKind, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
     CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
