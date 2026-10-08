@@ -9,7 +9,8 @@ mod reach_applications;
 mod services;
 
 pub use applications::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
+    BoundaryBodySpecialization, BoundaryCheckedBody, BoundaryNominalIdentity,
     BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
 };
 pub use conformances::{

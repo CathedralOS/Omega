@@ -1243,6 +1243,7 @@ fn physical_child_identity_binds_every_retained_field() {
             BoundaryOperatorRequirement::new(
                 BoundaryNominalIdentity::new("package:operator".to_owned()).unwrap(),
                 "operator::call()->u64".to_owned(),
+                None,
             )
             .unwrap(),
             BoundaryApplication::Empty,

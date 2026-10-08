@@ -3,13 +3,20 @@
 //! consume these rows, rather than reconstructing them from source after publication.
 
 use checked_trees::{CheckedBoundaryOperatorApplicationUseSite, CheckedTrees};
-use lowered_psi::{LoweredBoundaryApplicationOccurrence, LoweredPsi};
+use lowered_psi::LoweredPsi;
 use semantic_vocabulary::OperationId;
 use terminal_psi::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
     BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
 };
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
+
+mod candidates;
+
+struct LoweredBoundaryApplicationOccurrence {
+    application_index: usize,
+    terminal_operation: OperationId,
+}
 
 pub(super) fn retain(
     checked: &CheckedTrees,
@@ -103,6 +110,8 @@ pub(super) fn retain(
         return Err("multiple boundary applications name one emitted operation");
     }
     let mut rows = Vec::with_capacity(occurrences.len());
+    let mut candidates = Vec::new();
+    let mut retained_applications = std::collections::BTreeSet::new();
     for occurrence in &occurrences {
         let application =
             &checked.facts.operators.boundary_applications[occurrence.application_index];
@@ -112,15 +121,31 @@ pub(super) fn retain(
         let requirement = BoundaryOperatorRequirement::new(
             BoundaryNominalIdentity::new(declaration.into_string())?,
             requirement_identity(checked, application.requirement_symbol)?,
+            checked
+                .symbols
+                .symbol_package_identity(application.requirement_symbol),
         )?;
+        let arguments = project_application(checked, exact_toolchain_sources, application)?;
+        if retained_applications.insert((requirement.clone(), arguments.clone())) {
+            candidates::retain(
+                checked,
+                exact_toolchain_sources,
+                application,
+                &requirement,
+                &arguments,
+                &mut candidates,
+            )?;
+        }
         rows.push(TerminalBoundaryApplicationDemand::new(
             occurrence.terminal_operation,
             requirement,
-            project_application(checked, exact_toolchain_sources, application)?,
+            arguments,
         ));
     }
     lowered.semantic_module.boundary_application_demands = rows;
-    lowered.boundary_application_occurrences = occurrences;
+    candidates.sort();
+    candidates.dedup();
+    lowered.semantic_module.boundary_application_candidates = candidates;
     Ok(())
 }
 

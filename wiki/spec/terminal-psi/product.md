@@ -38,6 +38,14 @@ demand unless they can transport the complete relationship. Provider choice,
 selected-plan commitments and executable realizations remain Omega inputs;
 they do not determine or reconstruct the program's demand roster.
 
+Psi also retains the checked body candidates for each distinct closed application:
+the selecting callable and package identities, any target tag, exact body and
+entry identities, checked contract commitment and optional specialization identity.
+This is a catalog of eligible bodies, not a selected provider. Omega joins the
+target's Build row to that catalog; it does not reopen checked source or ask the
+publication stage for a source-index companion. Requirement package identity is
+explicit, so same-spelling requirements from different packages cannot collide.
+
 The reference interpreter executes the portable semantics directly. Native
 code realizes the same semantics. Differential agreement is evidence about
 implementations, not a definition of the language.

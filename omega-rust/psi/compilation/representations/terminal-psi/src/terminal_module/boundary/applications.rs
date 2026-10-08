@@ -55,12 +55,14 @@ impl BoundaryTypeIdentity {
 pub struct BoundaryOperatorRequirement {
     declaration: BoundaryNominalIdentity,
     overload: String,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
 }
 
 impl BoundaryOperatorRequirement {
     pub fn new(
         declaration: BoundaryNominalIdentity,
         overload: String,
+        package: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Result<Self, &'static str> {
         if overload.is_empty() {
             return Err("boundary operator overload identity is empty");
@@ -68,6 +70,7 @@ impl BoundaryOperatorRequirement {
         Ok(Self {
             declaration,
             overload,
+            package,
         })
     }
 
@@ -78,6 +81,37 @@ impl BoundaryOperatorRequirement {
     pub fn overload(&self) -> &str {
         &self.overload
     }
+
+    pub const fn package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+        self.package
+    }
+}
+
+/// A checked body that can satisfy a closed requirement. Psi retains candidates;
+/// a target's Build selects one later. No source handle or selected plan belongs
+/// in this record.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryApplicationCandidate {
+    pub requirement: BoundaryOperatorRequirement,
+    pub application: BoundaryApplication,
+    pub selection_identity: String,
+    pub selection_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub target: Option<String>,
+    pub body: BoundaryCheckedBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryCheckedBody {
+    pub machine: BoundaryNominalIdentity,
+    pub state: BoundaryNominalIdentity,
+    pub contract: [u8; 32],
+    pub specialization: Option<BoundaryBodySpecialization>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryBodySpecialization {
+    pub template: BoundaryNominalIdentity,
+    pub commitment: [u8; 32],
 }
 
 /// Canonical D29 application shape. Empty means a real zero-length operator

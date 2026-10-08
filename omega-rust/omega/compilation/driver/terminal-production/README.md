@@ -18,14 +18,14 @@ observations. Neither implements Psi judgments.
 [Optimization ownership](../../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/README.md)
 keeps shared retention policy separate from pass execution.
 [Publication ownership](../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/README.md)
-separates canonical sealing from checked boundary-operator occurrence replay.
+separates canonical sealing from source-entry correspondence audits.
 
 `TerminalProductionRequest` carries the checked trees, the
 `TerminalMachineSelection` naming the machine, and the exact Psi optimization
 selection. Its one `produce` entry takes a `TerminalProductionCustody`: an
 optional ProgramEntry source-signature identity, the caller's opaque callback
 sidecar, and the stage-timing carrier. Every product runs the same
-lowering, optimization, publication, and boundary-scope legs; an entry identity
+lowering, optimization and publication legs; an entry identity
 adds the ProgramEntry receipt legs, which check the unique Unit entry before
 publication and rejoin the published semantic identity afterward. The
 `ProducedTerminalArtifact` returns the artifact beside that retained custody,

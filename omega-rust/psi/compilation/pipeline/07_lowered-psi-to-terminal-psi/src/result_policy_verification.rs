@@ -13,7 +13,9 @@ use numerics::float_semantics::FloatFormat;
 use semantic_vocabulary::IeeeFloatFormat;
 use terminal_psi::{FloatResultPolicy, FloatSaturationRule, OperationKind};
 
-pub(super) fn replay(
+/// Independent source-correspondence audit for tests and artifact review, not
+/// a second construction pass on the ordinary compilation route.
+pub fn verify_boundary_result_policies(
     checked: &CheckedTrees,
     module: &terminal_psi::TerminalModule,
     source_custody: &LoweredSourceCustody,

@@ -16,6 +16,8 @@ use diagnostics::Diagnostic;
 /// canonical artifact. Completed callback bodies arrive in placement order;
 /// neither their cardinality nor their identity is trusted.
 pub struct TerminalNativeProposalRequest<'input> {
+    pub checked: &'input checked_trees::CheckedTrees,
+    pub target_profile: Option<target::TargetProfile>,
     pub boundaries: crate::BoundaryApplicationSettlement<'input>,
     pub native_target: Option<target::NativeTarget>,
     pub program_entry:
@@ -35,12 +37,11 @@ pub struct TerminalNativeProposalRequest<'input> {
 pub fn project_terminal_native_realization_proposal(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     request: TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let callback_placements = request.callback_placements;
     let source_call_occurrences = request.source_call_occurrences;
-    let target_profile = request.boundaries.target_profile.ok_or_else(|| {
+    let target_profile = request.target_profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one selected target profile",
         )]
@@ -98,8 +99,8 @@ pub fn project_terminal_native_realization_proposal(
                 .iter()
                 .map(
                     |retained| crate::provider_admission::CompilerIntrinsicPlanProvenance {
-                        plan: &retained.plan,
-                        row_executions: &retained.row_compiler_intrinsic_executions,
+                        plan: retained.plan,
+                        row_executions: retained.row_executions,
                     },
                 ),
             &demanded_intrinsics,
@@ -110,9 +111,7 @@ pub fn project_terminal_native_realization_proposal(
         source_call_occurrences,
         request.callback_thunks,
     )?;
-    let boundary_application_coverage = request
-        .boundaries
-        .settle(artifact, &checked_boundary_operator_scope)?;
+    let boundary_application_coverage = request.boundaries.settle(artifact)?;
     let comparisons = crate::comparison_settlement::settle_comparison_occurrences(
         terminal_module,
         request.boundaries.selected_provider_plans,
@@ -152,7 +151,7 @@ pub fn project_terminal_native_realization_proposal(
         effects::authored_behavior_exclusion_set_in(
             request.behavior_exclusions,
             terminal_module,
-            &|symbol| effects::boundary_trait_identity(request.boundaries.checked, symbol),
+            &|symbol| effects::boundary_trait_identity(request.checked, symbol),
         ),
     ))
 }

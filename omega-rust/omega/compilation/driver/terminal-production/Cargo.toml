@@ -9,7 +9,6 @@ source = { path = "../../../../psi/foundation/source" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 lowered-psi = { path = "../../../../psi/compilation/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi" }
-lowered-psi-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
 optimization = { path = "../../../../psi/foundation/optimization-selections" }
 
 artifacts = { path = "../../../foundation/artifacts" }

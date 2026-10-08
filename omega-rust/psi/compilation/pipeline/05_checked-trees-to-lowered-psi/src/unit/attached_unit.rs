@@ -479,8 +479,8 @@ pub(crate) fn lower_unit_closure(
     scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
 
     let lowered = LoweredPsi {
-        boundary_application_occurrences: Vec::new(),
         semantic_module: TerminalModule {
+            boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),
             scalar_qualifications,
             scalar_block_invariants,

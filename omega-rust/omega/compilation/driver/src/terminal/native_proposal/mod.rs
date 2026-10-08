@@ -10,7 +10,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
     checked: &CheckedCompilation,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
     selections: &optimization_core::OptimizationSelections,
@@ -22,7 +21,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
     terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
         artifact,
         checked_program_entry,
-        checked_boundary_operator_scope,
         checked.terminal_native_proposal_request(
             callback_placements,
             callback_thunks,

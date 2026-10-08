@@ -2051,9 +2051,8 @@ crash and native exit behavior.
     providers, folds target layout, checks and prunes siblings before Terminal;
     `realization/provider-planning` depends on syntax/typed/checked trees,
     stage 04, validation and the checked interpreter; Omega stage 00 consumes
-    checked/lowered sidecars (`CheckedBoundaryOperatorApplicationScope`, source
-    call occurrences and selected comparison occurrences) beside the canonical
-    artifact; stage 05 selects shape-specific routes.
+    checked/lowered entry receipts and callback source-call occurrences beside
+    the canonical artifact; stage 05 selects shape-specific routes.
   - Make topology enforce ownership. Remove forbidden production dependencies
     so Rust cannot name a representation or operation outside the consuming
     stage's declared inputs. Add one workspace architecture gate derived from
@@ -2427,10 +2426,10 @@ crash and native exit behavior.
   target's Build rows in Omega stage 00. Follow
   [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
   and the [pipeline](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization).
-  - Stage 00's `boundary_application_settlement.rs` and
-    `comparison_settlement.rs` still borrow checked trees, source identities
-    and frontend-derived selected evidence. Feed them from the Terminal
-    artifact's occurrence scope, without another parallel registry.
+  - Boundary applications and comparisons now settle from canonical demands,
+    checked body candidates and selected Build rows; no checked-application scope
+    crosses publication. Finish the remaining entry, callback, behavior-exclusion
+    and provider-installation joins without checked/lowered source inputs.
   - `omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
     still joins frontend-dependent `provider-planning` and `selected-dispatch`
     decisions: target-family body substitution, calling plans, program-entry

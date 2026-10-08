@@ -30,6 +30,7 @@ mod tests {
                 BoundaryOperatorRequirement::new(
                     BoundaryNominalIdentity::new("package::requirement".into()).unwrap(),
                     "operator::compare(Element,Element)->bool".into(),
+                    None,
                 )
                 .unwrap(),
                 application,
@@ -53,6 +54,7 @@ mod tests {
             BoundaryOperatorRequirement::new(
                 BoundaryNominalIdentity::new("package::requirement".into()).unwrap(),
                 "operator::compare".into(),
+                None,
             )
             .unwrap(),
             BoundaryApplication::Exact(vec![BoundaryApplicationArgument::type_argument(
@@ -63,6 +65,51 @@ mod tests {
         let mut writer = Writer::default();
         encode_demand(&mut writer, &demand).unwrap();
         assert!(decode_demand(&mut Reader::new(&writer.finish())).is_err());
+    }
+
+    #[test]
+    fn boundary_candidate_wire_preserves_owner_and_specialization() {
+        let nominal = |name: &str| BoundaryNominalIdentity::new(name.to_owned()).unwrap();
+        for specialization in [
+            None,
+            Some(terminal_psi::BoundaryBodySpecialization {
+                template: nominal("owner::template"),
+                commitment: [4; 32],
+            }),
+        ] {
+            let candidate = terminal_psi::BoundaryApplicationCandidate {
+                requirement: BoundaryOperatorRequirement::new(
+                    nominal("owner::requirement"),
+                    "operator::compare".into(),
+                    semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+                )
+                .unwrap(),
+                application: BoundaryApplication::Empty,
+                selection_identity: "owner::implementation".into(),
+                selection_package: semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
+                target: Some("windows_x86_64".into()),
+                body: terminal_psi::BoundaryCheckedBody {
+                    machine: nominal("owner::body"),
+                    state: nominal("owner::entry"),
+                    contract: [3; 32],
+                    specialization,
+                },
+            };
+            let mut writer = Writer::default();
+            encode_candidate(&mut writer, &candidate).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_candidate(&mut reader).unwrap(), candidate);
+            assert_eq!(reader.remaining(), 0);
+            for end in 0..bytes.len() {
+                assert!(decode_candidate(&mut Reader::new(&bytes[..end])).is_err());
+            }
+            let mut malformed = candidate;
+            malformed.body.contract = [0; 32];
+            let mut writer = Writer::default();
+            encode_candidate(&mut writer, &malformed).unwrap();
+            assert!(decode_candidate(&mut Reader::new(&writer.finish())).is_err());
+        }
     }
 }
 
@@ -78,19 +125,32 @@ pub(super) fn encode_demand(
     demand: &TerminalBoundaryApplicationDemand,
 ) -> Result<(), CodecError> {
     writer.id(demand.terminal_operation());
+    encode_requirement(writer, demand.requirement())?;
+    encode_application(writer, demand.application())
+}
+
+fn encode_requirement(
+    writer: &mut Writer,
+    requirement: &BoundaryOperatorRequirement,
+) -> Result<(), CodecError> {
     writer.string(
         "boundary requirement declaration",
-        demand.requirement().declaration().canonical(),
+        requirement.declaration().canonical(),
     )?;
-    writer.string(
-        "boundary requirement overload",
-        demand.requirement().overload(),
-    )?;
+    writer.string("boundary requirement overload", requirement.overload())?;
+    encode_package(writer, requirement.package());
+    Ok(())
+}
+
+fn encode_application(
+    writer: &mut Writer,
+    application: &BoundaryApplication,
+) -> Result<(), CodecError> {
     writer.len(
         "boundary application arguments",
-        demand.application().arguments().len(),
+        application.arguments().len(),
     )?;
-    for argument in demand.application().arguments() {
+    for argument in application.arguments() {
         match argument {
             BoundaryApplicationArgument::Type {
                 binder_ordinal,
@@ -121,14 +181,28 @@ pub(super) fn decode_demand(
     reader: &mut Reader<'_>,
 ) -> Result<TerminalBoundaryApplicationDemand, CodecError> {
     let operation = reader.id("OperationId")?;
+    let requirement = decode_requirement(reader)?;
+    let application = decode_application(reader)?;
+    Ok(TerminalBoundaryApplicationDemand::new(
+        operation,
+        requirement,
+        application,
+    ))
+}
+
+fn decode_requirement(reader: &mut Reader<'_>) -> Result<BoundaryOperatorRequirement, CodecError> {
     let declaration =
         BoundaryNominalIdentity::new(reader.string("boundary requirement declaration")?)
             .map_err(CodecError::MalformedStructuralFoundation)?;
-    let requirement = BoundaryOperatorRequirement::new(
+    BoundaryOperatorRequirement::new(
         declaration,
         reader.string("boundary requirement overload")?,
+        decode_package(reader)?,
     )
-    .map_err(CodecError::MalformedStructuralFoundation)?;
+    .map_err(CodecError::MalformedStructuralFoundation)
+}
+
+fn decode_application(reader: &mut Reader<'_>) -> Result<BoundaryApplication, CodecError> {
     let arguments = decode_counted(reader, |reader| {
         let tag = reader.u8()?;
         let ordinal = reader.u32()?;
@@ -154,9 +228,109 @@ pub(super) fn decode_demand(
     } else {
         BoundaryApplication::exact(arguments).map_err(CodecError::MalformedStructuralFoundation)?
     };
-    Ok(TerminalBoundaryApplicationDemand::new(
-        operation,
+    Ok(application)
+}
+
+fn encode_package(writer: &mut Writer, package: Option<semantic_vocabulary::PackageKeyIdentity>) {
+    writer.boolean(package.is_some());
+    if let Some(package) = package {
+        writer.bytes(&package.digest());
+    }
+}
+
+fn decode_package(
+    reader: &mut Reader<'_>,
+) -> Result<Option<semantic_vocabulary::PackageKeyIdentity>, CodecError> {
+    if !reader.boolean()? {
+        return Ok(None);
+    }
+    semantic_vocabulary::PackageKeyIdentity::from_digest(reader.array()?)
+        .map(Some)
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "empty boundary package identity",
+        ))
+}
+
+pub(super) fn encode_candidate(
+    writer: &mut Writer,
+    candidate: &terminal_psi::BoundaryApplicationCandidate,
+) -> Result<(), CodecError> {
+    encode_requirement(writer, &candidate.requirement)?;
+    encode_application(writer, &candidate.application)?;
+    writer.string(
+        "boundary candidate selection",
+        &candidate.selection_identity,
+    )?;
+    encode_package(writer, candidate.selection_package);
+    writer.boolean(candidate.target.is_some());
+    if let Some(target) = &candidate.target {
+        writer.string("boundary candidate target", target)?;
+    }
+    writer.string(
+        "boundary candidate machine",
+        candidate.body.machine.canonical(),
+    )?;
+    writer.string("boundary candidate state", candidate.body.state.canonical())?;
+    writer.bytes(&candidate.body.contract);
+    writer.boolean(candidate.body.specialization.is_some());
+    if let Some(specialization) = &candidate.body.specialization {
+        writer.string(
+            "boundary candidate template",
+            specialization.template.canonical(),
+        )?;
+        writer.bytes(&specialization.commitment);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_candidate(
+    reader: &mut Reader<'_>,
+) -> Result<terminal_psi::BoundaryApplicationCandidate, CodecError> {
+    let requirement = decode_requirement(reader)?;
+    let application = decode_application(reader)?;
+    let selection_identity = reader.string("boundary candidate selection")?;
+    let selection_package = decode_package(reader)?;
+    let target = if reader.boolean()? {
+        Some(reader.string("boundary candidate target")?)
+    } else {
+        None
+    };
+    let machine = BoundaryNominalIdentity::new(reader.string("boundary candidate machine")?)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    let state = BoundaryNominalIdentity::new(reader.string("boundary candidate state")?)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    let contract = reader.array()?;
+    let specialization = if reader.boolean()? {
+        Some(terminal_psi::BoundaryBodySpecialization {
+            template: BoundaryNominalIdentity::new(reader.string("boundary candidate template")?)
+                .map_err(CodecError::MalformedStructuralFoundation)?,
+            commitment: reader.array()?,
+        })
+    } else {
+        None
+    };
+    if selection_identity.is_empty()
+        || target.as_ref().is_some_and(String::is_empty)
+        || contract == [0; 32]
+        || specialization
+            .as_ref()
+            .is_some_and(|row| row.commitment == [0; 32])
+    {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "empty boundary candidate identity or commitment",
+        ));
+    }
+    Ok(terminal_psi::BoundaryApplicationCandidate {
         requirement,
         application,
-    ))
+        selection_identity,
+        selection_package,
+        target,
+        body: terminal_psi::BoundaryCheckedBody {
+            machine,
+            state,
+            contract,
+            specialization,
+        },
+    })
 }

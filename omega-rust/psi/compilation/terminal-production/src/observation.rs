@@ -13,12 +13,11 @@ pub enum TerminalProductionStage {
     Optimization,
     EntryReceipt,
     Publication,
-    BoundaryOperatorScope,
 }
 
 /// Stable name, input and output labels for each production leg, in
 /// `TerminalProductionStage` declaration order.
-const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 6] = [
+const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 5] = [
     (
         "terminal-production/machine-selection",
         "CheckedTrees",
@@ -39,11 +38,6 @@ const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 6] = [
         "terminal-production/publication",
         "OptimizedLoweredPsi",
         "CanonicalTerminalArtifact",
-    ),
-    (
-        "terminal-production/boundary-scope",
-        "LoweredSourceCustody+CanonicalTerminalArtifact",
-        "BoundaryOperatorScope",
     ),
 ];
 

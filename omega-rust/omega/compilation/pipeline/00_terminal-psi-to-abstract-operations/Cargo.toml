@@ -16,7 +16,6 @@ numerics = { path = "../../../../psi/foundation/numerics" }
 target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 sha2 = "0.10.9"
-lowered-psi-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
@@ -40,4 +39,3 @@ effects = { path = "../../backend/plans/provider-evidence" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../../realization/provider-planning" }
 target = { path = "../../backend/target" }
-

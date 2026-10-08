@@ -50,18 +50,15 @@ impl CheckedCompilation {
         let execution = self.execution();
         let providers = self.providers();
         TerminalNativeProposalRequest {
+            checked: self,
+            target_profile: execution.selected_target_profile,
             boundaries: BoundaryApplicationSettlement {
-                checked: self,
                 selected_provider_plans: &execution.selected_provider_plan_facts,
-                selected_provider_provenance: execution.selected_provider_provenance.as_slice(),
-                exact_toolchain_sources: self.sources().exact_toolchain_sources(),
-                target_profile: execution.selected_target_profile,
-                console_exit_binding: execution.resolved_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-                ),
-                process_exit_binding: execution.resolved_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-                ),
+                selected_provider_provenance: execution.selected_provider_provenance.iter().map(|retained| {
+                    terminal_psi_to_abstract_operations::provider_admission::CompilerIntrinsicPlanProvenance {
+                        plan: &retained.plan, row_executions: &retained.row_compiler_intrinsic_executions,
+                    }
+                }).collect(),
                 calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             },
             native_target: execution.selected_native_target(),

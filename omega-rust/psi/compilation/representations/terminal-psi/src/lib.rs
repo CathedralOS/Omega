@@ -28,7 +28,8 @@ pub use semantic_vocabulary::{
 };
 pub use terminal_module::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, BoundaryApplication,
-    BoundaryApplicationArgument, BoundaryContentGuarantee, BoundaryMachineDeclaration,
+    BoundaryApplicationArgument, BoundaryApplicationCandidate, BoundaryBodySpecialization,
+    BoundaryCheckedBody, BoundaryContentGuarantee, BoundaryMachineDeclaration,
     BoundaryMachineResult, BoundaryNominalIdentity, BoundaryOperatorRequirement,
     BoundaryParameterKind, BoundaryStructuralResultDeclaration, BoundaryTypeIdentity,
     ByteSequenceCarrier, ClaimContentProjection, ClaimTransfer, ClosedConformanceApplication,

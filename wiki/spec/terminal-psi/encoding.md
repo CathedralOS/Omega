@@ -592,9 +592,9 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 123 + `u16` vocabulary
-marker 119 + the entry machine id, followed by the module's counted tables in
-the declaration order below and ending with boundary-application demands.
+Module bytes are `PSITERM\0` + `u16` format marker 125 + `u16` vocabulary
+marker 120 + the entry machine id, followed by the module's counted tables in
+the declaration order below and ending with boundary-application candidates.
 
 <!-- module-table-order -->
 | # | Module table | Row |
@@ -626,9 +626,11 @@ the declaration order below and ending with boundary-application demands.
 | 25 | machines | counted machine rows |
 | 26 | target-machine families | counted family rows |
 | 27 | boundary application demands | counted exact requirement/application rows |
+| 28 | boundary application candidates | counted checked bodies for closed applications |
 
 A boundary-application row carries its nonzero operation id, counted UTF-8
-exact-owner declaration identity, counted overload identity, and counted static
+exact-owner declaration identity, counted overload identity, optional package
+identity (presence Boolean then 32 nonzero digest bytes), and counted static
 arguments. No arguments is the canonical empty application. Each argument has a
 `u8` category and `u32` binder ordinal: tag `1` carries one exact-owner type
 identity; tag `2` carries the declared carrier identity, value type identity and
@@ -636,6 +638,15 @@ canonical value encoding as counted UTF-8 strings. Identities and constant
 encodings are nonempty. Rows are strictly ordered by operation id, each naming
 one existing operation; arguments have contiguous zero-based binder ordinals.
 The roster is semantic input, not a provider-selection or realization receipt.
+
+A candidate carries the same requirement and application encoding without an
+operation id, followed by its selecting callable identity, optional selecting
+package identity, optional target string, body and entry nominal identities,
+32-byte contract commitment, and optional specialization (template nominal
+identity plus 32-byte commitment). Optional fields use a presence Boolean.
+Identities and commitments are nonempty; candidates are strictly ordered by
+their complete record and duplicates reject. Repeated calls share this catalog;
+target selection does not alter it.
 
 A family row carries its canonical callable and counted members ordered by
 the exact authored deployment tag. A callable is a `u8` tag (`1` machine,
@@ -1663,14 +1674,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (119). A
+debug map envelopes then carry the shared `u16` vocabulary marker (120). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 124 | yes |
+| semantic module | `PSITERM\0` | 125 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

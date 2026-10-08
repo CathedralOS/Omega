@@ -210,6 +210,13 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     for demand in &module.boundary_application_demands {
         boundary_application_wire::encode_demand(&mut writer, demand)?;
     }
+    writer.len(
+        "boundary application candidates",
+        module.boundary_application_candidates.len(),
+    )?;
+    for candidate in &module.boundary_application_candidates {
+        boundary_application_wire::encode_candidate(&mut writer, candidate)?;
+    }
     Ok(writer.finish())
 }
 
@@ -281,6 +288,8 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let target_machine_families = decode_counted(reader, target_family_wire::decode_family)?;
     let boundary_application_demands =
         decode_counted(reader, boundary_application_wire::decode_demand)?;
+    let boundary_application_candidates =
+        decode_counted(reader, boundary_application_wire::decode_candidate)?;
     Ok(TerminalModule {
         scalar_qualifications,
         scalar_block_invariants,
@@ -315,5 +324,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         machines,
         target_machine_families,
         boundary_application_demands,
+        boundary_application_candidates,
     })
 }

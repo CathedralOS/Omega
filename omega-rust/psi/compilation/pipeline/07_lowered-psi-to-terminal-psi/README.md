@@ -17,13 +17,12 @@ whether the exact source receiver can start zero-initialized without executable
 nominal cleanup. This is a separate source-aware judgment, not part of canonical
 sealing or a grant of native entry authority.
 
-[Boundary-operator custody](src/boundary_operator_custody.rs) binds
-producer-retained checked application indices to that artifact. Exact requirement
-and argument rows already live in canonical Terminal semantics; publication does
-not reconstruct them or replay comparison emission. The source-index companion
-remains temporary input to native provider realization. The separate
-[result-policy check](src/boundary_operator_custody/result_policies.rs) still
-checks source-call/adapter correspondence and has not migrated to portable input.
+Boundary applications and checked candidate bodies are canonical Terminal
+semantics. Publication emits no checked-application scope or source-index
+companion for native realization. The independent
+[result-policy verifier](src/result_policy_verification.rs) remains available for
+source-correspondence audits; ordinary production does not rerun it after the
+emitter has already constructed the call and its policy adapter.
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The product coordinator in

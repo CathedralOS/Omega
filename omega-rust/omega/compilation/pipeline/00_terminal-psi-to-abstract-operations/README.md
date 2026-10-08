@@ -60,13 +60,12 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   share this operation; exact operation multiplicity and check-only absence of
   an import remain explicit.
 - [boundary_application_settlement.rs](src/boundary_application_settlement.rs):
-  join the sealed artifact-bound Psi scope to canonical demand identities, exact
-  checked-body or intrinsic realizations, and opaque ABI application custody.
-  The coordinator supplies borrowed selection inputs; the stage owns role
-  selection, const/type identity projection and retained-provenance replay.
-  Const application values arrive already admitted by Psi checking. The
-  proposal retains the coverage it settles; native admission consumes it
-  without replaying it against the sealed scope.
+  select from canonical requirements and checked body candidates using the
+  target's Build rows. Intrinsic executions arrive already established by
+  provider review. No checked application scope, source declaration lookup,
+  const/type reconstruction or intrinsic semantic replay enters this operation.
+  The proposal retains the selected coverage and opaque ABI applications;
+  native admission consumes them without a second source join.
 - [comparison_settlement.rs](src/comparison_settlement.rs): traverse Terminal
   comparisons and consume the exact executions already selected by boundary
   coverage. A sorted plan-digest index joins the target plans without source

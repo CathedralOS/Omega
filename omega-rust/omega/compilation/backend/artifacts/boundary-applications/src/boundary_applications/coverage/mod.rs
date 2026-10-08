@@ -202,6 +202,7 @@ mod tests {
             BoundaryOperatorRequirement::new(
                 BoundaryNominalIdentity::new("package:operator".to_owned()).unwrap(),
                 "operator::call()->unit".to_owned(),
+                None,
             )
             .unwrap(),
             BoundaryApplication::Empty,

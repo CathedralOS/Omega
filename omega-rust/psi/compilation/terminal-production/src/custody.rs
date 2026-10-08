@@ -3,11 +3,10 @@
 //! These are producer results beside the canonical artifact, not another Psi IR.
 
 use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
-use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: the checked boundary scope, source call
+/// asked production to retain: source call
 /// occurrences, and the checked `ProgramEntry` receipt when an entry identity
 /// was supplied.
 ///
@@ -20,7 +19,6 @@ pub struct ProducedTerminalArtifact {
     pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
     pub(super) receipt: Option<CheckedProgramEntryTerminalReceipt>,
     pub(super) unoptimized: Option<LoweredPsi>,
-    pub(super) boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     pub(super) source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 }
 
@@ -42,10 +40,6 @@ impl ProducedTerminalArtifact {
         self.unoptimized.as_ref()
     }
 
-    pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
-        &self.boundary_operator_scope
-    }
-
     pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
         &self.source_call_occurrences
     }
@@ -62,14 +56,12 @@ impl ProducedTerminalArtifact {
         terminal_codec::CanonicalTerminalArtifact,
         Option<CheckedProgramEntryTerminalReceipt>,
         Option<LoweredPsi>,
-        CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSourceCallOccurrence>,
     ) {
         (
             self.artifact,
             self.receipt,
             self.unoptimized,
-            self.boundary_operator_scope,
             self.source_call_occurrences,
         )
     }

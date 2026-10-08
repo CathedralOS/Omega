@@ -135,15 +135,13 @@ pub(crate) fn produce_retained_terminal_artifact(
         produced.unoptimized(),
         entry_machine_symbol,
     )?;
-    let (artifact, _, _, checked_boundary_operator_scope, source_call_occurrences) =
-        produced.into_parts();
+    let (artifact, _, _, source_call_occurrences) = produced.into_parts();
     let native_realization_proposal =
         stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
             native_proposal::project_terminal_native_realization_proposal(
                 checked,
                 &artifact,
                 checked_program_entry,
-                checked_boundary_operator_scope,
                 &callback_placements,
                 &source_call_occurrences,
                 selections,

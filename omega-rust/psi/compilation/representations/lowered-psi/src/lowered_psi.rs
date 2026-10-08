@@ -13,16 +13,12 @@ use terminal_psi::{TerminalDebugMap, TerminalModule};
 /// contain no semantic program storage and are not a portable product.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredSourceCustody {
-    pub boundary_application_occurrences: Vec<LoweredBoundaryApplicationOccurrence>,
     pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 }
 
 /// Semantic module and source companions produced by the Psi frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
-    /// Temporary join for selected realization work still consuming checked input.
-    /// The requirement and arguments themselves live in the semantic module.
-    pub boundary_application_occurrences: Vec<LoweredBoundaryApplicationOccurrence>,
     pub selected_ieee_float_comparison_occurrences:
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub semantic_module: TerminalModule,
@@ -59,25 +55,8 @@ impl LoweredPsi {
             self.semantic_module,
             self.debug_map,
             LoweredSourceCustody {
-                boundary_application_occurrences: self.boundary_application_occurrences,
                 source_call_occurrences: self.source_call_occurrences,
             },
         )
-    }
-}
-
-/// Producer-owned join between a checked application and its emitted operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LoweredBoundaryApplicationOccurrence {
-    pub application_index: usize,
-    pub terminal_operation: semantic_vocabulary::OperationId,
-}
-
-impl LoweredBoundaryApplicationOccurrence {
-    pub const fn application_index(self) -> usize {
-        self.application_index
-    }
-    pub const fn terminal_operation(self) -> semantic_vocabulary::OperationId {
-        self.terminal_operation
     }
 }

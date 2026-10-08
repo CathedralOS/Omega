@@ -5,11 +5,10 @@ use checked_trees_to_lowered_psi::{
     LoweringError, TerminalMachineSelection, lower_machine, select_terminal_machine,
 };
 use diagnostics::Diagnostic;
-use lowered_psi::{LoweredPsi, LoweredSourceCustody};
+use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
 };
-use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 
 use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
 use crate::observation::{TerminalProductionObserver, TerminalProductionStage};
@@ -109,16 +108,10 @@ impl<'a> TerminalProductionRequest<'a> {
             }
             None => None,
         };
-        let boundary_operator_scope = observer
-            .record_result(TerminalProductionStage::BoundaryOperatorScope, || {
-                checked_boundary_operator_scope(checked, &artifact, &source_custody)
-            })
-            .map_err(TerminalArtifactProductionError::Lowering)?;
         Ok(ProducedTerminalArtifact {
             artifact,
             receipt,
             unoptimized,
-            boundary_operator_scope,
             source_call_occurrences: source_custody.source_call_occurrences,
         })
     }
@@ -176,12 +169,3 @@ impl std::fmt::Display for TerminalArtifactProductionError {
 }
 
 impl std::error::Error for TerminalArtifactProductionError {}
-
-fn checked_boundary_operator_scope(
-    checked: &CheckedTrees,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    source_custody: &LoweredSourceCustody,
-) -> Result<CheckedBoundaryOperatorApplicationScope, LoweringError> {
-    lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, artifact, source_custody)
-        .map_err(LoweringError::Unsupported)
-}

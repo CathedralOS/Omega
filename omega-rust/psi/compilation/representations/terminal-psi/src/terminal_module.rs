@@ -16,7 +16,8 @@ pub mod types;
 pub mod values;
 
 pub use boundary::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryContentGuarantee,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryApplicationCandidate,
+    BoundaryBodySpecialization, BoundaryCheckedBody, BoundaryContentGuarantee,
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryNominalIdentity,
     BoundaryOperatorRequirement, BoundaryParameterKind, BoundaryStructuralResultDeclaration,
     BoundaryTypeIdentity, ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
@@ -149,6 +150,7 @@ pub struct TerminalModule {
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    pub boundary_application_candidates: Vec<crate::BoundaryApplicationCandidate>,
     /// Interfaces and implementation tables runtime selectors name.
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
     /// Source-handle-free proof-only float projections. These rows are
@@ -276,6 +278,7 @@ impl TerminalModule {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
+            boundary_application_candidates: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),

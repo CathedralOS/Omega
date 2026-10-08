@@ -18,6 +18,11 @@ use super::wire::Writer;
 use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH};
 
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
+    if !strictly_increasing(module.boundary_application_candidates.iter()) {
+        return Err(CodecError::NonCanonicalOrder(
+            "boundary application candidates",
+        ));
+    }
     if !strictly_increasing(
         module
             .boundary_application_demands
@@ -28,8 +33,33 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "boundary application demands by operation",
         ));
     }
-    for demand in &module.boundary_application_demands {
-        match demand.application() {
+    for candidate in &module.boundary_application_candidates {
+        if candidate.selection_identity.is_empty()
+            || candidate.target.as_ref().is_some_and(String::is_empty)
+            || candidate.body.contract == [0; 32]
+            || candidate
+                .body
+                .specialization
+                .as_ref()
+                .is_some_and(|row| row.commitment == [0; 32])
+        {
+            return Err(CodecError::MalformedStructuralFoundation(
+                "empty boundary candidate identity or commitment",
+            ));
+        }
+    }
+    for application in module
+        .boundary_application_demands
+        .iter()
+        .map(|demand| demand.application())
+        .chain(
+            module
+                .boundary_application_candidates
+                .iter()
+                .map(|candidate| &candidate.application),
+        )
+    {
+        match application {
             terminal_psi::BoundaryApplication::Empty => {}
             terminal_psi::BoundaryApplication::Exact(arguments) => {
                 if arguments.is_empty() {

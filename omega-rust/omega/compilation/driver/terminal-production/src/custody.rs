@@ -3,13 +3,12 @@
 //! These are driver results beside the canonical artifact, not another Psi IR.
 
 use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
-use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
 use artifacts::compile_timings::CompileTimings;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
-/// asked production to retain: the checked boundary scope, source call
+/// asked production to retain: source call
 /// occurrences, and the checked `ProgramEntry` receipt when an entry identity
 /// was supplied.
 ///
@@ -40,10 +39,6 @@ impl ProducedTerminalArtifact {
         self.production.unoptimized()
     }
 
-    pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
-        self.production.boundary_operator_scope()
-    }
-
     pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
         self.production.source_call_occurrences()
     }
@@ -60,7 +55,6 @@ impl ProducedTerminalArtifact {
         terminal_codec::CanonicalTerminalArtifact,
         Option<CheckedProgramEntryTerminalReceipt>,
         Option<LoweredPsi>,
-        CheckedBoundaryOperatorApplicationScope,
         Vec<LoweredSourceCallOccurrence>,
     ) {
         self.production.into_parts()
@@ -85,7 +79,7 @@ pub struct TerminalProductionCustody<'t> {
 }
 
 impl<'t> TerminalProductionCustody<'t> {
-    /// No entry receipt: only the artifact and its checked-scope evidence are
+    /// No entry receipt: only the artifact and its remaining source-call joins are
     /// retained.
     pub fn artifact_only(timings: &'t mut CompileTimings) -> Self {
         Self {
