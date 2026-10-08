@@ -55,19 +55,8 @@ pub(crate) fn copy_compound_assignment_target(
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let copy = match syntax_trees.expressions.expression(expression).clone() {
-        ExpressionNode::Name(path) => {
-            let path = syntax_trees
-                .expressions
-                .copy_identifier_path_prefix(path, path.len());
-            ExpressionNode::Name(path)
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = copy_compound_assignment_target(syntax_trees, member.receiver)?;
-            ExpressionNode::Member(TableMemberExpression {
-                receiver,
-                member: member.member,
-                case_variant: member.case_variant.clone(),
-            })
+        node @ (ExpressionNode::Name(_) | ExpressionNode::Member(_)) => {
+            copied_name_or_member(syntax_trees, node)?
         }
         ExpressionNode::Indexed(indexed) => {
             let collection = copy_compound_assignment_target(syntax_trees, indexed.collection)?;
@@ -80,6 +69,27 @@ pub(crate) fn copy_compound_assignment_target(
     Some(syntax_trees.expressions.insert(copy))
 }
 
+/// The name/member arms every compound-assignment copy accepts: paths deep
+/// copy, member receivers recurse through the assignment-target copier.
+fn copied_name_or_member(
+    syntax_trees: &mut SyntaxTrees,
+    node: ExpressionNode,
+) -> Option<ExpressionNode> {
+    Some(match node {
+        ExpressionNode::Name(path) => ExpressionNode::Name(
+            syntax_trees
+                .expressions
+                .copy_identifier_path_prefix(path, path.len()),
+        ),
+        ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
+            receiver: copy_compound_assignment_target(syntax_trees, member.receiver)?,
+            member: member.member,
+            case_variant: member.case_variant.clone(),
+        }),
+        _ => return None,
+    })
+}
+
 fn copy_stable_compound_assignment_index(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
@@ -87,19 +97,8 @@ fn copy_stable_compound_assignment_index(
     let copy = match syntax_trees.expressions.expression(expression).clone() {
         ExpressionNode::Boolean(value) => ExpressionNode::Boolean(value),
         ExpressionNode::Integer(value) => ExpressionNode::Integer(value),
-        ExpressionNode::Name(path) => {
-            let path = syntax_trees
-                .expressions
-                .copy_identifier_path_prefix(path, path.len());
-            ExpressionNode::Name(path)
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = copy_compound_assignment_target(syntax_trees, member.receiver)?;
-            ExpressionNode::Member(TableMemberExpression {
-                receiver,
-                member: member.member,
-                case_variant: member.case_variant.clone(),
-            })
+        node @ (ExpressionNode::Name(_) | ExpressionNode::Member(_)) => {
+            copied_name_or_member(syntax_trees, node)?
         }
         _ => return None,
     };
