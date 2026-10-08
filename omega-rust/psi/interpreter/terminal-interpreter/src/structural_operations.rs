@@ -952,8 +952,15 @@ impl TerminalExecution<'_> {
 
     /// Move every runtime cell under `from` to the same subtree suffix under
     /// `to`. Cells are staged before removal so the source region is never
-    /// partially vacated.
-    fn relocate_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
+    /// Stage every runtime cell under `from` at the same subtree suffix under
+    /// `to`, then insert the staged cells. `vacate` retires the source
+    /// subtree's cells for a move; a copy leaves `from` fully intact.
+    fn transplant_subtree(
+        &mut self,
+        from: &StructuralRuntimePlace,
+        to: &StructuralRuntimePlace,
+        vacate: bool,
+    ) {
         let retarget = |parent: &StructuralRuntimePlace| {
             (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
                 .then(|| StructuralRuntimePlace {
@@ -1017,20 +1024,22 @@ impl TerminalExecution<'_> {
             .iter()
             .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
             .collect();
-        self.structural_scalar_fields
-            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
-        self.structural_byte_sequence_fields
-            .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
-        self.structural_byte_storage
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.structural_cases
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.reference_referents
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.structural_element_view_fields
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
-        self.structural_primitive_storage
-            .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        if vacate {
+            self.structural_scalar_fields
+                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+            self.structural_byte_sequence_fields
+                .retain(|cell, _| Self::survives_subtree_prune(&cell.parent, from));
+            self.structural_byte_storage
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+            self.structural_cases
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+            self.reference_referents
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+            self.structural_element_view_fields
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+            self.structural_primitive_storage
+                .retain(|carrier, _| Self::survives_subtree_prune(carrier, from));
+        }
         self.structural_scalar_fields.extend(staged_scalars);
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
@@ -1042,82 +1051,18 @@ impl TerminalExecution<'_> {
         self.structural_primitive_storage.extend(staged_primitives);
     }
 
+    /// Move every runtime cell under `from` to the same subtree suffix under
+    /// `to`. Cells are staged before removal so the source region is never
+    /// partially vacated.
+    fn relocate_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
+        self.transplant_subtree(from, to, true)
+    }
+
     /// Copy every runtime cell under `from` to the same subtree suffix under
     /// `to`, leaving `from` intact. The `Unrestricted` leaf's cells duplicate
     /// beneath the result's own opaque identity; nothing vacates.
     fn clone_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
-        let retarget = |parent: &StructuralRuntimePlace| {
-            (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
-                .then(|| StructuralRuntimePlace {
-                    opaque_identity: to.opaque_identity,
-                    path: to
-                        .path
-                        .iter()
-                        .chain(&parent.path[from.path.len()..])
-                        .cloned()
-                        .collect(),
-                })
-        };
-        let staged_scalars: Vec<_> = self
-            .structural_scalar_fields
-            .iter()
-            .filter_map(|(cell, scalar)| {
-                retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
-            })
-            .collect();
-        let staged_byte_fields: Vec<_> = self
-            .structural_byte_sequence_fields
-            .iter()
-            .filter_map(|(cell, view)| {
-                retarget(&cell.parent).map(|parent| {
-                    (
-                        crate::values::StructuralByteSequenceRuntimeField {
-                            parent,
-                            field: cell.field,
-                        },
-                        view.clone(),
-                    )
-                })
-            })
-            .collect();
-        let staged_arrays: Vec<_> = self
-            .structural_byte_storage
-            .iter()
-            .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
-            .collect();
-        let staged_cases: Vec<_> = self
-            .structural_cases
-            .iter()
-            .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
-            .collect();
-        let staged_element_views: Vec<_> = self
-            .structural_element_view_fields
-            .iter()
-            .filter_map(|(carrier, descriptor)| {
-                retarget(carrier).map(|place| (place, descriptor.clone()))
-            })
-            .collect();
-        let staged_referents: Vec<_> = self
-            .reference_referents
-            .iter()
-            .filter_map(|(carrier, referent)| {
-                retarget(carrier).map(|place| (place, referent.clone()))
-            })
-            .collect();
-        let staged_primitives: Vec<_> = self
-            .structural_primitive_storage
-            .iter()
-            .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
-            .collect();
-        self.structural_scalar_fields.extend(staged_scalars);
-        self.structural_byte_sequence_fields
-            .extend(staged_byte_fields);
-        self.structural_byte_storage.extend(staged_arrays);
-        self.structural_cases.extend(staged_cases);
-        self.reference_referents.extend(staged_referents);
-        self.structural_element_view_fields
-            .extend(staged_element_views);
-        self.structural_primitive_storage.extend(staged_primitives);
+        self.transplant_subtree(from, to, false)
     }
 
     /// Project an `Unrestricted` leaf out of a live root into a fresh owned
