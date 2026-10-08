@@ -689,6 +689,24 @@ pub enum TypeReferenceNode {
     Unit,
 }
 
+/// The `(Constrained, Constrained)` operand pair — same-variant
+/// comparisons destructure `base_type` on both sides and recur.
+#[macro_export]
+macro_rules! constrained_type_reference_pair {
+    ($actual:ident, $required:ident) => {
+        (
+            $crate::types::TypeReferenceNode::Constrained {
+                base_type: $actual,
+                ..
+            },
+            $crate::types::TypeReferenceNode::Constrained {
+                base_type: $required,
+                ..
+            },
+        )
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixedArrayLength {
     Literal(usize),

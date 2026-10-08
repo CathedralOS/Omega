@@ -654,22 +654,15 @@ pub(crate) fn type_references_match_with_trait_bindings(
                     bindings,
                 )
         }
-        (
-            TypeReferenceNode::Constrained {
-                base_type: actual_base,
-                ..
-            },
-            TypeReferenceNode::Constrained {
-                base_type: required_base,
-                ..
-            },
-        ) => type_references_match_with_trait_bindings(
-            program,
-            *actual_base,
-            *required_base,
-            trait_type_parameters,
-            bindings,
-        ),
+        typed_trees::constrained_type_reference_pair!(actual_base, required_base) => {
+            type_references_match_with_trait_bindings(
+                program,
+                *actual_base,
+                *required_base,
+                trait_type_parameters,
+                bindings,
+            )
+        }
         (
             TypeReferenceNode::FixedArray {
                 element_type: actual_element,
@@ -814,23 +807,16 @@ pub(crate) fn type_reference_lifetimes_match_requirement_application(
                 raw_application,
             )
         }
-        (
-            TypeReferenceNode::Constrained {
-                base_type: actual_base,
-                ..
-            },
-            TypeReferenceNode::Constrained {
-                base_type: required_base,
-                ..
-            },
-        ) => type_reference_lifetimes_match_requirement_application(
-            program,
-            *actual_base,
-            *required_base,
-            target_lifetimes,
-            machine,
-            raw_application,
-        ),
+        typed_trees::constrained_type_reference_pair!(actual_base, required_base) => {
+            type_reference_lifetimes_match_requirement_application(
+                program,
+                *actual_base,
+                *required_base,
+                target_lifetimes,
+                machine,
+                raw_application,
+            )
+        }
         (
             TypeReferenceNode::FixedArray {
                 element_type: actual_element,

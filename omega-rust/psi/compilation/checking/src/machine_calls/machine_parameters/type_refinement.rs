@@ -116,23 +116,16 @@ fn required_type_matches_inner<const EXACT: bool>(
                     binder_bindings,
                 )
         }
-        (
-            TypeReferenceNode::Constrained {
-                base_type: actual_base,
-                ..
-            },
-            TypeReferenceNode::Constrained {
-                base_type: required_base,
-                ..
-            },
-        ) => required_type_matches_inner::<EXACT>(
-            program,
-            *actual_base,
-            *required_base,
-            generic_types,
-            bindings,
-            binder_bindings,
-        ),
+        typed_trees::constrained_type_reference_pair!(actual_base, required_base) => {
+            required_type_matches_inner::<EXACT>(
+                program,
+                *actual_base,
+                *required_base,
+                generic_types,
+                bindings,
+                binder_bindings,
+            )
+        }
         // A constraint (`Token in Carry::AcrossSuspend`) is a value-level
         // permission or domain on its carrier, not a different type. The
         // exact closed-binding match above already compares only carriers for
