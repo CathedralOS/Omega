@@ -1,5 +1,6 @@
 use super::super::{AbstractOperation, ScalarType, ValueId};
 use abstract_operations::AbstractStructuralCallResult;
+use abstract_operations::binding_arguments;
 
 pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
     use AbstractOperation as O;
@@ -219,14 +220,14 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             ..
         } => vec![*left, *right, *addend],
         O::IntegerShift { value, count, .. } => vec![*value, *count],
-        O::Jump { bindings, .. } => bindings.iter().map(|binding| binding.argument).collect(),
+        O::Jump { bindings, .. } => binding_arguments(bindings).collect(),
         O::Conditional {
             condition,
             when_true,
             when_false,
         } => std::iter::once(*condition)
-            .chain(when_true.bindings.iter().map(|binding| binding.argument))
-            .chain(when_false.bindings.iter().map(|binding| binding.argument))
+            .chain(binding_arguments(&when_true.bindings))
+            .chain(binding_arguments(&when_false.bindings))
             .collect(),
         O::Return { value, .. } => vec![*value],
         O::AtomicEvent { event, .. } => {

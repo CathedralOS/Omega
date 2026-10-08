@@ -92,3 +92,8 @@ pub struct ValueBinding {
     pub argument: ValueId,
     pub scalar_type: ScalarType,
 }
+
+/// The bound argument of every binding, in binding order.
+pub fn binding_arguments(bindings: &[ValueBinding]) -> impl Iterator<Item = ValueId> + '_ {
+    bindings.iter().map(|binding| binding.argument)
+}

@@ -11,6 +11,7 @@ use crate::candidates::sparse_conditional_constant_propagation::validator_scalar
 use crate::candidates::{candidate_block, candidate_function};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::binding_arguments;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{
     DispatchCondition, NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceDisposition,
@@ -580,14 +581,14 @@ fn node_uses(
     location: NodeLocation,
 ) -> Vec<ValueUse> {
     let arguments: Vec<ValueId> = match operation {
-        O::Jump { bindings, .. } => bindings.iter().map(|binding| binding.argument).collect(),
+        O::Jump { bindings, .. } => binding_arguments(bindings).collect(),
         O::Conditional {
             condition,
             when_true,
             when_false,
         } => std::iter::once(*condition)
-            .chain(when_true.bindings.iter().map(|binding| binding.argument))
-            .chain(when_false.bindings.iter().map(|binding| binding.argument))
+            .chain(binding_arguments(&when_true.bindings))
+            .chain(binding_arguments(&when_false.bindings))
             .collect(),
         _ => Vec::new(),
     };
@@ -753,7 +754,8 @@ pub(super) fn validate(
     }
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
-    let output_function = output.function(patch.machine)
+    let output_function = output
+        .function(patch.machine)
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
     validate_outside_region(&input_function.blocks, output_function, &expected_blocks)?;
     for input_function_other in &input.functions {

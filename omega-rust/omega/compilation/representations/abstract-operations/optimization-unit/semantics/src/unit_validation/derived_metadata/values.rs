@@ -1,5 +1,6 @@
 //! Independently reconstructed scalar definitions and uses.
 use abstract_operations::AbstractStructuralCallResult;
+use abstract_operations::binding_arguments;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
 use semantic_vocabulary::{BlockId, ScalarType};
 
@@ -215,14 +216,14 @@ pub(crate) fn expected_uses(
             ..
         } => vec![*left, *right, *addend],
         O::IntegerShift { value, count, .. } => vec![*value, *count],
-        O::Jump { bindings, .. } => bindings.iter().map(|binding| binding.argument).collect(),
+        O::Jump { bindings, .. } => binding_arguments(bindings).collect(),
         O::Conditional {
             condition,
             when_true,
             when_false,
         } => std::iter::once(*condition)
-            .chain(when_true.bindings.iter().map(|binding| binding.argument))
-            .chain(when_false.bindings.iter().map(|binding| binding.argument))
+            .chain(binding_arguments(&when_true.bindings))
+            .chain(binding_arguments(&when_false.bindings))
             .collect(),
         O::Return { value, .. } => vec![*value],
         O::AtomicEvent { event, .. } => {

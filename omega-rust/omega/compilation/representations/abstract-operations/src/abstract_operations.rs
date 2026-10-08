@@ -86,7 +86,9 @@ pub use control_flow::{
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
 };
 pub mod values;
-pub use values::{AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding};
+pub use values::{
+    AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding, binding_arguments,
+};
 mod integer_arithmetic;
 pub use integer_arithmetic::{
     IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
