@@ -1,7 +1,7 @@
 //! Constructor operands move their affine complement and linear claims together.
 //! Stage custody before removing any runtime cells so malformed later operands
 //! cannot consume an earlier child or its still-live siblings.
-use crate::custody::{consume_affine_projection, resolve_structural_arguments};
+use crate::custody::resolve_structural_arguments;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::values::StructuralRuntimePlace;
@@ -33,13 +33,7 @@ impl TerminalExecution<'_> {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
             } else {
-                consume_affine_projection(
-                    &self.program.structural_types(),
-                    &self.structural_values,
-                    &self.structural_cases,
-                    frontier,
-                    argument,
-                )?;
+                self.consume_affine_projection(frontier, argument)?;
             }
             consumed.push(argument.clone());
         }

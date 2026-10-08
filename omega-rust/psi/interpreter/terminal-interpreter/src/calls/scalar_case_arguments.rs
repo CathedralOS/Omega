@@ -9,7 +9,6 @@
 //! their original backing rather than these scalar snapshots.
 
 use crate::custody::bind_affine_frontier_types;
-use crate::custody::consume_affine_projection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarCaseValue, TerminalStructuralValue};
@@ -162,13 +161,7 @@ impl TerminalExecution<'_> {
             }
             Ok(())
         } else {
-            consume_affine_projection(
-                &self.program.structural_types(),
-                &self.structural_values,
-                &self.structural_cases,
-                frontier,
-                argument,
-            )
+            self.consume_affine_projection(frontier, argument)
         }
     }
 }

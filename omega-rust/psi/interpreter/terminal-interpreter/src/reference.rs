@@ -388,17 +388,11 @@ impl TerminalExecution<'_> {
         // exactly the same affine complement as transfer. It never removes the
         // referent or the scalar storage of surviving siblings.
         let mut frontier = self.live_affine_frontier.clone();
-        crate::custody::consume_affine_projection(
-            &self.program.structural_types(),
-            &self.structural_values,
-            &self.structural_cases,
-            &mut frontier,
-            &StructuralArgument {
+        self.consume_affine_projection(&mut frontier, &StructuralArgument {
                 place: source,
                 path: path.to_vec(),
                 access: StructuralAccess::Owned,
-            },
-        )?;
+            })?;
         self.reference_referents.remove(&key);
         self.live_affine_frontier = frontier;
         if path.is_empty() {
