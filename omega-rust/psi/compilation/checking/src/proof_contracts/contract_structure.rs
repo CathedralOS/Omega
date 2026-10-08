@@ -142,10 +142,7 @@ pub fn declared_contracts(
                 if !include_crashes {
                     continue;
                 }
-                let cause = match cause {
-                    typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-                    typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
-                };
+                let cause = checked_trees::CrashCause::from(cause);
                 let position = crashes
                     .iter()
                     .position(|bucket| bucket.0 == cause)

@@ -87,10 +87,7 @@ pub(crate) fn derive_checked_operator_crash_contracts(
                 let SignatureContractKind::Crashes { cause } = contract.kind else {
                     continue;
                 };
-                let cause = match cause {
-                    typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-                    typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
-                };
+                let cause = checked_trees::CrashCause::from(cause);
                 let bucket = buckets.entry(cause).or_default();
                 if contract.facts.is_empty() {
                     bucket.unconditional = true;

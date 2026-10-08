@@ -10,6 +10,15 @@ pub enum CrashCause {
     Abort,
 }
 
+impl From<typed_trees::signature::CrashCause> for CrashCause {
+    fn from(cause: typed_trees::signature::CrashCause) -> Self {
+        match cause {
+            typed_trees::signature::CrashCause::Trap => Self::Trap,
+            typed_trees::signature::CrashCause::Abort => Self::Abort,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CrashInterface {
     #[default]

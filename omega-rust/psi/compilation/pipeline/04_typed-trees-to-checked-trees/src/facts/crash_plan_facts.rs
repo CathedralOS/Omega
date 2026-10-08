@@ -146,7 +146,8 @@ pub(crate) fn build_crash_contract_capsules(
     // machine signature views are deliberately absent: those keep the ordinary
     // machine contract and its authored operational interfaces.
     capsules.extend(
-        program.all_operators()
+        program
+            .all_operators()
             .filter(|operator| operator.is_boundary)
             .map(|operator| {
                 build_operator_crash_contract_capsule(
@@ -497,10 +498,7 @@ fn build_published_crash_buckets(
         else {
             continue;
         };
-        let cause = match cause {
-            typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-            typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
-        };
+        let cause = checked_trees::CrashCause::from(*cause);
         let bucket = buckets.entry(cause).or_default();
         let facts = program.proof_facts.span_or_empty(contract.facts);
         if facts.is_empty() || facts.iter().any(|fact| is_true_crash_route(program, fact)) {
@@ -601,10 +599,7 @@ fn build_checked_crash_sites(
             let typed_trees::statement::TransitionExit::Crash(cause) = transition.exit else {
                 continue;
             };
-            let cause = match cause {
-                typed_trees::signature::CrashCause::Trap => checked_trees::CrashCause::Trap,
-                typed_trees::signature::CrashCause::Abort => checked_trees::CrashCause::Abort,
-            };
+            let cause = checked_trees::CrashCause::from(cause);
             // An unconditional same-cause route covers every possible path
             // guard. Guarded buckets join only after path-conditioned
             // entailment exists.
