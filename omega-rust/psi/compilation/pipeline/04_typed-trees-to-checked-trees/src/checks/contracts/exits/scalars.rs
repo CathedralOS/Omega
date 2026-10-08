@@ -451,11 +451,11 @@ impl ExitScalars<'_, '_> {
             expression,
             &mut nodes,
         );
-        let state = validation::find_state_in_machine(
+        let state = validation::find_state_on_machine(
             self.program,
-            self.machine.symbol,
+            self.machine,
             self.exit.state_symbol,
-        );
+            );
         self.program
             .expression_table
             .expression_is_valid(expression)

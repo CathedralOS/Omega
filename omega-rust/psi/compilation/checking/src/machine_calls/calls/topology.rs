@@ -11,6 +11,16 @@ pub fn find_state_in_machine(
     program.state_in_machine(machine, state_symbol)
 }
 
+/// The state `state_symbol` names on `machine` — the machine-object form of
+/// `find_state_in_machine` for callers already holding the machine itself.
+pub fn find_state_on_machine<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state_symbol: SymbolHandle,
+) -> Option<&'program typed_trees::state::State> {
+    find_state_in_machine(program, machine.symbol, state_symbol)
+}
+
 /// The state an exit fact sits on, resolved through the fact's machine.
 pub fn find_state_for_exit<'program>(
     program: &'program dyn crate::CheckingInput,
