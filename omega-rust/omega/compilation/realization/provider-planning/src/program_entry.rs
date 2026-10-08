@@ -379,9 +379,7 @@ fn provisioned_entry_context_from_parameters<'program>(
         *symbol
     };
     let definition = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == definition_symbol)
+        .data_definition_by_symbol(definition_symbol)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "entry machine `{machine_name}` context `{}` has no exact data declaration",

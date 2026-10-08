@@ -446,9 +446,7 @@ fn binding_widths(
 ) -> Result<[u64; 3], String> {
     let application = match typed.type_reference_table.type_reference(return_type) {
         TypeReferenceNode::Named { symbol, .. } => typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol)
+            .data_definition_by_symbol(*symbol)
             .and_then(|definition| definition.generic_instance)
             .ok_or_else(|| {
                 "ordinary external `via` producer must return a closed Binding application"

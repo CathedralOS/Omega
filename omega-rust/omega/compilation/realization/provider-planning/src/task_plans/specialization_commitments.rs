@@ -41,9 +41,7 @@ pub(crate) fn task_specialization_commitment(
     requirement_identity: &str,
 ) -> Result<TaskSpecializationCommitment, Vec<Diagnostic>> {
     let requirement_owner = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == selection.requirement_owner)
+        .trait_definition_by_symbol(selection.requirement_owner)
         .ok_or_else(|| {
             vec![Diagnostic::error(
                 "task specialization is missing its exact TaskRuntime requirement owner",

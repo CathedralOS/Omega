@@ -143,7 +143,8 @@ impl<'input> BoundaryValueLayout<'input> {
                     pointer_size
                 };
                 let abi = ValueShape::integer(u32::from(byte_size), pointer_alignment);
-                let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
+                let root =
+                    abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
             TypeReferenceNode::Slice { .. } => {
@@ -157,7 +158,8 @@ impl<'input> BoundaryValueLayout<'input> {
                     "target pointer alignment exceeds boundary shape range".to_owned()
                 })?;
                 let abi = ValueShape::integer(u32::from(byte_size), alignment);
-                let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
+                let root =
+                    abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
             TypeReferenceNode::FixedArray {
@@ -198,7 +200,8 @@ impl<'input> BoundaryValueLayout<'input> {
                     "target pointer alignment exceeds boundary shape range".to_owned()
                 })?;
                 let abi = ValueShape::integer(u32::from(byte_size), alignment);
-                let root = abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
+                let root =
+                    abi_boundary_shape(&mut self.shapes, BoundaryValueClass::Reference, &abi)?;
                 Ok((abi, root))
             }
             TypeReferenceNode::Generic { .. } => Err(format!(
@@ -224,9 +227,7 @@ impl<'input> BoundaryValueLayout<'input> {
     ) -> Result<(ValueShape, u16), String> {
         if self
             .typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+            .data_definition_by_symbol(symbol)
             .is_some_and(|definition| {
                 definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
             })
@@ -255,10 +256,7 @@ impl<'input> BoundaryValueLayout<'input> {
         )
     })?;
         let application = selection.application();
-        let carrier = typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == selection.carrier())
+        let carrier = typed.data_definition_by_symbol(selection.carrier())
         .ok_or_else(|| {
             format!(
                 "selected opaque representation carrier for `{opaque_name}` disappeared before shape closure"
@@ -304,9 +302,7 @@ impl<'input> BoundaryValueLayout<'input> {
             ));
         }
         let definition = typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
+            .data_definition_by_symbol(symbol)
             .ok_or_else(|| format!("named boundary type `{name}` has no data definition"))?;
         let planned_layout = typed
             .plan_laid_layouts

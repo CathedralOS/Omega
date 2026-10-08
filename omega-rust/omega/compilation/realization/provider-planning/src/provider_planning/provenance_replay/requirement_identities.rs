@@ -21,11 +21,7 @@ pub(crate) fn exact_satisfied_requirement_identity(
             .machine_callable_identity_text(requirement)
             .unwrap_or_default();
     }
-    let Some(definition) = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)
-    else {
+    let Some(definition) = typed.trait_definition_by_symbol(trait_symbol) else {
         return String::new();
     };
     typed

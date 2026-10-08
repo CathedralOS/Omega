@@ -44,10 +44,7 @@ pub(crate) fn named_requirement_lifetime_arguments<'a>(
     implementation: &'a Conformance,
     declaring_trait: SymbolHandle,
 ) -> Option<&'a [u32]> {
-    let root = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == implementation.trait_symbol)?;
+    let root = typed.trait_definition_by_symbol(implementation.trait_symbol)?;
     let arguments = implementation.trait_lifetime_arguments.as_slice();
     if arguments.len() != root.lifetime_parameters.len()
         || arguments.iter().any(|ordinal| {
@@ -61,10 +58,7 @@ pub(crate) fn named_requirement_lifetime_arguments<'a>(
     if root.symbol == declaring_trait {
         return Some(arguments);
     }
-    let declaring = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == declaring_trait)?;
+    let declaring = typed.trait_definition_by_symbol(declaring_trait)?;
     declaring.lifetime_parameters.is_empty().then_some(&[])
 }
 

@@ -178,11 +178,7 @@ fn resolved_boundary_call_names(
     requirement: SymbolHandle,
 ) -> Vec<&str> {
     let program = &checked.typed;
-    let Some(definition) = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == requirement)
-    else {
+    let Some(definition) = program.trait_definition_by_symbol(requirement) else {
         return Vec::new();
     };
     let signatures = program.trait_machine_signatures(definition);

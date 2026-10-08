@@ -110,10 +110,7 @@ fn completion_declaration(
     owner: SymbolHandle,
     package: PackageKeyIdentity,
 ) -> Option<BoundaryCompletionDeclaration> {
-    let definition = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == owner)?;
+    let definition = typed.trait_definition_by_symbol(owner)?;
     let mut requirements = typed
         .trait_machine_signatures(definition)
         .iter()

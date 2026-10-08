@@ -48,9 +48,7 @@ fn selected_service_plan_matches_requirement(
     requirement: symbols::SymbolHandle,
 ) -> bool {
     let Some(schema) = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == requirement)
+        .trait_definition_by_symbol(requirement)
         .and_then(|definition| {
             provider_planning::service_schema::from_typed(
                 provider_planning::ProviderPlanningContext::new(
