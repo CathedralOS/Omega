@@ -40,10 +40,7 @@ fn selected(
         .source()
         .source()
         .source()
-        .selected_plan()
-        .functions
-        .iter()
-        .find(|row| row.machine == machine)
+        .selected_plan().function(machine)
         .ok_or(Error::Mismatch("function has no selected contract"))
 }
 fn fragment(

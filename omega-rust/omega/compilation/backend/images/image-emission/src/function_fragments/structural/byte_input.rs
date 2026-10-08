@@ -173,10 +173,7 @@ pub(super) fn settlement(
     };
     let placed = container
         .source()
-        .text_section()
-        .functions
-        .iter()
-        .find(|placed| placed.machine == machine)
+        .text_section().function(machine)
         .ok_or_else(invalid)?;
     Ok(ObjectBoundarySettlement {
         machine,
@@ -227,10 +224,7 @@ pub(super) fn validate(
     let home = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     let placed = container
         .source()
-        .text_section()
-        .functions
-        .iter()
-        .find(|placed| placed.machine == machine)
+        .text_section().function(machine)
         .ok_or_else(invalid)?;
     let record = &proposed.settlement;
     let BoundaryResultRecord::Structural(produced) = &record.native_result else {

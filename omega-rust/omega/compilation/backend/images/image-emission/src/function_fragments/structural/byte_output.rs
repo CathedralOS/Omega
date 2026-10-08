@@ -110,10 +110,7 @@ pub(super) fn settlement(
     };
     let placed = container
         .source()
-        .text_section()
-        .functions
-        .iter()
-        .find(|placed| placed.machine == machine)
+        .text_section().function(machine)
         .ok_or(Error::Mismatch("byte output placed function"))?;
     Ok(ObjectBoundarySettlement {
         machine,
@@ -160,10 +157,7 @@ pub(super) fn validate(
     let scratch = frame.local_storage_slot(slot).ok_or_else(invalid)?;
     let placed = container
         .source()
-        .text_section()
-        .functions
-        .iter()
-        .find(|placed| placed.machine == machine)
+        .text_section().function(machine)
         .ok_or_else(invalid)?;
     let settlement = &proposed.settlement;
     let [argument] = settlement.runtime_scalar_arguments.as_slice() else {

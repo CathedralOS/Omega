@@ -157,10 +157,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         let (abstracted, targeted) = function(source, fragment.machine)?;
         let unit = matches!(abstracted.result, AbstractFunctionResult::Unit);
         let selected = current
-            .selected_plan()
-            .functions
-            .iter()
-            .find(|row| row.machine == fragment.machine)
+            .selected_plan().function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
         let structural = selected.structural.as_ref();
         let graph_result = aggregate_results::header(abstracted, targeted, selected);

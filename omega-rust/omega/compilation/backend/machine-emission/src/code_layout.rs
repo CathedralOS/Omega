@@ -136,9 +136,7 @@ pub fn describe_selected_application_code_layout(
     machine: MachineId,
 ) -> Result<SelectedApplicationCodeLayout, CodeLayoutError> {
     let fragment = section
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)
+        .function(machine)
         .ok_or(CodeLayoutError::MissingRealization(machine))?;
     let regions = instruction_regions(fragment)?;
     let internal_calls: Vec<PlacedInternalMachineCallResolution> = section

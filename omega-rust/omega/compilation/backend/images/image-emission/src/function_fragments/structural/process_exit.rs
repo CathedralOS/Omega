@@ -107,10 +107,7 @@ pub(super) fn settlement(
     };
     let placed = container
         .source()
-        .text_section()
-        .functions
-        .iter()
-        .find(|row| row.machine == machine)
+        .text_section().function(machine)
         .ok_or(Error::Mismatch("process exit placed function"))?;
     Ok(ObjectBoundarySettlement {
         machine,
@@ -167,10 +164,7 @@ pub(super) fn validate(
     };
     let placed = container
         .source()
-        .text_section()
-        .functions
-        .iter()
-        .find(|row| row.machine == machine)
+        .text_section().function(machine)
         .ok_or_else(invalid)?;
     let (abstracted, _) = source::function(container, machine)?;
     if located.instruction_index as usize != block.instructions.len()

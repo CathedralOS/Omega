@@ -150,9 +150,7 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 .ok_or("normalized external entry mechanism is absent")?;
             let section = publication.text_section();
             let fragment = section
-                .functions
-                .iter()
-                .find(|function| function.machine == occurrence.machine())
+                .function(occurrence.machine())
                 .ok_or("kernel entry has no placed caller")?;
             let span = fragment
                 .instructions()
