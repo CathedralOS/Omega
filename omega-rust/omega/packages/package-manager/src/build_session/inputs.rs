@@ -5,7 +5,6 @@ use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use diagnostics::Diagnostic;
 
-
 pub(crate) struct OccurrenceBuildInputs {
     incoming: package_compilation::BuildDependencyOccurrence,
     pub(crate) snapshot: build_evaluation::BuildSnapshotRequest,

@@ -6,6 +6,20 @@
 //! Start with [`package_manager`] for command dispatch, review and publication.
 //! [`operations`] also exposes compiler preparation and read-only inspection.
 
+/// `bounded()` clamps every limit field against `Self::default()` — the hard
+/// ceiling shape all package limit records share.
+macro_rules! bounded_limits {
+    ($vis:vis fn; $($field:ident),+ $(,)?) => {
+        $vis fn bounded(self) -> Self {
+            let hard = Self::default();
+            Self {
+                $($field: self.$field.min(hard.$field),)+
+            }
+        }
+    };
+}
+pub(crate) use bounded_limits;
+
 mod build_session;
 pub mod declarations;
 pub mod lock;

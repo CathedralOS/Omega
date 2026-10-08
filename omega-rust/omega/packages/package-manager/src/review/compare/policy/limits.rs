@@ -40,27 +40,17 @@ impl Default for PackagePolicyChangeLimits {
     }
 }
 impl PackagePolicyChangeLimits {
-    fn bounded(self) -> Self {
-        let hard = Self::default();
-        Self {
-            maximum_packages: self.maximum_packages.min(hard.maximum_packages),
-            maximum_rows: self.maximum_rows.min(hard.maximum_rows),
-            maximum_projection_owned_bytes: self
-                .maximum_projection_owned_bytes
-                .min(hard.maximum_projection_owned_bytes),
-            maximum_projection_elements: self
-                .maximum_projection_elements
-                .min(hard.maximum_projection_elements),
-            maximum_changed_rows: self.maximum_changed_rows.min(hard.maximum_changed_rows),
-            maximum_changed_owned_bytes: self
-                .maximum_changed_owned_bytes
-                .min(hard.maximum_changed_owned_bytes),
-            maximum_dependency_path_steps: self
-                .maximum_dependency_path_steps
-                .min(hard.maximum_dependency_path_steps),
-            maximum_context_bytes: self.maximum_context_bytes.min(hard.maximum_context_bytes),
-        }
-    }
+    crate::bounded_limits!(
+        fn;
+        maximum_packages,
+        maximum_rows,
+        maximum_projection_owned_bytes,
+        maximum_projection_elements,
+        maximum_changed_rows,
+        maximum_changed_owned_bytes,
+        maximum_dependency_path_steps,
+        maximum_context_bytes,
+    );
 }
 
 pub(super) struct Budget {

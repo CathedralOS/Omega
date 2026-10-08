@@ -48,7 +48,6 @@ struct OccurrenceProducts {
     description: Option<IndependentComponentDescription>,
 }
 
-
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::Compilation {
         package: package.clone(),

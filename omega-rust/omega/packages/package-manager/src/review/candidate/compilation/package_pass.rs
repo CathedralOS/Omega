@@ -25,8 +25,8 @@ use super::super::semantic_bindings::{
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
 };
-use crate::declarations::{DependencyPurpose, purpose_slot};
 use crate::declarations::PackageKey;
+use crate::declarations::{DependencyPurpose, purpose_slot};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
@@ -153,7 +153,6 @@ pub(super) enum TargetEntryDiscovery {
     Disabled,
     Dependencies,
 }
-
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compile_dependency_closure(

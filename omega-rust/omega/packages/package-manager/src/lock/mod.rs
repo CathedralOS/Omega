@@ -21,12 +21,6 @@ pub(crate) mod occurrences;
 mod text;
 mod validation;
 
-pub use error::PackageLockError;
-pub use limits::PackageLockRecoveryLimits;
-pub use occurrences::{
-    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
-    PackagePurposeCoverage,
-};
 use self::PackageLockError as Error;
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
@@ -34,6 +28,12 @@ pub use decisions::{
     HistoricalPackagePolicyDecision, HistoricalPackagePolicyDecisionSubject,
     HistoricalPackagePolicyDecisions, HistoricalPackagePolicyError, HistoricalPackagePolicyLimits,
     HistoricalPackagePolicyRecoveryUsage,
+};
+pub use error::PackageLockError;
+pub use limits::PackageLockRecoveryLimits;
+pub use occurrences::{
+    PackageCheckedContext, PackageOccurrenceRoster, PackageOccurrenceRosterError,
+    PackagePurposeCoverage,
 };
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;

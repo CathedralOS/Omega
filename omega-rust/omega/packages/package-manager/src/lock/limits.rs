@@ -41,21 +41,15 @@ impl PackageLockRecoveryLimits {
         }
     }
 
-    pub(super) fn bounded(self) -> Self {
-        let hard = Self::default();
-        Self {
-            maximum_bytes: self.maximum_bytes.min(hard.maximum_bytes),
-            maximum_owned_bytes: self.maximum_owned_bytes.min(hard.maximum_owned_bytes),
-            maximum_targets: self.maximum_targets.min(hard.maximum_targets),
-            maximum_packages: self.maximum_packages.min(hard.maximum_packages),
-            maximum_dependency_requests: self
-                .maximum_dependency_requests
-                .min(hard.maximum_dependency_requests),
-            maximum_policy_elements: self
-                .maximum_policy_elements
-                .min(hard.maximum_policy_elements),
-            maximum_identity_nodes: self.maximum_identity_nodes.min(hard.maximum_identity_nodes),
-            maximum_decisions: self.maximum_decisions.min(hard.maximum_decisions),
-        }
-    }
+    crate::bounded_limits!(
+        pub(super) fn;
+        maximum_bytes,
+        maximum_owned_bytes,
+        maximum_targets,
+        maximum_packages,
+        maximum_dependency_requests,
+        maximum_policy_elements,
+        maximum_identity_nodes,
+        maximum_decisions,
+    );
 }
