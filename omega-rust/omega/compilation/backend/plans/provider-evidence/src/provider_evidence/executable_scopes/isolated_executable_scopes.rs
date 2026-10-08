@@ -75,66 +75,6 @@ impl ExecutableTcbManifestSet {
 
 }
 
-fn validate_candidate(candidate: &mut IsolatedExecutableScopeCandidate) -> Result<(), String> {
-    let provider_name = match &candidate.provider_identity {
-        ProviderIdentity::NominalType(name) | ProviderIdentity::FreeExternalPlan(name) => name,
-    };
-    if provider_name.trim().is_empty() {
-        return Err("isolated executable scope has no provider identity".into());
-    }
-    if candidate.provider_plan_report_identity == 0 {
-        return Err(
-            "isolated executable scope has the reserved zero provider-plan identity".into(),
-        );
-    }
-    if candidate
-        .provider_plan_digest
-        .as_bytes()
-        .iter()
-        .all(|byte| *byte == 0)
-    {
-        return Err("isolated executable scope has a zero provider-plan digest".into());
-    }
-    if candidate.isolated_scope_identity == 0 {
-        return Err("isolated executable scope has the reserved zero scope identity".into());
-    }
-    if candidate.endpoint_identity.trim().is_empty() {
-        return Err("isolated executable scope has no endpoint identity".into());
-    }
-    if candidate.endpoint_receipt_identity.trim().is_empty() {
-        return Err("isolated executable scope has no endpoint admission receipt".into());
-    }
-    if candidate
-        .isolated_manifest_receipt_identity
-        .trim()
-        .is_empty()
-    {
-        return Err("isolated executable scope has no manifest admission receipt".into());
-    }
-    candidate.containment.sort_by(|left, right| {
-        left.guarantee
-            .cmp(&right.guarantee)
-            .then_with(|| left.evidence_identity.cmp(&right.evidence_identity))
-    });
-    if candidate
-        .containment
-        .iter()
-        .any(|evidence| evidence.evidence_identity.trim().is_empty())
-    {
-        return Err("isolated executable scope has empty containment evidence".into());
-    }
-    if candidate
-        .containment
-        .windows(2)
-        .any(|pair| pair[0].guarantee == pair[1].guarantee)
-    {
-        return Err(
-            "isolated executable scope repeats one containment guarantee; each axis needs one exact result"
-                .into(),
-        );
-    }
-    Ok(())
-}
 
 fn validate_manifest_scope(manifest: &ExecutableTcbManifest) -> Result<(), String> {
     let scope = manifest_scope(manifest);

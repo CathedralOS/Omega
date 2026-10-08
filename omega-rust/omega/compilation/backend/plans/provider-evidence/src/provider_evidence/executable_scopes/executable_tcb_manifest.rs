@@ -340,13 +340,6 @@ impl OmegaRuntimeExecutableLedger {
 
 }
 
-fn extend_unique<T: PartialEq>(target: &mut Vec<T>, additions: impl IntoIterator<Item = T>) {
-    for addition in additions {
-        if !target.contains(&addition) {
-            target.push(addition);
-        }
-    }
-}
 
 fn validate_runtime_admission(
     scope: ExecutionScope,
@@ -424,114 +417,6 @@ fn validate_runtime_admission(
     Ok(())
 }
 
-pub(crate) fn validate_opaque_executable_admission(
-    plans: &[ProviderPlan],
-    mut candidate: OpaqueExecutableAdmissionCandidate,
-) -> Result<ValidatedOpaqueExecutableAdmission, String> {
-    if candidate.provider_plan_report_identity == 0 {
-        return Err(
-            "opaque executable admission has the reserved zero provider-plan identity".into(),
-        );
-    }
-    if candidate
-        .provider_plan_digest
-        .as_bytes()
-        .iter()
-        .all(|byte| *byte == 0)
-    {
-        return Err("opaque executable admission has a zero provider-plan digest".into());
-    }
-    let matching_plans = plans
-        .iter()
-        .filter(|plan| {
-            plan.report_fingerprint() == candidate.provider_plan_report_identity
-                && plan.identity_digest() == candidate.provider_plan_digest
-        })
-        .collect::<Vec<_>>();
-    let [plan] = matching_plans.as_slice() else {
-        return Err(match matching_plans.len() {
-            0 => format!(
-                "opaque executable admission names unselected provider plan {:#018x}",
-                candidate.provider_plan_report_identity
-            ),
-            count => format!(
-                "opaque executable admission provider plan {:#018x} matches {count} selected plans",
-                candidate.provider_plan_report_identity
-            ),
-        });
-    };
-    let matching_rows = plan
-        .rows
-        .iter()
-        .filter(|row| {
-            row.method == candidate.method
-                && row.requirement_identity == candidate.requirement_identity
-        })
-        .collect::<Vec<_>>();
-    let [row] = matching_rows.as_slice() else {
-        return Err(match matching_rows.len() {
-            0 => format!(
-                "opaque executable admission does not match an exact selected row `{}` / `{}`",
-                candidate.method, candidate.requirement_identity
-            ),
-            count => format!(
-                "opaque executable admission matches {count} selected rows `{}` / `{}`",
-                candidate.method, candidate.requirement_identity
-            ),
-        });
-    };
-    let selected_binding = opaque_binding(&row.binding).ok_or_else(|| {
-        format!(
-            "opaque executable admission targets non-opaque selected row `{}` / `{}`",
-            candidate.method, candidate.requirement_identity
-        )
-    })?;
-    if selected_binding != candidate.binding {
-        return Err(format!(
-            "opaque executable admission binding drift for selected row `{}` / `{}`",
-            candidate.method, candidate.requirement_identity
-        ));
-    }
-    if candidate.executable_identity.trim().is_empty() {
-        return Err("opaque executable admission has no pinned executable identity".into());
-    }
-    if candidate.implementation_evidence_identity.trim().is_empty() {
-        return Err("opaque executable admission has no implementation-evidence identity".into());
-    }
-    if candidate
-        .executable_closure_evidence_identity
-        .as_ref()
-        .is_some_and(|identity| identity.trim().is_empty())
-    {
-        return Err(
-            "opaque executable admission has an empty executable-closure evidence identity".into(),
-        );
-    }
-    candidate.containment.sort_by(|left, right| {
-        left.guarantee
-            .cmp(&right.guarantee)
-            .then_with(|| left.evidence_identity.cmp(&right.evidence_identity))
-    });
-    for evidence in &candidate.containment {
-        if evidence.evidence_identity.trim().is_empty() {
-            return Err(format!(
-                "opaque executable admission has no evidence identity for {:?}",
-                evidence.guarantee
-            ));
-        }
-    }
-    if candidate
-        .containment
-        .windows(2)
-        .any(|pair| pair[0].guarantee == pair[1].guarantee)
-    {
-        return Err(
-            "opaque executable admission repeats one containment guarantee; each axis needs one exact result"
-                .into(),
-        );
-    }
-    Ok(ValidatedOpaqueExecutableAdmission(candidate))
-}
 
 pub(crate) fn derive_static_manifest(
     plans: &[ProviderPlan],
