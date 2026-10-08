@@ -401,3 +401,74 @@ pub(crate) fn instruction(
         provenance: Default::default(),
     }
 }
+
+/// Whether `register`'s only occurrence in `function` is one operand —
+/// the custody a dropped `Def` requires across producer rewrites: the
+/// operand itself is that one occurrence, and any other operand position,
+/// terminator operand, or successor transport naming the register leaves a
+/// surviving read or second definition.
+pub(crate) fn register_occurs_once(
+    function: &selected_instructions::SelectedFunction,
+    register: selected_instructions::VirtualRegisterId,
+) -> bool {
+    use crate::rewrites::block_edges::terminator_successors;
+    use selected_instructions::{SelectedStructuralTransport, terminator_instruction};
+
+    let mut occurrences = 0_usize;
+    for block in &function.blocks {
+        for instruction in block
+            .instructions
+            .iter()
+            .chain(std::iter::once(terminator_instruction(&block.terminator)))
+        {
+            occurrences += instruction
+                .operands
+                .iter()
+                .filter(|operand| operand.virtual_register == register)
+                .count();
+        }
+        for successor in terminator_successors(&block.terminator) {
+            occurrences += successor
+                .structural_bindings
+                .iter()
+                .filter(|binding| {
+                    matches!(
+                        binding.transport,
+                        SelectedStructuralTransport::WholeValue { argument, .. }
+                        | SelectedStructuralTransport::ScalarReference { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
+                        | SelectedStructuralTransport::Address { base: selected_instructions::SelectedAddressBase::Register(argument), .. }
+                            if argument == register
+                    )
+                })
+                .count();
+            if let Some(case) = &successor.structural_case {
+                occurrences += case
+                    .payloads
+                    .iter()
+                    .filter(|payload| match &payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => *parameter == register,
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => *argument == register || *parameter == register,
+                    })
+                    .count();
+            }
+            occurrences += successor
+                .bindings
+                .iter()
+                .filter(|binding| match &binding.transport {
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } => *argument == register || *parameter == register,
+                })
+                .count();
+        }
+    }
+    occurrences == 1
+}
