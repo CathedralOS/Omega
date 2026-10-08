@@ -31,16 +31,8 @@ pub(super) fn validate(
     for (word, encoded) in words.iter_mut().zip(encoded) {
         *word = u32::from_le_bytes(*encoded);
     }
-    let continuation = bss_address
-        .checked_add(partitions.saved_continuation_offset)
-        .ok_or_else(invalid)?;
-    let stack_top = bss_address
-        .checked_add(partitions.stack_offset)
-        .and_then(|low| low.checked_add(partitions.stack_byte_count))
-        .ok_or_else(invalid)?;
-    let receiver = bss_address
-        .checked_add(partitions.receiver_offset)
-        .ok_or_else(invalid)?;
+    let (continuation, stack_top, receiver) =
+        expected_addresses(bss_address, partitions, &invalid)?;
     for (instruction, register, expected) in [
         (0, 9, continuation),
         (4, 10, stack_top),
@@ -105,6 +97,37 @@ fn address_pair(
         .ok_or_else(invalid)
 }
 
+fn expected_addresses(
+    bss_address: u64,
+    partitions: HostedReceiverPartitions,
+    invalid: &dyn Fn() -> Diagnostic,
+) -> Result<(u64, u64, u64), Diagnostic> {
+    let continuation = bss_address
+        .checked_add(partitions.saved_continuation_offset)
+        .ok_or_else(invalid)?;
+    let stack_top = bss_address
+        .checked_add(partitions.stack_offset)
+        .and_then(|low| low.checked_add(partitions.stack_byte_count))
+        .ok_or_else(invalid)?;
+    let receiver = bss_address
+        .checked_add(partitions.receiver_offset)
+        .ok_or_else(invalid)?;
+    Ok((continuation, stack_top, receiver))
+}
+
+// Every rel32 displacement is resolved from the address immediately after
+// the four-byte relocation field, matching the owned x86-64 relocator.
+fn rip_relative(bytes: &[u8], address: u64, field: usize) -> Option<u64> {
+    let field_address = address.checked_add(field as u64)?;
+    let displacement = bytes
+        .get(field..field.checked_add(4)?)
+        .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+        .map(i32::from_le_bytes)?;
+    field_address
+        .checked_add(4)?
+        .checked_add_signed(i64::from(displacement))
+}
+
 /// Independent reader for the Linux x86-64 hosted receiver bridge.
 ///
 /// The emitted text is exactly 37 bytes:
@@ -135,30 +158,10 @@ pub(super) fn validate_x86_64(
     if bytes.len() != 37 {
         return Err(invalid());
     }
-    let continuation = bss_address
-        .checked_add(partitions.saved_continuation_offset)
-        .ok_or_else(invalid)?;
-    let stack_top = bss_address
-        .checked_add(partitions.stack_offset)
-        .and_then(|low| low.checked_add(partitions.stack_byte_count))
-        .ok_or_else(invalid)?;
-    let receiver = bss_address
-        .checked_add(partitions.receiver_offset)
-        .ok_or_else(invalid)?;
-    // Every rel32 displacement is resolved from the address immediately after
-    // the four-byte relocation field, matching the owned x86-64 relocator.
-    let rip_relative = |field: usize| -> Option<u64> {
-        let field_address = address.checked_add(field as u64)?;
-        let displacement = bytes
-            .get(field..field.checked_add(4)?)
-            .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
-            .map(i32::from_le_bytes)?;
-        field_address
-            .checked_add(4)?
-            .checked_add_signed(i64::from(displacement))
-    };
+    let (continuation, stack_top, receiver) =
+        expected_addresses(bss_address, partitions, &invalid)?;
     for (field, expected) in [(3, continuation), (10, stack_top), (17, receiver)] {
-        if rip_relative(field) != Some(expected) {
+        if rip_relative(bytes, address, field) != Some(expected) {
             return Err(invalid());
         }
     }
@@ -173,7 +176,7 @@ pub(super) fn validate_x86_64(
     {
         return Err(invalid());
     }
-    if rip_relative(22) != Some(selected_entry) {
+    if rip_relative(bytes, address, 22) != Some(selected_entry) {
         return Err(invalid());
     }
     Ok(())
@@ -209,35 +212,15 @@ pub(super) fn validate_macos_x86_64(
     if bytes.len() != 36 {
         return Err(invalid());
     }
-    let continuation = bss_address
-        .checked_add(partitions.saved_continuation_offset)
-        .ok_or_else(invalid)?;
-    let stack_top = bss_address
-        .checked_add(partitions.stack_offset)
-        .and_then(|low| low.checked_add(partitions.stack_byte_count))
-        .ok_or_else(invalid)?;
-    let receiver = bss_address
-        .checked_add(partitions.receiver_offset)
-        .ok_or_else(invalid)?;
-    // Every rel32 displacement is resolved from the address immediately after
-    // the four-byte relocation field, matching the owned x86-64 relocator.
-    let rip_relative = |field: usize| -> Option<u64> {
-        let field_address = address.checked_add(field as u64)?;
-        let displacement = bytes
-            .get(field..field.checked_add(4)?)
-            .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
-            .map(i32::from_le_bytes)?;
-        field_address
-            .checked_add(4)?
-            .checked_add_signed(i64::from(displacement))
-    };
+    let (continuation, stack_top, receiver) =
+        expected_addresses(bss_address, partitions, &invalid)?;
     for (field, expected) in [
         (3, continuation),
         (10, stack_top),
         (17, receiver),
         (29, continuation),
     ] {
-        if rip_relative(field) != Some(expected) {
+        if rip_relative(bytes, address, field) != Some(expected) {
             return Err(invalid());
         }
     }
@@ -250,7 +233,7 @@ pub(super) fn validate_macos_x86_64(
     {
         return Err(invalid());
     }
-    if rip_relative(22) != Some(selected_entry) {
+    if rip_relative(bytes, address, 22) != Some(selected_entry) {
         return Err(invalid());
     }
     Ok(())
@@ -288,35 +271,15 @@ pub(super) fn validate_windows_x86_64(
     if bytes.len() != 40 {
         return Err(invalid());
     }
-    let continuation = bss_address
-        .checked_add(partitions.saved_continuation_offset)
-        .ok_or_else(invalid)?;
-    let stack_top = bss_address
-        .checked_add(partitions.stack_offset)
-        .and_then(|low| low.checked_add(partitions.stack_byte_count))
-        .ok_or_else(invalid)?;
-    let receiver = bss_address
-        .checked_add(partitions.receiver_offset)
-        .ok_or_else(invalid)?;
-    // Every rel32 displacement is resolved from the address immediately after
-    // the four-byte relocation field, matching the owned x86-64 relocator.
-    let rip_relative = |field: usize| -> Option<u64> {
-        let field_address = address.checked_add(field as u64)?;
-        let displacement = bytes
-            .get(field..field.checked_add(4)?)
-            .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
-            .map(i32::from_le_bytes)?;
-        field_address
-            .checked_add(4)?
-            .checked_add_signed(i64::from(displacement))
-    };
+    let (continuation, stack_top, receiver) =
+        expected_addresses(bss_address, partitions, &invalid)?;
     for (field, expected) in [
         (3, continuation),
         (10, stack_top),
         (21, receiver),
         (35, continuation),
     ] {
-        if rip_relative(field) != Some(expected) {
+        if rip_relative(bytes, address, field) != Some(expected) {
             return Err(invalid());
         }
     }
@@ -331,7 +294,7 @@ pub(super) fn validate_windows_x86_64(
     {
         return Err(invalid());
     }
-    if rip_relative(26) != Some(selected_entry) {
+    if rip_relative(bytes, address, 26) != Some(selected_entry) {
         return Err(invalid());
     }
     Ok(())
@@ -377,16 +340,8 @@ pub(super) fn validate_linux_arm64(
     for (word, encoded) in words.iter_mut().zip(encoded) {
         *word = u32::from_le_bytes(*encoded);
     }
-    let continuation = bss_address
-        .checked_add(partitions.saved_continuation_offset)
-        .ok_or_else(invalid)?;
-    let stack_top = bss_address
-        .checked_add(partitions.stack_offset)
-        .and_then(|low| low.checked_add(partitions.stack_byte_count))
-        .ok_or_else(invalid)?;
-    let receiver = bss_address
-        .checked_add(partitions.receiver_offset)
-        .ok_or_else(invalid)?;
+    let (continuation, stack_top, receiver) =
+        expected_addresses(bss_address, partitions, &invalid)?;
     for (instruction, register, expected) in
         [(0, 9, continuation), (5, 10, stack_top), (8, 0, receiver)]
     {
