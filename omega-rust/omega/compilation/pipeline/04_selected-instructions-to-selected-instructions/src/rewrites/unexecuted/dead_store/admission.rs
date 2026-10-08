@@ -206,26 +206,8 @@ pub(super) fn admit<'source>(
     // writes a dynamic extent instead: `length` bytes at its destination
     // span's fixed `byte_offset`, carrying the copy's source `ReadByteSpan`
     // beside it on the same instruction.
-    let (encoded_offset, encoded_size, packed, direct_slot, byte_span) = match dead_store.kind {
-        SelectedInstructionKind::Store {
-            byte_offset,
-            byte_size,
-        } => {
-            if !matches!(byte_size, 1 | 2 | 4 | 8) {
-                return Err(DeadStoreEliminationError::UnsupportedInstruction);
-            }
-            (byte_offset, u32::from(byte_size), false, None, false)
-        }
-        SelectedInstructionKind::StorePacked { byte_offset, width } => {
-            (byte_offset, u32::from(width.byte_size()), true, None, false)
-        }
-        SelectedInstructionKind::Store64 {
-            slot: FrameStorageSlotId::Local(slot),
-            byte_offset,
-        } => (byte_offset, 8, false, Some(slot), false),
-        SelectedInstructionKind::CopyBytes => (0, 0, false, None, true),
-        _ => return Err(DeadStoreEliminationError::UnsupportedInstruction),
-    };
+    let (encoded_offset, encoded_size, packed, direct_slot, byte_span) =
+        super::dead_store_route(&dead_store.kind)?;
     // The write's semantic identity: the place root and the same bytes the
     // instruction encodes. Every route but the `CopyBytes` carries exactly
     // one roster row, whose role must match the route the instruction takes

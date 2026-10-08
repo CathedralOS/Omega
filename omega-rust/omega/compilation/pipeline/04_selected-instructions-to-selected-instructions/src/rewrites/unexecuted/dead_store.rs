@@ -244,3 +244,45 @@ pub(super) fn zero_fill_count(
     }
     u32::try_from(written).map_err(|_| reject())
 }
+
+/// The storage route the named dead-store instruction takes, decoded once for
+/// the admission and the replay: encoded offset and size, whether the packed
+/// form's scratch `Def` needs the no-other-mention audit, the direct local
+/// slot on the `Store64` route, and the byte-sequence flag.
+pub(super) fn dead_store_route(
+    kind: &selected_instructions::SelectedInstructionKind,
+) -> Result<
+    (
+        u32,
+        u32,
+        bool,
+        Option<selected_instructions::LocalStorageSlotId>,
+        bool,
+    ),
+    DeadStoreEliminationError,
+> {
+    Ok(match kind {
+        selected_instructions::SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => {
+            if !matches!(byte_size, 1 | 2 | 4 | 8) {
+                return Err(DeadStoreEliminationError::UnsupportedInstruction);
+            }
+            (*byte_offset, u32::from(*byte_size), false, None, false)
+        }
+        selected_instructions::SelectedInstructionKind::StorePacked { byte_offset, width } => (
+            *byte_offset,
+            u32::from(width.byte_size()),
+            true,
+            None,
+            false,
+        ),
+        selected_instructions::SelectedInstructionKind::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::Local(slot),
+            byte_offset,
+        } => (*byte_offset, 8, false, Some(*slot), false),
+        selected_instructions::SelectedInstructionKind::CopyBytes => (0, 0, false, None, true),
+        _ => return Err(DeadStoreEliminationError::UnsupportedInstruction),
+    })
+}
