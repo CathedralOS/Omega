@@ -59,4 +59,3 @@ machine Main::main(main: &mut Main) crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
-
