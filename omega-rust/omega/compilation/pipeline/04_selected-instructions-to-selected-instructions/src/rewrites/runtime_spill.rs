@@ -1430,14 +1430,7 @@ pub(super) fn derive_runtime_spill<'source>(
         })
         .and_then(|span| function.local_storage_slots.len().checked_mul(span))
         .ok_or(RuntimeSpillError::IdentityOverflow)?;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         // A converted victim emits one more instruction and one more
         // register at every store and every reload, so its replay charges
         // six per use and three per definition instead of four and one.

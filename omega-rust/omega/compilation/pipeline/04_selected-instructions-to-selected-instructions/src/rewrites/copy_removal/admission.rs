@@ -383,14 +383,7 @@ pub(super) fn admit<'source>(
             return Err(CopyRemovalError::UnsupportedUse);
         }
     }
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             // A second scan of this function audits the destination's
             // mentions across instructions, transports, slots, and the

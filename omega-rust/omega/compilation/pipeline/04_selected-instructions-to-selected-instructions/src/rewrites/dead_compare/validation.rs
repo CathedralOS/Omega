@@ -52,14 +52,7 @@ pub(crate) fn measured_steps(
                 .ok_or(DeadCompareError::IdentityOverflow)?,
         )
         .ok_or(DeadCompareError::IdentityOverflow)?;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             total
                 .checked_add(function_scan)?

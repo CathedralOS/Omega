@@ -199,14 +199,7 @@ pub(super) fn confluence_scan_base(
         })
         .sum();
     let block_scan = crate::rewrites::window_hazards::block_scan_surface(function);
-    let scan = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let scan = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, candidate| {
                 candidate

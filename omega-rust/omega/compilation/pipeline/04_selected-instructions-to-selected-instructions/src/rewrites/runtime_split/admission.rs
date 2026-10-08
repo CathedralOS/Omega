@@ -310,14 +310,7 @@ fn charge(
     uses: usize,
     budget: OptimizationWorkBudget,
 ) -> Result<(), RuntimeSplitError> {
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| total.checked_add(uses.checked_mul(2)?))
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         .ok_or(RuntimeSplitError::IdentityOverflow)?;

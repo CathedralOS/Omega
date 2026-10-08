@@ -351,14 +351,7 @@ pub(super) fn admit<'source>(
                 .ok_or(DeadCompareError::IdentityOverflow)?,
         )
         .ok_or(DeadCompareError::IdentityOverflow)?;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             // A second pass of this function audits the operand classes,
             // roster rows, and call/access rows the compare must not be

@@ -73,14 +73,7 @@ fn reconstruct<'source>(
         + member_instruction.implicit_defs.len()
         + member_instruction.clobbers.len();
     let block_scan = block_scan_surface(function);
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, candidate| {
                 candidate

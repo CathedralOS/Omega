@@ -267,14 +267,7 @@ pub(super) fn derive_interchange<'source>(
     // The search scans the plan's body and terminator instructions once;
     // the window audit walks every member-against-crossed operand, unit,
     // and roster-row surface plus the function's three rosters.
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             window
                 .iter()

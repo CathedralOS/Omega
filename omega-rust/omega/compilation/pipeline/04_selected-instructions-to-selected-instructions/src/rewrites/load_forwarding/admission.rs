@@ -676,14 +676,7 @@ pub(super) fn admit<'source>(
         .and_then(|total| total.checked_add(crossed.len()))
         .and_then(|total| total.checked_add(merge_work))
         .ok_or(StoredLoadForwardingError::IdentityOverflow)?;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| total.checked_add(interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(StoredLoadForwardingError::IdentityOverflow)?;

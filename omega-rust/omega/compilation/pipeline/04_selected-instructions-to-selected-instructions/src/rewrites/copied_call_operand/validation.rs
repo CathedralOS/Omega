@@ -28,14 +28,7 @@ pub fn copied_call_operand_measured_steps(
     plan: &SelectedInstructionPlan,
     block: &selected_instructions::SelectedBlock,
 ) -> Result<u64, CopiedCallOperandError> {
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             total
                 .checked_add(block.instructions.len())?

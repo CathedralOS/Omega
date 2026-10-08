@@ -232,9 +232,19 @@ pub use load_forwarding::{
 
 use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
-    VirtualRegisterId,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionPlan, SelectedOperand, VirtualRegisterId,
 };
+
+/// One step per block plus one per instruction across the whole plan — the
+/// scan surface every family's measured-step contract charges first.
+pub(crate) fn plan_instruction_scan(plan: &SelectedInstructionPlan) -> Option<usize> {
+    plan.functions.iter().try_fold(0usize, |total, function| {
+        function.blocks.iter().try_fold(total, |total, block| {
+            total.checked_add(block.instructions.len())?.checked_add(1)
+        })
+    })
+}
 
 pub(crate) fn instruction(
     id: SelectedInstructionId,

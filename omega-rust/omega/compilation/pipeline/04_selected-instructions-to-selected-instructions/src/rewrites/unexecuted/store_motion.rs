@@ -210,14 +210,7 @@ fn measured_steps(
     function: &SelectedFunction,
     reconstructed: &Reconstructed<'_>,
 ) -> Result<u64, StoreMutationMotionError> {
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| total.checked_add(reconstructed.interval))
         .and_then(|total| total.checked_add(function.memory_accesses.len()))
         .ok_or(StoreMutationMotionError::IdentityOverflow)?;

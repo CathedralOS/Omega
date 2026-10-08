@@ -270,14 +270,7 @@ fn reconstruct<'source>(
     // the window audit touches every member-against-crossed operand,
     // unit, and roster-row surface plus the function's three rosters.
     let run_range = first_index - first..first_index - first + run_len;
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
+    let steps = crate::rewrites::plan_instruction_scan(plan)
         .and_then(|total| {
             window
                 .iter()
