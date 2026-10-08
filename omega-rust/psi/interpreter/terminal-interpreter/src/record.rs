@@ -17,7 +17,6 @@ use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::TerminalStructuralValue;
-use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralFieldType;
@@ -282,19 +281,5 @@ impl TerminalExecution<'_> {
             value.path.clear();
         }
         Ok(payload)
-    }
-
-    /// Aggregate snapshots use the canonical owned-storage contract. Packed
-    /// primitive, scalar-array and descriptor roots keep their own codecs;
-    /// records, arrays of records and cases all copy the same subtree cells.
-    pub(crate) fn plain_aggregate_type(&self, root: StructuralTypeId) -> bool {
-        self.program
-            .structural_types()
-            .get(&root)
-            .is_some_and(|row| (row.shape).is_composite_shape())
-            && terminal_semantics::descriptor_results::plain_owned_shape(
-                self.program.structural_types().values(),
-                root,
-            )
     }
 }

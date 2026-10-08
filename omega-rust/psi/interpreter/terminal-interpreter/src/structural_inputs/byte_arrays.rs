@@ -449,8 +449,10 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
+        // A qualified formal takes no array presentation below; it may
+        // still name a qualified view field another binder presents.
+        let qualified = !parameter.qualifications.is_empty();
         if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || argument.access != parameter.access
             || self
@@ -468,7 +470,8 @@ impl TerminalExecution<'_> {
                 .structural_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            if parameter.access != StructuralAccess::SharedBorrow
+            if qualified
+                || parameter.access != StructuralAccess::SharedBorrow
                 || value.structural_type != parameter.structural_type
                 || !value.qualifications.is_empty()
             {
@@ -485,7 +488,7 @@ impl TerminalExecution<'_> {
                 .structural_values
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
-            if value.structural_type != parameter.structural_type {
+            if qualified || value.structural_type != parameter.structural_type {
                 return Err(malformed());
             }
             return Ok(Some((
@@ -514,6 +517,9 @@ impl TerminalExecution<'_> {
         let Some(length) = byte_array_length(&self.program.structural_types(), array_type) else {
             return Ok(None);
         };
+        if qualified {
+            return Err(malformed());
+        }
         let machine = self
             .program
             .machines()

@@ -397,13 +397,24 @@ impl TerminalExecution<'_> {
             {
                 if argument.access != StructuralAccess::SharedBorrow
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
                     return Err(malformed());
                 }
                 let (referent, binding) =
                     self.resolve_shared_boundary_binding(parameter, argument)?;
+                // A lent view field must satisfy every domain the formal
+                // names (`text: &[u8] in Utf8` from `main.name`). As for a
+                // whole shared descriptor, execution checks the bytes the
+                // formal observes rather than the field's declaration.
+                if !terminal_semantics::byte_literal_qualifications_hold_in(
+                    self.program.catalogs.structural_domains.iter(),
+                    parameter.structural_type,
+                    &parameter.qualifications,
+                    binding.immutable()?.bytes(),
+                ) {
+                    return Err(malformed());
+                }
                 resolved.values.push(referent);
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
