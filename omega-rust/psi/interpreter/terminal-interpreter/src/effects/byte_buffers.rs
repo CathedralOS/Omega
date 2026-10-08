@@ -49,13 +49,25 @@ impl BoundaryArguments {
     /// buffers. Nested boundary calls commit backing; provider return must not
     /// restore the pre-call snapshot.
     pub(crate) fn into_call_arguments(
-        self,
+        mut self,
         parameters: &[StructuralParameterDeclaration],
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
-        let values = bind_structural_arguments(parameters, &self.values)?;
-        if parameters.len() != self.byte_sequences.len() {
+        if parameters.len() != self.byte_sequences.len() || parameters.len() != self.values.len() {
             return Err(malformed());
         }
+        // An owned byte copy was checked against every domain its formal
+        // names, so the callee holds the copy under those domains, exactly
+        // as an ordinary call's owned copy.
+        for ((parameter, value), binding) in parameters
+            .iter()
+            .zip(&mut self.values)
+            .zip(&self.byte_sequences)
+        {
+            if parameter.access == StructuralAccess::Owned && binding.is_some() {
+                value.absorb_qualifications(&parameter.qualifications);
+            }
+        }
+        let values = bind_structural_arguments(parameters, &self.values)?;
         let mut byte_sequences = BTreeMap::new();
         let mut primitive_loans = BTreeMap::new();
         for (parameter, loan) in parameters.iter().zip(self.primitive_loans) {
@@ -90,6 +102,15 @@ impl BoundaryArguments {
                 continue;
             };
             let access = match &binding {
+                // A detached copy is the owned formal's own value.
+                ByteSequenceBinding::Immutable(view)
+                    if parameter.access == StructuralAccess::Owned
+                        && view.matches_descriptor_home(
+                            values.get(&parameter.place).ok_or_else(malformed)?,
+                        ) =>
+                {
+                    StructuralAccess::Owned
+                }
                 ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
                 ByteSequenceBinding::MutableField { .. }
                     if parameter.access == StructuralAccess::WriteOnlyBorrow =>
