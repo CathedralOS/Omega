@@ -1,4 +1,5 @@
-//! Non-scalar graph effects consume completed operands without adding value slots.
+//! A branch state's non-scalar effects consume completed operands without
+//! adding value slots.
 use super::{
     LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration,
     emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
@@ -9,7 +10,7 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::view_subslice;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect;
+use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
 
 pub(crate) fn emit(
     effects: &[LoweredScalarEffect],
@@ -84,7 +85,7 @@ pub(crate) fn emit(
             }
 
             LoweredScalarEffect::EstablishAggregate(aggregate) => {
-                crate::scalar_graph::scalar_graph_lowering::structural_values::emit(
+                crate::scalar_lowering::branch_states::structural_values::emit(
                     aggregate, values, next_value, operations, calls,
                 )?;
             }
@@ -111,7 +112,7 @@ pub(crate) fn emit(
                 );
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {
-                crate::scalar_graph::scalar_computations::cases::emit(
+                crate::scalar_lowering::computations::cases::emit(
                     case, values, next_value, operations, calls,
                 )?
             }
@@ -130,7 +131,7 @@ pub(crate) fn emit(
                 );
             }
             LoweredScalarEffect::EstablishScalarArray(array) => {
-                crate::scalar_graph::scalar_computations::arrays::emit(
+                crate::scalar_lowering::computations::arrays::emit(
                     std::slice::from_ref(array),
                     values,
                     next_value,
@@ -217,9 +218,7 @@ pub(crate) fn emit(
                     .erased_proof_arguments
                     .iter()
                     .map(|term| {
-                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
-                            term, values, erased,
-                        )
+                        crate::scalar_lowering::contracts::lowered_proof_term(term, values, erased)
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
                 operations.push(Operation {

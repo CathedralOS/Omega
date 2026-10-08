@@ -72,7 +72,7 @@ pub(crate) fn lower_selected_machine(
     // which publishes none. A free Unit-effect signature reaches the Unit
     // closure even without a plan, so the closure reports the missing body.
     let scalar_entry =
-        crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
             checked,
             selection.machine,
         )

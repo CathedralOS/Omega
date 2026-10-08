@@ -741,13 +741,13 @@ impl StateGraphEmission<'_, '_> {
             .erased_proof_arguments
             .iter()
             .map(|term| {
-                crate::scalar_graph::scalar_contracts::checked_proof_term(
+                crate::scalar_lowering::contracts::checked_proof_term(
                     checked,
                     term,
                     &self.state_erased_proof[position],
                 )
                 .and_then(|term| {
-                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    crate::scalar_lowering::contracts::lowered_proof_term(
                         &term,
                         &edge_values,
                         &self.state_erased[position],
@@ -875,7 +875,7 @@ impl StateGraphEmission<'_, '_> {
                 // erased roster so forwarded proof terms stay in scope.
                 erased_scalar_formals: self.state_erased[position].clone(),
                 erased_proof_formals:
-                    crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                         &self.state_erased_proof[position],
                     ),
                 structural_parameters: edge_evaluation.block_structural_parameters,

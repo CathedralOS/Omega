@@ -16,10 +16,10 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, scalar_state_emission_order,
 };
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
 
@@ -60,13 +60,12 @@ pub(crate) struct Evaluation {
     /// element operations.
     pub(crate) element_views:
         std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
-    pub(crate) subslices: Vec<crate::scalar_graph::scalar_computations::subslices::Slot>,
-    pub(crate) produced_values:
-        Vec<crate::scalar_graph::scalar_computations::produced_values::Slot>,
-    pub(crate) literals: Vec<crate::scalar_graph::scalar_computations::literals::Slot>,
-    pub(crate) copies: Vec<crate::scalar_graph::scalar_computations::copies::Slot>,
-    pub(crate) cases: Vec<crate::scalar_graph::scalar_computations::cases::Slot>,
-    pub(crate) record_fields: Vec<crate::scalar_graph::scalar_computations::fields::Binding>,
+    pub(crate) subslices: Vec<crate::scalar_lowering::computations::subslices::Slot>,
+    pub(crate) produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
+    pub(crate) literals: Vec<crate::scalar_lowering::computations::literals::Slot>,
+    pub(crate) copies: Vec<crate::scalar_lowering::computations::copies::Slot>,
+    pub(crate) cases: Vec<crate::scalar_lowering::computations::cases::Slot>,
+    pub(crate) record_fields: Vec<crate::scalar_lowering::computations::fields::Binding>,
     pub(crate) place_observations: std::sync::Arc<
         [crate::expression_preparation::bindings::place_observations::PlaceObservation],
     >,
@@ -156,21 +155,16 @@ impl Evaluation {
         checked: &'a CheckedTrees,
         qualifications: &'a crate::expression_preparation::qualifications::PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
-    ) -> crate::scalar_graph::scalar_computations::Expansion<'a> {
-        crate::scalar_graph::scalar_computations::Expansion::new(
-            checked,
-            qualifications,
-            machine,
-            1,
-        )
-        .with_structural_types(&self.structural_types)
-        .with_produced_values(&self.produced_values)
-        .with_literals(&self.literals)
-        .with_copies(&self.copies)
-        .with_subslices(&self.subslices)
-        .with_cases(&self.cases)
-        .with_fields(&self.record_fields)
-        .enter_proof_scope(&self.erased_proof_formals)
+    ) -> crate::scalar_lowering::computations::Expansion<'a> {
+        crate::scalar_lowering::computations::Expansion::new(checked, qualifications, machine, 1)
+            .with_structural_types(&self.structural_types)
+            .with_produced_values(&self.produced_values)
+            .with_literals(&self.literals)
+            .with_copies(&self.copies)
+            .with_subslices(&self.subslices)
+            .with_cases(&self.cases)
+            .with_fields(&self.record_fields)
+            .enter_proof_scope(&self.erased_proof_formals)
     }
 
     pub(crate) fn cleanup_parameter_places(&self) -> Vec<PlaceId> {
@@ -766,7 +760,7 @@ impl Evaluation {
                     .proof_formal_forwarding()
                     .iter()
                     .map(|term| {
-                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                        crate::scalar_lowering::contracts::lowered_proof_term(
                             term,
                             values,
                             &self.erased_scalar_formals,
@@ -817,11 +811,11 @@ impl Evaluation {
                 ))
             })
             .collect::<Vec<_>>();
-        let predicate = crate::scalar_graph::scalar_contracts::clauses(
+        let predicate = crate::scalar_lowering::contracts::clauses(
             &clauses,
             values,
             &self.erased_scalar_formals,
-            &crate::scalar_graph::scalar_contracts::ContractViewNamespace::EMPTY,
+            &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
         )?
         .ok_or(LoweringError::Unsupported(
             "local refinement lost its predicate",
@@ -883,12 +877,10 @@ impl Evaluation {
     /// arguments a private join passes when it redeclares the caller roster.
     /// The forwarding is a lowering-stage term list: it resolves against the
     /// caller's value namespaces wherever the edge is emitted.
-    fn proof_formal_forwarding(
-        &self,
-    ) -> Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm> {
+    fn proof_formal_forwarding(&self) -> Vec<crate::scalar_lowering::contracts::LoweredProofTerm> {
         (0..self.erased_proof_formals.len())
             .map(
-                |position| crate::scalar_graph::scalar_contracts::LoweredProofTerm::Formal {
+                |position| crate::scalar_lowering::contracts::LoweredProofTerm::Formal {
                     position: u32::try_from(position)
                         .expect("erased-proof roster positions fit u32"),
                 },
@@ -1027,7 +1019,7 @@ impl Evaluation {
                     if !nodes.is_valid(*root) {
                         return unsupported("call argument computation has no live root");
                     }
-                    crate::scalar_graph::scalar_computations::computation_value_type(
+                    crate::scalar_lowering::computations::computation_value_type(
                         checked,
                         qualifications,
                         *root,
@@ -1162,7 +1154,7 @@ impl Evaluation {
             // A short-circuit Boolean has no single-block value: it evaluates
             // through its own decision blocks and rejoins with the result, the
             // staging an expanded computation's binding receives.
-            let mut expansion = crate::scalar_graph::scalar_computations::Expansion::new(
+            let mut expansion = crate::scalar_lowering::computations::Expansion::new(
                 checked,
                 &qualifications,
                 machine,
@@ -1262,7 +1254,7 @@ impl Evaluation {
                     .proof_formal_forwarding()
                     .iter()
                     .map(|term| {
-                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                        crate::scalar_lowering::contracts::lowered_proof_term(
                             term,
                             values,
                             &self.erased_scalar_formals,

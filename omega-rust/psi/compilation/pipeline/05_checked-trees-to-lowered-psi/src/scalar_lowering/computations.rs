@@ -19,8 +19,8 @@ use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::computation_graph::reachable_nodes;
-use crate::scalar_graph::scalar_graph_lowering::lower_scalar_call;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::lower_scalar_call;
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use arena::Handle;
@@ -35,13 +35,11 @@ pub(crate) mod cases;
 pub(crate) mod comparisons;
 pub(crate) mod copies;
 mod dispatch;
-mod erased_scope;
 pub(crate) mod fields;
 pub(crate) mod literals;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
 mod selection;
-mod source_custody;
 mod structural_arguments;
 pub(crate) mod subslices;
 mod value_types;
@@ -125,7 +123,7 @@ impl<'a> Expansion<'a> {
         roster: &[checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
         self.erased_proof_formals =
-            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
+            crate::scalar_lowering::contracts::erased_proof_formal_declarations(roster);
         self
     }
 

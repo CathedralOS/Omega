@@ -23,7 +23,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::computation_graph::fields;
 use crate::expression_preparation::source_custody::case_sources as source;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use checked_trees::data::DataMember;

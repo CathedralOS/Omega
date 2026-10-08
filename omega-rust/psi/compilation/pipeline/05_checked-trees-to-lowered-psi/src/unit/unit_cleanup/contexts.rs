@@ -227,7 +227,7 @@ pub(crate) fn prepare_signature(
     if nominal.is_none() && hook.is_none() {
         return Ok(None);
     }
-    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut requires)?;
+    crate::scalar_lowering::contracts::canonicalize_requires(&mut requires)?;
     Ok(Some(SignatureContext {
         receiver,
         dispatcher_requires: nominal.map(|_| requires),

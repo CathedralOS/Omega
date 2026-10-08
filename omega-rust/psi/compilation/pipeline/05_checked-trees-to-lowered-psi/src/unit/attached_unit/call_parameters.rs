@@ -5,7 +5,7 @@
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::{CheckedTrees, LoweringError, unique_unit_boundary, unsupported};
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitStructuralParameterPlan,
 };

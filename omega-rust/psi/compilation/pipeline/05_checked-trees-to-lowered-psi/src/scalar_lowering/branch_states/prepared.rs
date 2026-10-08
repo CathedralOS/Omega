@@ -8,9 +8,9 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::lowering_error::LoweringError;
-use crate::scalar_graph::scalar_computations;
-use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
-use crate::scalar_graph::scalar_graph_lowering;
+use crate::scalar_lowering::branch_states;
+use crate::scalar_lowering::computations;
+use crate::scalar_lowering::contracts::LoweredProofTerm;
 use checked_trees::CheckedBooleanExpression;
 use semantic_vocabulary::{
     ClaimId, PlaceId, QualifiedScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
@@ -222,7 +222,7 @@ pub(crate) enum LoweredScalarEffect {
         place: PlaceId,
         structural_type: StructuralTypeId,
     },
-    EstablishAggregate(scalar_graph_lowering::structural_values::Construction),
+    EstablishAggregate(branch_states::structural_values::Construction),
     /// A declared-only local's zeroed whole-shape establishment: a fresh home
     /// with no field operands, realized by the dedicated zeroed operation.
     EstablishZeroedStructural {
@@ -233,7 +233,7 @@ pub(crate) enum LoweredScalarEffect {
     },
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),
-    EstablishScalarCase(scalar_computations::cases::Construction),
+    EstablishScalarCase(computations::cases::Construction),
     /// Establish an immutable byte-view literal in its reserved place ahead of
     /// the computed call that borrows it.
     EstablishByteSequenceLiteral {

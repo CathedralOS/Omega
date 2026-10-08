@@ -331,7 +331,7 @@ pub(super) fn lower_unit_structural_types_including(
     let mut roots = additional_roots.to_vec();
     for symbol in closure {
         roots.extend(
-            crate::scalar_graph::scalar_computations::operand_types::type_roots(checked, *symbol)?,
+            crate::scalar_lowering::computations::operand_types::type_roots(checked, *symbol)?,
         );
         let body = UnitBody::find(plans, *symbol)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
@@ -429,7 +429,7 @@ pub(super) fn lower_unit_structural_types_including(
             };
             for state in states {
                 let loans =
-                    crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
+                    crate::scalar_lowering::computations::fields::prepare_place_observations(
                         checked,
                         *machine,
                         state,

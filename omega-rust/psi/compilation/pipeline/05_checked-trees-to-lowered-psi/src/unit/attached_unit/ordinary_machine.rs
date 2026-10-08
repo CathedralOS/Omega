@@ -319,44 +319,43 @@ pub(super) fn emit(
     evaluation.machine = Some(terminal_machine);
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
     evaluation.place_observations =
-        crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
+        crate::scalar_lowering::computations::fields::prepare_place_observations(
             checked,
             plan.machine,
             plan.state,
             structural_types,
         )?;
-    evaluation.record_fields = crate::scalar_graph::scalar_computations::fields::prepare(
+    evaluation.record_fields = crate::scalar_lowering::computations::fields::prepare(
         checked,
         &[plan.machine],
         structural_types,
         &mut next_place,
     )?;
-    evaluation.literals = crate::scalar_graph::scalar_computations::literals::prepare(
+    evaluation.literals = crate::scalar_lowering::computations::literals::prepare(
         checked,
         plan.machine,
         structural_types,
         &mut next_place,
     )?;
-    evaluation.copies = crate::scalar_graph::scalar_computations::copies::prepare(
+    evaluation.copies = crate::scalar_lowering::computations::copies::prepare(
         checked,
         plan.machine,
         structural_types,
         &mut next_place,
     )?;
-    evaluation.produced_values =
-        crate::scalar_graph::scalar_computations::produced_values::prepare(
-            checked,
-            &[plan.machine],
-            structural_types,
-            &mut next_place,
-        )?;
-    evaluation.subslices = crate::scalar_graph::scalar_computations::subslices::prepare(
+    evaluation.produced_values = crate::scalar_lowering::computations::produced_values::prepare(
         checked,
         &[plan.machine],
         structural_types,
         &mut next_place,
     )?;
-    evaluation.cases = crate::scalar_graph::scalar_computations::cases::prepare(
+    evaluation.subslices = crate::scalar_lowering::computations::subslices::prepare(
+        checked,
+        &[plan.machine],
+        structural_types,
+        &mut next_place,
+    )?;
+    evaluation.cases = crate::scalar_lowering::computations::cases::prepare(
         checked,
         &[plan.machine],
         structural_types,
@@ -889,7 +888,7 @@ pub(super) fn emit(
                 })
         }
     });
-    crate::scalar_graph::scalar_computations::literals::retain_declarations(
+    crate::scalar_lowering::computations::literals::retain_declarations(
         &evaluation.literals,
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut private_places,
@@ -898,8 +897,8 @@ pub(super) fn emit(
         .blocks
         .iter()
         .flat_map(|block| {
-            crate::scalar_graph::scalar_computations::arrays::declarations(&block.operations).chain(
-                crate::scalar_graph::scalar_computations::cases::declarations(&block.operations),
+            crate::scalar_lowering::computations::arrays::declarations(&block.operations).chain(
+                crate::scalar_lowering::computations::cases::declarations(&block.operations),
             )
         })
         .filter(|place| {
@@ -952,7 +951,7 @@ pub(super) fn emit(
     // The computation scan also encounters subslices whose ordinary call
     // or edge already owns a declaration. Reuse only that exact declaration;
     // a reused identity with different provenance remains an error.
-    crate::scalar_graph::scalar_computations::subslices::merge_declarations(
+    crate::scalar_lowering::computations::subslices::merge_declarations(
         evaluation.blocks.iter(),
         &mut structural_places,
     )?;
@@ -969,7 +968,7 @@ pub(super) fn emit(
         &scalar_parameters,
         &declared_result,
         &signature.erased_scalar_parameters,
-        &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+        &crate::scalar_lowering::contracts::ContractViewNamespace {
             parameters: &evaluation.structural_parameters,
             result: None,
             structural_types,
@@ -1020,7 +1019,7 @@ pub(super) fn emit(
             crash_routes,
             erased_scalar_formals: signature.erased_scalar_parameters.clone(),
             erased_proof_formals:
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     &signature.erased_proof_parameters,
                 ),
             requires: signature.requires.clone(),
@@ -1195,7 +1194,7 @@ fn establish_call_literals(
                         .collect::<Result<Vec<_>, _>>()?
                 }
                 None => {
-                    crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                    crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                         checked,
                         *target_machine,
                     )?

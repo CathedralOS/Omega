@@ -6,7 +6,7 @@ use super::{
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};

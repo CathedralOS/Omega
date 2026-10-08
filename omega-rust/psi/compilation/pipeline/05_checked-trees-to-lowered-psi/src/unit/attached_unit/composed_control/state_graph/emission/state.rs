@@ -102,43 +102,43 @@ impl StateGraphEmission<'_, '_> {
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             place_observations:
-                crate::scalar_graph::scalar_computations::fields::prepare_place_observations(
+                crate::scalar_lowering::computations::fields::prepare_place_observations(
                     checked,
                     plan.machine,
                     state.state,
                     &self.catalogs.structural_types,
                 )?,
-            record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
+            record_fields: crate::scalar_lowering::computations::fields::prepare(
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
-            literals: crate::scalar_graph::scalar_computations::literals::prepare(
+            literals: crate::scalar_lowering::computations::literals::prepare(
                 checked,
                 plan.machine,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
-            copies: crate::scalar_graph::scalar_computations::copies::prepare(
+            copies: crate::scalar_lowering::computations::copies::prepare(
                 checked,
                 plan.machine,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
-            produced_values: crate::scalar_graph::scalar_computations::produced_values::prepare(
+            produced_values: crate::scalar_lowering::computations::produced_values::prepare(
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
-            subslices: crate::scalar_graph::scalar_computations::subslices::prepare(
+            subslices: crate::scalar_lowering::computations::subslices::prepare(
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
-            cases: crate::scalar_graph::scalar_computations::cases::prepare(
+            cases: crate::scalar_lowering::computations::cases::prepare(
                 checked,
                 &owners,
                 &self.catalogs.structural_types,
@@ -1252,7 +1252,7 @@ impl StateGraphEmission<'_, '_> {
                         parameters,
                         erased_scalar_formals: self.state_erased[position].clone(),
                         erased_proof_formals:
-                            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                            crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                                 &self.state_erased_proof[position],
                             ),
                         structural_parameters,
@@ -1529,7 +1529,7 @@ fn emit_short_circuit_decision(
             parameters: Vec::new(),
             erased_scalar_formals: frame.erased_scalar_formals.to_vec(),
             erased_proof_formals:
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     frame.erased_proof_formals,
                 ),
             structural_parameters: Vec::new(),

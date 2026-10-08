@@ -70,7 +70,7 @@ use crate::proofs::crash_routes::{
     substitute_structural_crash_route_roots,
 };
 use crate::retention::placed_view_inputs::lower_placed_view_input;
-use crate::scalar_graph::scalar_carriers;
+use crate::scalar_lowering::scalar_carriers;
 use crate::structural_types::{
     lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,
 };

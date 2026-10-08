@@ -7,10 +7,10 @@ use super::{
 use crate::emission::expression_validation::validate_short_circuit_expression;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_contracts::LoweredProofTerm;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use crate::scalar_lowering::contracts::LoweredProofTerm;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower(

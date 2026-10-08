@@ -171,7 +171,7 @@ pub(crate) fn with_expression_consumers(
             // Boundary entry obligations use their own completion receipts.
             validate_consumer(checked, &view, operation, parameters, &[])?;
         } else if call.scalar_result().is_some() {
-            let target = crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+            let target = crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                 checked, call.target.machine,
             )?;
             validate_consumer(checked, &view, operation, parameters, target.entry_claims())?;

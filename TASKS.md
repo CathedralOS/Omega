@@ -699,7 +699,7 @@ defines the complete product bar.
   - Complete remaining claim-bearing values on
     **STATE-LOCAL-VALUE-FRONTIER**'s computed-call evaluation path. Preserve the
     checked ordered temporary action roster and its scalar-call continuation in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/calls.rs`
+    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
     consume retained claims. Preserve the selected transfer and ordered
     residual complement under the original owner, never a second whole
@@ -2037,7 +2037,7 @@ crash and native exit behavior.
   - Owners: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/statement_sequence/local_data.rs`,
     `.../terminal_unit/receiver_aliases/`, stage 05
     `expression_preparation/bindings/` and
-    `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
+    `scalar_lowering/computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
   - State: exact field/fixed-array descriptor retirement preserves disjoint
     siblings and transfers child retirement to the receiving constructor leaf.
@@ -2622,7 +2622,7 @@ code and preserve check/native behavior for the named customer slices.
   - `operation_emission/calls.rs::emit_direct_call_operation` and
     `operation_emission/boundary_calls.rs` for binding-prefix calls and
     computation calls;
-  - `scalar_graph_effects.rs` `LoweredScalarEffect::Call`.
+  - `scalar_lowering/effects.rs` `LoweredScalarEffect::Call`.
 
   These routes duplicate erased lanes, requirement obligations, crash-route
   root substitution (only `ordinary_calls::prepare` substitutes structural
@@ -2656,18 +2656,14 @@ code and preserve check/native behavior for the named customer slices.
 
 - **SCALAR-GRAPH-ROUTE-RETIRED.** (new-scope) Neither stage has a scalar
   graph: stage 05 lowers every scalar machine through its Unit or composed
-  body, and stage 04 builds no graph plans. Left:
-  - rename `05_.../src/scalar_graph/`, whose 10k lines (computation
-    expansion, contracts, effects, scalar call lowering) all serve Unit
-    bodies;
-  - a composed state keeps a `mut` scalar formal as an SSA value in its
-    binding prefix, so it refuses the formal's later stores and borrows;
-    give it the entry storage an ordinary body takes from
-    `CheckedUnitParameterStoragePlan`.
+  body, and stage 04 builds no graph plans. Left: a composed state keeps a
+  `mut` scalar formal as an SSA value in its binding prefix, so it refuses
+  the formal's later stores and borrows; give it the entry storage an
+  ordinary body takes from `CheckedUnitParameterStoragePlan`.
 
-  Acceptance: no stage 05 module is named for a scalar graph; a composed
-  machine whose later state assigns and borrows a `mut` scalar formal runs
-  natively; the full check corpus and the native corpus are unchanged.
+  Acceptance: a composed machine whose later state assigns and borrows a
+  `mut` scalar formal runs natively; the full check corpus and the native
+  corpus are unchanged.
 
 - **UNIT-PLAN-ASSEMBLY-ONCE.** (new-scope) Stage 04 still builds nominal
   cleanup twice: the Unit candidates pass in

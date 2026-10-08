@@ -16,7 +16,7 @@ use super::{OperationFrame, StructuralResults};
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
     StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
@@ -704,13 +704,13 @@ impl OperationFrame<'_, '_> {
                 let erased_proof_arguments = erased_proof_arguments
                     .iter()
                     .map(|term| {
-                        crate::scalar_graph::scalar_contracts::checked_proof_term(
+                        crate::scalar_lowering::contracts::checked_proof_term(
                             checked,
                             term,
                             self.caller.erased_proof_parameters,
                         )
                         .and_then(|term| {
-                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            crate::scalar_lowering::contracts::lowered_proof_term(
                                 &term,
                                 self.values,
                                 self.caller.erased_scalar_parameters,

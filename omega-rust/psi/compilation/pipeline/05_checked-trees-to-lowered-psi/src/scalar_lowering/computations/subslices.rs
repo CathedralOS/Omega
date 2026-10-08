@@ -194,7 +194,7 @@ impl super::Expansion<'_> {
                 scalar_type,
             },
         );
-        use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+        use crate::scalar_lowering::branch_states::prepared::{
             LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
         };
         let effect = if bytes {

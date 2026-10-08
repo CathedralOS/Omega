@@ -22,8 +22,8 @@
 //! 2. The plan families are layered, and each one reaches only downward:
 //!    [`unit`] lowers attached, structural-control and cleanup Unit
 //!    machines, including every structural or scalar result a body returns;
-//!    [`scalar_graph`] prepares
-//!    scalar graphs, closes their calls and assembles the module;
+//!    [`scalar_lowering`] lowers the scalar computations, contracts, callees
+//!    and branch states those bodies embed;
 //!    [`expression_preparation`] turns source-bound expressions and bindings
 //!    into what a body needs; [`emission`] writes the operations and stores
 //!    every body shares.
@@ -54,7 +54,7 @@ mod machine_lowering;
 // order: each reaches down this list and never back up it.
 mod emission;
 mod expression_preparation;
-mod scalar_graph;
+mod scalar_lowering;
 mod unit;
 
 // What the entrance runs over the assembled module, in that order.

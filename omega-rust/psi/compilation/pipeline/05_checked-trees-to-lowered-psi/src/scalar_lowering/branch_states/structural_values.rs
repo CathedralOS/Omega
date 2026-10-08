@@ -1,4 +1,4 @@
-//! Structural construction participates in the scalar graph's evaluation order.
+//! Structural construction participates in a branch state's evaluation order.
 //! Scalar fields use ordinary computation continuations in authored order.
 //! Completed aggregates reuse record, case and array emitters. Their shapes
 //! determine establishment, never a separate caller-specific evaluation path.
@@ -27,7 +27,7 @@ use crate::emission::claim_bindings::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarArrayConstruction, LoweredScalarBranchState, LoweredScalarBranchTerminator,
     LoweredScalarEffect,
 };
@@ -1130,4 +1130,3 @@ fn attach_result_claims(
     result.claims = claims;
     Ok(())
 }
-

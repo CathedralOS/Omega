@@ -96,7 +96,7 @@ pub(crate) struct LoweredDirectCallBinding {
     /// Erased proof-only actuals in the callee's erased-proof roster order.
     /// `Formal` positions index the caller's erased-proof roster; scalar
     /// leaves resolve against this operation's caller namespace at emission.
-    pub(crate) erased_proof_arguments: Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
+    pub(crate) erased_proof_arguments: Vec<crate::scalar_lowering::contracts::LoweredProofTerm>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
@@ -226,7 +226,7 @@ fn emit_direct_call_operation(
         .erased_proof_arguments
         .iter()
         .map(|term| {
-            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+            crate::scalar_lowering::contracts::lowered_proof_term(
                 term,
                 source_values_before_call,
                 caller_erased_formals,

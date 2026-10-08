@@ -32,7 +32,7 @@ use super::super::{
     checked_unit_target_reach_matches, retain_exact_flow_call, retain_exact_unit_boundary,
     structural_calls, unique_unit_boundary,
 };
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan, CheckedUnitCallResult,
     CheckedUnitCallRoute, CheckedUnitStructuralParameterPlan,

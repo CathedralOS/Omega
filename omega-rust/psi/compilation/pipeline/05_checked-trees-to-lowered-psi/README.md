@@ -39,8 +39,9 @@ The plan families beneath the coordinator are concept-owned modules beside
   machines, plus the runtime requirements they derive. Every structural or
   scalar result a body returns lowers here; there is no separate return
   family.
-- [`scalar_graph`](src/scalar_graph/mod.rs): scalar-graph preparation,
-  computation expansion, call closure and module assembly.
+- [`scalar_lowering`](src/scalar_lowering/mod.rs): the scalar pieces every
+  Unit body embeds: computation expansion, contracts, scalar callee selection
+  and prepared branch states.
 - [Expression preparation](src/expression_preparation/prepare_expression.rs):
   shared source-bound expressions, storage bindings, qualifications and
   independent source replay consumed by Unit and scalar producers.
@@ -61,16 +62,17 @@ presents the Terminal debug companion.
 
 The subordinate owners follow the work:
 
-- [Shared closures](src/unit/attached_unit.rs) assemble operation bodies and
-  scalar graphs in one callee, type, service and qualification catalog. Scalar
+- [Shared closures](src/unit/attached_unit.rs) assemble every Unit body,
+  scalar callees included, in one callee, type, service and qualification
+  catalog. Scalar
   root selection retains an exact source-to-machine map; it does not choose a
   second assembler based on whether a body happens to use places or services.
-- [Scalar callees](src/scalar_graph/scalar_call_closure.rs) prepare each graph's
-  body and contract against that namespace. A selected direct result and a
+- [Scalar callees](src/scalar_lowering/call_closure.rs) name the Unit body a
+  scalar call lowers against that namespace. A selected direct result and a
   result consumed by a caller retain their distinct contract obligations.
-- [Scalar graph preparation](src/scalar_graph/scalar_graph_lowering.rs) produces
-  [prepared states](src/scalar_graph/scalar_graph_lowering/prepared_graph.rs):
-  ordered bindings, structural effects, transfers, and their contract.
+- [Branch states](src/scalar_lowering/branch_states.rs) prepare
+  [each state's](src/scalar_lowering/branch_states/prepared.rs) ordered
+  bindings, structural effects and exit for the scalar-completion emitter.
 - [Operation emission](src/emission/operation_emission.rs) dispatches a scalar
   binding to expression, store, selected comparison, or call emission.
 

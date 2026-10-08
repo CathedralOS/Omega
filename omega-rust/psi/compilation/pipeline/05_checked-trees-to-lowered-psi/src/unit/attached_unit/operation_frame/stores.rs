@@ -67,16 +67,14 @@ impl OperationFrame<'_, '_> {
         path: &[checked_trees::CheckedUnitStructuralPathSegment],
         value: &checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
-        if let Some(loan) =
-            crate::scalar_graph::scalar_computations::fields::loaned_primitive_store(
-                self.checked,
-                self.machine,
-                self.state,
-                destination,
-                path,
-                self.structural_types.declarations(),
-            )?
-        {
+        if let Some(loan) = crate::scalar_lowering::computations::fields::loaned_primitive_store(
+            self.checked,
+            self.machine,
+            self.state,
+            destination,
+            path,
+            self.structural_types.declarations(),
+        )? {
             let projection = loan
                 .byte_overlay
                 .as_ref()
@@ -565,10 +563,10 @@ impl OperationFrame<'_, '_> {
     pub(super) fn prepare_loaned_byte_store(
         &mut self,
         statement_index: u32,
-        loan: &crate::scalar_graph::scalar_computations::fields::LoanedStore,
+        loan: &crate::scalar_lowering::computations::fields::LoanedStore,
     ) -> Result<crate::emission::representation_view_store::ByteStoreDestination, LoweringError>
     {
-        use crate::scalar_graph::scalar_computations::fields::LoanedSource;
+        use crate::scalar_lowering::computations::fields::LoanedSource;
         let (place, root_type) = match loan.source {
             LoanedSource::Parameter(position) => {
                 let (_, parameter) = self
@@ -659,7 +657,7 @@ impl OperationFrame<'_, '_> {
         &mut self,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     ) -> Result<(), LoweringError> {
-        let loan = crate::scalar_graph::scalar_computations::fields::loaned_store(
+        let loan = crate::scalar_lowering::computations::fields::loaned_store(
             self.checked,
             self.machine,
             self.state,
@@ -668,7 +666,7 @@ impl OperationFrame<'_, '_> {
         )?;
         let mut rejoined;
         let store = if let Some(loan) = loan {
-            use crate::scalar_graph::scalar_computations::fields::LoanedSource;
+            use crate::scalar_lowering::computations::fields::LoanedSource;
             let destination = match loan.source {
                 LoanedSource::Parameter(position) => {
                     let (authored, _) = self

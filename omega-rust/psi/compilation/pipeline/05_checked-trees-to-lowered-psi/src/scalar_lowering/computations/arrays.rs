@@ -11,7 +11,7 @@ use super::super::{
 use super::{LoweringError, unsupported, validate_direct_parameter_types};
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarArrayConstruction;
+use crate::scalar_lowering::branch_states::prepared::LoweredScalarArrayConstruction;
 
 /// A computed array is a fixed primitive array whose leaf count fits in u64.
 pub(crate) fn validate_layout(

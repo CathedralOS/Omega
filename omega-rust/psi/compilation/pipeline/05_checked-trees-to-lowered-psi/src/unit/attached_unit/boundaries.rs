@@ -46,7 +46,7 @@ pub(crate) fn lower_declarations(
             .iter()
             .find(|machine| machine.symbol == plan.machine)
         {
-            crate::scalar_graph::scalar_contracts::validate_boundary_guarantees(checked, machine)?;
+            crate::scalar_lowering::contracts::validate_boundary_guarantees(checked, machine)?;
         }
         let expected_guarantees = checked
             .typed
@@ -200,11 +200,11 @@ fn lower_scalar_ensures(
     }
     let formals = scalar_contract_formals(&namespace)?;
     let predicate = |value| {
-        crate::scalar_graph::scalar_contracts::proposition(
+        crate::scalar_lowering::contracts::proposition(
             value,
             &formals,
             &[],
-            &crate::scalar_graph::scalar_contracts::ContractViewNamespace::EMPTY,
+            &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
         )
     };
     let rows = plan
@@ -238,11 +238,11 @@ fn lower_scalar_contract(
     let rows = clauses
         .iter()
         .map(|row| {
-            crate::scalar_graph::scalar_contracts::clauses(
+            crate::scalar_lowering::contracts::clauses(
                 std::slice::from_ref(&Some(row.clone())),
                 &formals,
                 &[],
-                &crate::scalar_graph::scalar_contracts::ContractViewNamespace::EMPTY,
+                &crate::scalar_lowering::contracts::ContractViewNamespace::EMPTY,
             )
         })
         .collect::<Result<Vec<_>, _>>()?
@@ -280,7 +280,7 @@ fn canonical_scalar_contract_rows(
             other => rows.push(other),
         }
     }
-    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut rows)?;
+    crate::scalar_lowering::contracts::canonicalize_requires(&mut rows)?;
     Ok(rows)
 }
 

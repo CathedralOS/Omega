@@ -1,4 +1,4 @@
-//! Lowering scalar calls, direct call bindings and graph successors.
+//! Lower a direct scalar call binding against its callee's Unit body.
 
 use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
@@ -8,7 +8,7 @@ use crate::emission::operation_emission::calls::{
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
-use crate::scalar_graph::{
+use crate::scalar_lowering::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, scalar_carriers,
     unsupported,
 };
@@ -32,12 +32,12 @@ pub(crate) fn lower_scalar_call(
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
     let target = if structural_arguments.is_empty() {
-        crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find(
+        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
             checked,
             target_machine,
         )?
     } else {
-        crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
             checked,
             target_machine,
         )?
@@ -110,7 +110,7 @@ pub(crate) fn lower_scalar_call(
                 .ok_or(LoweringError::Unsupported(
                     "scalar call erased proof actual is absent",
                 ))?;
-            crate::scalar_graph::scalar_contracts::checked_proof_term(
+            crate::scalar_lowering::contracts::checked_proof_term(
                 checked,
                 term,
                 caller_erased_proof_parameters,

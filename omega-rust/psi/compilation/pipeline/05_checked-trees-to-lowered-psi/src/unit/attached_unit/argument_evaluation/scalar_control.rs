@@ -10,7 +10,7 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
@@ -60,7 +60,7 @@ struct PayloadCaseDispatchArm {
 /// expression machinery pushes the state that evaluates the return and jumps
 /// the completion.
 fn push_arm_target(
-    expansion: &mut crate::scalar_graph::scalar_computations::Expansion<'_>,
+    expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
@@ -124,10 +124,9 @@ fn payload_case_dispatch_terminator(
     when_true_target: usize,
     when_false_target: usize,
     source_types: &[QualifiedScalarType],
-    proof_formals: Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
+    proof_formals: Vec<crate::scalar_lowering::contracts::LoweredProofTerm>,
 ) -> LoweredScalarBranchTerminator {
-    let mut when_true_arguments =
-        crate::scalar_graph::scalar_computations::parameters(source_types);
+    let mut when_true_arguments = crate::scalar_lowering::computations::parameters(source_types);
     when_true_arguments.extend(dispatch.payloads.iter().enumerate().map(
         |(index, (_, value_type))| LoweredDirectExpression::Parameter {
             position: source_types.len() + index,
@@ -144,7 +143,7 @@ fn payload_case_dispatch_terminator(
         when_true_erased_arguments: Vec::new(),
         when_true_erased_proof_arguments: proof_formals.clone(),
         when_false_target,
-        when_false_arguments: crate::scalar_graph::scalar_computations::parameters(source_types),
+        when_false_arguments: crate::scalar_lowering::computations::parameters(source_types),
         when_false_erased_arguments: Vec::new(),
         when_false_erased_proof_arguments: proof_formals,
     }
@@ -198,7 +197,7 @@ impl Evaluation {
         // element) has no pure guard expression, so it is not the whole-root
         // membership this dispatch binds; the ordinary guard evaluation
         // replays its computation instead.
-        if crate::scalar_graph::scalar_graph_lowering::guards::is_computed(
+        if crate::scalar_lowering::branch_states::guards::is_computed(
             checked,
             state,
             guard_statement_ordinal,
@@ -384,7 +383,7 @@ impl Evaluation {
     /// a jump argument cannot stand in for that evaluation.
     fn payload_arm_target(
         &self,
-        expansion: &mut crate::scalar_graph::scalar_computations::Expansion<'_>,
+        expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
         source_types: &[QualifiedScalarType],
         dispatch: &PayloadCaseDispatchArm,
         completions: &[(CheckedScalarBranchDestination, usize)],
@@ -394,7 +393,7 @@ impl Evaluation {
         let result_type = dispatch.value.value_type(&input_types)?;
         let mut parameter_types = input_types.clone();
         parameter_types.push(result_type);
-        let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
+        let mut arguments = crate::scalar_lowering::computations::parameters(source_types);
         arguments.push(LoweredDirectExpression::Parameter {
             position: input_types.len(),
             scalar_type: result_type.scalar_type,
@@ -426,7 +425,7 @@ impl Evaluation {
     #[allow(clippy::too_many_arguments)]
     fn case_dispatch_split(
         &self,
-        expansion: &mut crate::scalar_graph::scalar_computations::Expansion<'_>,
+        expansion: &mut crate::scalar_lowering::computations::Expansion<'_>,
         checked: &CheckedTrees,
         state: symbols::SymbolHandle,
         bindings: &crate::expression_preparation::bindings::ScalarBindings,
@@ -448,7 +447,7 @@ impl Evaluation {
         for dispatch in dispatches {
             let target =
                 self.payload_arm_target(expansion, source_types, &dispatch, completions)?;
-            let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
+            let mut arguments = crate::scalar_lowering::computations::parameters(source_types);
             arguments.extend(dispatch.payloads.iter().enumerate().map(
                 |(index, (_, value_type))| LoweredDirectExpression::Parameter {
                     position: source_types.len() + index,
@@ -476,7 +475,7 @@ impl Evaluation {
                     fallback,
                     completions,
                 )?,
-                crate::scalar_graph::scalar_computations::parameters(source_types),
+                crate::scalar_lowering::computations::parameters(source_types),
             )
         } else {
             if cases
@@ -510,7 +509,7 @@ impl Evaluation {
             cleanup_actions: Vec::new(),
             structural_arguments: Vec::new(),
             target,
-            arguments: crate::scalar_graph::scalar_computations::parameters(source_types),
+            arguments: crate::scalar_lowering::computations::parameters(source_types),
             erased_arguments: Vec::new(),
             erased_proof_arguments: self.proof_formal_forwarding(),
         })
@@ -566,7 +565,7 @@ impl Evaluation {
                             .collect(),
                         structural_arguments: Vec::new(),
                         target: 0,
-                        arguments: crate::scalar_graph::scalar_computations::parameters(
+                        arguments: crate::scalar_lowering::computations::parameters(
                             &completion_types,
                         ),
                         erased_arguments: Vec::new(),
@@ -595,7 +594,7 @@ impl Evaluation {
                     cleanup_actions: Vec::new(),
                     structural_arguments: Vec::new(),
                     target,
-                    arguments: crate::scalar_graph::scalar_computations::parameters(&source_types),
+                    arguments: crate::scalar_lowering::computations::parameters(&source_types),
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: self.proof_formal_forwarding(),
                 }
@@ -628,7 +627,7 @@ impl Evaluation {
                     // false edge leaves the else arm no case to dispatch
                     // its reads on; dispatching there would also skip the
                     // guard's own evaluation.
-                    None if crate::scalar_graph::scalar_graph_lowering::guards::is_computed(
+                    None if crate::scalar_lowering::branch_states::guards::is_computed(
                         checked,
                         state,
                         *guard_statement_ordinal,
@@ -749,7 +748,7 @@ impl Evaluation {
                             when_false,
                             &completions,
                         )?;
-                        crate::scalar_graph::scalar_graph_lowering::guards::lower(
+                        crate::scalar_lowering::branch_states::guards::lower(
                             checked,
                             state,
                             *guard_statement_ordinal,
@@ -757,13 +756,13 @@ impl Evaluation {
                             &source_types,
                             (
                                 true_target,
-                                crate::scalar_graph::scalar_computations::parameters(&source_types),
+                                crate::scalar_lowering::computations::parameters(&source_types),
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
                             ),
                             (
                                 false_target,
-                                crate::scalar_graph::scalar_computations::parameters(&source_types),
+                                crate::scalar_lowering::computations::parameters(&source_types),
                                 Vec::new(),
                                 self.proof_formal_forwarding(),
                             ),
@@ -875,7 +874,7 @@ impl Evaluation {
                                 &source_types,
                                 self.proof_formal_forwarding(),
                             ),
-                            None => crate::scalar_graph::scalar_graph_lowering::guards::evaluate(
+                            None => crate::scalar_lowering::branch_states::guards::evaluate(
                                 checked,
                                 state,
                                 guard_ordinal,
@@ -883,17 +882,13 @@ impl Evaluation {
                                 &source_types,
                                 (
                                     target,
-                                    crate::scalar_graph::scalar_computations::parameters(
-                                        &source_types,
-                                    ),
+                                    crate::scalar_lowering::computations::parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
                                 ),
                                 (
                                     next,
-                                    crate::scalar_graph::scalar_computations::parameters(
-                                        &source_types,
-                                    ),
+                                    crate::scalar_lowering::computations::parameters(&source_types),
                                     Vec::new(),
                                     self.proof_formal_forwarding(),
                                 ),
@@ -914,9 +909,7 @@ impl Evaluation {
                         cleanup_actions: Vec::new(),
                         structural_arguments: Vec::new(),
                         target: next,
-                        arguments: crate::scalar_graph::scalar_computations::parameters(
-                            &source_types,
-                        ),
+                        arguments: crate::scalar_lowering::computations::parameters(&source_types),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: self.proof_formal_forwarding(),
                     }

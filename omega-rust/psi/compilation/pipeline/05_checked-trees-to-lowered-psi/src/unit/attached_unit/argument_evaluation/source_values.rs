@@ -224,7 +224,7 @@ impl Evaluation {
             }
             CheckedCallScalarArgument::Computation(handle) => (
                 None,
-                crate::scalar_graph::scalar_computations::computation_value_type(
+                crate::scalar_lowering::computations::computation_value_type(
                     checked,
                     qualifications,
                     *handle,

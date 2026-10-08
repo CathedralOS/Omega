@@ -20,10 +20,10 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
+use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_state(
@@ -125,7 +125,7 @@ pub(super) fn emit_state(
             });
         }
     }
-    crate::scalar_graph::scalar_graph_effects::emit(
+    crate::scalar_lowering::effects::emit(
         &state.structural_effects,
         &values,
         caller_erased_formals,
@@ -204,7 +204,7 @@ pub(super) fn emit_state(
             *proof_actuals = qualify_erased_proof_arguments
                 .iter()
                 .map(|argument| {
-                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    crate::scalar_lowering::contracts::lowered_proof_term(
                         argument,
                         &values,
                         &erased_formals,
@@ -240,7 +240,7 @@ pub(super) fn emit_state(
             erased_proof_arguments: erased_proof_arguments
                 .iter()
                 .map(|term| {
-                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    crate::scalar_lowering::contracts::lowered_proof_term(
                         term,
                         &values,
                         &erased_formals,
@@ -279,19 +279,18 @@ pub(super) fn emit_state(
             };
             let when_true_erased_arguments = erased_terms(when_true_erased_arguments)?;
             let when_false_erased_arguments = erased_terms(when_false_erased_arguments)?;
-            let proof_terms =
-                |terms: &[crate::scalar_graph::scalar_contracts::LoweredProofTerm]| {
-                    terms
-                        .iter()
-                        .map(|term| {
-                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
-                                term,
-                                &values,
-                                &erased_formals,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                };
+            let proof_terms = |terms: &[crate::scalar_lowering::contracts::LoweredProofTerm]| {
+                terms
+                    .iter()
+                    .map(|term| {
+                        crate::scalar_lowering::contracts::lowered_proof_term(
+                            term,
+                            &values,
+                            &erased_formals,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            };
             let when_true_erased_proof_arguments = proof_terms(when_true_erased_proof_arguments)?;
             let when_false_erased_proof_arguments = proof_terms(when_false_erased_proof_arguments)?;
             if contains_short_circuit(condition) {
@@ -454,7 +453,7 @@ pub(super) fn emit_state(
             let when_true_erased_proof_arguments = when_true_erased_proof_arguments
                 .iter()
                 .map(|term| {
-                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                    crate::scalar_lowering::contracts::lowered_proof_term(
                         term,
                         &dispatch_namespace,
                         &erased_formals,
@@ -476,7 +475,7 @@ pub(super) fn emit_state(
                     when_false_erased_proof_arguments
                         .iter()
                         .map(|term| {
-                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            crate::scalar_lowering::contracts::lowered_proof_term(
                                 term,
                                 &values,
                                 &erased_formals,
@@ -599,7 +598,7 @@ pub(super) fn emit_state(
                         .erased_proof_arguments
                         .iter()
                         .map(|term| {
-                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            crate::scalar_lowering::contracts::lowered_proof_term(
                                 term,
                                 &dispatch_namespace,
                                 &erased_formals,
@@ -654,7 +653,7 @@ pub(super) fn emit_state(
                         let erased_proof_arguments = fallback_erased_proof_arguments
                             .iter()
                             .map(|term| {
-                                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                crate::scalar_lowering::contracts::lowered_proof_term(
                                     term,
                                     &values,
                                     &erased_formals,

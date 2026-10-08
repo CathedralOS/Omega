@@ -103,7 +103,7 @@ pub(crate) fn checked_unit_call_closure_including(
     Ok(closure)
 }
 
-pub(super) use crate::scalar_graph::scalar_call_closure::embedded::checked_scalar_call_closure_with_structural_roots;
+pub(super) use crate::scalar_lowering::call_closure::embedded::checked_scalar_call_closure_with_structural_roots;
 
 pub(crate) fn unique_unit_machine(
     plans: UnitPlans<'_>,

@@ -1,7 +1,17 @@
-//! Scalar-graph machine lowering.
+//! Scalar lowering every Unit body shares.
 //!
-//! Owns scalar-graph preparation and partial evaluation, the reachable scalar
-//! call closure, terminal module assembly, computation expansion and contracts.
+//! Ordinary, composed and cleanup Unit bodies are the one lowering route for
+//! scalar machines; this family lowers the scalar pieces they embed:
+//! - `computations` expands checked scalar computations (fields, cases,
+//!   calls, arrays, subslices, byte comparisons) into private typed blocks;
+//! - `contracts` lowers requirements, guarantees and proof terms over entry
+//!   parameters and the normal-return result;
+//! - `call_closure` names the Unit body a scalar call lowers
+//!   (`call_closure::callee::CheckedScalarCallee`) and discovers the scalar
+//!   helpers embedded beneath a source-owned root;
+//! - `branch_states` prepares the per-state bindings, effects and exits the
+//!   Unit scalar-completion emitter lowers, and `effects` emits those effects.
+//!
 //! Shared expression preparation and emission are consumed from their owners.
 
 use checked_trees::types::PrimitiveType;
@@ -31,11 +41,11 @@ use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
 use crate::terminal_identities::{allocate_dense, lookup_machine_id, place_id};
 
-pub(crate) mod scalar_call_closure;
-pub(crate) mod scalar_computations;
-pub(crate) mod scalar_contracts;
-pub(crate) mod scalar_graph_effects;
-pub(crate) mod scalar_graph_lowering;
+pub(crate) mod branch_states;
+pub(crate) mod call_closure;
+pub(crate) mod computations;
+pub(crate) mod contracts;
+pub(crate) mod effects;
 
 pub(crate) fn scalar_carriers(types: &[QualifiedScalarType]) -> Vec<ScalarType> {
     types.iter().map(|value| value.scalar_type).collect()

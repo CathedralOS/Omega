@@ -348,7 +348,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 )?,
             );
             state_erased.push(
-                crate::scalar_graph::scalar_contracts::erased_formal_declarations(
+                crate::scalar_lowering::contracts::erased_formal_declarations(
                     &state.erased_scalar_parameters,
                     &mut catalogs.next_value,
                 )?,
@@ -384,7 +384,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals:
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     &plan.states[0].erased_proof_parameters,
                 ),
             structural_parameters: Vec::new(),
@@ -546,11 +546,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             view_roster,
             &catalogs.structural_types,
         );
-        let Some(predicate) = crate::scalar_graph::scalar_contracts::clauses(
+        let Some(predicate) = crate::scalar_lowering::contracts::clauses(
             &state.requires,
             &state_values[position],
             &state_erased[position],
-            &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+            &crate::scalar_lowering::contracts::ContractViewNamespace {
                 result: None,
                 parameters: view_roster,
                 structural_types: &catalogs.structural_types,
@@ -599,12 +599,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         blocks
             .iter()
             .flat_map(|block| {
-                crate::scalar_graph::scalar_computations::arrays::declarations(&block.operations)
-                    .chain(
-                        crate::scalar_graph::scalar_computations::cases::declarations(
-                            &block.operations,
-                        ),
-                    )
+                crate::scalar_lowering::computations::arrays::declarations(&block.operations).chain(
+                    crate::scalar_lowering::computations::cases::declarations(&block.operations),
+                )
             })
             .filter(|place| {
                 !catalogs
@@ -623,7 +620,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // The computation scan also encounters subslices whose ordinary call
     // or edge already owns a declaration. Reuse only that exact declaration;
     // a reused identity with different provenance remains an error.
-    crate::scalar_graph::scalar_computations::subslices::merge_declarations(
+    crate::scalar_lowering::computations::subslices::merge_declarations(
         blocks.iter(),
         &mut structural_places,
     )?;
@@ -692,7 +689,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             crash_routes: Vec::new(),
             erased_scalar_formals: entry_erased_formals,
             erased_proof_formals:
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     &plan.states[0].erased_proof_parameters,
                 ),
             outcome_specific_ensures: Vec::new(),

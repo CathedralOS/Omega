@@ -258,7 +258,7 @@ impl StateGraphEmission<'_, '_> {
             // a plain entry's formals already live on the machine contract.
             root.erased_scalar_formals = self.state_erased[position].clone();
             root.erased_proof_formals =
-                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                crate::scalar_lowering::contracts::erased_proof_formal_declarations(
                     &self.state_erased_proof[position],
                 );
         }
@@ -266,7 +266,7 @@ impl StateGraphEmission<'_, '_> {
             self.block_ranks
                 .extend(evaluation.blocks.iter().map(|block| (block.id, rank)));
         }
-        crate::scalar_graph::scalar_computations::literals::retain_declarations(
+        crate::scalar_lowering::computations::literals::retain_declarations(
             &evaluation.literals,
             evaluation
                 .blocks

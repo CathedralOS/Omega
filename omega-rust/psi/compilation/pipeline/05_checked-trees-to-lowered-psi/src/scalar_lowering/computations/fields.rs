@@ -43,7 +43,7 @@ use crate::expression_preparation::bindings::place_observations::{
     ByteOverlayField, ByteOverlaySource, ObservationKind, PlaceObservation,
     PlaceObservationCapture, PrimitiveObservation, byte_overlay_read,
 };
-use crate::scalar_graph::scalar_graph_lowering::structural_values;
+use crate::scalar_lowering::branch_states::structural_values;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
@@ -132,14 +132,14 @@ impl super::Expansion<'_> {
             input_types.len(),
             terminal_scalar_type(primitive)?.into(),
         ));
-        let observation = self.push(crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchState {
+        let observation = self.push(crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchState {
             structural_parameters: Vec::new(),
             structural_effects: Vec::new(),
             parameter_types: input_types.to_vec(),
             erased_formal_types: Vec::new(),
             erased_proof_formals: Vec::new(),
             bindings: vec![crate::emission::operation_emission::LoweredScalarBinding::Expression(expression)],
-            terminator: crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator::Jump {
+            terminator: crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchTerminator::Jump {
                 target, arguments,
                 cleanup_actions: discards.into_iter().map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root).collect(),
                 erased_arguments: Vec::new(),

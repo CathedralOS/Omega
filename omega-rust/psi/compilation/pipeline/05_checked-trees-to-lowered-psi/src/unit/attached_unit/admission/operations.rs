@@ -7,7 +7,7 @@ use super::super::super::{
 };
 use super::super::bodies::UnitPlans;
 use super::super::{provider_attachments, scalar_arrays};
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedBoundaryMachinePlan;
 use symbols::SymbolHandle;
 

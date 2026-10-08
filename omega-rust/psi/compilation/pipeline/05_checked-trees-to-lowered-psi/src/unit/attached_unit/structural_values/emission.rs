@@ -1344,7 +1344,7 @@ impl Emission<'_, '_, '_> {
                     "structural case lost its authored constructor",
                 ))?;
                 let place = place_id(allocate_dense(self.next_place)?);
-                let slot = crate::scalar_graph::scalar_computations::cases::reserve(
+                let slot = crate::scalar_lowering::computations::cases::reserve(
                     self.checked,
                     construction.expression,
                     &source,
@@ -1372,14 +1372,14 @@ impl Emission<'_, '_, '_> {
                     self.values.push(value);
                 }
                 let completed = slot.construction(&self.values[field_start..])?;
-                crate::scalar_graph::scalar_computations::cases::emit(
+                crate::scalar_lowering::computations::cases::emit(
                     &completed,
                     &self.values[field_start..],
                     self.next_value,
                     self.operations,
                     self.calls,
                 )?;
-                let declaration = crate::scalar_graph::scalar_computations::cases::declarations(
+                let declaration = crate::scalar_lowering::computations::cases::declarations(
                     &self.operations.operations,
                 )
                 .find(|declaration| declaration.id == place)

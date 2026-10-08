@@ -46,7 +46,7 @@ use super::{
 };
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call;
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 // The closure `lower_unit_closure` assembles: body and callee discovery,

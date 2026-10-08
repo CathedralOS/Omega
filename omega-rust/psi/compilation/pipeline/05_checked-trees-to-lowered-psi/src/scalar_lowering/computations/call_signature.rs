@@ -38,7 +38,7 @@ pub(super) fn structural_parameters(
         return Ok(&plan.structural_parameters);
     }
     let target =
-        crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+        crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
             checked, machine,
         )?;
     if target.entry_state()? != state || !target.entry_claims().is_empty() {

@@ -1,7 +1,8 @@
 //! Scalar contracts over entry parameters and the normal-return result.
-//! Graph and ordered-operation bodies share the same predicate meaning. Only
-//! their execution schedules differ; normal guarantees still use the declared
-//! result pseudo-value and require independently reconstructed return proofs.
+//! Ordinary, composed and boundary bodies share the same predicate meaning.
+//! Only their execution schedules differ; normal guarantees still use the
+//! declared result pseudo-value and require independently reconstructed
+//! return proofs.
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, ClosedScalarContractValue, IntegerValue,
     LoweringError, Proposition, ScalarTerm, StructuralParameterDeclaration,

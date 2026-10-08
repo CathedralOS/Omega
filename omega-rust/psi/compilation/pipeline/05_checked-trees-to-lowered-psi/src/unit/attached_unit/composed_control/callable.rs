@@ -157,7 +157,7 @@ pub(in crate::unit::attached_unit) fn emit(
         &machine.parameters,
         &machine.result,
         &signature.erased_scalar_parameters,
-        &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+        &crate::scalar_lowering::contracts::ContractViewNamespace {
             parameters: &view_roster,
             result: None,
             structural_types: &catalogs.structural_types,

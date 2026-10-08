@@ -70,7 +70,7 @@ pub(crate) fn lower(
             structural_types,
         )?);
     }
-    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut runtime_requirements)?;
+    crate::scalar_lowering::contracts::canonicalize_requires(&mut runtime_requirements)?;
     // Publish each closed authored `requires` clause as its own row
     // beside the runtime requirements: a Unit callee's roster has one row
     // per authored clause, so a caller owes one obligation per clause. A
@@ -88,7 +88,7 @@ pub(crate) fn lower(
             .collect();
         let element_views =
             crate::expression_preparation::bindings::element_views(&view_roster, structural_types);
-        let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+        let views = crate::scalar_lowering::contracts::ContractViewNamespace {
             result: None,
             parameters: &view_roster,
             structural_types,
@@ -97,7 +97,7 @@ pub(crate) fn lower(
         requires = authored_requires
             .iter()
             .map(|clause| {
-                crate::scalar_graph::scalar_contracts::clauses(
+                crate::scalar_lowering::contracts::clauses(
                     std::slice::from_ref(clause),
                     scalar_parameters,
                     erased_scalar_parameters,
@@ -144,5 +144,5 @@ fn normalize_requires(requires: &mut Vec<Proposition>) -> Result<(), LoweringErr
     // then normalize rather than exposing clause/runtime ordering
     // accidents. `Proposition`'s derived `Ord` is Rust declaration order,
     // not the canonical key; the shared helper orders by encoded bytes.
-    crate::scalar_graph::scalar_contracts::canonicalize_requires(requires)
+    crate::scalar_lowering::contracts::canonicalize_requires(requires)
 }

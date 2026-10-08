@@ -19,11 +19,9 @@
 //! short-circuit block must use that block's forwarded name, regardless of
 //! whether the backing was initialized or zero-constructed.
 //!
-//! Both state-graph producers split authored states this way, so both call
-//! this one transfer rule: the Unit state graph seals each state's blocks
-//! through it (`unit/attached_unit/composed_control/state_graph/emission/seal.rs`),
-//! and a scalar graph applies it to each authored state's private region
-//! once the whole machine is emitted (`scalar_graph/scalar_graph_module/state_borrows.rs`).
+//! The composed state graph splits authored states this way and seals each
+//! state's blocks through this rule
+//! (`unit/attached_unit/composed_control/state_graph/emission/seal.rs`).
 
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{allocate_dense, place_id};

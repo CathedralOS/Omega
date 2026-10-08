@@ -10,7 +10,7 @@ use super::{
     parameter, produced_values, storage, structural_arguments, subslices, unsupported,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
+use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use arena::HandleSpan;
@@ -494,7 +494,7 @@ impl Expansion<'_> {
                 site.bindings,
                 scalar_actuals,
                 structural_arguments,
-                crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
+                crate::scalar_lowering::contracts::caller_erased_proof_roster(
                     self.checked,
                     self.machine,
                     site.state,
@@ -596,20 +596,21 @@ impl Expansion<'_> {
                 }),
                 Operand::Produced(slot) => {
                     let values = &self.checked.facts.values.structural_values;
-                    let prepared = crate::scalar_graph::scalar_graph_lowering::structural_values::prepare_value(
-                        self.checked,
-                        self.qualifications,
-                        site.state,
-                        facts::PlaceRoot::Expression(values.nodes.get(slot.root).expression),
-                        site.statement,
-                        slot.root,
-                        values.calls_for_root(slot.root).unwrap_or(&[]),
-                        slot.type_reference,
-                        site.bindings,
-                        prefix,
-                        self.structural_types,
-                        &slot.storage,
-                    )?;
+                    let prepared =
+                        crate::scalar_lowering::branch_states::structural_values::prepare_value(
+                            self.checked,
+                            self.qualifications,
+                            site.state,
+                            facts::PlaceRoot::Expression(values.nodes.get(slot.root).expression),
+                            site.statement,
+                            slot.root,
+                            values.calls_for_root(slot.root).unwrap_or(&[]),
+                            slot.type_reference,
+                            site.bindings,
+                            prefix,
+                            self.structural_types,
+                            &slot.storage,
+                        )?;
                     if prepared.place != slot.place
                         || prepared.structural_type != slot.structural_type
                     {

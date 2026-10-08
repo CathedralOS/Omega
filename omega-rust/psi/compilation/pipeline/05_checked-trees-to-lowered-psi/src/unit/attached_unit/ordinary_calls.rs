@@ -115,13 +115,13 @@ pub(super) fn prepare(
     let erased_proof_arguments = erased_proof_arguments
         .iter()
         .map(|argument| {
-            crate::scalar_graph::scalar_contracts::checked_proof_term(
+            crate::scalar_lowering::contracts::checked_proof_term(
                 checked,
                 argument,
                 caller_erased_proof_parameters,
             )
             .and_then(|term| {
-                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                crate::scalar_lowering::contracts::lowered_proof_term(
                     &term,
                     caller_scalar_values,
                     caller_erased_scalar_parameters,

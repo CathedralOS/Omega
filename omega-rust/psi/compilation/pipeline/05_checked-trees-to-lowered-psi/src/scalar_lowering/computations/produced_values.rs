@@ -4,7 +4,7 @@
 
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::expression_preparation::computation_graph::produced_value_root;
-use crate::scalar_graph::scalar_graph_lowering::structural_values::Storage;
+use crate::scalar_lowering::branch_states::structural_values::Storage;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
     CheckedStructuralValueHandle, CheckedUnitStructuralArgumentSourcePlan, FlowCallFact,

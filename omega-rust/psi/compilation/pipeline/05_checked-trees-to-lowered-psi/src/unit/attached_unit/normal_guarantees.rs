@@ -6,7 +6,7 @@
 //! Crashes and incomplete calls establish neither a result nor these facts.
 
 use crate::lowering_error::LoweringError;
-use crate::scalar_graph::scalar_contracts::{self, ContractViewNamespace};
+use crate::scalar_lowering::contracts::{self, ContractViewNamespace};
 use crate::unit::ContractClause;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
@@ -35,8 +35,8 @@ pub(crate) fn lower(
     let refined;
     let post_state;
     let ensures = if result.scalar().is_some() {
-        scalar_contracts::validate_guarantees(checked, source, source_state)?;
-        refined = scalar_contracts::with_result_range(
+        contracts::validate_guarantees(checked, source, source_state)?;
+        refined = contracts::with_result_range(
             checked,
             state,
             parameters.len(),
@@ -44,8 +44,7 @@ pub(crate) fn lower(
         )?;
         refined.ensures()
     } else {
-        post_state =
-            scalar_contracts::validate_post_state_guarantees(checked, source, source_state)?;
+        post_state = contracts::validate_post_state_guarantees(checked, source, source_state)?;
         &post_state[..]
     };
     // Returning execution restores the declared domain of every exclusive
@@ -78,7 +77,7 @@ pub(crate) fn lower(
         },
         ..*views
     };
-    scalar_contracts::clauses(&guarantees, &namespace, erased, &views)?
+    contracts::clauses(&guarantees, &namespace, erased, &views)?
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {

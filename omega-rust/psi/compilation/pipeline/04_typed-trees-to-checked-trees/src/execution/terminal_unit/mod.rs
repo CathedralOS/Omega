@@ -86,8 +86,7 @@
 //! finds no position. The consumer, checked-trees-to-lowered-psi, reconstructs
 //! every one of these partitions independently from the typed relevance
 //! (unit/attached_unit/parameters.rs, expression_preparation/qualifications.rs,
-//! source_custody/{parameters,direct_calls,replay_source,storage_reads,
-//! successors,computation_calls}, scalar_graph/scalar_computations/calls.rs)
+//! scalar_lowering/computations/calls.rs)
 //! and never trusts the plan's counts. What remains open is a contract that
 //! names an erased binding (`requires n < bound`): Terminal contract
 //! propositions have no proof-only value for it, so

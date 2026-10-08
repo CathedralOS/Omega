@@ -6,7 +6,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredEffectCall;
+use crate::scalar_lowering::branch_states::prepared::LoweredEffectCall;
 
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use checked_trees::CheckedUnitEffectOperationPlan;
@@ -98,7 +98,7 @@ pub(super) fn prepare(
     let erased_proof_arguments = erased_proof_arguments
         .iter()
         .map(|term| {
-            crate::scalar_graph::scalar_contracts::checked_proof_term(
+            crate::scalar_lowering::contracts::checked_proof_term(
                 checked,
                 term,
                 state.erased_proof_parameters,
@@ -373,7 +373,7 @@ fn emit_call(
     target: usize,
     computations: &mut super::computations::Expansion<'_>,
 ) -> usize {
-    use super::prepared_graph::{
+    use super::prepared::{
         LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
     };
     computations.push(LoweredScalarBranchState {

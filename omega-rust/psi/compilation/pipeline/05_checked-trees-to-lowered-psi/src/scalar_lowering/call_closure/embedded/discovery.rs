@@ -40,11 +40,11 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             );
         }
         let callee = if structural_members.contains(&machine) {
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+            crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                 checked, machine,
             )?
         } else {
-            crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find(
+            crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
                 checked, machine,
             )?
         };
@@ -74,14 +74,14 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
             // Root validation above rejoins each mixed signature independently;
             // another call reaching this target does not grant its borrow rows.
             if computed_structural.contains(&target) {
-                crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                     checked, target,
                 )?;
                 if !structural_members.contains(&target) {
                     structural_members.push(target);
                 }
             } else {
-                crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find(
+                crate::scalar_lowering::call_closure::callee::CheckedScalarCallee::find(
                     checked, target,
                 )?;
             }

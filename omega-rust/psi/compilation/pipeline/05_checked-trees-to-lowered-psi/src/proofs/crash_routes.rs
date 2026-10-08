@@ -32,7 +32,7 @@ use super::{
     LoweringError, PermissionClaimIdentity, ScalarType, TerminalCrashCause, ValueDeclaration,
     dense_identity, unsupported, value_id,
 };
-use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredCrashExit;
+use crate::scalar_lowering::branch_states::prepared::LoweredCrashExit;
 
 pub(crate) fn lower_boundary_crash_routes(
     checked: &CheckedTrees,
