@@ -7,7 +7,6 @@
 mod compute;
 mod custody;
 mod invariants;
-mod validation;
 
 use crate::StagedOptimizedFixedViewCopies;
 use crate::{

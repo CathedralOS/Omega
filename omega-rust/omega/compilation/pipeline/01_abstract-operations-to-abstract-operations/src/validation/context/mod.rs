@@ -7,11 +7,7 @@
 use optimization_unit::PsiOptimizationUnit;
 use optimization_unit_semantics::OptimizationUnitValidationError;
 
-mod context_projection;
-mod frontier_validation;
-mod immutable_custody;
 mod ranked_cycles;
-mod seed_projection;
 
 /// Validate a verified optimizer seed and retain its independently derived
 /// cyclic-component analysis authority.
