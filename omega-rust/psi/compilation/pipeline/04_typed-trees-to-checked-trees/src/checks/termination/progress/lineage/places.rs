@@ -11,7 +11,6 @@ pub(super) fn partition(
     machine: &Machine,
     subject: &ProgressSubject,
 ) -> Option<ProgressSubject> {
-    use typed_trees::types::TypeReferenceNode;
     let parameter = program
         .machine_states(machine)
         .iter()
