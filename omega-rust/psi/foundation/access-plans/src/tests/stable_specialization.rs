@@ -206,17 +206,7 @@ fn provider_stable_preflight_requires_and_retains_exact_correspondence() {
         expected
     );
 
-    let retained_correspondence =
-        corresponded.replace_correspondence_for_test(&alternate_correspondence);
-    let diagnostic = corresponded
-        .validate_for_provider_lowering()
-        .expect_err("a distinct correspondence carrier cannot replace retained authority");
-    assert!(
-        diagnostic
-            .0
-            .contains("different schema/device correspondence")
-    );
-    corresponded.replace_correspondence_for_test(retained_correspondence);
+    crate::tests::assert_rejects_alternate_correspondence!(corresponded, alternate_correspondence);
 
     corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
     let diagnostic = corresponded
@@ -431,17 +421,7 @@ fn provider_stable_compound_preflight_requires_exact_correspondence() {
         expected
     );
 
-    let retained_correspondence =
-        corresponded.replace_correspondence_for_test(&alternate_correspondence);
-    let diagnostic = corresponded
-        .validate_for_provider_lowering()
-        .expect_err("a distinct correspondence carrier cannot replace retained authority");
-    assert!(
-        diagnostic
-            .0
-            .contains("different schema/device correspondence")
-    );
-    corresponded.replace_correspondence_for_test(retained_correspondence);
+    crate::tests::assert_rejects_alternate_correspondence!(corresponded, alternate_correspondence);
 
     corresponded.replace_request_plan_for_test(PlacementPlanId(plan.identity().0 ^ 1));
     let diagnostic = corresponded

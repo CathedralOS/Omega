@@ -904,3 +904,23 @@ fn device_requirement(
             .expect("device ordering scope"),
     )
 }
+
+/// A distinct correspondence carrier must fail provider-lowering validation,
+/// then the retained carrier swaps back cleanly. Every corresponded carrier
+/// type asserts the same rejection; only the fixture objects differ.
+macro_rules! assert_rejects_alternate_correspondence {
+    ($corresponded:expr, $alternate_correspondence:expr) => {
+        let retained_correspondence =
+            $corresponded.replace_correspondence_for_test(&$alternate_correspondence);
+        let diagnostic = $corresponded
+            .validate_for_provider_lowering()
+            .expect_err("a distinct correspondence carrier cannot replace retained authority");
+        assert!(
+            diagnostic
+                .0
+                .contains("different schema/device correspondence")
+        );
+        $corresponded.replace_correspondence_for_test(retained_correspondence);
+    };
+}
+pub(crate) use assert_rejects_alternate_correspondence;
