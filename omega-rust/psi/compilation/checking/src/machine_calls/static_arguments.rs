@@ -7,9 +7,6 @@
 //! const's carrier or a literal's earlier landing.
 
 use diagnostics::Diagnostic;
-use language_semantics::const_value::{
-    CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
-};
 use numerics::literals::LandedIntegerType;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data::TypeParameterKind;
@@ -130,46 +127,7 @@ pub fn spelling(
     program: &dyn crate::CheckingInput,
     argument: &StaticMachineArgument,
 ) -> Option<String> {
-    if argument.type_reference.is_valid()
-        || argument.application.is_some()
-        || argument.evidence_projection.is_some()
-    {
-        return None;
-    }
-    if let Some(literal) = &argument.const_literal {
-        return Some(
-            literal
-                .value_i64()
-                .map(i128::from)
-                .or_else(|| literal.value_u64().map(i128::from))
-                .map_or_else(|| literal.text().to_owned(), |value| value.to_string()),
-        );
-    }
-    if argument.symbol.is_valid() {
-        let declaration = program
-            .const_declarations()
-            .iter()
-            .find(|declaration| declaration.symbol == argument.symbol)?;
-        let value = CanonicalConstValue::new(
-            program.display_type_reference(declaration.declared_type),
-            declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
-            argument.display_name(),
-        );
-        // Integer inference already uses decimal leaves. Declaration-aware
-        // argument validation retains the independently declared carrier.
-        return Some(match value.decode_encoding()? {
-            DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-            _ => value.atom(),
-        });
-    }
-    let [name] = argument.path.as_ref() else {
-        return None;
-    };
-    if let Some(value) = boolean_literal_spelling(name.as_str()) {
-        return Some(CanonicalConstValue::boolean(value).atom());
-    }
-    // A previous specialization may forward a compiler-created atom.
-    CanonicalConstValue::from_atom(name.as_str()).map(|value| value.atom())
+    typed_trees::typed_trees::static_const_argument_spelling(program.typed_program(), argument)
 }
 
 pub fn forwarded_type(
