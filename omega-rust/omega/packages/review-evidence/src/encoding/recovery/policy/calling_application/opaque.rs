@@ -21,22 +21,20 @@ pub(in crate::encoding::recovery) fn decode(
         occurrences: reader.sequence(24, |reader| {
             Ok(PackageReviewOpaqueRepresentationOccurrence {
                 carrier_shape_root: reader.u16()?,
-                role: match reader.byte()? {
+                role: super::super::tag!(reader => {
                     0 => PackageReviewOpaqueRepresentationMovementRole::Parameter {
                         formal_ordinal: reader.u32()?,
                         native_ordinal: reader.u32()?,
                     },
                     1 => PackageReviewOpaqueRepresentationMovementRole::Result,
-                    _ => return Err(Error::InvalidTag),
-                },
+                }),
                 path: reader.sequence(1, |reader| {
-                    Ok(match reader.byte()? {
+                    Ok(super::super::tag!(reader => {
                         0 => PackageReviewOpaqueRepresentationPathElement::FixedArrayElement,
                         1 => PackageReviewOpaqueRepresentationPathElement::RecordField {
                             ordinal: reader.u16()?,
                         },
-                        _ => return Err(Error::InvalidTag),
-                    })
+                    }))
                 })?,
                 placement: value_placement(reader)?,
             })

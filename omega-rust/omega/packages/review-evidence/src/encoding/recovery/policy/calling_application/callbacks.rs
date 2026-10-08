@@ -58,7 +58,7 @@ pub(in crate::encoding::recovery) fn decode(
 pub(in crate::encoding::recovery) fn destination(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallbackDestination, Error> {
-    Ok(match reader.byte()? {
+    Ok(super::super::tag!(reader => {
         0 => PackagePolicyCallbackDestination::Parameter {
             native_ordinal: reader.u32()?,
         },
@@ -66,8 +66,7 @@ pub(in crate::encoding::recovery) fn destination(
             native_ordinal: reader.u32()?,
             layout_index: reader.u32()?,
         },
-        _ => return Err(Error::InvalidTag),
-    })
+    }))
 }
 
 pub(in crate::encoding::recovery) fn layout_application(

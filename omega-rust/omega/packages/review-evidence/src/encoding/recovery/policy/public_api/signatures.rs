@@ -16,7 +16,7 @@ use crate::record::{
 pub(in crate::encoding::recovery) fn type_parameter(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyTypeParameter, Error> {
-    let kind = match reader.byte()? {
+    let kind = super::super::tag!(reader => {
         0 => PackagePolicyTypeParameterKind::Type,
         5 => PackagePolicyTypeParameterKind::Implementation,
         1 => PackagePolicyTypeParameterKind::Const(type_identity(reader)?),
@@ -33,8 +33,7 @@ pub(in crate::encoding::recovery) fn type_parameter(
                 })?,
             },
         ),
-        _ => return Err(Error::InvalidTag),
-    };
+    });
     Ok(PackagePolicyTypeParameter {
         kind,
         bounds: data_properties(reader)?,
@@ -45,7 +44,7 @@ pub(in crate::encoding::recovery) fn machine_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyMachineParameterContract, Error> {
     reader.nested(|reader| {
-        Ok(match reader.byte()? {
+        Ok(super::super::tag!(reader => {
             0 => PackagePolicyMachineParameterContract::Structural(machine_signature(reader)?),
             1 => PackagePolicyMachineParameterContract::Nominal {
                 trait_identity: nominal(reader)?,
@@ -53,8 +52,7 @@ pub(in crate::encoding::recovery) fn machine_contract(
                 trait_arguments: reader.sequence(8, type_identity)?,
             },
             2 => PackagePolicyMachineParameterContract::RequirementIdentity,
-            _ => return Err(Error::InvalidTag),
-        })
+        }))
     })
 }
 
