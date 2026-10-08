@@ -162,22 +162,13 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("where")
                 && !input.at_contextual("satisfies")
             {
-                let (service, rest) = input.take_identifier()?;
-                super::reject_retired_operational_reach(&service, rest)?;
-                let handle = syntax_trees.items.append_identifier_path_member(service);
-                if service_count == 0 {
-                    service_start = handle;
-                }
-                service_count = service_count
-                    .checked_add(1)
-                    .expect("machine service span count overflow");
-                input = rest;
-
-                if input.at_punctuation(PunctuationKind::Comma) {
-                    input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                } else if input.at_punctuation(PunctuationKind::Plus) {
-                    input = input.take_punctuation(PunctuationKind::Plus, "+")?;
-                }
+                input = super::take_service_reach_row_member(
+                    input,
+                    syntax_trees,
+                    &mut service_start,
+                    &mut service_count,
+                    "machine service span count overflow",
+                )?;
             }
             if service_reach_is_installation_bound && service_count == service_count_before_clause {
                 return Err(input.error_here(
