@@ -8,7 +8,8 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
 };
 use terminal_psi::{
-    StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
+    find_structural_type,
+StructuralOperationResult, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
 
@@ -357,7 +358,7 @@ fn byte_carrier_leaf_copy(
     else {
         return false;
     };
-    let Some(declaration) = declarations.iter().find(|candidate| candidate.id == parent) else {
+    let Some(declaration) = find_structural_type(declarations, parent) else {
         return false;
     };
     let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
