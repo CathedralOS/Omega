@@ -23,7 +23,10 @@ pub use applications::{
     closed_operator_application_for_operands, closed_operator_realization_application,
     symbolic_operator_type_application_for_operands,
 };
-pub use indexing::{resolve_indexed_spelling_for_operands, unconstrained_type_reference};
+pub use indexing::{
+    builtin_index_read_is_spelled, resolve_indexed_spelling_for_operands,
+    unconstrained_type_reference,
+};
 pub use named_calls::{
     named_expression_call_candidates, named_statement_call_candidates, resolve_named_call,
     resolve_named_expression_call, selected_boundary_operator,

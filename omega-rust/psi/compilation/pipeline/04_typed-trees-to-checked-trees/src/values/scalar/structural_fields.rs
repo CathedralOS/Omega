@@ -273,20 +273,12 @@ fn indexed_read_has_builtin_meaning(
         Some(collection_type),
         validation::declared_place_type_raw(program, machine, Some(state), index),
     ];
-    typed_trees::operator::resolve_indexed_spelling_for_operands(
+    typed_trees::operator::builtin_index_read_is_spelled(
         program,
-        OperatorSpelling::Index,
+        machine.symbol,
+        expression,
         &operands,
-        program.expression_table.source_span(expression),
     )
-    .is_empty()
-        && typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            machine.symbol,
-            expression,
-            OperatorSpelling::Index,
-            &operands,
-        )
 }
 
 pub(super) fn structural_parameter_field_path(

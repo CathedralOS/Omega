@@ -283,26 +283,12 @@ fn builtin_coordinates(
             ];
             // Indexed syntax has implicit shared collection adaptation. The
             // ordinary custody query alone does not perform that matching.
-            typed_trees::operator::resolve_indexed_spelling_for_operands(
+            typed_trees::operator::builtin_index_read_is_spelled(
                 program,
-                OperatorSpelling::Index,
+                machine.symbol,
+                expression,
                 &operands,
-                program.expression_table.source_span(expression),
-            )
-            .is_empty()
-                && typed_trees::operator::has_builtin_spelled_expression_meaning(
-                    program,
-                    machine.symbol,
-                    expression,
-                    OperatorSpelling::Index,
-                    &operands,
-                )
-                && crate::has_builtin_bound_expression_meaning(
-                    program,
-                    machine,
-                    state,
-                    indexed.index,
-                )
+            ) && crate::has_builtin_bound_expression_meaning(program, machine, state, indexed.index)
         }
         _ => false,
     }

@@ -16,12 +16,37 @@ use symbols::SymbolHandle;
 ///
 /// This does not manufacture a mutable borrow, erase element/domain identity,
 /// or admit a collection conversion for an explicitly named operator call.
+/// `operand_types` and still carries a builtin spelled meaning — the builtin
+/// index-read admission shared by checking and checking-side lowering.
+pub fn builtin_index_read_is_spelled(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    expression: crate::expression::ExpressionHandle,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    resolve_indexed_spelling_for_operands(
+        program,
+        OperatorSpelling::Index,
+        operand_types,
+        program.expression_table.source_span(expression),
+    )
+    .is_empty()
+        && super::spellings::has_builtin_spelled_expression_meaning(
+            program,
+            machine_symbol,
+            expression,
+            OperatorSpelling::Index,
+            operand_types,
+        )
+}
+
 pub fn resolve_indexed_spelling_for_operands<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
     use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
+    /// `true` when `expression` resolves no user `Index` operator for
     if !matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         return Vec::new();
     }
