@@ -1,0 +1,472 @@
+use psi::checking::arrivals;
+use psi::checking::checker;
+use psi::checking::contracts;
+use psi::checking::evaluation;
+use psi::checking::flow;
+use psi::checking::obligations;
+use psi::checking::places;
+use psi::integers::integers;
+use psi::resolution::resolution;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Default domains (wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization).
+// An established value of data whose declaration carries `where` facts
+// satisfies them: a parameter's from entry, a pattern binder's, and an
+// initialized local's. Uninitialized storage (`let mut t: T;`) is no
+// established value and gains nothing. Facts are installed field by field:
+// when a field of such a value becomes a place, the facts naming that field
+// are assumed with the value's fields for their field names (and those
+// fields become places too). A call holding an exclusive loan of the value
+// restores its domain on return, so the facts of a forgotten field are
+// installed again. Installing runs between expression nodes, never inside
+// the creation of a place, so it never re-enters itself.
+pub data DomainMark [copy] {
+    case Unseen;
+    case Pending;
+    case Installed;
+}
+
+pub machine Checker::domain_mark(checker: &Checker, index: u64 in Trapping) -> DomainMark
+crashes Trap
+{
+    transition index < 256 {
+        true -> read(checker, index)
+        _ -> invalid()
+    }
+
+    state read(checker: &Checker, index: u64 in Trapping) -> DomainMark
+    requires index < 256
+    {
+        checker.domains[index]
+    }
+
+    state invalid() -> DomainMark {
+        crash Trap;
+    }
+}
+
+pub machine Checker::set_domain_mark(checker: &mut Checker, index: u64 in Trapping, mark: DomainMark)
+crashes Trap
+{
+    transition index < 256 {
+        true -> write(checker, index, mark)
+        _ -> invalid()
+    }
+
+    state write(checker: &mut Checker, index: u64 in Trapping, mark: DomainMark)
+    requires index < 256
+    {
+        checker.domains[index] = mark;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}
+
+// A new field place (zero-based) owes the facts naming its field.
+pub machine Checker::note_field(checker: &mut Checker, index: u64 in Trapping)
+crashes Trap
+{
+    Checker::set_domain_mark(checker, index, DomainMark::Pending);
+    checker.domains_pending = true;
+}
+
+// Install every owed field's facts.
+pub machine Checker::install_domains(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
+crashes Trap
+{
+    transition checker.domains_pending {
+        true -> sweep(checker, syntax, resolution, typing)
+        _ -> done()
+    }
+
+    state sweep(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
+        checker.domains_pending = false;
+        transition { _ -> next(checker, syntax, resolution, typing, 0) }
+    }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        transition index < checker.place_count {
+            true -> visit(checker, syntax, resolution, typing, index)
+            _ -> done()
+        }
+    }
+
+    state visit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        let mark: DomainMark = Checker::domain_mark(checker, index);
+        transition mark == DomainMark::Pending {
+            true -> install(checker, syntax, resolution, typing, index)
+            _ -> next(checker, syntax, resolution, typing, index + 1)
+        }
+    }
+
+    state install(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        Checker::set_domain_mark(checker, index, DomainMark::Installed);
+        let field: Place = Checker::place_at(checker, index);
+        let established: bool = Checker::established(checker, syntax, field.parent);
+        let owner: Place = Checker::place_or_absent(checker, field.parent);
+        let row: TypeRow = Checker::referent_row(typing, owner.type_handle);
+        transition established && row.kind == TypeKind::Data {
+            true -> facts(checker, syntax, resolution, typing, index, field, row.item)
+            _ -> next(checker, syntax, resolution, typing, index + 1)
+        }
+    }
+
+    state facts(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, field: Place, item_handle: u64 in Trapping) {
+        let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
+        let parent: u64 in Trapping = checker.fields_parent;
+        checker.fields_parent = field.parent;
+        let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
+        checker.fields_parent = parent;
+        transition { _ -> next(checker, syntax, resolution, typing, index + 1) }
+    }
+
+    state done() {}
+}
+
+// Whether the place (one-based) belongs to an established value: its root
+// is a parameter, a pattern binder, a call's result or a local with an
+// initializer.
+pub machine Checker::established(checker: &Checker, syntax: &SyntaxTrees, place: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition place > 0 {
+        true -> climb(checker, syntax, place, 0)
+        _ -> no()
+    }
+
+    state climb(checker: &Checker, syntax: &SyntaxTrees, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        let entry: Place = Checker::place_at(checker, current - 1);
+        transition (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Length) && entry.parent > 0 && depth < 256 {
+            true -> climb(checker, syntax, entry.parent, depth + 1)
+            _ -> root(syntax, entry)
+        }
+    }
+
+    state root(syntax: &SyntaxTrees, entry: Place) -> bool {
+        transition entry.kind {
+            PlaceKind::Parameter -> yes()
+            PlaceKind::Binder -> yes()
+            PlaceKind::Call -> yes()
+            PlaceKind::Local -> local(syntax, entry.handle)
+            _ -> no()
+        }
+    }
+
+    state local(syntax: &SyntaxTrees, statement: u64 in Trapping) -> bool {
+        let declaration: Statement = SyntaxTrees::statement(syntax, statement);
+        declaration.has_value
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Assume (or, when `proving`, report whether the facts prove) each typed
+// `where` fact of a clause run that names `field`. An untyped fact naming
+// it is not proved.
+machine Checker::decide_where_facts(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    first_clause: u64 in Trapping,
+    clause_count: u64 in Trapping,
+    field: u64 in Trapping,
+    proving: bool
+) -> bool
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, field, proving) }
+
+    state next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
+        transition index < end {
+            true -> clause(checker, syntax, resolution, typing, index, end, field, proving)
+            _ -> held()
+        }
+    }
+
+    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
+        let clause: Clause = SyntaxTrees::clause(syntax, index);
+        let named: bool = clause.kind == ClauseKind::Where && clause.has_expression;
+        transition named {
+            true -> fact(checker, syntax, resolution, typing, index, end, field, proving, clause)
+            _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
+        }
+    }
+
+    state fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool, clause: Clause) -> bool {
+        let mentions: bool = Checker::mentions_field(syntax, resolution, clause.expression, field);
+        let typed: bool = Checker::typed_fact(typing, clause);
+        transition mentions {
+            true -> owed(checker, syntax, resolution, typing, index, end, field, proving, clause.expression, typed)
+            _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
+        }
+    }
+
+    state owed(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        index: u64 in Trapping,
+        end: u64 in Trapping,
+        field: u64 in Trapping,
+        proving: bool,
+        root: u64 in Trapping,
+        typed: bool
+    ) -> bool {
+        transition typed {
+            true -> decided(checker, syntax, resolution, typing, index, end, field, proving, root)
+            _ -> untyped(checker, syntax, resolution, typing, index, end, field, proving)
+        }
+    }
+
+    state untyped(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
+        transition proving {
+            true -> failed()
+            _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
+        }
+    }
+
+    state decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool, root: u64 in Trapping) -> bool {
+        let holds: bool = Checker::decide_fact(checker, syntax, resolution, typing, root, proving);
+        transition holds {
+            true -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
+            _ -> failed()
+        }
+    }
+
+    state held() -> bool {
+        true
+    }
+
+    state failed() -> bool {
+        false
+    }
+}
+
+// Whether a fact's tree names `field` (a data fact's bare field name).
+machine Checker::mentions_field(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
+crashes Trap
+{
+    let tree: Expression = SyntaxTrees::expression(syntax, root);
+    transition { _ -> next(syntax, resolution, root, wanted, tree.first_row) }
+
+    state next(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        transition handle <= root {
+            true -> node(syntax, resolution, root, wanted, handle)
+            _ -> absent()
+        }
+    }
+
+    state node(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        let binding: ValueBinding = NameResolution::value_binding(resolution, handle);
+        transition binding {
+            ValueBinding::Field { field } -> named(syntax, resolution, root, wanted, handle, field)
+            _ -> next(syntax, resolution, root, wanted, handle + 1)
+        }
+    }
+
+    state named(syntax: &SyntaxTrees, resolution: &NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping, found: u64 in Trapping) -> bool {
+        transition found == wanted {
+            true -> present()
+            _ -> next(syntax, resolution, root, wanted, handle + 1)
+        }
+    }
+
+    state present() -> bool {
+        true
+    }
+
+    state absent() -> bool {
+        false
+    }
+}
+
+// After a value is forgotten, the facts installed for its fields and for
+// fields inside it are owed again.
+pub machine Checker::reopen_domains(checker: &mut Checker, place: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> next(checker, place, 0) }
+
+    state next(checker: &mut Checker, place: u64 in Trapping, index: u64 in Trapping) {
+        transition index < checker.place_count {
+            true -> visit(checker, place, index)
+            _ -> done()
+        }
+    }
+
+    state visit(checker: &mut Checker, place: u64 in Trapping, index: u64 in Trapping) {
+        let within: bool = Checker::within(checker, index + 1, place);
+        let mark: DomainMark = Checker::domain_mark(checker, index);
+        transition within && mark == DomainMark::Installed {
+            true -> reopened(checker, place, index)
+            _ -> next(checker, place, index + 1)
+        }
+    }
+
+    state reopened(checker: &mut Checker, place: u64 in Trapping, index: u64 in Trapping) {
+        Checker::set_domain_mark(checker, index, DomainMark::Pending);
+        checker.domains_pending = true;
+        transition { _ -> next(checker, place, index + 1) }
+    }
+
+    state done() {}
+}
+
+// Whether storing the field place `written` (one-based) left its value's
+// domain intact: every fact naming the field holds as the value's fields
+// now are. A data declaration whose cases carry their own `where` facts is
+// not proved.
+pub machine Checker::domain_holds(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, written: u64 in Trapping) -> bool
+crashes Trap
+{
+    let field: Place = Checker::place_or_absent(checker, written);
+    let owner: Place = Checker::place_or_absent(checker, field.parent);
+    let row: TypeRow = Checker::referent_row(typing, owner.type_handle);
+    transition row.kind == TypeKind::Data && field.parent > 0 {
+        true -> data(checker, syntax, resolution, typing, field, row.item)
+        _ -> held()
+    }
+
+    state data(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, field: Place, item_handle: u64 in Trapping) -> bool {
+        let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
+        let cases: bool = Checker::case_facts(syntax, item);
+        let parent: u64 in Trapping = checker.fields_parent;
+        checker.fields_parent = field.parent;
+        let held: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, true);
+        checker.fields_parent = parent;
+        held && !cases
+    }
+
+    state held() -> bool {
+        true
+    }
+}
+
+// Whether any case of a data declaration carries its own `where` facts.
+pub machine Checker::case_facts(syntax: &SyntaxTrees, item: DataItem) -> bool
+crashes Trap
+{
+    transition { _ -> next(syntax, item, 0) }
+
+    state next(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
+        transition offset < item.case_count {
+            true -> case(syntax, item, offset)
+            _ -> none()
+        }
+    }
+
+    state case(syntax: &SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
+        let data_case: DataCase = SyntaxTrees::data_case(syntax, item.first_case + offset);
+        let facts: bool = Checker::declares(syntax, data_case.first_clause, data_case.clause_count, ClauseKind::Where);
+        transition facts {
+            true -> some()
+            _ -> next(syntax, item, offset + 1)
+        }
+    }
+
+    state some() -> bool {
+        true
+    }
+
+    state none() -> bool {
+        false
+    }
+}
+
+// Whether a construction establishes its data's `where` facts: each fact
+// holds with every field name standing for the value the construction
+// writes there, zero for a common field it omits
+// (wiki/spec/language/dependent_values.md: construction proves the
+// domain). A data declaration with more than 64 fields, or whose cases
+// carry their own facts, is not proved.
+pub machine Checker::construction_holds(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    resolution: &NameResolution,
+    typing: &Typing,
+    expression: Expression,
+    item_handle: u64 in Trapping
+) -> bool
+crashes Trap
+{
+    let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
+    let cases: bool = Checker::case_facts(syntax, item);
+    transition !cases && item.field_count <= 64 {
+        true -> zero(checker, syntax, resolution, typing, expression, item, 0)
+        _ -> unproved()
+    }
+
+    state zero(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, item: DataItem, offset: u64 in Trapping) -> bool {
+        transition offset < item.field_count {
+            true -> zeroed(checker, syntax, resolution, typing, expression, item, offset)
+            _ -> written(checker, syntax, resolution, typing, expression, item, 0)
+        }
+    }
+
+    state zeroed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, item: DataItem, offset: u64 in Trapping) -> bool {
+        let zero: Value = Value::constant(ExactInteger { negative: false, magnitude: 0 });
+        Checker::set_argument(checker, offset, zero);
+        transition { _ -> zero(checker, syntax, resolution, typing, expression, item, offset + 1) }
+    }
+
+    state written(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, item: DataItem, offset: u64 in Trapping) -> bool {
+        transition offset < expression.count {
+            true -> field(checker, syntax, resolution, typing, expression, item, offset)
+            _ -> decided(checker, syntax, resolution, typing, item)
+        }
+    }
+
+    state field(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, item: DataItem, offset: u64 in Trapping) -> bool {
+        let written: ConstructField = SyntaxTrees::construct_field(syntax, expression.first + offset);
+        let target: u64 in Trapping = Typing::construct_target(typing, expression.first + offset);
+        let value: Value = Checker::value_at(checker, written.value);
+        transition target > item.first_field && target - 1 - item.first_field < item.field_count {
+            true -> stored(checker, syntax, resolution, typing, expression, item, offset, target - 1 - item.first_field, value)
+            _ -> written(checker, syntax, resolution, typing, expression, item, offset + 1)
+        }
+    }
+
+    state stored(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        typing: &Typing,
+        expression: Expression,
+        item: DataItem,
+        offset: u64 in Trapping,
+        slot: u64 in Trapping,
+        value: Value
+    ) -> bool {
+        Checker::set_argument(checker, slot, value);
+        transition { _ -> written(checker, syntax, resolution, typing, expression, item, offset + 1) }
+    }
+
+    state decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DataItem) -> bool {
+        let substituting: bool = checker.field_values;
+        let first: u64 in Trapping = checker.field_first;
+        let count: u64 in Trapping = checker.argument_count;
+        checker.field_values = true;
+        checker.field_first = item.first_field;
+        checker.argument_count = item.field_count;
+        let held: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Where, true);
+        checker.field_values = substituting;
+        checker.field_first = first;
+        checker.argument_count = count;
+        held
+    }
+
+    state unproved() -> bool {
+        false
+    }
+}

@@ -1519,8 +1519,8 @@ defines the complete product bar.
   (`omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/trapping_integer.rs`)
   with its interpreter and native consumers.
 
-  Mixed fixed-integer comparisons, Wrapping/Saturating casts and operation-level
-  Trapping arithmetic exist (`pass/expressions/mixed_integer_comparison_{widths,places}`,
+  Mixed fixed-integer comparisons and operation-level Trapping arithmetic
+  exist (`pass/expressions/mixed_integer_comparison_{widths,places}`,
   `mixed_integer_guard_comparison`, `pass/core/numeric_cross_signed_conversion_surface`
   execute on all three hosts; `pass/core/numeric_trapping_conversion_overflow`
   traps). Guarded Trap ceilings run:
@@ -1535,11 +1535,16 @@ defines the complete product bar.
   Remaining: `pass/core/numeric_*` reach all 170 public machines of
   `source/library/core/numeric_conversion.omg` but run natively and
   interpreted on macOS ARM64 only; run them on Linux x86-64 and Windows x86-64
-  and record those goldens. Direct
-  signed and mixed-sign `in Saturating` casts (`value as i8 in Saturating`
-  from `i16`) now pass checking, but no fixture executes them and the
-  [numeric values status](wiki/spec/language/numeric_values.md#status) still
-  says they refuse. Float policy/conversion customers belong to
+  and record those goldens. `as` never changes the denoted value
+  ([exact coercion](wiki/spec/language/domains.md#exact-coercion-and-erasure)):
+  a policy-qualified target (`value as i8 in Saturating` from `i16`) must
+  still prove the value representable, and clamping or wrapping conversions
+  are the named machines of `core/numeric_conversion.omg`. Stage 04 still
+  admits signed and mixed-sign `in Saturating`/`in Wrapping` casts that would
+  clamp or wrap; reject them as unproven representability, and migrate their
+  customers with **OPERATOR-BOUNDARY-CALLS** (which already records this rule
+  for integer policy-qualified carrier changes). The product checker
+  enforces it. Float policy/conversion customers belong to
   **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS**.
 
   Acceptance: comparisons and conversions agree between the interpreter and
@@ -5899,8 +5904,21 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   matches, memberships, trait requirement calls, generic conformance members,
   target-scoped family calls, declared domains and equality needing a
   declared conformance reject as unsupported. The typing gate types the
-  whole psi package, its 44 units, as one source set (48,662 expressions,
-  237 interned types). The parser harness reads all 42 product source files whole and 65
+  whole psi package, its 58 units, as one source set (60,213 expressions,
+  274 interned types). Checking (`source/psi/checking/`) walks each body
+  over one difference-bound zone of its integer places, joining each
+  state's arrivals to a fixed point, and proves every index, Exact
+  operation, divisor, shift count and `as` conversion (which keeps its value
+  whatever the target's policy); `requires` facts at each call and jump,
+  `ensures` facts at each normal return (assumed of a call's result), and
+  data `where` facts at each construction and after each field store; crash
+  routes settle over the call graph, a `satisfies` machine publishing only
+  causes its requirement declares. A case's own `where` facts, contract
+  refinement beyond crash causes and termination promises reject as
+  unsupported. `tests/psi/checking/test-checking.sh` passes 59
+  checking cases and checks the whole psi package in 7 seconds, stopping
+  first at `ExactInteger::multiply`'s divisor, nonzero only by a failed
+  `== 0` guard: the zone holds no disequality yet. The parser harness reads all 42 product source files whole and 65
   of the 100 `source/library/std` and `core` files; the other 35 stop first at
   12 retired `boundary requirement` and 6 retired `boundary operator`
   declarations awaiting library migration, 9 retired range suffixes awaiting
@@ -5929,7 +5947,7 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   closure (its 3 units, std's `console` with its 5 target implementations,
   core's `binding` and `external_binding`) stops parsing at `console.omg`'s
   retired range suffix and the Windows console's retired `boundary
-  requirement`. The resolver gate resolves the whole psi package, its 44
+  requirement`. The resolver gate resolves the whole psi package, its 58
   units, as one package `psi`; the shared syntax tables hold
   4,096 roots, 1,024 uses, 32,000 path members (under a third used by psi; a
   single name stores none, its expression row holding it), 32,768 type references
@@ -5942,10 +5960,11 @@ construction stays on `TASKS_BOOTSTRAP.md`.
   equality, which needs
   `Equatable` named conformances
   ([core equality acquisition](wiki/spec/language/conformances.md#core-equality-acquisition));
-  then checking. Publish the parser's capacity refusals as the
+  and in checking a case's own `where` facts, contract refinement and
+  termination ranking. Publish the parser's capacity refusals as the
   request contract's scalar-resource provisions, whose rows (roots and states
   4,096; path members, data members, type nodes, statements and expressions
-  16,384) the psi package's own 48,662 expressions exceed, so they must count
+  16,384) the psi package's own 60,213 expressions exceed, so they must count
   per source unit, or grow, before D can compile C. Run the
   three gates on Linux and Windows hosts. Keep the acceptance/rejection, lexical handoff,
   structural identity, capacity and determinism controls and range-proven

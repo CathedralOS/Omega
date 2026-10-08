@@ -1,0 +1,151 @@
+use psi::checking::checker;
+use psi::checking::contracts;
+use psi::checks::checks;
+use psi::resolution::resolution;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Supply and termination clauses, after crash routes settle. A machine that
+// `satisfies` a requirement must refine it
+// (wiki/spec/language/machines.md#substitution): the requirement's premises
+// imply its own, its guarantees imply the requirement's, and the crash
+// causes it publishes lie within those the requirement declares. Checking
+// proves the crash axis; a requirement with `requires` or `ensures` facts,
+// or a satisfier with `requires` facts, rejects as unsupported rather than
+// passing unrefined. A body promising termination rejects as unsupported:
+// checking proves no ranking yet (wiki/spec/language/termination.md). A
+// bodyless declaration's promise is its callers' premise, not an obligation.
+pub machine Checker::check_supply(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution)
+crashes Trap
+{
+    transition { _ -> next_machine(checker, syntax, resolution, 0) }
+
+    state next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        transition index < syntax.machine_count && checker.output.accepted {
+            true -> machine(checker, syntax, resolution, index)
+            _ -> done()
+        }
+    }
+
+    state machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, index);
+        transition { _ -> next_clause(checker, syntax, resolution, index, item, 0) }
+    }
+
+    state next_clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        transition offset < item.clause_count && checker.output.accepted {
+            true -> clause(checker, syntax, resolution, index, item, offset)
+            _ -> next_machine(checker, syntax, resolution, index + 1)
+        }
+    }
+
+    state clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+        let handle: u64 in Trapping = item.first_clause + offset;
+        let clause: Clause = SyntaxTrees::clause(syntax, handle);
+        transition clause.kind {
+            ClauseKind::Satisfies -> satisfies(checker, syntax, resolution, index, item, offset, handle, clause)
+            ClauseKind::Terminates -> terminates(checker, syntax, resolution, index, item, offset, clause)
+            _ -> next_clause(checker, syntax, resolution, index, item, offset + 1)
+        }
+    }
+
+    state satisfies(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        handle: u64 in Trapping,
+        clause: Clause
+    ) {
+        let requirement: ValueBinding = NameResolution::requirement(resolution, handle);
+        Checker::check_refinement(checker, syntax, index, item, clause, requirement);
+        transition { _ -> next_clause(checker, syntax, resolution, index, item, offset + 1) }
+    }
+
+    state terminates(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        resolution: &NameResolution,
+        index: u64 in Trapping,
+        item: MachineItem,
+        offset: u64 in Trapping,
+        clause: Clause
+    ) {
+        transition item.has_body {
+            true -> unranked(checker, clause.source_span)
+            _ -> next_clause(checker, syntax, resolution, index, item, offset + 1)
+        }
+    }
+
+    state unranked(checker: &mut Checker, source_span: SourceSpan) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
+    }
+
+    state done() {}
+}
+
+// Whether satisfier `machine` refines `binding`'s requirement: no contract
+// facts this slice cannot relate, and its published crash causes within the
+// requirement's.
+machine Checker::check_refinement(
+    checker: &mut Checker,
+    syntax: &SyntaxTrees,
+    machine: u64 in Trapping,
+    satisfier: MachineItem,
+    clause: Clause,
+    binding: ValueBinding
+)
+crashes Trap
+{
+    transition binding {
+        ValueBinding::Machine { handle } -> required(checker, syntax, machine, satisfier, clause, handle)
+        _ -> invalid()
+    }
+
+    state required(
+        checker: &mut Checker,
+        syntax: &SyntaxTrees,
+        machine: u64 in Trapping,
+        satisfier: MachineItem,
+        clause: Clause,
+        handle: u64 in Trapping
+    ) {
+        let requirement: MachineItem = SyntaxTrees::machine_item(syntax, handle);
+        let premises: bool = Checker::declares(syntax, requirement.first_clause, requirement.clause_count, ClauseKind::Requires);
+        let guarantees: bool = Checker::declares(syntax, requirement.first_clause, requirement.clause_count, ClauseKind::Ensures);
+        let own_premises: bool = Checker::declares(syntax, satisfier.first_clause, satisfier.clause_count, ClauseKind::Requires);
+        transition premises || guarantees || own_premises {
+            true -> unrelated(checker, clause.source_span)
+            _ -> routes(checker, machine, clause, handle)
+        }
+    }
+
+    state unrelated(checker: &mut Checker, source_span: SourceSpan) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, source_span);
+    }
+
+    state routes(checker: &mut Checker, machine: u64 in Trapping, clause: Clause, handle: u64 in Trapping) {
+        let own: CrashRoutes = Checks::routes(&checker.output, machine);
+        let owed: CrashRoutes = Checks::routes(&checker.output, handle);
+        let trap: bool = Checker::published(own.inferred, own.trap, own.declares_trap);
+        let abort: bool = Checker::published(own.inferred, own.abort, own.declares_abort);
+        let allowed_trap: bool = Checker::published(owed.inferred, owed.trap, owed.declares_trap);
+        let allowed_abort: bool = Checker::published(owed.inferred, owed.abort, owed.declares_abort);
+        transition (trap && !allowed_trap) || (abort && !allowed_abort) {
+            true -> undeclared(checker, clause.source_span)
+            _ -> done()
+        }
+    }
+
+    state undeclared(checker: &mut Checker, source_span: SourceSpan) {
+        Checks::reject(&mut checker.output, CheckDiagnosticCode::CrashNotDeclared, source_span);
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+
+    state done() {}
+}

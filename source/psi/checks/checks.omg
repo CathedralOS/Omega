@@ -1,0 +1,112 @@
+use psi::source::source;
+
+// What checking concludes about a typed source set: its first rejection, the
+// number of definedness obligations it discharged, and each machine's crash
+// routes. Checking runs after typing and owns the source obligations of
+// wiki/spec/language/numeric_values.md and
+// wiki/spec/language/state_contracts.md: an index stays inside its
+// collection, an Exact operation's result fits its carrier, a divisor is
+// nonzero, a narrowing conversion fits, a shift count fits the width, and a
+// call or state jump establishes the target's `requires` facts. An
+// obligation the facts at its program point cannot prove rejects; proof
+// search failing is not a refutation, and it grants nothing
+// (wiki/spec/language/effects.md#recoverable-outcomes-and-strict-use).
+pub data CheckDiagnosticCode [copy] {
+    case None;
+    // A body holds more integer subjects, or a machine more states, than
+    // the checker's tables.
+    case CheckCapacityExceeded;
+    // A fact outside the forms checking reasons with: a case's own `where`.
+    case UnsupportedFact;
+    // An expression form checking does not reason about yet.
+    case UnsupportedCheck;
+    case IndexOutOfBounds;
+    case ArithmeticOverflow;
+    case DivisorMayBeZero;
+    case ConversionOutOfRange;
+    case ShiftCountOutOfRange;
+    case RequirementUnproven;
+    case DomainUnproven;
+    // A crash route outside the machine's published crash causes.
+    case CrashNotDeclared;
+    // A normal return whose machine's `ensures` facts are not proved.
+    case GuaranteeUnproven;
+}
+
+pub data CheckDiagnostic [copy] {
+    code: CheckDiagnosticCode;
+    source_span: SourceSpan;
+}
+
+// A machine's crash causes. `declared` causes come from its `crashes`
+// clauses; a private machine without any is `inferred` and publishes what
+// its body derives. `trap` and `abort` are the derived causes: its own crash
+// statements and Trapping operations, and its callees' published causes
+// (wiki/spec/language/effects.md#guarded-crashes).
+pub data CrashRoutes [copy] {
+    declares_trap: bool;
+    declares_abort: bool;
+    inferred: bool;
+    trap: bool;
+    abort: bool;
+}
+
+pub data Checks
+where
+    machine_count <= 2048,
+{
+    routes: [CrashRoutes; 2048];
+    machine_count: u64;
+    obligation_count: u64 in Wrapping;
+    diagnostic: CheckDiagnostic;
+    accepted: bool;
+}
+
+pub machine Checks::reject(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+    transition checks.accepted {
+        true -> first(checks, code, source_span)
+        _ -> done()
+    }
+
+    state first(checks: &mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
+        checks.accepted = false;
+        checks.diagnostic.code = code;
+        checks.diagnostic.source_span = source_span;
+    }
+
+    state done() {}
+}
+
+pub machine Checks::routes(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes
+crashes Trap
+{
+    transition machine < checks.machine_count {
+        true -> read(checks, machine)
+        _ -> invalid()
+    }
+
+    state read(checks: &Checks, machine: u64 in Trapping) -> CrashRoutes {
+        checks.routes[machine]
+    }
+
+    state invalid() -> CrashRoutes {
+        crash Trap;
+    }
+}
+
+pub machine Checks::set_routes(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes)
+crashes Trap
+{
+    transition machine < checks.machine_count {
+        true -> write(checks, machine, routes)
+        _ -> invalid()
+    }
+
+    state write(checks: &mut Checks, machine: u64 in Trapping, routes: CrashRoutes) {
+        checks.routes[machine] = routes;
+    }
+
+    state invalid() {
+        crash Trap;
+    }
+}

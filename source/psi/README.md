@@ -304,9 +304,60 @@ operands as a call admits arguments, and records the selection
 ([`typing/operators.omg`](typing/operators.omg)). A statement drops a non-Unit
 result only through `_ = call();` (wiki/spec/language/effects.md): an
 expression statement's value must be Unit or `Never`, and `_ =` must precede
-a call. Exact integer values and
-their arithmetic, which literal folding uses, live in
-[`integers/integers.omg`](integers/integers.omg).
+a call.
+
+Checking follows typing ([`checking/checker.omg`](checking/checker.omg)) and
+records its results in [`checks/checks.omg`](checks/checks.omg): the first
+rejection and each machine's crash routes. It owns the definedness and
+contract obligations of wiki/spec/language/numeric_values.md and
+wiki/spec/language/state_contracts.md with one relational engine: a closed
+difference-bound zone over a body's integer subjects
+([`checking/zone.omg`](checking/zone.omg)), the parameters, locals, case
+binders, and fields and slice lengths of those places
+([`checking/places.omg`](checking/places.omg)), each entered with its
+carrier's range. An expression's value is its place, a linear term (a
+subject plus an exact offset) when it is one, and an interval
+([`checking/evaluation.omg`](checking/evaluation.omg)); exact integers are
+shared with typing ([`integers/integers.omg`](integers/integers.omg)). A guard
+holding or failing, the left operand of `&&` (or failing `||`) for its right
+operand, an integer literal arm, a `let` and an assignment add facts
+([`checking/facts.omg`](checking/facts.omg),
+[`checking/flow.omg`](checking/flow.omg)); a write or an exclusive argument
+forgets the place and everything inside it. A body assumes its `requires`
+facts, and an established value's `where` facts hold of its fields
+([`checking/domains.omg`](checking/domains.omg)), installed field by field as
+the fields become places. A state's facts are the join of what every reached
+jump projects onto its integer parameters and the fields below its other
+arguments ([`checking/arrivals.omg`](checking/arrivals.omg)), gathered to a
+fixed point and widened when a join keeps loosening around a cycle; a state
+no jump reaches owes nothing. Each reached body is then walked once more: an
+index lies in `0..len`, an Exact (unqualified) operation's result fits its
+carrier, an `as` conversion's value fits its target whatever the target's
+policy (`as` never changes the denoted value), a divisor is nonzero and a
+shift count
+below the width ([`checking/arithmetic.omg`](checking/arithmetic.omg)); a
+Trapping operation that may leave its carrier, and a crash statement, is a
+crash site instead. A call's or jump's target `requires` facts must follow
+with its parameters standing for the arguments (an operator typing selected
+a machine for is a call of it, its operands the arguments)
+([`checking/contracts.omg`](checking/contracts.omg)), every normal return (a
+body's end, a terminal value or call, `{}`) must prove its machine's
+`ensures` facts with `result` standing for the returned value, a call to a
+machine that `ensures` facts gives its result a place they hold of, and a
+field store must leave the facts naming that field true. After crash routes settle, each
+`satisfies` clause's satisfier must publish only crash causes its
+requirement declares, and a requirement with `requires` or `ensures` facts,
+or a satisfier with `requires` facts, rejects as unsupported rather than
+passing unrefined; a body promising termination rejects as unsupported
+([`checking/supply.omg`](checking/supply.omg)). Facts evaluate without effects or
+obligations ([`checking/fact_values.omg`](checking/fact_values.omg)). Crash
+routes settle over the call graph: a private machine without crash clauses
+publishes what it derives, and any other machine must declare every cause it
+derives (wiki/spec/language/effects.md). A construction of data carrying
+`where` facts proves them with each field name standing for the value it
+writes, zero for an omitted common field. An untyped fact is never proved,
+and a case's own `where` facts reject as unsupported rather than passing
+unchecked.
 
 The source closure is authored against the ordinary-Omega surface that the
 Delta-produced compiler must eventually accept; that compiler is not yet
@@ -347,6 +398,14 @@ harness observes the type table, every expression's span, type, selection,
 adaptation and anonymous value, and every binder's type, and exits 248
 without an observation when resolution rejects. It types the whole psi
 package as one source set, and a source set filling the expression table.
+
+[`tests/psi/checking/test-checking.sh`](../../tests/psi/checking/test-checking.sh)
+does the same for checking: its harness observes the diagnostic and its
+span and each machine's declared and derived crash causes, exits 247 with
+an observation when checking rejects, and exits without one when an earlier
+phase rejects. Each case pins one judgment with an accepted program and its
+invalid twin. It requires the whole psi package to reach a checking verdict
+and reports the first obligation it cannot prove there.
 
 [`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
 does the same for name resolution. Its input is a source set framed like
@@ -400,7 +459,9 @@ owns bounded token selection and trivia traversal;
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |
 | `typing/` | Owns typing from resolved syntax to the type table and annotations. | Absorb only into the canonical checker that subsumes its judgments. |
-| `integers/` | Owns exact integer values and arithmetic for literal folding. | Absorb only into a successor exact-arithmetic owner its consumers share. |
+| `integers/` | Owns exact integer values and arithmetic shared by literal folding and bounds reasoning. | Absorb only into a successor exact-arithmetic owner both consumers share. |
+| `checks/` | Owns checking's result: the first rejection and each machine's crash routes. | Absorb into a later Psi representation only with equivalent verdicts and routes. |
+| `checking/` | Owns definedness, contract and crash-route checking over typed syntax with one difference-bound engine. | Absorb only into the canonical checker that proves the same obligations. |
 
 Generated data belongs under the semantic phase that consumes it. No retained
 lexical contract consumes the current Unicode identifier table, so it must be
