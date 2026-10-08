@@ -205,9 +205,7 @@ fn plan_dispatch(
             continue;
         }
         let Some(binding) = edge
-            .bindings
-            .iter()
-            .find(|binding| binding.parameter == parameter)
+            .binding(parameter)
         else {
             continue;
         };
@@ -296,9 +294,7 @@ fn delivered_argument(
             break;
         };
         let Some(binding) = predecessor_edge
-            .bindings
-            .iter()
-            .find(|binding| binding.parameter == argument)
+            .binding(argument)
         else {
             break;
         };
@@ -535,9 +531,7 @@ fn fused_edge(
         .iter()
         .map(|binding| {
             let argument = incoming
-                .bindings
-                .iter()
-                .find(|incoming_binding| incoming_binding.parameter == binding.argument)
+                .binding(binding.argument)
                 .map(|incoming_binding| incoming_binding.argument)
                 .unwrap_or(binding.argument);
             abstract_operations::ValueBinding {

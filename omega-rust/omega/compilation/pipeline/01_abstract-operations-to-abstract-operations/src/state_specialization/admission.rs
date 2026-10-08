@@ -191,9 +191,7 @@ pub(super) fn admit_incoming_edge(
         return None;
     }
     let binding = edge
-        .bindings
-        .iter()
-        .find(|binding| binding.parameter == evidence.parameter)?;
+        .binding(evidence.parameter)?;
     let fact = constants.facts.iter().find(|fact| {
         fact.valid_in.machine == evidence.machine
             && fact.valid_in.revision == evidence.unit.identity
@@ -287,9 +285,7 @@ fn delivered_argument(
             break;
         };
         let Some(binding) = predecessor_edge
-            .bindings
-            .iter()
-            .find(|binding| binding.parameter == argument)
+            .binding(argument)
         else {
             break;
         };

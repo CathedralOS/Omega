@@ -620,9 +620,7 @@ pub fn constant_definition(
             .filter(|edge| edge.target == owner.id)
         {
             let binding = edge
-                .bindings
-                .iter()
-                .find(|binding| binding.parameter == current)?;
+                .binding(current)?;
             match argument {
                 None => argument = Some(binding.argument),
                 Some(seen) if seen != binding.argument => return None,

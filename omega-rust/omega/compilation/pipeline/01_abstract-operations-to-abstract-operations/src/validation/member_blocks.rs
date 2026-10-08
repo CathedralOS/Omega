@@ -201,9 +201,7 @@ pub(crate) fn invariant_member_parameters(
                 .filter(|edge| edge.target == *block)
             {
                 let Some(binding) = edge
-                    .bindings
-                    .iter()
-                    .find(|binding| binding.parameter == *parameter)
+                    .binding(*parameter)
                 else {
                     loop_carried = true;
                     break;
@@ -381,9 +379,7 @@ fn member_parameter_run_result(
         .filter(|edge| edge.target == parameter_block)
     {
         let binding = edge
-            .bindings
-            .iter()
-            .find(|binding| binding.parameter == parameter)?;
+            .binding(parameter)?;
         if binding.argument == parameter {
             continue;
         }
