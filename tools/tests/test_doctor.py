@@ -13,6 +13,8 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+
+import worktree_testkit as kit
 from unittest.mock import patch
 
 
@@ -20,16 +22,7 @@ DOCTOR = Path(__file__).resolve().parents[1] / "doctor.py"
 
 
 def load_doctor():
-    specification = importlib.util.spec_from_file_location(
-        "doctor_under_test", DOCTOR)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(DOCTOR, 'doctor_under_test')
 
 
 def fake_run(table):

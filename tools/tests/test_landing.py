@@ -27,16 +27,7 @@ MAIN_REF = "refs/heads/main"
 
 
 def load_landing():
-    specification = importlib.util.spec_from_file_location("landing_under_test", LANDING)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
-
+    return kit.load_module(LANDING, "landing_under_test")
 
 class DeadlineTests(unittest.TestCase):
     def test_expiry_is_inclusive_at_exact_deadline(self):

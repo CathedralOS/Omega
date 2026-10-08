@@ -78,10 +78,9 @@ class DegradedWorktreeTests(unittest.TestCase):
     def test_markdown_renders_all_rows(self):
         code, output = kit.run_main(self.module, self.repository, "--markdown")
         self.assertEqual(code, 0)
-        text = output
         for name in ("wt-keep", "wt-gone", "wt-orphan"):
-            self.assertIn(name, text)
-        self.assertRegex(text, re.compile(
+            self.assertIn(name, output)
+        self.assertRegex(output, re.compile(
             r"missing|prunable|absent|gone|deleted|degraded|unborn|no commits",
             re.IGNORECASE))
 

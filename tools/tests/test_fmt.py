@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+
+import worktree_testkit as kit
 from unittest import mock
 
 
@@ -14,15 +16,7 @@ FMT = Path(__file__).resolve().parents[1] / "fmt.py"
 
 
 def load_fmt():
-    specification = importlib.util.spec_from_file_location("fmt_under_test", FMT)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(FMT, 'fmt_under_test')
 
 
 def metadata(packages, member_ids=None):

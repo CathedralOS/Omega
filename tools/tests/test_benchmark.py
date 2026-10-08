@@ -15,6 +15,8 @@ import re
 import sys
 import unittest
 
+import worktree_testkit as kit
+
 
 ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK = ROOT / "tools" / "benchmark" / "benchmark.py"
@@ -28,17 +30,7 @@ TARGET_SOURCE = (
 
 
 def load_benchmark():
-    specification = importlib.util.spec_from_file_location(
-        "benchmark_under_test", BENCHMARK
-    )
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(BENCHMARK, 'benchmark_under_test')
 
 
 benchmark = load_benchmark()

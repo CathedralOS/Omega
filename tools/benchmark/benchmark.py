@@ -569,7 +569,7 @@ def non_applicable_record(args, root, repository, omega, selection,
     row-level `applicability` block is what distinguishes "this pairing
     does not apply" from "a host that could measure it has not yet run".
     """
-    record = {
+    return {
         "schema": SCHEMA,
         "recorded_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "subject": {
@@ -594,7 +594,6 @@ def non_applicable_record(args, root, repository, omega, selection,
         },
         "notes": args.note,
     }
-    return record
 
 
 # One entry per catalogued deployment profile, in TargetProfile catalog

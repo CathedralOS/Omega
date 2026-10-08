@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+import worktree_testkit as kit
 from unittest import mock
 import urllib.error
 
@@ -21,15 +23,7 @@ TEMPLATE = Path(__file__).resolve().parents[1] / "swarm" / "prompt_template.md"
 
 
 def load_launch():
-    specification = importlib.util.spec_from_file_location("swarm_under_test", LAUNCH)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(LAUNCH, 'swarm_under_test')
 
 
 class Response:

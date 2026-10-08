@@ -20,6 +20,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+import worktree_testkit as kit
 from unittest import mock
 
 
@@ -30,16 +32,7 @@ RECORDS = ROOT / "tools" / "release" / "records"
 
 
 def load_tool():
-    specification = importlib.util.spec_from_file_location(
-        "release_record_under_test", TOOL)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(TOOL, 'release_record_under_test')
 
 
 release_record = load_tool()

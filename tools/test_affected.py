@@ -450,11 +450,9 @@ def extract_failures(log_text):
         if stripped.startswith(("test result:", "error: test failed")):
             continue
         token = None
-        if stripped.startswith("FAIL ") or " FAILED" in stripped:
-            token = stripped[:160]
-        elif stripped.startswith("FAILED "):
-            token = stripped[:160]
-        elif stripped.startswith(("error:", "error[")):
+        if (stripped.startswith("FAIL ") or " FAILED" in stripped
+                or stripped.startswith("FAILED ")
+                or stripped.startswith(("error:", "error["))):
             token = stripped[:160]
         if token and token not in seen:
             seen.add(token)

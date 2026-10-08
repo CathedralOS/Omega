@@ -216,9 +216,8 @@ def lane_host_match(target, emulator=None, os_name=None, machine=None):
     "emulation is acceptable only when the release record names the emulator
     and version" allowance.
     """
-    if target in host_lanes(os_name, machine):
-        return True
-    return target == "linux_arm64" and bool(emulator)
+    return target in host_lanes(os_name, machine) or (
+        target == "linux_arm64" and bool(emulator))
 
 
 def available_runner():

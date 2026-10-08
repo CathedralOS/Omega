@@ -25,16 +25,7 @@ BOARD = "- **ALPHA-ITEM.** First item.\n- **BETA-ITEM.** Second item.\n- **GAMMA
 
 
 def load_claims():
-    specification = importlib.util.spec_from_file_location("claims_under_test", CLAIMS)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
-
+    return kit.load_module(CLAIMS, "claims_under_test")
 
 class PathTests(unittest.TestCase):
     def test_paths_overlap_covers_exact_and_parent_child(self):

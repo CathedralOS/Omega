@@ -839,7 +839,7 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
               or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
-    document = {
+    return {
         "schema": "omega-corpus-verdict-v1",
         "revision": git_out("rev-parse", "HEAD"),
         "dirty": bool(git_out("status", "--porcelain",
@@ -871,7 +871,6 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
         "perf_context": perf_context,
         "observations": records,
         "fixtures": classified}
-    return document
 
 
 def write_verdict(options, document):
@@ -1225,7 +1224,6 @@ def main() -> int:
               f"{golden_error}", file=sys.stderr)
         return usage_error
     golden_context = corpus_records.read_context(options.golden)
-    golden_records = prior_records
     golden = dict(prior)
     actual = {record["fixture"]: record for record in records}
 

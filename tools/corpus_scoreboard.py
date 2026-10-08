@@ -247,8 +247,6 @@ def oracle_lookup(repository, golden, revision, target=None):
             text = read(corpus / fixture / f"expected_native_exit.{target}.txt")
         if text is None:
             text = read(corpus / fixture / ORACLE)
-        if text is None:
-            return None
         return text.splitlines()[0].strip() if text else None
 
     return oracle_for

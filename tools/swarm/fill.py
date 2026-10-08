@@ -307,9 +307,8 @@ def command_plan(repository, manifest, ledger, markdown=False):
 
 
 def _status_options():
-    options = argparse.Namespace(base="origin/main", remote="origin",
+    return argparse.Namespace(base="origin/main", remote="origin",
                                  offline=False)
-    return options
 
 
 def command_note(repository, manifest, ledger, arguments):

@@ -280,9 +280,7 @@ def main() -> int:
     )
     for finding in record["findings"]:
         print(f"  {finding['check']}: {finding['detail']}", file=sys.stderr)
-    if args.require:
-        return 0 if record["result"] == args.require else 1
-    return 0 if record["result"] == "omitted" else 1
+    return 0 if record["result"] == (args.require or "omitted") else 1
 
 
 if __name__ == "__main__":

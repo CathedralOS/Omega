@@ -9,6 +9,8 @@ import sys
 import tempfile
 import unittest
 
+import worktree_testkit as kit
+
 
 MODULE = (
     Path(__file__).resolve().parents[1]
@@ -18,16 +20,7 @@ MODULE = (
 
 
 def load_module():
-    specification = importlib.util.spec_from_file_location(
-        "matching_logic_metrics", MODULE)
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.dont_write_bytecode
-    try:
-        sys.dont_write_bytecode = True
-        specification.loader.exec_module(module)
-    finally:
-        sys.dont_write_bytecode = previous
-    return module
+    return kit.load_module(MODULE, 'matching_logic_metrics')
 
 
 METRICS = load_module()
