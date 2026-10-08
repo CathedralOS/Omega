@@ -22,7 +22,6 @@ use crate::parameters::parse_generic_parameters::{
     GenericParameterSyntax, parse_generic_parameters,
 };
 use crate::type_syntax::parse_type::parse_type_reference_handle;
-use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{
@@ -58,8 +57,7 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameter_start = Handle::invalid();
-    let mut parameter_count = 0u32;
+    let mut parameters = crate::parameters::ParameterSpanBuilder::new();
     let mut input = input;
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
@@ -68,12 +66,7 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_mathematical_parameter_handle(handle);
-            if parameter_count == 0 {
-                parameter_start = handle;
-            }
-            parameter_count = parameter_count
-                .checked_add(1)
-                .expect("mathematical parameter span count overflow");
+            parameters.push(handle);
             input = rest;
 
             if input.at_punctuation(PunctuationKind::Comma) {
@@ -84,7 +77,7 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
         }
     }
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = HandleSpan::from_parts_or_empty(parameter_start, parameter_count);
+    let parameters = parameters.finish();
 
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (result, input) = parse_mathematical_type(syntax_trees, input)?;

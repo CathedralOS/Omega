@@ -15,19 +15,13 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameter_start = Handle::invalid();
-    let mut parameter_count = 0u32;
+    let mut parameters = super::ParameterSpanBuilder::new();
 
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
             let (parameter, rest) = parse_parameter(syntax_trees, input)?;
             let handle = syntax_trees.items.append_state_parameter_handle(parameter);
-            if parameter_count == 0 {
-                parameter_start = handle;
-            }
-            parameter_count = parameter_count
-                .checked_add(1)
-                .expect("state parameter span count overflow");
+            parameters.push(handle);
             input = rest;
 
             if input.at_punctuation(PunctuationKind::Comma) {
@@ -40,7 +34,7 @@ pub(crate) fn parse_optional_parameters<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = HandleSpan::from_parts_or_empty(parameter_start, parameter_count);
+    let parameters = parameters.finish();
     Ok((parameters, input))
 }
 

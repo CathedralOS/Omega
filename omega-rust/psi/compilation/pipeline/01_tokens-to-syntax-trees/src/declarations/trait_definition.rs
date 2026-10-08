@@ -577,8 +577,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     }
 
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameter_start = Handle::invalid();
-    let mut parameter_count = 0u32;
+    let mut parameters = crate::parameters::ParameterSpanBuilder::new();
     let mut native_callback_parameters = Vec::new();
     let mut native_ordinal = 0u32;
 
@@ -607,12 +606,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
         } else {
             let (parameter, rest) = parse_parameter(syntax_trees, input)?;
             let handle = syntax_trees.items.append_state_parameter_handle(parameter);
-            if parameter_count == 0 {
-                parameter_start = handle;
-            }
-            parameter_count = parameter_count
-                .checked_add(1)
-                .expect("state parameter span count overflow");
+            parameters.push(handle);
             input = rest;
         }
         native_ordinal = native_ordinal
@@ -627,7 +621,7 @@ fn parse_boundary_parameter_telescope<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let parameters = HandleSpan::from_parts_or_empty(parameter_start, parameter_count);
+    let parameters = parameters.finish();
     Ok(((parameters, native_callback_parameters), input))
 }
 
