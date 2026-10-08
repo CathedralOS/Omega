@@ -160,10 +160,6 @@ fn reverse_postorder_from_successors(
 pub struct DominatorTree {
     positions: BTreeMap<BlockId, usize>,
     nodes: Vec<DominatorNode>,
-    /// Reverse-postorder position to block identity.
-    blocks: Vec<BlockId>,
-    /// Each position's immediate dominator; the entry names itself.
-    immediate: Vec<usize>,
 }
 
 struct DominatorNode {
@@ -274,8 +270,6 @@ pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
     DominatorTree {
         positions,
         nodes,
-        blocks: ordered,
-        immediate,
     }
 }
 
