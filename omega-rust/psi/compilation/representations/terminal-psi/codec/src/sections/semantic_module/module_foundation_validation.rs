@@ -1326,10 +1326,7 @@ fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecErr
         if !active.insert(id) {
             return malformed("service parent graph contains a cycle");
         }
-        let declaration = module
-            .services
-            .iter()
-            .find(|declaration| declaration.id == id)
+        let declaration = module.service(id)
             .expect("service parent targets were validated before graph traversal");
         for parent in &declaration.parents {
             visit(module, *parent, active, complete)?;
@@ -1346,10 +1343,7 @@ fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecErr
     }
     for declaration in &module.services {
         for parent in &declaration.parents {
-            let parent = module
-                .services
-                .iter()
-                .find(|candidate| candidate.id == *parent)
+            let parent = module.service(*parent)
                 .expect("service parent targets were validated before closure validation");
             if parent
                 .parents

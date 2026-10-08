@@ -109,7 +109,7 @@ pub use values::{
     is_structural_scalar_store_path,
 };
 
-use semantic_vocabulary::MachineId;
+use semantic_vocabulary::{MachineId, ServiceId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalModule {
@@ -207,6 +207,11 @@ impl TerminalModule {
     /// The machine keyed `id`, when the module declares it.
     pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
         self.machines.iter().find(|machine| machine.id == id)
+    }
+
+    /// The service keyed `id`, when the module declares it.
+    pub fn service(&self, id: ServiceId) -> Option<&ServiceDeclaration> {
+        self.services.iter().find(|service| service.id == id)
     }
 
     /// A module for `entry` with the current vocabulary and every roster
