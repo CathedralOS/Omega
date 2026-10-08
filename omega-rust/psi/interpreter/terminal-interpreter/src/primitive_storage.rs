@@ -21,7 +21,7 @@ use terminal_psi::{
 use crate::custody::resolve_structural_path_type;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::execution::{ExecutableMachine, SuspendedCall};
+use crate::execution::SuspendedCall;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
