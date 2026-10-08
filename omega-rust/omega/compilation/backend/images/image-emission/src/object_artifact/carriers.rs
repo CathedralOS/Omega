@@ -242,6 +242,15 @@ pub struct ObjectFunction {
 }
 
 impl ObjectFunction {
+    /// Every internal Unit call's arguments, in call order.
+    pub fn call_arguments(
+        &self,
+    ) -> impl Iterator<Item = &machine_code::InternalUnitCallArgumentRecord> + '_ {
+        machine_code::unit_call_arguments(&self.internal_unit_calls)
+    }
+}
+
+impl ObjectFunction {
     pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
         &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
     }

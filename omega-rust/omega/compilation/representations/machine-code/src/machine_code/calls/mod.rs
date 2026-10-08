@@ -25,7 +25,7 @@ pub use foreign::{Aarch64ForeignCallFloatingControlRecord, ForeignCallRelocation
 pub use internal::{
     InstalledProviderUnitScalarCallRecord, InternalCallRelocation, InternalStructuralCallResult,
     InternalStructuralResultHomeRecord, InternalUnitCallRecord, InternalUnitCallSource,
-    InternalUnitScalarCallRecord, StructuralCallScalarReturnEvidence,
+    InternalUnitScalarCallRecord, StructuralCallScalarReturnEvidence, unit_call_arguments,
 };
 pub use results::{
     ForeignCallScalarResultRecord, InternalUnitScalarCallResultRecord, StructuralReturnRecord,

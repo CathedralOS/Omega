@@ -42,7 +42,7 @@ pub use calls::{
     SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
     SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
     SelectedFormNormalizedForeignCallFixupState, StructuralCallScalarReturnEvidence,
-    StructuralReturnRecord, arguments, callbacks, foreign, internal, results,
+    StructuralReturnRecord, arguments, callbacks, foreign, internal, results, unit_call_arguments,
 };
 pub use control_flow::{
     BooleanStructuralConditionEvidence, BooleanStructuralFieldRead,

@@ -26,8 +26,7 @@ impl PartialEq for FragmentReplay {
 impl Eq for FragmentReplay {}
 
 #[cfg(any(test, feature = "test-support"))]
-impl crate::ObjectArtifact {
-}
+impl crate::ObjectArtifact {}
 
 pub(crate) fn entry_source(
     artifact: &crate::ObjectArtifact,
@@ -85,44 +84,49 @@ pub(crate) fn validate(artifact: &crate::ObjectArtifact) -> Result<(), diagnosti
             "structural parameters without homes require common-pipeline replay evidence",
         ));
     }
-    let missing_borrowed_replay = artifact.fragment_replay.is_none()
-        && artifact.functions().iter().any(|function| {
-            function
-            .unit_parameters
-            .iter()
-            .chain(&function.scalar_structural_parameters)
-            .any(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
-            || function
-                .unit_parameter_homes
-                .iter()
-                .chain(&function.scalar_structural_parameter_homes)
-                .any(|home| {
-                    home.access != terminal_psi::StructuralAccess::Owned
-                        || matches!(home.source.shape.class,
-                            calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
-                        || matches!(
+    let missing_borrowed_replay =
+        artifact.fragment_replay.is_none()
+            && artifact.functions().iter().any(|function| {
+                function
+                    .unit_parameters
+                    .iter()
+                    .chain(&function.scalar_structural_parameters)
+                    .any(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
+                    || function
+                        .unit_parameter_homes
+                        .iter()
+                        .chain(&function.scalar_structural_parameter_homes)
+                        .any(|home| {
+                            home.access != terminal_psi::StructuralAccess::Owned
+                                || matches!(
+                                    home.source.shape.class,
+                                    calling_conventions::ValueClass::BorrowedReference
+                                        | calling_conventions::ValueClass::BorrowedScalarReference
+                                )
+                                || matches!(
                             home.location,
                             machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
                         )
-                })
-            || function
-                .internal_unit_calls
-                .iter()
-                .flat_map(|call| &call.arguments)
-                .any(|argument| {
+                        }) || function.call_arguments().any(|argument| {
                     argument.access != terminal_psi::StructuralAccess::Owned
                         || argument.source.placement().is_none_or(|placement| {
-                            matches!(placement.shape.class,
-                                calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
+                            matches!(
+                                placement.shape.class,
+                                calling_conventions::ValueClass::BorrowedReference
+                                    | calling_conventions::ValueClass::BorrowedScalarReference
+                            )
                         })
-                        || matches!(argument.destination.shape.class,
-                            calling_conventions::ValueClass::BorrowedReference | calling_conventions::ValueClass::BorrowedScalarReference)
+                        || matches!(
+                            argument.destination.shape.class,
+                            calling_conventions::ValueClass::BorrowedReference
+                                | calling_conventions::ValueClass::BorrowedScalarReference
+                        )
                         || matches!(
                             argument.source_location,
                             machine_code::StructuralSourceLocation::IncomingBorrowedPointer { .. }
                         )
                 })
-        });
+            });
     if missing_borrowed_replay {
         return Err(diagnostics::Diagnostic::error(
             "borrowed structural pointers require common-pipeline replay evidence",

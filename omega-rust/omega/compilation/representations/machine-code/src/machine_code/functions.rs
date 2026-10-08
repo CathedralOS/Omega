@@ -12,14 +12,15 @@ pub use exit_contract::{
 
 use crate::{
     BoundarySettlementRecord, ForeignCallRelocation, InstalledProviderUnitScalarCallRecord,
-    InternalCallRelocation, InternalUnitCallRecord, InternalUnitScalarCallRecord, MachineCodePlan,
-    ParameterFunctionAbiRecord, PortEffectRecord, ScalarControlAffineCleanupRecord,
-    ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord, SemanticCodeAttribution,
-    StructuralCallScalarReturnEvidence, StructuralReturnRecord, UnitAffineCleanupRecord,
-    UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord, UnitIntegerConstantRecord,
-    UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord, UnitStackEvidence,
-    UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
+    InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
+    InternalUnitScalarCallRecord, MachineCodePlan, ParameterFunctionAbiRecord, PortEffectRecord,
+    ScalarControlAffineCleanupRecord, ScalarStackEvidence, ScalarStructuralScalarFieldStoreRecord,
+    SemanticCodeAttribution, StructuralCallScalarReturnEvidence, StructuralReturnRecord,
+    UnitAffineCleanupRecord, UnitAffineScalarRecordEstablishmentRecord, UnitContinuationRecord,
+    UnitIntegerConstantRecord, UnitParameterHomeRecord, UnitParameterRecord, UnitScalarHomeRecord,
+    UnitStackEvidence, UnitStructuralScalarFieldStoreRecord, UnitWriteOnlyPrimitiveStoreRecord,
     X86FloatingControlRecord, X86ScalarFmaFragment, X86ScalarFmaOccurrenceRecord,
+    unit_call_arguments,
 };
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use target_operations::TerminalPsiProvenance;
@@ -42,6 +43,12 @@ pub struct CompilerPrivateMachineCodeFunction {
 pub struct MachineCodePlanWithPrivateFunctions {
     pub plan: MachineCodePlan,
     pub private_functions: Vec<CompilerPrivateMachineCodeFunction>,
+}
+impl MachineCodeFunction {
+    /// Every internal Unit call's arguments, in call order.
+    pub fn call_arguments(&self) -> impl Iterator<Item = &InternalUnitCallArgumentRecord> + '_ {
+        unit_call_arguments(&self.internal_unit_calls)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

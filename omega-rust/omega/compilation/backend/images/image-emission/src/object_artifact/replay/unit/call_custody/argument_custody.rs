@@ -8,7 +8,7 @@ use super::{
     expected_projected_copy_bytes,
 };
 use calling_conventions::ValueShape;
-use machine_code::SemanticCodeSite;
+use machine_code::{SemanticCodeSite, unit_call_arguments};
 
 use super::InternalUnitCallCustody;
 use super::call_facts::{CallInputs, CallSpan, ProjectionFacts, StackFacts};
@@ -26,7 +26,6 @@ struct ArgumentSources {
     /// once.
     affine_scalar_record_source: bool,
 }
-
 
 /// Whether the argument's path is malformed for its source: an unprojected
 /// argument reads its whole placement; a projected one is an exact borrowed or
@@ -214,8 +213,7 @@ pub(crate) fn argument_path_is_malformed(
         }
         _ => true,
     }
-    }
-
+}
 
 impl InternalUnitCallCustody<'_> {
     /// Whether the argument at `index` is an exact borrowed projection of the
@@ -418,17 +416,14 @@ impl InternalUnitCallCustody<'_> {
     });
         let local_source = affine_cleanup
             .and_then(|cleanup| {
-                cleanup
-                    .locals
-                    .iter()
-                    .find(|(_, place, structural_type)| {
-                        argument_is_established_local_source(
-                            argument,
-                            place,
-                            structural_type,
-                            source_placement,
-                        )
-                    })
+                cleanup.locals.iter().find(|(_, place, structural_type)| {
+                    argument_is_established_local_source(
+                        argument,
+                        place,
+                        structural_type,
+                        source_placement,
+                    )
+                })
             })
             .is_some_and(|(establishment, _, _)| {
                 provenance
@@ -436,9 +431,7 @@ impl InternalUnitCallCustody<'_> {
                     .iter()
                     .position(|candidate| candidate == establishment)
                     .is_some_and(|position| position < operation_position)
-                    && internal_unit_calls
-                        .iter()
-                        .flat_map(|call| &call.arguments)
+                    && unit_call_arguments(internal_unit_calls)
                         .filter(|candidate| {
                             candidate.place == argument.place && candidate.path.is_empty()
                         })
@@ -471,9 +464,7 @@ impl InternalUnitCallCustody<'_> {
                         .iter()
                         .position(|candidate| candidate == &record.psi_operation)
                         .is_some_and(|position| position < operation_position)
-                    && internal_unit_calls
-                        .iter()
-                        .flat_map(|call| &call.arguments)
+                    && unit_call_arguments(internal_unit_calls)
                         .filter(|candidate| {
                             candidate.place == argument.place
                                 && candidate.path.is_empty()

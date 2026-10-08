@@ -1,7 +1,7 @@
 //! The roots one Unit function's affine cleanup must discard, derived from
 //! its locals, parameter homes, calls and settlements.
 
-use machine_code::BoundaryResultRecord;
+use machine_code::{BoundaryResultRecord, unit_call_arguments};
 use semantic_vocabulary::PlaceId;
 
 use super::CleanupInputs;
@@ -41,9 +41,7 @@ pub(super) fn cleanup_roots(inputs: &CleanupInputs<'_>) -> CleanupRoots {
         .iter()
         .map(|(_, place, _)| place.id)
         .collect::<Vec<_>>();
-    let transferred_roots = internal_unit_calls
-        .iter()
-        .flat_map(|call| &call.arguments)
+    let transferred_roots = unit_call_arguments(internal_unit_calls)
         .filter(|argument| argument.path.is_empty())
         .map(|argument| argument.place)
         .collect::<std::collections::BTreeSet<_>>();

@@ -4,7 +4,7 @@
 
 use super::super::super::structural::partial_cleanup_partition::exact_partial_cleanup_partition;
 use crate::installation_record::record_shape::stack_facts::is_partial_cleanup_path;
-use machine_code::UnitAffineCleanupRecord;
+use machine_code::{UnitAffineCleanupRecord, unit_call_arguments};
 
 use super::CleanupInputs;
 use super::cleanup_roots::CleanupRoots;
@@ -57,9 +57,7 @@ pub(super) fn residual_discards_are_malformed(
             .find(|parameter| parameter.place == place)
             .map(|parameter| parameter.structural_type)
     });
-    let moved = internal_unit_calls
-        .iter()
-        .flat_map(|call| &call.arguments)
+    let moved = unit_call_arguments(internal_unit_calls)
         .filter(|argument| {
             Some(argument.place) == residual_root
                 && Some(argument.root_structural_type) == parameter_type

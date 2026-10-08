@@ -96,8 +96,8 @@ pub use machine_code::{
     layout, ownership, parameters, ports, provenance, publication,
     relocation_free_text_section_identity, resolved_machine_layout_identity, results, scalars,
     settlements, stack, storage, stores, target_frame_layout_identity,
-    target_frame_protocol_encoding_identity, whole_function_exit_contract_identity, x86_fma,
-    x86_scalar_fma_fragment_identity,
+    target_frame_protocol_encoding_identity, unit_call_arguments,
+    whole_function_exit_contract_identity, x86_fma, x86_scalar_fma_fragment_identity,
 };
 pub use machine_code::{
     FunctionFragmentImplementationTableAddressFixup, ImplementationTableReference,

@@ -2,9 +2,8 @@
 //! per-argument sources and spans, projected arguments and claim transfers.
 
 use super::InternalUnitCall;
-use crate::installation_record::{
-    InstallationError, SemanticCodeSite, ValueShape,
-};
+use crate::installation_record::{InstallationError, SemanticCodeSite, ValueShape};
+use machine_code::unit_call_arguments;
 
 impl InternalUnitCall<'_> {
     /// A projected argument under Unit continuations needs a callee whose
@@ -192,9 +191,7 @@ impl InternalUnitCall<'_> {
                                 })
                         })
                         .is_some_and(|_| {
-                            function_unit_calls
-                                .iter()
-                                .flat_map(|call| &call.arguments)
+                            unit_call_arguments(function_unit_calls)
                                 .filter(|candidate| {
                                     candidate.place == argument.place && candidate.path.is_empty()
                                 })

@@ -30,7 +30,6 @@ impl TargetFrameProtocolEncodingIdentity {
 
 use sha2::{Digest, Sha256};
 
-
 use crate::{ReturnAddressFrameCustody, TargetFrameLayoutPlan, TargetFrameLayoutPolicy};
 
 pub fn target_frame_layout_identity(plan: &TargetFrameLayoutPlan) -> TargetFrameLayoutIdentity {
@@ -122,7 +121,6 @@ fn encode_return_address(hasher: &mut Sha256, custody: ReturnAddressFrameCustody
         }
     }
 }
-
 
 fn encode_len(hasher: &mut Sha256, value: usize) {
     hasher.update((value as u64).to_le_bytes());

@@ -44,6 +44,12 @@ pub struct InternalCallRelocation {
     /// on AArch64 it points at the `BL` instruction word.
     pub offset: usize,
 }
+/// Every call's arguments, in call order.
+pub fn unit_call_arguments(
+    calls: &[InternalUnitCallRecord],
+) -> impl Iterator<Item = &InternalUnitCallArgumentRecord> + '_ {
+    calls.iter().flat_map(|call| &call.arguments)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InternalUnitCallRecord {
