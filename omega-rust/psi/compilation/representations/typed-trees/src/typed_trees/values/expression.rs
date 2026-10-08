@@ -303,12 +303,6 @@ impl ExpressionTable {
         self.static_machine_applications.get_mut(application)
     }
 
-    pub fn static_machine_applications(
-        &self,
-    ) -> impl Iterator<Item = (StaticMachineApplicationHandle, &StaticMachineApplication)> {
-        self.static_machine_applications.iter()
-    }
-
     pub fn static_machine_application_bindings(
         &self,
         application: StaticMachineApplicationHandle,

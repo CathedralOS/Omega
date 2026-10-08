@@ -2795,8 +2795,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   and concrete effect ceilings once against the cleanup-complete graph.
   Generic contract entailment and conformance application admission belong to
   immutable checking; private compile-time graphs admit once before execution.
-  Remaining: inferred type/const/evidence bound judgments and authored-template
-  effect/commitment inference inside specialization. The loop also repeats
+  Derived type/const/evidence operands retain their exact binder and declaration
+  identities; immutable checking admits bounds from live applications and instances,
+  without ordinary/operator/dynamic/saved-call gates in derivation.
+  Remaining: authored-template effect/commitment inference inside specialization.
+  The loop also repeats
   `bind_selected_operator_calls` (3 + N runs),
   `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
   (2) and `land_float_literal_destinations` (2–3). The loop must specialize
@@ -2991,9 +2994,10 @@ of a check the same flow already performed, not the check itself.
   data/machine copies substitute copied named type nodes, including those
   nested in static operands. Immutable checking admits authored argument/callable
   formation and completed effects, without preparation-granted contract
-  exemptions or repeated selection tables. Exact inferred type/const binding
-  handles still need typed custody before the remaining tuple-bound judgments
-  leave specialization. Keep authored template dependencies separate from instance
+  exemptions or repeated selection tables. Exact inferred operands now remain in
+  typed application arenas; bound judgments use their actual declaration, distinct
+  from an authored trait requirement, and only live roots own private-graph work.
+  Keep authored template dependencies separate from instance
   effects when completing commitments. Runtime selected-provider choices are
   not a preparation input; source checks every candidate before Omega selection.
 
