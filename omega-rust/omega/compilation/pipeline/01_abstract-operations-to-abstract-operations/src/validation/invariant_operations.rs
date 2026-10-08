@@ -19,6 +19,23 @@ use optimization_unit::{
 use semantic_vocabulary::{PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
+/// The source-owned node shape every invariant operation variant spells: the
+/// node's own operation is its first provenance row and it carries no
+/// successors or ownership events.
+fn operation_shape_spine(
+    node: &OptimizationNode,
+    psi_operation: semantic_vocabulary::OperationId,
+) -> bool {
+    node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+        && node.successors.is_empty()
+        && node.ownership.is_empty()
+}
+
+/// The two-operand use shape the dynamic index/length byte reads spell.
+fn uses_index_length(node: &OptimizationNode, index: ValueId, length: ValueId) -> bool {
+    node.uses.len() == 2 && node.uses[0].value == index && node.uses[1].value == length
+}
+
 /// Scalar-constant leaf nodes are one operation class admitted for
 /// loop-invariant motion out of a cyclic component. They read no values,
 /// carry no control flow or ownership events, and keep their own operation
@@ -31,10 +48,8 @@ pub(crate) fn admissible_scalar_leaf_relocation(node: &OptimizationNode) -> bool
         | O::BooleanConstant { psi_operation, .. } => *psi_operation,
         _ => return false,
     };
-    node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+    operation_shape_spine(node, psi_operation)
         && node.uses.is_empty()
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
 }
 
 /// Side-effect-free total scalar computations are the second operation class
@@ -73,11 +88,9 @@ pub(crate) fn admissible_invariant_scalar_computation(node: &OptimizationNode) -
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. } => *psi_operation,
         _ => return false,
     };
-    node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+    operation_shape_spine(node, psi_operation)
         && !node.uses.is_empty()
         && node.definitions.len() == 1
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
 }
 
 /// Place-observation leaf nodes are the first non-scalar family admitted for
@@ -120,11 +133,9 @@ pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option
         } => (*psi_operation, *source),
         _ => return None,
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
+    (operation_shape_spine(node, psi_operation)
         && node.definitions.len() == 1
-        && node.uses.is_empty()
-        && node.successors.is_empty()
-        && node.ownership.is_empty())
+        && node.uses.is_empty())
     .then_some(source)
 }
 
@@ -152,13 +163,9 @@ pub(crate) fn admissible_invariant_byte_read(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.len() == 1
-        && node.uses.len() == 2
-        && node.uses[0].value == *index
-        && node.uses[1].value == *length
-        && node.successors.is_empty()
-        && node.ownership.is_empty())
+        && uses_index_length(node, *index, *length))
     .then_some((*source, *index, *length))
 }
 
@@ -193,13 +200,9 @@ pub(crate) fn admissible_invariant_field_byte_read(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.len() == 1
-        && node.uses.len() == 2
-        && node.uses[0].value == *index
-        && node.uses[1].value == *length
-        && node.successors.is_empty()
-        && node.ownership.is_empty())
+        && uses_index_length(node, *index, *length))
     .then_some((*source, *index, *length))
 }
 
@@ -232,14 +235,12 @@ pub(crate) fn admissible_invariant_subslice(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
         && node.uses.len() == 3
         && node.uses[0].value == *start
         && node.uses[1].value == *end
         && node.uses[2].value == *length
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
@@ -266,11 +267,9 @@ pub(crate) fn admissible_invariant_byte_literal(node: &OptimizationNode) -> bool
     let O::EstablishByteSequenceLiteral { psi_operation, .. } = &node.operation else {
         return false;
     };
-    node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
         && node.uses.is_empty()
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
 }
 
 /// An `EstablishPrimitiveLocal` is the second structural establishment
@@ -304,12 +303,10 @@ pub(crate) fn admissible_invariant_primitive_local(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
         && node.uses.len() == 1
         && node.uses[0].value == value.value
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
         && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
@@ -392,7 +389,7 @@ pub(crate) fn admissible_invariant_record(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
         && node.uses.len()
             == fields
@@ -415,8 +412,6 @@ pub(crate) fn admissible_invariant_record(
                 argument.access == terminal_psi::StructuralAccess::Owned && argument.path.is_empty()
             }
         })
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
         && (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             || (result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && fields.iter().all(|field| {
@@ -552,7 +547,7 @@ pub(crate) fn admissible_invariant_scalar_array(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
         && node.uses.len() == elements.len()
         && node
@@ -560,8 +555,6 @@ pub(crate) fn admissible_invariant_scalar_array(
             .iter()
             .zip(elements.iter())
             .all(|(value_use, element)| value_use.value == *element)
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
         && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
@@ -629,7 +622,7 @@ pub(crate) fn admissible_invariant_scalar_case(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
         && node.uses.len() == fields.len()
         && node
@@ -637,8 +630,6 @@ pub(crate) fn admissible_invariant_scalar_case(
             .iter()
             .zip(fields.iter())
             .all(|(value_use, field)| matches!(field.value, terminal_psi::RecordFieldValue::Scalar { value, .. } if value_use.value == value))
-        && node.successors.is_empty()
-        && node.ownership.is_empty()
         && matches!(
             result.multiplicity,
             terminal_psi::StructuralMultiplicity::Unrestricted
@@ -708,11 +699,9 @@ pub(crate) fn admissible_invariant_trivial_affine_local(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    (operation_shape_spine(node, *psi_operation)
         && node.definitions.is_empty()
-        && node.uses.is_empty()
-        && node.successors.is_empty()
-        && node.ownership.is_empty())
+        && node.uses.is_empty())
     .then_some(*place)
 }
 
