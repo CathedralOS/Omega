@@ -55,7 +55,7 @@ pub(super) fn operation(
     let graph = &target.graph;
     match source {
         AbstractOperation::StructuralCaseMembership { psi_operation, result, source, path, case } => {
-            let mut observations = graph.blocks.iter().flat_map(|block| &block.operations).filter_map(|row| match row {
+            let mut observations = graph.operations().filter_map(|row| match row {
                 TargetUnitOperation::StructuralCaseMembership { psi_operation: retained, result: retained_result, source: retained_source, path: retained_path, case: retained_case, tag_byte_offset, .. }
                     if retained == psi_operation && retained_result == result && retained_source == source && retained_path == path && retained_case == case => Some(*tag_byte_offset),
                 _ => None,
@@ -73,12 +73,12 @@ pub(super) fn operation(
                 ).count() == 1
         }
         AbstractOperation::EstablishRecord { psi_operation, result, fields } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }
                 if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
         }
         AbstractOperation::StructuralLeafCopy { psi_operation, result, source, path } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, .. }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                         && retained_source == source && retained_path == path
@@ -92,7 +92,7 @@ pub(super) fn operation(
         // the loan's whole referent. Source replay binds the leaf to the
         // declared field and its offset.
         AbstractOperation::MoveStructuralField { psi_operation, result, source, path, field } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| match row {
+            graph.operations().filter(|row| match row {
                 TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: abstract_operations::StructuralCopyPath::Ordinary(retained_path), indices, .. }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                         && *retained_source == source.place() => {
@@ -116,7 +116,7 @@ pub(super) fn operation(
         // The window's reseat retains its exact destination, spelled field and
         // the consumed value's producer home, and writes that root.
         AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| match row {
+            graph.operations().filter(|row| match row {
                 TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value: retained_value, indices, .. }
                     if retained == psi_operation && retained_destination == destination && retained_path == path
                         && retained_field == field && *retained_value == value.place => {
@@ -128,19 +128,19 @@ pub(super) fn operation(
         }
         // An empty-record local is establishment metadata with no storage.
         AbstractOperation::EstablishTrivialAffineLocal { psi_operation, place, structural_type } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation: retained, place: retained_place, structural_type: retained_type }
                     if retained == psi_operation && retained_place == place && retained_type == structural_type
             )).count() == 1
         }
         AbstractOperation::EstablishZeroedStructural { psi_operation, result } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishZeroedStructural { psi_operation: retained, result_home }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
             )).count() == 1
         }
         AbstractOperation::EstablishStructuralLocal { psi_operation, result } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishStructuralLocal { psi_operation: retained, result_home }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
             )).count() == 1
@@ -154,14 +154,14 @@ pub(super) fn operation(
                     && matches!(declaration.shape,
                         terminal_psi::StructuralTypeShape::FixedArray { length, .. }
                             if u64::try_from(elements.len()).ok() == Some(length)))
-                && graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                && graph.operations().filter(|row| matches!(row,
                     TargetUnitOperation::EstablishStructuralArray { psi_operation: retained, result_home, elements: retained_elements }
                         if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                             && retained_elements == elements
                 )).count() == 1
         }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_elements == elements
             )).count() == 1
@@ -169,7 +169,7 @@ pub(super) fn operation(
         // The selected tag and every scalar or structural field operand retain
         // their source identities; storage replay owns the concrete writes.
         AbstractOperation::EstablishCase { psi_operation, result, result_case, fields } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishCase { psi_operation: retained, result_home, result_case: retained_case, fields: retained_fields }
                     if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_case == result_case && retained_fields == fields
             )).count() == 1
@@ -179,13 +179,13 @@ pub(super) fn operation(
         // The exact result and source retain custody identity; mandatory
         // source/selection replay validates the address and loan independently.
         AbstractOperation::EstablishReference { psi_operation, result, source, storage } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::EstablishReference { psi_operation: retained, result_home, source: retained_source, storage: retained_storage }
                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result)) && retained_source == source && retained_storage == storage
             )).count() == 1
         }
         AbstractOperation::ReleaseReference { psi_operation, source, path } => {
-            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+            graph.operations().filter(|row| matches!(row,
                 TargetUnitOperation::ReleaseReference { psi_operation: retained, source: retained_source, path: retained_path }
                 if retained == psi_operation && retained_source == source && retained_path == path
             )).count() == 1

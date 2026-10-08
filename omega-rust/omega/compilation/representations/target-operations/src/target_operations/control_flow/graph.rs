@@ -17,6 +17,13 @@ pub struct TargetControlGraph {
     pub blocks: Vec<TargetControlBlock>,
 }
 
+impl TargetControlGraph {
+    /// Every block's nonterminal operations, in block order.
+    pub fn operations(&self) -> impl Iterator<Item = &TargetUnitOperation> + '_ {
+        self.blocks.iter().flat_map(|block| &block.operations)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetControlBlock {
     pub block: BlockId,

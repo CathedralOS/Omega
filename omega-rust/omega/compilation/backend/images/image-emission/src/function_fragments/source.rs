@@ -381,7 +381,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         .flat_map(|block| &block.operations))
                 }
                 AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
-                    byte_concatenation_retained(operation, targeted.graph.blocks.iter().flat_map(|block| &block.operations))
+                    byte_concatenation_retained(operation, targeted.graph.operations())
                 }
                 AbstractOperation::EstablishByteSequenceLiteral {
                     psi_operation, place, structural_type, bytes, qualifications,
@@ -389,7 +389,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     // The mandatory object/source replay above checks storage and
                     // byte initialization. Account for the exact retained literal,
                     // not just a place declaration or a matching payload length.
-                    targeted.graph.blocks.iter().flat_map(|block| &block.operations).filter(|operation| matches!(operation,
+                    targeted.graph.operations().filter(|operation| matches!(operation,
                             target_operations::TargetUnitOperation::EstablishByteSequenceLiteral {
                                 psi_operation: actual_operation, place: actual_place,
                                 structural_type: actual_type, bytes: actual_bytes,

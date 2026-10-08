@@ -731,7 +731,7 @@ pub(super) fn replacement_retained(
         {
             return false;
         }
-        let mut matching = target.graph.blocks.iter().flat_map(|block| &block.operations).filter(|operation| matches!(operation,
+        let mut matching = target.graph.operations().filter(|operation| matches!(operation,
             TargetUnitOperation::ByteSequenceStore { psi_operation: retained, .. } if retained == psi_operation));
         return matches!(matching.next(), Some(TargetUnitOperation::ByteSequenceStore { destination: actual_destination, source: actual_source, length: actual_length, obligation: actual_obligation, .. })
             if actual_destination == destination && actual_source == source && actual_length.source_value() == *length && actual_obligation == obligation)
