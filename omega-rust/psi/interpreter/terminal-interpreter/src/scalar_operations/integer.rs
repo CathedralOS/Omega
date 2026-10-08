@@ -28,11 +28,10 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_integer_constant")
         };
         let scalar_type = integer_scalar_type(operation)?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_integer_equal(
@@ -62,11 +61,7 @@ impl TerminalExecution<'_> {
         let ordering = left_type
             .compare_with(left, right_type, right)
             .ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(ordering.is_eq()),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(ordering.is_eq()))
     }
 
     pub(crate) fn execute_integer_less_than(
@@ -103,11 +98,7 @@ impl TerminalExecution<'_> {
             OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
             _ => unreachable!(),
         };
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(result),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(result))
     }
 
     pub(crate) fn execute_integer_bitwise_not(
@@ -129,11 +120,10 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let value = scalar_type.bitwise_not(operand).ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_integer_widen(
@@ -154,14 +144,13 @@ impl TerminalExecution<'_> {
         let value = source_type
             .widen_value_to(target_type, value)
             .ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer {
                 scalar_type: target_type,
                 value,
             },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_integer_exact_cast(
@@ -182,14 +171,13 @@ impl TerminalExecution<'_> {
         let value = source_type
             .exact_cast_value_to(target_type, value)
             .ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer {
                 scalar_type: target_type,
                 value,
             },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_integer_bitwise_and(
@@ -233,11 +221,10 @@ impl TerminalExecution<'_> {
             _ => unreachable!(),
         }
         .ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_wrapping_integer_shift_left(
@@ -285,14 +272,13 @@ impl TerminalExecution<'_> {
             _ => unreachable!(),
         }
         .ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer {
                 scalar_type: value_type,
                 value,
             },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_exact_integer_add(
@@ -361,11 +347,10 @@ impl TerminalExecution<'_> {
             _ => unreachable!(),
         }
         .ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_saturating_integer_add(
@@ -395,11 +380,10 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let value = scalar_type.saturating_add(left, right).ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_saturating_integer_subtract(
@@ -429,11 +413,10 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let value = scalar_type.saturating_sub(left, right).ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     pub(crate) fn execute_saturating_integer_multiply(
@@ -463,10 +446,20 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let value = scalar_type.saturating_mul(left, right).ok_or(malformed())?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer { scalar_type, value },
-        );
+        )
+    }
+
+    /// Store a scalar result and advance: every scalar execution epilogue.
+    pub(crate) fn store_scalar(
+        &mut self,
+        operation: &terminal_psi::Operation,
+        value: TerminalScalarValue,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        self.values
+            .insert(operation.result.expect_scalar().id, value);
         Ok(OperationFlow::Advance)
     }
 }

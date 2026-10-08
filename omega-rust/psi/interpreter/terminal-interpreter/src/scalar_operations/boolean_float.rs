@@ -20,11 +20,7 @@ impl TerminalExecution<'_> {
         if operation.result.expect_scalar().scalar_type != ScalarType::IeeeFloat(value.format()) {
             return Err(malformed());
         }
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::IeeeFloat(value),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::IeeeFloat(value))
     }
 
     pub(crate) fn execute_ieee_float_compare(
@@ -51,11 +47,10 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Boolean(ieee_float_compare(comparison, left, right)),
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 
     /// Re-view the operand's stored bits at the result carrier through the
@@ -131,11 +126,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let result = nearest_ieee_float_fused_multiply_add(format, left, right, addend);
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::IeeeFloat(result),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::IeeeFloat(result))
     }
 
     pub(crate) fn execute_boolean_constant(
@@ -148,11 +139,7 @@ impl TerminalExecution<'_> {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(malformed());
         }
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(value),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(value))
     }
 
     pub(crate) fn execute_boolean_not(
@@ -168,11 +155,7 @@ impl TerminalExecution<'_> {
         let TerminalScalarValue::Boolean(value) = self.scalar_value(operand)? else {
             return Err(malformed());
         };
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(!value),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(!value))
     }
 
     pub(crate) fn execute_boolean_equal(
@@ -191,10 +174,6 @@ impl TerminalExecution<'_> {
         let TerminalScalarValue::Boolean(right) = self.scalar_value(right)? else {
             return Err(malformed());
         };
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(left == right),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(left == right))
     }
 }

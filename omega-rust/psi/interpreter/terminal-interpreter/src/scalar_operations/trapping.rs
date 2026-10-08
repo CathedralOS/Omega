@@ -104,13 +104,12 @@ impl TerminalExecution<'_> {
                 crash,
             )));
         };
-        self.values.insert(
-            operation.result.expect_scalar().id,
+        self.store_scalar(
+            operation,
             TerminalScalarValue::Integer {
                 scalar_type: result_type,
                 value,
             },
-        );
-        Ok(OperationFlow::Advance)
+        )
     }
 }

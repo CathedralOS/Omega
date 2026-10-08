@@ -1485,11 +1485,7 @@ impl TerminalExecution<'_> {
             unreachable!("dispatched execute_structural_case_membership")
         };
         let active_case = self.observe_structural_case(source, path)?;
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(active_case == case),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(active_case == case))
     }
 
     /// The runtime cell one observed scalar field names: a field of the
@@ -1553,11 +1549,7 @@ impl TerminalExecution<'_> {
         let TerminalScalarValue::Boolean(value) = value else {
             return Err(malformed());
         };
-        self.values.insert(
-            operation.result.expect_scalar().id,
-            TerminalScalarValue::Boolean(value),
-        );
-        Ok(OperationFlow::Advance)
+        self.store_scalar(operation, TerminalScalarValue::Boolean(value))
     }
 
     pub(crate) fn execute_integer_structural_field(
