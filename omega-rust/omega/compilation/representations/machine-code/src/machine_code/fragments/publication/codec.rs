@@ -1,3 +1,4 @@
+use crate::cursor::Cursor;
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
@@ -196,41 +197,3 @@ fn decode_target(
     })
 }
 
-struct Cursor<'a> {
-    bytes: &'a [u8],
-    position: usize,
-}
-
-impl<'a> Cursor<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, position: 0 }
-    }
-    fn take(
-        &mut self,
-        count: usize,
-    ) -> Result<&'a [u8], FunctionFragmentEmissionManifestDecodeError> {
-        let end = self
-            .position
-            .checked_add(count)
-            .ok_or(FunctionFragmentEmissionManifestDecodeError::Truncated)?;
-        let result = self
-            .bytes
-            .get(self.position..end)
-            .ok_or(FunctionFragmentEmissionManifestDecodeError::Truncated)?;
-        self.position = end;
-        Ok(result)
-    }
-    fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], FunctionFragmentEmissionManifestDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| FunctionFragmentEmissionManifestDecodeError::Truncated)
-    }
-    fn byte(&mut self) -> Result<u8, FunctionFragmentEmissionManifestDecodeError> {
-        Ok(self.take(1)?[0])
-    }
-    const fn remaining(&self) -> usize {
-        self.bytes.len() - self.position
-    }
-}

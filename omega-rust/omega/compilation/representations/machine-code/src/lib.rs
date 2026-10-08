@@ -6,6 +6,7 @@
 //! functions, calls, storage, control flow, ownership, and boundary evidence.
 //! Data construction alone does not grant execution or publication authority.
 
+pub(crate) mod cursor;
 pub mod machine_code;
 pub use machine_code::{
     Aarch64ForeignCallFloatingControlRecord, Aarch64ReturnLinkEvidence,

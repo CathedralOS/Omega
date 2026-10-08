@@ -14,6 +14,12 @@ pub enum FunctionFragmentEmissionManifestDecodeError {
     TrailingBytes,
 }
 
+impl From<crate::cursor::Truncated> for FunctionFragmentEmissionManifestDecodeError {
+    fn from(_: crate::cursor::Truncated) -> Self {
+        Self::Truncated
+    }
+}
+
 impl std::fmt::Display for FunctionFragmentEmissionManifestDecodeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

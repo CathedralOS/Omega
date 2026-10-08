@@ -1,3 +1,4 @@
+use crate::cursor::Cursor;
 use super::super::{TextSectionPlacementPolicy, TextSectionRelocationRequirements};
 use optimization_core::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
@@ -262,45 +263,3 @@ fn decode_target(
     })
 }
 
-struct Cursor<'a> {
-    bytes: &'a [u8],
-    position: usize,
-}
-
-impl<'a> Cursor<'a> {
-    const fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, position: 0 }
-    }
-
-    fn take(
-        &mut self,
-        count: usize,
-    ) -> Result<&'a [u8], FunctionFragmentTextSectionManifestDecodeError> {
-        let end = self
-            .position
-            .checked_add(count)
-            .ok_or(FunctionFragmentTextSectionManifestDecodeError::Truncated)?;
-        let result = self
-            .bytes
-            .get(self.position..end)
-            .ok_or(FunctionFragmentTextSectionManifestDecodeError::Truncated)?;
-        self.position = end;
-        Ok(result)
-    }
-
-    fn array<const N: usize>(
-        &mut self,
-    ) -> Result<[u8; N], FunctionFragmentTextSectionManifestDecodeError> {
-        self.take(N)?
-            .try_into()
-            .map_err(|_| FunctionFragmentTextSectionManifestDecodeError::Truncated)
-    }
-
-    fn byte(&mut self) -> Result<u8, FunctionFragmentTextSectionManifestDecodeError> {
-        Ok(self.take(1)?[0])
-    }
-
-    const fn remaining(&self) -> usize {
-        self.bytes.len() - self.position
-    }
-}
